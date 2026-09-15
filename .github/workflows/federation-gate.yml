@@ -1,6 +1,7 @@
 name: Federation Gate
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
@@ -14,6 +15,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: federation-gate-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   deno:
     name: Deno federation compile
@@ -23,6 +28,8 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: v2.x
+      - name: Verify checked-out revision
+        run: git rev-parse HEAD
       - name: Typecheck federation entrypoints
         run: |
           deno check --node-modules-dir=none supabase/functions/mastodon-federation/index.ts
