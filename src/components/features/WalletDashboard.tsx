@@ -13,6 +13,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { formatNumber } from '@/lib/utils';
 import { FunctionsHttpError } from '@supabase/supabase-js';
+import { PayPalTopUp } from '@/components/features/PayPalTopUp';
 
 const sonnerToast = toast;
 const USD_TO_KES = 130;
@@ -399,6 +400,8 @@ export function WalletDashboard() {
       )}
 
       {/* ── Withdraw Form ── */}
+      <PayPalTopUp />
+
       {showWithdraw && (
         <div className="bg-card border-2 border-orange-500/20 rounded-2xl p-6 space-y-4">
           <div className="flex items-center gap-2 mb-2">
