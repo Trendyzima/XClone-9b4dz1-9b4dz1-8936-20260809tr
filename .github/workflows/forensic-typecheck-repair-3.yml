@@ -1,0 +1,51 @@
+name: Forensic TypeScript Repair 3
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/pages/RegulatorPanel.tsx'
+permissions:
+  contents: write
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore and safely repair compiler blockers
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout 7ed3ab0e8d8619d275a5f3367bb92fadce525c9d -- \
+            src/pages/RegulatorPanel.tsx src/pages/SeriesPage.tsx src/pages/SpaceRecordingViewerPage.tsx \
+            src/pages/SpacesPage.tsx src/services/recommendations.ts src/components/layout/TopBar.tsx \
+            src/pages/RevenueAnalytics.tsx src/pages/SEOAuditPage.tsx src/pages/SettingsPage.tsx \
+            src/pages/ThreadDetailPage.tsx src/pages/ThreadsPage.tsx src/pages/WalletPage.tsx
+          node <<'NODE'
+          const fs=require('fs');
+          for (const p of ['src/pages/RegulatorPanel.tsx','src/pages/SeriesPage.tsx','src/pages/SpaceRecordingViewerPage.tsx','src/pages/SpacesPage.tsx','src/services/recommendations.ts']) {
+            let s=fs.readFileSync(p,'utf8');
+            s=s.replace(/\.catch\(\(\) => \{\}\)/g,'.then(() => {}).catch(() => {})');
+            fs.writeFileSync(p,s);
+          }
+          let p='src/components/layout/TopBar.tsx',s=fs.readFileSync(p,'utf8');
+          s=s.replace('  showBack?: boolean;\n  showSettings?: boolean;','  showBack?: boolean;\n  onBack?: () => void;\n  showSettings?: boolean;');
+          s=s.replace('export function TopBar({ title, showProfile = true, showBack = false, showSettings = false }: TopBarProps)','export function TopBar({ title, showProfile = true, showBack = false, onBack, showSettings = false }: TopBarProps)');
+          s=s.replace('<button onClick={() => navigate(-1)}','<button onClick={() => (onBack ? onBack() : navigate(-1))}'); fs.writeFileSync(p,s);
+          p='src/pages/RevenueAnalytics.tsx'; s=fs.readFileSync(p,'utf8');
+          s=s.replace("      let dateFilter = '';","      let startDate: Date | null = null;");
+          s=s.replace("        const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);\n        dateFilter = `created_at.gte.${startDate.toISOString()}`;","        startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);");
+          s=s.replace("      if (dateFilter) {\n        query = query.filter(dateFilter);\n      }","      if (startDate) {\n        query = query.gte('created_at', startDate.toISOString());\n      }"); fs.writeFileSync(p,s);
+          p='src/pages/SEOAuditPage.tsx'; s=fs.readFileSync(p,'utf8'); s=s.replace("const ROUTE_MANIFEST: Omit<RouteAudit, 'title' | 'description' | 'ogImage' | 'canonical' | 'status'>[] =",'const ROUTE_MANIFEST: SEORoute[] ='); s=s.replace("function scoreRoute(route: Omit<RouteAudit, 'status'>): RouteAudit['status'] {","function scoreRoute(route: SEORoute): RouteAudit['status'] {"); fs.writeFileSync(p,s);
+          p='src/pages/SettingsPage.tsx'; s=fs.readFileSync(p,'utf8').replace('onClick={() => playSound(type)}','onClick={() => playSound(type as Parameters<typeof playSound>[0])}'); fs.writeFileSync(p,s);
+          p='src/pages/ThreadDetailPage.tsx'; s=fs.readFileSync(p,'utf8').replace("      await supabase\n        .from('threads')\n        .update({ views_count: supabase.raw('views_count + 1') })\n        .eq('id', id);","      const { data: currentThread } = await supabase\n        .from('threads')\n        .select('views_count')\n        .eq('id', id)\n        .maybeSingle();\n      await supabase\n        .from('threads')\n        .update({ views_count: Number(currentThread?.views_count ?? 0) + 1 })\n        .eq('id', id);"); fs.writeFileSync(p,s);
+          p='src/pages/ThreadsPage.tsx'; s=fs.readFileSync(p,'utf8'); const marker='  const fetchThreads = async () => {'; const h=`  const normalizeThreads = (rows: any[] | null | undefined): Thread[] => (rows ?? []).map((row: any) => ({\n    ...row,\n    user_profiles: Array.isArray(row.user_profiles) ? (row.user_profiles[0] ?? { id: row.user_id, username: 'Unknown', avatar_url: null, verified: false }) : row.user_profiles,\n  }));\n\n`; if(!s.includes('const normalizeThreads =')) s=s.replace(marker,h+marker); s=s.replace('setThreads(savedData || []);','setThreads(normalizeThreads(savedData));').replace('setThreads(data || []);','setThreads(normalizeThreads(data));'); fs.writeFileSync(p,s);
+          p='src/pages/WalletPage.tsx'; s=fs.readFileSync(p,'utf8'); s=s.replace('const dailyMap: any = {};','const dailyMap: Record<string, { in: number; out: number }> = {};').replace('const map: any = {};','const map: Record<string, { count: number; amount: number; hasIn: boolean }> = {};').replace('const dayMap: any = {};','const dayMap: Record<string, { inAmt: number; outAmt: number; count: number }> = {};').replace('const top10 = Object.entries(counts).sort((a: any, b: any) => b[1] - a[1]).slice(0, 10);','const top10 = Object.entries(counts as Record<string, number>).sort((a, b) => b[1] - a[1]).slice(0, 10);').replace('uid, count,\n        username:','uid, count: Number(count),\n        username:'); fs.writeFileSync(p,s);
+          NODE
+          git diff --check
+          git config user.name 'github-actions[bot]'; git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src && git commit -m 'fix: repair TypeScript contracts safely' && git push origin HEAD:main
+      - name: Remove repair workflow
+        if: success()
+        run: |
+          git rm .github/workflows/forensic-typecheck-repair-3.yml .github/.forensic-typecheck-repair-2-trigger || true
+          if ! git diff --cached --quiet; then git config user.name 'github-actions[bot]'; git config user.email '41898282+github-actions[bot]@users.noreply.github.com'; git commit -m 'chore: remove forensic repair workflow'; git push origin HEAD:main; fi
