@@ -4,6 +4,7 @@ on:
     branches: [main]
     paths:
       - 'src/pages/RegulatorPanel.tsx'
+      - '.github/workflows/forensic-typecheck-repair-3.yml'
 permissions:
   contents: write
 jobs:
