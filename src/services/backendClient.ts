@@ -68,14 +68,17 @@ export async function invokeBackendFunction<TResponse = unknown, TBody extends R
  * Canonical capability-plane client. Keeping construction here prevents pages
  * from inventing different auth/token behavior for the same backend contract.
  */
-export function createBackendCapabilityClient(endpoint: string, client: SupabaseClient = supabase): TestagramCapabilityClient {
+export function createBackendCapabilityClient(client: SupabaseClient = supabase): TestagramCapabilityClient {
+  const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/capability-gateway`;
   return new TestagramCapabilityClient({
     endpoint,
     getAccessToken: () => requireAccessToken(client),
     clientName: 'testagram-web',
-    clientVersion: '3',
+    clientVersion: '4',
   });
 }
+
+export const backendCapabilities = createBackendCapabilityClient();
 
 export type MpesaStkPushRequest = {
   amount_kes: number;
