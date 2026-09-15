@@ -1,0 +1,60 @@
+/**
+ * Canonical capability catalog consumed by native clients, UI adapters and tests.
+ * This mirrors supabase/functions/_shared/capabilities.ts; it deliberately does
+ * not introduce dynamic routing. It also prevents the federation/wallet naming
+ * drift that previously existed in client documentation.
+ */
+export const TESTAGRAM_CAPABILITY_NAMES = [
+  "testagram.capabilities.list",
+  "testagram.health.read",
+  "testagram.posts.list",
+  "testagram.posts.create",
+  "testagram.search.posts",
+  "testagram.search.users",
+  "testagram.recommendations.generate",
+  "testagram.notifications.rank",
+  "testagram.lists.list",
+  "testagram.lists.create",
+  "testagram.lists.member.add",
+  "testagram.lists.member.remove",
+  "testagram.lists.timeline",
+  "testagram.bookmarks.list",
+  "testagram.bookmarks.add",
+  "testagram.bookmarks.remove",
+  "testagram.bookmarks.folders.list",
+  "testagram.bookmarks.folders.create",
+  "testagram.trends.list",
+  "testagram.follows.set",
+  "testagram.follows.state",
+  "testagram.posts.like",
+  "testagram.posts.repost",
+  "testagram.media.list",
+  "testagram.media.attach",
+  "testagram.communities.list",
+  "testagram.communities.create",
+  "testagram.communities.join",
+  "testagram.communities.leave",
+  "testagram.federation.status",
+  "testagram.wallet.read",
+] as const;
+
+export type TestagramCapabilityName = (typeof TESTAGRAM_CAPABILITY_NAMES)[number];
+
+export function isTestagramCapabilityName(value: string): value is TestagramCapabilityName {
+  return (TESTAGRAM_CAPABILITY_NAMES as readonly string[]).includes(value);
+}
+
+/**
+ * OpenGSC/RankMySEO-inspired operational grouping: local reads, social writes,
+ * discovery, and account-bound services. These are labels for UI/telemetry only;
+ * authorization remains in the gateway and database.
+ */
+export const TESTAGRAM_CAPABILITY_GROUPS = {
+  discovery: ["testagram.search.posts", "testagram.search.users", "testagram.trends.list", "testagram.recommendations.generate"],
+  social: ["testagram.follows.set", "testagram.follows.state", "testagram.posts.like", "testagram.posts.repost", "testagram.posts.create"],
+  workspace: ["testagram.lists.list", "testagram.lists.create", "testagram.lists.member.add", "testagram.lists.member.remove", "testagram.lists.timeline", "testagram.bookmarks.list", "testagram.bookmarks.add", "testagram.bookmarks.remove", "testagram.bookmarks.folders.list", "testagram.bookmarks.folders.create"],
+  media: ["testagram.media.list", "testagram.media.attach"],
+  communities: ["testagram.communities.list", "testagram.communities.create", "testagram.communities.join", "testagram.communities.leave"],
+  account: ["testagram.federation.status", "testagram.wallet.read"],
+  operations: ["testagram.capabilities.list", "testagram.health.read", "testagram.notifications.rank"],
+} as const;
