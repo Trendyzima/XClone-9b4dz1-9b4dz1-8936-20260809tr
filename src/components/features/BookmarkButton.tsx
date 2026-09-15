@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { updateInterestSignal } from '@/services/recommendations';
+import { backendCapabilities } from '@/services/backendClient';
 
 interface BookmarkButtonProps {
   postId: string;
@@ -15,23 +16,22 @@ export function BookmarkButton({ postId }: BookmarkButtonProps) {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      checkBookmark();
+    if (!user) {
+      setIsBookmarked(false);
+      return;
     }
-  }, [postId, user]);
-
-  const checkBookmark = async () => {
-    if (!user) return;
-
-    const { data } = await supabase
+    let cancelled = false;
+    supabase
       .from('bookmarks')
-      .select('id')
+      .select('post_id')
       .eq('post_id', postId)
       .eq('user_id', user.id)
-      .maybeSingle();
-
-    setIsBookmarked(!!data);
-  };
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setIsBookmarked(!!data);
+      });
+    return () => { cancelled = true; };
+  }, [postId, user]);
 
   const toggleBookmark = async () => {
     if (!user) {
@@ -40,34 +40,21 @@ export function BookmarkButton({ postId }: BookmarkButtonProps) {
     }
 
     setLoading(true);
+    const previous = isBookmarked;
+    setIsBookmarked(!previous);
 
     try {
-      if (isBookmarked) {
-        const { error } = await supabase
-          .from('bookmarks')
-          .delete()
-          .eq('post_id', postId)
-          .eq('user_id', user.id);
-
-        if (error) throw error;
-        setIsBookmarked(false);
+      if (previous) {
+        await backendCapabilities.removeBookmark(postId);
         toast.success('Removed from bookmarks');
       } else {
-        const { error } = await supabase
-          .from('bookmarks')
-          .insert({
-            post_id: postId,
-            user_id: user.id
-          });
-
-        if (error) throw error;
-        setIsBookmarked(true);
+        await backendCapabilities.bookmarkPost(postId);
         toast.success('Added to bookmarks');
-        // Update interest signal — fire-and-forget
         updateInterestSignal(user.id, postId, 'bookmark').catch(() => {});
       }
     } catch (error: any) {
-      toast.error(error.message);
+      setIsBookmarked(previous);
+      toast.error(error.message || 'Bookmark update failed');
     } finally {
       setLoading(false);
     }
