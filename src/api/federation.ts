@@ -1,8 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 
-// ── Gateway relay call ────────────────────────────────────────────────────────
-
+// Canonical Testagram backend API. Federation remains implemented by the
+// existing Supabase federation services behind this stable contract.
 async function getToken(): Promise<string | null> {
   try {
     const { data } = await supabase.auth.getSession();
@@ -12,15 +12,13 @@ async function getToken(): Promise<string | null> {
   }
 }
 
-async function relay<T = any>(
+async function api<T = any>(
   path: string,
   method = 'GET',
   body?: unknown,
   params?: Record<string, string | number | boolean | undefined>,
 ): Promise<T> {
   const token = await getToken();
-
-  // Strip undefined params
   const cleanParams = params
     ? Object.fromEntries(
         Object.entries(params)
@@ -29,7 +27,7 @@ async function relay<T = any>(
       )
     : undefined;
 
-  const { data, error } = await supabase.functions.invoke('gateway-relay', {
+  const { data, error } = await supabase.functions.invoke('testagram-api', {
     body: { path, method, body, params: cleanParams },
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
@@ -40,9 +38,9 @@ async function relay<T = any>(
       try {
         const status = error.context?.status ?? 500;
         const text = await error.context?.text();
-        msg = `[${status}] ${text || error.message || 'Gateway error'}`;
+        msg = `[${status}] ${text || error.message || 'Testagram API error'}`;
       } catch {
-        msg = error.message ?? 'Gateway error';
+        msg = error.message ?? 'Testagram API error';
       }
     }
     throw new GatewayError(0, msg, path);
@@ -51,30 +49,24 @@ async function relay<T = any>(
   return data as T;
 }
 
-// ── Error classes ─────────────────────────────────────────────────────────────
-
 export class GatewayError extends Error {
   constructor(
     public status: number,
     public body: string,
     public path: string,
   ) {
-    super(`Gateway error on ${path}: ${body}`);
+    super(`Testagram API error on ${path}: ${body}`);
     this.name = 'GatewayError';
   }
 }
 
-// ── Utilities ─────────────────────────────────────────────────────────────────
-
 export function isGatewayAvailable(): boolean {
-  return true; // always available via edge function
+  return true;
 }
 
 export function getGatewayUrl(): string {
-  return 'supabase://gateway-relay';
+  return 'supabase://testagram-api';
 }
-
-// ── Timeline ──────────────────────────────────────────────────────────────────
 
 export interface TimelineParams {
   limit?: number;
@@ -83,36 +75,32 @@ export interface TimelineParams {
 }
 
 export async function getHomeTimeline(params: TimelineParams = {}): Promise<any[]> {
-  return relay('/timeline/home', 'GET', undefined, params as any);
+  return api('/timeline/home', 'GET', undefined, params as any);
 }
 
 export async function getGlobalTimeline(params: TimelineParams = {}): Promise<any[]> {
-  return relay('/timeline/global', 'GET', undefined, params as any);
+  return api('/timeline/global', 'GET', undefined, params as any);
 }
 
 export async function getLocalTimeline(params: TimelineParams = {}): Promise<any[]> {
-  return relay('/timeline/local', 'GET', undefined, params as any);
+  return api('/timeline/local', 'GET', undefined, params as any);
 }
 
 export async function getFederatedTimeline(params: TimelineParams = {}): Promise<any[]> {
-  return relay('/timeline/federated', 'GET', undefined, params as any);
+  return api('/timeline/federated', 'GET', undefined, params as any);
 }
 
-// ── User / Actor ──────────────────────────────────────────────────────────────
-
 export async function getUser(acct: string): Promise<any> {
-  return relay(`/webfinger/${encodeURIComponent(acct)}`);
+  return api(`/webfinger/${encodeURIComponent(acct)}`);
 }
 
 export async function webfinger(acct: string): Promise<any> {
-  return relay(`/webfinger/${encodeURIComponent(acct)}`);
+  return api(`/webfinger/${encodeURIComponent(acct)}`);
 }
 
 export async function getActor(username: string): Promise<any> {
-  return relay(`/users/${encodeURIComponent(username)}`);
+  return api(`/users/${encodeURIComponent(username)}`);
 }
-
-// ── Posts ─────────────────────────────────────────────────────────────────────
 
 export async function postStatus(payload: {
   content: string;
@@ -122,94 +110,77 @@ export async function postStatus(payload: {
   sensitive?: boolean;
   spoilerText?: string;
 }): Promise<any> {
-  return relay('/posts', 'POST', payload);
+  return api('/posts', 'POST', payload);
 }
 
 export async function deletePost(postId: string): Promise<void> {
-  return relay(`/posts/${encodeURIComponent(postId)}`, 'DELETE');
+  return api(`/posts/${encodeURIComponent(postId)}`, 'DELETE');
 }
 
-// ── Social ────────────────────────────────────────────────────────────────────
-
 export async function follow(target: string): Promise<any> {
-  return relay('/follow', 'POST', { target });
+  return api('/follow', 'POST', { target });
 }
 
 export async function unfollow(target: string): Promise<any> {
-  return relay('/unfollow', 'POST', { target });
+  return api('/unfollow', 'POST', { target });
 }
 
 export async function boost(postId: string): Promise<any> {
-  return relay('/boost', 'POST', { post_id: postId });
+  return api('/boost', 'POST', { post_id: postId });
 }
 
 export async function unboost(postId: string): Promise<any> {
-  return relay('/unboost', 'POST', { post_id: postId });
+  return api('/unboost', 'POST', { post_id: postId });
 }
 
 export async function favorite(postId: string): Promise<any> {
-  return relay('/favorite', 'POST', { post_id: postId });
+  return api('/favorite', 'POST', { post_id: postId });
 }
 
 export async function unfavorite(postId: string): Promise<any> {
-  return relay('/unfavorite', 'POST', { post_id: postId });
+  return api('/unfavorite', 'POST', { post_id: postId });
 }
 
 export async function reply(payload: { postId: string; content: string }): Promise<any> {
-  return relay('/reply', 'POST', { post_id: payload.postId, content: payload.content });
+  return api('/reply', 'POST', { post_id: payload.postId, content: payload.content });
 }
 
-// ── Notifications ─────────────────────────────────────────────────────────────
-
 export async function getNotifications(params: TimelineParams = {}): Promise<any[]> {
-  return relay('/notifications', 'GET', undefined, params as any);
+  return api('/notifications', 'GET', undefined, params as any);
 }
 
 export async function clearNotifications(): Promise<void> {
-  return relay('/notifications', 'DELETE');
+  return api('/notifications', 'DELETE');
 }
-
-// ── Search ────────────────────────────────────────────────────────────────────
 
 export async function search(
   q: string,
   type: 'users' | 'posts' | 'hashtags' | 'instances' = 'users',
 ): Promise<any[]> {
-  return relay('/search', 'GET', undefined, { q, type });
+  return api('/search', 'GET', undefined, { q, type });
 }
 
-// ── Followers / Following ─────────────────────────────────────────────────────
-
 export async function getFollowers(acct: string, params: TimelineParams = {}): Promise<any> {
-  return relay(`/users/${encodeURIComponent(acct)}/followers`, 'GET', undefined, params as any);
+  return api(`/users/${encodeURIComponent(acct)}/followers`, 'GET', undefined, params as any);
 }
 
 export async function getFollowing(acct: string, params: TimelineParams = {}): Promise<any> {
-  return relay(`/users/${encodeURIComponent(acct)}/following`, 'GET', undefined, params as any);
+  return api(`/users/${encodeURIComponent(acct)}/following`, 'GET', undefined, params as any);
 }
 
-// ── Health ────────────────────────────────────────────────────────────────────
-
 export async function getInstance(): Promise<any> {
-  return relay('/health');
+  return api('/health');
 }
 
 export async function getHealth(): Promise<any> {
-  return relay('/health');
+  return api('/health');
 }
 
-// ── Inbox polling (since realtime is not supported) ───────────────────────────
-
-/**
- * Polls the gateway for new federated notifications.
- * Falls back to local activitypub_inbox table if gateway is unreachable.
- */
 export async function pollFediverseInbox(userId: string): Promise<any[]> {
   try {
     const res = await getNotifications({ limit: 50 });
     return Array.isArray(res) ? res : [];
   } catch {
-    // Fallback: local activitypub_inbox table
     try {
       const { data } = await supabase
         .from('activitypub_inbox')
@@ -224,14 +195,12 @@ export async function pollFediverseInbox(userId: string): Promise<any[]> {
   }
 }
 
-/**
- * @deprecated Use the named exports above. gwRelay is kept for legacy callers.
- */
+/** @deprecated Use the named exports above. */
 export async function gwRelay<T = any>(
   path: string,
   method = 'GET',
   body?: any,
   params?: Record<string, any>,
 ): Promise<T> {
-  return relay<T>(path, method, body, params);
+  return api<T>(path, method, body, params);
 }
