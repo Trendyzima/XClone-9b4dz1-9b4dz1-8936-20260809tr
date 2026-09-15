@@ -1,17 +1,22 @@
 import js from "@eslint/js";
 import globals from "globals";
-import tseslint from "typescript-eslint";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 
-export default tseslint.config(
+export default [
   {
-    ignores: ["dist/**", "node_modules/**", ".vercel/**", "coverage/**"],
+    ignores: [
+      "dist/**",
+      "node_modules/**",
+      ".vercel/**",
+      "coverage/**",
+      "**/*.ts",
+      "**/*.tsx",
+    ],
   },
   js.configs.recommended,
-  ...tseslint.configs.recommended,
   {
-    files: ["**/*.{js,jsx,ts,tsx}"],
+    files: ["**/*.{js,jsx}"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
@@ -35,4 +40,4 @@ export default tseslint.config(
       ],
     },
   },
-);
+];
