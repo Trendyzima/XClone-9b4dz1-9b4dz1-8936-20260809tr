@@ -1,12 +1,12 @@
 'use strict';
 
 /**
- * _build.cjs v4 — portable, self-healing Vite build wrapper.
+ * _build.cjs v5 — portable, self-healing Vite build wrapper.
  *
- * The wrapper owns the repository-local Node preload hook so builds never
- * inherit a runner-specific absolute path from npm configuration. It also
- * removes stale node-options entries before Vite starts and accepts Vite
- * arguments (for example: --mode development).
+ * Every project build enters _self-heal.cjs first. That guard performs only
+ * deterministic compatibility repairs, then this wrapper owns the repository
+ * preload hook and starts the real Vite build. A genuine Vite failure remains
+ * a genuine failure; self-healing never masks it.
  */
 
 const fs = require('node:fs');
@@ -15,7 +15,7 @@ const { spawnSync } = require('node:child_process');
 
 const root = __dirname;
 const preloadPath = path.resolve(root, '_preload.cjs');
-const npmrcPath = path.resolve(root, '.npmrc');
+const selfHealPath = path.resolve(root, '_self-heal.cjs');
 
 function cleanNodeOptions(v) {
   return (v || '')
@@ -27,27 +27,35 @@ function cleanNodeOptions(v) {
     .trim();
 }
 
-function repairNpmrc() {
-  if (!fs.existsSync(npmrcPath)) return;
-  const original = fs.readFileSync(npmrcPath, 'utf8');
-  const repaired = original
-    .split(/\r?\n/)
-    .filter((line) => !/^\s*node-options\s*=/.test(line))
-    .join('\n')
-    .replace(/\n{3,}/g, '\n\n');
+function runSelfHeal() {
+  if (!fs.existsSync(selfHealPath)) {
+    process.stderr.write(`[_build] ❌ Missing self-healing guard: ${selfHealPath}\n`);
+    process.exit(1);
+  }
 
-  if (repaired !== original) {
-    fs.writeFileSync(npmrcPath, repaired.endsWith('\n') ? repaired : `${repaired}\n`);
-    process.stderr.write('[_build] Repaired stale runner-specific node-options in .npmrc.\n');
+  const result = spawnSync(process.execPath, [selfHealPath], {
+    cwd: root,
+    stdio: 'inherit',
+    shell: false,
+    env: { ...process.env },
+  });
+
+  if (result.error) {
+    process.stderr.write(`[_build] ❌ Self-healing guard could not start: ${result.error.message}\n`);
+    process.exit(1);
+  }
+  if (result.status !== 0) {
+    process.stderr.write(`[_build] ❌ Self-healing guard failed (exit ${result.status})\n`);
+    process.exit(result.status || 1);
   }
 }
+
+runSelfHeal();
 
 if (!fs.existsSync(preloadPath)) {
   process.stderr.write(`[_build] ❌ Missing required repository preload: ${preloadPath}\n`);
   process.exit(1);
 }
-
-repairNpmrc();
 
 const nodeOptions = [
   '--require', preloadPath,
