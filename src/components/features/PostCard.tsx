@@ -25,6 +25,7 @@ import {
 import { VideoMonetizationAd } from './VideoMonetizationAd';
 import { EmbedRenderer, PostContentEmbeds } from './EmbedRenderer';
 import { updateInterestSignal } from '@/services/recommendations';
+import { togglePostLike, togglePostRepost } from '@/services/postInteractionService';
 
 // esbuild guard: no 'as const' on module-level objects/arrays used in .map() render
 const REPORT_CATEGORIES = [
@@ -150,11 +151,9 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       });
       await supabase.from('post_reactions').delete().eq('post_id', post.id).eq('user_id', user.id);
       if (emoji === '❤️' && isLiked) {
-        const newCount = Math.max(0, likesCount - 1);
-        setIsLiked(false);
-        setLikesCount(newCount);
-        await supabase.from('likes').delete().eq('user_id', user.id).eq('post_id', post.id);
-        await supabase.from('posts').update({ likes_count: newCount }).eq('id', post.id);
+        const state = await togglePostLike(post.id);
+        setIsLiked(state.is_liked);
+        setLikesCount(state.likes_count);
       }
     } else {
       setUserReaction(emoji);
@@ -179,21 +178,17 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
         { onConflict: 'post_id,user_id' }
       );
       if (emoji === '❤️' && !isLiked) {
-        const newCount = likesCount + 1;
-        setIsLiked(true);
-        setLikesCount(newCount);
-        await supabase.from('likes').insert({ user_id: user.id, post_id: post.id }).catch(() => {});
-        await supabase.from('posts').update({ likes_count: newCount }).eq('id', post.id);
-        if (post.user_id !== user.id) {
+        const state = await togglePostLike(post.id);
+        setIsLiked(state.is_liked);
+        setLikesCount(state.likes_count);
+        if (state.is_liked && post.user_id !== user.id) {
           await supabase.from('notifications').insert({ user_id: post.user_id, type: 'like', from_user_id: user.id, post_id: post.id });
           sendActivityNotification({ recipientUserId: post.user_id, title: 'New Reaction', body: `${user.username} reacted ❤️ to your post`, data: { route: `/post/${post.id}`, type: 'like' } });
         }
       } else if (prevReaction === '❤️' && emoji !== '❤️' && isLiked) {
-        const newCount = Math.max(0, likesCount - 1);
-        setIsLiked(false);
-        setLikesCount(newCount);
-        await supabase.from('likes').delete().eq('user_id', user.id).eq('post_id', post.id);
-        await supabase.from('posts').update({ likes_count: newCount }).eq('id', post.id);
+        const state = await togglePostLike(post.id);
+        setIsLiked(state.is_liked);
+        setLikesCount(state.likes_count);
       }
     }
     onUpdate?.();
@@ -507,11 +502,13 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     if (!user) return;
     const checkUserInteractions = async () => {
       try {
-        const { data: likeData } = await supabase
-          .from('likes').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
+        const [{ data: likeData, error: likeError }, { data: repostData, error: repostError }] = await Promise.all([
+          supabase.from('post_likes').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle(),
+          supabase.from('post_reposts').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle(),
+        ]);
+        if (likeError) throw likeError;
+        if (repostError) throw repostError;
         setIsLiked(!!likeData);
-        const { data: repostData } = await supabase
-          .from('reposts').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle();
         setIsReposted(!!repostData);
       } catch (error) {
         console.error('Error checking user interactions:', error);
@@ -523,62 +520,57 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user) { navigate('/auth'); return; }
-    const newIsLiked = !isLiked;
-    const newCount = newIsLiked ? likesCount + 1 : Math.max(0, likesCount - 1);
-    setIsLiked(newIsLiked);
-    setLikesCount(newCount);
+    const previousIsLiked = isLiked;
+    const previousLikesCount = likesCount;
+    const optimisticIsLiked = !previousIsLiked;
+    setIsLiked(optimisticIsLiked);
     try {
-      if (newIsLiked) {
-        await supabase.from('likes').insert({ user_id: user.id, post_id: post.id });
-        await supabase.from('posts').update({ likes_count: newCount }).eq('id', post.id);
+      const state = await togglePostLike(post.id);
+      setIsLiked(state.is_liked);
+      setLikesCount(state.likes_count);
+      if (state.is_liked) {
         if (post.user_id !== user.id) {
           await supabase.from('notifications').insert({ user_id: post.user_id, type: 'like', from_user_id: user.id, post_id: post.id });
           sendActivityNotification({ recipientUserId: post.user_id, title: 'New Like', body: `${user.username} liked your post`, data: { route: `/post/${post.id}`, type: 'like' } });
         }
-        // Update interest signal — fire-and-forget (esbuild guard: called outside render)
         updateInterestSignal(user.id, post.id, 'like').catch(() => {});
-      } else {
-        await supabase.from('likes').delete().eq('user_id', user.id).eq('post_id', post.id);
-        await supabase.from('posts').update({ likes_count: newCount }).eq('id', post.id);
       }
       onUpdate?.();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Like error:', error);
-      toast({ title: 'Error', description: error.message || 'Failed to like post', variant: 'destructive' });
-      setIsLiked(!newIsLiked);
-      setLikesCount(likesCount);
+      setIsLiked(previousIsLiked);
+      setLikesCount(previousLikesCount);
+      toast({ title: 'Error', description: error instanceof Error ? error.message : 'Failed to like post', variant: 'destructive' });
     }
   };
 
   const handleRepost = async (e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user) { navigate('/auth'); return; }
-    const newIsReposted = !isReposted;
-    const newCount = newIsReposted ? repostsCount + 1 : Math.max(0, repostsCount - 1);
-    setIsReposted(newIsReposted);
-    setRepostsCount(newCount);
+    const previousIsReposted = isReposted;
+    const previousRepostsCount = repostsCount;
+    const optimisticIsReposted = !previousIsReposted;
+    setIsReposted(optimisticIsReposted);
     try {
-      if (newIsReposted) {
-        await supabase.from('reposts').insert({ user_id: user.id, post_id: post.id });
-        await supabase.from('posts').update({ reposts_count: newCount }).eq('id', post.id);
+      const state = await togglePostRepost(post.id);
+      setIsReposted(state.is_reposted);
+      setRepostsCount(state.reposts_count);
+      if (state.is_reposted) {
         if (post.user_id !== user.id) {
           await supabase.from('notifications').insert({ user_id: post.user_id, type: 'repost', from_user_id: user.id, post_id: post.id });
           sendActivityNotification({ recipientUserId: post.user_id, title: 'New Repost', body: `${user.username} reposted your post`, data: { route: `/post/${post.id}`, type: 'repost' } });
         }
         toast({ title: 'Reposted successfully' });
-        // Update interest signal — fire-and-forget
         updateInterestSignal(user.id, post.id, 'repost').catch(() => {});
       } else {
-        await supabase.from('reposts').delete().eq('user_id', user.id).eq('post_id', post.id);
-        await supabase.from('posts').update({ reposts_count: newCount }).eq('id', post.id);
         toast({ title: 'Repost removed' });
       }
       onUpdate?.();
-    } catch (error: any) {
+    } catch (error) {
       console.error('Repost error:', error);
-      toast({ title: 'Error', description: error.message || 'Failed to repost', variant: 'destructive' });
-      setIsReposted(!newIsReposted);
-      setRepostsCount(repostsCount);
+      setIsReposted(previousIsReposted);
+      setRepostsCount(previousRepostsCount);
+      toast({ title: 'Error', description: error instanceof Error ? error.message : 'Failed to repost', variant: 'destructive' });
     }
   };
 
