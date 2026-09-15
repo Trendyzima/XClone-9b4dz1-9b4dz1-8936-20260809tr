@@ -59,7 +59,7 @@ export async function invokeBackendFunction<TResponse = unknown, TBody extends R
 
 /** Canonical capability-plane client; callers may supply an explicit endpoint for compatibility. */
 export function createBackendCapabilityClient(
-  endpoint: string = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/capability-gateway`,
+  endpoint: string = `${import.meta.env.VITE_SUPABASE_URL ?? 'https://placeholder.supabase.co'}/functions/v1/capability-gateway`,
   client: SupabaseClient = supabase,
 ): TestagramCapabilityClient {
   return new TestagramCapabilityClient({
