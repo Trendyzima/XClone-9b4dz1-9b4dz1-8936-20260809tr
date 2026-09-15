@@ -7,19 +7,13 @@ const db = createClient(url, serviceKey, { auth: { persistSession: false, autoRe
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
-  headers: {
-    "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, OPTIONS",
-  },
+  headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, OPTIONS" },
 });
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return json({ ok: true });
   if (req.method !== "GET") return json({ error: "GET required" }, 405);
   const started = performance.now();
-
   try {
     const checks = await Promise.all([
       db.from("profiles").select("id", { count: "exact", head: true }),
@@ -28,8 +22,9 @@ Deno.serve(async (req) => {
       db.from("wallet_transactions").select("id", { count: "exact", head: true }),
       db.from("federation_deliveries").select("id", { count: "exact", head: true }),
       db.from("federation_outbox").select("id", { count: "exact", head: true }).in("status", ["pending", "retry", "queued"]),
+      db.from("service_plane_health").select("service,events_24h,failures_24h,avg_duration_ms,last_event_at"),
     ]);
-    const [profiles, posts, recommendations, walletTransactions, federationDeliveries, federationPending] = checks;
+    const [profiles, posts, recommendations, walletTransactions, federationDeliveries, federationPending, planes] = checks;
     const errors = checks.filter((x) => x.error).map((x) => x.error?.message ?? "database check failed");
     const healthy = errors.length === 0;
     const durationMs = Math.round(performance.now() - started);
@@ -37,13 +32,15 @@ Deno.serve(async (req) => {
     return json({
       status: healthy ? "ok" : "degraded",
       service: "testagram",
-      version: "ops-v1",
+      version: "ops-v2",
       duration_ms: durationMs,
+      planes: planes.data ?? [],
       checks: {
         database: healthy ? "ok" : "error",
         recommendations: recommendations.error ? "error" : "ok",
         wallet: walletTransactions.error ? "error" : "ok",
         federation: federationDeliveries.error || federationPending.error ? "error" : "ok",
+        telemetry: planes.error ? "error" : "ok",
       },
       counts: {
         users: profiles.count ?? 0,
@@ -57,11 +54,6 @@ Deno.serve(async (req) => {
       checked_at: new Date().toISOString(),
     }, healthy ? 200 : 503);
   } catch (error) {
-    return json({
-      status: "error",
-      service: "testagram",
-      error: error instanceof Error ? error.message : String(error),
-      checked_at: new Date().toISOString(),
-    }, 503);
+    return json({ status: "error", service: "testagram", error: error instanceof Error ? error.message : String(error), checked_at: new Date().toISOString() }, 503);
   }
 });
