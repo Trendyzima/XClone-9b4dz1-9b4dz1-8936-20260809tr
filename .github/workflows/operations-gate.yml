@@ -1,0 +1,59 @@
+name: Testagram Operations Gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/_shared/observability.ts'
+      - 'supabase/functions/service-health/**'
+      - 'supabase/migrations/**'
+      - '.github/workflows/operations-gate.yml'
+  pull_request:
+    paths:
+      - 'supabase/functions/_shared/observability.ts'
+      - 'supabase/functions/service-health/**'
+      - 'supabase/migrations/**'
+      - '.github/workflows/operations-gate.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: operations-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: Operations contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Verify checked-out revision
+        run: git rev-parse HEAD
+      - name: Typecheck operational Edge Functions
+        run: |
+          deno check --node-modules-dir=none supabase/functions/service-health/index.ts
+          deno check --node-modules-dir=none supabase/functions/_shared/observability.ts
+      - name: Verify operational migration contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f supabase/migrations/20260915223000_testagram_operations_observability_v1.sql
+          grep -q "create table if not exists public.service_metrics" supabase/migrations/20260915223000_testagram_operations_observability_v1.sql
+          grep -q "record_service_metric" supabase/migrations/20260915223000_testagram_operations_observability_v1.sql
+          grep -q "service_health_24h" supabase/migrations/20260915223000_testagram_operations_observability_v1.sql
+          grep -q "security invoker" supabase/migrations/20260915223000_testagram_operations_observability_v1.sql
+      - name: Verify recommendation contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f supabase/migrations/20260915220000_recommendation_pipeline_v1.sql
+          grep -q "generate_content_recommendations" supabase/migrations/20260915220000_recommendation_pipeline_v1.sql
+          if grep -q "user_mutes" supabase/migrations/20260915220000_recommendation_pipeline_v1.sql; then
+            echo 'stale user_mutes dependency detected'
+            exit 1
+          fi
