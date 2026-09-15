@@ -152,8 +152,7 @@ export async function fetchCandidates(
 
   // Batch 1: Chronological following feed (80%)
   if (signals.followingIds.length > 0) {
-    const { data: followPosts } = try {
-      await supabase
+    const { data: followPosts } = await supabase
       .from('posts')
       .select('*, user_profiles(*)')
       .in('user_id', signals.followingIds)
@@ -369,11 +368,9 @@ export async function updateInterestSignal(
   const delta = signalWeight * weight * 0.1; // incremental interest update
 
   for (const hashtag_id of tagIds) {
-    await supabase.rpc('increment', { row_id: hashtag_id, increment_amount: delta });
-    } catch {}
+    await supabase.rpc('increment', { row_id: hashtag_id, increment_amount: delta }).then(() => {}).catch(() => {});
     // Upsert interest score
-    const { data: existing } = try {
-      await supabase
+    const { data: existing } = await supabase
       .from('user_interests')
       .select('id, interest_score')
       .eq('user_id', userId)
@@ -386,15 +383,12 @@ export async function updateInterestSignal(
         .from('user_interests')
         .update({ interest_score: newScore, last_interaction: new Date().toISOString() })
         .eq('id', existing.id)
-        ;
-    } catch {}
+        .then(() => {}).catch(() => {});
     } else {
-      try {
       await supabase
         .from('user_interests')
         .insert({ user_id: userId, hashtag_id, interest_score: delta, last_interaction: new Date().toISOString() })
-        ;
-    } catch {}
+        .then(() => {}).catch(() => {});
     }
   }
 }

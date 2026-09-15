@@ -45,8 +45,7 @@ export default function SpaceRecordingViewerPage() {
     if (!recording || !user) return;
     setTranscribing(true);
     try {
-      const { data, error } = try {
-      await supabase.functions.invoke('transcribe-audio', {
+      const { data, error } = await supabase.functions.invoke('transcribe-audio', {
         body: { recording_id: recording.id },
       });
       if (error) {
@@ -227,8 +226,7 @@ export default function SpaceRecordingViewerPage() {
       if (isClipMode && clipStart !== null && !clipAutoStarted.current) {
         clipAutoStarted.current = true;
         audio.currentTime = clipStart;
-        audio.play();
-    } catch {}
+        audio.play().then(() => {}).catch(() => {});
       }
     };
     const onPlay = () => setPlaying(true);
@@ -267,7 +265,7 @@ export default function SpaceRecordingViewerPage() {
   const seekToChapter = (time: number) => {
     if (!audioRef.current) return;
     audioRef.current.currentTime = time;
-    audioRef.current.play().catch(() => {});
+    audioRef.current.play().then(() => {}).catch(() => {});
   };
 
   const toggleMute = () => {
@@ -294,9 +292,7 @@ export default function SpaceRecordingViewerPage() {
     if (!recording) return;
     const valid = editChapters.filter(c => c.label.trim());
     setSavingChapters(true);
-    try {
-      await supabase.from('spaces').update({ chapters: valid }).eq('id', recording.space_id);
-    } catch {}
+    await supabase.from('spaces').update({ chapters: valid }).eq('id', recording.space_id).then(() => {}).catch(() => {});
     setOverrideChapters(valid);
     setSavingChapters(false);
     setShowChaptersEditor(false);
@@ -306,14 +302,10 @@ export default function SpaceRecordingViewerPage() {
   const handleTipHost = async () => {
     if (!user || !recording || !tipHostAmount) return;
     setSendingHostTip(true);
-    const { error: deductErr } = try {
-      await supabase.rpc('deduct_from_wallet', { p_user_id: user.id, p_amount: tipHostAmount });
+    const { error: deductErr } = await supabase.rpc('deduct_from_wallet', { p_user_id: user.id, p_amount: tipHostAmount });
     if (deductErr) { toast.error('Insufficient wallet balance'); setSendingHostTip(false); return; }
-    await supabase.rpc('add_to_wallet', { p_user_id: recording.user_id, p_amount: tipHostAmount });
-    } catch {}
-    try {
-      await supabase.from('tips').insert({ from_user_id: user.id, to_user_id: recording.user_id, amount: tipHostAmount, message: `Tip for podcast: ${recording.title}` });
-    } catch {}
+    await supabase.rpc('add_to_wallet', { p_user_id: recording.user_id, p_amount: tipHostAmount }).then(() => {}).catch(() => {});
+    await supabase.from('tips').insert({ from_user_id: user.id, to_user_id: recording.user_id, amount: tipHostAmount, message: `Tip for podcast: ${recording.title}` }).then(() => {}).catch(() => {});
     toast.success(`$${tipHostAmount} tip sent to @${host?.username}!`);
     setTipHostSent(true);
     setShowTipHostDialog(false);
@@ -392,7 +384,7 @@ export default function SpaceRecordingViewerPage() {
             onClick={() => {
               if (audioRef.current && clipStart !== null) {
                 audioRef.current.currentTime = clipStart;
-                audioRef.current.play().catch(() => {});
+                audioRef.current.play().then(() => {}).catch(() => {});
               }
             }}
             className="flex items-center gap-1 px-3 py-1.5 bg-primary text-primary-foreground rounded-xl text-xs font-bold hover:opacity-90"

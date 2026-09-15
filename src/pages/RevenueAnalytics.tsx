@@ -63,12 +63,11 @@ export default function RevenueAnalytics() {
     setLoading(true);
     try {
       // Calculate date filter
-      let dateFilter = '';
+      let startDate: Date | null = null;
       const now = new Date();
       if (timeRange !== 'all') {
         const days = timeRange === '7d' ? 7 : timeRange === '30d' ? 30 : 90;
-        const startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
-        dateFilter = `created_at.gte.${startDate.toISOString()}`;
+        startDate = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
       }
 
       // Fetch revenue shares
@@ -76,7 +75,7 @@ export default function RevenueAnalytics() {
         .from('revenue_shares')
         .select('*');
       
-      if (dateFilter) {
+      if (startDate) {
         query = query.gte('created_at', startDate.toISOString());
       }
 
