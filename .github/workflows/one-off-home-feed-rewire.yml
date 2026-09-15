@@ -23,19 +23,15 @@ jobs:
         run: |
           python3 <<'PY'
           from pathlib import Path
-          import re
 
           path = Path('src/pages/HomePage.tsx')
           text = path.read_text()
 
-          # 1. Add dedicated federated cursor state.
           old = "  const [feedHasMore, setFeedHasMore] = useState(true);\n"
           new = old + "  const [federatedCursor, setFederatedCursor] = useState<string | null>(null);\n  const [federatedHasMore, setFederatedHasMore] = useState(true);\n"
           assert old in text and 'federatedCursor' not in text
           text = text.replace(old, new, 1)
 
-          # 2. Replace the federation helper with a cursor-aware page loader while
-          # retaining the existing array helper for the dedicated Federated tab.
           start = text.index("  // ── Federated timeline via Gateway")
           end = text.index("\n  // ── Local posts feed", start)
           replacement = r'''  // ── Federated timeline via Gateway ──────────────────────────────────────────
@@ -59,8 +55,6 @@ jobs:
       };
     } catch (err) {
       console.warn('[feed] federated page unavailable:', err);
-      // Only use the local remote_posts cache as an initial fallback. Once a
-      // cursor exists we stop rather than replaying the same cached page.
       if (before) return { posts: [], nextCursor: null, hasMore: false };
       try {
         const { data } = await supabase
@@ -87,8 +81,6 @@ jobs:
     return page.posts;
   };
 
-  // Stable per-session mixing keeps the feed feeling organic without causing
-  // items to jump around on React re-renders. Each page gets a different seed.
   const mixHomeDiscovery = (localItems: FeedItem[], federatedPosts: any[], pageNum: number): FeedItem[] => {
     const result = [...localItems];
     const seedBase = `${user?.id ?? 'anonymous'}:${pageNum}:${result.length}:${federatedPosts.length}`;
@@ -117,8 +109,6 @@ jobs:
       result.splice(Math.min(pos, result.length), 0, fed[i]);
     }
 
-    // Profile discovery is intentionally sparse: page 0 is guaranteed when
-    // there is enough content, later pages get a fresh slot ~35% of the time.
     const shouldSuggest = pageNum === 0 ? result.length >= 4 : random() < 0.35;
     if (shouldSuggest && result.length >= 4) {
       const min = 3;
@@ -131,29 +121,22 @@ jobs:
 '''
           text = text[:start] + replacement + text[end:]
 
-          # 3. Remove the old fixed-position profile suggestion from fetchFeed.
           old = "        // Who to follow — after 3rd item on first page\n        if (i === 2 && pageNum === 0 && !suggestionInserted) {\n          withExtras.push({ type: 'user-suggestions', data: null });\n          suggestionInserted = true;\n        }\n\n"
           assert old in text
           text = text.replace(old, '', 1)
-          # Remove the now-unused local variable.
           text = text.replace("      let suggestionInserted = false;\n", '', 1)
 
-          # 4. Reset federated pagination whenever the home feed is reset.
           old = "    setFeedCursor(null);\n    setFeedHasMore(true);\n"
           new = old + "    setFederatedCursor(null);\n    setFederatedHasMore(true);\n"
           assert old in text
           text = text.replace(old, new, 1)
 
-          # 5. Replace the normal non-tab initial branch with a concurrent local+
-          # federated first page for For You. Following remains its specialized path.
           old = """    } else {\n      const items = await fetchFeed(0);\n      setFeedItems(items);\n      const lastPost = items.filter((i: any) => i.type === 'post').slice(-1)[0];\n      if (lastPost) setFeedCursor((lastPost.data as any).created_at ?? null);\n      setFeedHasMore(items.filter((i: any) => i.type === 'post').length >= PAGE_SIZE);\n      // Populate prefetch cache for instant tab-switch on next visit\n      if (items.length > 0) setCachedFeed(activeTab, items);\n    }\n"""
           new = """    } else if (activeTab === 'foryou') {\n      const [localItems, federatedPage] = await Promise.all([\n        fetchFeed(0),\n        fetchFederatedPage(null),\n      ]);\n      const mixed = mixHomeDiscovery(localItems, federatedPage.posts, 0);\n      setFeedItems(mixed);\n      const localPosts = localItems.filter((i: any) => i.type === 'post');\n      const lastPost = localPosts.slice(-1)[0];\n      if (lastPost) setFeedCursor((lastPost.data as any).created_at ?? null);\n      setFederatedCursor(federatedPage.nextCursor);\n      setFederatedHasMore(federatedPage.hasMore);\n      setFeedHasMore(localPosts.length >= PAGE_SIZE || federatedPage.hasMore || federatedPage.posts.length > 0);\n      if (mixed.length > 0) setCachedFeed(activeTab, mixed);\n    } else {\n      const items = await fetchFeed(0);\n      setFeedItems(items);\n      const lastPost = items.filter((i: any) => i.type === 'post').slice(-1)[0];\n      if (lastPost) setFeedCursor((lastPost.data as any).created_at ?? null);\n      setFeedHasMore(items.filter((i: any) => i.type === 'post').length >= PAGE_SIZE);\n      if (items.length > 0) setCachedFeed(activeTab, items);\n    }\n"""
           assert old in text
           text = text.replace(old, new, 1)
 
-          # 6. Replace loadMoreFeed with dual-source pagination for For You and
-          # cursor pagination for the dedicated Federated tab.
-          start = text.index("  const loadMoreFeed = async (): Promise<boolean> => {")
+          start = text.index("  const loadMoreFeed = async (): Promise<boolean> =>")
           end = text.index("\n\n  const { lastElementRef", start)
           replacement = r'''  const loadMoreFeed = async (): Promise<boolean> => {
     if (!feedHasMore) return false;
