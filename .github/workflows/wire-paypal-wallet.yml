@@ -1,0 +1,62 @@
+name: Wire PayPal Wallet UI
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch WalletDashboard
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/components/features/WalletDashboard.tsx')
+          text = path.read_text()
+
+          import_line = "import { PayPalTopUp } from '@/components/features/PayPalTopUp';"
+          anchor_import = "import { FunctionsHttpError } from '@supabase/supabase-js';"
+          if import_line not in text:
+              if anchor_import not in text:
+                  raise SystemExit('WalletDashboard import anchor not found')
+              text = text.replace(anchor_import, anchor_import + "\n" + import_line, 1)
+
+          marker = "      {showWithdraw && ("
+          insertion = "      <PayPalTopUp />\n\n"
+          if "<PayPalTopUp />" not in text:
+              if marker not in text:
+                  raise SystemExit('WalletDashboard withdrawal marker not found')
+              text = text.replace(marker, insertion + marker, 1)
+
+          path.write_text(text)
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+
+      - name: Commit UI wiring and remove one-shot workflow
+        shell: bash
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          rm -f .github/workflows/wire-paypal-wallet.yml
+          git add src/components/features/WalletDashboard.tsx src/components/features/PayPalTopUp.tsx .github/workflows/wire-paypal-wallet.yml
+          git diff --cached --quiet && exit 0
+          git commit -m 'feat: wire PayPal into wallet dashboard'
+          git push
