@@ -11,84 +11,8 @@ const APP_URL = (Deno.env.get("APP_URL") || "https://www.testagram.site").replac
 const API = PESAPAL_ENV === "sandbox" ? "https://cybqa.pesapal.com/pesapalv3/api" : "https://pay.pesapal.com/v3/api";
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, apikey, content-type", "Access-Control-Allow-Methods": "POST,OPTIONS" };
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { ...CORS, "Content-Type": "application/json" } });
-
-async function userFromToken(token: string) {
-  const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } });
-  if (!response.ok) return null;
-  return await response.json();
-}
-
-async function db(path: string, init: RequestInit = {}) {
-  const headers = new Headers(init.headers);
-  headers.set("apikey", SERVICE_ROLE_KEY);
-  headers.set("Authorization", `Bearer ${SERVICE_ROLE_KEY}`);
-  headers.set("Content-Type", "application/json");
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { ...init, headers });
-  if (!response.ok) throw new Error(`Database ${response.status}: ${(await response.text()).slice(0, 500)}`);
-  return response;
-}
-
-async function pesapalToken() {
-  if (!PESAPAL_KEY || !PESAPAL_SECRET) throw new Error("Pesapal credentials are not configured");
-  const response = await fetch(`${API}/Auth/RequestToken`, { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ consumer_key: PESAPAL_KEY, consumer_secret: PESAPAL_SECRET }) });
-  const data = await response.json();
-  if (!response.ok || !data.token) throw new Error(`Pesapal authentication failed: ${data.message || response.status}`);
-  return data.token as string;
-}
-
+async function userFromToken(token: string) { const response = await fetch(`${SUPABASE_URL}/auth/v1/user`, { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${token}` } }); if (!response.ok) return null; return await response.json(); }
+async function db(path: string, init: RequestInit = {}) { const headers = new Headers(init.headers); headers.set("apikey", SERVICE_ROLE_KEY); headers.set("Authorization", `Bearer ${SERVICE_ROLE_KEY}`); headers.set("Content-Type", "application/json"); const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { ...init, headers }); if (!response.ok) throw new Error(`Database ${response.status}: ${(await response.text()).slice(0, 500)}`); return response; }
+async function pesapalToken() { if (!PESAPAL_KEY || !PESAPAL_SECRET) throw new Error("Pesapal credentials are not configured"); const response = await fetch(`${API}/Auth/RequestToken`, { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json" }, body: JSON.stringify({ consumer_key: PESAPAL_KEY, consumer_secret: PESAPAL_SECRET }) }); const data = await response.json(); if (!response.ok || !data.token) throw new Error(`Pesapal authentication failed: ${data.message || response.status}`); return data.token as string; }
 function safeReference(userId: string) { return `TS-${crypto.randomUUID()}-${userId.replaceAll("-", "").slice(0, 8)}`.slice(0, 50); }
-
-Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
-  if (req.method !== "POST") return json({ error: "POST required" }, 405);
-  try {
-    const authorization = req.headers.get("authorization") || "";
-    const token = authorization.replace(/^Bearer\s+/i, "");
-    if (!token) return json({ error: "Authentication required" }, 401);
-    const user = await userFromToken(token);
-    if (!user?.id) return json({ error: "Invalid session" }, 401);
-    if (!PESAPAL_IPN_ID) return json({ error: "Pesapal IPN ID is not configured" }, 503);
-
-    const walletResponse = await db(`wallets?user_id=eq.${encodeURIComponent(user.id)}&select=id,currency,balance,status,spending_enabled&limit=1`);
-    const wallets = await walletResponse.json();
-    const wallet = wallets?.[0];
-    if (!wallet?.id) return json({ error: "Wallet is not initialized" }, 409);
-    if (wallet.status !== "active" || wallet.spending_enabled === false) return json({ error: "Wallet is unavailable" }, 403);
-
-    const input = await req.json();
-    const amount = Number(input.amount);
-    if (!Number.isFinite(amount) || amount <= 0 || amount > 10000000) return json({ error: "Invalid payment amount" }, 400);
-    const currency = String(input.currency || wallet.currency || "USD").trim().toUpperCase();
-    if (currency !== String(wallet.currency || "USD").toUpperCase()) {
-      return json({ error: "Payment currency must match the wallet currency", wallet_currency: wallet.currency }, 400);
-    }
-    const email = String(input.email || user.email || "").trim();
-    const phone = String(input.phone || "").trim();
-    if (!email || !phone) return json({ error: "Email and phone are required" }, 400);
-    const description = String(input.description || "Testagram wallet top-up").slice(0, 100);
-    const reference = safeReference(user.id);
-    const callbackUrl = `${APP_URL}/payment/callback`;
-    const cancellationUrl = `${APP_URL}/payment/cancelled`;
-    const tokenValue = await pesapalToken();
-    const orderResponse = await fetch(`${API}/Transactions/SubmitOrderRequest`, { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${tokenValue}` }, body: JSON.stringify({ id: reference, currency, amount: Number(amount.toFixed(2)), description, callback_url: callbackUrl, cancellation_url: cancellationUrl, redirect_mode: "TOP_WINDOW", notification_id: PESAPAL_IPN_ID, billing_address: { email_address: email, phone_number: phone, country_code: "KE", first_name: String(input.firstName || "Testagram").slice(0, 50), middle_name: "", last_name: String(input.lastName || "User").slice(0, 50), line_1: "", line_2: "", city: "", state: "", postal_code: "", zip_code: "" } }) });
-    const result = await orderResponse.json();
-    if (!orderResponse.ok || !result.order_tracking_id || !result.redirect_url) return json({ error: "Pesapal order creation failed", provider: { status: result.status, message: result.message, error: result.error } }, 502);
-
-    const txResponse = await db("wallet_transactions", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ user_id: user.id, wallet_id: wallet.id, kind: "topup", type: "deposit", amount_cents: Math.round(amount * 100), amount: Number(amount.toFixed(2)), currency, direction: "credit", status: "pending", provider: "pesapal", provider_order_id: result.order_tracking_id, provider_reference: reference, provider_status: "PENDING", payment_method: "pesapal", description, metadata: { pesapal_merchant_reference: reference } }) });
-    const txRows = await txResponse.json();
-    const tx = txRows?.[0];
-    if (!tx?.id) throw new Error("Unable to initialize wallet transaction");
-
-    try {
-      await db("pesapal_payment_orders", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ user_id: user.id, wallet_id: wallet.id, wallet_transaction_id: tx.id, wallet_amount: Number(amount.toFixed(2)), wallet_currency: currency, merchant_reference: reference, order_tracking_id: result.order_tracking_id, amount: Number(amount.toFixed(2)), currency, description, callback_url: callbackUrl, cancellation_url: cancellationUrl, redirect_url: result.redirect_url, status: "PENDING", provider_status_code: null, provider_status_description: "PENDING", raw_submit_response: result }) });
-    } catch (error) {
-      await db(`wallet_transactions?id=eq.${encodeURIComponent(tx.id)}`, { method: "DELETE" }).catch(() => undefined);
-      throw error;
-    }
-
-    return json({ ok: true, merchant_reference: reference, order_tracking_id: result.order_tracking_id, redirect_url: result.redirect_url, callback_url: callbackUrl, currency, amount: Number(amount.toFixed(2)) });
-  } catch (error) {
-    console.error("pesapal-create-order", error);
-    return json({ error: error instanceof Error ? error.message : "Unable to create Pesapal order" }, 500);
-  }
-});
+Deno.serve(async (req) => { if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS }); if (req.method !== "POST") return json({ error: "POST required" }, 405); try { const authorization = req.headers.get("authorization") || ""; const token = authorization.replace(/^Bearer\s+/i, ""); if (!token) return json({ error: "Authentication required" }, 401); const user = await userFromToken(token); if (!user?.id) return json({ error: "Invalid session" }, 401); if (!PESAPAL_IPN_ID) return json({ error: "Pesapal IPN ID is not configured" }, 503); const walletResponse = await db(`wallets?user_id=eq.${encodeURIComponent(user.id)}&select=id,currency,balance,status,spending_enabled&limit=1`); const wallets = await walletResponse.json(); const wallet = wallets?.[0]; if (!wallet?.id) return json({ error: "Wallet is not initialized" }, 409); if (wallet.status !== "active" || wallet.spending_enabled === false) return json({ error: "Wallet is unavailable" }, 403); const input = await req.json(); const amount = Number(input.amount); if (!Number.isFinite(amount) || amount <= 0 || amount > 10000000) return json({ error: "Invalid payment amount" }, 400); const currency = String(input.currency || wallet.currency || "USD").trim().toUpperCase(); if (currency !== String(wallet.currency || "USD").toUpperCase()) return json({ error: "Payment currency must match the wallet currency", wallet_currency: wallet.currency }, 400); const email = String(input.email || user.email || "").trim(); const phone = String(input.phone || "").trim(); if (!email || !phone) return json({ error: "Email and phone are required" }, 400); const description = String(input.description || "Testagram wallet top-up").slice(0, 100); const reference = safeReference(user.id); const callbackUrl = `${APP_URL}/wallet?pesapal=callback`; const cancellationUrl = `${APP_URL}/wallet?pesapal=cancelled`; const tokenValue = await pesapalToken(); const orderResponse = await fetch(`${API}/Transactions/SubmitOrderRequest`, { method: "POST", headers: { Accept: "application/json", "Content-Type": "application/json", Authorization: `Bearer ${tokenValue}` }, body: JSON.stringify({ id: reference, currency, amount: Number(amount.toFixed(2)), description, callback_url: callbackUrl, cancellation_url: cancellationUrl, redirect_mode: "TOP_WINDOW", notification_id: PESAPAL_IPN_ID, billing_address: { email_address: email, phone_number: phone, country_code: "KE", first_name: String(input.firstName || "Testagram").slice(0, 50), middle_name: "", last_name: String(input.lastName || "User").slice(0, 50), line_1: "", line_2: "", city: "", state: "", postal_code: "", zip_code: "" } }) }); const result = await orderResponse.json(); if (!orderResponse.ok || !result.order_tracking_id || !result.redirect_url) return json({ error: "Pesapal order creation failed", provider: { status: result.status, message: result.message, error: result.error } }, 502); const txResponse = await db("wallet_transactions", { method: "POST", headers: { Prefer: "return=representation" }, body: JSON.stringify({ user_id: user.id, wallet_id: wallet.id, kind: "topup", type: "deposit", amount_cents: Math.round(amount * 100), amount: Number(amount.toFixed(2)), currency, direction: "credit", status: "pending", provider: "pesapal", provider_order_id: result.order_tracking_id, provider_reference: reference, provider_status: "PENDING", payment_method: "pesapal", description, metadata: { pesapal_merchant_reference: reference } }) }); const txRows = await txResponse.json(); const tx = txRows?.[0]; if (!tx?.id) throw new Error("Unable to initialize wallet transaction"); try { await db("pesapal_payment_orders", { method: "POST", headers: { Prefer: "return=minimal" }, body: JSON.stringify({ user_id: user.id, wallet_id: wallet.id, wallet_transaction_id: tx.id, wallet_amount: Number(amount.toFixed(2)), wallet_currency: currency, merchant_reference: reference, order_tracking_id: result.order_tracking_id, amount: Number(amount.toFixed(2)), currency, description, callback_url: callbackUrl, cancellation_url: cancellationUrl, redirect_url: result.redirect_url, status: "PENDING", provider_status_code: null, provider_status_description: "PENDING", raw_submit_response: result }) }); } catch (error) { await db(`wallet_transactions?id=eq.${encodeURIComponent(tx.id)}`, { method: "DELETE" }).catch(() => undefined); throw error; } return json({ ok: true, merchant_reference: reference, order_tracking_id: result.order_tracking_id, redirect_url: result.redirect_url, callback_url: callbackUrl, currency, amount: Number(amount.toFixed(2)) }); } catch (error) { console.error("pesapal-create-order", error); return json({ error: error instanceof Error ? error.message : "Unable to create Pesapal order" }, 500); } });
