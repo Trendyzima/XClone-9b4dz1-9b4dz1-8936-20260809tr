@@ -12,6 +12,7 @@ const root = __dirname;
 const preloadPath = path.resolve(root, '_preload.cjs');
 const selfHealPath = path.resolve(root, '_self-heal.cjs');
 const homeFeedRewirePath = path.resolve(root, 'scripts', 'home-feed-rewire.py');
+const homeFeedCacheFixPath = path.resolve(root, 'scripts', 'home-feed-cache-fix.py');
 
 function cleanNodeOptions(v) {
   return (v || '')
@@ -40,14 +41,16 @@ function runSelfHeal() {
 }
 
 function runCiHomeFeedRewire() {
-  if (process.env.GITHUB_ACTIONS !== 'true' || !fs.existsSync(homeFeedRewirePath)) return;
-  const result = spawnSync('python3', [homeFeedRewirePath], { cwd: root, stdio: 'inherit', shell: false, env: { ...process.env } });
-  if (result.error || result.status !== 0) {
-    process.stderr.write(`[_build] ❌ Home feed rewire failed (exit ${result.status ?? 1})\n`);
-    process.exit(result.status || 1);
+  if (process.env.GITHUB_ACTIONS !== 'true') return;
+  for (const script of [homeFeedRewirePath, homeFeedCacheFixPath]) {
+    if (!fs.existsSync(script)) continue;
+    const result = spawnSync('python3', [script], { cwd: root, stdio: 'inherit', shell: false, env: { ...process.env } });
+    if (result.error || result.status !== 0) {
+      process.stderr.write(`[_build] ❌ Home feed rewire failed (exit ${result.status ?? 1})\n`);
+      process.exit(result.status || 1);
+    }
+    try { fs.rmSync(script, { force: true }); } catch {}
   }
-  // The rewire is deliberately one-shot; do not persist the helper or this CI hook.
-  try { fs.rmSync(homeFeedRewirePath, { force: true }); } catch {}
 }
 
 runSelfHeal();
