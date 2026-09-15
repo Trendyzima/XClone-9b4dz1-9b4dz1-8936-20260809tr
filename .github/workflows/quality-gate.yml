@@ -1,5 +1,6 @@
 name: Quality Gate
 
+# Verification branch marker: no application code change.
 on:
   workflow_dispatch:
   push:
