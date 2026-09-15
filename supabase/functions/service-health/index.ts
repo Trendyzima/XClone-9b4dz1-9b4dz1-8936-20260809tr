@@ -3,16 +3,29 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const url = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SECRET_KEY") ?? "";
-const db = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+
+if (!url || !serviceKey) {
+  throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required");
+}
+
+const db = createClient(url, serviceKey, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
-  headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Methods": "GET, OPTIONS" },
+  headers: {
+    "Content-Type": "application/json; charset=utf-8",
+    "Cache-Control": "no-store",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "GET, OPTIONS",
+  },
 });
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return json({ ok: true });
   if (req.method !== "GET") return json({ error: "GET required" }, 405);
+
   const started = performance.now();
   try {
     const checks = await Promise.all([
@@ -24,15 +37,16 @@ Deno.serve(async (req) => {
       db.from("federation_outbox").select("id", { count: "exact", head: true }).in("status", ["pending", "retry", "queued"]),
       db.from("service_plane_health").select("service,events_24h,failures_24h,avg_duration_ms,last_event_at"),
     ]);
+
     const [profiles, posts, recommendations, walletTransactions, federationDeliveries, federationPending, planes] = checks;
-    const errors = checks.filter((x) => x.error).map((x) => x.error?.message ?? "database check failed");
+    const errors = checks.filter((check) => check.error).map((check) => check.error?.message ?? "database check failed");
     const healthy = errors.length === 0;
     const durationMs = Math.round(performance.now() - started);
 
     return json({
       status: healthy ? "ok" : "degraded",
       service: "testagram",
-      version: "ops-v2",
+      version: "ops-v3",
       duration_ms: durationMs,
       planes: planes.data ?? [],
       checks: {
@@ -54,6 +68,11 @@ Deno.serve(async (req) => {
       checked_at: new Date().toISOString(),
     }, healthy ? 200 : 503);
   } catch (error) {
-    return json({ status: "error", service: "testagram", error: error instanceof Error ? error.message : String(error), checked_at: new Date().toISOString() }, 503);
+    return json({
+      status: "error",
+      service: "testagram",
+      error: error instanceof Error ? error.message : String(error),
+      checked_at: new Date().toISOString(),
+    }, 503);
   }
 });
