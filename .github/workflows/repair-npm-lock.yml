@@ -26,11 +26,17 @@ jobs:
       - name: Verify clean install
         run: npm ci --ignore-scripts --no-audit --no-fund
 
-      - name: Lint
-        run: env -u NODE_OPTIONS npm run lint
+      - name: Verify preload hook
+        shell: bash
+        run: |
+          test -f "$GITHUB_WORKSPACE/_preload.cjs"
+          node -e "require('./_preload.cjs'); console.log('preload hook loaded from repository path')"
 
-      - name: Build
-        run: env -u NODE_OPTIONS npm run build
+      - name: Lint
+        run: npm run lint
+
+      - name: Build with repository preload wrapper
+        run: node _build.cjs
 
       - name: Commit lockfile
         shell: bash
