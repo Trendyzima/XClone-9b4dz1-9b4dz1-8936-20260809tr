@@ -7,9 +7,9 @@ export const Capacitor = {
 
 // ── @capacitor/status-bar ─────────────────────────────────────────────────────
 export const StatusBar = {
-  setOverlaysWebView: async () => {},
-  setStyle: async () => {},
-  setBackgroundColor: async () => {},
+  setOverlaysWebView: async (_options?: { overlay: boolean }) => {},
+  setStyle: async (_options?: { style: string }) => {},
+  setBackgroundColor: async (_options?: { color: string }) => {},
   hide: async () => {},
   show: async () => {},
 };
@@ -18,14 +18,15 @@ export const Style = {
   Dark: 'DARK',
   Light: 'LIGHT',
   Default: 'DEFAULT',
-};
+} as const;
 
-// ── BannerAdPosition — kept for AdMobAd / HybridAdComponent type compat ──────
+// ── BannerAdPosition — value + type compatibility for AdMob callers ──────────
+export type BannerAdPosition = 'TOP_CENTER' | 'BOTTOM_CENTER' | 'CENTER';
 export const BannerAdPosition = {
   TOP_CENTER: 'TOP_CENTER',
   BOTTOM_CENTER: 'BOTTOM_CENTER',
   CENTER: 'CENTER',
-};
+} as const satisfies Record<BannerAdPosition, BannerAdPosition>;
 
 // ── @capacitor/push-notifications ─────────────────────────────────────────────
 export const PushNotifications = {
