@@ -750,7 +750,7 @@ export default function HomePage() {
 
   const fetchInitialFeed = async (skipCache = false) => {
     // ── Serve from prefetch cache when available (tab switch) ──────────────
-    if (!skipCache && activeTab !== 'federated') {
+    if (!skipCache && activeTab !== 'federated' && activeTab !== 'foryou') {
       const cached = getCachedFeed(activeTab);
       if (cached && cached.length > 0) {
         setFeedItems(cached);
