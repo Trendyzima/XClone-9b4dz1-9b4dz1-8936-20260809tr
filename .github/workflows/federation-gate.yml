@@ -1,0 +1,35 @@
+name: Federation Gate
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/**'
+      - '.github/workflows/federation-gate.yml'
+  pull_request:
+    paths:
+      - 'supabase/functions/**'
+      - '.github/workflows/federation-gate.yml'
+permissions:
+  contents: read
+jobs:
+  deno:
+    name: Deno federation compile
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Typecheck federation entrypoints
+        run: |
+          deno check supabase/functions/mastodon-federation/index.ts
+          deno check supabase/functions/mastodon-edge/index.ts
+          deno check supabase/functions/federation-inbox/index.ts
+          deno check supabase/functions/federation-transport/index.ts
+          deno check supabase/functions/_shared/activitypub-conformance.ts
+          deno check supabase/functions/_shared/activitypub-security.ts
+          deno check supabase/functions/_shared/activitypub-delivery.ts
+          deno check supabase/functions/_shared/activitypub-compat.ts
+          deno check supabase/functions/_shared/federation-security.ts
+      - name: Run conformance tests
+        run: deno test supabase/functions/_shared/activitypub-conformance.test.ts
