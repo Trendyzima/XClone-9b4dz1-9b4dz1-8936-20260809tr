@@ -64,6 +64,10 @@ begin
     case when d.is_following=1 then 'From someone you follow' when d.interest_score>0 then 'Matches your interests' when d.is_second_degree=1 then 'Popular with people in your network' else 'Trending now' end,
     d.source, false
   from diversified d where d.author_rank <= 3 order by d.score desc, d.created_at desc limit 30;
+
+  insert into public.service_metrics(service, operation, status, duration_ms, metadata)
+  values ('recommendations', 'generate_content_recommendations', 'ok', null,
+          jsonb_build_object('user_id', p_user_id::text, 'generated_at', now()));
 end;
 $$;
 revoke all on function public.generate_content_recommendations(uuid) from public;
