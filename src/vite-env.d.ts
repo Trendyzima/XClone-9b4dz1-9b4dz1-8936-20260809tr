@@ -1,6 +1,7 @@
 /// <reference types="vite/client" />
 
 // Canonical Vite environment contract for the web typecheck gate.
+// CI trigger marker: rerun the complete Quality Gate against the repaired tree.
 interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL?: string;
   readonly VITE_SUPABASE_ANON_KEY?: string;
