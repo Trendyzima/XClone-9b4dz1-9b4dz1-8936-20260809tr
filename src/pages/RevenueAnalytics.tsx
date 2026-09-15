@@ -77,7 +77,7 @@ export default function RevenueAnalytics() {
         .select('*');
       
       if (dateFilter) {
-        query = query.filter(dateFilter);
+        query = query.gte('created_at', startDate.toISOString());
       }
 
       const { data: revenueData } = await query;

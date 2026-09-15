@@ -787,7 +787,7 @@ export default function SettingsPage() {
               {SOUND_PREVIEW_ITEMS.map(({ type, label, emoji, desc }) => (
                 <button
                   key={type}
-                  onClick={() => playSound(type)}
+                  onClick={() => playSound(type as Parameters<typeof playSound>[0])}
                   className="w-full flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-background/70 active:scale-[0.98] transition-all group"
                 >
                   <div className="flex items-center gap-3">

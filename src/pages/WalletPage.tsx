@@ -1377,7 +1377,7 @@ function SpendingAnalyticsTab({ userId, currency }: { userId: string; currency: 
   const { barData, pieData, totalIn, totalOut, totalBoosts, avgTxn, recentDeposits } = useMemo(() => {
     const days = period === 'week' ? 7 : 14;
     const now  = Date.now();
-    const dailyMap: any = {};
+    const dailyMap: Record<string, { in: number; out: number }> = {};
     for (let i = days - 1; i >= 0; i--) {
       const key = new Date(now - i * 86400000).toLocaleDateString('en', { month: 'short', day: 'numeric' });
       dailyMap[key] = { in: 0, out: 0 };
@@ -2538,7 +2538,7 @@ function ActivityHeatmap({ userId }: { userId: string }) {
   }, [userId]);
 
   const { cells, maxAmount } = useMemo(() => {
-    const map: any = {};
+    const map: Record<string, { count: number; amount: number; hasIn: boolean }> = {};
     const now = Date.now();
     for (let i = 34; i >= 0; i--) {
       const key = new Date(now - i * 86400000).toISOString().split('T')[0];
@@ -2886,7 +2886,7 @@ function P2PBalanceChart({ userId, currency }: { userId: string; currency: Curre
   }, [userId]);
 
   const { chartData, minBal, maxBal } = useMemo(() => {
-    const dayMap: any = {};
+    const dayMap: Record<string, { inAmt: number; outAmt: number; count: number }> = {};
     const now = Date.now();
     for (let i = 29; i >= 0; i--) {
       const key = new Date(now - i * 86400000).toLocaleDateString('en', { month: 'short', day: 'numeric' });
@@ -3614,14 +3614,14 @@ function ReferralLeaderboard({ userId }: { userId: string }) {
         .limit(500);
       const counts: any = {};
       (allRefs ?? []).forEach((r: any) => { counts[r.invited_by] = (counts[r.invited_by] ?? 0) + 1; });
-      const top10 = Object.entries(counts).sort((a: any, b: any) => b[1] - a[1]).slice(0, 10);
+      const top10 = Object.entries(counts as Record<string, number>).sort((a, b) => b[1] - a[1]).slice(0, 10);
       if (top10.length === 0) { setLeaders([]); setLoading(false); return; }
       const { data: profiles } = await supabase.from('user_profiles')
         .select('id,username,avatar_url').in('id', top10.map(([id]) => id));
       const pm: any = {};
       (profiles ?? []).forEach((p: any) => { pm[p.id] = p; });
       setLeaders(top10.map(([uid, count]) => ({
-        uid, count,
+        uid, count: Number(count),
         username: pm[uid]?.username ?? 'Unknown',
         avatarUrl: pm[uid]?.avatar_url ?? null,
       })));

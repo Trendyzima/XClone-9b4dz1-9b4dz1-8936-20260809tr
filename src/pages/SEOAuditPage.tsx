@@ -30,7 +30,7 @@ interface RouteAudit {
   status: 'good' | 'warn' | 'missing' | 'noindex' | 'loading';
 }
 
-const ROUTE_MANIFEST: Omit<RouteAudit, 'title' | 'description' | 'ogImage' | 'canonical' | 'status'>[] =
+const ROUTE_MANIFEST: SEORoute[] =
   SEO_COVERAGE.map(r => ({
     path: r.path,
     label: r.label,
@@ -40,7 +40,7 @@ const ROUTE_MANIFEST: Omit<RouteAudit, 'title' | 'description' | 'ogImage' | 'ca
     noindex: r.noindex,
   }));
 
-function scoreRoute(route: Omit<RouteAudit, 'status'>): RouteAudit['status'] {
+function scoreRoute(route: SEORoute): RouteAudit['status'] {
   return scoreSEORoute(route as SEORoute);
 }
 

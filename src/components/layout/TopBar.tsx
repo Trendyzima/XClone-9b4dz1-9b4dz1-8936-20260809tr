@@ -8,10 +8,11 @@ interface TopBarProps {
   title: string;
   showProfile?: boolean;
   showBack?: boolean;
+  onBack?: () => void;
   showSettings?: boolean;
 }
 
-export function TopBar({ title, showProfile = true, showBack = false, showSettings = false }: TopBarProps) {
+export function TopBar({ title, showProfile = true, showBack = false, onBack, showSettings = false }: TopBarProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -27,7 +28,7 @@ export function TopBar({ title, showProfile = true, showBack = false, showSettin
 
         <div className="flex items-center space-x-3">
           {showBack && (
-            <button onClick={() => navigate(-1)} className="p-2 hover:bg-muted rounded-full">
+            <button onClick={() => (onBack ? onBack() : navigate(-1))} className="p-2 hover:bg-muted rounded-full">
               <ArrowLeft className="w-5 h-5" />
             </button>
           )}

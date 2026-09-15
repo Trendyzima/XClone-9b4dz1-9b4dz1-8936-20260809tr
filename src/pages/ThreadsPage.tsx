@@ -192,6 +192,11 @@ export default function ThreadsPage() {
     }
   })();
 
+  const normalizeThreads = (rows: any[] | null | undefined): Thread[] => (rows ?? []).map((row: any) => ({
+    ...row,
+    user_profiles: Array.isArray(row.user_profiles) ? (row.user_profiles[0] ?? { id: row.user_id, username: 'Unknown', avatar_url: null, verified: false }) : row.user_profiles,
+  }));
+
   const fetchThreads = async () => {
     setLoading(true);
     try {
@@ -214,7 +219,7 @@ export default function ThreadsPage() {
           .in('id', bookmarkIds)
           .eq('is_published', true);
         if (savedErr) throw savedErr;
-        setThreads(savedData || []);
+        setThreads(normalizeThreads(savedData));
         setLoading(false);
         return;
       }
@@ -251,7 +256,7 @@ export default function ThreadsPage() {
       const { data, error } = await query.limit(50);
       if (error) throw error;
 
-      setThreads(data || []);
+      setThreads(normalizeThreads(data));
     } catch (error) {
       console.error('Error fetching threads:', error);
     } finally {

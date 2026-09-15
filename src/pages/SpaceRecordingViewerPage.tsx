@@ -45,7 +45,8 @@ export default function SpaceRecordingViewerPage() {
     if (!recording || !user) return;
     setTranscribing(true);
     try {
-      const { data, error } = await supabase.functions.invoke('transcribe-audio', {
+      const { data, error } = try {
+      await supabase.functions.invoke('transcribe-audio', {
         body: { recording_id: recording.id },
       });
       if (error) {
@@ -226,7 +227,8 @@ export default function SpaceRecordingViewerPage() {
       if (isClipMode && clipStart !== null && !clipAutoStarted.current) {
         clipAutoStarted.current = true;
         audio.currentTime = clipStart;
-        audio.play().catch(() => {});
+        audio.play();
+    } catch {}
       }
     };
     const onPlay = () => setPlaying(true);
@@ -292,7 +294,9 @@ export default function SpaceRecordingViewerPage() {
     if (!recording) return;
     const valid = editChapters.filter(c => c.label.trim());
     setSavingChapters(true);
-    await supabase.from('spaces').update({ chapters: valid }).eq('id', recording.space_id).catch(() => {});
+    try {
+      await supabase.from('spaces').update({ chapters: valid }).eq('id', recording.space_id);
+    } catch {}
     setOverrideChapters(valid);
     setSavingChapters(false);
     setShowChaptersEditor(false);
@@ -302,10 +306,14 @@ export default function SpaceRecordingViewerPage() {
   const handleTipHost = async () => {
     if (!user || !recording || !tipHostAmount) return;
     setSendingHostTip(true);
-    const { error: deductErr } = await supabase.rpc('deduct_from_wallet', { p_user_id: user.id, p_amount: tipHostAmount });
+    const { error: deductErr } = try {
+      await supabase.rpc('deduct_from_wallet', { p_user_id: user.id, p_amount: tipHostAmount });
     if (deductErr) { toast.error('Insufficient wallet balance'); setSendingHostTip(false); return; }
-    await supabase.rpc('add_to_wallet', { p_user_id: recording.user_id, p_amount: tipHostAmount }).catch(() => {});
-    await supabase.from('tips').insert({ from_user_id: user.id, to_user_id: recording.user_id, amount: tipHostAmount, message: `Tip for podcast: ${recording.title}` }).catch(() => {});
+    await supabase.rpc('add_to_wallet', { p_user_id: recording.user_id, p_amount: tipHostAmount });
+    } catch {}
+    try {
+      await supabase.from('tips').insert({ from_user_id: user.id, to_user_id: recording.user_id, amount: tipHostAmount, message: `Tip for podcast: ${recording.title}` });
+    } catch {}
     toast.success(`$${tipHostAmount} tip sent to @${host?.username}!`);
     setTipHostSent(true);
     setShowTipHostDialog(false);
