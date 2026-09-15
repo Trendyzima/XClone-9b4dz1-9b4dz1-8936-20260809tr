@@ -1,5 +1,7 @@
 name: Quality Gate
 
+# CI trigger verification: intentionally harmless workflow-only change.
+
 on:
   workflow_dispatch:
   push:
