@@ -1,0 +1,71 @@
+name: Quality Gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'vite.config.*'
+      - 'eslint.config.*'
+      - '_build.cjs'
+      - '.github/workflows/quality-gate.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - 'vite.config.*'
+      - 'eslint.config.*'
+      - '_build.cjs'
+      - '.github/workflows/quality-gate.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web typecheck, lint, build and interaction contract
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify checked-out revision
+        run: git rev-parse HEAD
+      - name: Typecheck web application
+        run: npx tsc --noEmit
+      - name: Lint web application
+        run: npm run lint
+      - name: Build application
+        run: npm run build
+      - name: Verify PostCard canonical interaction contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f src/components/features/PostCard.tsx
+          test -f src/services/postInteractionService.ts
+          grep -q "togglePostLike" src/components/features/PostCard.tsx
+          grep -q "togglePostRepost" src/components/features/PostCard.tsx
+          grep -q "post_likes" src/components/features/PostCard.tsx
+          grep -q "post_reposts" src/components/features/PostCard.tsx
+          if grep -q "supabase.from('likes')" src/components/features/PostCard.tsx; then
+            echo 'legacy likes table access remains in PostCard'
+            exit 1
+          fi
+          if grep -q "supabase.from('reposts')" src/components/features/PostCard.tsx; then
+            echo 'legacy reposts table access remains in PostCard'
+            exit 1
+          fi
