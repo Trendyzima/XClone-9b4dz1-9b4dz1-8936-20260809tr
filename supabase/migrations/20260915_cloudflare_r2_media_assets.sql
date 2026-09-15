@@ -20,15 +20,13 @@ create index if not exists media_assets_status_idx on public.media_assets(status
 
 alter table public.media_assets enable row level security;
 
--- The project already has owner-scoped policies; remove only duplicate policy names
--- introduced by earlier versions of this migration.
 drop policy if exists "media assets owner select" on public.media_assets;
 drop policy if exists "media assets owner insert" on public.media_assets;
 drop policy if exists "media assets owner update" on public.media_assets;
 drop policy if exists "media assets owner delete" on public.media_assets;
 
--- A post-media row is the relational attachment used by the application.
--- The binary itself remains in Cloudflare R2; Postgres stores only metadata.
+-- Relational attachment: Supabase stores the post/media relationship and metadata;
+-- Cloudflare R2 stores the binary object itself.
 alter table public.post_media add column if not exists media_asset_id uuid;
 
 create unique index if not exists post_media_post_asset_uidx
@@ -47,13 +45,23 @@ language plpgsql
 security definer
 set search_path = public
 as $$
+declare
+  next_order smallint;
 begin
   if new.status = 'uploaded' and new.post_id is not null then
+    -- Serialize ordering per post so the existing post_id/sort_order uniqueness
+    -- constraint remains valid when several media objects finish together.
+    perform pg_advisory_xact_lock(hashtextextended(new.post_id::text, 0));
+    select coalesce(max(sort_order) + 1, 0)::smallint
+      into next_order
+      from public.post_media
+      where post_id = new.post_id;
+
     insert into public.post_media (
-      post_id, owner_id, media_url, media_type, mime_type, byte_size, media_asset_id
+      post_id, owner_id, media_url, media_type, mime_type, byte_size, media_asset_id, sort_order
     )
     values (
-      new.post_id, new.owner_id, new.media_url, new.media_type, new.mime_type, new.byte_size, new.id
+      new.post_id, new.owner_id, new.media_url, new.media_type, new.mime_type, new.byte_size, new.id, next_order
     )
     on conflict (post_id, media_asset_id) where media_asset_id is not null
     do update set
