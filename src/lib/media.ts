@@ -15,6 +15,7 @@ export type MediaUploadResult = {
   media_type?: 'image' | 'video';
   status: 'uploaded';
   etag?: string | null;
+  post_id?: string | null;
 };
 
 function validateMedia(file: File) {
@@ -39,10 +40,7 @@ async function mediaFunction(action: string, body: Record<string, unknown>) {
   return data;
 }
 
-/**
- * Upload media directly from the browser to Cloudflare R2.
- * Supabase stores only the media metadata; the binary never passes through Supabase.
- */
+/** Uploads the binary directly to Cloudflare R2; Supabase stores metadata only. */
 export async function uploadMedia(file: File, postId?: string | null): Promise<MediaUploadResult> {
   validateMedia(file);
 
@@ -65,6 +63,11 @@ export async function uploadMedia(file: File, postId?: string | null): Promise<M
   }
 
   return mediaFunction('complete', { media_id: initialized.media_id });
+}
+
+/** Attaches an already-uploaded R2 object to a Supabase post. */
+export async function attachMediaToPost(mediaId: string, postId: string): Promise<MediaUploadResult> {
+  return mediaFunction('attach', { media_id: mediaId, post_id: postId });
 }
 
 export async function deleteMedia(mediaId: string) {
