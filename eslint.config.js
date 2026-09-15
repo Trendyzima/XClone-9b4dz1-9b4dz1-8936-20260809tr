@@ -3,6 +3,15 @@ import globals from "globals";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 
+const nodeToolingFiles = [
+  "*.cjs",
+  "*.mjs",
+  "eslint.config.js",
+  "vite.config.cjs",
+  "_*.cjs",
+  "vite-fix-loader.mjs",
+];
+
 export default [
   {
     ignores: [
@@ -16,14 +25,30 @@ export default [
   },
   js.configs.recommended,
   {
-    files: ["**/*.{js,jsx}"],
+    files: nodeToolingFiles,
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
-      globals: {
-        ...globals.browser,
-        ...globals.node,
-      },
+      globals: globals.node,
+    },
+    rules: {
+      "no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_$",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+      "no-empty": ["error", { allowEmptyCatch: true }],
+    },
+  },
+  {
+    files: ["src/**/*.{js,jsx}"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: globals.browser,
       parserOptions: {
         ecmaFeatures: { jsx: true },
       },
