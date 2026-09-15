@@ -23,10 +23,6 @@ export class BackendClientError extends Error {
   }
 }
 
-/**
- * Canonical authenticated bridge for frontend -> Supabase Edge Functions.
- * Provider secrets and service-role credentials never belong here.
- */
 export async function requireAccessToken(client: SupabaseClient = supabase): Promise<string> {
   const { data, error } = await client.auth.getSession();
   if (error) throw new BackendClientError(error.message, { code: 'SESSION_READ_FAILED' });
@@ -47,7 +43,6 @@ function extractFunctionError(error: unknown): BackendClientError {
   return new BackendClientError('Backend request failed');
 }
 
-/** Invoke a user-authenticated Edge Function with an explicit session JWT. */
 export async function invokeBackendFunction<TResponse = unknown, TBody extends Record<string, unknown> = Record<string, unknown>>(
   functionName: string,
   body: TBody,
@@ -56,20 +51,17 @@ export async function invokeBackendFunction<TResponse = unknown, TBody extends R
   const accessToken = await requireAccessToken(client);
   const { data, error } = await client.functions.invoke(functionName, {
     body,
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+    headers: { Authorization: `Bearer ${accessToken}` },
   });
   if (error) throw extractFunctionError(error);
   return data as TResponse;
 }
 
-/**
- * Canonical capability-plane client. Keeping construction here prevents pages
- * from inventing different auth/token behavior for the same backend contract.
- */
-export function createBackendCapabilityClient(client: SupabaseClient = supabase): TestagramCapabilityClient {
-  const endpoint = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/capability-gateway`;
+/** Canonical capability-plane client; callers may supply an explicit endpoint for compatibility. */
+export function createBackendCapabilityClient(
+  endpoint: string = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/capability-gateway`,
+  client: SupabaseClient = supabase,
+): TestagramCapabilityClient {
   return new TestagramCapabilityClient({
     endpoint,
     getAccessToken: () => requireAccessToken(client),
@@ -83,9 +75,7 @@ export const backendCapabilities = createBackendCapabilityClient();
 export type MpesaStkPushRequest = {
   amount_kes: number;
   phone: string;
-  metadata: {
-    wallet_id: string;
-  };
+  metadata: { wallet_id: string };
 };
 
 export type MpesaStkPushResponse = {
