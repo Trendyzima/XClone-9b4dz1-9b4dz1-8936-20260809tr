@@ -1,0 +1,42 @@
+name: Community Notes Gate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/services/communityNotes.ts'
+      - 'supabase/migrations/*community_notes*'
+      - '.github/workflows/community-notes-gate.yml'
+  pull_request:
+    paths:
+      - 'src/services/communityNotes.ts'
+      - 'supabase/migrations/*community_notes*'
+      - '.github/workflows/community-notes-gate.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  community-notes:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Build application
+        run: npm run build
+      - name: Verify community notes contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f src/services/communityNotes.ts
+          test -f supabase/migrations/20260915212000_community_notes_adaptive_scoring_v1.sql
+          grep -q "community_notes" src/services/communityNotes.ts
+          grep -q "community_note_ratings" src/services/communityNotes.ts
+          grep -q "get_post_community_notes" src/services/communityNotes.ts
+          grep -q "refresh_community_note_score" supabase/migrations/20260915212000_community_notes_adaptive_scoring_v1.sql
+          grep -q "distinct_rater_count" supabase/migrations/20260915212000_community_notes_adaptive_scoring_v1.sql
+          grep -q "perspective_count" supabase/migrations/20260915212000_community_notes_adaptive_scoring_v1.sql
