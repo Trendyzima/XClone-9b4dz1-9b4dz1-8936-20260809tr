@@ -4,7 +4,6 @@ const repo = new WalletRepository();
 
 export class WalletServiceDB {
   async creditFromMpesa(userId: string, amount: number, reference: string) {
-    // idempotent safety should be handled at transaction layer later
     return await repo.credit(userId, amount, reference);
   }
 
@@ -23,3 +22,9 @@ export class WalletServiceDB {
     return wallet;
   }
 }
+
+// Backwards-compatible functional exports used by legacy monetization/payment callers.
+const service = new WalletServiceDB();
+export const getWalletBalance = (userId: string) => service.getBalance(userId);
+export const deductFromWallet = (userId: string, amount: number, reference?: string) => service.debit(userId, amount, reference);
+export const creditWalletFromMpesa = (userId: string, amount: number, reference: string) => service.creditFromMpesa(userId, amount, reference);
