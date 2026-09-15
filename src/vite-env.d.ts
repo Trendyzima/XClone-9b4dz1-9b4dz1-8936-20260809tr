@@ -2,6 +2,7 @@
 
 // Canonical Vite environment contract for the web typecheck gate.
 // CI trigger marker: rerun the complete Quality Gate against the repaired tree.
+// Self-heal marker: deterministic contract repair runs before compiler verification.
 interface ImportMetaEnv {
   readonly VITE_SUPABASE_URL?: string;
   readonly VITE_SUPABASE_ANON_KEY?: string;
