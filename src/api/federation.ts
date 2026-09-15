@@ -74,6 +74,11 @@ export interface TimelineParams {
   after?: string;
 }
 
+export interface FederatedPage {
+  items: any[];
+  pagination: { limit: number; hasMore: boolean; nextCursor: string | null };
+}
+
 export async function getHomeTimeline(params: TimelineParams = {}): Promise<any[]> {
   return api('/timeline/home', 'GET', undefined, params as any);
 }
@@ -87,7 +92,33 @@ export async function getLocalTimeline(params: TimelineParams = {}): Promise<any
 }
 
 export async function getFederatedTimeline(params: TimelineParams = {}): Promise<any[]> {
-  return api('/timeline/federated', 'GET', undefined, params as any);
+  const page = await getFederatedTimelinePage(params);
+  return page.items;
+}
+
+export async function getFederatedTimelinePage(params: TimelineParams = {}): Promise<FederatedPage> {
+  const token = await getToken();
+  const query = new URLSearchParams();
+  query.set('limit', String(Math.min(Math.max(params.limit ?? 20, 1), 50)));
+  if (params.before) query.set('before', params.before);
+  const { data, error } = await supabase.functions.invoke(`federated-feed?${query.toString()}`, {
+    method: 'GET',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (error) {
+    let msg = error.message;
+    if (error instanceof FunctionsHttpError) {
+      try {
+        const status = error.context?.status ?? 500;
+        const text = await error.context?.text();
+        msg = `[${status}] ${text || error.message || 'Federated feed error'}`;
+      } catch {
+        msg = error.message ?? 'Federated feed error';
+      }
+    }
+    throw new GatewayError(0, msg, '/federated-feed');
+  }
+  return data as FederatedPage;
 }
 
 export async function getUser(acct: string): Promise<any> {
