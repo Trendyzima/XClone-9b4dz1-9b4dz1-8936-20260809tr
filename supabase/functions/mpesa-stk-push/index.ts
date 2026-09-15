@@ -24,15 +24,19 @@ function phone(raw: string) {
   throw new Error("INVALID_PHONE");
 }
 
-function configurationError() {
-  if (!SUPABASE_URL || !SERVICE_ROLE || !ANON) return "SUPABASE_FUNCTION_CONFIGURATION_INVALID";
+function providerConfigurationError() {
   if (!BASE) return "MPESA_ENV_MUST_BE_LIVE_OR_SANDBOX";
   if (!KEY || !SECRET || !SHORTCODE || !PASSKEY) return "MPESA_CREDENTIALS_NOT_CONFIGURED";
   return null;
 }
 
+function configurationError() {
+  if (!SUPABASE_URL || !SERVICE_ROLE || !ANON) return "SUPABASE_FUNCTION_CONFIGURATION_INVALID";
+  return providerConfigurationError();
+}
+
 async function token() {
-  const error = configurationError();
+  const error = providerConfigurationError();
   if (error) throw new Error(error);
   const r = await fetch(`${BASE}/oauth/v1/generate?grant_type=client_credentials`, { headers: { Authorization: `Basic ${btoa(`${KEY}:${SECRET}`)}` } });
   const data = await r.json().catch(() => ({}));
@@ -51,13 +55,53 @@ async function authenticatedUser(req: Request) {
 }
 
 async function findPayment(checkout: string) {
-  for (const delay of [0, 250, 500, 1000, 2000, 3000]) {
+  for (const delay of [0, 250, 500, 1000, 2000, 3000, 5000]) {
     if (delay) await new Promise((resolve) => setTimeout(resolve, delay));
     const { data, error } = await admin.from("mpesa_payments").select("id,amount_kes").eq("checkout_request_id", checkout).maybeSingle();
     if (error) throw new Error(`MPESA_PAYMENT_LOOKUP_FAILED:${error.message}`);
     if (data) return data;
   }
-  return null;
+
+  const { data: tx, error: txError } = await admin.from("wallet_transactions").select("id,user_id,wallet_id,amount,currency,provider_reference,metadata").eq("provider","mpesa").eq("provider_order_id",checkout).eq("status","pending").maybeSingle();
+  if (txError) throw new Error(`MPESA_TX_LOOKUP_FAILED:${txError.message}`);
+  if (!tx) return null;
+
+  const metadata = (tx.metadata && typeof tx.metadata === "object") ? tx.metadata as Record<string, unknown> : {};
+  const amountKes = Number(metadata.amount_kes);
+  const savedPhone = String(metadata.phone || "");
+  if (!Number.isFinite(amountKes) || amountKes <= 0 || !savedPhone) throw new Error("MPESA_PAYMENT_RECONSTRUCTION_DATA_MISSING");
+
+  const { data: reconstructed, error: insertError } = await admin.from("mpesa_payments").insert({
+    user_id: tx.user_id,
+    wallet_id: tx.wallet_id,
+    wallet_transaction_id: tx.id,
+    merchant_request_id: String(metadata.mpesa_merchant_request_id || ""),
+    checkout_request_id: checkout,
+    amount_kes: amountKes,
+    wallet_amount: Number(tx.amount),
+    wallet_currency: String(tx.currency || "USD"),
+    phone: savedPhone,
+    status: "pending",
+    raw_response: { reconstructed: true, source: "wallet_transactions", checkout_request_id: checkout },
+    callback_data: {},
+  }).select("id,amount_kes").single();
+  if (insertError || !reconstructed) throw new Error(`MPESA_PAYMENT_RECONSTRUCTION_FAILED:${insertError?.message || "unknown"}`);
+  return reconstructed;
+}
+
+async function verifySuccessfulProviderPayment(checkout: string) {
+  const access = await token();
+  const now = new Date();
+  const timestamp = `${now.getUTCFullYear()}${String(now.getUTCMonth() + 1).padStart(2,"0")}${String(now.getUTCDate()).padStart(2,"0")}${String(now.getUTCHours()).padStart(2,"0")}${String(now.getUTCMinutes()).padStart(2,"0")}${String(now.getUTCSeconds()).padStart(2,"0")}`;
+  const password = btoa(`${SHORTCODE}${PASSKEY}${timestamp}`);
+  const response = await fetch(`${BASE}/mpesa/stkpushquery/v1/query`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${access}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ BusinessShortCode: SHORTCODE, Password: password, Timestamp: timestamp, CheckoutRequestID: checkout }),
+  });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || String(data.ResponseCode) !== "0") throw new Error("MPESA_PROVIDER_STATUS_NOT_CONFIRMED");
+  return data;
 }
 
 async function handleCallback(body: any) {
@@ -84,9 +128,17 @@ async function handleCallback(body: any) {
     return json({ ResultCode: 1, ResultDesc: "Payment record not yet available; retry callback" }, 500);
   }
 
-  if (resultCode === 0 && (!receipt || !Number.isFinite(amountKes) || amountKes <= 0 || Math.round(Number(payment.amount_kes) * 100) !== Math.round(Number(amountKes) * 100))) {
-    console.error("[mpesa] callback verification failed", checkout);
-    return json({ ResultCode: 1, ResultDesc: "Callback verification failed" }, 400);
+  if (resultCode === 0) {
+    if (!receipt || !Number.isFinite(amountKes) || amountKes <= 0 || Math.round(Number(payment.amount_kes) * 100) !== Math.round(Number(amountKes) * 100)) {
+      console.error("[mpesa] callback verification failed", checkout);
+      return json({ ResultCode: 1, ResultDesc: "Callback verification failed" }, 400);
+    }
+    try {
+      await verifySuccessfulProviderPayment(checkout);
+    } catch (error) {
+      console.error("[mpesa] provider status verification failed", checkout, error instanceof Error ? error.message : String(error));
+      return json({ ResultCode: 1, ResultDesc: "Provider payment not yet confirmed; retry callback" }, 500);
+    }
   }
 
   const { data: settlement, error } = await admin.rpc("finalize_mpesa_topup", {
