@@ -26,8 +26,10 @@ Deno.serve(async (req) => {
       db.from("posts").select("id", { count: "exact", head: true }).is("deleted_at", null),
       db.from("content_recommendations").select("id", { count: "exact", head: true }),
       db.from("wallet_transactions").select("id", { count: "exact", head: true }),
+      db.from("federation_deliveries").select("id", { count: "exact", head: true }),
+      db.from("federation_outbox").select("id", { count: "exact", head: true }).in("status", ["pending", "retry", "queued"]),
     ]);
-    const [profiles, posts, recommendations, walletTransactions] = checks;
+    const [profiles, posts, recommendations, walletTransactions, federationDeliveries, federationPending] = checks;
     const errors = checks.filter((x) => x.error).map((x) => x.error?.message ?? "database check failed");
     const healthy = errors.length === 0;
     const durationMs = Math.round(performance.now() - started);
@@ -41,13 +43,15 @@ Deno.serve(async (req) => {
         database: healthy ? "ok" : "error",
         recommendations: recommendations.error ? "error" : "ok",
         wallet: walletTransactions.error ? "error" : "ok",
-        federation: "external-runtime",
+        federation: federationDeliveries.error || federationPending.error ? "error" : "ok",
       },
       counts: {
         users: profiles.count ?? 0,
         posts: posts.count ?? 0,
         recommendations: recommendations.count ?? 0,
         wallet_transactions: walletTransactions.count ?? 0,
+        federation_deliveries: federationDeliveries.count ?? 0,
+        federation_pending: federationPending.count ?? 0,
       },
       errors: errors.length ? errors.slice(0, 4) : undefined,
       checked_at: new Date().toISOString(),
