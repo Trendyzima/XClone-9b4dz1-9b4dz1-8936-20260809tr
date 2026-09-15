@@ -33,3 +33,5 @@ jobs:
           deno check supabase/functions/_shared/federation-security.ts
       - name: Run conformance tests
         run: deno test supabase/functions/_shared/activitypub-conformance.test.ts
+      - name: Federation gate marker
+        run: echo "Federation compile and conformance gate executed"
