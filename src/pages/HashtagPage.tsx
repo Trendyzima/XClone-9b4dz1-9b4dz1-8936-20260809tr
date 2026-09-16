@@ -13,6 +13,7 @@ import {
 import { toast } from 'sonner';
 import { formatNumber } from '@/lib/utils';
 import { useSEO, buildHashtagLD, buildOgImageUrl } from '@/hooks/useSEO';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 function HashtagAdBanner() { return <PageAdBanner />; }
@@ -116,12 +117,11 @@ export default function HashtagPage() {
 
   const fetchHashtagAndPosts = async () => {
     try {
-      const { data: hashtagData, error: hashtagError } = await supabase
-        .from('hashtags')
-        .select('*')
-        .eq('tag', tag?.toLowerCase())
-        .single();
-      if (hashtagError) throw hashtagError;
+      const hashtagResult = await backendCapabilities.searchHashtags(tag ?? '', 1);
+      const hashtagData = hashtagResult.items?.find((item: any) =>
+        String(item?.tag ?? '').toLowerCase() === String(tag ?? '').toLowerCase()
+      );
+      if (!hashtagData) throw new Error('HASHTAG_NOT_FOUND');
       setHashtag(hashtagData);
 
       const { count: fCount } = await supabase.from('hashtag_follows').select('*', { count: 'exact', head: true }).eq('hashtag_id', hashtagData.id);

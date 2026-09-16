@@ -12,6 +12,7 @@ import { formatNumber } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { useSEO } from '@/hooks/useSEO';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { ShoppingBag, Star as StarIcon, Heart as HeartIcon, MapPin as MapPinIcon, BadgeCheck as BadgeCheckIcon, ExternalLink as ExtLinkIcon } from 'lucide-react';
 
@@ -778,13 +779,12 @@ export default function ExplorePage() {
 
   const fetchData = async () => {
     setLoading(true);
-    await supabase.rpc('refresh_trending_topics').catch(() => {});
-    const [trendingRes, hashtagRes, whoRes] = await Promise.all([
-      supabase.from('trending_topics').select('*').order('posts_count', { ascending: false }).limit(50),
+    const [trendingData, hashtagRes, whoRes] = await Promise.all([
+      backendCapabilities.getTrends(50),
       supabase.from('trending_hashtags').select('hashtag_id, trend_score, daily_posts, hashtags(id, tag, usage_count)').order('trend_score', { ascending: false }).limit(20),
       supabase.from('user_profiles').select('*').order('followers_count', { ascending: false }).limit(10),
     ]);
-    setTrending(trendingRes.data ?? []);
+    setTrending(trendingData?.items ?? []);
     if (hashtagRes.data) {
       setTrendingHashtags(hashtagRes.data.filter((r: any) => r.hashtags).map((r: any) => ({ ...r.hashtags, daily_posts: r.daily_posts })));
     }
