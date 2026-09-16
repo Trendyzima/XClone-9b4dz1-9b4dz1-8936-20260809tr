@@ -2,6 +2,25 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 export type ServiceStatus = "ok" | "error" | "timeout" | "degraded";
 
+type ServiceMetricArgs = {
+  p_service: string;
+  p_operation: string;
+  p_status: ServiceStatus;
+  p_duration_ms: number;
+  p_metadata: Record<string, unknown>;
+};
+
+/**
+ * The Edge Function client is intentionally created without generated Database
+ * types. Keep the RPC contract explicit here so Deno type-checking does not
+ * erase the argument shape to `undefined` while the runtime still calls the
+ * canonical public.record_service_metric function.
+ */
+const recordServiceMetricRpc = (
+  db: ReturnType<typeof createClient>,
+  args: ServiceMetricArgs,
+) => db.rpc("record_service_metric" as never, args as never);
+
 export function serviceTimer(service: string, operation: string) {
   const started = performance.now();
   return {
@@ -21,7 +40,7 @@ export async function recordServiceMetric(
   durationMs: number,
   metadata: Record<string, unknown> = {},
 ) {
-  const { error } = await db.rpc("record_service_metric", {
+  const { error } = await recordServiceMetricRpc(db, {
     p_service: service,
     p_operation: operation,
     p_status: status,
