@@ -120,6 +120,12 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          # npm/lint/build tooling can leave tracked generated metadata modified after
+          # the repair commit. The repair commit above is the source of truth, so make
+          # the worktree deterministic before attempting the rebase.
+          git reset --hard HEAD
+          git clean -fd -e node_modules -e .git
+          git status --short
           for attempt in 1 2 3; do
             git fetch origin main
             if git rebase origin/main; then
@@ -130,6 +136,8 @@ jobs:
             else
               echo "Rebase failed on attempt ${attempt}."
               git rebase --abort || true
+              git reset --hard HEAD
+              git clean -fd -e node_modules -e .git
             fi
             echo "Main changed while repairing; retrying (${attempt}/3)."
             sleep 2
