@@ -12,6 +12,11 @@ function normalizeKenyaPhone(input: string) {
   throw new Error('Enter a valid Kenyan phone number, e.g. 0712345678');
 }
 
+/**
+ * Map the Supabase authentication identity only.
+ * Username is presentation data here; AuthProvider resolves the canonical
+ * profile username from public.user_profiles using the authenticated UUID.
+ */
 export function mapSupabaseUser(user: User): AuthUser {
   const phone = user.phone || undefined;
   const email = user.email || phone || '';
@@ -22,6 +27,43 @@ export function mapSupabaseUser(user: User): AuthUser {
     username,
     avatar: user.user_metadata?.avatar_url || user.user_metadata?.picture,
   };
+}
+
+/**
+ * Resolve the application's canonical profile identity from the authenticated
+ * Supabase UUID. The UUID is the stable identity boundary; username is a
+ * profile attribute and may differ from editable Auth metadata.
+ */
+export async function mapSupabaseUserWithCanonicalProfile(user: User): Promise<AuthUser> {
+  const mapped = mapSupabaseUser(user);
+
+  try {
+    const { data: profile, error } = await supabase
+      .from('user_profiles')
+      .select('username, avatar_url, verified')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (error) {
+      console.warn('[Auth] Canonical profile lookup failed; using auth fallback:', error.message);
+      return mapped;
+    }
+
+    if (!profile?.username) {
+      console.warn('[Auth] Authenticated user has no canonical profile username:', user.id);
+      return mapped;
+    }
+
+    return {
+      ...mapped,
+      username: profile.username,
+      avatar: profile.avatar_url || mapped.avatar,
+      verified: profile.verified ?? mapped.verified,
+    };
+  } catch (error) {
+    console.warn('[Auth] Canonical profile resolver failed; using auth fallback:', error);
+    return mapped;
+  }
 }
 
 export class AuthService {
