@@ -7,7 +7,8 @@ export type MessageAttachment = { id: string; message_id: string; owner_id: stri
 export type TypingState = { user_id: string; typing: boolean; at: string };
 export type PresenceState = { user_id: string; status: 'online' | 'away' | 'offline'; at: string };
 export type CallSession = { call_id: string; provider: 'livekit'; room_name: string };
-const conversationTopic = (conversationId: string) => `testagram:conversation:${conversationId}`;
+// Must stay identical to the topic parsed by the realtime.messages RLS policy.
+const conversationTopic = (conversationId: string) => `conversation:${conversationId}`;
 
 type ConversationHandlers = {
   onMessage?: (message: CommunicationMessage) => void;
@@ -65,7 +66,12 @@ export const communicationService = {
         if (value?.status) handlers.onPresence?.({ user_id: key, status: value.status, at: value.at ?? new Date().toISOString() });
       })
       .on('presence', { event: 'leave' }, ({ key }) => handlers.onPresence?.({ user_id: key, status: 'offline', at: new Date().toISOString() }));
-    void channel.subscribe();
+    void channel.subscribe((status, error) => {
+      if (status === 'SUBSCRIBED') {
+        void channel.track({ user_id: supabase.auth.getUser().then(({ data }) => data.user?.id ?? ''), status: 'online', at: new Date().toISOString() });
+      }
+      if (error) console.warn('[communication] realtime subscription error', error);
+    });
     return () => { void supabase.removeChannel(channel); };
   },
   async setTyping(conversationId: string, typing: boolean) {
