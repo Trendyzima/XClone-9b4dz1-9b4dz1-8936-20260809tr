@@ -11,7 +11,7 @@ const json = (body: unknown, status = 200, requestId = crypto.randomUUID()) => n
     "Content-Type": "application/json; charset=utf-8",
     "Cache-Control": "no-store",
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-request-id, x-client-info",
+    "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-request-id, x-client-info, x-testagram-client, x-testagram-client-version",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "X-Request-Id": requestId,
   },
