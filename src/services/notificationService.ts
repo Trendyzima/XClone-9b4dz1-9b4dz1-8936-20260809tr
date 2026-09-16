@@ -1,5 +1,5 @@
-import { supabase } from '@/lib/supabase';
-import type { NotificationEventInput, NotificationEventRecord } from '@/types/notification';
+import { supabase } from '../lib/supabase';
+import type { NotificationEventInput, NotificationEventRecord } from '../types/notification';
 
 /**
  * Native notification boundary. Realtime remains responsible for live UI state;
