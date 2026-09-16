@@ -1,7 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import generator, { detector, type SNS } from "npm:megalodon@10.3.0";
+import generator, { detector } from "npm:megalodon@10.3.0";
 import { assertSafeRemoteUrl } from "../_shared/activitypub-security.ts";
+
+type Provider = "mastodon" | "pleroma" | "friendica" | "firefish" | "gotosocial" | "pixelfed" | "akkoma" | "hometown" | "iceshrimp";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || "";
@@ -13,9 +15,9 @@ const CORS = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-const SUPPORTED = new Set<SNS>([
+const SUPPORTED = new Set<Provider>([
   "mastodon", "pleroma", "friendica", "firefish", "gotosocial", "pixelfed", "akkoma", "hometown", "iceshrimp",
-] as SNS[]);
+]);
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -36,11 +38,11 @@ async function authenticate(request: Request) {
   return { user: data.user, token };
 }
 
-async function providerFor(instance: string): Promise<SNS> {
+async function providerFor(instance: string): Promise<Provider> {
   assertSafeRemoteUrl(instance);
-  const detected = await detector(instance);
-  if (!SUPPORTED.has(detected as SNS)) throw new Error(`Unsupported Fediverse provider: ${detected}`);
-  return detected as SNS;
+  const detected = String(await detector(instance)).toLowerCase() as Provider;
+  if (!SUPPORTED.has(detected)) throw new Error(`Unsupported Fediverse provider: ${detected}`);
+  return detected;
 }
 
 async function clientFor(instance: string, accessToken?: string) {
@@ -73,7 +75,7 @@ async function dispatch(input: any) {
       const { provider, client } = await clientFor(instance);
       const redirectUri = text(input.redirectUri) || "https://www.testagram.site/fediverse/callback";
       const app = await client.registerApp("Testagram", {
-        scopes: text(input.scopes) || "read write follow",
+        scopes: (text(input.scopes) || "read write follow").split(/\s+/),
         redirect_uris: redirectUri,
         website: "https://www.testagram.site",
       });
@@ -117,7 +119,7 @@ async function dispatch(input: any) {
     case "search": {
       const token = text(input.accessToken);
       const { provider, client } = await clientFor(instance, token || undefined);
-      const response = await client.search(text(input.query), input.type || "statuses", { limit: normalizeLimit(input.limit) });
+      const response = await client.search(text(input.query), { type: input.type || "statuses", limit: normalizeLimit(input.limit) });
       return { provider, result: response.data };
     }
     case "post": {
