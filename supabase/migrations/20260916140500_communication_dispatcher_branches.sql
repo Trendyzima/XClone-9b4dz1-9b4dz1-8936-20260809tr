@@ -6,7 +6,7 @@ begin
  if position('testagram.conversations.list' in def)=0 then
   def:=replace(def,' when ''testagram.notifications.list'' then',$cap$
  when 'testagram.conversations.list' then select public.get_conversations_with_latest(v_limit) into v; return jsonb_build_object('items',coalesce(v,'[]'::jsonb));
- when 'testagram.conversations.create' then v_id:=public.create_conversation_atomic(array(select jsonb_array_elements_text(coalesce(p_input->'member_ids','[]'::jsonb))::uuid)); return jsonb_build_object('conversation_id',v_id);
+ when 'testagram.conversations.create' then v_id:=public.create_conversation_atomic(array(select jsonb_array_elements_text(coalesce(p_input->'member_ids','[]'::jsonb))::uuid) || array[u]); return jsonb_build_object('conversation_id',v_id);
  when 'testagram.messages.list' then v_id:=(p_input->>'conversation_id')::uuid; select public.communication_list_messages(v_id,v_limit,nullif(p_input->>'cursor','')::timestamptz) into v; return v;
  when 'testagram.messages.send' then v_id:=public.send_message_idempotent((p_input->>'conversation_id')::uuid,coalesce(p_input->>'body',''),nullif(p_input->>'reply_to_message_id','')::uuid,nullif(p_input->>'shared_post_id','')::uuid,nullif(p_input->>'client_message_id','')); return jsonb_build_object('message_id',v_id);
  when 'testagram.messages.mark_read' then perform public.mark_message_status((p_input->>'message_id')::uuid,'read'); return jsonb_build_object('message_id',(p_input->>'message_id')::uuid,'read',true);
