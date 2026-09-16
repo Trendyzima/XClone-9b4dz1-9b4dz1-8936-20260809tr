@@ -4,11 +4,10 @@ import App from './App';
 import './index.css';
 import { supabase } from './lib/supabase';
 import { analytics } from './lib/posthog';
+import { TestagramEvent, trackTestagramEvent } from './lib/testagram-analytics';
 
 analytics.init();
 
-// Supabase remains Testagram's source of truth for identity. PostHog only
-// receives the canonical user id and non-sensitive profile metadata.
 supabase.auth.getSession().then(({ data }) => {
   analytics.identify(data.session?.user ?? null);
 });
@@ -17,10 +16,21 @@ supabase.auth.onAuthStateChange((_event, session) => {
   analytics.identify(session?.user ?? null);
 });
 
-// Testagram is an SPA, so route changes need explicit page-view events.
-window.addEventListener('popstate', () => analytics.pageView());
-window.addEventListener('hashchange', () => analytics.pageView());
-analytics.pageView();
+function trackRouteView() {
+  const pathname = window.location.pathname;
+  analytics.pageView(pathname);
+
+  if (/^\/profile\//.test(pathname)) trackTestagramEvent(TestagramEvent.PROFILE_VIEWED, { path: pathname });
+  if (/^\/search/.test(pathname)) trackTestagramEvent(TestagramEvent.SEARCH_PERFORMED, { source: 'route', path: pathname });
+  if (/^\/notifications/.test(pathname)) trackTestagramEvent(TestagramEvent.NOTIFICATION_OPENED, { path: pathname });
+  if (/^\/create-ad/.test(pathname)) trackTestagramEvent(TestagramEvent.AD_CREATED, { stage: 'form_viewed', path: pathname });
+  if (/^\/wallet/.test(pathname)) analytics.track('testagram_wallet_viewed', { path: pathname });
+  if (/^\/messages/.test(pathname)) analytics.track('testagram_messages_viewed', { path: pathname });
+}
+
+window.addEventListener('popstate', trackRouteView);
+window.addEventListener('hashchange', trackRouteView);
+trackRouteView();
 analytics.startSession();
 
 const container = document.getElementById('root');
