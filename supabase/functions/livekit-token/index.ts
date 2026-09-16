@@ -88,6 +88,17 @@ Deno.serve(async req => {
     return json({ ok: false, error: { code: "CALL_ENDED", message: "Call session has ended" } }, 409);
   }
 
+  const { data: membership, error: membershipError } = await db
+    .from("conversation_members")
+    .select("user_id")
+    .eq("conversation_id", call.conversation_id)
+    .eq("user_id", authData.user.id)
+    .maybeSingle();
+
+  if (membershipError || !membership) {
+    return json({ ok: false, error: { code: "NOT_CONVERSATION_MEMBER", message: "You are not a member of this call conversation" } }, 403);
+  }
+
   const now = Math.floor(Date.now() / 1000);
   const token = await signLiveKitToken({
     iss: livekitApiKey,
