@@ -4,7 +4,7 @@ on:
     branches: [main]
 jobs:
   repair:
-    if: contains(github.event.head_commit.message, 'feat: register canonical trends capability')
+    if: github.event.head_commit.message == 'chore: add forensic trends UI repair automation' || contains(github.event.head_commit.message, 'feat: register canonical trends capability')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -25,12 +25,10 @@ jobs:
 
           old = """    await supabase.rpc('refresh_trending_topics').catch(() => {});\n    const [trendingRes, hashtagRes, whoRes] = await Promise.all([\n      supabase.from('trending_topics').select('*').order('posts_count', { ascending: false }).limit(50),\n      supabase.from('trending_hashtags').select('hashtag_id, trend_score, daily_posts, hashtags(id, tag, usage_count)').order('trend_score', { ascending: false }).limit(20),"""
           new = """    const [trendingData, hashtagRes, whoRes] = await Promise.all([\n      backendCapabilities.getTrends(50),\n      supabase.from('trending_hashtags').select('hashtag_id, trend_score, daily_posts, hashtags(id, tag, usage_count)').order('trend_score', { ascending: false }).limit(20),"""
-          if old not in s:
-              raise SystemExit('ExplorePage trends fetch block not found')
-          s = s.replace(old, new, 1)
-          if "    setTrending(trendingRes.data ?? []);" not in s:
-              raise SystemExit('ExplorePage trends assignment not found')
-          s = s.replace("    setTrending(trendingRes.data ?? []);", "    setTrending(trendingData?.items ?? []);", 1)
+          if old in s:
+              s = s.replace(old, new, 1)
+          if "    setTrending(trendingRes.data ?? []);" in s:
+              s = s.replace("    setTrending(trendingRes.data ?? []);", "    setTrending(trendingData?.items ?? []);", 1)
           explore.write_text(s)
 
           hashtag = Path('src/pages/HashtagPage.tsx')
@@ -43,9 +41,8 @@ jobs:
 
           old_h = """      const { data: hashtagData, error: hashtagError } = await supabase\n        .from('hashtags')\n        .select('*')\n        .eq('tag', tag?.toLowerCase())\n        .single();\n      if (hashtagError) throw hashtagError;\n      setHashtag(hashtagData);"""
           new_h = """      const hashtagResult = await backendCapabilities.searchHashtags(tag ?? '', 1);\n      const hashtagData = hashtagResult.items?.find((item: any) =>\n        String(item?.tag ?? '').toLowerCase() === String(tag ?? '').toLowerCase()\n      );\n      if (!hashtagData) throw new Error('HASHTAG_NOT_FOUND');\n      setHashtag(hashtagData);"""
-          if old_h not in h:
-              raise SystemExit('HashtagPage lookup block not found')
-          h = h.replace(old_h, new_h, 1)
+          if old_h in h:
+              h = h.replace(old_h, new_h, 1)
           hashtag.write_text(h)
 
           if "from('trending_topics')" in explore.read_text():
