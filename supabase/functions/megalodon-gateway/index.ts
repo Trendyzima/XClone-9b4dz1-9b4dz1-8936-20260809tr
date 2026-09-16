@@ -62,6 +62,12 @@ function requireRemoteToken(value: unknown): string {
   return token;
 }
 
+function requireOAuthField(value: unknown, name: string, max = 4096): string {
+  const v = text(value);
+  if (!v || v.length > max) throw new Error(`${name}_INVALID`);
+  return v;
+}
+
 async function dispatch(input: any) {
   const instance = text(input.instance).replace(/\/$/, "");
   if (!instance) throw new Error("INSTANCE_REQUIRED");
@@ -73,13 +79,31 @@ async function dispatch(input: any) {
     }
     case "register_app": {
       const { provider, client } = await clientFor(instance);
-      const redirectUri = text(input.redirectUri) || "https://www.testagram.site/fediverse/callback";
+      const redirectUri = requireOAuthField(input.redirectUri, "REDIRECT_URI", 2048);
+      const scopes = text(input.scopes) || "read write follow";
       const app = await client.registerApp("Testagram", {
-        scopes: (text(input.scopes) || "read write follow").split(/\s+/),
+        scopes: scopes.split(/\s+/).filter(Boolean),
         redirect_uris: redirectUri,
-        website: "https://www.testagram.site",
+        website: "https://testagram.site",
       });
       return { provider, ...app };
+    }
+    case "oauth_token": {
+      const clientId = requireOAuthField(input.clientId, "CLIENT_ID");
+      const clientSecret = requireOAuthField(input.clientSecret, "CLIENT_SECRET");
+      const code = requireOAuthField(input.code, "AUTHORIZATION_CODE");
+      const redirectUri = requireOAuthField(input.redirectUri, "REDIRECT_URI", 2048);
+      const { provider, client } = await clientFor(instance);
+      const tokenData = await client.fetchAccessToken(clientId, clientSecret, code, redirectUri);
+      return {
+        provider,
+        access_token: tokenData.access_token,
+        refresh_token: tokenData.refresh_token ?? null,
+        token_type: tokenData.token_type ?? "Bearer",
+        scope: tokenData.scope ?? null,
+        created_at: tokenData.created_at ?? null,
+        expires_in: tokenData.expires_in ?? null,
+      };
     }
     case "instance": {
       const { provider, client } = await clientFor(instance);
