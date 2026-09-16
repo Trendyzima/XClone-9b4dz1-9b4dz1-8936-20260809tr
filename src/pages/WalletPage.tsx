@@ -2886,7 +2886,7 @@ function P2PBalanceChart({ userId, currency }: { userId: string; currency: Curre
   }, [userId]);
 
   const { chartData, minBal, maxBal } = useMemo(() => {
-    const dayMap: Record<string, { inAmt: number; outAmt: number; count: number }> = {};
+    const dayMap: Record<string, number> = {};
     const now = Date.now();
     for (let i = 29; i >= 0; i--) {
       const key = new Date(now - i * 86400000).toLocaleDateString('en', { month: 'short', day: 'numeric' });
@@ -3085,7 +3085,7 @@ function MonthlyHeatmapCalendar({ userId, currency }: { userId: string; currency
   const { cells, maxAmt } = useMemo(() => {
     const daysInMonth  = new Date(year, month + 1, 0).getDate();
     const firstWeekday = new Date(year, month, 1).getDay();
-    const dayMap: any = {};
+    const dayMap: Record<number, { inAmt: number; outAmt: number; count: number }> = {};
     for (let d = 1; d <= daysInMonth; d++) dayMap[d] = { inAmt: 0, outAmt: 0, count: 0 };
     txns.forEach(t => {
       const day = new Date(t.created_at).getDate();
