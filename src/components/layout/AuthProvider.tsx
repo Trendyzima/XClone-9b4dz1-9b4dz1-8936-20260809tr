@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
-import { mapSupabaseUser } from '@/lib/auth';
+import { mapSupabaseUserWithCanonicalProfile } from '@/lib/auth';
 import { Capacitor, PushNotifications } from '@/lib/capacitor-stub';
 
 /** Trigger RSA key generation via the activitypub-keygen edge function */
@@ -55,10 +55,9 @@ export async function sendActivityNotification({
   data?: any;
 }) {
   try {
-    // ── In-app notification (only valid schema columns) ─────────────────────
     const notificationType = data?.type && ['like','repost','follow','reply','mention','verified'].includes(data.type)
       ? data.type
-      : 'follow'; // safe default
+      : 'follow';
 
     const { error: dbError } = await supabase.from('notifications').insert({
       user_id: recipientUserId,
@@ -71,7 +70,6 @@ export async function sendActivityNotification({
       console.warn('[Notification] DB insert failed:', dbError.message);
     }
 
-    // ── Push notification (non-blocking, via edge function) ─────────────────
     const { data: sessionData } = await supabase.auth.getSession();
     const token = sessionData?.session?.access_token;
     if (token) {
@@ -89,7 +87,7 @@ export async function sendActivityNotification({
             body,
             data,
           }),
-        }).catch(() => {}); // fire-and-forget, non-fatal
+        }).catch(() => {});
       }
     }
   } catch (error) {
@@ -148,10 +146,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    const applyAuthenticatedUser = async (user: NonNullable<Awaited<ReturnType<typeof supabase.auth.getUser>>['data']['user']>) => {
+      const mappedUser = await mapSupabaseUserWithCanonicalProfile(user);
+      if (!mounted) return;
+      login(mappedUser);
+    };
+
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (mounted && session?.user) {
-        const mappedUser = mapSupabaseUser(session.user);
-        login(mappedUser);
+        await applyAuthenticatedUser(session.user);
+        if (!mounted) return;
         registerPushNotifications(session.user.id);
         triggerKeygenForUser(session.user.id);
       }
@@ -160,12 +164,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
       if (event === 'SIGNED_IN' && session?.user) {
-        const mappedUser = mapSupabaseUser(session.user);
-        login(mappedUser);
+        await applyAuthenticatedUser(session.user);
+        if (!mounted) return;
         setLoading(false);
         registerPushNotifications(session.user.id);
         triggerKeygenForUser(session.user.id);
@@ -173,7 +177,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout();
         setLoading(false);
       } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-        login(mapSupabaseUser(session.user));
+        await applyAuthenticatedUser(session.user);
       }
     });
 
