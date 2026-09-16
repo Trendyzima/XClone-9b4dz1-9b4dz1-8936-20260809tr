@@ -16,45 +16,31 @@ export function mapSupabaseUser(user: User): AuthUser {
   const phone = user.phone || undefined;
   const email = user.email || phone || '';
   const username = user.user_metadata?.username || user.user_metadata?.full_name || (phone ? `user_${phone.slice(-9)}` : email.split('@')[0]);
-  return {
-    id: user.id,
-    email,
-    username,
-    avatar: user.user_metadata?.avatar_url || user.user_metadata?.picture,
-  };
+  return { id: user.id, email, username, avatar: user.user_metadata?.avatar_url || user.user_metadata?.picture };
 }
 
-/**
- * Resolve identity from the canonical writable `profiles` table.
- * `user_profiles` is a compatibility VIEW over profiles and must not be used
- * as the application's identity source because it is not a writable table and
- * does not provide a stable FK surface for all PostgREST operations.
- */
+/** Resolve identity from the canonical writable profiles table. */
 export async function mapSupabaseUserWithCanonicalProfile(user: User): Promise<AuthUser> {
   const mapped = mapSupabaseUser(user);
   try {
     const { data: profile, error } = await supabase
       .from('profiles')
-      .select('id, username, avatar_url, verified_tier, display_name')
+      .select('id, username, avatar_url, verified_tier')
       .eq('id', user.id)
       .maybeSingle();
-
     if (error) {
       console.warn('[Auth] Canonical profile lookup failed; using auth fallback:', error.message);
       return mapped;
     }
-
     if (!profile?.username) {
       console.warn('[Auth] Authenticated user has no canonical profile username:', user.id);
       return mapped;
     }
-
     return {
       ...mapped,
       username: profile.username,
       avatar: profile.avatar_url || mapped.avatar,
       verified: !!profile.verified_tier && profile.verified_tier !== 'none',
-      displayName: profile.display_name || undefined,
     };
   } catch (error) {
     console.warn('[Auth] Canonical profile resolver failed; using auth fallback:', error);
