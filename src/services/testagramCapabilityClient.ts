@@ -45,4 +45,4 @@ export const backendCapabilities = new TestagramCapabilityClient({
  endpoint: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/capability-gateway`,
  getAccessToken: async () => (await supabase.auth.getSession()).data.session?.access_token ?? null,
 });
-// canonical notification contract verification trigger
+// canonical notification contract verification trigger v2
