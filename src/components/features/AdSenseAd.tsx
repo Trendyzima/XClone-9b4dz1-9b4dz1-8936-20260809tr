@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Capacitor } from '@/lib/capacitor-stub';
+import { ProfileRewardsRedemptionCard } from '@/components/features/ProfileRewardsRedemptionCard';
 
 interface AdSenseAdProps {
   adSlot: string;
@@ -23,10 +24,9 @@ export function AdSenseAd({
   onAdLoad,
   style,
 }: AdSenseAdProps) {
-  // esbuild guard: no explicit generic annotations on useRef/useState
-  const adRef   = useRef(null);
-  const pushed  = useRef(false);
-  const [filled, setFilled] = useState(null); // null = pending
+  const adRef = useRef(null);
+  const pushed = useRef(false);
+  const [filled, setFilled] = useState(null);
 
   const isNative = Capacitor.isNativePlatform();
 
@@ -57,11 +57,10 @@ export function AdSenseAd({
   }, [adSlot, isNative, onAdLoad]);
 
   if (isNative) return null;
-  if (filled === false) return null; // Collapse — no dead space
+  if (filled === false) return null;
 
   return (
     <div className={`adsense-wrapper ${className}`}>
-      {/* Native-style label */}
       <div className="flex items-center gap-1.5 mb-1">
         <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50">Sponsored</span>
         <span className="text-[9px] font-bold uppercase tracking-widest px-1 py-0.5 rounded-sm bg-amber-500/10 text-amber-500 border border-amber-500/15">Ad</span>
@@ -80,15 +79,14 @@ export function AdSenseAd({
   );
 }
 
-// ─── Page Banner — renders inline, collapses when unfilled ───────────────────
 /**
- * PageAdBanner — drop-in replacement for all the per-page AdSense banners.
- * Styled as a subtle native card. No minHeight — zero dead space if unfilled.
+ * PageAdBanner — profile pages also expose the authenticated owner's
+ * reward-to-cash control here so the large ProfilePage can stay untouched.
+ * The redemption card itself checks the route and profile ownership.
  */
 export function PageAdBanner() {
-  // esbuild guard: no explicit generic annotations on useRef/useState
-  const pushed  = useRef(false);
-  const insRef  = useRef(null);
+  const pushed = useRef(false);
+  const insRef = useRef(null);
   const [filled, setFilled] = useState(null);
 
   useEffect(() => {
@@ -108,30 +106,31 @@ export function PageAdBanner() {
     return () => { clearTimeout(t1); clearTimeout(t2); };
   }, []);
 
-  // Never show blank placeholder — only render once filled is confirmed true
-  if (filled !== true) return null;
-
   return (
-    <div className="mx-4 mt-2 mb-1 rounded-xl overflow-hidden border border-border/60 bg-muted/5">
-      <div className="flex items-center gap-1.5 px-3 pt-2 pb-0.5">
-        <span className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/50">Sponsored</span>
-        <span className="text-[9px] font-bold uppercase px-1 py-0.5 rounded-sm bg-amber-500/10 text-amber-500 border border-amber-500/15">Ad</span>
-      </div>
-      <ins
-        ref={insRef}
-        className="adsbygoogle"
-        style={{ display: 'block' }}
-        data-ad-client="ca-pub-2458567543017441"
-        data-ad-slot="2031881558"
-        data-ad-format="fluid"
-        data-ad-layout="in-article"
-        data-full-width-responsive="true"
-      />
-    </div>
+    <>
+      <ProfileRewardsRedemptionCard />
+      {filled === true && (
+        <div className="mx-4 mt-2 mb-1 rounded-xl overflow-hidden border border-border/60 bg-muted/5">
+          <div className="flex items-center gap-1.5 px-3 pt-2 pb-0.5">
+            <span className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/50">Sponsored</span>
+            <span className="text-[9px] font-bold uppercase px-1 py-0.5 rounded-sm bg-amber-500/10 text-amber-500 border border-amber-500/15">Ad</span>
+          </div>
+          <ins
+            ref={insRef}
+            className="adsbygoogle"
+            style={{ display: 'block' }}
+            data-ad-client="ca-pub-2458567543017441"
+            data-ad-slot="2031881558"
+            data-ad-format="fluid"
+            data-ad-layout="in-article"
+            data-full-width-responsive="true"
+          />
+        </div>
+      )}
+    </>
   );
 }
 
-// ─── Feed Banner Ad ───────────────────────────────────────────────────────────
 export function FeedBannerAd({ className }: { className?: string }) {
   return (
     <AdSenseAd
@@ -143,7 +142,6 @@ export function FeedBannerAd({ className }: { className?: string }) {
   );
 }
 
-// ─── In-Article Ad ────────────────────────────────────────────────────────────
 export function InArticleAd({ className }: { className?: string }) {
   return (
     <AdSenseAd
