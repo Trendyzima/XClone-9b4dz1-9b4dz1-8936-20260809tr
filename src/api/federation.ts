@@ -1,8 +1,10 @@
 import { supabase } from '@/lib/supabase';
 import { FunctionsHttpError } from '@supabase/supabase-js';
+import { megalodonGatewayService } from '@/services/megalodonGateway';
 
-// Canonical Testagram backend API. Federation remains implemented by the
-// existing Supabase federation services behind this stable contract.
+// Canonical Testagram backend API. Native federation remains the authoritative
+// Testagram ActivityPub/data plane. Megalodon is used only for remote
+// Mastodon-compatible discovery/search/instance access.
 async function getToken(): Promise<string | null> {
   try {
     const { data } = await supabase.auth.getSession();
@@ -10,6 +12,13 @@ async function getToken(): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+function remoteInstanceFromHandle(acct: string): string | null {
+  const normalized = acct.trim().replace(/^@/, '');
+  const parts = normalized.split('@');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+  return `https://${parts[1].replace(/\/$/, '')}`;
 }
 
 async function api<T = any>(
@@ -122,14 +131,38 @@ export async function getFederatedTimelinePage(params: TimelineParams = {}): Pro
 }
 
 export async function getUser(acct: string): Promise<any> {
+  const instance = remoteInstanceFromHandle(acct);
+  if (instance) {
+    const normalized = acct.trim().replace(/^@/, '');
+    const [username] = normalized.split('@');
+    const remote = await megalodonGatewayService.search(instance, `@${username}`, 'accounts');
+    const account = remote.result?.accounts?.[0];
+    if (!account) return null;
+    return {
+      id: account.id,
+      preferredUsername: account.username,
+      name: account.display_name,
+      summary: account.note,
+      icon: account.avatar ? { url: account.avatar } : null,
+      followers: account.followers_count,
+      url: account.url,
+    };
+  }
   return api(`/webfinger/${encodeURIComponent(acct)}`);
 }
 
 export async function webfinger(acct: string): Promise<any> {
-  return api(`/webfinger/${encodeURIComponent(acct)}`);
+  return getUser(acct);
 }
 
 export async function getActor(username: string): Promise<any> {
+  const instance = remoteInstanceFromHandle(username);
+  if (instance) {
+    const normalized = username.trim().replace(/^@/, '');
+    const [accountName] = normalized.split('@');
+    const remote = await megalodonGatewayService.search(instance, `@${accountName}`, 'accounts');
+    return remote.result?.accounts?.[0] ?? null;
+  }
   return api(`/users/${encodeURIComponent(username)}`);
 }
 
@@ -188,6 +221,11 @@ export async function search(
   q: string,
   type: 'users' | 'posts' | 'hashtags' | 'instances' = 'users',
 ): Promise<any[]> {
+  const match = q.trim().replace(/^@/, '').match(/^([^@\s]+)@([^@\s]+)$/);
+  if (match && (type === 'users' || type === 'instances')) {
+    const remote = await megalodonGatewayService.search(`https://${match[2]}`, `@${match[1]}`, 'accounts');
+    return remote.result?.accounts ?? [];
+  }
   return api('/search', 'GET', undefined, { q, type });
 }
 
@@ -200,11 +238,13 @@ export async function getFollowing(acct: string, params: TimelineParams = {}): P
 }
 
 export async function getInstance(): Promise<any> {
-  return api('/health');
+  const remote = await megalodonGatewayService.getInstance('https://mastodon.social');
+  return remote.instance;
 }
 
 export async function getHealth(): Promise<any> {
-  return api('/health');
+  const remote = await megalodonGatewayService.detect('https://mastodon.social');
+  return remote;
 }
 
 export async function pollFediverseInbox(userId: string): Promise<any[]> {
