@@ -8,7 +8,9 @@ export type TypingState = { user_id: string; typing: boolean; at: string };
 export type PresenceState = { user_id: string; status: 'online' | 'away' | 'offline'; at: string };
 export type CallSession = { call_id: string; provider: 'livekit'; room_name: string; conversation_id?: string; created_by?: string; status?: 'ringing' | 'active' | 'ended' | 'failed'; kind?: 'voice' | 'video' | 'screen' };
 export type CallSessionChange = { operation: 'INSERT' | 'UPDATE' | 'DELETE'; session: CallSession; previous?: Partial<CallSession> | null };
-// Must stay identical to the topic parsed by the realtime.messages RLS policy.
+
+// This topic must match the UUID topic parsed by the realtime.messages RLS policy.
+// Do not append sub-topics such as ":calls" without changing the RLS contract too.
 const conversationTopic = (conversationId: string) => `conversation:${conversationId}`;
 
 type ConversationHandlers = {
@@ -17,9 +19,16 @@ type ConversationHandlers = {
   onMessageDeleted?: (message: CommunicationMessage) => void;
   onTyping?: (state: TypingState) => void;
   onPresence?: (state: PresenceState) => void;
+  onCall?: (change: CallSessionChange) => void;
 };
 
 type CallHandlers = { onCall?: (change: CallSessionChange) => void };
+
+const normalizeCall = (row: Record<string, unknown>): CallSession => ({
+  ...(row as CallSession),
+  call_id: String(row.id ?? row.call_id),
+  provider: 'livekit',
+});
 
 export const communicationService = {
   listConversations(limit = 50) { return backendCapabilities.call<{ items: CommunicationConversation[] }>('testagram.conversations.list', { limit }); },
@@ -28,7 +37,7 @@ export const communicationService = {
   sendMessage(input: { conversationId: string; body: string; clientMessageId?: string; replyToMessageId?: string; sharedPostId?: string }) { return backendCapabilities.call<{ message_id: string }>('testagram.messages.send', { conversation_id: input.conversationId, body: input.body, ...(input.clientMessageId ? { client_message_id: input.clientMessageId } : {}), ...(input.replyToMessageId ? { reply_to_message_id: input.replyToMessageId } : {}), ...(input.sharedPostId ? { shared_post_id: input.sharedPostId } : {}) }); },
   editMessage(messageId: string, body: string) { return backendCapabilities.call<{ message_id: string; edited: boolean }>('testagram.messages.edit', { message_id: messageId, body }); },
   deleteMessage(messageId: string) { return backendCapabilities.call<{ message_id: string; deleted: boolean }>('testagram.messages.delete', { message_id: messageId }); },
-  attachMessage(input: { messageId: string; mediaUrl: string; mediaType: string; mimeType?: string; byteSize: number; durationMs?: number; width?: number; height?: number }) { return backendCapabilities.call<{ attachment: MessageAttachment }>('testagram.messages.attach', { message_id: input.messageId, media_url: input.mediaUrl, media_type: input.mediaType, ...(input.mimeType ? { mime_type: input.mimeType } : {}), byte_size: input.byteSize, ...(input.durationMs !== undefined ? { duration_ms: input.durationMs } : {}), ...(input.width !== undefined ? { width: input.width } : {}) , ...(input.height !== undefined ? { height: input.height } : {}) }); },
+  attachMessage(input: { messageId: string; mediaUrl: string; mediaType: string; mimeType?: string; byteSize: number; durationMs?: number; width?: number; height?: number }) { return backendCapabilities.call<{ attachment: MessageAttachment }>('testagram.messages.attach', { message_id: input.messageId, media_url: input.mediaUrl, media_type: input.mediaType, ...(input.mimeType ? { mime_type: input.mimeType } : {}), byte_size: input.byteSize, ...(input.durationMs !== undefined ? { duration_ms: input.durationMs } : {}), ...(input.width !== undefined ? { width: input.width } : {}), ...(input.height !== undefined ? { height: input.height } : {}) }); },
   markMessageRead(messageId: string) { return backendCapabilities.call<{ message_id: string; read: boolean }>('testagram.messages.mark_read', { message_id: messageId }); },
   reactToMessage(messageId: string, reaction: string, remove = false) { return backendCapabilities.call<{ message_id: string; reaction: string; removed: boolean }>('testagram.messages.react', { message_id: messageId, reaction, remove }); },
   createCall(conversationId: string, kind: 'voice' | 'video' | 'screen' = 'video') { return backendCapabilities.call<CallSession>('testagram.calls.create', { conversation_id: conversationId, kind }); },
@@ -53,6 +62,9 @@ export const communicationService = {
         if (message.deleted_at) handlers.onMessageDeleted?.(message);
         else handlers.onMessageChanged?.(message);
       })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'INSERT', session: normalizeCall(payload.new as Record<string, unknown>) }))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'UPDATE', session: normalizeCall(payload.new as Record<string, unknown>), previous: payload.old as Partial<CallSession> }))
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'DELETE', session: normalizeCall(payload.old as Record<string, unknown>) }))
       .on('broadcast', { event: 'typing' }, payload => {
         const value = payload.payload as Partial<TypingState>;
         if (value.user_id && typeof value.typing === 'boolean') handlers.onTyping?.({ user_id: value.user_id, typing: value.typing, at: value.at ?? new Date().toISOString() });
@@ -81,13 +93,15 @@ export const communicationService = {
     });
     return () => { void supabase.removeChannel(channel); };
   },
+  // Backwards-compatible dedicated call subscription. It intentionally uses the
+  // same conversation topic because realtime.messages RLS authorizes that exact topic.
   subscribeToCallSessions(conversationId: string, handlersOrCallback: CallHandlers | ((change: CallSessionChange) => void) = {}) {
     const handlers: CallHandlers = typeof handlersOrCallback === 'function' ? { onCall: handlersOrCallback } : handlersOrCallback;
     const channel = supabase
-      .channel(`${conversationTopic(conversationId)}:calls`, { config: { private: true, broadcast: { self: false } } })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'INSERT', session: { ...(payload.new as Record<string, unknown>), call_id: String((payload.new as Record<string, unknown>).id), provider: 'livekit' } as CallSession }))
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'UPDATE', session: { ...(payload.new as Record<string, unknown>), call_id: String((payload.new as Record<string, unknown>).id), provider: 'livekit' } as CallSession, previous: payload.old as Partial<CallSession> }))
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'DELETE', session: { ...(payload.old as Record<string, unknown>), call_id: String((payload.old as Record<string, unknown>).id), provider: 'livekit' } as CallSession }))
+      .channel(conversationTopic(conversationId), { config: { private: true, broadcast: { self: false } } })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'INSERT', session: normalizeCall(payload.new as Record<string, unknown>) }))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'UPDATE', session: normalizeCall(payload.new as Record<string, unknown>), previous: payload.old as Partial<CallSession> }))
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'DELETE', session: normalizeCall(payload.old as Record<string, unknown>) }))
       .subscribe((status, error) => { if (error) console.warn('[communication] call realtime error', status, error); });
     return () => { void supabase.removeChannel(channel); };
   },
