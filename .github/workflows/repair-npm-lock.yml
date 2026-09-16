@@ -14,6 +14,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -99,10 +101,19 @@ jobs:
             echo 'Build failed: this is a genuine build failure and requires repair.'
           fi
 
+      - name: Rebase repair onto latest main
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git rebase origin/main
+
       - name: Commit repaired project metadata
         if: success()
         shell: bash
         run: |
+          set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add package-lock.json .npmrc eslint.config.js
@@ -111,4 +122,19 @@ jobs:
             exit 0
           fi
           git commit -m 'chore(ci): persist self-healed project compatibility metadata'
-          git push
+
+          for attempt in 1 2 3; do
+            git fetch origin main
+            git rebase origin/main || {
+              echo "Rebase failed on attempt ${attempt}."
+              exit 1
+            }
+            if git push origin HEAD:main; then
+              echo "Repair metadata pushed successfully on attempt ${attempt}."
+              exit 0
+            fi
+            echo "Push raced with another main update; retrying (${attempt}/3)."
+            sleep 2
+          done
+          echo 'Unable to push repaired metadata after 3 attempts.'
+          exit 1
