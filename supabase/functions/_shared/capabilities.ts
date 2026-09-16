@@ -28,39 +28,43 @@ export const CAPABILITIES = [
   { name: "testagram.notifications.preference_upsert", version: 1, access: "authenticated", readonly: false, description: "Update one canonical notification preference." },
   { name: "testagram.notifications.dismiss", version: 1, access: "authenticated", readonly: false, description: "Archive one canonical notification." },
   { name: "testagram.notifications.subscribe", version: 1, access: "authenticated", readonly: true, description: "Return the canonical realtime notification subscription contract." },
+  { name: "testagram.conversations.list", version: 1, access: "authenticated", readonly: true, description: "List Testagram conversations." },
+  { name: "testagram.conversations.create", version: 1, access: "authenticated", readonly: false, description: "Create a Testagram conversation through canonical membership rules." },
+  { name: "testagram.messages.list", version: 1, access: "authenticated", readonly: true, description: "List messages from a conversation the caller belongs to." },
+  { name: "testagram.messages.send", version: 1, access: "authenticated", readonly: false, description: "Send an idempotent Testagram message." },
+  { name: "testagram.messages.mark_read", version: 1, access: "authenticated", readonly: false, description: "Mark a Testagram message as read." },
+  { name: "testagram.messages.react", version: 1, access: "authenticated", readonly: false, description: "Add or remove a message reaction." },
+  { name: "testagram.calls.create", version: 1, access: "authenticated", readonly: false, description: "Create a LiveKit-backed Testagram call session." },
+  { name: "testagram.calls.join", version: 1, access: "authenticated", readonly: false, description: "Join a Testagram call session." },
+  { name: "testagram.calls.end", version: 1, access: "authenticated", readonly: false, description: "End a Testagram call session." },
+  { name: "testagram.calls.token", version: 1, access: "authenticated", readonly: true, description: "Return the authenticated LiveKit token endpoint contract." },
+  { name: "testagram.presence.read", version: 1, access: "authenticated", readonly: true, description: "Read communication presence." },
+  { name: "testagram.presence.set", version: 1, access: "authenticated", readonly: false, description: "Set communication presence." },
 
   { name: "testagram.lists.list", version: 1, access: "authenticated", readonly: true, description: "List the authenticated user's accessible lists." },
   { name: "testagram.lists.create", version: 1, access: "authenticated", readonly: false, description: "Create a native Testagram list." },
   { name: "testagram.lists.member.add", version: 1, access: "authenticated", readonly: false, description: "Add a user to a list owned by the caller." },
   { name: "testagram.lists.member.remove", version: 1, access: "authenticated", readonly: false, description: "Remove a user from a list owned by the caller." },
   { name: "testagram.lists.timeline", version: 1, access: "authenticated", readonly: true, description: "Read a native list timeline." },
-
   { name: "testagram.bookmarks.list", version: 1, access: "authenticated", readonly: true, description: "List the caller's bookmarks." },
   { name: "testagram.bookmarks.add", version: 1, access: "authenticated", readonly: false, description: "Bookmark a post for the caller." },
   { name: "testagram.bookmarks.remove", version: 1, access: "authenticated", readonly: false, description: "Remove a bookmark for the caller." },
   { name: "testagram.bookmarks.folders.list", version: 1, access: "authenticated", readonly: true, description: "List the caller's bookmark folders." },
   { name: "testagram.bookmarks.folders.create", version: 1, access: "authenticated", readonly: false, description: "Create a bookmark folder owned by the caller." },
-
   { name: "testagram.trends.list", version: 1, access: "authenticated", readonly: true, description: "Read current native Testagram trends." },
   { name: "testagram.follows.set", version: 1, access: "authenticated", readonly: false, description: "Set the caller's follow state for a user." },
   { name: "testagram.follows.state", version: 1, access: "authenticated", readonly: true, description: "Read the caller's follow state for a user." },
   { name: "testagram.posts.like", version: 1, access: "authenticated", readonly: false, description: "Toggle a native post like for the caller." },
   { name: "testagram.posts.repost", version: 1, access: "authenticated", readonly: false, description: "Toggle a native post repost for the caller." },
-
   { name: "testagram.media.list", version: 1, access: "authenticated", readonly: true, description: "Read media assets owned by the caller." },
   { name: "testagram.media.attach", version: 1, access: "authenticated", readonly: false, description: "Attach an owned media asset to an owned post." },
-
   { name: "testagram.communities.list", version: 1, access: "authenticated", readonly: true, description: "List accessible communities." },
   { name: "testagram.communities.create", version: 1, access: "authenticated", readonly: false, description: "Create a native Testagram community." },
   { name: "testagram.communities.join", version: 1, access: "authenticated", readonly: false, description: "Join a community as the caller." },
   { name: "testagram.communities.leave", version: 1, access: "authenticated", readonly: false, description: "Leave a community as the caller." },
-
   { name: "testagram.federation.status", version: 1, access: "authenticated", readonly: true, description: "Read the caller's federation outbox status." },
   { name: "testagram.wallet.read", version: 1, access: "authenticated", readonly: true, description: "Read the caller's wallet and transaction history." },
 ] as const satisfies readonly CapabilityDefinition[];
 
 export type CapabilityName = (typeof CAPABILITIES)[number]["name"];
-
-export function getCapability(name: string): CapabilityDefinition | undefined {
-  return CAPABILITIES.find((capability) => capability.name === name);
-}
+export function getCapability(name: string): CapabilityDefinition | undefined { return CAPABILITIES.find((capability) => capability.name === name); }
