@@ -16,12 +16,24 @@ import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import { useFediversePolling } from '@/hooks/useFediversePolling';
+import { backendCapabilities, type NotificationItem } from '@/services/testagramCapabilityClient';
 
 function NotificationsAdBanner() { return <PageAdBanner />; }
 
 const PAGE_SIZE = 20;
 
 type NotifTab = 'all' | 'mentions' | 'payments' | 'fediverse';
+
+function normalizeNotification(notification: NotificationItem): any {
+  return {
+    ...notification,
+    type: notification.kind,
+    metadata: notification.data ?? {},
+    read: Boolean(notification.read_at),
+    from_user: notification.actor,
+    from_user_id: notification.actor_id,
+  };
+}
 
 // ── Inline Mention Reply Component ───────────────────────────────────────────
 function MentionReplyInput({ postId, onPosted }: { postId: string; onPosted: () => void }) {
@@ -80,7 +92,9 @@ export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<NotifTab>('all');
-  const [page, setPage] = useState(0);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   // ── Smart Notification Grouping: group likes/reposts by post, and consecutive follows ──
   function groupNotifications(notifs: any[]): any[] {
@@ -133,56 +147,58 @@ export default function NotificationsPage() {
   const { notifs: fedNotifs, loading: fedLoading, lastPolled, refresh: refreshFed } =
     useFediversePolling(activeTab === 'fediverse' ? user?.id : null);
 
-  const fetchNotifications = async (pageNum = 0) => {
+  const isPaymentType = (type: string) =>
+    ['payment_success', 'payment_sent', 'payment_failed', 'payout_sent', 'deposit_confirmed', 'boost_activated', 'ad_active', 'ad_rejected', 'new_ad'].includes(type);
+
+  const fetchNotifications = async (cursorValue?: string | null, replace = true) => {
     if (!user) return;
     setLoading(true);
     try {
-      let query = supabase
-        .from('notifications')
-        .select('*, from_user:user_profiles!notifications_from_user_id_fkey(*), post:posts(*)')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
-
-      if (activeTab === 'mentions') {
-        query = query.eq('type', 'mention');
-      } else if (activeTab === 'payments') {
-        query = query.in('type', [
-          'payment_success', 'payment_sent', 'payment_failed',
-          'payout_sent', 'deposit_confirmed', 'boost_activated',
-        ]);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
-
-      if (pageNum === 0) setNotifications(data ?? []);
-      else setNotifications(prev => [...prev, ...(data ?? [])]);
-      setPage(pageNum);
+      const options = activeTab === 'mentions' ? { kind: 'mention' } : {};
+      const result = await backendCapabilities.listNotifications(PAGE_SIZE, cursorValue ?? undefined, options);
+      const normalized = result.items.map(normalizeNotification);
+      const visible = activeTab === 'payments' ? normalized.filter((n) => isPaymentType(n.type)) : normalized;
+      setNotifications((prev) => replace ? visible : [...prev, ...visible.filter((n) => !prev.some((existing) => existing.id === n.id))]);
+      setNextCursor(result.next_cursor);
+      setHasMore(Boolean(result.next_cursor));
     } catch (err) {
-      console.error('[notifications] fetch error:', err);
+      console.error('[notifications] canonical fetch error:', err);
+      toast.error('Failed to load notifications');
     } finally {
       setLoading(false);
     }
   };
 
-  const markAsRead = async () => {
+  const refreshUnreadCount = async () => {
     if (!user) return;
-    await supabase
-      .from('notifications')
-      .update({ read: true })
-      .eq('user_id', user.id)
-      .eq('read', false);
+    try {
+      const result = await backendCapabilities.getUnreadNotificationCount();
+      setUnreadCount(result.count);
+    } catch (err) {
+      console.error('[notifications] unread count error:', err);
+    }
+  };
+
+  const markNotificationRead = async (notificationId: string) => {
+    try {
+      await backendCapabilities.markNotificationRead(notificationId);
+      setNotifications((prev) => prev.map((n) => n.id === notificationId ? { ...n, read: true, read_at: n.read_at ?? new Date().toISOString() } : n));
+      setUnreadCount((count) => Math.max(0, count - 1));
+    } catch (err) {
+      console.error('[notifications] mark read error:', err);
+    }
   };
 
   const markAllAsRead = async () => {
     if (!user) return;
-    await supabase
-      .from('notifications')
-      .update({ read: true })
-      .eq('user_id', user.id)
-      .eq('read', false);
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    try {
+      await backendCapabilities.markAllNotificationsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true, read_at: n.read_at ?? new Date().toISOString() })));
+      setUnreadCount(0);
+    } catch (err) {
+      console.error('[notifications] mark all read error:', err);
+      toast.error('Failed to mark notifications as read');
+    }
   };
 
   useEffect(() => {
@@ -190,24 +206,44 @@ export default function NotificationsPage() {
       navigate('/auth');
       return;
     }
-    if (activeTab !== 'fediverse') {
-      fetchNotifications(0);
-      markAsRead();
-    }
-  }, [user, activeTab, navigate]); // Added navigate to dependency array
+    if (activeTab === 'fediverse') return;
+    setNotifications([]);
+    setNextCursor(null);
+    setHasMore(true);
+    void fetchNotifications(null, true);
+    void refreshUnreadCount();
+  }, [user, activeTab, navigate]);
+
+  useEffect(() => {
+    if (!user) return;
+    if (activeTab === 'fediverse') return;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let cancelled = false;
+    void backendCapabilities.getNotificationSubscription().then((contract) => {
+      if (cancelled || !contract.authenticated || contract.table !== 'notifications' || contract.filter !== `recipient_id=eq.${user.id}`) return;
+      channel = supabase
+        .channel(`notifications:${user.id}`)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: contract.filter }, (payload) => {
+          const incoming = normalizeNotification(payload.new as NotificationItem);
+          setNotifications((prev) => prev.some((n) => n.id === incoming.id) ? prev : [incoming, ...prev]);
+          if (!incoming.read) setUnreadCount((count) => count + 1);
+        })
+        .subscribe((status) => {
+          if (status === 'CHANNEL_ERROR') console.error('[notifications] realtime channel error');
+        });
+    }).catch((err) => console.error('[notifications] realtime contract error:', err));
+    return () => {
+      cancelled = true;
+      if (channel) void supabase.removeChannel(channel);
+    };
+  }, [user, activeTab]);
 
   const loadMore = async (): Promise<boolean> => {
-    if (activeTab === 'fediverse') return false;
-    const nextPage = page + 1;
-    await fetchNotifications(nextPage);
-    // The original code was `return notifications.length % PAGE_SIZE === 0;` which is likely incorrect
-    // as `notifications` is state from *before* `fetchNotifications` resolves.
-    // It should check the *newly fetched* data or rely on a different condition.
-    // However, since the error is about a missing ESLint rule definition and not runtime logic,
-    // I'm preserving the original logic here, but noting its potential issue.
-    // A more robust check might involve comparing `data.length` from `fetchNotifications`
-    // or passing the new page's data length back.
-    return notifications.length % PAGE_SIZE === 0;
+    if (activeTab === 'fediverse' || loading || !hasMore) return false;
+    const cursorValue = nextCursor;
+    if (!cursorValue) return false;
+    await fetchNotifications(cursorValue, false);
+    return hasMore;
   };
 
   const { lastElementRef, loading: loadingMore } = useInfiniteScroll(loadMore);
@@ -337,6 +373,7 @@ export default function NotificationsPage() {
   ];
 
   const unreadMentions = notifications.filter(n => n.type === 'mention' && !n.read).length;
+  const nativeUnread = unreadCount;
 
   return (
     <div className="min-h-screen bg-background pb-16 md:pb-0">
@@ -367,7 +404,7 @@ export default function NotificationsPage() {
             ))}
           </div>
           <div className="flex items-center gap-1 shrink-0 pr-2">
-            {activeTab !== 'fediverse' && notifications.some(n => !n.read) && (
+            {activeTab !== 'fediverse' && nativeUnread > 0 && (
               <button
                 onClick={markAllAsRead}
                 className="px-2 py-1.5 text-xs font-semibold text-primary hover:bg-primary/10 rounded-full transition-colors whitespace-nowrap flex items-center gap-1"
@@ -502,7 +539,7 @@ export default function NotificationsPage() {
                 <div
                   key={`group-${n.type}-${n.post_id}-${idx}`}
                   ref={idx === notifications.length - 1 ? lastElementRef : null}
-                  onClick={() => n.post_id && navigate(`/post/${n.post_id}`)}
+                  onClick={() => { if (n.items?.length) n.items.forEach((item: any) => { void markNotificationRead(item.id); }); if (n.post_id) navigate(`/post/${n.post_id}`); }}
                   className={`border-b border-border p-4 hover:bg-muted/5 cursor-pointer transition-colors ${
                     !n.read ? 'bg-primary/3' : ''
                   }`}
@@ -633,7 +670,7 @@ export default function NotificationsPage() {
                       {n.post_id && (
                         <MentionReplyInput
                           postId={n.post_id}
-                          onPosted={() => fetchNotifications(0)}
+                          onPosted={() => fetchNotifications(null, true)}
                         />
                       )}
                     </div>
@@ -644,6 +681,7 @@ export default function NotificationsPage() {
                   key={n.id}
                   ref={idx === notifications.length - 1 ? lastElementRef : null}
                   onClick={() => {
+                    void markNotificationRead(n.id);
                     if (n.post_id) navigate(`/post/${n.post_id}`);
                     else if (n.from_user_id && !isPaymentType(n.type))
                       navigate(`/profile/${n.from_user?.username}`);
