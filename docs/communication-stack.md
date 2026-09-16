@@ -1,44 +1,51 @@
 # Testagram communication stack
 
-Testagram does not vendor or replace its identity/data plane with Synapse, LiveKit, Element Call, or Novu. Those projects are provider/infrastructure references behind the native capability plane.
+Testagram keeps Supabase Auth, the native social graph, blocks and conversation membership authoritative. Matrix/Synapse, LiveKit and Novu are downstream infrastructure, not replacement identity or inbox systems.
 
-## Authority
+## Messaging
 
-- **Identity:** Supabase Auth + `public.profiles`
-- **Authorization:** Testagram conversation membership, blocks and moderation rules
-- **DM source of truth:** `public.conversations`, `public.conversation_members`, `public.messages`
-- **Notification source of truth:** `public.notifications`
-- **Capability boundary:** `capability-gateway` → `public.capability_dispatch`
+The browser uses the canonical communication boundary:
 
-## Matrix / Synapse boundary
+`MessagesPage -> communicationService -> capability-gateway -> capability_dispatch -> public.messages`
 
-Synapse/Matrix is treated as the federation and interoperability adapter for messaging. A message written through `testagram.messages.send` first lands in native Testagram storage. `messages_enqueue_communication_delivery` writes a server-only Matrix delivery job to `communication_delivery_outbox`. `matrix-message-bridge` forwards those jobs to a configured Matrix bridge webhook.
+Conversation membership is enforced server-side. Message creation is idempotent through `client_message_id`, history is cursor-based, and realtime uses an authenticated Supabase Realtime subscription filtered by conversation.
 
-This prevents Matrix from becoming a second Testagram identity system and lets the bridge be enabled only after a Matrix homeserver/appservice is configured.
+The Matrix boundary is deliberately server-side. `src/services/matrixTransport.ts` can call a future Matrix bridge using the caller's Supabase JWT. Matrix access tokens, Application Service tokens and Synapse secrets must never be shipped to the browser.
 
-## LiveKit boundary
+For Synapse federation, the recommended mapping is one stable Matrix identity per Testagram user, provisioned through a server-side Application Service or Matrix Authentication Service integration. The mapping must be deterministic and must not depend on mutable display names.
 
-`testagram.calls.create/join/end` owns the Testagram call lifecycle in `call_sessions` and `call_participants`. The `livekit-token` Edge Function verifies the authenticated caller is a member of the call's conversation, then mints a short-lived LiveKit room JWT using server-only `LIVEKIT_API_KEY` / `LIVEKIT_API_SECRET`.
+## Calls
 
-The browser never receives the LiveKit API secret.
+`MessagesPage -> testagram.calls.create/join -> livekit-token -> LiveKit`
 
-## Element Call / MatrixRTC
+Testagram creates the call session and authorizes conversation membership before issuing a short-lived LiveKit JWT. The browser receives only the room token and LiveKit URL. LiveKit API credentials remain in Edge Function secrets.
 
-Element Call is used as an architectural reference for the MatrixRTC/LiveKit split, not copied into Testagram. A future MatrixRTC deployment can use the same Testagram call session as its authorization anchor while keeping the social graph and permissions native.
+The call surface uses the LiveKit JavaScript SDK directly so the existing Vite/React application does not need the complete Element Call application embedded. The interaction model follows the useful Element Call patterns: participant tiles, permission-aware media controls, reconnect state and a dedicated call surface.
 
-## Novu
+## MatrixRTC / Element Call pattern
 
-Novu remains downstream of `public.notifications` and the existing notification delivery outbox. Message creation now produces a canonical `message.received` notification, so existing Novu delivery orchestration can deliver push/email/etc. without making Novu the authoritative inbox.
+Element Call is a reference for a future federation-aware calling layer: Matrix supplies room/signalling semantics while LiveKit supplies the media SFU. Testagram currently keeps its native conversation/call records authoritative and can add MatrixRTC signalling behind the Matrix bridge without changing the Testagram identity plane.
 
-## Provider configuration
+## Notifications
 
-No provider secret is committed to the repository. The following are server-side configuration only:
+Native Testagram notifications remain authoritative. Novu is downstream delivery/orchestration for push, email and other channels. No Novu API key belongs in the browser.
+
+## Production secrets
+
+LiveKit Edge Function:
 
 - `LIVEKIT_URL`
 - `LIVEKIT_API_KEY`
 - `LIVEKIT_API_SECRET`
-- `MATRIX_BRIDGE_WEBHOOK_URL`
-- `MATRIX_BRIDGE_WEBHOOK_SECRET`
-- existing `NOVU_API_KEY`
 
-The provider adapters fail closed when their credentials are absent.
+Optional Matrix bridge:
+
+- `MATRIX_HOMESERVER_URL`
+- server-side Matrix Application Service or OIDC configuration
+
+Novu worker:
+
+- `NOVU_API_KEY`
+- server-side Novu endpoint/workspace configuration
+
+These secrets are intentionally not committed to the repository and are not required for the web build. Downstream providers should fail closed when unconfigured.
