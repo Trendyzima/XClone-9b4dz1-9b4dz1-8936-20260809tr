@@ -16,13 +16,6 @@ export async function createPesapalPayment(amount: number, email: string, phone:
     if (error) throw error;
     if (!data?.redirect_url) throw new Error(data?.error || 'PesaPal did not return a payment link');
 
-    trackTestagramEvent(TestagramEvent.WALLET_DEPOSIT_COMPLETED, {
-      provider: 'pesapal',
-      amount,
-      currency: 'USD',
-      status: 'checkout_created',
-    });
-
     return data as {
       ok: boolean;
       merchant_reference: string;
