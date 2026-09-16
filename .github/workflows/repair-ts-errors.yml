@@ -22,6 +22,7 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import subprocess
 
           def replace(path, old, new):
               p = Path(path)
@@ -30,14 +31,10 @@ jobs:
                   raise SystemExit(f'Expected source pattern not found: {path}: {old[:100]}')
               p.write_text(s.replace(old, new, 1))
 
-          # Lucide components use aria-label/title attributes in the UI, but
-          # the installed LucideProps declaration does not expose title.
           p = Path('src/types/lucide-react-compat.d.ts')
           p.parent.mkdir(parents=True, exist_ok=True)
           p.write_text("""import 'lucide-react';\n\ndeclare module 'lucide-react' {\n  interface LucideProps {\n    title?: string;\n  }\n}\n""")
 
-          # Slider's numeric array value intentionally differs from the native
-          # HTML input value type; omit the conflicting inherited attributes.
           replace('src/hooks/useSEO.ts', "type?: 'website' | 'article' | 'profile';", "type?: 'website' | 'article' | 'profile' | 'video.other';")
 
           replace('src/components/ui/slider.tsx',
@@ -47,17 +44,10 @@ jobs:
             '  onValueChange?: (value: number[]) => void\n}',
             '  onValueChange?: (value: number[]) => void\n  onChange?: React.ChangeEventHandler<HTMLInputElement>\n}')
 
-          # The profile dialog already loads the authenticated user's profile;
-          # ProfilePage also passes its loaded profile for compatibility.
           replace('src/components/features/EditProfileDialog.tsx',
             '  onOpenChange: (open: boolean) => void;\n  onSuccess: () => void;',
             '  onOpenChange: (open: boolean) => void;\n  onSuccess: () => void;\n  profile?: any;')
-          replace('src/components/features/EditProfileDialog.tsx',
-            'export function EditProfileDialog({ open, onOpenChange, onSuccess }: EditProfileDialogProps) {',
-            'export function EditProfileDialog({ open, onOpenChange, onSuccess }: EditProfileDialogProps) {')
 
-          # Keep reply poll rendering functional: when only postId is supplied,
-          # resolve the canonical poll row and its options inside PollCard.
           replace('src/components/features/PollCard.tsx',
             'interface PollCardProps {\n  poll: Poll;\n  postId: string;\n}',
             'interface PollCardProps {\n  poll?: Poll;\n  postId: string;\n}')
@@ -71,35 +61,34 @@ jobs:
             '  useEffect(() => { if (user) checkIfVoted(); }, [poll.id, user?.id]);',
             '''  useEffect(() => {\n    let cancelled = false;\n    if (poll) { setResolvedPoll(poll); setPollData(poll); return () => { cancelled = true; }; }\n    supabase.from('polls').select('*, options:poll_options(*)').eq('post_id', postId).maybeSingle()\n      .then(({ data }) => { if (!cancelled && data) { setResolvedPoll(data as Poll); setPollData(data as Poll); } });\n    return () => { cancelled = true; };\n  }, [poll, postId]);\n\n  useEffect(() => { if (user && resolvedPoll) checkIfVoted(); }, [resolvedPoll?.id, user?.id]);''')
           replace('src/components/features/PollCard.tsx',
-            '    if (!user) return;\n    const { data } = await supabase\n      .from(\'poll_votes\').select(\'option_id\')\n      .eq(\'poll_id\', poll.id).eq(\'user_id\', user.id).maybeSingle();',
-            '''    if (!user || !resolvedPoll) return;\n    const { data } = await supabase\n      .from('poll_votes').select('option_id')\n      .eq('poll_id', resolvedPoll.id).eq('user_id', user.id).maybeSingle();''')
+            "    if (!user) return;\n    const { data } = await supabase\n      .from('poll_votes').select('option_id')\n      .eq('poll_id', poll.id).eq('user_id', user.id).maybeSingle();",
+            "    if (!user || !resolvedPoll) return;\n    const { data } = await supabase\n      .from('poll_votes').select('option_id')\n      .eq('poll_id', resolvedPoll.id).eq('user_id', user.id).maybeSingle();")
           replace('src/components/features/PollCard.tsx',
-            '    if (!user) { navigate(\'/auth\'); return; }\n    if (voted) { toast.error(\'You already voted\'); return; }\n    if (new Date() > new Date(poll.expires_at)) { toast.error(\'Poll has ended\'); return; }',
-            '''    if (!user || !resolvedPoll) { navigate('/auth'); return; }\n    if (voted) { toast.error('You already voted'); return; }\n    if (new Date() > new Date(resolvedPoll.expires_at)) { toast.error('Poll has ended'); return; }''')
+            "    if (!user) { navigate('/auth'); return; }\n    if (voted) { toast.error('You already voted'); return; }\n    if (new Date() > new Date(poll.expires_at)) { toast.error('Poll has ended'); return; }",
+            "    if (!user || !resolvedPoll) { navigate('/auth'); return; }\n    if (voted) { toast.error('You already voted'); return; }\n    if (new Date() > new Date(resolvedPoll.expires_at)) { toast.error('Poll has ended'); return; }")
           replace('src/components/features/PollCard.tsx',
             "    const { data: updated } = await supabase.from('polls').select('*, options:poll_options(*)').eq('id', poll.id).single();",
             "    const { data: updated } = await supabase.from('polls').select('*, options:poll_options(*)').eq('id', resolvedPoll.id).single();")
           replace('src/components/features/PollCard.tsx',
             '  const pct = (votes: number) => pollData.total_votes === 0 ? 0 : Math.round((votes / pollData.total_votes) * 100);\n  const isExpired = new Date() > new Date(poll.expires_at);\n  const timeLeft = Math.max(0, new Date(poll.expires_at).getTime() - Date.now());',
-            '''  if (!pollData) return null;\n\n  const pct = (votes: number) => pollData.total_votes === 0 ? 0 : Math.round((votes / pollData.total_votes) * 100);\n  const isExpired = new Date() > new Date(pollData.expires_at);\n  const timeLeft = Math.max(0, new Date(pollData.expires_at).getTime() - Date.now());''')
+            '  if (!pollData) return null;\n\n  const pct = (votes: number) => pollData.total_votes === 0 ? 0 : Math.round((votes / pollData.total_votes) * 100);\n  const isExpired = new Date() > new Date(pollData.expires_at);\n  const timeLeft = Math.max(0, new Date(pollData.expires_at).getTime() - Date.now());')
+          replace('src/components/features/PollCard.tsx',
+            "await supabase.rpc('increment', { table_name: 'polls', row_id: poll.id, column_name: 'total_votes' });",
+            "await supabase.rpc('increment', { table_name: 'polls', row_id: resolvedPoll.id, column_name: 'total_votes' });")
+          replace('src/components/features/PollCard.tsx',
+            "const { error } = await supabase.from('poll_votes').insert({ poll_id: poll.id, option_id: optionId, user_id: user.id });",
+            "const { error } = await supabase.from('poll_votes').insert({ poll_id: resolvedPoll.id, option_id: optionId, user_id: user.id });")
 
-          # Wallet analytics: the P2P balance map stores numbers, not objects.
           replace('src/pages/WalletPage.tsx',
             'const dayMap: Record<string, { inAmt: number; outAmt: number; count: number }> = {};',
             'const dayMap: Record<string, number> = {};')
           replace('src/pages/WalletPage.tsx',
-            '      dayMap[key] = 0;\n    }\n    let running = 0;',
-            '      dayMap[key] = 0;\n    }\n    let running = 0;')
-          replace('src/pages/WalletPage.tsx',
             '    const dayMap: any = {};\n    for (let d = 1; d <= daysInMonth; d++) dayMap[d] = { inAmt: 0, outAmt: 0, count: 0 };',
             '    const dayMap: Record<number, { inAmt: number; outAmt: number; count: number }> = {};\n    for (let d = 1; d <= daysInMonth; d++) dayMap[d] = { inAmt: 0, outAmt: 0, count: 0 };')
 
-          # Persist only source repairs and remove this one-shot workflow.
-          import subprocess
           subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
           subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
           subprocess.run(['git', 'add', 'src'], check=True)
-          subprocess.run(['git', 'diff', '--cached', '--quiet'])
           PY
       - name: Commit source repairs
         run: |
