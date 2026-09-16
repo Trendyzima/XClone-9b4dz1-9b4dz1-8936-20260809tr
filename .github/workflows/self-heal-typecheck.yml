@@ -87,6 +87,47 @@ jobs:
             s=s.replace('id: m.user_profiles?.id ?? m.user_id ?? \'\'', 'id: (m.user_profiles as any)?.id ?? m.user_id ?? \'\'');
             write(p,s);
           }
+          {
+            const p='src/pages/NotificationsPage.tsx';
+            let s=read(p);
+            if (!s.includes("backendCapabilities.listNotifications")) {
+              s=s.replace("import { useFediversePolling } from '@/hooks/useFediversePolling';", "import { useFediversePolling } from '@/hooks/useFediversePolling';\nimport { backendCapabilities, type NotificationItem } from '@/services/testagramCapabilityClient';");
+            }
+            if (!s.includes('function normalizeNotification(')) {
+              const marker='// ── Inline Mention Reply Component';
+              const helper='function normalizeNotification(notification: NotificationItem): any {\n  return {\n    ...notification,\n    type: notification.kind,\n    metadata: notification.data ?? {},\n    read: Boolean(notification.read_at),\n    from_user: notification.actor,\n    from_user_id: notification.actor_id,\n  };\n}\n\n';
+              s=s.replace(marker, helper+marker);
+            }
+            s=s.replace("  const [page, setPage] = useState(0);", "  const [nextCursor, setNextCursor] = useState<string | null>(null);\n  const [hasMore, setHasMore] = useState(true);\n  const [unreadCount, setUnreadCount] = useState(0);");
+            const start=s.indexOf('  const fetchNotifications = async (pageNum = 0) => {');
+            const end=s.indexOf('  // ── Icon helpers', start);
+            if (start >= 0 && end > start) {
+              const replacement=`  const isPaymentType = (type: string) =>\n    ['payment_success', 'payment_sent', 'payment_failed', 'payout_sent', 'deposit_confirmed', 'boost_activated', 'ad_active', 'ad_rejected', 'new_ad'].includes(type);\n\n  const fetchNotifications = async (cursorValue?: string | null, replace = true) => {\n    if (!user) return;\n    setLoading(true);\n    try {\n      const options = activeTab === 'mentions' ? { kind: 'mention' } : {};\n      const result = await backendCapabilities.listNotifications(PAGE_SIZE, cursorValue ?? undefined, options);\n      const normalized = result.items.map(normalizeNotification);\n      const visible = activeTab === 'payments' ? normalized.filter((n) => isPaymentType(n.type)) : normalized;\n      setNotifications((prev) => replace ? visible : [...prev, ...visible.filter((n) => !prev.some((existing) => existing.id === n.id))]);\n      setNextCursor(result.next_cursor);\n      setHasMore(Boolean(result.next_cursor));\n    } catch (err) {\n      console.error('[notifications] canonical fetch error:', err);\n      toast.error('Failed to load notifications');\n    } finally {\n      setLoading(false);\n    }\n  };\n\n  const refreshUnreadCount = async () => {\n    if (!user) return;\n    try {\n      const result = await backendCapabilities.getUnreadNotificationCount();\n      setUnreadCount(result.count);\n    } catch (err) {\n      console.error('[notifications] unread count error:', err);\n    }\n  };\n\n  const markNotificationRead = async (notificationId: string) => {\n    try {\n      await backendCapabilities.markNotificationRead(notificationId);\n      setNotifications((prev) => prev.map((n) => n.id === notificationId ? { ...n, read: true, read_at: n.read_at ?? new Date().toISOString() } : n));\n      setUnreadCount((count) => Math.max(0, count - 1));\n    } catch (err) {\n      console.error('[notifications] mark read error:', err);\n    }\n  };\n\n  const markAllAsRead = async () => {\n    if (!user) return;\n    try {\n      await backendCapabilities.markAllNotificationsRead();\n      setNotifications((prev) => prev.map((n) => ({ ...n, read: true, read_at: n.read_at ?? new Date().toISOString() })));\n      setUnreadCount(0);\n    } catch (err) {\n      console.error('[notifications] mark all read error:', err);\n      toast.error('Failed to mark notifications as read');\n    }\n  };\n\n  useEffect(() => {\n    if (!user) {\n      navigate('/auth');\n      return;\n    }\n    if (activeTab === 'fediverse') return;\n    setNotifications([]);\n    setNextCursor(null);\n    setHasMore(true);\n    void fetchNotifications(null, true);\n    void refreshUnreadCount();\n  }, [user, activeTab, navigate]);\n\n  useEffect(() => {\n    if (!user) return;\n    if (activeTab === 'fediverse') return;\n    let channel: ReturnType<typeof supabase.channel> | null = null;\n    let cancelled = false;\n    void backendCapabilities.getNotificationSubscription().then((contract) => {\n      if (cancelled || !contract.authenticated || contract.table !== 'notifications' || contract.filter !== \`recipient_id=eq.\${user.id}\`) return;\n      channel = supabase\n        .channel(\`notifications:\${user.id}\`)\n        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: contract.filter }, (payload) => {\n          const incoming = normalizeNotification(payload.new as NotificationItem);\n          setNotifications((prev) => prev.some((n) => n.id === incoming.id) ? prev : [incoming, ...prev]);\n          if (!incoming.read) setUnreadCount((count) => count + 1);\n        })\n        .subscribe((status) => {\n          if (status === 'CHANNEL_ERROR') console.error('[notifications] realtime channel error');\n        });\n    }).catch((err) => console.error('[notifications] realtime contract error:', err));\n    return () => {\n      cancelled = true;\n      if (channel) void supabase.removeChannel(channel);\n    };\n  }, [user, activeTab]);\n\n  const loadMore = async (): Promise<boolean> => {\n    if (activeTab === 'fediverse' || loading || !hasMore) return false;\n    const cursorValue = nextCursor;\n    if (!cursorValue) return false;\n    await fetchNotifications(cursorValue, false);\n    return hasMore;\n  };\n\n  const { lastElementRef, loading: loadingMore } = useInfiniteScroll(loadMore);\n\n`;
+              s=s.slice(0,start)+replacement+s.slice(end);
+            }
+            s=s.replace("  const unreadMentions = notifications.filter(n => n.type === 'mention' && !n.read).length;", "  const unreadMentions = notifications.filter(n => n.type === 'mention' && !n.read).length;\n  const nativeUnread = unreadCount;");
+            s=s.replace('onClick={() => {\n                    if (n.post_id) navigate(`/post/${n.post_id}`);', 'onClick={() => {\n                    void markNotificationRead(n.id);\n                    if (n.post_id) navigate(`/post/${n.post_id}`);');
+            s=s.replace('onClick={() => n.post_id && navigate(`/post/${n.post_id}`)}', 'onClick={() => { if (n.items?.length) n.items.forEach((item: any) => { void markNotificationRead(item.id); }); if (n.post_id) navigate(`/post/${n.post_id}`); }}');
+            s=s.replace('onPosted={() => fetchNotifications(0)}', 'onPosted={() => fetchNotifications(null, true)}');
+            s=s.replace("{activeTab !== 'fediverse' && notifications.some(n => !n.read) && (", "{activeTab !== 'fediverse' && nativeUnread > 0 && (");
+            write(p,s);
+          }
+
+          const npage = read('src/pages/NotificationsPage.tsx');
+          const forbidden = [".from('notifications')", '.from(\"notifications\")', '.update({ read: true })', ".eq('user_id', user.id)", "notifications_from_user_id_fkey"];
+          const legacy = forbidden.filter((needle) => npage.includes(needle));
+          if (legacy.length) {
+            console.error('NotificationsPage legacy contract remains:', legacy);
+            process.exit(2);
+          }
+          if (!npage.includes('backendCapabilities.listNotifications') || !npage.includes('backendCapabilities.markNotificationRead') || !npage.includes('backendCapabilities.markAllNotificationsRead') || !npage.includes('backendCapabilities.getUnreadNotificationCount')) {
+            console.error('NotificationsPage canonical capability contract incomplete');
+            process.exit(3);
+          }
+          if (!npage.includes('recipient_id=eq.${user.id}') && !npage.includes('recipient_id=eq.\\${user.id}')) {
+            console.error('NotificationsPage realtime recipient filter missing');
+            process.exit(4);
+          }
 
           const status = require('child_process').execFileSync('git', ['status','--porcelain'], {encoding:'utf8'}).trim();
           if (!status) process.exit(0);
@@ -97,5 +138,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src
           git diff --cached --quiet && exit 0
-          git commit -m "fix: self-heal remaining TypeScript contracts"
+          git commit -m "fix: migrate notifications page to canonical capability plane"
           git push origin HEAD:main
