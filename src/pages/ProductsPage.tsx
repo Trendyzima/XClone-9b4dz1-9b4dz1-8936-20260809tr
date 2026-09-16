@@ -579,7 +579,7 @@ export function ProductsPage() {
     setLoading(true);
     const { data } = await supabase
       .from('products')
-      .select('*, profiles(id, username, avatar_url, verified)')
+      .select('*, profiles(id, username, avatar_url, verified_tier)')
       .eq('is_active', true)
       .order('views_count', { ascending: false })
       .limit(80);

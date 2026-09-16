@@ -280,7 +280,7 @@ export default function CommunityPage() {
     setShowChatGifPicker(false); setChatSending(true);
     await supabase.from('community_chat').insert({ community_id: community.id, user_id: user.id, message: gifUrl });
     const rawData = await supabase.from('community_chat')
-      .select('*, profiles(id, username, avatar_url, verified)')
+      .select('*, profiles(id, username, avatar_url, verified_tier)')
       .eq('community_id', community.id).order('created_at', { ascending: true }).limit(100);
     if (rawData.data) setChatMessages(rawData.data);
     setChatSending(false);
@@ -312,7 +312,7 @@ export default function CommunityPage() {
   const fetchChat = useCallback(async () => {
     if (!community) return;
     const { data } = await supabase.from('community_chat')
-      .select('*, profiles(id, username, avatar_url, verified)')
+      .select('*, profiles(id, username, avatar_url, verified_tier)')
       .eq('community_id', community.id).order('created_at', { ascending: true }).limit(100);
     if (data) {
       setChatMessages(data);

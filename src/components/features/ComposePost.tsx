@@ -393,7 +393,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
         const uniqueUsernames = [...new Set(mentionMatches.map(m => m.slice(1).toLowerCase()))];
         const { data: mentionedUsers } = await supabase.from('profiles').select('id, username').in('username', uniqueUsernames).neq('id', user!.id);
         if (mentionedUsers && mentionedUsers.length > 0) {
-          await supabase.from('notifications').insert(mentionedUsers.map(mu => ({ user_id: mu.id, type: 'mention', from_user_id: user!.id, post_id: postData.id })));
+          await supabase.from('notifications').insert(mentionedUsers.map(mu => ({ recipient_id: mu.id, kind: 'mention', actor_id: user!.id, post_id: postData.id })));
           await supabase.from('mentions').insert(mentionedUsers.map(mu => ({ post_id: postData.id, mentioned_user_id: mu.id }))).select().then(() => {});
         }
       }

@@ -81,7 +81,7 @@ export default function PodcastSearchPage() {
         .from('space_recordings')
         .select(`
           id, title, audio_url, video_url, has_video, duration, listener_count, created_at,
-          profiles(id, username, avatar_url, verified),
+          profiles(id, username, avatar_url, verified_tier),
           spaces(title, description, category, artwork_url, episode_number, tags, subscriber_only)
         `, { count: 'exact' })
         .order('listener_count', { ascending: false })

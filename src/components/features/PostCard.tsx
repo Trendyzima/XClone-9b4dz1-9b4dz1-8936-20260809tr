@@ -306,7 +306,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     setInlineLoading(true);
     const { data } = await supabase
       .from('replies')
-      .select('*, profiles(id, username, avatar_url, verified)')
+      .select('*, profiles(id, username, avatar_url, verified_tier)')
       .eq('post_id', post.id)
       .order('created_at', { ascending: true })
       .limit(50);

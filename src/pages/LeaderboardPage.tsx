@@ -229,7 +229,7 @@ export default function LeaderboardPage() {
       const { data: users } = await supabase.from('profiles').select('id, username, avatar_url, verified, total_earnings').gt('total_earnings', 0).order('total_earnings', { ascending: false }).limit(50);
       setData((users || []).map((u: any) => ({ ...u, value: Number(u.total_earnings ?? 0) })));
     } else {
-      const { data: rewards } = await supabase.from('daily_rewards').select('streak_day, profiles(id, username, avatar_url, verified)').order('streak_day', { ascending: false }).limit(50);
+      const { data: rewards } = await supabase.from('daily_rewards').select('streak_day, profiles(id, username, avatar_url, verified_tier)').order('streak_day', { ascending: false }).limit(50);
       setData((rewards || []).filter((r: any) => r.user_profiles).map((r: any) => ({ ...(r.user_profiles as any), value: r.streak_day ?? 0 })));
     }
     setLoading(false);
