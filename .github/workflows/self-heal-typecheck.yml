@@ -26,74 +26,71 @@ jobs:
         with:
           node-version: 22
       - name: Apply deterministic contract repairs
-        run: node <<'NODE'
-const fs = require('fs');
-const files = new Map();
-const read = (p) => files.has(p) ? files.get(p) : (files.set(p, fs.readFileSync(p, 'utf8')), files.get(p));
-const write = (p, next) => { if (next !== read(p)) { files.set(p, next); fs.writeFileSync(p, next); } };
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const files = new Map();
+          const read = (p) => files.has(p) ? files.get(p) : (files.set(p, fs.readFileSync(p, 'utf8')), files.get(p));
+          const write = (p, next) => { if (next !== read(p)) { files.set(p, next); fs.writeFileSync(p, next); } };
 
-{
-  const p='src/App.tsx';
-  write(p, read(p));
-}
-{
-  const p='src/components/features/ComposePost.tsx';
-  write(p, read(p).replace(/user\?\.creator_tier/g, '(user as any)?.creator_tier'));
-}
-{
-  const p='src/components/features/LiveAudioBroadcaster.tsx';
-  write(p, read(p).replace('return () => stopBroadcast();', 'return () => { void stopBroadcast(); };'));
-}
-{
-  const p='src/components/features/PostCard.tsx';
-  write(p, read(p).replace('title="Premium Member"', 'aria-label="Premium Member"'));
-}
-{
-  const p='src/components/features/VideoPlayer.tsx';
-  let s=read(p);
-  s=s.replace('title="Premium Member"', 'aria-label="Premium Member"');
-  if (!s.includes('function normalizeVideoReplies')) {
-    const marker='// @__PURE__ annotation prevents esbuild non-determinism on module-level Map construction';
-    const helper='function normalizeVideoReplies(rows: any[] | null | undefined): Reply[] {\n  return (rows ?? []).map((row) => ({ ...row, user_profiles: Array.isArray(row?.user_profiles) ? row.user_profiles[0] ?? null : row?.user_profiles ?? null }));\n}\n\n';
-    s=s.replace(marker, helper+marker);
-  }
-  s=s.replace('setComments((data as Reply[]) || []);', 'setComments(normalizeVideoReplies(data));');
-  s=s.replace('setComments(prev => [inserted as Reply, ...prev]);', 'setComments(prev => [normalizeVideoReplies([inserted])[0], ...prev]);');
-  write(p,s);
-}
-{
-  const p='src/components/features/SavingsGoalsTab.tsx';
-  write(p, read(p).replace('SAVINGS_GOAL_BAR[c]', 'getGoalBar(c)'));
-}
-{
-  const p='src/components/features/TrendingVideosSection.tsx';
-  let s=read(p);
-  if (!s.includes('function normalizeVideoPosts')) {
-    const marker='interface Props {';
-    const helper='function normalizeVideoPosts(rows: any[] | null | undefined): VideoPost[] {\n  return (rows ?? []).map((row) => ({ ...row, user_profiles: Array.isArray(row?.user_profiles) ? row.user_profiles[0] ?? null : row?.user_profiles ?? null }));\n}\n\n';
-    s=s.replace(marker, helper+marker);
-  }
-  s=s.replace('setVideos(recent as VideoPost[]);', 'setVideos(normalizeVideoPosts(recent));');
-  s=s.replace('setVideos((allTime || []) as VideoPost[]);', 'setVideos(normalizeVideoPosts(allTime));');
-  write(p,s);
-}
-{
-  const p='src/modules/payments/paymentOrchestrator.ts';
-  let s=read(p);
-  s=s.replace('const updatedWallet = await creditWalletFromMpesa({\n      userId: user.user_id,\n      amount,\n      receipt,\n      checkoutRequestID,\n    });', 'const updatedWallet = await creditWalletFromMpesa(\n      user.user_id,\n      Number(amount),\n      String(receipt ?? checkoutRequestID ?? \'mpesa-callback\'),\n    );');
-  write(p,s);
-}
-{
-  const p='src/pages/CommunityPage.tsx';
-  let s=read(p);
-  s=s.replace('setLeaderboard(Object.values(agg).sort((a, b) => b.likes - a.likes).slice(0, 3));', 'setLeaderboard((Object.values(agg) as Array<{ profile: any; likes: number; posts: number }>).sort((a, b) => b.likes - a.likes).slice(0, 3));');
-  s=s.replace('id: m.user_profiles?.id ?? m.user_id ?? \'\'', 'id: (m.user_profiles as any)?.id ?? m.user_id ?? \'\'');
-  write(p,s);
-}
+          {
+            const p='src/components/features/ComposePost.tsx';
+            write(p, read(p).replace(/user\?\.creator_tier/g, '(user as any)?.creator_tier'));
+          }
+          {
+            const p='src/components/features/LiveAudioBroadcaster.tsx';
+            write(p, read(p).replace('return () => stopBroadcast();', 'return () => { void stopBroadcast(); };'));
+          }
+          {
+            const p='src/components/features/PostCard.tsx';
+            write(p, read(p).replace('title="Premium Member"', 'aria-label="Premium Member"'));
+          }
+          {
+            const p='src/components/features/VideoPlayer.tsx';
+            let s=read(p);
+            s=s.replace('title="Premium Member"', 'aria-label="Premium Member"');
+            if (!s.includes('function normalizeVideoReplies')) {
+              const marker='// @__PURE__ annotation prevents esbuild non-determinism on module-level Map construction';
+              const helper='function normalizeVideoReplies(rows: any[] | null | undefined): Reply[] {\n  return (rows ?? []).map((row) => ({ ...row, user_profiles: Array.isArray(row?.user_profiles) ? row.user_profiles[0] ?? null : row?.user_profiles ?? null }));\n}\n\n';
+              s=s.replace(marker, helper+marker);
+            }
+            s=s.replace('setComments((data as Reply[]) || []);', 'setComments(normalizeVideoReplies(data));');
+            s=s.replace('setComments(prev => [inserted as Reply, ...prev]);', 'setComments(prev => [normalizeVideoReplies([inserted])[0], ...prev]);');
+            write(p,s);
+          }
+          {
+            const p='src/components/features/SavingsGoalsTab.tsx';
+            write(p, read(p).replace('SAVINGS_GOAL_BAR[c]', 'getGoalBar(c)'));
+          }
+          {
+            const p='src/components/features/TrendingVideosSection.tsx';
+            let s=read(p);
+            if (!s.includes('function normalizeVideoPosts')) {
+              const marker='interface Props {';
+              const helper='function normalizeVideoPosts(rows: any[] | null | undefined): VideoPost[] {\n  return (rows ?? []).map((row) => ({ ...row, user_profiles: Array.isArray(row?.user_profiles) ? row.user_profiles[0] ?? null : row?.user_profiles ?? null }));\n}\n\n';
+              s=s.replace(marker, helper+marker);
+            }
+            s=s.replace('setVideos(recent as VideoPost[]);', 'setVideos(normalizeVideoPosts(recent));');
+            s=s.replace('setVideos((allTime || []) as VideoPost[]);', 'setVideos(normalizeVideoPosts(allTime));');
+            write(p,s);
+          }
+          {
+            const p='src/modules/payments/paymentOrchestrator.ts';
+            let s=read(p);
+            s=s.replace('const updatedWallet = await creditWalletFromMpesa({\n      userId: user.user_id,\n      amount,\n      receipt,\n      checkoutRequestID,\n    });', 'const updatedWallet = await creditWalletFromMpesa(\n      user.user_id,\n      Number(amount),\n      String(receipt ?? checkoutRequestID ?? \'mpesa-callback\'),\n    );');
+            write(p,s);
+          }
+          {
+            const p='src/pages/CommunityPage.tsx';
+            let s=read(p);
+            s=s.replace('setLeaderboard(Object.values(agg).sort((a, b) => b.likes - a.likes).slice(0, 3));', 'setLeaderboard((Object.values(agg) as Array<{ profile: any; likes: number; posts: number }>).sort((a, b) => b.likes - a.likes).slice(0, 3));');
+            s=s.replace('id: m.user_profiles?.id ?? m.user_id ?? \'\'', 'id: (m.user_profiles as any)?.id ?? m.user_id ?? \'\'');
+            write(p,s);
+          }
 
-const status = require('child_process').execFileSync('git', ['status','--porcelain'], {encoding:'utf8'}).trim();
-if (!status) process.exit(0);
-NODE
+          const status = require('child_process').execFileSync('git', ['status','--porcelain'], {encoding:'utf8'}).trim();
+          if (!status) process.exit(0);
+          NODE
       - name: Commit deterministic repairs
         run: |
           git config user.name "github-actions[bot]"
