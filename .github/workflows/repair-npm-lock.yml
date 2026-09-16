@@ -101,14 +101,6 @@ jobs:
             echo 'Build failed: this is a genuine build failure and requires repair.'
           fi
 
-      - name: Rebase repair onto latest main
-        if: success()
-        shell: bash
-        run: |
-          set -euo pipefail
-          git fetch origin main
-          git rebase origin/main
-
       - name: Commit repaired project metadata
         if: success()
         shell: bash
@@ -119,22 +111,28 @@ jobs:
           git add package-lock.json .npmrc eslint.config.js
           if git diff --cached --quiet; then
             echo 'No repaired metadata changes to commit.'
-            exit 0
+          else
+            git commit -m 'chore(ci): persist self-healed project compatibility metadata'
           fi
-          git commit -m 'chore(ci): persist self-healed project compatibility metadata'
 
+      - name: Rebase repair onto latest main and push
+        if: success()
+        shell: bash
+        run: |
+          set -euo pipefail
           for attempt in 1 2 3; do
             git fetch origin main
-            git rebase origin/main || {
+            if git rebase origin/main; then
+              if git push origin HEAD:main; then
+                echo "Repair metadata pushed successfully on attempt ${attempt}."
+                exit 0
+              fi
+            else
               echo "Rebase failed on attempt ${attempt}."
-              exit 1
-            }
-            if git push origin HEAD:main; then
-              echo "Repair metadata pushed successfully on attempt ${attempt}."
-              exit 0
+              git rebase --abort || true
             fi
-            echo "Push raced with another main update; retrying (${attempt}/3)."
+            echo "Main changed while repairing; retrying (${attempt}/3)."
             sleep 2
           done
-          echo 'Unable to push repaired metadata after 3 attempts.'
+          echo 'Unable to rebase/push repaired metadata after 3 attempts.'
           exit 1
