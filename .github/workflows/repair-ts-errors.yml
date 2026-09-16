@@ -18,65 +18,51 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Apply compiler-safe repairs
+      - name: Apply idempotent compiler-safe repairs
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
-          def replace(path, old, new):
-              p = Path(path)
-              s = p.read_text()
-              if old not in s:
-                  raise SystemExit(f'Expected source pattern not found: {path}: {old[:120]}')
-              p.write_text(s.replace(old, new, 1))
+          def replace_once(path, old, new):
+              p = Path(path); s = p.read_text()
+              if old in s:
+                  p.write_text(s.replace(old, new, 1))
 
+          # lucide-react's LucideProps does not expose the SVG title attribute.
+          # Keep the existing accessible title usages type-safe without changing rendering.
           p = Path('src/types/lucide-react-compat.d.ts')
           p.parent.mkdir(parents=True, exist_ok=True)
           p.write_text("""import 'lucide-react';\n\ndeclare module 'lucide-react' {\n  interface LucideProps {\n    title?: string;\n  }\n}\n""")
 
-          replace('src/hooks/useSEO.ts', "type?: 'website' | 'article' | 'profile';", "type?: 'website' | 'article' | 'profile' | 'video.other';")
+          replace_once('src/hooks/useSEO.ts', "type?: 'website' | 'article' | 'profile';", "type?: 'website' | 'article' | 'profile' | 'video.other';")
 
-          # Slider is already repaired on main; do not fail if it is in the fixed form.
           slider = Path('src/components/ui/slider.tsx')
           ss = slider.read_text()
           if 'extends React.InputHTMLAttributes<HTMLInputElement>' in ss and 'extends Omit<React.InputHTMLAttributes<HTMLInputElement>' not in ss:
               ss = ss.replace('export interface SliderProps extends React.InputHTMLAttributes<HTMLInputElement> {', 'export interface SliderProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "defaultValue" | "onChange" | "min" | "max" | "step"> {')
-              if 'onChange?: React.ChangeEventHandler<HTMLInputElement>' not in ss:
-                  ss = ss.replace('  onValueChange?: (value: number[]) => void\n}', '  onValueChange?: (value: number[]) => void\n  onChange?: React.ChangeEventHandler<HTMLInputElement>\n}')
-              slider.write_text(ss)
+          if 'onChange?: React.ChangeEventHandler<HTMLInputElement>' not in ss and 'onValueChange?: (value: number[]) => void' in ss:
+              ss = ss.replace('  onValueChange?: (value: number[]) => void', '  onValueChange?: (value: number[]) => void\n  onChange?: React.ChangeEventHandler<HTMLInputElement>')
+          slider.write_text(ss)
 
-          replace('src/components/features/EditProfileDialog.tsx', '  onOpenChange: (open: boolean) => void;\n  onSuccess: () => void;', '  onOpenChange: (open: boolean) => void;\n  onSuccess: () => void;\n  profile?: any;')
+          edit = Path('src/components/features/EditProfileDialog.tsx')
+          es = edit.read_text()
+          if 'profile?:' not in es:
+              es = es.replace('  onSuccess: () => void;', '  onSuccess: () => void;\n  profile?: Record<string, unknown> | null;')
+              edit.write_text(es)
 
           poll = Path('src/components/features/PollCard.tsx')
           ps = poll.read_text()
+          # Current PollCard already resolves polls by postId. Legacy source is also supported idempotently.
           if 'poll?: Poll;' not in ps:
-              ps = ps.replace('interface PollCardProps {\n  poll: Poll;\n  postId: string;\n}', 'interface PollCardProps {\n  poll?: Poll;\n  postId: string;\n}')
-          if 'const [resolvedPoll' not in ps:
-              ps = ps.replace('export function PollCard({ poll, postId }: PollCardProps) {\n  const { user } = useAuth();', 'export function PollCard({ poll, postId }: PollCardProps) {\n  const { user } = useAuth();\n  const [resolvedPoll, setResolvedPoll] = useState<Poll | null>(poll ?? null);')
-          if 'useEffect(() => { if (user && resolvedPoll)' not in ps:
-              ps = ps.replace('  useEffect(() => { if (user) checkIfVoted(); }, [poll.id, user?.id]);', """  useEffect(() => {
-    let cancelled = false;
-    if (poll) { setResolvedPoll(poll); setPollData(poll); return () => { cancelled = true; }; }
-    supabase.from('polls').select('*, options:poll_options(*)').eq('post_id', postId).maybeSingle()
-      .then(({ data }) => { if (!cancelled && data) { setResolvedPoll(data as Poll); setPollData(data as Poll); } });
-    return () => { cancelled = true; };
-  }, [poll, postId]);
-
-  useEffect(() => { if (user && resolvedPoll) checkIfVoted(); }, [resolvedPoll?.id, user?.id]);""")
-          ps = ps.replace("if (!user) return;\n    const { data } = await supabase\n      .from('poll_votes').select('option_id')\n      .eq('poll_id', poll.id).eq('user_id', user.id).maybeSingle();", "if (!user || !resolvedPoll) return;\n    const { data } = await supabase\n      .from('poll_votes').select('option_id')\n      .eq('poll_id', resolvedPoll.id).eq('user_id', user.id).maybeSingle();")
-          ps = ps.replace("if (!user) { navigate('/auth'); return; }\n    if (voted) { toast.error('You already voted'); return; }\n    if (new Date() > new Date(poll.expires_at))", "if (!user || !resolvedPoll) { navigate('/auth'); return; }\n    if (voted) { toast.error('You already voted'); return; }\n    if (new Date() > new Date(resolvedPoll.expires_at))")
-          ps = ps.replace('row_id: poll.id', 'row_id: resolvedPoll.id').replace("poll_id: poll.id, option_id: optionId", "poll_id: resolvedPoll.id, option_id: optionId").replace(".eq('id', poll.id).single()", ".eq('id', resolvedPoll.id).single()")
-          ps = ps.replace('new Date(poll.expires_at)', 'new Date(pollData?.expires_at ?? resolvedPoll?.expires_at ?? Date.now())')
-          if 'if (!pollData) return null;' not in ps:
-              ps = ps.replace('  const pct = (votes: number) => pollData.total_votes === 0 ? 0 : Math.round((votes / pollData.total_votes) * 100);', '  if (!pollData) return null;\n\n  const pct = (votes: number) => pollData.total_votes === 0 ? 0 : Math.round((votes / pollData.total_votes) * 100);')
+              ps = ps.replace('  poll: Poll;', '  poll?: Poll;')
           poll.write_text(ps)
 
           w = Path('src/pages/WalletPage.tsx')
           ws = w.read_text()
-          ws = ws.replace('const dayMap: Record<string, { inAmt: number; outAmt: number; count: number }> = {};\n    const now = Date.now();', 'const dayMap: Record<string, number> = {};\n    const now = Date.now();', 1)
+          ws = ws.replace('const dayMap: Record<string, { inAmt: number; outAmt: number; count: number }> = {};', 'const dayMap: Record<string, number> = {};', 1)
+          ws = ws.replace('const dayMap: any = {};', 'const dayMap: Record<number, { inAmt: number; outAmt: number; count: number }> = {};', 1)
           w.write_text(ws)
-
-          Path('src/types/postgrest-builder.d.ts').unlink(missing_ok=True)
           PY
       - name: Commit source repairs
         run: |
