@@ -1,4 +1,5 @@
 import { invokeBackendFunction } from '@/services/backendClient';
+import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 
 export type MegalodonAction =
   | 'detect'
@@ -63,10 +64,28 @@ export async function megalodonGateway<T = unknown>(request: MegalodonRequest): 
   if (!instance) throw new Error('Fediverse instance is required');
   if (!/^https:\/\//i.test(instance)) throw new Error('Fediverse instance must use HTTPS');
 
-  return invokeBackendFunction<MegalodonResponse<T>, MegalodonRequest>('megalodon-gateway', {
-    ...request,
-    instance,
-  });
+  const startedAt = Date.now();
+  try {
+    const result = await invokeBackendFunction<MegalodonResponse<T>, MegalodonRequest>('megalodon-gateway', {
+      ...request,
+      instance,
+    });
+    trackTestagramEvent(TestagramEvent.CAPABILITY_SUCCEEDED, {
+      capability: 'megalodon-gateway',
+      action: request.action,
+      provider: result.provider,
+      duration_ms: Date.now() - startedAt,
+    });
+    return result;
+  } catch (error) {
+    trackTestagramEvent(TestagramEvent.CAPABILITY_FAILED, {
+      capability: 'megalodon-gateway',
+      action: request.action,
+      duration_ms: Date.now() - startedAt,
+      error_type: error instanceof Error ? error.name : 'unknown',
+    });
+    throw error;
+  }
 }
 
 export const megalodonGatewayService = {
