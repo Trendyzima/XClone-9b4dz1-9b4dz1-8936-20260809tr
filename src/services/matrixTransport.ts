@@ -1,10 +1,5 @@
 import { supabase } from '@/lib/supabase';
 
-/**
- * Matrix is an optional downstream transport. Testagram Auth, blocks and
- * conversation membership remain authoritative; Matrix credentials never
- * enter the browser. The adapter talks only to a server-side bridge.
- */
 export type MatrixTransportStatus = {
   enabled: boolean;
   provider: 'matrix';
@@ -35,6 +30,9 @@ async function callBridge<T>(path: string, body: Record<string, unknown> = {}): 
 }
 
 export const matrixTransport: MatrixTransport = {
-  status: () => callBridge<MatrixTransportStatus>('/status'),
+  async status() {
+    if (!bridgeUrl()) return { enabled: false, provider: 'matrix', identity: null };
+    return callBridge<MatrixTransportStatus>('/status');
+  },
   syncConversation: conversationId => callBridge<{ synced: boolean }>('/sync-conversation', { conversation_id: conversationId }),
 };
