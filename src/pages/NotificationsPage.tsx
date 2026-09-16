@@ -242,8 +242,7 @@ export default function NotificationsPage() {
     if (activeTab === 'fediverse' || loading || !hasMore) return false;
     const cursorValue = nextCursor;
     if (!cursorValue) return false;
-    await fetchNotifications(cursorValue, false);
-    return hasMore;
+    return fetchNotifications(cursorValue, false);
   };
 
   const { lastElementRef, loading: loadingMore } = useInfiniteScroll(loadMore);
