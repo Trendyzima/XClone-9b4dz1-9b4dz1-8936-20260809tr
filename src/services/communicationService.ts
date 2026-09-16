@@ -6,7 +6,8 @@ export type CommunicationMessage = { id: string; conversation_id: string; sender
 export type MessageAttachment = { id: string; message_id: string; owner_id: string; media_url: string; media_type: string; mime_type?: string | null; byte_size: number; duration_ms?: number | null; width?: number | null; height?: number | null; created_at: string };
 export type TypingState = { user_id: string; typing: boolean; at: string };
 export type PresenceState = { user_id: string; status: 'online' | 'away' | 'offline'; at: string };
-export type CallSession = { call_id: string; provider: 'livekit'; room_name: string };
+export type CallSession = { call_id: string; provider: 'livekit'; room_name: string; conversation_id?: string; created_by?: string; status?: 'ringing' | 'active' | 'ended' | 'failed'; kind?: 'voice' | 'video' | 'screen' };
+export type CallSessionChange = { operation: 'INSERT' | 'UPDATE' | 'DELETE'; session: CallSession; previous?: Partial<CallSession> | null };
 // Must stay identical to the topic parsed by the realtime.messages RLS policy.
 const conversationTopic = (conversationId: string) => `conversation:${conversationId}`;
 
@@ -18,6 +19,8 @@ type ConversationHandlers = {
   onPresence?: (state: PresenceState) => void;
 };
 
+type CallHandlers = { onCall?: (change: CallSessionChange) => void };
+
 export const communicationService = {
   listConversations(limit = 50) { return backendCapabilities.call<{ items: CommunicationConversation[] }>('testagram.conversations.list', { limit }); },
   createConversation(memberIds: string[]) { return backendCapabilities.call<{ conversation_id: string }>('testagram.conversations.create', { member_ids: memberIds }); },
@@ -25,7 +28,7 @@ export const communicationService = {
   sendMessage(input: { conversationId: string; body: string; clientMessageId?: string; replyToMessageId?: string; sharedPostId?: string }) { return backendCapabilities.call<{ message_id: string }>('testagram.messages.send', { conversation_id: input.conversationId, body: input.body, ...(input.clientMessageId ? { client_message_id: input.clientMessageId } : {}), ...(input.replyToMessageId ? { reply_to_message_id: input.replyToMessageId } : {}), ...(input.sharedPostId ? { shared_post_id: input.sharedPostId } : {}) }); },
   editMessage(messageId: string, body: string) { return backendCapabilities.call<{ message_id: string; edited: boolean }>('testagram.messages.edit', { message_id: messageId, body }); },
   deleteMessage(messageId: string) { return backendCapabilities.call<{ message_id: string; deleted: boolean }>('testagram.messages.delete', { message_id: messageId }); },
-  attachMessage(input: { messageId: string; mediaUrl: string; mediaType: string; mimeType?: string; byteSize: number; durationMs?: number; width?: number; height?: number }) { return backendCapabilities.call<{ attachment: MessageAttachment }>('testagram.messages.attach', { message_id: input.messageId, media_url: input.mediaUrl, media_type: input.mediaType, ...(input.mimeType ? { mime_type: input.mimeType } : {}), byte_size: input.byteSize, ...(input.durationMs !== undefined ? { duration_ms: input.durationMs } : {}), ...(input.width !== undefined ? { width: input.width } : {}), ...(input.height !== undefined ? { height: input.height } : {}) }); },
+  attachMessage(input: { messageId: string; mediaUrl: string; mediaType: string; mimeType?: string; byteSize: number; durationMs?: number; width?: number; height?: number }) { return backendCapabilities.call<{ attachment: MessageAttachment }>('testagram.messages.attach', { message_id: input.messageId, media_url: input.mediaUrl, media_type: input.mediaType, ...(input.mimeType ? { mime_type: input.mimeType } : {}), byte_size: input.byteSize, ...(input.durationMs !== undefined ? { duration_ms: input.durationMs } : {}), ...(input.width !== undefined ? { width: input.width } : {}) , ...(input.height !== undefined ? { height: input.height } : {}) }); },
   markMessageRead(messageId: string) { return backendCapabilities.call<{ message_id: string; read: boolean }>('testagram.messages.mark_read', { message_id: messageId }); },
   reactToMessage(messageId: string, reaction: string, remove = false) { return backendCapabilities.call<{ message_id: string; reaction: string; removed: boolean }>('testagram.messages.react', { message_id: messageId, reaction, remove }); },
   createCall(conversationId: string, kind: 'voice' | 'video' | 'screen' = 'video') { return backendCapabilities.call<CallSession>('testagram.calls.create', { conversation_id: conversationId, kind }); },
@@ -76,6 +79,16 @@ export const communicationService = {
       }
       if (error) console.warn('[communication] realtime subscription error', error);
     });
+    return () => { void supabase.removeChannel(channel); };
+  },
+  subscribeToCallSessions(conversationId: string, handlersOrCallback: CallHandlers | ((change: CallSessionChange) => void) = {}) {
+    const handlers: CallHandlers = typeof handlersOrCallback === 'function' ? { onCall: handlersOrCallback } : handlersOrCallback;
+    const channel = supabase
+      .channel(`${conversationTopic(conversationId)}:calls`, { config: { private: true, broadcast: { self: false } } })
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'INSERT', session: { ...(payload.new as Record<string, unknown>), call_id: String((payload.new as Record<string, unknown>).id), provider: 'livekit' } as CallSession }))
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'UPDATE', session: { ...(payload.new as Record<string, unknown>), call_id: String((payload.new as Record<string, unknown>).id), provider: 'livekit' } as CallSession, previous: payload.old as Partial<CallSession> }))
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'DELETE', session: { ...(payload.old as Record<string, unknown>), call_id: String((payload.old as Record<string, unknown>).id), provider: 'livekit' } as CallSession }))
+      .subscribe((status, error) => { if (error) console.warn('[communication] call realtime error', status, error); });
     return () => { void supabase.removeChannel(channel); };
   },
   async setTyping(conversationId: string, typing: boolean) {
