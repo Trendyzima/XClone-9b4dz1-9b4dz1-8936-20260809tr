@@ -312,8 +312,6 @@ export default function NotificationsPage() {
     }
   };
 
-  const isPaymentType = (type: string) =>
-    ['payment_success', 'payment_sent', 'payment_failed', 'payout_sent', 'deposit_confirmed', 'boost_activated', 'ad_active', 'ad_rejected', 'new_ad'].includes(type);
 
   const getStreakMilestoneDay = (n: any): number => {
     // Infer milestone from the notification row; we stored type='streak_milestone'
