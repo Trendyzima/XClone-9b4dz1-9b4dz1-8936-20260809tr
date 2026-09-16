@@ -3,6 +3,7 @@ import { invokeBackendFunction } from '@/services/backendClient';
 export type MegalodonAction =
   | 'detect'
   | 'register_app'
+  | 'oauth_token'
   | 'instance'
   | 'verify'
   | 'account'
@@ -30,6 +31,9 @@ export interface MegalodonRequest {
   limit?: number;
   redirectUri?: string;
   scopes?: string;
+  clientId?: string;
+  clientSecret?: string;
+  code?: string;
   status?: string;
   visibility?: 'public' | 'unlisted' | 'private' | 'direct';
   sensitive?: boolean;
@@ -47,6 +51,11 @@ export interface MegalodonResponse<T = unknown> {
   statuses?: T[];
   result?: T;
   relationship?: T;
+  client_id?: string;
+  client_secret?: string;
+  url?: string;
+  access_token?: string;
+  refresh_token?: string;
 }
 
 export async function megalodonGateway<T = unknown>(request: MegalodonRequest): Promise<MegalodonResponse<T>> {
@@ -62,7 +71,10 @@ export async function megalodonGateway<T = unknown>(request: MegalodonRequest): 
 
 export const megalodonGatewayService = {
   detect: (instance: string) => megalodonGateway({ action: 'detect', instance }),
-  registerApp: (instance: string, redirectUri?: string) => megalodonGateway({ action: 'register_app', instance, redirectUri }),
+  registerApp: (instance: string, redirectUri: string, scopes = 'read write follow') =>
+    megalodonGateway({ action: 'register_app', instance, redirectUri, scopes }),
+  exchangeOAuthCode: (instance: string, clientId: string, clientSecret: string, code: string, redirectUri: string) =>
+    megalodonGateway({ action: 'oauth_token', instance, clientId, clientSecret, code, redirectUri }),
   getInstance: (instance: string) => megalodonGateway({ action: 'instance', instance }),
   verify: (instance: string, accessToken: string) => megalodonGateway({ action: 'verify', instance, accessToken }),
   getAccount: (instance: string, accountId: string, accessToken?: string) => megalodonGateway({ action: 'account', instance, accountId, accessToken }),
