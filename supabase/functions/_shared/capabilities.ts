@@ -8,7 +8,7 @@ export type CapabilityDefinition = {
   description: string;
 };
 
-/** Explicit capability registry. Unknown operations are never dynamically routed. */
+/** Explicit capability registry for function-side contracts and tooling. */
 export const CAPABILITIES = [
   { name: "testagram.capabilities.list", version: 1, access: "public", readonly: true, description: "List capabilities available to the caller." },
   { name: "testagram.health.read", version: 1, access: "public", readonly: true, description: "Read service-plane health." },
@@ -16,6 +16,8 @@ export const CAPABILITIES = [
   { name: "testagram.posts.create", version: 1, access: "authenticated", readonly: false, description: "Create a native Testagram post." },
   { name: "testagram.search.posts", version: 1, access: "authenticated", readonly: true, description: "Search visible posts." },
   { name: "testagram.search.users", version: 1, access: "authenticated", readonly: true, description: "Search visible profiles." },
+  { name: "testagram.search.hashtags", version: 1, access: "authenticated", readonly: true, description: "Search visible hashtags." },
+  { name: "testagram.search.communities", version: 1, access: "authenticated", readonly: true, description: "Search visible communities." },
   { name: "testagram.recommendations.generate", version: 1, access: "authenticated", readonly: false, description: "Generate the authenticated user's ranked recommendations." },
   { name: "testagram.notifications.rank", version: 1, access: "authenticated", readonly: true, description: "Read ranked notifications for the authenticated user." },
 
