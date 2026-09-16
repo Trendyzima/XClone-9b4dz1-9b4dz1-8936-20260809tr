@@ -1,6 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from './useAuth';
+import {
+  walletPhoneAuthService,
+  type WalletPhoneIdentity,
+} from '@/services/walletPhoneAuthService';
 
 export interface Wallet {
   // `id` must come from public.wallets (the payment gateway wallet), not user_wallets.
@@ -24,13 +28,12 @@ export interface Wallet {
 export function useWallet() {
   const { user } = useAuth();
   const [wallet, setWallet] = useState<Wallet | null>(null);
+  const [phoneIdentity, setPhoneIdentity] = useState<WalletPhoneIdentity | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user) {
-      fetchWallet();
-    }
+    if (user) fetchWallet();
   }, [user]);
 
   const fetchWallet = async () => {
@@ -40,9 +43,6 @@ export function useWallet() {
       setLoading(true);
       setError(null);
 
-      // user_wallets contains the app's legacy/display wallet fields.
-      // wallets contains the payment-gateway wallet ID consumed by mpesa-stk-push.
-      // They are separate tables in this project, so never assume user_wallets.id exists.
       const [{ data: userWallet, error: userWalletError }, { data: gatewayWallet, error: gatewayWalletError }] = await Promise.all([
         supabase
           .from('user_wallets')
@@ -59,12 +59,23 @@ export function useWallet() {
       if (userWalletError) throw userWalletError;
       if (gatewayWalletError) throw gatewayWalletError;
 
-      // Preserve the existing UI contract while exposing the real gateway wallet ID.
-      // The M-Pesa Edge Function authorizes metadata.wallet_id against this `wallets.id`.
+      const resolvedWalletId = gatewayWallet?.id ?? '';
+      if (resolvedWalletId) {
+        const { data: identity, error: identityError } = await supabase
+          .from('wallet_phone_identities')
+          .select('*')
+          .eq('wallet_id', resolvedWalletId)
+          .maybeSingle();
+        if (identityError) throw identityError;
+        setPhoneIdentity(identity as WalletPhoneIdentity | null);
+      } else {
+        setPhoneIdentity(null);
+      }
+
       if (userWallet) {
         setWallet({
           ...userWallet,
-          id: gatewayWallet?.id ?? '',
+          id: resolvedWalletId,
           user_id: user.id,
           balance: Number((userWallet as any).balance ?? gatewayWallet?.balance ?? 0),
           total_deposited: Number((userWallet as any).total_deposited ?? gatewayWallet?.total_deposited ?? 0),
@@ -77,9 +88,6 @@ export function useWallet() {
         return;
       }
 
-      // Keep the previous self-healing behavior for the legacy table, but only
-      // if the gateway wallet already exists. This avoids creating an unusable
-      // wallet object with no payment-gateway ID.
       if (gatewayWallet) {
         const { data: newWallet, error: createError } = await supabase
           .from('user_wallets')
@@ -108,9 +116,24 @@ export function useWallet() {
       console.error('Wallet error:', err);
       setError(err.message);
       setWallet(null);
+      setPhoneIdentity(null);
     } finally {
       setLoading(false);
     }
+  };
+
+  const requestPhoneOtp = async (phone: string) => {
+    const result = await walletPhoneAuthService.requestWalletPhoneOtp(phone);
+    return result;
+  };
+
+  const verifyPhoneOtp = async (phone: string, token: string) => {
+    if (!wallet?.id) throw new Error('Payment wallet is not provisioned for this account');
+    const verified = await walletPhoneAuthService.verifyWalletPhoneOtp(phone, token);
+    const identity = await walletPhoneAuthService.linkVerifiedPhoneToWallet(wallet.id, verified.phone);
+    setPhoneIdentity(identity);
+    setWallet(prev => prev ? { ...prev, mpesa_phone: verified.phone } : prev);
+    return identity;
   };
 
   const updatePaymentMethods = async (mpesaPhone: string, paypalEmail: string) => {
@@ -121,14 +144,16 @@ export function useWallet() {
         supabase
           .from('user_wallets')
           .update({
-            mpesa_phone: mpesaPhone || null,
+            // Do not treat an arbitrary browser-supplied phone as verified.
+            // Verified wallet phone linking is handled by verifyPhoneOtp().
+            mpesa_phone: phoneIdentity?.phone_e164 ?? null,
             paypal_email: paypalEmail || null,
           })
           .eq('user_id', user.id),
         supabase
           .from('wallets')
           .update({
-            mpesa_phone: mpesaPhone || null,
+            mpesa_phone: phoneIdentity?.phone_e164 ?? null,
             paypal_email: paypalEmail || null,
           })
           .eq('id', wallet.id)
@@ -138,7 +163,7 @@ export function useWallet() {
       if (legacyUpdate.error) throw legacyUpdate.error;
       if (gatewayUpdate.error) throw gatewayUpdate.error;
 
-      setWallet(prev => prev ? { ...prev, mpesa_phone: mpesaPhone || null, paypal_email: paypalEmail || null } : null);
+      setWallet(prev => prev ? { ...prev, mpesa_phone: phoneIdentity?.phone_e164 ?? null, paypal_email: paypalEmail || null } : null);
       return { success: true };
     } catch (err: any) {
       console.error('Update payment methods error:', err);
@@ -150,6 +175,10 @@ export function useWallet() {
     wallet,
     loading,
     error,
+    phoneIdentity,
+    phoneVerified: !!phoneIdentity?.verified_at,
+    requestPhoneOtp,
+    verifyPhoneOtp,
     fetchWallet,
     updatePaymentMethods,
   };
