@@ -46,35 +46,38 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Verify checked-out revision
-        run: git rev-parse HEAD
+        run: |
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
+          git rev-parse HEAD
       - name: Deterministic self-heal pass
-        run: node <<'NODE'
-const fs = require('fs');
-const replace = (p, pairs) => {
-  let s = fs.readFileSync(p, 'utf8');
-  const before = s;
-  for (const [a,b] of pairs) s = s.replace(a,b);
-  if (s !== before) fs.writeFileSync(p,s);
-};
-replace('src/components/features/ComposePost.tsx', [[/user\?\.creator_tier/g, '(user as any)?.creator_tier']]);
-replace('src/components/features/LiveAudioBroadcaster.tsx', [['return () => stopBroadcast();','return () => { void stopBroadcast(); };']]);
-replace('src/components/features/PostCard.tsx', [['title="Premium Member"','aria-label="Premium Member"']]);
-replace('src/components/features/SavingsGoalsTab.tsx', [['SAVINGS_GOAL_BAR[c]','getGoalBar(c)']]);
-replace('src/modules/payments/paymentOrchestrator.ts', [[/const updatedWallet = await creditWalletFromMpesa\(\{\n      userId: user\.user_id,\n      amount,\n      receipt,\n      checkoutRequestID,\n    \}\);/, `const updatedWallet = await creditWalletFromMpesa(\n      user.user_id,\n      Number(amount),\n      String(receipt ?? checkoutRequestID ?? 'mpesa-callback'),\n    );`]]);
-replace('src/pages/CommunityPage.tsx', [
-  ['setLeaderboard(Object.values(agg).sort((a, b) => b.likes - a.likes).slice(0, 3));', 'setLeaderboard((Object.values(agg) as Array<{ profile: any; likes: number; posts: number }>).sort((a, b) => b.likes - a.likes).slice(0, 3));'],
-  ["id: m.user_profiles?.id ?? m.user_id ?? ''", "id: (m.user_profiles as any)?.id ?? m.user_id ?? ''"],
-]);
-let p='src/components/features/TrendingVideosSection.tsx';
-let s=fs.readFileSync(p,'utf8');
-if (!s.includes('function normalizeVideoPosts')) s=s.replace('interface Props {','function normalizeVideoPosts(rows: any[] | null | undefined): VideoPost[] {\n  return (rows ?? []).map((row) => ({ ...row, user_profiles: Array.isArray(row?.user_profiles) ? row.user_profiles[0] ?? null : row?.user_profiles ?? null }));\n}\n\ninterface Props {');
-s=s.replace('setVideos(recent as VideoPost[]);','setVideos(normalizeVideoPosts(recent));').replace('setVideos((allTime || []) as VideoPost[]);','setVideos(normalizeVideoPosts(allTime));');
-fs.writeFileSync(p,s);
-p='src/components/features/VideoPlayer.tsx'; s=fs.readFileSync(p,'utf8');
-if (!s.includes('function normalizeVideoReplies')) s=s.replace('// @__PURE__ annotation prevents esbuild non-determinism on module-level Map construction','function normalizeVideoReplies(rows: any[] | null | undefined): Reply[] {\n  return (rows ?? []).map((row) => ({ ...row, user_profiles: Array.isArray(row?.user_profiles) ? row.user_profiles[0] ?? null : row?.user_profiles ?? null }));\n}\n\n// @__PURE__ annotation prevents esbuild non-determinism on module-level Map construction');
-s=s.replace('setComments((data as Reply[]) || []);','setComments(normalizeVideoReplies(data));').replace('setComments(prev => [inserted as Reply, ...prev]);','setComments(prev => [normalizeVideoReplies([inserted])[0], ...prev]);').replace('title="Premium Member"','aria-label="Premium Member"');
-fs.writeFileSync(p,s);
-NODE
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const replace = (p, pairs) => {
+            let s = fs.readFileSync(p, 'utf8');
+            const before = s;
+            for (const [a,b] of pairs) s = s.replace(a,b);
+            if (s !== before) fs.writeFileSync(p,s);
+          };
+          replace('src/components/features/ComposePost.tsx', [[/user\?\.creator_tier/g, '(user as any)?.creator_tier']]);
+          replace('src/components/features/LiveAudioBroadcaster.tsx', [['return () => stopBroadcast();','return () => { void stopBroadcast(); };']]);
+          replace('src/components/features/PostCard.tsx', [['title="Premium Member"','aria-label="Premium Member"']]);
+          replace('src/components/features/SavingsGoalsTab.tsx', [['SAVINGS_GOAL_BAR[c]','getGoalBar(c)']]);
+          replace('src/modules/payments/paymentOrchestrator.ts', [[/const updatedWallet = await creditWalletFromMpesa\(\{\n      userId: user\.user_id,\n      amount,\n      receipt,\n      checkoutRequestID,\n    \}\);/, `const updatedWallet = await creditWalletFromMpesa(\n      user.user_id,\n      Number(amount),\n      String(receipt ?? checkoutRequestID ?? 'mpesa-callback'),\n    );`]]);
+          replace('src/pages/CommunityPage.tsx', [
+            ['setLeaderboard(Object.values(agg).sort((a, b) => b.likes - a.likes).slice(0, 3));', 'setLeaderboard((Object.values(agg) as Array<{ profile: any; likes: number; posts: number }>).sort((a, b) => b.likes - a.likes).slice(0, 3));'],
+            ["id: m.user_profiles?.id ?? m.user_id ?? ''", "id: (m.user_profiles as any)?.id ?? m.user_id ?? ''"],
+          ]);
+          let p='src/components/features/TrendingVideosSection.tsx';
+          let s=fs.readFileSync(p,'utf8');
+          if (!s.includes('function normalizeVideoPosts')) s=s.replace('interface Props {','function normalizeVideoPosts(rows: any[] | null | undefined): VideoPost[] {\n  return (rows ?? []).map((row) => ({ ...row, user_profiles: Array.isArray(row?.user_profiles) ? row.user_profiles[0] ?? null : row?.user_profiles ?? null }));\n}\n\ninterface Props {');
+          s=s.replace('setVideos(recent as VideoPost[]);','setVideos(normalizeVideoPosts(recent));').replace('setVideos((allTime || []) as VideoPost[]);','setVideos(normalizeVideoPosts(allTime));');
+          fs.writeFileSync(p,s);
+          p='src/components/features/VideoPlayer.tsx'; s=fs.readFileSync(p,'utf8');
+          if (!s.includes('function normalizeVideoReplies')) s=s.replace('// @__PURE__ annotation prevents esbuild non-determinism on module-level Map construction','function normalizeVideoReplies(rows: any[] | null | undefined): Reply[] {\n  return (rows ?? []).map((row) => ({ ...row, user_profiles: Array.isArray(row?.user_profiles) ? row.user_profiles[0] ?? null : row?.user_profiles ?? null }));\n}\n\n// @__PURE__ annotation prevents esbuild non-determinism on module-level Map construction');
+          s=s.replace('setComments((data as Reply[]) || []);','setComments(normalizeVideoReplies(data));').replace('setComments(prev => [inserted as Reply, ...prev]);','setComments(prev => [normalizeVideoReplies([inserted])[0], ...prev]);').replace('title="Premium Member"','aria-label="Premium Member"');
+          fs.writeFileSync(p,s);
+          NODE
       - name: Persist self-heal repairs
         run: |
           if git diff --quiet; then exit 0; fi
