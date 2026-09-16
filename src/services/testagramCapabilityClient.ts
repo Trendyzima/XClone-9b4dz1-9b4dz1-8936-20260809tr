@@ -45,4 +45,4 @@ export const backendCapabilities = new TestagramCapabilityClient({
  endpoint: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/capability-gateway`,
  getAccessToken: async () => (await supabase.auth.getSession()).data.session?.access_token ?? null,
 });
-// Canonical capability client boundary: browser uses authenticated gateway calls only.
+// Canonical capability client boundary: authenticated browser gateway only.
