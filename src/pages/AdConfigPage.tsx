@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
 import { Button } from '@/components/ui/button';
@@ -7,401 +7,91 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { DollarSign, Settings, Plus, Trash2, Power, Loader2 } from 'lucide-react';
+import { BarChart3, DollarSign, Loader2, Power, Plus, Settings, Target, Megaphone } from 'lucide-react';
 
-import { PageAdBanner } from '@/components/features/AdSenseAd';
-function AdConfigAdBanner() { return <PageAdBanner />; }
-
-interface AdPlacement {
-  id: string;
-  network: string;
-  placement_type: string;
-  code: string;
-  location: string;
-  is_active: boolean;
-  impressions: number;
-  revenue: number;
-}
+interface Campaign { id: string; name: string; status: string; priority: number; bid_cpm_micros: number; targeting: Record<string, unknown>; }
+interface Slot { id: string; code: string; kind: string; floor_cpm_micros: number; enabled: boolean; }
+interface Creative { id: string; campaign_id: string; headline: string; body: string | null; cta: string; click_through_url: string; enabled: boolean; }
 
 export default function AdConfigPage() {
   const { user } = useAuth();
-  useSEO({ noindex: true, title: 'Admin — Ad Configuration', url: '/admin/ad-config' });
   const navigate = useNavigate();
+  useSEO({ noindex: true, title: 'Admin — Testagram Ads', url: '/admin/ad-config' });
   const [loading, setLoading] = useState(true);
-  const [placements, setPlacements] = useState<AdPlacement[]>([]);
-  const [adSenseClientId, setAdSenseClientId] = useState('');
-  const [platformPayPal, setPlatformPayPal] = useState('');
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [slots, setSlots] = useState<Slot[]>([]);
+  const [creatives, setCreatives] = useState<Creative[]>([]);
   const [revenueShare, setRevenueShare] = useState(70);
-  const [showAddForm, setShowAddForm] = useState(false);
-  const [newPlacement, setNewPlacement] = useState({
-    network: 'adsense',
-    placement_type: 'banner',
-    code: '',
-    location: 'feed_top'
-  });
+  const [newCampaignName, setNewCampaignName] = useState('');
+  const [newBid, setNewBid] = useState('2');
+  const [adding, setAdding] = useState(false);
 
-  useEffect(() => {
-    if (!user) {
-      navigate('/auth');
-      return;
-    }
-    checkAdminAccess();
-    fetchConfig();
-  }, [user]);
-
-  const checkAdminAccess = async () => {
-    const { data } = await supabase
-      .from('admin_users')
-      .select('id')
-      .eq('user_id', user!.id)
-      .single();
-
-    if (!data) {
-      toast.error('Access denied: Admin only');
-      navigate('/');
-    }
+  const load = async () => {
+    if (!user) return;
+    const { data: admin } = await supabase.from('platform_admins').select('role').eq('user_id', user.id).maybeSingle();
+    if (!admin) { toast.error('Access denied: platform admin only'); navigate('/'); return; }
+    const [{ data: c }, { data: s }, { data: cr }, { data: settings }] = await Promise.all([
+      supabase.from('zenad_campaigns').select('id,name,status,priority,bid_cpm_micros,targeting').order('created_at', { ascending: false }),
+      supabase.from('zenad_slots').select('id,code,kind,floor_cpm_micros,enabled').order('code'),
+      supabase.from('zenad_creatives').select('id,campaign_id,headline,body,cta,click_through_url,enabled').order('created_at', { ascending: false }),
+      supabase.from('platform_settings').select('setting_value').eq('setting_key', 'paypal_config').maybeSingle(),
+    ]);
+    setCampaigns((c ?? []) as Campaign[]); setSlots((s ?? []) as Slot[]); setCreatives((cr ?? []) as Creative[]);
+    const value: any = settings?.setting_value ?? {};
+    if (typeof value.revenue_share_percentage === 'number') setRevenueShare(value.revenue_share_percentage);
+    setLoading(false);
   };
 
-  const fetchConfig = async () => {
+  useEffect(() => { if (!user) { navigate('/auth'); return; } void load(); }, [user]);
+
+  const toggleCampaign = async (campaign: Campaign) => {
+    const next = campaign.status === 'active' ? 'paused' : 'active';
+    const { error } = await supabase.from('zenad_campaigns').update({ status: next, updated_at: new Date().toISOString() }).eq('id', campaign.id);
+    if (error) toast.error(error.message); else { toast.success(`Campaign ${next}`); void load(); }
+  };
+
+  const toggleSlot = async (slot: Slot) => {
+    const { error } = await supabase.from('zenad_slots').update({ enabled: !slot.enabled }).eq('id', slot.id);
+    if (error) toast.error(error.message); else { toast.success(`Slot ${!slot.enabled ? 'enabled' : 'disabled'}`); void load(); }
+  };
+
+  const updateRevenueShare = async () => {
+    const value = Math.min(100, Math.max(0, Number(revenueShare)));
+    const { error } = await supabase.from('platform_settings').upsert({ setting_key: 'paypal_config', setting_value: { revenue_share_percentage: value } });
+    if (error) toast.error(error.message); else toast.success('Revenue share saved');
+  };
+
+  const addHouseCampaign = async () => {
+    if (!newCampaignName.trim()) return;
+    setAdding(true);
     try {
-      // Fetch ad placements
-      const { data: placementsData } = await supabase
-        .from('ad_placements')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      setPlacements(placementsData || []);
-
-      // Fetch platform settings
-      const { data: settingsData } = await supabase
-        .from('platform_settings')
-        .select('setting_value')
-        .eq('setting_key', 'paypal_config')
-        .single();
-
-      if (settingsData) {
-        setPlatformPayPal(settingsData.setting_value.platform_email || '');
-        setRevenueShare(settingsData.setting_value.revenue_share_percentage || 70);
-      }
-    } catch (error) {
-      console.error('Error fetching config:', error);
-    } finally {
-      setLoading(false);
-    }
+      const { data: advertiser, error: advertiserError } = await supabase.from('zenad_advertisers').insert({ name: newCampaignName.trim(), status: 'active' }).select('id').single();
+      if (advertiserError) throw advertiserError;
+      const bidMicros = Math.round(Number(newBid) * 1_000_000);
+      const { data: campaign, error: campaignError } = await supabase.from('zenad_campaigns').insert({ advertiser_id: advertiser.id, name: newCampaignName.trim(), status: 'active', priority: 50, bid_cpm_micros: bidMicros, targeting: { countries: [], devices: [], genres: [], keywords: [], segments: [], frequencyCap: { maxImpressions: 3, windowHours: 24 } } }).select('id').single();
+      if (campaignError) throw campaignError;
+      const { error: appError } = await supabase.from('zenad_campaign_apps').insert({ campaign_id: campaign.id, app_id: 'testagram' });
+      if (appError) throw appError;
+      const { error: creativeError } = await supabase.from('zenad_creatives').insert({ campaign_id: campaign.id, headline: newCampaignName.trim(), body: 'Sponsored on Testagram', cta: 'Learn more', click_through_url: 'https://testagram.site', format: 'display' });
+      if (creativeError) throw creativeError;
+      toast.success('Campaign created and activated'); setNewCampaignName(''); void load();
+    } catch (error: any) { toast.error(error.message); } finally { setAdding(false); }
   };
 
-  const updatePlatformSettings = async () => {
-    try {
-      const { error } = await supabase
-        .from('platform_settings')
-        .upsert({
-          setting_key: 'paypal_config',
-          setting_value: {
-            platform_email: platformPayPal,
-            revenue_share_percentage: revenueShare,
-            auto_payout_enabled: true,
-            payout_threshold: 100
-          }
-        });
+  if (loading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>;
 
-      if (error) throw error;
-      toast.success('Platform settings updated');
-    } catch (error: any) {
-      toast.error(error.message);
-    }
-  };
-
-  const addPlacement = async () => {
-    if (!newPlacement.code.trim()) {
-      toast.error('Please enter ad code/ID');
-      return;
-    }
-
-    try {
-      const { error } = await supabase
-        .from('ad_placements')
-        .insert(newPlacement);
-
-      if (error) throw error;
-
-      toast.success('Ad placement added');
-      setShowAddForm(false);
-      setNewPlacement({
-        network: 'adsense',
-        placement_type: 'banner',
-        code: '',
-        location: 'feed_top'
-      });
-      fetchConfig();
-    } catch (error: any) {
-      toast.error(error.message);
-    }
-  };
-
-  const togglePlacement = async (id: string, isActive: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('ad_placements')
-        .update({ is_active: !isActive })
-        .eq('id', id);
-
-      if (error) throw error;
-      fetchConfig();
-    } catch (error: any) {
-      toast.error(error.message);
-    }
-  };
-
-  const deletePlacement = async (id: string) => {
-    if (!confirm('Delete this ad placement?')) return;
-
-    try {
-      const { error } = await supabase
-        .from('ad_placements')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-      toast.success('Ad placement deleted');
-      fetchConfig();
-    } catch (error: any) {
-      toast.error(error.message);
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+  return <div className="min-h-screen bg-background pb-16"><TopBar title="Testagram Ads" showBack />
+    <div className="max-w-5xl mx-auto p-4 md:p-6 space-y-6">
+      <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5"><div className="flex items-center gap-3"><div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center"><Megaphone className="w-5 h-5 text-primary" /></div><div><h1 className="text-xl font-black">Testagram Ads Engine</h1><p className="text-sm text-muted-foreground">ZenAd decisioning customized for Testagram, with Supabase as the campaign ledger.</p></div></div></div>
+      <div className="grid md:grid-cols-3 gap-4">
+        <div className="border rounded-xl p-4"><div className="flex items-center gap-2 mb-2"><BarChart3 className="w-4 h-4 text-primary" /><span className="font-semibold">Active campaigns</span></div><p className="text-2xl font-black">{campaigns.filter(c=>c.status==='active').length}</p></div>
+        <div className="border rounded-xl p-4"><div className="flex items-center gap-2 mb-2"><Target className="w-4 h-4 text-primary" /><span className="font-semibold">Enabled slots</span></div><p className="text-2xl font-black">{slots.filter(s=>s.enabled).length}</p></div>
+        <div className="border rounded-xl p-4"><div className="flex items-center gap-2 mb-2"><DollarSign className="w-4 h-4 text-primary" /><span className="font-semibold">Creator share</span></div><p className="text-2xl font-black">{100-revenueShare}%</p></div>
       </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-background pb-16 md:pb-0">
-      <TopBar title="Ad Configuration" showBack />
-      <AdConfigAdBanner />
-
-      <div className="max-w-4xl mx-auto p-6 space-y-8">
-        {/* Platform Settings */}
-        <div className="border border-border rounded-xl p-6">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-              <Settings className="w-5 h-5 text-primary" />
-            </div>
-            <div>
-              <h2 className="text-xl font-bold">Platform Settings</h2>
-              <p className="text-sm text-muted-foreground">Configure revenue sharing and PayPal</p>
-            </div>
-          </div>
-
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-semibold mb-2">Platform PayPal Email</label>
-              <Input
-                value={platformPayPal}
-                onChange={(e) => setPlatformPayPal(e.target.value)}
-                placeholder="nahashonnyaga794@gmail.com"
-                type="email"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                All platform revenue (70% share) will be sent to this PayPal account
-              </p>
-            </div>
-
-            <div>
-              <label className="block text-sm font-semibold mb-2">
-                Platform Revenue Share (%)
-              </label>
-              <Input
-                value={revenueShare}
-                onChange={(e) => setRevenueShare(Number(e.target.value))}
-                type="number"
-                min="0"
-                max="100"
-              />
-              <p className="text-xs text-muted-foreground mt-1">
-                Users keep {100 - revenueShare}% of their ad revenue
-              </p>
-            </div>
-
-            <Button onClick={updatePlatformSettings} className="w-full">
-              <DollarSign className="w-4 h-4 mr-2" />
-              Save Platform Settings
-            </Button>
-          </div>
-        </div>
-
-        {/* AdSense Configuration */}
-        <div className="border border-border rounded-xl p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-xl font-bold">Ad Placements</h2>
-              <p className="text-sm text-muted-foreground">Manage AdSense/AdMob ads</p>
-            </div>
-            <Button onClick={() => setShowAddForm(!showAddForm)} size="sm">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Placement
-            </Button>
-          </div>
-
-          {showAddForm && (
-            <div className="mb-6 p-4 border border-border rounded-lg bg-muted/30">
-              <h3 className="font-semibold mb-4">New Ad Placement</h3>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium mb-1">Network</label>
-                  <select
-                    value={newPlacement.network}
-                    onChange={(e) => setNewPlacement({ ...newPlacement, network: e.target.value })}
-                    className="w-full p-2 border border-border rounded-lg bg-background"
-                  >
-                    <option value="adsense">Google AdSense (Web)</option>
-                    <option value="admob">Google AdMob (Mobile)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">Placement Type</label>
-                  <select
-                    value={newPlacement.placement_type}
-                    onChange={(e) => setNewPlacement({ ...newPlacement, placement_type: e.target.value })}
-                    className="w-full p-2 border border-border rounded-lg bg-background"
-                  >
-                    <option value="banner">Banner</option>
-                    <option value="native">Native</option>
-                    <option value="interstitial">Interstitial</option>
-                    <option value="rewarded">Rewarded</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">
-                    {newPlacement.network === 'adsense' ? 'Ad Slot ID' : 'Ad Unit ID'}
-                  </label>
-                  <Input
-                    value={newPlacement.code}
-                    onChange={(e) => setNewPlacement({ ...newPlacement, code: e.target.value })}
-                    placeholder={newPlacement.network === 'adsense' ? '1234567890' : 'ca-app-pub-XXXXXXXXXXXXXXXX/YYYYYYYYYY'}
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-1">Location</label>
-                  <select
-                    value={newPlacement.location}
-                    onChange={(e) => setNewPlacement({ ...newPlacement, location: e.target.value })}
-                    className="w-full p-2 border border-border rounded-lg bg-background"
-                  >
-                    <option value="feed_top">Feed Top</option>
-                    <option value="feed_inline">Feed Inline (Every 5 posts)</option>
-                    <option value="sidebar">Sidebar</option>
-                    <option value="profile">Profile Page</option>
-                    <option value="explore">Explore Page</option>
-                  </select>
-                </div>
-
-                <div className="flex gap-2">
-                  <Button onClick={addPlacement} className="flex-1">
-                    Add Placement
-                  </Button>
-                  <Button onClick={() => setShowAddForm(false)} variant="outline" className="flex-1">
-                    Cancel
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Ad Placements List */}
-          <div className="space-y-3">
-            {placements.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <p>No ad placements configured</p>
-                <p className="text-sm mt-2">Add your first ad placement to start earning</p>
-              </div>
-            ) : (
-              placements.map((placement) => (
-                <div key={placement.id} className="p-4 border border-border rounded-lg">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="font-semibold capitalize">{placement.placement_type}</span>
-                        <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary">
-                          {placement.network.toUpperCase()}
-                        </span>
-                        {placement.is_active && (
-                          <span className="text-xs px-2 py-1 rounded-full bg-green-500/10 text-green-600">
-                            Active
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Location: <span className="font-medium">{placement.location}</span>
-                      </p>
-                      <p className="text-sm text-muted-foreground font-mono">
-                        {placement.code}
-                      </p>
-                      <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                        <span>{placement.impressions.toLocaleString()} impressions</span>
-                        <span>${placement.revenue.toFixed(2)} revenue</span>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => togglePlacement(placement.id, placement.is_active)}
-                        size="sm"
-                        variant="outline"
-                        title={placement.is_active ? 'Deactivate' : 'Activate'}
-                      >
-                        <Power className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        onClick={() => deletePlacement(placement.id)}
-                        size="sm"
-                        variant="destructive"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-
-        {/* Instructions */}
-        <div className="border border-primary/20 bg-primary/5 rounded-xl p-6">
-          <h3 className="font-bold text-lg mb-3">Setup Instructions</h3>
-          <ol className="space-y-2 text-sm">
-            <li className="flex gap-2">
-              <span className="font-bold">1.</span>
-              <span>Create a <a href="https://www.google.com/adsense" target="_blank" rel="noopener noreferrer" className="text-primary underline">Google AdSense</a> account (for web) or <a href="https://admob.google.com" target="_blank" rel="noopener noreferrer" className="text-primary underline">AdMob</a> (for mobile app)</span>
-            </li>
-            <li className="flex gap-2">
-              <span className="font-bold">2.</span>
-              <span>Get your Publisher ID (ca-pub-XXXXXXXXXXXXXXXX) and Ad Unit IDs</span>
-            </li>
-            <li className="flex gap-2">
-              <span className="font-bold">3.</span>
-              <span>Add the AdSense script to your website's HTML head section</span>
-            </li>
-            <li className="flex gap-2">
-              <span className="font-bold">4.</span>
-              <span>Create ad placements above and paste your ad unit IDs</span>
-            </li>
-            <li className="flex gap-2">
-              <span className="font-bold">5.</span>
-              <span>Configure your PayPal Business account to receive automatic payouts</span>
-            </li>
-            <li className="flex gap-2">
-              <span className="font-bold">6.</span>
-              <span>Revenue will be split automatically: {revenueShare}% to platform, {100 - revenueShare}% to content creators</span>
-            </li>
-          </ol>
-        </div>
-      </div>
+      <section className="border rounded-2xl p-5"><div className="flex items-center gap-2 mb-4"><Plus className="w-4 h-4"/><h2 className="font-bold">Create a direct campaign</h2></div><div className="grid md:grid-cols-[1fr_150px_auto] gap-3"><Input value={newCampaignName} onChange={e=>setNewCampaignName(e.target.value)} placeholder="Advertiser / campaign name"/><Input value={newBid} onChange={e=>setNewBid(e.target.value)} type="number" min="0.01" step="0.01" placeholder="CPM USD"/><Button onClick={addHouseCampaign} disabled={adding||!newCampaignName.trim()}>{adding?<Loader2 className="w-4 h-4 animate-spin"/>:<Plus className="w-4 h-4 mr-1"/>}Create</Button></div><p className="text-xs text-muted-foreground mt-2">The campaign is stored in Supabase and competes using ZenAd priority, CPM floor, targeting and frequency caps.</p></section>
+      <section className="border rounded-2xl p-5"><div className="flex items-center justify-between mb-4"><h2 className="font-bold">Campaigns</h2><span className="text-xs text-muted-foreground">{creatives.length} creatives</span></div><div className="space-y-3">{campaigns.map(c=><div key={c.id} className="flex items-center justify-between gap-3 border rounded-xl p-3"><div className="min-w-0"><p className="font-semibold truncate">{c.name}</p><p className="text-xs text-muted-foreground">Priority {c.priority} · ${(Number(c.bid_cpm_micros)/1_000_000).toFixed(2)} CPM · {c.status}</p></div><Button size="sm" variant="outline" onClick={()=>toggleCampaign(c)}><Power className="w-4 h-4 mr-1"/>{c.status==='active'?'Pause':'Activate'}</Button></div>)}</div></section>
+      <section className="border rounded-2xl p-5"><h2 className="font-bold mb-4">Ad inventory</h2><div className="space-y-2">{slots.map(s=><div key={s.id} className="flex items-center justify-between border rounded-xl p-3"><div><p className="font-semibold">{s.code}</p><p className="text-xs text-muted-foreground">{s.kind} · floor ${(Number(s.floor_cpm_micros)/1_000_000).toFixed(2)} CPM</p></div><Button size="sm" variant="outline" onClick={()=>toggleSlot(s)}>{s.enabled?'Disable':'Enable'}</Button></div>)}</div></section>
+      <section className="border rounded-2xl p-5"><div className="flex items-center gap-2 mb-4"><Settings className="w-4 h-4"/><h2 className="font-bold">Creator revenue share</h2></div><div className="flex gap-3 items-end"><div className="flex-1"><label className="text-sm font-medium">Platform share (%)</label><Input type="number" min="0" max="100" value={revenueShare} onChange={e=>setRevenueShare(Number(e.target.value))}/></div><Button onClick={updateRevenueShare}>Save</Button></div><p className="text-xs text-muted-foreground mt-2">This controls the existing creator monetization split; ZenAd keeps the ad decisioning and billing ledger separate from creator payouts.</p></section>
     </div>
-  );
+  </div>;
 }
