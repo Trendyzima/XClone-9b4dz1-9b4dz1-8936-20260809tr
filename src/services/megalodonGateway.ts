@@ -19,6 +19,7 @@ export type MegalodonAction =
   | 'unfollow';
 
 export interface MegalodonRequest {
+  [key: string]: unknown;
   action: MegalodonAction;
   instance: string;
   accessToken?: string;
