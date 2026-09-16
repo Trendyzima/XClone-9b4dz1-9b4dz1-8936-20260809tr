@@ -21,6 +21,7 @@ jobs:
           const p='src/pages/NotificationsPage.tsx';
           let s=fs.readFileSync(p,'utf8');
           s=s.replace('const fetchNotifications = async (cursorValue?: string | null, replace = true) => {','const fetchNotifications = async (cursorValue?: string | null, replace = true): Promise<boolean> => {');
+          s=s.replace('const fetchNotifications = async (cursorValue?: string | null, replace = true): Promise<boolean> => {\n    if (!user) return;','const fetchNotifications = async (cursorValue?: string | null, replace = true): Promise<boolean> => {\n    if (!user) return false;');
           if (s.includes('setHasMore(Boolean(result.next_cursor));') && !s.includes('setHasMore(Boolean(result.next_cursor));\n      return Boolean(result.next_cursor);')) {
             s=s.replace('setHasMore(Boolean(result.next_cursor));','setHasMore(Boolean(result.next_cursor));\n      return Boolean(result.next_cursor);');
           }
