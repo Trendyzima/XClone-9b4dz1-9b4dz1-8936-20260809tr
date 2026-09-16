@@ -1,0 +1,52 @@
+name: integrate wallet phone OTP UI
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: startsWith(github.event.head_commit.message, 'feat: add wallet phone OTP verification UI')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Integrate wallet phone OTP card
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/components/features/WalletDashboard.tsx')
+          text = path.read_text(encoding='utf-8')
+
+          import_line = "import { WalletPhoneIdentityCard } from '@/components/features/WalletPhoneIdentityCard';\n"
+          anchor_import = "import { PayPalTopUp } from '@/components/features/PayPalTopUp';\n"
+          if "WalletPhoneIdentityCard" not in text:
+              if anchor_import not in text:
+                  raise SystemExit('WalletDashboard import anchor not found')
+              text = text.replace(anchor_import, anchor_import + import_line, 1)
+
+          anchor = '    <div className="space-y-6">\n'
+          insertion = anchor + '      <WalletPhoneIdentityCard />\n'
+          if '<WalletPhoneIdentityCard />' not in text:
+              if anchor not in text:
+                  raise SystemExit('WalletDashboard render anchor not found')
+              text = text.replace(anchor, insertion, 1)
+
+          path.write_text(text, encoding='utf-8')
+
+      - name: Commit integration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/features/WalletDashboard.tsx
+          if git diff --cached --quiet; then
+            echo 'No integration changes required'
+            exit 0
+          fi
+          git commit -m 'feat: wire wallet phone OTP card into dashboard'
+          git push
