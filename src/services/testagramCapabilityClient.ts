@@ -1,3 +1,4 @@
+import { supabase } from '@/lib/supabase';
 export type CapabilityError={code:string;message:string};
 export type CapabilityResponse<T>={ok:boolean;data:T|null;error:CapabilityError|null;request_id:string};
 export type CapabilityPage<T>={items:T[];next_cursor:string|null};
@@ -29,3 +30,8 @@ export class TestagramCapabilityClient{
  listCommunities(n=20){return this.call<{items:unknown[]}>("testagram.communities.list",{limit:limit(n)})} createCommunity(name:string,options:Record<string,unknown>={}){return this.call<{community:unknown}>("testagram.communities.create",{name,...options})} joinCommunity(communityId:string){return this.call<{membership:unknown}>("testagram.communities.join",{community_id:communityId})} leaveCommunity(communityId:string){return this.call<{membership:unknown}>("testagram.communities.leave",{community_id:communityId})}
  getFederationStatus(n=20,c?:string){return this.call<CapabilityPage<unknown>>("testagram.federation.status",{limit:limit(n),...cursor(c)})} getWallet(n=20,c?:string){return this.call<{wallet:unknown;transactions:unknown[];next_cursor:string|null}>("testagram.wallet.read",{limit:limit(n),...cursor(c)})} getWalletTransactions(n=20,c?:string){return this.getWallet(n,c).then(x=>({items:x.transactions,next_cursor:x.next_cursor}))}
 }
+
+export const backendCapabilities = new TestagramCapabilityClient({
+ endpoint: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/capability-gateway`,
+ getAccessToken: async () => (await supabase.auth.getSession()).data.session?.access_token ?? null,
+});
