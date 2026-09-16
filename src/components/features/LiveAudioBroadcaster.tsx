@@ -30,7 +30,7 @@ export function LiveAudioBroadcaster({
   const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
-    return () => stopBroadcast();
+    return () => { void stopBroadcast(); };
   }, []);
 
   const startBroadcast = async () => {

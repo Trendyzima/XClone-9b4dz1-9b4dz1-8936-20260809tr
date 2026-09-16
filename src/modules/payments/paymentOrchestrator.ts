@@ -37,12 +37,11 @@ export async function processMpesaPayment(callbackData: any) {
     const user = await resolveUserByPhone(phone);
 
     // 3. Credit wallet (AUTO-CREDIT CORE STEP)
-    const updatedWallet = await creditWalletFromMpesa({
-      userId: user.user_id,
-      amount,
-      receipt,
-      checkoutRequestID,
-    });
+    const updatedWallet = await creditWalletFromMpesa(
+      user.user_id,
+      Number(amount),
+      String(receipt ?? checkoutRequestID ?? 'mpesa-callback'),
+    );
 
     return {
       success: true,

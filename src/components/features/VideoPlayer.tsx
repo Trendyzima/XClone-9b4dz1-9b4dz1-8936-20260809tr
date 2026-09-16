@@ -28,6 +28,10 @@ interface Reply {
   user_profiles: { username: string; avatar_url: string | null } | null;
 }
 
+function normalizeVideoReplies(rows: any[] | null | undefined): Reply[] {
+  return (rows ?? []).map((row) => ({ ...row, user_profiles: Array.isArray(row?.user_profiles) ? row.user_profiles[0] ?? null : row?.user_profiles ?? null }));
+}
+
 // @__PURE__ annotation prevents esbuild non-determinism on module-level Map construction
 const authorPremiumCache: Map<string, boolean> = /* @__PURE__ */ new Map();
 
@@ -390,7 +394,7 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
       .eq('post_id', post.id)
       .order('created_at', { ascending: false })
       .limit(50);
-    setComments((data as Reply[]) || []);
+    setComments(normalizeVideoReplies(data));
     setCommentsLoading(false);
   };
 
@@ -406,7 +410,7 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
       .select('id, content, created_at, user_profiles(username, avatar_url)')
       .single();
     if (inserted) {
-      setComments(prev => [inserted as Reply, ...prev]);
+      setComments(prev => [normalizeVideoReplies([inserted])[0], ...prev]);
       setRepliesCount(c => c + 1);
     }
     setPosting(false);

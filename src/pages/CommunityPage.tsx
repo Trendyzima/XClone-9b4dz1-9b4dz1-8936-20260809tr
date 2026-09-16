@@ -185,7 +185,7 @@ export default function CommunityPage() {
         agg[row.user_id].likes += row.likes_count ?? 0;
         agg[row.user_id].posts += 1;
       }
-      setLeaderboard(Object.values(agg).sort((a, b) => b.likes - a.likes).slice(0, 3));
+      setLeaderboard((Object.values(agg) as Array<{ profile: any; likes: number; posts: number }>).sort((a, b) => b.likes - a.likes).slice(0, 3));
     }
     setLeaderboardFetched(true);
     setLoadingLeaderboard(false);
@@ -231,7 +231,7 @@ export default function CommunityPage() {
       const q = match[1].toLowerCase();
       setMentionQuery(q);
       const suggestions = members
-        .map(m => ({ id: m.user_profiles?.id ?? m.user_id ?? '', username: m.user_profiles?.username ?? '', avatar_url: m.user_profiles?.avatar_url ?? null }))
+        .map(m => ({ id: (m.user_profiles as any)?.id ?? m.user_id ?? '', username: m.user_profiles?.username ?? '', avatar_url: m.user_profiles?.avatar_url ?? null }))
         .filter(m => m.username && (q.length === 0 || m.username.toLowerCase().includes(q)))
         .slice(0, 6);
       setMentionResults(suggestions);

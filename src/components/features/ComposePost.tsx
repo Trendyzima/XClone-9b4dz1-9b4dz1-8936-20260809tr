@@ -269,7 +269,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
     const videoElement = document.createElement('video');
     videoElement.src = videoUrl;
     videoElement.onloadedmetadata = () => {
-      const maxDuration = user?.creator_tier !== 'free' ? 3600 : 600;
+      const maxDuration = (user as any)?.creator_tier !== 'free' ? 3600 : 600;
       if (videoElement.duration > maxDuration) {
         sonnerToast.error(`Video duration cannot exceed ${Math.floor(maxDuration / 60)} minutes`);
         URL.revokeObjectURL(videoUrl); return;

@@ -228,7 +228,7 @@ export default function SavingsGoalsTab({ userId, walletBalance, currency }: Pro
             <div className="flex gap-2">
               {SAVINGS_COLORS.map(c => (
                 <button key={c} onClick={() => setColor(c)}
-                  className={`w-8 h-8 rounded-full border-4 transition-all ${SAVINGS_GOAL_BAR[c]} ${color === c ? 'border-foreground scale-110' : 'border-transparent opacity-60 hover:opacity-100'}`} />
+                  className={`w-8 h-8 rounded-full border-4 transition-all ${getGoalBar(c)} ${color === c ? 'border-foreground scale-110' : 'border-transparent opacity-60 hover:opacity-100'}`} />
               ))}
             </div>
           </div>

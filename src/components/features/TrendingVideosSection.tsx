@@ -14,6 +14,10 @@ interface VideoPost {
   user_profiles: { username: string; avatar_url: string | null } | null;
 }
 
+function normalizeVideoPosts(rows: any[] | null | undefined): VideoPost[] {
+  return (rows ?? []).map((row) => ({ ...row, user_profiles: Array.isArray(row?.user_profiles) ? row.user_profiles[0] ?? null : row?.user_profiles ?? null }));
+}
+
 interface Props {
   /** compact = horizontal row (for homepage feed), full = mosaic grid (for Explore) */
   variant?: 'compact' | 'full';
@@ -36,7 +40,7 @@ export function TrendingVideosSection({ variant = 'compact' }: Props) {
         .limit(10);
 
       if (recent && recent.length >= 3) {
-        setVideos(recent as VideoPost[]);
+        setVideos(normalizeVideoPosts(recent));
       } else {
         // Fallback: all-time top videos
         const { data: allTime } = await supabase
@@ -45,7 +49,7 @@ export function TrendingVideosSection({ variant = 'compact' }: Props) {
           .eq('is_video', true)
           .order('views_count', { ascending: false })
           .limit(10);
-        setVideos((allTime || []) as VideoPost[]);
+        setVideos(normalizeVideoPosts(allTime));
       }
       setLoading(false);
     })();

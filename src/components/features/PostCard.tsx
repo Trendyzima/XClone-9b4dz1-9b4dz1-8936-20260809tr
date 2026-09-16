@@ -655,7 +655,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
                 <BadgeCheck className="w-4 h-4 text-primary flex-shrink-0" fill="currentColor" />
               )}
               {isAuthorPremium && (
-                <Crown className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" fill="currentColor" title="Premium Member" />
+                <Crown className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" fill="currentColor" aria-label="Premium Member" />
               )}
               <span className="text-muted-foreground text-sm truncate">@{post.user_profiles?.username}</span>
               <span className="text-muted-foreground text-sm flex-shrink-0">·</span>
