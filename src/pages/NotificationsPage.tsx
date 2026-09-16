@@ -151,7 +151,7 @@ export default function NotificationsPage() {
     ['payment_success', 'payment_sent', 'payment_failed', 'payout_sent', 'deposit_confirmed', 'boost_activated', 'ad_active', 'ad_rejected', 'new_ad'].includes(type);
 
   const fetchNotifications = async (cursorValue?: string | null, replace = true): Promise<boolean> => {
-    if (!user) return;
+    if (!user) return false;
     setLoading(true);
     try {
       const options = activeTab === 'mentions' ? { kind: 'mention' } : {};
