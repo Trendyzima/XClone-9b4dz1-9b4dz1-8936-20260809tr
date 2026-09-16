@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { backendCapabilities, type CapabilityPage } from '@/services/testagramCapabilityClient';
+import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 
 export type CommunicationConversation = { id: string; created_at: string; updated_at: string; latest_message?: Record<string, unknown> | null; [key: string]: unknown };
 export type CommunicationMessage = { id: string; conversation_id: string; sender_id: string; body: string; media_url?: string | null; media_type?: string | null; created_at: string; edited_at?: string | null; deleted_at?: string | null; reply_to_message_id?: string | null; shared_post_id?: string | null; client_message_id?: string | null; delivered_at?: string | null; read_at?: string | null; sender?: Record<string, unknown> | null };
@@ -9,8 +10,6 @@ export type PresenceState = { user_id: string; status: 'online' | 'away' | 'offl
 export type CallSession = { call_id: string; provider: 'livekit'; room_name: string; conversation_id?: string; created_by?: string; status?: 'ringing' | 'active' | 'ended' | 'failed'; kind?: 'voice' | 'video' | 'screen' };
 export type CallSessionChange = { operation: 'INSERT' | 'UPDATE' | 'DELETE'; session: CallSession; previous?: Partial<CallSession> | null };
 
-// This topic must match the UUID topic parsed by the realtime.messages RLS policy.
-// Do not append sub-topics such as ":calls" without changing the RLS contract too.
 const conversationTopic = (conversationId: string) => `conversation:${conversationId}`;
 
 type ConversationHandlers = {
@@ -34,15 +33,43 @@ export const communicationService = {
   listConversations(limit = 50) { return backendCapabilities.call<{ items: CommunicationConversation[] }>('testagram.conversations.list', { limit }); },
   createConversation(memberIds: string[]) { return backendCapabilities.call<{ conversation_id: string }>('testagram.conversations.create', { member_ids: memberIds }); },
   listMessages(conversationId: string, limit = 50, cursor?: string) { return backendCapabilities.call<CapabilityPage<CommunicationMessage>>('testagram.messages.list', { conversation_id: conversationId, limit, ...(cursor ? { cursor } : {}) }); },
-  sendMessage(input: { conversationId: string; body: string; clientMessageId?: string; replyToMessageId?: string; sharedPostId?: string }) { return backendCapabilities.call<{ message_id: string }>('testagram.messages.send', { conversation_id: input.conversationId, body: input.body, ...(input.clientMessageId ? { client_message_id: input.clientMessageId } : {}), ...(input.replyToMessageId ? { reply_to_message_id: input.replyToMessageId } : {}), ...(input.sharedPostId ? { shared_post_id: input.sharedPostId } : {}) }); },
-  editMessage(messageId: string, body: string) { return backendCapabilities.call<{ message_id: string; edited: boolean }>('testagram.messages.edit', { message_id: messageId, body }); },
-  deleteMessage(messageId: string) { return backendCapabilities.call<{ message_id: string; deleted: boolean }>('testagram.messages.delete', { message_id: messageId }); },
+  async sendMessage(input: { conversationId: string; body: string; clientMessageId?: string; replyToMessageId?: string; sharedPostId?: string }) {
+    const result = await backendCapabilities.call<{ message_id: string }>('testagram.messages.send', { conversation_id: input.conversationId, body: input.body, ...(input.clientMessageId ? { client_message_id: input.clientMessageId } : {}), ...(input.replyToMessageId ? { reply_to_message_id: input.replyToMessageId } : {}), ...(input.sharedPostId ? { shared_post_id: input.sharedPostId } : {}) });
+    trackTestagramEvent(TestagramEvent.MESSAGE_SENT, { conversation_id: input.conversationId, message_id: result.message_id, has_reply: Boolean(input.replyToMessageId), has_shared_post: Boolean(input.sharedPostId) });
+    return result;
+  },
+  async editMessage(messageId: string, body: string) {
+    const result = await backendCapabilities.call<{ message_id: string; edited: boolean }>('testagram.messages.edit', { message_id: messageId, body });
+    trackTestagramEvent(TestagramEvent.MESSAGE_EDITED, { message_id: result.message_id });
+    return result;
+  },
+  async deleteMessage(messageId: string) {
+    const result = await backendCapabilities.call<{ message_id: string; deleted: boolean }>('testagram.messages.delete', { message_id: messageId });
+    trackTestagramEvent(TestagramEvent.MESSAGE_DELETED, { message_id: result.message_id });
+    return result;
+  },
   attachMessage(input: { messageId: string; mediaUrl: string; mediaType: string; mimeType?: string; byteSize: number; durationMs?: number; width?: number; height?: number }) { return backendCapabilities.call<{ attachment: MessageAttachment }>('testagram.messages.attach', { message_id: input.messageId, media_url: input.mediaUrl, media_type: input.mediaType, ...(input.mimeType ? { mime_type: input.mimeType } : {}), byte_size: input.byteSize, ...(input.durationMs !== undefined ? { duration_ms: input.durationMs } : {}), ...(input.width !== undefined ? { width: input.width } : {}), ...(input.height !== undefined ? { height: input.height } : {}) }); },
   markMessageRead(messageId: string) { return backendCapabilities.call<{ message_id: string; read: boolean }>('testagram.messages.mark_read', { message_id: messageId }); },
-  reactToMessage(messageId: string, reaction: string, remove = false) { return backendCapabilities.call<{ message_id: string; reaction: string; removed: boolean }>('testagram.messages.react', { message_id: messageId, reaction, remove }); },
-  createCall(conversationId: string, kind: 'voice' | 'video' | 'screen' = 'video') { return backendCapabilities.call<CallSession>('testagram.calls.create', { conversation_id: conversationId, kind }); },
-  joinCall(callId: string) { return backendCapabilities.call<{ call_id: string; joined: boolean }>('testagram.calls.join', { call_id: callId }); },
-  endCall(callId: string) { return backendCapabilities.call<{ call_id: string; ended: boolean }>('testagram.calls.end', { call_id: callId }); },
+  async reactToMessage(messageId: string, reaction: string, remove = false) {
+    const result = await backendCapabilities.call<{ message_id: string; reaction: string; removed: boolean }>('testagram.messages.react', { message_id: messageId, reaction, remove });
+    trackTestagramEvent(TestagramEvent.MESSAGE_REACTED, { message_id: result.message_id, reaction, removed: result.removed });
+    return result;
+  },
+  async createCall(conversationId: string, kind: 'voice' | 'video' | 'screen' = 'video') {
+    const result = await backendCapabilities.call<CallSession>('testagram.calls.create', { conversation_id: conversationId, kind });
+    trackTestagramEvent('testagram_call_started' as never, { conversation_id: conversationId, call_id: result.call_id, kind });
+    return result;
+  },
+  async joinCall(callId: string) {
+    const result = await backendCapabilities.call<{ call_id: string; joined: boolean }>('testagram.calls.join', { call_id: callId });
+    trackTestagramEvent('testagram_call_joined' as never, { call_id: result.call_id });
+    return result;
+  },
+  async endCall(callId: string) {
+    const result = await backendCapabilities.call<{ call_id: string; ended: boolean }>('testagram.calls.end', { call_id: callId });
+    trackTestagramEvent('testagram_call_ended' as never, { call_id: result.call_id });
+    return result;
+  },
   async getLiveKitToken(callId: string) {
     const session = await supabase.auth.getSession();
     const token = session.data.session?.access_token;
@@ -93,8 +120,6 @@ export const communicationService = {
     });
     return () => { void supabase.removeChannel(channel); };
   },
-  // Backwards-compatible dedicated call subscription. It intentionally uses the
-  // same conversation topic because realtime.messages RLS authorizes that exact topic.
   subscribeToCallSessions(conversationId: string, handlersOrCallback: CallHandlers | ((change: CallSessionChange) => void) = {}) {
     const handlers: CallHandlers = typeof handlersOrCallback === 'function' ? { onCall: handlersOrCallback } : handlersOrCallback;
     const channel = supabase
