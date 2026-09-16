@@ -40,11 +40,8 @@ export const communicationService = {
     if (!response.ok || !payload?.ok) throw new Error(payload?.error?.message ?? 'Unable to obtain call token');
     return payload.data as { token: string; url: string; room_name: string; call_id: string; kind: string };
   },
-  async subscribeToConversation(conversationId: string, handlersOrCallback: ConversationHandlers | ((message: CommunicationMessage) => void) = {}) {
+  subscribeToConversation(conversationId: string, handlersOrCallback: ConversationHandlers | ((message: CommunicationMessage) => void) = {}) {
     const handlers: ConversationHandlers = typeof handlersOrCallback === 'function' ? { onMessage: handlersOrCallback } : handlersOrCallback;
-    const session = await supabase.auth.getSession();
-    const userId = session.data.session?.user.id;
-    if (!userId) throw new Error('Authentication required');
     const channel = supabase
       .channel(conversationTopic(conversationId), { config: { private: true, broadcast: { self: false } } })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onMessage?.(payload.new as CommunicationMessage))
@@ -70,7 +67,13 @@ export const communicationService = {
       })
       .on('presence', { event: 'leave' }, ({ key }) => handlers.onPresence?.({ user_id: key, status: 'offline', at: new Date().toISOString() }));
     void channel.subscribe((status, error) => {
-      if (status === 'SUBSCRIBED') void channel.track({ user_id: userId, status: 'online', at: new Date().toISOString() });
+      if (status === 'SUBSCRIBED') {
+        void supabase.auth.getSession().then(({ data }) => {
+          const userId = data.session?.user.id;
+          if (userId) return channel.track({ user_id: userId, status: 'online', at: new Date().toISOString() });
+          return undefined;
+        });
+      }
       if (error) console.warn('[communication] realtime subscription error', error);
     });
     return () => { void supabase.removeChannel(channel); };
