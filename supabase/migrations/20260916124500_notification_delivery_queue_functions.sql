@@ -1,3 +1,5 @@
+-- Queue worker RPCs for the server-side Novu delivery bridge.
+
 create or replace function public.claim_notification_delivery_batch(p_limit integer default 20)
 returns table(id uuid, notification_id uuid, recipient_id uuid, event_name text, payload jsonb)
 language plpgsql
