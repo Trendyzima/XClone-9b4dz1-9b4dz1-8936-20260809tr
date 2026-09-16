@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { mapSupabaseUserWithCanonicalProfile } from '@/lib/auth';
@@ -146,38 +147,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    const applyAuthenticatedUser = async (user: NonNullable<Awaited<ReturnType<typeof supabase.auth.getUser>>['data']['user']>) => {
+    const applyAuthenticatedUser = async (user: User) => {
       const mappedUser = await mapSupabaseUserWithCanonicalProfile(user);
       if (!mounted) return;
       login(mappedUser);
     };
 
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (mounted && session?.user) {
-        await applyAuthenticatedUser(session.user);
-        if (!mounted) return;
-        registerPushNotifications(session.user.id);
-        triggerKeygenForUser(session.user.id);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        void applyAuthenticatedUser(session.user).then(() => {
+          if (!mounted) return;
+          registerPushNotifications(session.user.id);
+          triggerKeygenForUser(session.user.id);
+          setLoading(false);
+        });
+      } else if (mounted) {
+        setLoading(false);
       }
-      if (mounted) setLoading(false);
     });
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (!mounted) return;
 
       if (event === 'SIGNED_IN' && session?.user) {
-        await applyAuthenticatedUser(session.user);
-        if (!mounted) return;
-        setLoading(false);
-        registerPushNotifications(session.user.id);
-        triggerKeygenForUser(session.user.id);
+        const signedInUser = session.user;
+        void applyAuthenticatedUser(signedInUser).then(() => {
+          if (!mounted) return;
+          setLoading(false);
+          registerPushNotifications(signedInUser.id);
+          triggerKeygenForUser(signedInUser.id);
+        });
       } else if (event === 'SIGNED_OUT') {
         logout();
         setLoading(false);
       } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-        await applyAuthenticatedUser(session.user);
+        void applyAuthenticatedUser(session.user);
       }
     });
 
