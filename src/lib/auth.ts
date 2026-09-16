@@ -12,6 +12,57 @@ function normalizeKenyaPhone(input: string) {
   throw new Error('Enter a valid Kenyan phone number, e.g. 0712345678');
 }
 
+function profileCandidate(user: User) {
+  const phone = user.phone || '';
+  const email = user.email || phone || '';
+  const raw = user.user_metadata?.username || user.user_metadata?.preferred_username || user.user_metadata?.user_name || user.user_metadata?.full_name || (phone ? `user_${phone.slice(-9)}` : email.split('@')[0]) || 'user';
+  let username = raw.toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 24);
+  if (username.length < 3) username = `user_${user.id.replace(/-/g, '').slice(0, 10)}`;
+  const displayName = user.user_metadata?.full_name || user.user_metadata?.name || username;
+  const rawAvatar = user.user_metadata?.avatar_url || user.user_metadata?.picture || null;
+  const avatar = rawAvatar && rawAvatar.includes('/storage/v1/object/public/tv49-profile-media/avatars/') ? rawAvatar : null;
+  return { username, displayName, avatar };
+}
+
+/**
+ * Last-mile safety net for account provisioning. The database trigger is the
+ * primary path; this authenticated client-side upsert makes signup resilient
+ * if a trigger was temporarily missing or an older account predates it.
+ */
+export async function ensureCanonicalProfile(user: User): Promise<void> {
+  const candidate = profileCandidate(user);
+  const { data: existing, error: readError } = await supabase
+    .from('profiles')
+    .select('id, username')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (readError) {
+    console.warn('[Auth] Profile provisioning read failed:', readError.message);
+    return;
+  }
+  if (existing?.username) return;
+
+  const { error } = await supabase.from('profiles').upsert({
+    id: user.id,
+    username: candidate.username,
+    display_name: candidate.displayName,
+    avatar_url: candidate.avatar,
+  }, { onConflict: 'id' });
+
+  if (error) {
+    // Username collision: use an ID-derived suffix and retry once.
+    const fallbackUsername = `${candidate.username.slice(0, 15)}_${user.id.replace(/-/g, '').slice(0, 8)}`;
+    const retry = await supabase.from('profiles').upsert({
+      id: user.id,
+      username: fallbackUsername,
+      display_name: candidate.displayName,
+      avatar_url: candidate.avatar,
+    }, { onConflict: 'id' });
+    if (retry.error) console.warn('[Auth] Canonical profile provisioning failed:', retry.error.message);
+  }
+}
+
 export function mapSupabaseUser(user: User): AuthUser {
   const phone = user.phone || undefined;
   const email = user.email || phone || '';
@@ -19,10 +70,10 @@ export function mapSupabaseUser(user: User): AuthUser {
   return { id: user.id, email, username, avatar: user.user_metadata?.avatar_url || user.user_metadata?.picture };
 }
 
-/** Resolve identity from the canonical writable profiles table. */
 export async function mapSupabaseUserWithCanonicalProfile(user: User): Promise<AuthUser> {
   const mapped = mapSupabaseUser(user);
   try {
+    await ensureCanonicalProfile(user);
     const { data: profile, error } = await supabase
       .from('profiles')
       .select('id, username, avatar_url, verified_tier')
