@@ -152,11 +152,7 @@ function SocialLinksEditor({
     const cleanTw = tw.trim().replace(/^@/, '') || null;
     const cleanIg = ig.trim().replace(/^@/, '') || null;
     const cleanLi = li.trim() || null;
-    const { error } = await supabase.from('profiles').update({
-      twitter_handle: cleanTw,
-      instagram_handle: cleanIg,
-      linkedin_url: cleanLi,
-    }).eq('id', userId);
+    const { error } = await supabase.from('profiles').update({ social_links: { twitter: cleanTw, instagram: cleanIg, linkedin: cleanLi } }).eq('id', userId);
     setSaving(false);
     if (error) { toast.error('Failed to save social links'); return; }
     toast.success('Social links updated!');
@@ -440,11 +436,11 @@ export default function ProfilePage() {
     const expiresAt = new Date();
     expiresAt.setMonth(expiresAt.getMonth() + 1);
     const { error } = await supabase.from('creator_subscriptions').upsert({
-      creator_id: profile.id, subscriber_id: currentUser.id, tier, price, status: 'active',
+      creator_id: profile.id, subscriber_id: currentUser.id, tier, amount: price, status: 'active',
       expires_at: expiresAt.toISOString(),
     }, { onConflict: 'creator_id,subscriber_id' });
     if (error) { toast.error('Subscription failed'); setSubscribing(false); return; }
-    await supabase.from('creator_earnings').insert({ user_id: profile.id, source: 'subscription', amount: price, status: 'paid' }).catch(() => {});
+    await supabase.from('creator_earnings').insert({ user_id: profile.id, source: 'subscription', amount_cents: Math.round(price * 100), currency: 'USD', status: 'paid' }).then(() => {}).catch(() => {});
     await supabase.from('notifications').insert({ recipient_id: profile.id, kind: 'follow', actor_id: currentUser.id  }).catch(() => {});
     toast.success(`Subscribed to @${profile.username} on ${tier} tier!`);
     setActiveSubscription({ tier, price, status: 'active' });
@@ -511,12 +507,12 @@ export default function ProfilePage() {
   };
 
   const fetchTipGoal = async (userId: string) => {
-    const { data: mon } = await supabase.from('user_monetization').select('monthly_tip_goal').eq('user_id', userId).maybeSingle();
-    setTipGoal(mon?.monthly_tip_goal ?? null);
+    const { data: mon } = await supabase.from('user_monetization').select('total_earnings').eq('user_id', userId).maybeSingle();
+    setTipGoal(null);
     const startOfMonth = new Date();
     startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0);
-    const { data: monthTips } = await supabase.from('tips').select('from_user_id, amount').eq('to_user_id', userId).gte('created_at', startOfMonth.toISOString()).order('amount', { ascending: false });
-    const total = (monthTips ?? []).reduce((s: number, t: any) => s + Number(t.amount), 0);
+    const { data: monthTips } = await supabase.from('tips').select('sender_id, amount_cents').eq('recipient_id', userId).gte('created_at', startOfMonth.toISOString()).order('amount', { ascending: false });
+    const total = (monthTips ?? []).reduce((s: number, t: any) => s + Number(t.amount_cents ?? 0) / 100, 0);
     setCurrentMonthTips(total);
     // Use parallel arrays instead of index-sig objects (esbuild guard)
     const tipperIds: string[] = [];
@@ -524,7 +520,7 @@ export default function ProfilePage() {
     for (const t of (monthTips ?? [])) {
       const idx = tipperIds.indexOf(t.from_user_id);
       if (idx >= 0) tipperAmts[idx] += Number(t.amount);
-      else { tipperIds.push(t.from_user_id); tipperAmts.push(Number(t.amount)); }
+      else { tipperIds.push(t.sender_id); tipperAmts.push(Number(t.amount_cents ?? 0) / 100); }
     }
     const sorted = [...tipperAmts].sort((a, b) => b - a).slice(0, 3);
     setTopTippers(sorted.map((amount, i) => ({ rank: i + 1, amount })));
@@ -534,8 +530,7 @@ export default function ProfilePage() {
     if (!currentUser || !profile) return;
     const goal = Number(goalInput);
     if (!goal || goal <= 0) return;
-    const { error } = await supabase.from('user_monetization').upsert({ user_id: profile.id, monthly_tip_goal: goal }, { onConflict: 'user_id' });
-    if (error) { toast.error('Failed to save goal'); return; }
+    toast.info('Tip goals are not part of the canonical monetization schema yet.'); return;
     setTipGoal(goal);
     setEditingGoal(false);
     toast.success('Tip goal saved! 🎯');
@@ -701,8 +696,8 @@ export default function ProfilePage() {
     const { error: deductErr } = await supabase.rpc('deduct_from_wallet', { p_user_id: currentUser.id, p_amount: amount });
     if (deductErr) { toast.error('Could not deduct from wallet'); setSendingTip(false); return; }
     await supabase.rpc('add_to_wallet', { p_user_id: profile.id, p_amount: amount }).catch(() => {});
-    await supabase.from('tips').insert({ from_user_id: currentUser.id, to_user_id: profile.id, amount, message: `Tip from @${currentUser.username}` }).catch(() => {});
-    await supabase.from('creator_earnings').insert({ user_id: profile.id, source: 'tips', amount, status: 'paid' }).catch(() => {});
+    await supabase.from('tips').insert({ sender_id: currentUser.id, recipient_id: profile.id, amount_cents: Math.round(amount * 100), currency: 'USD', provider: 'internal', status: 'completed' }).then(() => {}).catch(() => {});
+    await supabase.from('creator_earnings').insert({ user_id: profile.id, source: 'tips', amount_cents: Math.round(amount * 100), currency: 'USD', status: 'paid' }).then(() => {}).catch(() => {});
     await supabase.from('notifications').insert({ recipient_id: profile.id, kind: 'tip', actor_id: currentUser.id  }).catch(() => {});
     toast.success(`$${amount.toFixed(2)} tip sent to @${profile.username}!`);
     setTipSent(true); setShowTipDialog(false); setTipAmount(null); setCustomTipAmount(''); setSendingTip(false);
@@ -747,7 +742,8 @@ export default function ProfilePage() {
       }
       if (!profileData) throw initialProfileQuery.error ?? new Error('Canonical profile not found');
       const socialLinks = (profileData.social_links ?? {}) as { twitter?: string | null; instagram?: string | null; linkedin?: string | null };
-      const normalizedProfile = { ...profileData, twitter_handle: socialLinks.twitter ?? null, instagram_handle: socialLinks.instagram ?? null, linkedin_url: socialLinks.linkedin ?? null, cover_image: profileData.cover_url ?? null, verified: profileData.verified_tier !== 'none' };
+      const { data: monetization } = await supabase.from('user_monetization').select('total_earnings').eq('user_id', profileData.id).maybeSingle();
+      const normalizedProfile = { ...profileData, twitter_handle: socialLinks.twitter ?? null, instagram_handle: socialLinks.instagram ?? null, linkedin_url: socialLinks.linkedin ?? null, cover_image: profileData.cover_url ?? null, verified: profileData.verified_tier !== 'none', total_earnings: monetization?.total_earnings ?? 0 };
       setProfile(normalizedProfile);
       // Update meta tags inline (no IIFE in render — this is async data loading)
       const title = `@${profileData.username} on Testagram`;
@@ -820,7 +816,7 @@ export default function ProfilePage() {
   };
 
   const fetchPosts = async (userId: string) => {
-    const { data } = await supabase.from('posts').select('*, profiles (*)').eq('user_id', userId).order('created_at', { ascending: false });
+    const { data } = await supabase.from('posts').select('*, profiles!posts_user_id_fkey(*)').eq('user_id', userId).order('created_at', { ascending: false });
     const postList = data || [];
     setPosts(postList);
     // Fire milestone alerts asynchronously — won't block UI
@@ -831,15 +827,15 @@ export default function ProfilePage() {
     setThreads(data || []);
   };
   const fetchReplies = async (userId: string) => {
-    const { data } = await supabase.from('replies').select('*, posts(*, profiles(*))').eq('user_id', userId).order('created_at', { ascending: false });
+    const { data } = await supabase.from('replies').select('*, posts(*, profiles!posts_user_id_fkey(*))').eq('user_id', userId).order('created_at', { ascending: false });
     setReplies(data || []);
   };
   const fetchMedia = async (userId: string) => {
-    const { data } = await supabase.from('posts').select('*, profiles (*)').eq('user_id', userId).or('image_url.not.is.null,video_url.not.is.null,media_urls.neq.[]').order('created_at', { ascending: false });
+    const { data } = await supabase.from('posts').select('*, profiles!posts_user_id_fkey(*)').eq('user_id', userId).or('image_url.not.is.null,video_url.not.is.null,media_urls.neq.[]').order('created_at', { ascending: false });
     setMedia(data || []);
   };
   const fetchLikedPosts = async (userId: string) => {
-    const { data } = await supabase.from('post_likes').select('posts(*, profiles(*))').eq('user_id', userId).order('created_at', { ascending: false });
+    const { data } = await supabase.from('post_likes').select('posts(*, profiles!posts_user_id_fkey(*))').eq('user_id', userId).order('created_at', { ascending: false });
     setLikedPosts((data || []).map((item: any) => item.posts).filter(Boolean));
   };
   const fetchFollowers = async (userId: string) => {
