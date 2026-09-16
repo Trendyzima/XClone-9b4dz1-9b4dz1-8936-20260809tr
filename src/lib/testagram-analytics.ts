@@ -41,17 +41,13 @@ export const TestagramEvent = {
   WALLET_DEPOSIT_STARTED: 'wallet_deposit_started',
   WALLET_DEPOSIT_COMPLETED: 'wallet_deposit_completed',
   SEARCH_RESULT_OPENED: 'search_result_opened',
+  CAPABILITY_SUCCEEDED: 'testagram_capability_succeeded',
+  CAPABILITY_FAILED: 'testagram_capability_failed',
   SESSION_STARTED: 'testagram_session_started',
 } as const;
 
 export type TestagramEventName = (typeof TestagramEvent)[keyof typeof TestagramEvent];
 
-export function trackTestagramEvent(
-  event: TestagramEventName,
-  properties?: Record<string, unknown>,
-): void {
-  analytics.track(event, {
-    app: 'testagram',
-    ...properties,
-  });
+export function trackTestagramEvent(event: TestagramEventName, properties?: Record<string, unknown>): void {
+  analytics.track(event, { app: 'testagram', ...properties });
 }
