@@ -3,7 +3,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'src/pages/NotificationsPage.tsx'
+      - 'src/**'
   workflow_dispatch:
 permissions:
   contents: write
