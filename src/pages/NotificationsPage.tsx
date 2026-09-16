@@ -154,10 +154,10 @@ export default function NotificationsPage() {
     if (!user) return false;
     setLoading(true);
     try {
-      const options = activeTab === 'mentions' ? { kind: 'mention' } : {};
+      const options = {};
       const result = await backendCapabilities.listNotifications(PAGE_SIZE, cursorValue ?? undefined, options);
       const normalized = result.items.map(normalizeNotification);
-      const visible = activeTab === 'payments' ? normalized.filter((n) => isPaymentType(n.type)) : normalized;
+      const visible = activeTab === 'mentions' ? normalized.filter((n) => n.type === 'mention') : activeTab === 'payments' ? normalized.filter((n) => isPaymentType(n.type)) : normalized;
       setNotifications((prev) => replace ? visible : [...prev, ...visible.filter((n) => !prev.some((existing) => existing.id === n.id))]);
       setNextCursor(result.next_cursor);
       setHasMore(Boolean(result.next_cursor));

@@ -511,7 +511,7 @@ export default function ProfilePage() {
     setTipGoal(null);
     const startOfMonth = new Date();
     startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0);
-    const { data: monthTips } = await supabase.from('tips').select('sender_id, amount_cents').eq('recipient_id', userId).gte('created_at', startOfMonth.toISOString()).order('amount', { ascending: false });
+    const { data: monthTips } = await supabase.from('tips').select('sender_id, amount_cents').eq('recipient_id', userId).gte('created_at', startOfMonth.toISOString()).order('amount_cents', { ascending: false });
     const total = (monthTips ?? []).reduce((s: number, t: any) => s + Number(t.amount_cents ?? 0) / 100, 0);
     setCurrentMonthTips(total);
     // Use parallel arrays instead of index-sig objects (esbuild guard)
@@ -538,9 +538,9 @@ export default function ProfilePage() {
 
   const fetchTipHistory = async (userId: string) => {
     setLoadingTips(true);
-    const { data: tips } = await supabase.from('tips').select('*').or(`from_user_id.eq.${userId},to_user_id.eq.${userId}`).order('created_at', { ascending: false }).limit(50);
+    const { data: tips } = await supabase.from('tips').select('*').or(`sender_id.eq.${userId},recipient_id.eq.${userId}`).order('created_at', { ascending: false }).limit(50);
     if (!tips || tips.length === 0) { setTipHistory([]); setLoadingTips(false); return; }
-    const allUids = tips.flatMap((t: any) => [t.sender_id, t.to_user_id]) as string[];
+    const allUids = tips.flatMap((t: any) => [t.sender_id, t.recipient_id]) as string[];
     const uids = allUids.filter((u: string, i: number) => allUids.indexOf(u) === i);
     const { data: profileRows } = await supabase.from('profiles').select('id, username, avatar_url').in('id', uids);
     // Use parallel arrays instead of index-sig objects (esbuild guard)
@@ -548,7 +548,7 @@ export default function ProfilePage() {
     const pData: any[] = [];
     for (const p of (profileRows ?? [])) { pIds.push(p.id); pData.push(p); }
     const getP = (uid: string) => pData[pIds.indexOf(uid)];
-    setTipHistory(tips.map((t: any) => ({ ...t, sender: getP(t.sender_id), recipient: getP(t.to_user_id) })));
+    setTipHistory(tips.map((t: any) => ({ ...t, sender: getP(t.sender_id), recipient: getP(t.recipient_id) })));
     setLoadingTips(false);
   };
 
@@ -891,7 +891,7 @@ export default function ProfilePage() {
   const profileStrikesColor = profileStrikes === 0 ? 'text-green-600' : profileStrikes === 1 ? 'text-orange-500' : 'text-red-600';
   const profileStrikesBorderBg = profileStrikes === 0 ? 'border-green-500/20 bg-green-500/5' : profileStrikes === 1 ? 'border-orange-500/20 bg-orange-500/5' : 'border-red-500/20 bg-red-500/5';
   const profileVideoPosts = posts.filter(p => p.is_video);
-  const profileTipsReceived = tipHistory.filter(t => t.to_user_id === profile?.id);
+  const profileTipsReceived = tipHistory.filter(t => t.recipient_id === profile?.id);
   const profileAchievementsAll = [
     { id: 'first_post',    emoji: '✍️', label: 'First Post',    unlocked: posts.length >= 1 },
     { id: 'verified',      emoji: '✅', label: 'Verified',       unlocked: !!profile?.verified },
