@@ -3,7 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import generator, { detector } from "npm:megalodon@10.3.0";
 import { assertSafeRemoteUrl } from "../_shared/activitypub-security.ts";
 
-type Provider = "mastodon" | "pleroma" | "friendica" | "firefish" | "gotosocial" | "pixelfed" | "akkoma" | "hometown" | "iceshrimp";
+type Provider = "mastodon" | "pleroma" | "friendica" | "firefish" | "gotosocial" | "pixelfed";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || Deno.env.get("SUPABASE_PUBLISHABLE_KEY") || "";
@@ -16,7 +16,7 @@ const CORS = {
 };
 
 const SUPPORTED = new Set<Provider>([
-  "mastodon", "pleroma", "friendica", "firefish", "gotosocial", "pixelfed", "akkoma", "hometown", "iceshrimp",
+  "mastodon", "pleroma", "friendica", "firefish", "gotosocial", "pixelfed",
 ]);
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
