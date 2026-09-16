@@ -33,6 +33,7 @@ export const TestagramEvent = {
   COMMUNITY_LEFT: 'community_left',
   AD_VIEWED: 'ad_viewed',
   AD_CLICKED: 'ad_clicked',
+  AD_CREATE_VIEWED: 'ad_create_viewed',
   AD_CREATED: 'ad_created',
   AD_PAYMENT_STARTED: 'ad_payment_started',
   AD_PAYMENT_COMPLETED: 'ad_payment_completed',
