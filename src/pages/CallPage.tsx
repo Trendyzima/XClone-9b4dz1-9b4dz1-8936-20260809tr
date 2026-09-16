@@ -26,13 +26,10 @@ export default function CallPage() {
   useEffect(() => {
     if (!user) { navigate('/auth'); return; }
     setLoading(false);
-    return () => {
-      void roomRef.current?.disconnect();
-      roomRef.current = null;
-    };
+    return () => { void roomRef.current?.disconnect(); roomRef.current = null; };
   }, [user, navigate]);
 
-  const attachRemoteTrack = (track: RemoteTrack, participant: RemoteParticipant) => {
+  const attachRemoteTrack = (track: RemoteTrack, _publication: RemoteTrackPublication, participant: RemoteParticipant) => {
     if (!remoteMediaRef.current || track.kind !== Track.Kind.Video) return;
     const element = track.attach();
     element.dataset.participant = participant.identity;
@@ -67,9 +64,7 @@ export default function CallPage() {
       toast.error(error instanceof Error ? error.message : 'Unable to join call');
       await roomRef.current?.disconnect();
       roomRef.current = null;
-    } finally {
-      setJoining(false);
-    }
+    } finally { setJoining(false); }
   };
 
   const toggleMic = async () => {
