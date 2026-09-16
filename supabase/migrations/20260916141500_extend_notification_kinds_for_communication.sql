@@ -1,0 +1,2 @@
+alter table public.notifications drop constraint if exists notifications_kind_check;
+alter table public.notifications add constraint notifications_kind_check check(kind = any(array['like','reply','repost','follow','mention','message.received','post.like','post.repost','post.reply','post.mention','user.follow','user.follow_request','community.invite','community.activity','federation.activity','wallet.deposit','wallet.withdrawal','wallet.transaction_failed','security.login']));
