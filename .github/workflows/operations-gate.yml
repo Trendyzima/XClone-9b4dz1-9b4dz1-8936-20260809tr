@@ -60,3 +60,4 @@ jobs:
             echo 'stale user_mutes dependency detected'
             exit 1
           fi
+      # Verification trigger: keep the gateway typecheck tied to the canonical main tree.
