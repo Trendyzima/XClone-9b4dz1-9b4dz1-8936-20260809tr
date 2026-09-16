@@ -150,7 +150,7 @@ export default function NotificationsPage() {
   const isPaymentType = (type: string) =>
     ['payment_success', 'payment_sent', 'payment_failed', 'payout_sent', 'deposit_confirmed', 'boost_activated', 'ad_active', 'ad_rejected', 'new_ad'].includes(type);
 
-  const fetchNotifications = async (cursorValue?: string | null, replace = true) => {
+  const fetchNotifications = async (cursorValue?: string | null, replace = true): Promise<boolean> => {
     if (!user) return;
     setLoading(true);
     try {
@@ -161,6 +161,7 @@ export default function NotificationsPage() {
       setNotifications((prev) => replace ? visible : [...prev, ...visible.filter((n) => !prev.some((existing) => existing.id === n.id))]);
       setNextCursor(result.next_cursor);
       setHasMore(Boolean(result.next_cursor));
+      return Boolean(result.next_cursor);
     } catch (err) {
       console.error('[notifications] canonical fetch error:', err);
       toast.error('Failed to load notifications');
