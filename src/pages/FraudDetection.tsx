@@ -113,7 +113,7 @@ export default function FraudDetection() {
         .from('ad_impressions')
         .select(`
           *,
-          user_profiles (username, avatar_url)
+          profiles (username, avatar_url)
         `)
         .eq('clicked', true);
 

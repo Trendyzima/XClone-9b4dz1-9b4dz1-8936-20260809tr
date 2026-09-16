@@ -27,7 +27,7 @@ export default function StartStreamPage() {
   useEffect(() => {
     if (user) {
       supabase
-        .from('user_profiles')
+        .from('profiles')
         .select('verified')
         .eq('id', user.id)
         .single()

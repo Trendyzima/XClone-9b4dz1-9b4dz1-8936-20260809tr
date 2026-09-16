@@ -136,11 +136,8 @@ export default function DailyRewardsPage() {
           ? '🏆 Max streak reached! 7 days in a row!'
           : `🔥 ${newStreak}-day streak milestone!`;
       // Insert in-app notification so it appears in Notifications page
-      supabase.from('notifications').insert({
-        user_id: user.id,
-        type: 'streak_milestone',
-        from_user_id: user.id,
-      }).catch(() => {});
+      supabase.from('notifications').insert({ recipient_id: user.id, kind: 'streak_milestone', actor_id: user.id,
+       }).catch(() => {});
       // Auto-create a 24-hour story to celebrate the milestone
       supabase.from('stories').insert({
         user_id: user.id,

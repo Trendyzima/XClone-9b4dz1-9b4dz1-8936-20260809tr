@@ -143,7 +143,7 @@ export default function LiveStreamPage() {
     try {
       const { data, error } = await supabase
         .from('live_streams')
-        .select('*, user:user_profiles(*)')
+        .select('*, user:profiles(*)')
         .eq('id', streamId)
         .single();
       if (error) throw error;
@@ -216,7 +216,7 @@ export default function LiveStreamPage() {
   const fetchMessages = async () => {
     const { data } = await supabase
       .from('stream_chat')
-      .select('*, user_profiles(username, avatar_url, verified)')
+      .select('*, profiles(username, avatar_url, verified)')
       .eq('stream_id', streamId)
       .order('created_at', { ascending: true })
       .limit(100);

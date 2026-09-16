@@ -49,7 +49,7 @@ interface VerificationRequest {
   status: string;
   admin_notes: string;
   created_at: string;
-  user: { username: string; email: string; avatar_url?: string; followers_count: number };
+  user: { username: string; email: string; avatar_url?: string; follower_count: number };
 }
 
 interface UserAdEntry {
@@ -73,7 +73,7 @@ interface ReportedUser {
   username: string;
   email: string;
   is_blocked: boolean;
-  followers_count: number;
+  follower_count: number;
   created_at: string;
   post_count?: number;
 }
@@ -139,7 +139,7 @@ export default function AdminPanel() {
       { count: fraudCount },
       { count: liveStreams },
     ] = await Promise.all([
-      supabase.from('user_profiles').select('*', { count: 'exact', head: true }),
+      supabase.from('profiles').select('*', { count: 'exact', head: true }),
       supabase.from('posts').select('*', { count: 'exact', head: true }),
       supabase.from('communities').select('*', { count: 'exact', head: true }),
       supabase.from('verification_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
@@ -168,7 +168,7 @@ export default function AdminPanel() {
   const fetchVerifications = async () => {
     const { data } = await supabase
       .from('verification_requests')
-      .select('*, user:user_profiles(username, email, avatar_url, followers_count)')
+      .select('*, user:profiles(username, email, avatar_url, follower_count)')
       .order('created_at', { ascending: false })
       .limit(100);
     setVerifications((data as any) || []);
@@ -177,7 +177,7 @@ export default function AdminPanel() {
   const fetchUserAds = async () => {
     const { data } = await supabase
       .from('user_ads')
-      .select('*, user:user_profiles(username, email)')
+      .select('*, user:profiles(username, email)')
       .order('created_at', { ascending: false })
       .limit(100);
     setUserAds((data as any) || []);
@@ -185,8 +185,8 @@ export default function AdminPanel() {
 
   const fetchUsers = async () => {
     const { data } = await supabase
-      .from('user_profiles')
-      .select('id, username, email, is_blocked, followers_count, created_at')
+      .from('profiles')
+      .select('id, username, email, is_blocked, follower_count, created_at')
       .order('created_at', { ascending: false })
       .limit(200);
     setUsers((data as any) || []);
@@ -195,7 +195,7 @@ export default function AdminPanel() {
   const fetchReportedPosts = async () => {
     const { data } = await supabase
       .from('post_reports')
-      .select('*, post:posts(id, content, user_id, user_profiles(username, avatar_url)), reporter:user_profiles!post_reports_reporter_id_fkey(username)')
+      .select('*, post:posts(id, content, user_id, profiles(username, avatar_url)), reporter:user_profiles!post_reports_reporter_id_fkey(username)')
       .eq('status', 'pending')
       .order('created_at', { ascending: false })
       .limit(50);
@@ -220,7 +220,7 @@ export default function AdminPanel() {
   const fetchFraudAlerts = async () => {
     const { data } = await supabase
       .from('fraud_alerts')
-      .select('*, user:user_profiles(username)')
+      .select('*, user:profiles(username)')
       .order('created_at', { ascending: false })
       .limit(50);
     setFraudAlerts((data as any) || []);
@@ -233,7 +233,7 @@ export default function AdminPanel() {
       const status = approve ? 'approved' : 'rejected';
       await supabase.from('verification_requests').update({ status, admin_notes: notes, processed_at: new Date().toISOString() }).eq('id', id);
       if (approve) {
-        await supabase.from('user_profiles').update({ verified: true }).eq('id', userId);
+        await supabase.from('profiles').update({ verified: true }).eq('id', userId);
       }
       toast.success(approve ? 'User verified ✓' : 'Verification rejected');
       fetchVerifications();
@@ -265,7 +265,7 @@ export default function AdminPanel() {
   const handleBlockUser = async (userId: string, blocked: boolean) => {
     setActionLoading(userId);
     try {
-      await supabase.from('user_profiles').update({ is_blocked: !blocked }).eq('id', userId);
+      await supabase.from('profiles').update({ is_blocked: !blocked }).eq('id', userId);
       toast.success(!blocked ? 'User blocked' : 'User unblocked');
       fetchUsers();
     } catch (e: any) {
@@ -765,7 +765,7 @@ function VerificationCard({ req, actionLoading, onApprove, onReject }: {
           <div>
             <p className="font-bold text-foreground">@{req.user?.username}</p>
             <p className="text-xs text-muted-foreground">{req.user?.email}</p>
-            <p className="text-xs text-muted-foreground">{formatNumber(req.user?.followers_count || 0)} followers</p>
+            <p className="text-xs text-muted-foreground">{formatNumber(req.user?.follower_count || 0)} followers</p>
           </div>
         </div>
         <div className="flex flex-col items-end gap-1">
@@ -872,7 +872,7 @@ function UserManageCard({ user, actionLoading, onBlock }: {
             @{user.username}
             {user.is_blocked && <Ban className="w-3 h-3 text-red-500" />}
           </p>
-          <p className="text-xs text-muted-foreground">{formatNumber(user.followers_count)} followers</p>
+          <p className="text-xs text-muted-foreground">{formatNumber(user.follower_count)} followers</p>
         </div>
       </div>
       <Button

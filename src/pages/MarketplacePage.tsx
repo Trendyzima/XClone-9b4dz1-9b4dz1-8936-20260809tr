@@ -44,11 +44,8 @@ function PurchaseDialog({ product, onClose }: { product: any; onClose: () => voi
     // Update sales_count
     await supabase.from('products').update({ sales_count: (product.sales_count ?? 0) + qty }).eq('id', product.id);
     // Notify seller
-    await supabase.from('notifications').insert({
-      user_id: product.user_id,
-      type: 'payment_sent',
-      from_user_id: user.id,
-    }).catch(() => {});
+    await supabase.from('notifications').insert({ recipient_id: product.user_id, kind: 'payment_sent', actor_id: user.id,
+     }).catch(() => {});
     // Record creator earning
     await supabase.from('creator_earnings').insert({
       user_id: product.user_id,
@@ -694,7 +691,7 @@ export default function MarketplacePage() {
     setLoading(true);
     const { data } = await supabase
       .from('products')
-      .select('*, user_profiles(id, username, avatar_url, verified)')
+      .select('*, profiles(id, username, avatar_url, verified)')
       .eq('is_active', true)
       .order('views_count', { ascending: false })
       .limit(120);

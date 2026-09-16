@@ -39,8 +39,8 @@ export default function PlatformInboxPage() {
     fetchMessages();
     // Fetch creator profile to check 500+ followers eligibility
     supabase
-      .from('user_profiles')
-      .select('followers_count, creator_tier, is_creator, total_earnings, verified')
+      .from('profiles')
+      .select('follower_count, creator_tier, is_creator, total_earnings, verified')
       .eq('id', user.id)
       .maybeSingle()
       .then(({ data }) => setCreatorProfile(data));
@@ -141,13 +141,13 @@ export default function PlatformInboxPage() {
         </div>
 
         {/* ── Creator Hub (500+ followers) ──────────────────────────── */}
-        {creatorProfile && (creatorProfile.followers_count ?? 0) >= 500 && (
+        {creatorProfile && (creatorProfile.follower_count ?? 0) >= 500 && (
           <div className="bg-gradient-to-br from-amber-500/10 via-yellow-400/5 to-transparent border border-amber-500/20 rounded-2xl p-5">
             <div className="flex items-center gap-3 mb-3">
               <span className="text-3xl">🌟</span>
               <div>
                 <h3 className="font-bold text-base">Creator Hub</h3>
-                <p className="text-xs text-muted-foreground">{creatorProfile.followers_count?.toLocaleString()} followers · {creatorProfile.creator_tier === 'gold' ? '🥇 Gold' : creatorProfile.creator_tier === 'silver' ? '🥈 Silver' : '🥉 Bronze'} Creator</p>
+                <p className="text-xs text-muted-foreground">{creatorProfile.follower_count?.toLocaleString()} followers · {creatorProfile.creator_tier === 'gold' ? '🥇 Gold' : creatorProfile.creator_tier === 'silver' ? '🥈 Silver' : '🥉 Bronze'} Creator</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-2 mb-3">

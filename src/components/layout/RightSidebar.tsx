@@ -164,7 +164,7 @@ function CreatorLeaderboardWidget() {
     if (topIds.length === 0) { setLoading(false); return; }
 
     const { data: profiles } = await supabase
-      .from('user_profiles')
+      .from('profiles')
       .select('id, username, avatar_url, verified')
       .in('id', topIds);
 
@@ -369,7 +369,7 @@ export function RightSidebar() {
   const fetchLiveSpaces = useCallback(async () => {
     const { data } = await supabase
       .from('spaces')
-      .select(`*, user_profiles (username, avatar_url)`)
+      .select(`*, profiles (username, avatar_url)`)
       .eq('is_live', true)
       .order('listener_count', { ascending: false })
       .limit(5);

@@ -273,7 +273,7 @@ export default function SpacesPage() {
 
   const fetchUserProfile = async () => {
     if (!user) return;
-    const { data } = await supabase.from('user_profiles').select('verified, subscriber_count, followers_count, creator_tier, username').eq('id', user.id).single();
+    const { data } = await supabase.from('profiles').select('verified, subscriber_count, follower_count, creator_tier, username').eq('id', user.id).single();
     if (data) setUserProfile(data);
   };
 
@@ -332,7 +332,7 @@ export default function SpacesPage() {
 
   const fetchAllRecordings = async () => {
     const { data } = await supabase.from('space_recordings')
-      .select('*, user_profiles(*), spaces(title, description, category, artwork_url, episode_number, chapters, tags, subscriber_only, host:user_profiles!spaces_host_id_fkey(*))')
+      .select('*, profiles(*), spaces(title, description, category, artwork_url, episode_number, chapters, tags, subscriber_only, host:user_profiles!spaces_host_id_fkey(*))')
       .order('created_at', { ascending: false }).limit(40);
     if (data) setAllRecordings(data);
   };

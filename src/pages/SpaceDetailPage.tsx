@@ -158,7 +158,7 @@ export default function SpaceDetailPage() {
   const fetchParticipants = async () => {
     const { data } = await supabase
       .from('space_participants')
-      .select('*, user_profiles(id, username, avatar_url, verified)')
+      .select('*, profiles(id, username, avatar_url, verified)')
       .eq('space_id', id!)
       .limit(20);
     setParticipants(data ?? []);

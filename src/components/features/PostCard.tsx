@@ -182,7 +182,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
         setIsLiked(state.is_liked);
         setLikesCount(state.likes_count);
         if (state.is_liked && post.user_id !== user.id) {
-          await supabase.from('notifications').insert({ user_id: post.user_id, type: 'like', from_user_id: user.id, post_id: post.id });
+          await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'like', actor_id: user.id, post_id: post.id  });
           sendActivityNotification({ recipientUserId: post.user_id, title: 'New Reaction', body: `${user.username} reacted ❤️ to your post`, data: { route: `/post/${post.id}`, type: 'like' } });
         }
       } else if (prevReaction === '❤️' && emoji !== '❤️' && isLiked) {
@@ -306,7 +306,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     setInlineLoading(true);
     const { data } = await supabase
       .from('replies')
-      .select('*, user_profiles(id, username, avatar_url, verified)')
+      .select('*, profiles(id, username, avatar_url, verified)')
       .eq('post_id', post.id)
       .order('created_at', { ascending: true })
       .limit(50);
@@ -366,10 +366,10 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
         }
         await supabase.from('user_wallets').update({ balance: Number(wallet.balance) - tipAmount }).eq('user_id', user.id);
         await supabase.from('tips').insert({ from_user_id: user.id, to_user_id: post.user_id, amount: tipAmount, message: tipMessage.trim() || null, post_id: post.id });
-        await supabase.from('notifications').insert({ user_id: post.user_id, type: 'payment_sent', from_user_id: user.id, post_id: post.id });
+        await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'payment_sent', actor_id: user.id, post_id: post.id  });
         await supabase.from('creator_earnings').insert({ user_id: post.user_id, source: 'tips', amount: tipAmount, post_id: post.id, status: 'paid' }).catch(() => {});
       } else {
-        await supabase.from('notifications').insert({ user_id: post.user_id, type: 'payment_sent', from_user_id: user.id, post_id: post.id });
+        await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'payment_sent', actor_id: user.id, post_id: post.id  });
       }
       toast({ title: `Tip of $${tipAmount} sent!`, description: `You tipped @${post.user_profiles?.username}` });
       setShowTipDialog(false);
@@ -530,7 +530,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       setLikesCount(state.likes_count);
       if (state.is_liked) {
         if (post.user_id !== user.id) {
-          await supabase.from('notifications').insert({ user_id: post.user_id, type: 'like', from_user_id: user.id, post_id: post.id });
+          await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'like', actor_id: user.id, post_id: post.id  });
           sendActivityNotification({ recipientUserId: post.user_id, title: 'New Like', body: `${user.username} liked your post`, data: { route: `/post/${post.id}`, type: 'like' } });
         }
         updateInterestSignal(user.id, post.id, 'like').catch(() => {});
@@ -557,7 +557,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       setRepostsCount(state.reposts_count);
       if (state.is_reposted) {
         if (post.user_id !== user.id) {
-          await supabase.from('notifications').insert({ user_id: post.user_id, type: 'repost', from_user_id: user.id, post_id: post.id });
+          await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'repost', actor_id: user.id, post_id: post.id  });
           sendActivityNotification({ recipientUserId: post.user_id, title: 'New Repost', body: `${user.username} reposted your post`, data: { route: `/post/${post.id}`, type: 'repost' } });
         }
         toast({ title: 'Reposted successfully' });

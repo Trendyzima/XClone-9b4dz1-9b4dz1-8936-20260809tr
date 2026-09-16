@@ -107,8 +107,8 @@ export function useSEO({ title, description, image, url, type = 'website', struc
   }, [title, description, image, url, type, noindex, keywords, structuredData]);
 }
 
-export function buildProfileLD(profile: { username: string; bio?: string; avatar_url?: string; followers_count?: number; verified?: boolean }) {
-  return { '@context': 'https://schema.org', '@type': 'Person', name: profile.username, alternateName: `@${profile.username}`, description: profile.bio || '', image: profile.avatar_url || '', url: `https://testagram.site/profile/${profile.username}`, interactionStatistic: { '@type': 'InteractionCounter', interactionType: 'https://schema.org/FollowAction', userInteractionCount: profile.followers_count ?? 0 }, ...(profile.verified ? { award: 'Verified Creator' } : {}) };
+export function buildProfileLD(profile: { username: string; bio?: string; avatar_url?: string; follower_count?: number; verified?: boolean }) {
+  return { '@context': 'https://schema.org', '@type': 'Person', name: profile.username, alternateName: `@${profile.username}`, description: profile.bio || '', image: profile.avatar_url || '', url: `https://testagram.site/profile/${profile.username}`, interactionStatistic: { '@type': 'InteractionCounter', interactionType: 'https://schema.org/FollowAction', userInteractionCount: profile.follower_count ?? 0 }, ...(profile.verified ? { award: 'Verified Creator' } : {}) };
 }
 
 export function buildPostLD(post: { id: string; content: string; image_url?: string; video_url?: string; created_at: string; user_profiles?: { username?: string; avatar_url?: string } }) {

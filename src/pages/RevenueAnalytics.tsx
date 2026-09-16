@@ -104,7 +104,7 @@ export default function RevenueAnalytics() {
           total_revenue,
           platform_share,
           user_share,
-          user_profiles (username, avatar_url, verified)
+          profiles (username, avatar_url, verified)
         `)
         .order('total_revenue', { ascending: false })
         .limit(10);

@@ -27,9 +27,9 @@ export function UserSuggestionsWidget() {
       setFollowing(followingIds);
 
       const { data: suggestedUsers } = await supabase
-        .from('user_profiles').select('*').neq('id', user.id)
+        .from('profiles').select('*').neq('id', user.id)
         .not('id', 'in', `(${Array.from(followingIds).join(',') || 'null'})`)
-        .order('followers_count', { ascending: false }).limit(5);
+        .order('follower_count', { ascending: false }).limit(5);
       setSuggestions(suggestedUsers || []);
     } catch (error) {
       console.error('Error fetching suggestions:', error);
@@ -45,7 +45,7 @@ export function UserSuggestionsWidget() {
       if (error) throw error;
       setFollowing(prev => new Set([...prev, userId]));
       toast.success('Following!');
-      await supabase.from('notifications').insert({ user_id: userId, type: 'follow', from_user_id: user.id });
+      await supabase.from('notifications').insert({ recipient_id: userId, kind: 'follow', actor_id: user.id  });
     } catch (error: any) {
       console.error('Follow error:', error);
       toast.error(error.message);

@@ -54,7 +54,7 @@ function TipProductModal({ seller, onClose }: { seller: any; onClose: () => void
     await supabase.rpc('add_to_wallet', { p_user_id: seller.id, p_amount: amt });
     await supabase.from('tips').insert({ from_user_id: user.id, to_user_id: seller.id, amount: amt, message: 'Marketplace tip' });
     await supabase.from('creator_earnings').insert({ user_id: seller.id, source: 'tips', amount: amt, status: 'paid' });
-    await supabase.from('notifications').insert({ user_id: seller.id, type: 'tip', from_user_id: user.id });
+    await supabase.from('notifications').insert({ recipient_id: seller.id, kind: 'tip', actor_id: user.id  });
     toast.success(`$${amt.toFixed(2)} tip sent to @${seller.username}!`);
     setSent(true);
     setSending(false);
@@ -272,7 +272,7 @@ function ProductReviewsModal({ product, onClose }: { product: any; onClose: () =
     setLoading(true);
     const { data } = await supabase
       .from('product_reviews')
-      .select('*, user_profiles(username, avatar_url, verified)')
+      .select('*, profiles(username, avatar_url, verified)')
       .eq('product_id', product.id)
       .order('created_at', { ascending: false });
     const all = data ?? [];
@@ -579,7 +579,7 @@ export function ProductsPage() {
     setLoading(true);
     const { data } = await supabase
       .from('products')
-      .select('*, user_profiles(id, username, avatar_url, verified)')
+      .select('*, profiles(id, username, avatar_url, verified)')
       .eq('is_active', true)
       .order('views_count', { ascending: false })
       .limit(80);

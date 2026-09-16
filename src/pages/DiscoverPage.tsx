@@ -22,7 +22,7 @@ interface SuggestedUser {
   username: string;
   avatar_url: string | null;
   bio: string | null;
-  followers_count: number;
+  follower_count: number;
   verified: boolean;
   score?: number;
   reason?: string;
@@ -70,7 +70,7 @@ export default function DiscoverPage() {
           interactionStatistic: {
             '@type': 'InteractionCounter',
             interactionType: 'https://schema.org/FollowAction',
-            userInteractionCount: u.followers_count ?? 0,
+            userInteractionCount: u.follower_count ?? 0,
           },
         },
       })),
@@ -97,9 +97,9 @@ export default function DiscoverPage() {
 
   const loadPopular = useCallback(async () => {
     const { data } = await supabase
-      .from('user_profiles')
-      .select('id, username, avatar_url, bio, followers_count, verified')
-      .order('followers_count', { ascending: false })
+      .from('profiles')
+      .select('id, username, avatar_url, bio, follower_count, verified')
+      .order('follower_count', { ascending: false })
       .neq('id', user?.id ?? '')
       .limit(25);
     if (data) setUsers(data);
@@ -114,7 +114,7 @@ export default function DiscoverPage() {
         score,
         reason,
         suggested_user:user_profiles!user_suggestions_suggested_user_id_fkey(
-          id, username, avatar_url, bio, followers_count, verified
+          id, username, avatar_url, bio, follower_count, verified
         )
       `)
       .eq('user_id', user.id)
@@ -303,7 +303,7 @@ export default function DiscoverPage() {
                   </Link>
                   <div className="flex items-center flex-wrap gap-2 mt-1.5">
                     <span className="text-xs text-muted-foreground">
-                      {(u.followers_count ?? 0).toLocaleString()} followers
+                      {(u.follower_count ?? 0).toLocaleString()} followers
                     </span>
                     {reasonLabel && (
                       <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">

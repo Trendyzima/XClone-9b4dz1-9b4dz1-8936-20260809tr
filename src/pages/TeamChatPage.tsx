@@ -261,7 +261,7 @@ export default function TeamChatPage() {
     setReplyTicketSending(true);
     // Look up user by email
     const { data: profile } = await supabase
-      .from('user_profiles')
+      .from('profiles')
       .select('id, username')
       .eq('email', replyTicketEmail)
       .maybeSingle();

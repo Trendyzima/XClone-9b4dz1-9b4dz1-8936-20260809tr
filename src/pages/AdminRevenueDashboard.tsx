@@ -77,7 +77,7 @@ export default function AdminRevenueDashboard() {
         .select(`
           user_id,
           total_earnings,
-          user_profiles(username, avatar_url)
+          profiles(username, avatar_url)
         `)
         .eq('is_monetized', true)
         .order('total_earnings', { ascending: false })

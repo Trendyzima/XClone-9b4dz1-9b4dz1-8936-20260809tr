@@ -342,8 +342,8 @@ export default function SellerStorefrontPage() {
   const fetchStorefront = async () => {
     setLoading(true);
     const { data: profileData } = await supabase
-      .from('user_profiles')
-      .select('id, username, avatar_url, bio, verified, followers_count, is_creator, cover_image, website, location, total_earnings')
+      .from('profiles')
+      .select('id, username, avatar_url, bio, verified, follower_count, is_creator, cover_image, website, location, total_earnings')
       .eq('username', username)
       .maybeSingle();
     if (!profileData) { setLoading(false); return; }

@@ -41,7 +41,7 @@ export default function HistoryPage() {
           *,
           posts (
             *,
-            user_profiles (*)
+            profiles (*)
           )
         `)
         .eq('user_id', user.id)

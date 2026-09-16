@@ -48,7 +48,7 @@ export async function getUser(acct: string): Promise<any> {
     const normalized = acct.trim().replace(/^@/, ''); const [username] = normalized.split('@');
     const remote = await megalodonGatewayService.search(instance, `@${username}`, 'accounts') as { result?: RemoteSearchResult };
     const account = remote.result?.accounts?.[0]; if (!account) return null;
-    return { id: account.id, preferredUsername: account.username, name: account.display_name, summary: account.note, icon: account.avatar ? { url: account.avatar } : null, followers: account.followers_count, url: account.url };
+    return { id: account.id, preferredUsername: account.username, name: account.display_name, summary: account.note, icon: account.avatar ? { url: account.avatar } : null, followers: account.follower_count, url: account.url };
   }
   return api(`/webfinger/${encodeURIComponent(acct)}`);
 }

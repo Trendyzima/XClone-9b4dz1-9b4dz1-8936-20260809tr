@@ -58,16 +58,13 @@ export function UserSuggestions() {
       });
 
       // Insert notification for the followed user
-      await supabase.from('notifications').insert({
-        user_id: userId,
-        type: 'follow',
-        from_user_id: user.id,
-      });
+      await supabase.from('notifications').insert({ recipient_id: userId, kind: 'follow', actor_id: user.id,
+       });
 
       // Send push notification
       const { sendActivityNotification } = await import('@/components/layout/AuthProvider');
       const myProfile = await supabase
-        .from('user_profiles')
+        .from('profiles')
         .select('username')
         .eq('id', user.id)
         .single();

@@ -101,7 +101,7 @@ export default function HashtagChallengePage() {
     const orderCol = sort === 'engagement' ? 'likes_count' : 'created_at';
     const { data } = await supabase
       .from('posts')
-      .select('*, user_profiles(*)')
+      .select('*, profiles(*)')
       .ilike('content', `%#${tag}%`)
       .order(orderCol, { ascending: false })
       .range(page * FEED_PAGE_SIZE, (page + 1) * FEED_PAGE_SIZE - 1);

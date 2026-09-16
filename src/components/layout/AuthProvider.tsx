@@ -60,12 +60,9 @@ export async function sendActivityNotification({
       ? data.type
       : 'follow';
 
-    const { error: dbError } = await supabase.from('notifications').insert({
-      user_id: recipientUserId,
-      type: notificationType,
-      from_user_id: data?.fromUserId ?? null,
+    const { error: dbError } = await supabase.from('notifications').insert({ recipient_id: recipientUserId, kind: notificationType, actor_id: data?.fromUserId ?? null,
       post_id: data?.postId ?? null,
-    });
+     });
 
     if (dbError) {
       console.warn('[Notification] DB insert failed:', dbError.message);

@@ -514,11 +514,8 @@ function SellerOrderCard({ order, onStatusUpdate, navigate, onDetail }: {
     if (error) { toast.error(error.message); setUpdating(false); return; }
 
     // Notify buyer in-app
-    await supabase.from('notifications').insert({
-      user_id: order.buyer_id,
-      type: 'payment_sent',
-      from_user_id: order.seller_id,
-    }).catch(() => {});
+    await supabase.from('notifications').insert({ recipient_id: order.buyer_id, kind: 'payment_sent', actor_id: order.seller_id,
+     }).catch(() => {});
 
     // Send push notification to buyer
     const notifTitle = newStatus === 'shipped' ? '📦 Order Shipped!' : '✅ Order Delivered!';

@@ -16,7 +16,7 @@ export interface UserProfile {
   avatar_url?: string;
   bio?: string;
   verified: boolean;
-  followers_count: number;
+  follower_count: number;
   following_count: number;
   created_at: string;
 }

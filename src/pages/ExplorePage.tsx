@@ -55,7 +55,7 @@ function ExploreMarketplace({ searchQuery, navigate }: { searchQuery: string; na
     (async () => {
       let query = supabase
         .from('products')
-        .select('*, user_profiles(id, username, avatar_url, verified)')
+        .select('*, profiles(id, username, avatar_url, verified)')
         .eq('is_active', true)
         .order('views_count', { ascending: false })
         .limit(60);
@@ -281,7 +281,7 @@ function CategoryTabContent({
       const orFilter = keywords.map(k => `content.ilike.%${k}%`).join(',');
       const { data } = await supabase
         .from('posts')
-        .select('id, content, image_url, video_url, is_video, views_count, likes_count, reposts_count, replies_count, created_at, user_profiles(id, username, avatar_url, verified)')
+        .select('id, content, image_url, video_url, is_video, views_count, likes_count, reposts_count, replies_count, created_at, profiles(id, username, avatar_url, verified)')
         .or(orFilter)
         .is('community_id', null)
         .gte('created_at', since7d)
@@ -293,7 +293,7 @@ function CategoryTabContent({
         if (finalPosts.length < 5) {
           const { data: fallback } = await supabase
             .from('posts')
-            .select('id, content, image_url, video_url, is_video, views_count, likes_count, reposts_count, replies_count, created_at, user_profiles(id, username, avatar_url, verified)')
+            .select('id, content, image_url, video_url, is_video, views_count, likes_count, reposts_count, replies_count, created_at, profiles(id, username, avatar_url, verified)')
             .is('community_id', null)
             .gte('created_at', since7d)
             .order('views_count', { ascending: false })
@@ -603,10 +603,10 @@ export default function ExplorePage() {
     if (!q.trim() || q.trim().length < 2) { setSearchSuggestions([]); setShowSuggestions(false); return; }
     suggestTimerRef.current = setTimeout(async () => {
       const { data } = await supabase
-        .from('user_profiles')
-        .select('id, username, avatar_url, verified, followers_count')
+        .from('profiles')
+        .select('id, username, avatar_url, verified, follower_count')
         .ilike('username', `%${q.trim()}%`)
-        .order('followers_count', { ascending: false })
+        .order('follower_count', { ascending: false })
         .limit(5);
       if (data && data.length > 0) { setSearchSuggestions(data); setShowSuggestions(true); }
       else { setSearchSuggestions([]); setShowSuggestions(false); }
@@ -621,11 +621,11 @@ export default function ExplorePage() {
       setInlineSearchLoading(true);
       const clean = q.trim();
       const [usersRes, hashtagsRes, postsRes] = await Promise.all([
-        supabase.from('user_profiles').select('id, username, avatar_url, verified, followers_count, bio')
-          .ilike('username', `%${clean}%`).order('followers_count', { ascending: false }).limit(5),
+        supabase.from('profiles').select('id, username, avatar_url, verified, follower_count, bio')
+          .ilike('username', `%${clean}%`).order('follower_count', { ascending: false }).limit(5),
         supabase.from('hashtags').select('id, tag, usage_count')
           .ilike('tag', `${clean.replace(/^#/, '')}%`).order('usage_count', { ascending: false }).limit(5),
-        supabase.from('posts').select('id, content, image_url, is_video, views_count, likes_count, user_profiles(id, username, avatar_url, verified)')
+        supabase.from('posts').select('id, content, image_url, is_video, views_count, likes_count, profiles(id, username, avatar_url, verified)')
           .ilike('content', `%${clean}%`).is('community_id', null).order('likes_count', { ascending: false }).limit(5),
       ]);
       setInlineSearchResults({
@@ -712,7 +712,7 @@ export default function ExplorePage() {
     const since48h = new Date(Date.now() - 48 * 3600000).toISOString();
     const { data } = await supabase
       .from('posts')
-      .select('id, content, image_url, video_url, media_urls, is_video, views_count, likes_count, user_profiles(id, username, avatar_url, verified)')
+      .select('id, content, image_url, video_url, media_urls, is_video, views_count, likes_count, profiles(id, username, avatar_url, verified)')
       .is('community_id', null)
       .gte('created_at', since48h)
       .order('views_count', { ascending: false })
@@ -750,7 +750,7 @@ export default function ExplorePage() {
     try {
       const { data: stories } = await supabase
         .from('stories')
-        .select('id, media_url, media_type, caption, views_count, user_id, user_profiles(id, username, avatar_url, verified)')
+        .select('id, media_url, media_type, caption, views_count, user_id, profiles(id, username, avatar_url, verified)')
         .gt('expires_at', new Date().toISOString())
         .order('views_count', { ascending: false })
         .limit(30);
@@ -782,7 +782,7 @@ export default function ExplorePage() {
     const [trendingData, hashtagRes, whoRes] = await Promise.all([
       backendCapabilities.getTrends(50),
       supabase.from('trending_hashtags').select('hashtag_id, trend_score, daily_posts, hashtags(id, tag, usage_count)').order('trend_score', { ascending: false }).limit(20),
-      supabase.from('user_profiles').select('*').order('followers_count', { ascending: false }).limit(10),
+      supabase.from('profiles').select('*').order('follower_count', { ascending: false }).limit(10),
     ]);
     setTrending(trendingData?.items ?? []);
     if (hashtagRes.data) {
@@ -809,7 +809,7 @@ export default function ExplorePage() {
     } else {
       await supabase.from('follows').insert({ follower_id: user.id, following_id: profileId });
       setFollowingIdArr(prev => [...prev, profileId]);
-      await supabase.from('notifications').insert({ user_id: profileId, type: 'follow', from_user_id: user.id }).catch(() => {});
+      await supabase.from('notifications').insert({ recipient_id: profileId, kind: 'follow', actor_id: user.id  }).catch(() => {});
       toast.success(`Following @${username}!`);
     }
   };
@@ -988,7 +988,7 @@ export default function ExplorePage() {
                           <span className="text-sm font-semibold truncate">@{u.username}</span>
                           {u.verified && <BadgeCheck className="w-3 h-3 text-primary shrink-0" fill="currentColor" />}
                         </div>
-                        <p className="text-[10px] text-muted-foreground">{(u.followers_count ?? 0).toLocaleString()} followers</p>
+                        <p className="text-[10px] text-muted-foreground">{(u.follower_count ?? 0).toLocaleString()} followers</p>
                       </div>
                     </button>
                   ))}
@@ -1081,7 +1081,7 @@ export default function ExplorePage() {
                           {u.verified && <BadgeCheck className="w-3.5 h-3.5 text-primary shrink-0" fill="currentColor" />}
                         </div>
                         {u.bio && <p className="text-xs text-muted-foreground truncate">{u.bio.slice(0, 50)}</p>}
-                        <p className="text-[10px] text-muted-foreground">{(u.followers_count ?? 0).toLocaleString()} followers</p>
+                        <p className="text-[10px] text-muted-foreground">{(u.follower_count ?? 0).toLocaleString()} followers</p>
                       </div>
                     </button>
                   ))}
@@ -1582,7 +1582,7 @@ export default function ExplorePage() {
                         {profile.is_creator && <span className="text-[9px] bg-purple-500/10 text-purple-600 font-bold px-1.5 py-0.5 rounded-full border border-purple-500/20">Creator</span>}
                       </div>
                       <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
-                        <span className="flex items-center gap-0.5"><UsersIcon className="w-2.5 h-2.5" />{formatNumber(profile.followers_count)} followers</span>
+                        <span className="flex items-center gap-0.5"><UsersIcon className="w-2.5 h-2.5" />{formatNumber(profile.follower_count)} followers</span>
                       </div>
                     </div>
                     <button onClick={() => handleFollow(profile.id, profile.username)}

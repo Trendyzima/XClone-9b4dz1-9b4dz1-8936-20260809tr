@@ -97,11 +97,8 @@ export default function AdminAdsDashboard() {
       toast.success('Ad approved and activated');
       const ad = ads.find(a => a.id === adId);
       if (ad?.user_id) {
-        await supabase.from('notifications').insert({
-          user_id: ad.user_id,
-          type: 'ad_active',
-          from_user_id: user!.id,
-        }).catch(() => {});
+        await supabase.from('notifications').insert({ recipient_id: ad.user_id, kind: 'ad_active', actor_id: user!.id,
+         }).catch(() => {});
         // platform_inbox message
         await supabase.from('platform_inbox').insert({
           user_id: ad.user_id,
@@ -133,11 +130,8 @@ export default function AdminAdsDashboard() {
       toast.success('Ad rejected');
       const ad = ads.find(a => a.id === adId);
       if (ad?.user_id) {
-        await supabase.from('notifications').insert({
-          user_id: ad.user_id,
-          type: 'ad_rejected',
-          from_user_id: user!.id,
-        }).catch(() => {});
+        await supabase.from('notifications').insert({ recipient_id: ad.user_id, kind: 'ad_rejected', actor_id: user!.id,
+         }).catch(() => {});
         // platform_inbox message with rejection reason
         await supabase.from('platform_inbox').insert({
           user_id: ad.user_id,

@@ -215,7 +215,7 @@ export default function ThreadsPage() {
           .from('threads')
           .select(`id, user_id, title, content, cover_image, media_url, media_type,
             views_count, likes_count, reposts_count, replies_count, created_at,
-            user_profiles (id, username, avatar_url, verified)`)
+            profiles (id, username, avatar_url, verified)`)
           .in('id', bookmarkIds)
           .eq('is_published', true);
         if (savedErr) throw savedErr;
@@ -229,7 +229,7 @@ export default function ThreadsPage() {
         .select(`
           id, user_id, title, content, cover_image, media_url, media_type,
           views_count, likes_count, reposts_count, replies_count, created_at,
-          user_profiles (
+          profiles (
             id, username, avatar_url, verified
           )
         `)

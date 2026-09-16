@@ -627,7 +627,7 @@ function InstallmentPanel({ userId, walletBalance, pinHash, currency, onClose }:
     setQuery(q);
     if (q.trim().length < 2) { setResults([]); return; }
     setSearching(true);
-    const { data } = await supabase.from('user_profiles').select('id,username,avatar_url,verified')
+    const { data } = await supabase.from('profiles').select('id,username,avatar_url,verified')
       .ilike('username', `%${q.trim()}%`).neq('id', userId).limit(6);
     setResults(data ?? []); setSearching(false);
   };
@@ -799,7 +799,7 @@ function SplitPaymentPanel({ userId, senderUsername, walletBalance, pinHash, cur
     if (q.trim().length < 2) { setResults([]); return; }
     setSearching(true);
     const excludeIds = [userId, ...recipients.map(r => r.id)];
-    const { data } = await supabase.from('user_profiles')
+    const { data } = await supabase.from('profiles')
       .select('id,username,avatar_url,verified')
       .ilike('username', `%${q.trim()}%`)
       .not('id', 'in', `(${excludeIds.map(id => `"${id}"`).join(',')})`)
@@ -1536,7 +1536,7 @@ function SendMoneyTab({ userId, senderUsername, walletBalance, pinHash, biometri
     setQuery(q);
     if (q.trim().length < 2) { setUsers([]); return; }
     setSearching(true);
-    const { data } = await supabase.from('user_profiles').select('id,username,avatar_url,verified')
+    const { data } = await supabase.from('profiles').select('id,username,avatar_url,verified')
       .ilike('username', `%${q.trim()}%`).neq('id', userId).limit(8);
     setUsers(data ?? []); setSearching(false);
   };
@@ -1805,7 +1805,7 @@ function ScheduledTransfersTab({ userId, currency, pinHash }: { userId: string; 
     setQuery(q);
     if (q.trim().length < 2) { setResults([]); return; }
     setSearching(true);
-    const { data } = await supabase.from('user_profiles').select('id,username,avatar_url,verified')
+    const { data } = await supabase.from('profiles').select('id,username,avatar_url,verified')
       .ilike('username', `%${q.trim()}%`).neq('id', userId).limit(6);
     setResults(data ?? []); setSearching(false);
   };
@@ -3187,7 +3187,7 @@ function RequestMoneyPanel({ userId, senderUsername, currency }: {
     setQuery(q);
     if (q.trim().length < 2) { setResults([]); return; }
     setSearching(true);
-    const { data } = await supabase.from('user_profiles').select('id,username,avatar_url,verified')
+    const { data } = await supabase.from('profiles').select('id,username,avatar_url,verified')
       .ilike('username', `%${q.trim()}%`).neq('id', userId).limit(8);
     setResults(data ?? []); setSearching(false);
   };
@@ -3616,7 +3616,7 @@ function ReferralLeaderboard({ userId }: { userId: string }) {
       (allRefs ?? []).forEach((r: any) => { counts[r.invited_by] = (counts[r.invited_by] ?? 0) + 1; });
       const top10 = Object.entries(counts as Record<string, number>).sort((a, b) => b[1] - a[1]).slice(0, 10);
       if (top10.length === 0) { setLeaders([]); setLoading(false); return; }
-      const { data: profiles } = await supabase.from('user_profiles')
+      const { data: profiles } = await supabase.from('profiles')
         .select('id,username,avatar_url').in('id', top10.map(([id]) => id));
       const pm: any = {};
       (profiles ?? []).forEach((p: any) => { pm[p.id] = p; });

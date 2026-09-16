@@ -123,7 +123,7 @@ export default function PremiumPage() {
       if (error) throw error;
 
       // Grant premium badge in profile
-      await supabase.from('user_profiles').update({ creator_tier: 'premium' }).eq('id', user.id).catch(() => {});
+      await supabase.from('profiles').update({ creator_tier: 'premium' }).eq('id', user.id).catch(() => {});
 
       // Platform inbox welcome
       await supabase.from('platform_inbox').insert({

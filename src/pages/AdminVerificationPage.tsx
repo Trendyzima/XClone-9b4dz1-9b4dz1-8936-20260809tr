@@ -32,7 +32,7 @@ interface VerificationRequest {
     username: string;
     email: string;
     avatar_url?: string;
-    followers_count: number;
+    follower_count: number;
     bio?: string;
     verified: boolean;
   };
@@ -80,7 +80,7 @@ export default function AdminVerificationPage() {
       .from('verification_requests')
       .select(`
         *,
-        user:user_profiles(username, email, avatar_url, followers_count, bio, verified)
+        user:profiles(username, email, avatar_url, follower_count, bio, verified)
       `)
       .order('created_at', { ascending: false });
 
@@ -107,17 +107,14 @@ export default function AdminVerificationPage() {
 
       if (approve) {
         const { error: profileErr } = await supabase
-          .from('user_profiles')
+          .from('profiles')
           .update({ verified: true })
           .eq('id', req.user_id);
         if (profileErr) throw profileErr;
 
         // Insert notification to user
-        await supabase.from('notifications').insert({
-          user_id: req.user_id,
-          type: 'verified',
-          from_user_id: user!.id,
-        });
+        await supabase.from('notifications').insert({ recipient_id: req.user_id, kind: 'verified', actor_id: user!.id,
+         });
       }
 
       toast.success(approve ? `@${req.user.username} is now verified ✓` : 'Verification rejected');
@@ -259,7 +256,7 @@ export default function AdminVerificationPage() {
                       <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
                           <Users className="w-3 h-3" />
-                          {formatNumber(req.user?.followers_count || 0)} followers
+                          {formatNumber(req.user?.follower_count || 0)} followers
                         </span>
                         <span className="flex items-center gap-1">
                           <Clock className="w-3 h-3" />

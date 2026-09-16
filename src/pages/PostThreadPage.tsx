@@ -157,7 +157,7 @@ export default function PostThreadPage() {
     try {
       const { data: postData, error: postError } = await supabase
         .from('posts')
-        .select('*, user_profiles (*)')
+        .select('*, profiles (*)')
         .eq('id', postId)
         .single();
       if (postError) throw postError;
@@ -175,7 +175,7 @@ export default function PostThreadPage() {
 
       const { data: repliesData, error: repliesError } = await supabase
         .from('replies')
-        .select('*, user_profiles (*)')
+        .select('*, profiles (*)')
         .eq('post_id', postId)
         .order('created_at', { ascending: true });
       if (repliesError) throw repliesError;
@@ -239,12 +239,9 @@ export default function PostThreadPage() {
       }
 
       if (post && post.user_id !== user.id) {
-        await supabase.from('notifications').insert({
-          user_id: post.user_id,
-          type: 'reply',
-          from_user_id: user.id,
+        await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'reply', actor_id: user.id,
           post_id: postId,
-        });
+         });
         await sendActivityNotification({
           recipientUserId: post.user_id,
           title: 'New Reply',

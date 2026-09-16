@@ -151,7 +151,7 @@ export default function TrendingTopicFeedPage() {
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
       const { data, count } = await supabase
         .from('posts')
-        .select('*, user_profiles(*)', { count: 'exact' })
+        .select('*, profiles(*)', { count: 'exact' })
         .ilike('content', `%${decodedTopic.replace(/^#/, '')}%`)
         .gte('created_at', sevenDaysAgo)
         .order('likes_count', { ascending: false })

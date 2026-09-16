@@ -148,7 +148,7 @@ export default function LeaderboardPage() {
         earnings.forEach((e: any) => { totals[e.user_id] = (totals[e.user_id] ?? 0) + Number(e.amount); });
         const sorted = Object.entries(totals).sort(([, a], [, b]) => b - a).slice(0, 5);
         const uids = sorted.map(([id]) => id);
-        const { data: profiles } = await supabase.from('user_profiles').select('id, username, avatar_url, verified, creator_tier, followers_count').in('id', uids);
+        const { data: profiles } = await supabase.from('profiles').select('id, username, avatar_url, verified, creator_tier, follower_count').in('id', uids);
         const profileMap: Record<string, any> = {};
         (profiles ?? []).forEach((p: any) => { profileMap[p.id] = p; });
         setCreatorsData(sorted.filter(([id]) => profileMap[id]).map(([id, total]) => ({ ...profileMap[id], total_earnings: total })));
@@ -177,7 +177,7 @@ export default function LeaderboardPage() {
           posts.forEach((p: any) => { totals[p.user_id] = (totals[p.user_id] ?? 0) + (p.likes_count ?? 0); });
           const sorted = Object.entries(totals).sort(([, a], [, b]) => b - a).slice(0, 50);
           const uids = sorted.map(([id]) => id);
-          const { data: profiles } = await supabase.from('user_profiles').select('id, username, avatar_url, verified').in('id', uids);
+          const { data: profiles } = await supabase.from('profiles').select('id, username, avatar_url, verified').in('id', uids);
           const profileMap: Record<string, any> = {};
           (profiles ?? []).forEach((p: any) => { profileMap[p.id] = p; });
           const result = sorted.filter(([id]) => profileMap[id]).map(([id, val]) => ({ ...profileMap[id], value: val }));
@@ -199,7 +199,7 @@ export default function LeaderboardPage() {
         videoPosts.forEach((p: any) => { totals[p.user_id] = (totals[p.user_id] ?? 0) + (p.views_count ?? 0); });
         const sorted = Object.entries(totals).sort(([, a], [, b]) => b - a).slice(0, 50);
         const uids = sorted.map(([id]) => id);
-        const { data: profiles } = await supabase.from('user_profiles').select('id, username, avatar_url, verified').in('id', uids);
+        const { data: profiles } = await supabase.from('profiles').select('id, username, avatar_url, verified').in('id', uids);
         const profileMap: Record<string, any> = {};
         (profiles ?? []).forEach((p: any) => { profileMap[p.id] = p; });
         setData(sorted.filter(([id]) => profileMap[id]).map(([id, total]) => ({ ...profileMap[id], value: total })));
@@ -214,7 +214,7 @@ export default function LeaderboardPage() {
         tips.forEach((t: any) => { totals[t.from_user_id] = (totals[t.from_user_id] ?? 0) + Number(t.amount); });
         const sorted = Object.entries(totals).sort(([, a], [, b]) => b - a).slice(0, 50);
         const uids = sorted.map(([id]) => id);
-        const { data: profiles } = await supabase.from('user_profiles').select('id, username, avatar_url, verified').in('id', uids);
+        const { data: profiles } = await supabase.from('profiles').select('id, username, avatar_url, verified').in('id', uids);
         const profileMap: Record<string, any> = {};
         (profiles ?? []).forEach((p: any) => { profileMap[p.id] = p; });
         setData(sorted.filter(([id]) => profileMap[id]).map(([id, total]) => ({ ...profileMap[id], value: total })));
@@ -223,13 +223,13 @@ export default function LeaderboardPage() {
       return;
     }
     if (activeTab === 'followers') {
-      const { data: users } = await supabase.from('user_profiles').select('id, username, avatar_url, verified, followers_count').order('followers_count', { ascending: false }).limit(50);
-      setData((users || []).map((u: any) => ({ ...u, value: u.followers_count ?? 0 })));
+      const { data: users } = await supabase.from('profiles').select('id, username, avatar_url, verified, follower_count').order('follower_count', { ascending: false }).limit(50);
+      setData((users || []).map((u: any) => ({ ...u, value: u.follower_count ?? 0 })));
     } else if (activeTab === 'earners') {
-      const { data: users } = await supabase.from('user_profiles').select('id, username, avatar_url, verified, total_earnings').gt('total_earnings', 0).order('total_earnings', { ascending: false }).limit(50);
+      const { data: users } = await supabase.from('profiles').select('id, username, avatar_url, verified, total_earnings').gt('total_earnings', 0).order('total_earnings', { ascending: false }).limit(50);
       setData((users || []).map((u: any) => ({ ...u, value: Number(u.total_earnings ?? 0) })));
     } else {
-      const { data: rewards } = await supabase.from('daily_rewards').select('streak_day, user_profiles(id, username, avatar_url, verified)').order('streak_day', { ascending: false }).limit(50);
+      const { data: rewards } = await supabase.from('daily_rewards').select('streak_day, profiles(id, username, avatar_url, verified)').order('streak_day', { ascending: false }).limit(50);
       setData((rewards || []).filter((r: any) => r.user_profiles).map((r: any) => ({ ...(r.user_profiles as any), value: r.streak_day ?? 0 })));
     }
     setLoading(false);
@@ -502,7 +502,7 @@ function BadgeAwardsStrip() {
       const uids = [...new Set([topEarnerId, topViralId, topVideoId].filter(Boolean))];
       if (uids.length === 0) { setLoading(false); return; }
 
-      const { data: profiles } = await supabase.from('user_profiles').select('id, username, avatar_url, verified').in('id', uids);
+      const { data: profiles } = await supabase.from('profiles').select('id, username, avatar_url, verified').in('id', uids);
       const pm: Record<string, any> = {};
       (profiles ?? []).forEach((p: any) => { pm[p.id] = p; });
 
@@ -657,7 +657,7 @@ function CreatorLeaderboard({ data, loading, timeframe, onTimeframeChange, onNav
                       {creator.verified && <BadgeCheck className="w-4 h-4 text-primary shrink-0" fill="currentColor" />}
                       <span className="text-sm shrink-0">{cfg.icon}</span>
                     </div>
-                    <p className="text-xs text-muted-foreground">{(creator.followers_count ?? 0).toLocaleString()} followers</p>
+                    <p className="text-xs text-muted-foreground">{(creator.follower_count ?? 0).toLocaleString()} followers</p>
                   </div>
                   <div className="text-right shrink-0">
                     <p className="text-2xl font-black text-amber-600">${creator.total_earnings?.toFixed(2)}</p>
@@ -686,7 +686,7 @@ function CreatorLeaderboard({ data, loading, timeframe, onTimeframeChange, onNav
                         {creator.verified && <BadgeCheck className="w-3.5 h-3.5 text-primary shrink-0" fill="currentColor" />}
                         <span className="text-xs shrink-0">{cfg.icon}</span>
                       </div>
-                      <p className="text-xs text-muted-foreground">{(creator.followers_count ?? 0).toLocaleString()} followers</p>
+                      <p className="text-xs text-muted-foreground">{(creator.follower_count ?? 0).toLocaleString()} followers</p>
                     </div>
                     <p className="font-bold text-sm shrink-0 text-amber-600">${creator.total_earnings?.toFixed(2)}</p>
                   </button>

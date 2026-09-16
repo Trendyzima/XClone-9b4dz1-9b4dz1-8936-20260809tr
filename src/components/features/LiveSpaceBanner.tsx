@@ -39,7 +39,7 @@ export function LiveSpaceBanner() {
     try {
       const { data } = await supabase
         .from('spaces')
-        .select('id, title, host_id, listener_count, started_at, user_profiles(id, username, avatar_url)')
+        .select('id, title, host_id, listener_count, started_at, profiles(id, username, avatar_url)')
         .eq('is_live', true)
         .eq('is_archived', false)
         .order('listener_count', { ascending: false })

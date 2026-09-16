@@ -95,7 +95,7 @@ export default function AuthPage() {
     let referrerId: string | null = null;
     if (isUuid) referrerId = refUsername;
     else {
-      const { data: refProfile } = await supabase.from('user_profiles').select('id').eq('username', refUsername).maybeSingle();
+      const { data: refProfile } = await supabase.from('profiles').select('id').eq('username', refUsername).maybeSingle();
       referrerId = refProfile?.id ?? null;
     }
     if (!referrerId || referrerId === newUserId) return;

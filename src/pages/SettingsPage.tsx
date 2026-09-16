@@ -134,7 +134,7 @@ export default function SettingsPage() {
   // Verification + creator tier
   useEffect(() => {
     if (!user) return;
-    supabase.from('user_profiles').select('verified, creator_tier').eq('id', user.id).single()
+    supabase.from('profiles').select('verified, creator_tier').eq('id', user.id).single()
       .then(({ data }) => {
         if (!data) return;
         setVerifiedStatus(!!(data as any).verified);
@@ -152,7 +152,7 @@ export default function SettingsPage() {
   // Load connected accounts
   useEffect(() => {
     if (!user) return;
-    supabase.from('user_profiles').select('twitter_handle, instagram_handle, linkedin_url').eq('id', user.id).single()
+    supabase.from('profiles').select('twitter_handle, instagram_handle, linkedin_url').eq('id', user.id).single()
       .then(({ data }) => {
         if (!data) return;
         setTwitterHandle((data as any).twitter_handle ?? '');
@@ -217,7 +217,7 @@ export default function SettingsPage() {
     if (!user) return;
     setExporting(true);
     const [profileRes, postsRes, txRes] = await Promise.all([
-      supabase.from('user_profiles').select('*').eq('id', user.id).single(),
+      supabase.from('profiles').select('*').eq('id', user.id).single(),
       supabase.from('posts').select('id, content, created_at, likes_count, views_count').eq('user_id', user.id).order('created_at', { ascending: false }).limit(100),
       supabase.from('wallet_transactions').select('type, amount, status, description, created_at').eq('user_id', user.id).order('created_at', { ascending: false }).limit(200),
     ]);
@@ -241,7 +241,7 @@ export default function SettingsPage() {
   const handleDeleteAccount = async () => {
     if (!user || deleteInput !== user.username) return;
     setDeleting(true);
-    await supabase.from('user_profiles').delete().eq('id', user.id);
+    await supabase.from('profiles').delete().eq('id', user.id);
     await authService.signOut();
     logout();
     navigate('/');
@@ -253,7 +253,7 @@ export default function SettingsPage() {
     const cleanTwitter = twitterHandle.trim().replace(/^@/, '') || null;
     const cleanInsta = instagramHandle.trim().replace(/^@/, '') || null;
     const cleanLinkedin = linkedinUrl.trim() || null;
-    const { error } = await supabase.from('user_profiles').update({
+    const { error } = await supabase.from('profiles').update({
       twitter_handle: cleanTwitter,
       instagram_handle: cleanInsta,
       linkedin_url: cleanLinkedin,

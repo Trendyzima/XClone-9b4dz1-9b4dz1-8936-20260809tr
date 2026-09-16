@@ -120,7 +120,7 @@ export function LiveNotificationBanner() {
     // Resolve user info (cached)
     if (!resolvedUsers.current[fromId]) {
       const { data } = await supabase
-        .from('user_profiles')
+        .from('profiles')
         .select('username, avatar_url')
         .eq('id', fromId)
         .maybeSingle();

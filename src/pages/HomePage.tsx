@@ -151,7 +151,7 @@ export default function HomePage() {
         // We replicate the core query here to avoid mutating activeTab state
         let query = supabase
           .from('posts')
-          .select('*, user_profiles(*)')
+          .select('*, profiles(*)')
           .is('community_id', null)
           .range(0, PAGE_SIZE - 1);
         if (tabId === 'following' && user) {
@@ -159,7 +159,7 @@ export default function HomePage() {
             .from('follows').select('following_id').eq('follower_id', user.id);
           const ids = (followingData ?? []).map((f: any) => f.following_id);
           if (ids.length === 0) return;
-          query = supabase.from('posts').select('*, user_profiles(*)')
+          query = supabase.from('posts').select('*, profiles(*)')
             .is('community_id', null).in('user_id', ids)
             .order('created_at', { ascending: false }).range(0, PAGE_SIZE - 1);
         } else if (tabId === 'popular') {
@@ -209,7 +209,7 @@ export default function HomePage() {
     const since24h = new Date(Date.now() - 24 * 3600000).toISOString();
     const { data } = await supabase
       .from('posts')
-      .select('id, content, image_url, video_url, is_video, views_count, likes_count, user_profiles(id, username, avatar_url, verified)')
+      .select('id, content, image_url, video_url, is_video, views_count, likes_count, profiles(id, username, avatar_url, verified)')
       .is('community_id', null)
       .gte('created_at', since24h)
       .order('views_count', { ascending: false })
@@ -347,7 +347,7 @@ export default function HomePage() {
         const postIds = recs.map((r: any) => r.recommended_post_id);
         const { data: posts } = await supabase
           .from('posts')
-          .select('*, user_profiles(*)')
+          .select('*, profiles(*)')
           .in('id', postIds)
           .is('community_id', null);
         if (posts && posts.length > 0) {
@@ -382,7 +382,7 @@ export default function HomePage() {
           const pids = [...new Set((phs ?? []).map((ph: any) => ph.post_id))] as string[];
           if (pids.length > 0) {
             const { data: intPosts } = await supabase
-              .from('posts').select('*, user_profiles(*)')
+              .from('posts').select('*, profiles(*)')
               .in('id', pids.slice(0, 10))
               .is('community_id', null)
               .neq('user_id', user.id);
@@ -405,7 +405,7 @@ export default function HomePage() {
       const followIds = (followingData ?? []).map((f: any) => f.following_id);
       if (followIds.length > 0) {
         const { data: followPosts } = await supabase
-          .from('posts').select('*, user_profiles(*)')
+          .from('posts').select('*, profiles(*)')
           .in('user_id', followIds)
           .is('community_id', null)
           .order('likes_count', { ascending: false })
@@ -429,7 +429,7 @@ export default function HomePage() {
       if (followIds.length === 0) return;
       const { data: products } = await supabase
         .from('products')
-        .select('*, user_profiles(id, username, avatar_url, verified)')
+        .select('*, profiles(id, username, avatar_url, verified)')
         .in('user_id', followIds)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
@@ -587,13 +587,13 @@ export default function HomePage() {
     try {
       let postsQuery = supabase
         .from('posts')
-        .select('*, user_profiles(*)')
+        .select('*, profiles(*)')
         .is('community_id', null)
         .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
 
       let threadsQuery = supabase
         .from('threads')
-        .select('*, user_profiles(*)')
+        .select('*, profiles(*)')
         .eq('is_published', true)
         .order('created_at', { ascending: false })
         .range(pageNum * 5, (pageNum + 1) * 5 - 1);
@@ -626,7 +626,7 @@ export default function HomePage() {
         const pagedIds = allIds.slice(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE);
         if (!pagedIds.length) return [];
         postsQuery = supabase
-          .from('posts').select('*, user_profiles(*)').is('community_id', null)
+          .from('posts').select('*, profiles(*)').is('community_id', null)
           .in('id', pagedIds).order('likes_count', { ascending: false });
       } else {
         postsQuery = postsQuery.order('created_at', { ascending: false });
@@ -865,7 +865,7 @@ export default function HomePage() {
       if (postIds.length === 0) { setHashtagFeedItems([]); setHashtagFeedLoading(false); return; }
       const { data: posts } = await supabase
         .from('posts')
-        .select('*, user_profiles(*)')
+        .select('*, profiles(*)')
         .in('id', postIds.slice(0, 50))
         .is('community_id', null)
         .order('created_at', { ascending: false });
@@ -1652,7 +1652,7 @@ function InlineSuggestions() {
       // Try user_suggestions table first
       const { data: sugData } = await supabase
         .from('user_suggestions')
-        .select('suggested_user_id, score, reason, user_profiles!user_suggestions_suggested_user_id_fkey(id, username, avatar_url, followers_count, verified)')
+        .select('suggested_user_id, score, reason, user_profiles!user_suggestions_suggested_user_id_fkey(id, username, avatar_url, follower_count, verified)')
         .eq('user_id', user.id)
         .order('score', { ascending: false })
         .limit(5);
@@ -1669,10 +1669,10 @@ function InlineSuggestions() {
 
       // Fallback: popular users not yet followed
       const { data } = await supabase
-        .from('user_profiles')
-        .select('id, username, avatar_url, followers_count, verified')
+        .from('profiles')
+        .select('id, username, avatar_url, follower_count, verified')
         .neq('id', user.id)
-        .order('followers_count', { ascending: false })
+        .order('follower_count', { ascending: false })
         .limit(10);
 
       if (data) setSuggestions(data.filter((u: any) => !followed.includes(u.id)).slice(0, 3));
@@ -1712,7 +1712,7 @@ function InlineSuggestions() {
               <div className="min-w-0">
                 <p className="font-semibold text-sm truncate">{sug.username}</p>
                 <p className="text-xs text-muted-foreground">
-                  {formatNumber(sug.followers_count ?? 0)} followers
+                  {formatNumber(sug.follower_count ?? 0)} followers
                 </p>
               </div>
             </button>

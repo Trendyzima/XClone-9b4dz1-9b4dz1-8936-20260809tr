@@ -50,7 +50,7 @@ export default function ListDetailPage() {
 
   const fetchMembers = async () => {
     if (!id) return;
-    const { data, error } = await supabase.from('list_members').select('user_id, user_profiles (*)').eq('list_id', id).order('added_at', { ascending: false });
+    const { data, error } = await supabase.from('list_members').select('user_id, profiles (*)').eq('list_id', id).order('added_at', { ascending: false });
     if (error) { console.error('Error fetching list members:', error); setMembers([]); return; }
     setMembers((data ?? []).map((m: any) => m.user_profiles).filter(Boolean));
   };

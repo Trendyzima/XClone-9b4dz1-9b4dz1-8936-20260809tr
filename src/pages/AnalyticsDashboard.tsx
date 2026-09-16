@@ -79,8 +79,8 @@ export default function AnalyticsDashboard() {
       const total_replies = posts?.reduce((sum, p) => sum + (p.replies_count || 0), 0) || 0;
 
       const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('followers_count, following_count')
+        .from('profiles')
+        .select('follower_count, following_count')
         .eq('id', user.id)
         .single();
 
@@ -90,7 +90,7 @@ export default function AnalyticsDashboard() {
         total_likes,
         total_reposts,
         total_replies,
-        followers: profile?.followers_count || 0,
+        followers: profile?.follower_count || 0,
         following: profile?.following_count || 0,
       });
 

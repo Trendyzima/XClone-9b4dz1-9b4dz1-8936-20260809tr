@@ -63,8 +63,8 @@ export default function CreatorLeaderboardPage() {
       if (!earningsData || earningsData.length === 0) {
         // Fallback: show creators by total_earnings from user_profiles
         const { data: profileData } = await supabase
-          .from('user_profiles')
-          .select('id, username, avatar_url, verified, followers_count, total_earnings, is_creator, creator_tier')
+          .from('profiles')
+          .select('id, username, avatar_url, verified, follower_count, total_earnings, is_creator, creator_tier')
           .eq('is_creator', true)
           .gt('total_earnings', 0)
           .order('total_earnings', { ascending: false })
@@ -75,7 +75,7 @@ export default function CreatorLeaderboardPage() {
           username: p.username,
           avatarUrl: p.avatar_url,
           verified: p.verified,
-          followersCount: p.followers_count ?? 0,
+          followersCount: p.follower_count ?? 0,
           totalEarnings: Number(p.total_earnings ?? 0),
           creatorTier: p.creator_tier ?? 'free',
           sourceBreakdown: {},
@@ -106,8 +106,8 @@ export default function CreatorLeaderboardPage() {
         if (topUids.length === 0) { setLeaders([]); return; }
 
         const { data: profiles } = await supabase
-          .from('user_profiles')
-          .select('id, username, avatar_url, verified, followers_count, creator_tier')
+          .from('profiles')
+          .select('id, username, avatar_url, verified, follower_count, creator_tier')
           .in('id', topUids);
 
         const enriched = topUids.map((uid, rank) => {
@@ -118,7 +118,7 @@ export default function CreatorLeaderboardPage() {
             username: prof?.username ?? 'Unknown',
             avatarUrl: prof?.avatar_url ?? null,
             verified: prof?.verified ?? false,
-            followersCount: prof?.followers_count ?? 0,
+            followersCount: prof?.follower_count ?? 0,
             totalEarnings: topAmounts[rank],
             creatorTier: prof?.creator_tier ?? 'free',
           };

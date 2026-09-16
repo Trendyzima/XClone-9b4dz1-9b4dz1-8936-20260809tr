@@ -95,12 +95,12 @@ export function useCreatorTierAlert() {
 
     const check = async () => {
       const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('followers_count')
+        .from('profiles')
+        .select('follower_count')
         .eq('id', user.id)
         .maybeSingle();
 
-      const followers = profile?.followers_count ?? 0;
+      const followers = profile?.follower_count ?? 0;
 
       for (const milestone of MILESTONES) {
         if (followers < milestone.threshold) continue;

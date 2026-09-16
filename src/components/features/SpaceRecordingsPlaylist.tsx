@@ -39,7 +39,7 @@ export function SpaceRecordingsPlaylist({ spaceId }: SpaceRecordingsPlaylistProp
         .from('space_recordings')
         .select(`
           *,
-          user_profiles (*)
+          profiles (*)
         `)
         .eq('space_id', spaceId)
         .order('created_at', { ascending: false });

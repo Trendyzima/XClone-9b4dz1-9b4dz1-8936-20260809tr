@@ -71,7 +71,7 @@ export default function BoostAnalyticsPage() {
       // Fetch the post
       const { data: postData } = await supabase
         .from('posts')
-        .select('*, user_profiles(*)')
+        .select('*, profiles(*)')
         .eq('id', postId)
         .single();
 

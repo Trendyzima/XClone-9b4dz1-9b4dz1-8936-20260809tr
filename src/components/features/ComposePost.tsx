@@ -142,7 +142,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
     setMentionIdx(0);
     mentionSearchRef.current = q;
     if (q.length === 0) { setMentionResults([]); return; }
-    const { data } = await supabase.from('user_profiles').select('id, username, avatar_url').ilike('username', `${q}%`).limit(5);
+    const { data } = await supabase.from('profiles').select('id, username, avatar_url').ilike('username', `${q}%`).limit(5);
     if (mentionSearchRef.current === q) setMentionResults(data ?? []);
   }, [linkPreview]);
 
@@ -391,7 +391,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
       const mentionMatches = content.match(/@(\w+)/g);
       if (mentionMatches && postData) {
         const uniqueUsernames = [...new Set(mentionMatches.map(m => m.slice(1).toLowerCase()))];
-        const { data: mentionedUsers } = await supabase.from('user_profiles').select('id, username').in('username', uniqueUsernames).neq('id', user!.id);
+        const { data: mentionedUsers } = await supabase.from('profiles').select('id, username').in('username', uniqueUsernames).neq('id', user!.id);
         if (mentionedUsers && mentionedUsers.length > 0) {
           await supabase.from('notifications').insert(mentionedUsers.map(mu => ({ user_id: mu.id, type: 'mention', from_user_id: user!.id, post_id: postData.id })));
           await supabase.from('mentions').insert(mentionedUsers.map(mu => ({ post_id: postData.id, mentioned_user_id: mu.id }))).select().then(() => {});

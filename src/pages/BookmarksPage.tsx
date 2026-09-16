@@ -51,7 +51,7 @@ export function BookmarksPage() {
     try {
       const { data } = await supabase
         .from('bookmarks')
-        .select('*, post:posts(*, user:user_profiles(*))')
+        .select('*, post:posts(*, user:profiles(*))')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       const vids = ((data ?? []).map((b: any) => b.post).filter((p: any) => p && p.is_video));
@@ -66,7 +66,7 @@ export function BookmarksPage() {
     try {
       const { data, error } = await supabase
         .from('bookmarks')
-        .select('*, post:posts(*, user:user_profiles(*))')
+        .select('*, post:posts(*, user:profiles(*))')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -87,7 +87,7 @@ export function BookmarksPage() {
     setLoadingCollectionPosts(true);
     const { data } = await supabase
       .from('list_posts')
-      .select('*, post:posts(*, user_profiles(*))')
+      .select('*, post:posts(*, profiles(*))')
       .eq('list_id', listId)
       .order('added_at', { ascending: false });
     setCollectionPosts((data ?? []).map((lp: any) => lp.post).filter(Boolean));

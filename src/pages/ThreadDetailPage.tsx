@@ -305,7 +305,7 @@ export default function ThreadDetailPage() {
         .from('threads')
         .select(`
           *,
-          user_profiles (
+          profiles (
             id,
             username,
             avatar_url,
@@ -345,7 +345,7 @@ export default function ThreadDetailPage() {
               post_id,
               posts (
                 *,
-                user_profiles (*)
+                profiles (*)
               )
             `)
             .in('hashtag_id', hashtagIds)
@@ -375,7 +375,7 @@ export default function ThreadDetailPage() {
       .from('thread_replies')
       .select(`
         *,
-        user_profiles (
+        profiles (
           username,
           avatar_url,
           verified

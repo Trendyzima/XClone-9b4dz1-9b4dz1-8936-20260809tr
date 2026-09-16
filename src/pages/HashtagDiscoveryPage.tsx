@@ -56,7 +56,7 @@ export default function HashtagDiscoveryPage() {
         const since48h = new Date(Date.now() - 48 * 3600000).toISOString();
         const { data } = await supabase
           .from('posts')
-          .select('*, user_profiles(id, username, avatar_url, verified)')
+          .select('*, profiles(id, username, avatar_url, verified)')
           .is('community_id', null)
           .eq('is_video', false)
           .gte('created_at', since48h)
@@ -72,7 +72,7 @@ export default function HashtagDiscoveryPage() {
         const since48h = new Date(Date.now() - 48 * 3600000).toISOString();
         const { data } = await supabase
           .from('posts')
-          .select('*, user_profiles(id, username, avatar_url, verified)')
+          .select('*, profiles(id, username, avatar_url, verified)')
           .eq('is_video', true)
           .gte('created_at', since48h)
           .order('views_count', { ascending: false })
@@ -80,9 +80,9 @@ export default function HashtagDiscoveryPage() {
         setRecommendedVideos(data ?? []);
       } else if (tab === 'Creators') {
         const { data } = await supabase
-          .from('user_profiles')
-          .select('id, username, avatar_url, verified, followers_count, bio, is_creator, creator_tier')
-          .order('followers_count', { ascending: false })
+          .from('profiles')
+          .select('id, username, avatar_url, verified, follower_count, bio, is_creator, creator_tier')
+          .order('follower_count', { ascending: false })
           .limit(30);
         setRecommendedCreators((data ?? []).filter((u: any) => u.id !== user?.id));
         if (user) {
@@ -92,7 +92,7 @@ export default function HashtagDiscoveryPage() {
       } else if (tab === 'Threads') {
         const { data } = await supabase
           .from('threads')
-          .select('*, user_profiles(id, username, avatar_url, verified)')
+          .select('*, profiles(id, username, avatar_url, verified)')
           .eq('is_published', true)
           .order('likes_count', { ascending: false })
           .limit(20);
@@ -358,7 +358,7 @@ export default function HashtagDiscoveryPage() {
                           {creator.is_creator && <span className="text-[9px] bg-purple-500/10 text-purple-600 font-bold px-1.5 py-0.5 rounded-full border border-purple-500/20">Creator</span>}
                         </div>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                          <span className="flex items-center gap-0.5"><Users className="w-3 h-3" />{formatNumber(creator.followers_count ?? 0)}</span>
+                          <span className="flex items-center gap-0.5"><Users className="w-3 h-3" />{formatNumber(creator.follower_count ?? 0)}</span>
                           {creator.bio && <span className="truncate max-w-[120px]">{creator.bio.slice(0, 50)}</span>}
                         </div>
                       </div>

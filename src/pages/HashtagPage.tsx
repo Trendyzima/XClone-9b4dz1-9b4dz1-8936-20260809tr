@@ -103,7 +103,7 @@ export default function HashtagPage() {
   const fetchTopPosts = async (hashtagId: string) => {
     const { data } = await supabase
       .from('post_hashtags')
-      .select('post_id, posts(*, user_profiles(*))')
+      .select('post_id, posts(*, profiles(*))')
       .eq('hashtag_id', hashtagId);
     if (!data) return;
     const allPosts = data.map((item: any) => item.posts).filter(Boolean);
@@ -129,7 +129,7 @@ export default function HashtagPage() {
 
       const { data: postsData, error: postsError } = await supabase
         .from('post_hashtags')
-        .select('post_id, posts(*, user_profiles(*))')
+        .select('post_id, posts(*, profiles(*))')
         .eq('hashtag_id', hashtagData.id)
         .order('created_at', { ascending: false });
       if (postsError) throw postsError;

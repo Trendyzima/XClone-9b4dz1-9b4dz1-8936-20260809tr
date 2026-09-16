@@ -208,11 +208,11 @@ export function StoriesStrip() {
   useEffect(() => {
     if (!user) return;
     supabase
-      .from('user_profiles')
-      .select('followers_count')
+      .from('profiles')
+      .select('follower_count')
       .eq('id', user.id)
       .maybeSingle()
-      .then(({ data }) => setCreatorFollowers(data?.followers_count ?? 0));
+      .then(({ data }) => setCreatorFollowers(data?.follower_count ?? 0));
   }, [user?.id]);
 
   // ── Story Ads: inject between groups ──────────────────────────────────────
@@ -270,7 +270,7 @@ export function StoriesStrip() {
     setExploreLoading(true);
     const { data } = await supabase
       .from('stories')
-      .select('*, user_profiles(username, avatar_url)')
+      .select('*, profiles(username, avatar_url)')
       .gt('expires_at', new Date().toISOString())
       .order('views_count', { ascending: false })
       .limit(40);
@@ -442,7 +442,7 @@ export function StoriesStrip() {
     const allowedIds = user?.id ? [user.id, ...followedIds] : [];
     let query = supabase
       .from('stories')
-      .select('*, user_profiles(username, avatar_url)')
+      .select('*, profiles(username, avatar_url)')
       .gt('expires_at', new Date().toISOString())
       .order('created_at', { ascending: false });
     if (allowedIds.length > 0) {

@@ -45,7 +45,7 @@ export function ContentSuggestionsWidget() {
         // All-time viral posts — great for new users with no history
         const { data: viral } = await supabase
           .from('posts')
-          .select('*, user_profiles(username, avatar_url, verified, is_creator)')
+          .select('*, profiles(username, avatar_url, verified, is_creator)')
           .is('community_id', null)
           .gt('likes_count', 0)
           .order('likes_count', { ascending: false })
@@ -58,7 +58,7 @@ export function ContentSuggestionsWidget() {
         const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
         const { data: fresh } = await supabase
           .from('posts')
-          .select('*, user_profiles(username, avatar_url, verified, is_creator)')
+          .select('*, profiles(username, avatar_url, verified, is_creator)')
           .is('community_id', null)
           .gte('created_at', since)
           .order('created_at', { ascending: false })
