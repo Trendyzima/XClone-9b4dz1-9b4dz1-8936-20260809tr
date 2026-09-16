@@ -7,12 +7,14 @@ on:
     paths:
       - 'supabase/functions/_shared/observability.ts'
       - 'supabase/functions/service-health/**'
+      - 'supabase/functions/megalodon-gateway/**'
       - 'supabase/migrations/**'
       - '.github/workflows/operations-gate.yml'
   pull_request:
     paths:
       - 'supabase/functions/_shared/observability.ts'
       - 'supabase/functions/service-health/**'
+      - 'supabase/functions/megalodon-gateway/**'
       - 'supabase/migrations/**'
       - '.github/workflows/operations-gate.yml'
 
@@ -38,6 +40,7 @@ jobs:
         run: |
           deno check --node-modules-dir=none supabase/functions/service-health/index.ts
           deno check --node-modules-dir=none supabase/functions/_shared/observability.ts
+          deno check --node-modules-dir=none supabase/functions/megalodon-gateway/index.ts
       - name: Verify operational migration contract
         shell: bash
         run: |
