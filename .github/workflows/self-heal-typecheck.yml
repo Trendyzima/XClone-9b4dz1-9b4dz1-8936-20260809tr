@@ -140,5 +140,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src
           git diff --cached --quiet && exit 0
-          git commit -m "fix: finalize notification pagination repair"
+          git commit -m "fix: migrate notifications page to canonical capability plane"
           git push origin HEAD:main
