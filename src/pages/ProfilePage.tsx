@@ -518,8 +518,8 @@ export default function ProfilePage() {
     const tipperIds: string[] = [];
     const tipperAmts: number[] = [];
     for (const t of (monthTips ?? [])) {
-      const idx = tipperIds.indexOf(t.from_user_id);
-      if (idx >= 0) tipperAmts[idx] += Number(t.amount);
+      const idx = tipperIds.indexOf(t.sender_id);
+      if (idx >= 0) tipperAmts[idx] += Number(t.amount_cents ?? 0) / 100;
       else { tipperIds.push(t.sender_id); tipperAmts.push(Number(t.amount_cents ?? 0) / 100); }
     }
     const sorted = [...tipperAmts].sort((a, b) => b - a).slice(0, 3);
@@ -540,7 +540,7 @@ export default function ProfilePage() {
     setLoadingTips(true);
     const { data: tips } = await supabase.from('tips').select('*').or(`from_user_id.eq.${userId},to_user_id.eq.${userId}`).order('created_at', { ascending: false }).limit(50);
     if (!tips || tips.length === 0) { setTipHistory([]); setLoadingTips(false); return; }
-    const allUids = tips.flatMap((t: any) => [t.from_user_id, t.to_user_id]) as string[];
+    const allUids = tips.flatMap((t: any) => [t.sender_id, t.to_user_id]) as string[];
     const uids = allUids.filter((u: string, i: number) => allUids.indexOf(u) === i);
     const { data: profileRows } = await supabase.from('profiles').select('id, username, avatar_url').in('id', uids);
     // Use parallel arrays instead of index-sig objects (esbuild guard)
@@ -548,7 +548,7 @@ export default function ProfilePage() {
     const pData: any[] = [];
     for (const p of (profileRows ?? [])) { pIds.push(p.id); pData.push(p); }
     const getP = (uid: string) => pData[pIds.indexOf(uid)];
-    setTipHistory(tips.map((t: any) => ({ ...t, sender: getP(t.from_user_id), recipient: getP(t.to_user_id) })));
+    setTipHistory(tips.map((t: any) => ({ ...t, sender: getP(t.sender_id), recipient: getP(t.to_user_id) })));
     setLoadingTips(false);
   };
 
