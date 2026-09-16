@@ -1,4 +1,5 @@
-import { createClient, PostgrestBuilder } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
+import { PostgrestBuilder } from '@supabase/postgrest-js';
 
 const supabaseUrl     = import.meta.env.VITE_SUPABASE_URL     ?? 'https://placeholder.supabase.co';
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? 'placeholder-anon-key';
