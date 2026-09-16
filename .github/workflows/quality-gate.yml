@@ -104,3 +104,5 @@ jobs:
           grep -q "post_reposts" src/components/features/PostCard.tsx
           if grep -q "supabase.from('likes')" src/components/features/PostCard.tsx; then exit 1; fi
           if grep -q "supabase.from('reposts')" src/components/features/PostCard.tsx; then exit 1; fi
+
+# Verification trigger: run the full gate against the repaired main tree.
