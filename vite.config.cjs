@@ -96,9 +96,6 @@ const resolveTypescriptExtensions = {
   },
 
   load(id) {
-    // Safety-net: if Rollup asks us to load an extensionless absolute path
-    // (happens when Vite's alias plugin expands @/ AFTER our resolveId ran),
-    // try appending extensions before the load-fallback plugin errors out.
     if (!id || id.startsWith('\0')) return null;
     if (/\.[jt]sx?(\?.*)?$/.test(id)) return null;
     if (!path.isAbsolute(id)) return null;
@@ -115,10 +112,7 @@ const resolveTypescriptExtensions = {
   },
 };
 
-/* ─── Explicit aliases for every layout + feature component in App.tsx ───── *
- * Belt-and-suspenders: even if the plugin fails, these direct aliases ensure
- * Vite can always find the critical entry-point imports.
- */
+/* ─── Explicit aliases for every layout + feature component in App.tsx ───── */
 function a(rel) { return path.join(src, rel); }
 
 const layoutAliases = {
@@ -163,7 +157,6 @@ module.exports = defineConfig({
     extensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
     dedupe: ['react', 'react-dom'],
     alias: {
-      // Capacitor / Vercel stubs
       '@capacitor/core':                          stub,
       '@capacitor/status-bar':                    stub,
       '@capacitor/app':                           stub,
@@ -177,11 +170,7 @@ module.exports = defineConfig({
       '@capacitor-community/media':               stub,
       '@capgo/capacitor-updater':                 stub,
       '@vercel/analytics/react':                  stub,
-
-      // Explicit layout / hook aliases (belt-and-suspenders)
       ...layoutAliases,
-
-      // Generic @ path alias — must come LAST so specific aliases win
       '@': src,
     },
   },
@@ -204,7 +193,14 @@ module.exports = defineConfig({
           },
         },
       ],
-      output: { interop: 'auto' },
+      output: {
+        interop: 'auto',
+        // Production evidence shows the eager Auth/Home shell works while
+        // multiple React.lazy routes (Profile, Messages, Notifications and
+        // Daily Rewards) fail together. Inline dynamic imports removes the
+        // fragile runtime asset-fetch boundary for the SPA's single entry.
+        inlineDynamicImports: true,
+      },
       onwarn(warning, warn) {
         if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return;
         if (warning.code === 'MISSING_EXPORT') return;
