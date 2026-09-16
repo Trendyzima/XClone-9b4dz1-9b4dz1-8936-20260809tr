@@ -1,6 +1,7 @@
 import { FunctionsHttpError, type SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { TestagramCapabilityClient } from '@/services/testagramCapabilityClient';
+import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 
 export type BackendFunctionError = {
   message: string;
@@ -32,13 +33,7 @@ export async function requireAccessToken(client: SupabaseClient = supabase): Pro
 }
 
 function extractFunctionError(error: unknown): BackendClientError {
-  if (error instanceof FunctionsHttpError) {
-    return new BackendClientError(error.message || 'Edge Function request failed', {
-      status: error.context?.status ?? null,
-      code: 'EDGE_FUNCTION_ERROR',
-      details: error.context,
-    });
-  }
+  if (error instanceof FunctionsHttpError) return new BackendClientError(error.message || 'Edge Function request failed', { status: error.context?.status ?? null, code: 'EDGE_FUNCTION_ERROR', details: error.context });
   if (error instanceof Error) return new BackendClientError(error.message);
   return new BackendClientError('Backend request failed');
 }
@@ -57,17 +52,11 @@ export async function invokeBackendFunction<TResponse = unknown, TBody extends R
   return data as TResponse;
 }
 
-/** Canonical capability-plane client; callers may supply an explicit endpoint for compatibility. */
 export function createBackendCapabilityClient(
   endpoint: string = `${import.meta.env.VITE_SUPABASE_URL ?? 'https://placeholder.supabase.co'}/functions/v1/capability-gateway`,
   client: SupabaseClient = supabase,
 ): TestagramCapabilityClient {
-  return new TestagramCapabilityClient({
-    endpoint,
-    getAccessToken: () => requireAccessToken(client),
-    clientName: 'testagram-web',
-    clientVersion: '4',
-  });
+  return new TestagramCapabilityClient({ endpoint, getAccessToken: () => requireAccessToken(client), clientName: 'testagram-web', clientVersion: '4' });
 }
 
 export const backendCapabilities = createBackendCapabilityClient();
@@ -93,11 +82,20 @@ export async function requestMpesaStkPush(
   request: MpesaStkPushRequest,
   client: SupabaseClient = supabase,
 ): Promise<MpesaStkPushResponse> {
-  if (!Number.isFinite(request.amount_kes) || request.amount_kes < 10) {
-    throw new BackendClientError('M-Pesa amount must be at least KES 10', { code: 'INVALID_AMOUNT' });
+  if (!Number.isFinite(request.amount_kes) || request.amount_kes < 10) throw new BackendClientError('M-Pesa amount must be at least KES 10', { code: 'INVALID_AMOUNT' });
+  if (!request.metadata?.wallet_id) throw new BackendClientError('Wallet identity is required', { code: 'WALLET_ID_REQUIRED' });
+
+  trackTestagramEvent(TestagramEvent.WALLET_DEPOSIT_STARTED, {
+    provider: 'mpesa',
+    amount_kes: request.amount_kes,
+  });
+
+  const result = await invokeBackendFunction<MpesaStkPushResponse, MpesaStkPushRequest>('mpesa-stk-push', request, client);
+  if (result.status === 'success') {
+    trackTestagramEvent(TestagramEvent.WALLET_DEPOSIT_COMPLETED, {
+      provider: 'mpesa',
+      amount_kes: result.amount_kes ?? request.amount_kes,
+    });
   }
-  if (!request.metadata?.wallet_id) {
-    throw new BackendClientError('Wallet identity is required', { code: 'WALLET_ID_REQUIRED' });
-  }
-  return invokeBackendFunction<MpesaStkPushResponse, MpesaStkPushRequest>('mpesa-stk-push', request, client);
+  return result;
 }
