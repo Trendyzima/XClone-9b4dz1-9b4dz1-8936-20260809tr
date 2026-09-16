@@ -3,8 +3,8 @@
 
 insert into public.capability_registry(name, version, access, readonly, description, enabled)
 values
-  ('testagram.notifications.list', 1, 'authenticated', true, 'List the authenticated user\'s canonical notifications.', true),
-  ('testagram.notifications.unread_count', 1, 'authenticated', true, 'Read the authenticated user\'s unread notification count.', true),
+  ('testagram.notifications.list', 1, 'authenticated', true, 'List the authenticated user''s canonical notifications.', true),
+  ('testagram.notifications.unread_count', 1, 'authenticated', true, 'Read the authenticated user''s unread notification count.', true),
   ('testagram.notifications.mark_read', 1, 'authenticated', false, 'Mark one canonical notification as read.', true),
   ('testagram.notifications.mark_all_read', 1, 'authenticated', false, 'Mark all canonical notifications as read.', true),
   ('testagram.notifications.preferences', 1, 'authenticated', true, 'Read canonical notification preferences.', true),
@@ -49,11 +49,7 @@ declare
     ) x;
     return jsonb_build_object('items',v,'next_cursor',case when jsonb_array_length(v)=v_limit then (v_offset+v_limit)::text else null end);
   when 'testagram.notifications.unread_count' then
-    select count(*) into v_id
-    from public.notifications n
-    where n.recipient_id=u and n.read_at is null and n.archived_at is null
-      and (n.expires_at is null or n.expires_at > now());
-    return jsonb_build_object('count',v_id::text::int);
+    return jsonb_build_object('count',(select count(*) from public.notifications n where n.recipient_id=u and n.read_at is null and n.archived_at is null and (n.expires_at is null or n.expires_at > now())));
   when 'testagram.notifications.mark_read' then
     v_id:=(p_input->>'notification_id')::uuid;
     update public.notifications set read_at=coalesce(read_at,now()) where id=v_id and recipient_id=u;
@@ -86,18 +82,17 @@ begin
   select pg_get_functiondef(p.oid) into def
   from pg_proc p join pg_namespace n on n.oid=p.pronamespace
   where n.nspname='public' and p.proname='capability_dispatch'
-    and pg_get_function_identity_arguments(p.oid)='p_capability text, p_input jsonb DEFAULT \'{}\'::jsonb';
+    and pg_get_function_identity_arguments(p.oid)='p_capability text, p_input jsonb DEFAULT ''{}''::jsonb';
   if def is null then raise exception 'CAPABILITY_DISPATCH_NOT_FOUND'; end if;
   if position('testagram.notifications.list' in def) > 0 then return; end if;
   def := replace(def, ' else raise exception ''CAPABILITY_NOT_IMPLEMENTED'';', injected || ' else raise exception ''CAPABILITY_NOT_IMPLEMENTED'';');
   execute def;
 end $$;
 
--- Make sure the authenticated role can execute the dispatcher after replacement.
 grant execute on function public.capability_dispatch(text,jsonb) to authenticated;
 
--- Keep the native notification table authoritative while giving delivery infrastructure
--- a stable outbox boundary. The outbox is intentionally service-side only.
+-- Native notifications remain authoritative. The outbox is the stable handoff boundary
+-- for delivery infrastructure such as Novu; it contains no provider credentials.
 create table if not exists public.notification_delivery_outbox (
   id uuid primary key default gen_random_uuid(),
   notification_id uuid not null references public.notifications(id) on delete cascade,
@@ -153,8 +148,5 @@ create trigger notifications_enqueue_delivery
 after insert on public.notifications
 for each row execute function public.enqueue_notification_delivery();
 
--- No client role is granted access to the delivery outbox.
 revoke all on table public.notification_delivery_outbox from anon,authenticated;
 revoke all on function public.enqueue_notification_delivery() from anon,authenticated;
-
-after commit;
