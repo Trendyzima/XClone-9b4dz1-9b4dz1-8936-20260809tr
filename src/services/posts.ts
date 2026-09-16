@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { deleteMedia, uploadMedia, type MediaUploadResult } from '../lib/media';
+import { TestagramEvent, trackTestagramEvent } from '../lib/testagram-analytics';
 
 export const MAX_POST_BODY_LENGTH = 5000;
 
@@ -72,7 +73,14 @@ export async function createPost(input: CreatePostInput): Promise<CreatedPost> {
       if (updateError) throw updateError;
     }
 
-    return { ...post, media: uploaded };
+    const result = { ...post, media: uploaded };
+    trackTestagramEvent(TestagramEvent.POST_CREATED, {
+      post_id: post.id,
+      media_count: uploaded.length,
+      has_media: uploaded.length > 0,
+      community_id: input.communityId ?? null,
+    });
+    return result;
   } catch (error) {
     await Promise.allSettled(uploaded.map((media) => deleteMedia(media.media_id)));
     await supabase.from('posts').delete().eq('id', post.id).eq('author_id', user.id);
