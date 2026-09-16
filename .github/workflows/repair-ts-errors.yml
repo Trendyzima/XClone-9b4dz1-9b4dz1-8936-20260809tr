@@ -22,7 +22,6 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
           def replace(path, old, new):
               p = Path(path)
@@ -31,49 +30,31 @@ jobs:
                   raise SystemExit(f'Expected source pattern not found: {path}: {old[:120]}')
               p.write_text(s.replace(old, new, 1))
 
-          # lucide-react currently omits the optional SVG title prop from LucideProps.
-          # Keep existing call sites source-compatible without changing runtime behavior.
           p = Path('src/types/lucide-react-compat.d.ts')
           p.parent.mkdir(parents=True, exist_ok=True)
           p.write_text("""import 'lucide-react';\n\ndeclare module 'lucide-react' {\n  interface LucideProps {\n    title?: string;\n  }\n}\n""")
 
           replace('src/hooks/useSEO.ts', "type?: 'website' | 'article' | 'profile';", "type?: 'website' | 'article' | 'profile' | 'video.other';")
 
-          # SliderProps is already fixed in the current tree; accept either legacy or fixed form.
+          # Slider is already repaired on main; do not fail if it is in the fixed form.
           slider = Path('src/components/ui/slider.tsx')
           ss = slider.read_text()
           if 'extends React.InputHTMLAttributes<HTMLInputElement>' in ss and 'extends Omit<React.InputHTMLAttributes<HTMLInputElement>' not in ss:
-              ss = ss.replace(
-                  'export interface SliderProps extends React.InputHTMLAttributes<HTMLInputElement> {',
-                  'export interface SliderProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "defaultValue" | "onChange" | "min" | "max" | "step"> {'
-              )
-          if 'onValueChange?: (value: number[]) => void' in ss and 'onChange?: React.ChangeEventHandler<HTMLInputElement>' not in ss:
-              ss = ss.replace(
-                  '  onValueChange?: (value: number[]) => void\n}',
-                  '  onValueChange?: (value: number[]) => void\n  onChange?: React.ChangeEventHandler<HTMLInputElement>\n}'
-              )
-          slider.write_text(ss)
+              ss = ss.replace('export interface SliderProps extends React.InputHTMLAttributes<HTMLInputElement> {', 'export interface SliderProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "defaultValue" | "onChange" | "min" | "max" | "step"> {')
+              if 'onChange?: React.ChangeEventHandler<HTMLInputElement>' not in ss:
+                  ss = ss.replace('  onValueChange?: (value: number[]) => void\n}', '  onValueChange?: (value: number[]) => void\n  onChange?: React.ChangeEventHandler<HTMLInputElement>\n}')
+              slider.write_text(ss)
 
-          replace('src/components/features/EditProfileDialog.tsx',
-                  '  onOpenChange: (open: boolean) => void;\n  onSuccess: () => void;',
-                  '  onOpenChange: (open: boolean) => void;\n  onSuccess: () => void;\n  profile?: any;')
+          replace('src/components/features/EditProfileDialog.tsx', '  onOpenChange: (open: boolean) => void;\n  onSuccess: () => void;', '  onOpenChange: (open: boolean) => void;\n  onSuccess: () => void;\n  profile?: any;')
 
-          # PollCard: support the existing call site that supplies only postId.
           poll = Path('src/components/features/PollCard.tsx')
           ps = poll.read_text()
           if 'poll?: Poll;' not in ps:
               ps = ps.replace('interface PollCardProps {\n  poll: Poll;\n  postId: string;\n}', 'interface PollCardProps {\n  poll?: Poll;\n  postId: string;\n}')
           if 'const [resolvedPoll' not in ps:
-              ps = ps.replace(
-                  'export function PollCard({ poll, postId }: PollCardProps) {\n  const { user } = useAuth();',
-                  'export function PollCard({ poll, postId }: PollCardProps) {\n  const { user } = useAuth();\n  const [resolvedPoll, setResolvedPoll] = useState<Poll | null>(poll ?? null);'
-              )
-          if 'const [pollData, setPollData] = useState<Poll | null>' not in ps:
-              ps = ps.replace('  const [pollData, setPollData] = useState(poll);', '  const [pollData, setPollData] = useState<Poll | null>(poll ?? null);')
-          if 'resolvedPoll?.id' not in ps:
-              ps = ps.replace(
-                  '  useEffect(() => { if (user) checkIfVoted(); }, [poll.id, user?.id]);',
-                  """  useEffect(() => {
+              ps = ps.replace('export function PollCard({ poll, postId }: PollCardProps) {\n  const { user } = useAuth();', 'export function PollCard({ poll, postId }: PollCardProps) {\n  const { user } = useAuth();\n  const [resolvedPoll, setResolvedPoll] = useState<Poll | null>(poll ?? null);')
+          if 'useEffect(() => { if (user && resolvedPoll)' not in ps:
+              ps = ps.replace('  useEffect(() => { if (user) checkIfVoted(); }, [poll.id, user?.id]);', """  useEffect(() => {
     let cancelled = false;
     if (poll) { setResolvedPoll(poll); setPollData(poll); return () => { cancelled = true; }; }
     supabase.from('polls').select('*, options:poll_options(*)').eq('post_id', postId).maybeSingle()
@@ -81,46 +62,20 @@ jobs:
     return () => { cancelled = true; };
   }, [poll, postId]);
 
-  useEffect(() => { if (user && resolvedPoll) checkIfVoted(); }, [resolvedPoll?.id, user?.id]);"""
-              )
-          ps = ps.replace(
-              "    if (!user) return;\n    const { data } = await supabase\n      .from('poll_votes').select('option_id')\n      .eq('poll_id', poll.id).eq('user_id', user.id).maybeSingle();",
-              "    if (!user || !resolvedPoll) return;\n    const { data } = await supabase\n      .from('poll_votes').select('option_id')\n      .eq('poll_id', resolvedPoll.id).eq('user_id', user.id).maybeSingle();"
-          )
-          ps = ps.replace(
-              "    if (!user) { navigate('/auth'); return; }\n    if (voted) { toast.error('You already voted'); return; }\n    if (new Date() > new Date(poll.expires_at)) { toast.error('Poll has ended'); return; }",
-              "    if (!user || !resolvedPoll) { navigate('/auth'); return; }\n    if (voted) { toast.error('You already voted'); return; }\n    if (new Date() > new Date(resolvedPoll.expires_at)) { toast.error('Poll has ended'); return; }"
-          )
-          ps = ps.replace("row_id: poll.id", "row_id: resolvedPoll.id")
-          ps = ps.replace("poll_id: poll.id, option_id: optionId", "poll_id: resolvedPoll.id, option_id: optionId")
-          ps = ps.replace(".eq('id', poll.id).single()", ".eq('id', resolvedPoll.id).single()")
+  useEffect(() => { if (user && resolvedPoll) checkIfVoted(); }, [resolvedPoll?.id, user?.id]);""")
+          ps = ps.replace("if (!user) return;\n    const { data } = await supabase\n      .from('poll_votes').select('option_id')\n      .eq('poll_id', poll.id).eq('user_id', user.id).maybeSingle();", "if (!user || !resolvedPoll) return;\n    const { data } = await supabase\n      .from('poll_votes').select('option_id')\n      .eq('poll_id', resolvedPoll.id).eq('user_id', user.id).maybeSingle();")
+          ps = ps.replace("if (!user) { navigate('/auth'); return; }\n    if (voted) { toast.error('You already voted'); return; }\n    if (new Date() > new Date(poll.expires_at))", "if (!user || !resolvedPoll) { navigate('/auth'); return; }\n    if (voted) { toast.error('You already voted'); return; }\n    if (new Date() > new Date(resolvedPoll.expires_at))")
+          ps = ps.replace('row_id: poll.id', 'row_id: resolvedPoll.id').replace("poll_id: poll.id, option_id: optionId", "poll_id: resolvedPoll.id, option_id: optionId").replace(".eq('id', poll.id).single()", ".eq('id', resolvedPoll.id).single()")
+          ps = ps.replace('new Date(poll.expires_at)', 'new Date(pollData?.expires_at ?? resolvedPoll?.expires_at ?? Date.now())')
           if 'if (!pollData) return null;' not in ps:
-              ps = ps.replace(
-                  '  const pct = (votes: number) => pollData.total_votes === 0 ? 0 : Math.round((votes / pollData.total_votes) * 100);',
-                  '  if (!pollData) return null;\n\n  const pct = (votes: number) => pollData.total_votes === 0 ? 0 : Math.round((votes / pollData.total_votes) * 100);'
-              )
-          ps = ps.replace('new Date(poll.expires_at)', 'new Date(pollData.expires_at)')
+              ps = ps.replace('  const pct = (votes: number) => pollData.total_votes === 0 ? 0 : Math.round((votes / pollData.total_votes) * 100);', '  if (!pollData) return null;\n\n  const pct = (votes: number) => pollData.total_votes === 0 ? 0 : Math.round((votes / pollData.total_votes) * 100);')
           poll.write_text(ps)
 
-          # Wallet P2P balance chart: dayMap stores numeric balances, not calendar-cell objects.
           w = Path('src/pages/WalletPage.tsx')
           ws = w.read_text()
-          ws = ws.replace(
-              'const dayMap: Record<string, { inAmt: number; outAmt: number; count: number }> = {};\n    const now = Date.now();',
-              'const dayMap: Record<string, number> = {};\n    const now = Date.now();', 1
-          )
-          # Wallet monthly calendar: explicitly type cell data and values so Object.values is not unknown.
-          ws = ws.replace(
-              'const dayMap: any = {};\n    for (let d = 1; d <= daysInMonth; d++) dayMap[d] = { inAmt: 0, outAmt: 0, count: 0 };',
-              'const dayMap: Record<number, { inAmt: number; outAmt: number; count: number }> = {};\n    for (let d = 1; d <= daysInMonth; d++) dayMap[d] = { inAmt: 0, outAmt: 0, count: 0 };', 1
-          )
-          ws = ws.replace(
-              'const maxAmt = Math.max(...Object.values(dayMap).map(v => v.inAmt + v.outAmt), 1);',
-              'const maxAmt = Math.max(...Object.values(dayMap).map(v => v.inAmt + v.outAmt), 1);', 1
-          )
+          ws = ws.replace('const dayMap: Record<string, { inAmt: number; outAmt: number; count: number }> = {};\n    const now = Date.now();', 'const dayMap: Record<string, number> = {};\n    const now = Date.now();', 1)
           w.write_text(ws)
 
-          # Remove the obsolete ambient PostgREST typing shim if it ever reappeared.
           Path('src/types/postgrest-builder.d.ts').unlink(missing_ok=True)
           PY
       - name: Commit source repairs
