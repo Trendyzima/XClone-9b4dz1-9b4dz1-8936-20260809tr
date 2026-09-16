@@ -19,11 +19,10 @@ supabase.auth.onAuthStateChange((_event, session) => {
 function trackRouteView() {
   const pathname = window.location.pathname;
   analytics.pageView(pathname);
-
   if (/^\/profile\//.test(pathname)) trackTestagramEvent(TestagramEvent.PROFILE_VIEWED, { path: pathname });
   if (/^\/search/.test(pathname)) trackTestagramEvent(TestagramEvent.SEARCH_PERFORMED, { source: 'route', path: pathname });
   if (/^\/notifications/.test(pathname)) trackTestagramEvent(TestagramEvent.NOTIFICATION_OPENED, { path: pathname });
-  if (/^\/create-ad/.test(pathname)) trackTestagramEvent(TestagramEvent.AD_CREATED, { stage: 'form_viewed', path: pathname });
+  if (/^\/create-ad/.test(pathname)) trackTestagramEvent(TestagramEvent.AD_CREATE_VIEWED, { path: pathname });
   if (/^\/wallet/.test(pathname)) analytics.track('testagram_wallet_viewed', { path: pathname });
   if (/^\/messages/.test(pathname)) analytics.track('testagram_messages_viewed', { path: pathname });
 }
