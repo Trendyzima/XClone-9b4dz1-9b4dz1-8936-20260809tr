@@ -109,6 +109,7 @@ jobs:
             const firstPayment=s.indexOf(paymentDecl);
             const secondPayment=firstPayment >= 0 ? s.indexOf(paymentDecl, firstPayment + paymentDecl.length) : -1;
             if (secondPayment >= 0) s=s.slice(0,secondPayment)+s.slice(secondPayment+paymentDecl.length);
+            s=s.replace('await fetchNotifications(cursorValue, false);\n    return hasMore;', 'return fetchNotifications(cursorValue, false);');
             s=s.replace('onPosted={() => fetchNotifications(0)}', 'onPosted={() => { void fetchNotifications(null, true); void refreshUnreadCount(); }}');
             s=s.replace("{activeTab !== 'fediverse' && notifications.some(n => !n.read) && (", "{activeTab !== 'fediverse' && unreadCount > 0 && (");
             write(p,s);
@@ -139,5 +140,5 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add src
           git diff --cached --quiet && exit 0
-          git commit -m "fix: harden notifications pagination repair"
+          git commit -m "fix: finalize notification pagination repair"
           git push origin HEAD:main
