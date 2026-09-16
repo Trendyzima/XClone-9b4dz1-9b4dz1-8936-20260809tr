@@ -101,56 +101,64 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      toast({ title: 'Error', description: 'Image must be less than 5MB', variant: 'destructive' });
+      toast({ title: 'Error', description: 'Cover image must be less than 5MB', variant: 'destructive' });
       return;
     }
     setCoverImage(file);
     setCoverPreview(URL.createObjectURL(file));
   };
 
-  const uploadMedia = async (file: File, kind: MediaKind): Promise<string | null> => {
-    if (!user) return null;
-    const extension = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const path = `${user.id}/${kind}-${Date.now()}.${extension}`;
-    const { error } = await supabase.storage.from('profiles').upload(path, file, { upsert: true });
+  const uploadProfileMedia = async (file: File, kind: MediaKind) => {
+    if (!user) throw new Error('Not authenticated');
+    const form = new FormData();
+    form.append('kind', kind);
+    form.append('file', file, file.name);
+    const { data, error } = await supabase.functions.invoke('profile-media-upload', { body: form });
     if (error) throw error;
-    const { data } = supabase.storage.from('profiles').getPublicUrl(path);
-    return data.publicUrl;
+    if (!data?.ok || !data.delivery_url) throw new Error('Profile media upload was not completed');
+    return data.delivery_url as string;
   };
 
-  const handleSave = async () => {
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if (!user) return;
+    const cleanUsername = username.trim();
+    if (!/^[A-Za-z0-9_]{3,32}$/.test(cleanUsername)) {
+      toast({ title: 'Invalid username', description: 'Use 3–32 letters, numbers, or underscores.', variant: 'destructive' });
+      return;
+    }
     setLoading(true);
     try {
       let avatarUrl = avatarPreview;
       let coverUrl = coverPreview;
-      if (avatar) avatarUrl = await uploadMedia(avatar, 'avatar');
-      if (coverImage) coverUrl = await uploadMedia(coverImage, 'cover');
+      if (avatar) avatarUrl = await uploadProfileMedia(avatar, 'avatar');
+      if (coverImage) coverUrl = await uploadProfileMedia(coverImage, 'cover');
 
       const social_links: SocialLinks = {
-        twitter: twitterHandle || null,
-        instagram: instagramHandle || null,
-        linkedin: linkedinUrl || null,
+        twitter: twitterHandle.trim().replace(/^@/, '') || null,
+        instagram: instagramHandle.trim().replace(/^@/, '') || null,
+        linkedin: linkedinUrl.trim() || null,
       };
 
-      const { error } = await supabase.from('profiles').upsert({
-        id: user.id,
-        username,
-        bio,
-        website,
-        location,
+      const { error: updateError } = await supabase.from('profiles').update({
+        username: cleanUsername,
+        bio: bio.trim() || null,
+        website: website.trim() || null,
+        location: location.trim() || null,
         birth_date: birthDate || null,
         social_links,
-        avatar_url: avatarUrl,
-        cover_url: coverUrl,
-      });
-      if (error) throw error;
-      toast({ title: 'Profile updated' });
+        avatar_url: avatarUrl || null,
+        cover_url: coverUrl || null,
+      }).eq('id', user.id);
+      if (updateError) throw updateError;
+
+      await supabase.auth.updateUser({ data: { username: cleanUsername } });
+      toast({ title: 'Success', description: 'Profile updated successfully' });
       onSuccess();
       onOpenChange(false);
-    } catch (error) {
-      console.error('[profile-editor] save failed', error);
-      toast({ title: 'Error', description: error instanceof Error ? error.message : 'Could not update profile', variant: 'destructive' });
+    } catch (error: any) {
+      console.error('[profile-editor] update failed:', error);
+      toast({ title: 'Error', description: error.message || 'Failed to update profile', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -158,41 +166,41 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Edit profile</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="space-y-2"><Label htmlFor="username">Username</Label><Input id="username" value={username} onChange={e => setUsername(e.target.value)} /></div>
-          <div className="space-y-2"><Label htmlFor="bio">Bio</Label><Textarea id="bio" value={bio} onChange={e => setBio(e.target.value)} /></div>
-          <div className="space-y-2"><Label htmlFor="website">Website</Label><Input id="website" value={website} onChange={e => setWebsite(e.target.value)} /></div>
-          <div className="space-y-2"><Label htmlFor="location">Location</Label><Input id="location" value={location} onChange={e => setLocation(e.target.value)} /></div>
-          <div className="space-y-2"><Label htmlFor="birthDate">Birth date</Label><Input id="birthDate" type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)} /></div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="space-y-2"><Label htmlFor="twitter">Twitter</Label><Input id="twitter" value={twitterHandle} onChange={e => setTwitterHandle(e.target.value)} /></div>
-            <div className="space-y-2"><Label htmlFor="instagram">Instagram</Label><Input id="instagram" value={instagramHandle} onChange={e => setInstagramHandle(e.target.value)} /></div>
+      <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Edit profile</DialogTitle></DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <Label>Cover Image</Label>
+            <label className="relative cursor-pointer group block mt-2">
+              <div className="w-full h-32 rounded-lg bg-muted overflow-hidden">
+                {coverPreview ? <img src={coverPreview} alt="Cover" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-muted-foreground"><Upload className="w-8 h-8" /></div>}
+              </div>
+              <div className="absolute inset-0 bg-black/50 rounded-lg flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Camera className="w-8 h-8 text-white" /></div>
+              <input type="file" accept="image/*" className="hidden" onChange={handleCoverChange} disabled={loading} />
+            </label>
           </div>
-          <div className="space-y-2"><Label htmlFor="linkedin">LinkedIn</Label><Input id="linkedin" value={linkedinUrl} onChange={e => setLinkedinUrl(e.target.value)} /></div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>Avatar</Label>
-              <label className="flex items-center gap-2 cursor-pointer rounded-md border p-3"><Camera className="h-4 w-4" /><span className="text-sm">Choose image</span><input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} /></label>
-              {avatarPreview && <img src={avatarPreview} alt="Avatar preview" className="h-20 w-20 rounded-full object-cover" />}
-            </div>
-            <div className="space-y-2">
-              <Label>Cover</Label>
-              <label className="flex items-center gap-2 cursor-pointer rounded-md border p-3"><Upload className="h-4 w-4" /><span className="text-sm">Choose image</span><input type="file" accept="image/*" className="hidden" onChange={handleCoverChange} /></label>
-              {coverPreview && <img src={coverPreview} alt="Cover preview" className="h-20 w-full rounded-md object-cover" />}
-            </div>
+          <div className="flex justify-center">
+            <label className="relative cursor-pointer group">
+              <div className="w-24 h-24 rounded-full bg-muted overflow-hidden border-4 border-background">
+                {avatarPreview ? <img src={avatarPreview} alt="Avatar" className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-2xl font-bold">{username[0]?.toUpperCase()}</div>}
+              </div>
+              <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"><Camera className="w-8 h-8 text-white" /></div>
+              <input type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} disabled={loading} />
+            </label>
           </div>
-
-          <Button onClick={handleSave} disabled={loading} className="w-full">
-            {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            Save changes
-          </Button>
-        </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2"><Label htmlFor="username">Username *</Label><Input id="username" value={username} onChange={e => setUsername(e.target.value)} placeholder="your_username" required disabled={loading} /></div>
+            <div className="space-y-2"><Label htmlFor="email">Email (read-only)</Label><Input id="email" value={user?.email || ''} disabled className="bg-muted" /></div>
+            <div className="space-y-2 md:col-span-2"><Label htmlFor="bio">Bio</Label><Textarea id="bio" value={bio} onChange={e => setBio(e.target.value)} placeholder="Tell us about yourself" rows={3} maxLength={160} disabled={loading} /><p className="text-xs text-muted-foreground text-right">{bio.length}/160</p></div>
+            <div className="space-y-2"><Label htmlFor="location">Location</Label><Input id="location" value={location} onChange={e => setLocation(e.target.value)} placeholder="City, Country" disabled={loading} /></div>
+            <div className="space-y-2"><Label htmlFor="website">Website</Label><Input id="website" type="url" value={website} onChange={e => setWebsite(e.target.value)} placeholder="https://yourwebsite.com" disabled={loading} /></div>
+            <div className="space-y-2"><Label htmlFor="birthDate">Birth Date</Label><Input id="birthDate" type="date" value={birthDate} onChange={e => setBirthDate(e.target.value)} disabled={loading} /></div>
+            <div className="space-y-2"><Label htmlFor="twitter">Twitter / X Handle</Label><Input id="twitter" value={twitterHandle} onChange={e => setTwitterHandle(e.target.value)} placeholder="@yourusername" disabled={loading} /></div>
+            <div className="space-y-2"><Label htmlFor="instagram">Instagram Handle</Label><Input id="instagram" value={instagramHandle} onChange={e => setInstagramHandle(e.target.value)} placeholder="@yourusername" disabled={loading} /></div>
+            <div className="space-y-2 md:col-span-2"><Label htmlFor="linkedin">LinkedIn URL</Label><Input id="linkedin" type="url" value={linkedinUrl} onChange={e => setLinkedinUrl(e.target.value)} placeholder="https://linkedin.com/in/yourusername" disabled={loading} /></div>
+          </div>
+          <div className="flex space-x-2 pt-4"><Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={loading} className="flex-1">Cancel</Button><Button type="submit" disabled={loading} className="flex-1">{loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save Changes'}</Button></div>
+        </form>
       </DialogContent>
     </Dialog>
   );
