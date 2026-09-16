@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useSEO } from '@/hooks/useSEO';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities, CapabilityClientError } from '@/services/backendClient';
 import { List, Plus, Lock, Globe, Users, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -10,11 +10,22 @@ import { PageAdBanner } from '@/components/features/AdSenseAd';
 
 function ListsAdBanner() { return <PageAdBanner />; }
 
+type ListRecord = {
+  id: string;
+  owner_id: string;
+  name: string;
+  description?: string | null;
+  is_private: boolean;
+  member_count?: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export function ListsPage() {
   const { user } = useAuth();
   useSEO({ noindex: true, title: 'Lists', url: '/lists' });
   const navigate = useNavigate();
-  const [lists, setLists] = useState<any[]>([]);
+  const [lists, setLists] = useState<ListRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
 
@@ -23,24 +34,18 @@ export function ListsPage() {
       navigate('/auth');
       return;
     }
-
-    fetchLists();
+    void fetchLists();
   }, [user]);
 
   const fetchLists = async () => {
     if (!user) return;
-
     try {
-      const { data, error } = await supabase
-        .from('lists')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      setLists(data || []);
+      setLoading(true);
+      const result = await backendCapabilities.listLists();
+      setLists((result.items ?? []) as ListRecord[]);
     } catch (error) {
       console.error('Error fetching lists:', error);
+      toast.error(error instanceof CapabilityClientError ? error.message : 'Could not load lists');
     } finally {
       setLoading(false);
     }
@@ -49,7 +54,7 @@ export function ListsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
       </div>
     );
   }
@@ -59,74 +64,72 @@ export function ListsPage() {
       <TopBar title="Lists" showBack />
       <ListsAdBanner />
       <div className="max-w-2xl mx-auto">
-      <div className="border-b border-border p-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <List className="w-6 h-6" />
-          <div>
-            <h1 className="text-xl font-bold">Lists</h1>
-            <p className="text-sm text-muted-foreground">
-              {lists.length} list{lists.length !== 1 ? 's' : ''}
-            </p>
+        <div className="border-b border-border p-4 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <List className="w-6 h-6" />
+            <div>
+              <h1 className="text-xl font-bold">Lists</h1>
+              <p className="text-sm text-muted-foreground">
+                {lists.length} list{lists.length !== 1 ? 's' : ''}
+              </p>
+            </div>
           </div>
+          <button
+            onClick={() => setShowCreateDialog(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-full hover:opacity-90"
+          >
+            <Plus className="w-5 h-5" />
+            New List
+          </button>
         </div>
-        <button
-          onClick={() => setShowCreateDialog(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-full hover:opacity-90"
-        >
-          <Plus className="w-5 h-5" />
-          New List
-        </button>
-      </div>
 
-      <div>
-        {lists.length === 0 ? (
-          <div className="text-center py-12">
-            <List className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
-            <h2 className="text-xl font-semibold mb-2">No lists yet</h2>
-            <p className="text-muted-foreground mb-4">
-              Create lists to organize people you follow
-            </p>
-            <button
-              onClick={() => setShowCreateDialog(true)}
-              className="px-6 py-2 bg-primary text-primary-foreground rounded-full hover:opacity-90"
-            >
-              Create a list
-            </button>
-          </div>
-        ) : (
-          <div className="divide-y divide-border">
-            {lists.map((list) => (
-              <div
-                key={list.id}
-                onClick={() => navigate(`/lists/${list.id}`)}
-                className="p-4 hover:bg-muted/50 cursor-pointer transition-colors"
+        <div>
+          {lists.length === 0 ? (
+            <div className="text-center py-12">
+              <List className="w-16 h-16 text-muted-foreground mx-auto mb-4 opacity-50" />
+              <h2 className="text-xl font-semibold mb-2">No lists yet</h2>
+              <p className="text-muted-foreground mb-4">
+                Create lists to organize people you follow
+              </p>
+              <button
+                onClick={() => setShowCreateDialog(true)}
+                className="px-6 py-2 bg-primary text-primary-foreground rounded-full hover:opacity-90"
               >
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h3 className="font-semibold">{list.name}</h3>
-                      {list.is_private ? (
-                        <Lock className="w-4 h-4 text-muted-foreground" />
-                      ) : (
-                        <Globe className="w-4 h-4 text-muted-foreground" />
+                Create a list
+              </button>
+            </div>
+          ) : (
+            <div className="divide-y divide-border">
+              {lists.map((list) => (
+                <div
+                  key={list.id}
+                  onClick={() => navigate(`/lists/${list.id}`)}
+                  className="p-4 hover:bg-muted/50 cursor-pointer transition-colors"
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-semibold">{list.name}</h3>
+                        {list.is_private ? (
+                          <Lock className="w-4 h-4 text-muted-foreground" />
+                        ) : (
+                          <Globe className="w-4 h-4 text-muted-foreground" />
+                        )}
+                      </div>
+                      {list.description && (
+                        <p className="text-sm text-muted-foreground mb-2">{list.description}</p>
                       )}
-                    </div>
-                    {list.description && (
-                      <p className="text-sm text-muted-foreground mb-2">
-                        {list.description}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Users className="w-4 h-4" />
-                      <span>{list.member_count} member{list.member_count !== 1 ? 's' : ''}</span>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Users className="w-4 h-4" />
+                        <span>{list.member_count ?? 0} member{(list.member_count ?? 0) !== 1 ? 's' : ''}</span>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       {showCreateDialog && (
@@ -134,7 +137,7 @@ export function ListsPage() {
           onClose={() => setShowCreateDialog(false)}
           onCreated={() => {
             setShowCreateDialog(false);
-            fetchLists();
+            void fetchLists();
           }}
         />
       )}
@@ -156,23 +159,12 @@ function CreateListDialog({ onClose, onCreated }: { onClose: () => void; onCreat
     }
 
     setLoading(true);
-
     try {
-      const { error } = await supabase
-        .from('lists')
-        .insert({
-          user_id: user.id,
-          name: name.trim(),
-          description: description.trim(),
-          is_private: isPrivate
-        });
-
-      if (error) throw error;
-
+      await backendCapabilities.createList(name.trim(), description.trim(), isPrivate);
       toast.success('List created successfully');
       onCreated();
-    } catch (error: any) {
-      toast.error(error.message);
+    } catch (error) {
+      toast.error(error instanceof CapabilityClientError ? error.message : 'Could not create list');
     } finally {
       setLoading(false);
     }
@@ -197,7 +189,7 @@ function CreateListDialog({ onClose, onCreated }: { onClose: () => void; onCreat
               onChange={(e) => setName(e.target.value)}
               placeholder="List name"
               className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-background"
-              maxLength={50}
+              maxLength={100}
             />
           </div>
 
@@ -209,7 +201,7 @@ function CreateListDialog({ onClose, onCreated }: { onClose: () => void; onCreat
               placeholder="What's this list about?"
               className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary bg-background resize-none"
               rows={3}
-              maxLength={200}
+              maxLength={500}
             />
           </div>
 
@@ -222,9 +214,7 @@ function CreateListDialog({ onClose, onCreated }: { onClose: () => void; onCreat
             />
             <div>
               <div className="font-medium">Make private</div>
-              <div className="text-sm text-muted-foreground">
-                Only you can see this list
-              </div>
+              <div className="text-sm text-muted-foreground">Only you can see this list</div>
             </div>
           </label>
 
