@@ -1,6 +1,18 @@
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Capacitor } from '@/lib/capacitor-stub';
 import { ProfileRewardsRedemptionCard } from '@/components/features/ProfileRewardsRedemptionCard';
+import { supabase } from '@/lib/supabase';
+
+type ZenAd = {
+  kind: 'display' | 'no_fill';
+  impressionId?: string;
+  headline?: string;
+  body?: string;
+  cta?: string;
+  imageUrl?: string | null;
+  clickThroughUrl?: string;
+  sponsored?: boolean;
+};
 
 interface AdSenseAdProps {
   adSlot: string;
@@ -11,148 +23,104 @@ interface AdSenseAdProps {
   style?: React.CSSProperties;
 }
 
-/**
- * Google AdSense Ad Component — collapses when unfilled (no reserved space).
- * Client: ca-pub-2458567543017441
- * Only renders on web (not native app).
- */
-export function AdSenseAd({
-  adSlot,
-  adFormat = 'fluid',
-  fullWidthResponsive = true,
-  className = '',
-  onAdLoad,
-  style,
-}: AdSenseAdProps) {
-  const adRef = useRef(null);
-  const pushed = useRef(false);
-  const [filled, setFilled] = useState(null);
+async function requestZenAd(slotCode: string): Promise<ZenAd | null> {
+  const { data, error } = await supabase.functions.invoke('zenad-decision', {
+    body: {
+      id: crypto.randomUUID(),
+      appId: 'testagram',
+      slotCode,
+      responseFormat: 'json',
+      user: { device: /Mobi|Android/i.test(navigator.userAgent) ? 'mobile' : 'desktop' },
+      content: { genres: [], keywords: [] },
+      privacy: { gdprApplies: false },
+    },
+  });
+  if (error || !data || data.kind !== 'display') return null;
+  return data as ZenAd;
+}
 
-  const isNative = Capacitor.isNativePlatform();
-
-  useEffect(() => {
-    if (isNative) return;
-    if (pushed.current) return;
-    const timer = setTimeout(() => {
-      try {
-        if (typeof window !== 'undefined') {
-          ((window as any).adsbygoogle = (window as any).adsbygoogle || []).push({});
-          pushed.current = true;
-          onAdLoad?.();
-        }
-      } catch (_) {}
-    }, 200);
-
-    const checkFill = () => {
-      const el = adRef.current;
-      if (!el) { setFilled(false); return; }
-      const status = el.getAttribute('data-ad-status');
-      if (status === 'unfilled') { setFilled(false); return; }
-      setFilled(el.children.length > 0 || (el as any).offsetHeight > 4);
-    };
-    const t1 = setTimeout(checkFill, 1800);
-    const t2 = setTimeout(checkFill, 3500);
-
-    return () => { clearTimeout(timer); clearTimeout(t1); clearTimeout(t2); };
-  }, [adSlot, isNative, onAdLoad]);
-
-  if (isNative) return null;
-  if (filled === false) return null;
+function ZenAdCard({ ad, className = '' }: { ad: ZenAd; className?: string }) {
+  const clicked = useRef(false);
+  const handleClick = async () => {
+    if (clicked.current) return;
+    clicked.current = true;
+    if (ad.impressionId) {
+      void supabase.functions.invoke('zenad-event', {
+        body: { impressionId: ad.impressionId, eventType: 'click' },
+      });
+    }
+    if (ad.clickThroughUrl) window.open(ad.clickThroughUrl, '_blank', 'noopener,noreferrer');
+  };
 
   return (
-    <div className={`adsense-wrapper ${className}`}>
-      <div className="flex items-center gap-1.5 mb-1">
-        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50">Sponsored</span>
-        <span className="text-[9px] font-bold uppercase tracking-widest px-1 py-0.5 rounded-sm bg-amber-500/10 text-amber-500 border border-amber-500/15">Ad</span>
+    <div className={`rounded-xl border border-border/70 bg-card overflow-hidden ${className}`}>
+      <div className="flex items-center gap-1.5 px-3 pt-2 pb-1">
+        <span className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/60">Sponsored</span>
+        <span className="text-[9px] font-bold uppercase px-1 py-0.5 rounded-sm bg-primary/10 text-primary border border-primary/15">Ad</span>
       </div>
-      <ins
-        ref={adRef}
-        className="adsbygoogle"
-        style={{ display: 'block', ...style }}
-        data-ad-client="ca-pub-2458567543017441"
-        data-ad-slot={adSlot}
-        data-ad-format={adFormat}
-        data-ad-layout={adFormat === 'fluid' ? 'in-article' : undefined}
-        data-full-width-responsive={fullWidthResponsive.toString()}
-      />
+      <button type="button" onClick={handleClick} className="w-full text-left p-3 pt-1 hover:bg-muted/20 transition-colors">
+        <div className="flex gap-3 items-center">
+          {ad.imageUrl && <img src={ad.imageUrl} alt="" className="w-20 h-16 rounded-lg object-cover shrink-0" loading="lazy" />}
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-sm truncate">{ad.headline}</p>
+            {ad.body && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{ad.body}</p>}
+            <span className="inline-flex mt-2 px-2.5 py-1 rounded-full bg-primary text-primary-foreground text-[10px] font-bold">{ad.cta ?? 'Learn more'}</span>
+          </div>
+        </div>
+      </button>
     </div>
   );
 }
 
-/**
- * PageAdBanner — profile pages also expose the authenticated owner's
- * reward-to-cash control here so the large ProfilePage can stay untouched.
- * The redemption card itself checks the route and profile ownership.
- */
-export function PageAdBanner() {
-  const pushed = useRef(false);
-  const insRef = useRef(null);
-  const [filled, setFilled] = useState(null);
+export function AdSenseAd({ adSlot, className = '', onAdLoad }: AdSenseAdProps) {
+  const isNative = Capacitor.isNativePlatform();
+  const [ad, setAd] = useState<ZenAd | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (pushed.current) return;
-    pushed.current = true;
-    try { ((window as any).adsbygoogle = (window as any).adsbygoogle || []).push({}); } catch (_) {}
+    if (isNative) return;
+    let cancelled = false;
+    requestZenAd(adSlot).then(result => {
+      if (!cancelled) {
+        setAd(result);
+        setLoaded(true);
+        if (result) onAdLoad?.();
+      }
+    });
+    return () => { cancelled = true; };
+  }, [adSlot, isNative, onAdLoad]);
 
-    const checkFill = () => {
-      const el = insRef.current;
-      if (!el) { setFilled(false); return; }
-      const status = el.getAttribute('data-ad-status');
-      if (status === 'unfilled') { setFilled(false); return; }
-      setFilled(el.children.length > 0 || (el as any).offsetHeight > 4);
-    };
-    const t1 = setTimeout(checkFill, 1800);
-    const t2 = setTimeout(checkFill, 3500);
-    return () => { clearTimeout(t1); clearTimeout(t2); };
-  }, []);
+  if (isNative || !loaded || !ad) return null;
+  return <ZenAdCard ad={ad} className={className} />;
+}
+
+export function PageAdBanner() {
+  const [ad, setAd] = useState<ZenAd | null>(null);
+  const isNative = Capacitor.isNativePlatform();
+
+  useEffect(() => {
+    if (isNative) return;
+    let cancelled = false;
+    requestZenAd('profile').then(result => { if (!cancelled) setAd(result); });
+    return () => { cancelled = true; };
+  }, [isNative]);
 
   return (
     <>
       <ProfileRewardsRedemptionCard />
-      {filled === true && (
-        <div className="mx-4 mt-2 mb-1 rounded-xl overflow-hidden border border-border/60 bg-muted/5">
-          <div className="flex items-center gap-1.5 px-3 pt-2 pb-0.5">
-            <span className="text-[9px] font-semibold uppercase tracking-widest text-muted-foreground/50">Sponsored</span>
-            <span className="text-[9px] font-bold uppercase px-1 py-0.5 rounded-sm bg-amber-500/10 text-amber-500 border border-amber-500/15">Ad</span>
-          </div>
-          <ins
-            ref={insRef}
-            className="adsbygoogle"
-            style={{ display: 'block' }}
-            data-ad-client="ca-pub-2458567543017441"
-            data-ad-slot="2031881558"
-            data-ad-format="fluid"
-            data-ad-layout="in-article"
-            data-full-width-responsive="true"
-          />
-        </div>
-      )}
+      {!isNative && ad && <div className="mx-4 mt-2 mb-1"><ZenAdCard ad={ad} /></div>}
     </>
   );
 }
 
 export function FeedBannerAd({ className }: { className?: string }) {
-  return (
-    <AdSenseAd
-      adSlot="4099641690"
-      adFormat="fluid"
-      fullWidthResponsive
-      className={className}
-    />
-  );
+  return <AdSenseAd adSlot="feed-top" adFormat="fluid" fullWidthResponsive className={className} />;
 }
 
 export function InArticleAd({ className }: { className?: string }) {
-  return (
-    <AdSenseAd
-      adSlot="4099641690"
-      adFormat="fluid"
-      fullWidthResponsive
-      className={className}
-    />
-  );
+  return <AdSenseAd adSlot="feed-inline" adFormat="fluid" fullWidthResponsive className={className} />;
 }
 
 declare global {
-  interface Window { adsbygoogle: any[]; }
+  interface Window { adsbygoogle?: unknown[]; }
 }
