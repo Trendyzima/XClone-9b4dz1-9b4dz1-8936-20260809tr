@@ -18,6 +18,8 @@ interface EditProfileDialogProps {
 
 type SocialLinks = { twitter?: string | null; instagram?: string | null; linkedin?: string | null };
 
+type MediaKind = 'avatar' | 'cover';
+
 export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: profileProp }: EditProfileDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -54,7 +56,19 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
         setAvatarPreview(row.avatar_url ?? null);
         setCoverPreview(row.cover_url ?? null);
       } catch (error) {
-        console.error('[profile-editor] load failed:', error);
+        console.debug('[profile-editor] load unavailable; using current profile state', error);
+        const row = profileProp ?? {};
+        const links = (row.social_links ?? {}) as SocialLinks;
+        setUsername(row.username ?? '');
+        setBio(row.bio ?? '');
+        setWebsite(row.website ?? '');
+        setLocation(row.location ?? '');
+        setBirthDate(row.birth_date ?? '');
+        setTwitterHandle(links.twitter ?? '');
+        setInstagramHandle(links.instagram ?? '');
+        setLinkedinUrl(links.linkedin ?? '');
+        setAvatarPreview(row.avatar_url ?? null);
+        setCoverPreview(row.cover_url ?? null);
       }
     };
     void loadCurrentProfile();
@@ -82,13 +96,15 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
     setCoverPreview(URL.createObjectURL(file));
   };
 
-  const uploadProfileMedia = async (file: File, folder: 'avatars' | 'covers') => {
+  const uploadProfileMedia = async (file: File, kind: MediaKind) => {
     if (!user) throw new Error('Not authenticated');
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const path = `${folder}/${user.id}.${ext}`;
-    const { error } = await supabase.storage.from('tv49-profile-media').upload(path, file, { cacheControl: '3600', upsert: true });
+    const form = new FormData();
+    form.append('kind', kind);
+    form.append('file', file, file.name);
+    const { data, error } = await supabase.functions.invoke('profile-media-upload', { body: form });
     if (error) throw error;
-    return supabase.storage.from('tv49-profile-media').getPublicUrl(path).data.publicUrl;
+    if (!data?.ok || !data.secure_url) throw new Error('Profile image upload was not completed');
+    return data.secure_url as string;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -103,8 +119,8 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
     try {
       let avatarUrl = avatarPreview;
       let coverUrl = coverPreview;
-      if (avatar) avatarUrl = await uploadProfileMedia(avatar, 'avatars');
-      if (coverImage) coverUrl = await uploadProfileMedia(coverImage, 'covers');
+      if (avatar) avatarUrl = await uploadProfileMedia(avatar, 'avatar');
+      if (coverImage) coverUrl = await uploadProfileMedia(coverImage, 'cover');
 
       const social_links: SocialLinks = {
         twitter: twitterHandle.trim().replace(/^@/, '') || null,
@@ -124,7 +140,7 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
       }).eq('id', user.id);
       if (updateError) throw updateError;
 
-      await supabase.auth.updateUser({ data: { username: cleanUsername, avatar_url: avatarUrl } });
+      await supabase.auth.updateUser({ data: { username: cleanUsername } });
       toast({ title: 'Success', description: 'Profile updated successfully' });
       onSuccess();
       onOpenChange(false);
