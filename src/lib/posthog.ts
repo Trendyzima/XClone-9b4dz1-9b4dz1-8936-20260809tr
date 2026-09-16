@@ -1,27 +1,13 @@
-import posthog from 'posthog-js';
 import type { User } from '@supabase/supabase-js';
 
 const apiKey = import.meta.env.VITE_POSTHOG_KEY as string | undefined;
-const apiHost = (import.meta.env.VITE_POSTHOG_HOST as string | undefined) || 'https://us.i.posthog.com';
+const apiHost = ((import.meta.env.VITE_POSTHOG_HOST as string | undefined) || 'https://us.i.posthog.com').replace(/\/$/, '');
 
 let initialized = false;
+let currentUserId: string | null = null;
 
 export function initAnalytics(): void {
   if (initialized || !apiKey) return;
-
-  posthog.init(apiKey, {
-    api_host: apiHost,
-    capture_pageview: false,
-    capture_pageleave: true,
-    autocapture: true,
-    persistence: 'localStorage+cookie',
-    person_profiles: 'identified_only',
-    respect_dnt: true,
-    loaded: () => {
-      initialized = true;
-    },
-  });
-
   initialized = true;
 }
 
@@ -30,34 +16,65 @@ function safeProperties(properties?: Record<string, unknown>) {
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(properties)) {
     if (value === undefined) continue;
-    // Never send secrets, auth tokens, payment credentials, or raw message bodies.
     if (/token|secret|password|authorization|cookie|card|cvv|otp|access[_-]?key/i.test(key)) continue;
     result[key] = value;
   }
   return result;
 }
 
+async function capture(event: string, properties?: Record<string, unknown>, distinctId = currentUserId ?? undefined): Promise<void> {
+  if (!apiKey || !distinctId) return;
+
+  const payload = {
+    api_key: apiKey,
+    event,
+    distinct_id: distinctId,
+    properties: {
+      ...(safeProperties(properties) ?? {}),
+      $lib: 'testagram-analytics',
+      $lib_version: '1.0.0',
+    },
+  };
+
+  try {
+    await fetch(`${apiHost}/capture/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    });
+  } catch {
+    // Analytics must never break Testagram's product flows.
+  }
+}
+
 export function identifyAnalyticsUser(user: User | null): void {
-  if (!initialized) initAnalytics();
+  initAnalytics();
   if (!initialized) return;
 
   if (!user) {
-    posthog.reset();
+    currentUserId = null;
     return;
   }
 
+  currentUserId = user.id;
   const metadata = user.user_metadata ?? {};
-  posthog.identify(user.id, {
-    username: metadata.username ?? metadata.preferred_username ?? undefined,
-    email_domain: user.email?.split('@')[1] ?? undefined,
+  const properties = safeProperties({
+    username: metadata.username ?? metadata.preferred_username,
+    email_domain: user.email?.split('@')[1],
     auth_method: user.phone ? 'phone' : 'email',
   });
+
+  void capture('$identify', {
+    $set: properties,
+    $set_once: { first_seen_as_testagram_user: new Date().toISOString() },
+  }, user.id);
 }
 
 export function trackAnalyticsEvent(event: string, properties?: Record<string, unknown>): void {
-  if (!initialized) initAnalytics();
-  if (!initialized) return;
-  posthog.capture(event, safeProperties(properties));
+  initAnalytics();
+  if (!initialized || !currentUserId) return;
+  void capture(event, properties);
 }
 
 export function trackPageView(pathname = window.location.pathname): void {
@@ -68,9 +85,8 @@ export function trackPageView(pathname = window.location.pathname): void {
 }
 
 export function setAnalyticsUserProperties(properties: Record<string, unknown>): void {
-  if (!initialized) initAnalytics();
-  if (!initialized) return;
-  posthog.setPersonProperties(safeProperties(properties) ?? {});
+  if (!currentUserId) return;
+  void capture('$set', { $set: safeProperties(properties) ?? {} });
 }
 
 export function startAnalyticsSession(): void {
@@ -81,8 +97,7 @@ export function startAnalyticsSession(): void {
 }
 
 export function shutdownAnalytics(): void {
-  if (!initialized) return;
-  posthog.reset();
+  currentUserId = null;
 }
 
 export const analytics = {
