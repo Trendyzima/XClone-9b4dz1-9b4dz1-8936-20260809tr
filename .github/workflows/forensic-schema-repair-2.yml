@@ -1,0 +1,42 @@
+name: Forensic schema repair 2
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Normalize remaining selectors
+        shell: python
+        run: |
+          from pathlib import Path
+          changed=[]
+          for p in Path('src').rglob('*'):
+            if p.suffix not in {'.ts','.tsx'}: continue
+            s=p.read_text(encoding='utf-8'); o=s
+            s=s.replace('profiles(username, avatar_url, verified, is_creator)', 'profiles(username, avatar_url, verified_tier)')
+            s=s.replace('profiles(id, username, avatar_url, verified)', 'profiles(id, username, avatar_url, verified_tier)')
+            s=s.replace("mentionedUsers.map(mu => ({ user_id: mu.id, type: 'mention', from_user_id: user!.id, post_id: postData.id }))", "mentionedUsers.map(mu => ({ recipient_id: mu.id, kind: 'mention', actor_id: user!.id, post_id: postData.id }))")
+            if s != o:
+              p.write_text(s,encoding='utf-8'); changed.append(str(p))
+          print('changed:', *changed, sep='\n- ')
+      - name: Commit and remove workflow
+        shell: bash
+        run: |
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src
+          if ! git diff --cached --quiet; then
+            git commit -m "fix(schema): remove remaining invalid profile and notification selectors"
+            git push origin HEAD:main
+          fi
+          git fetch origin main
+          git checkout main
+          git pull --ff-only origin main
+          git rm .github/workflows/forensic-schema-repair-2.yml
+          git commit -m "chore(forensics): remove one-time selector repair workflow"
+          git push origin HEAD:main
