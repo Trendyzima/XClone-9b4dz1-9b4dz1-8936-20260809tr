@@ -195,6 +195,7 @@ $fn$;
 revoke all on function public.testagram_post_is_visible_to_viewer(uuid,uuid) from public;
 grant execute on function public.testagram_post_is_visible_to_viewer(uuid,uuid) to anon, authenticated;
 
+-- Apply the canonical predicate to all existing public post visibility paths.
 drop policy if exists posts_public_read on public.posts;
 create policy posts_public_read on public.posts
 for select to anon, authenticated
