@@ -1,28 +1,38 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { X, Globe, ExternalLink, BadgeCheck } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { useEffect } from 'react';
+import { TestagramAdSlot } from './TestagramAdSlot';
 
-export interface StoryAdData { id: string; title?: string; description?: string; image_url?: string | null; video_url?: string | null; target_url?: string | null; campaignId?: string; creativeId?: string; eventToken?: string; }
+export interface StoryAdData {
+  id: string;
+  title?: string;
+  description?: string;
+  image_url?: string | null;
+  video_url?: string | null;
+  target_url?: string | null;
+  campaignId?: string;
+  creativeId?: string;
+  eventToken?: string;
+  source_id?: string | null;
+  source_type?: string | null;
+  author_id?: string | null;
+}
 interface StoryAdSlideProps { ad: StoryAdData; onComplete: () => void; onSkip: () => void; }
-const STORY_AD_CAP=2; const STORY_AD_KEY='ts-storyad-freq';
-export function checkStoryAdFreqCap(){try{const stamps:number[]=JSON.parse(localStorage.getItem(STORY_AD_KEY)||'[]');const cutoff=Date.now()-86400000;return stamps.filter(t=>t>cutoff).length>=STORY_AD_CAP;}catch{return false;}}
-function recordFreq(){try{const stamps:number[]=JSON.parse(localStorage.getItem(STORY_AD_KEY)||'[]');const cutoff=Date.now()-86400000;stamps.push(Date.now());localStorage.setItem(STORY_AD_KEY,JSON.stringify(stamps.filter(t=>t>cutoff)));}catch{}}
 
-export function StoryAdSlide({ad,onComplete,onSkip}:StoryAdSlideProps){
- const impressionTracked=useRef(false);const completionTracked=useRef(false);const watchStart=useRef(Date.now());const [progress,setProgress]=useState(0);const [canSkip,setCanSkip]=useState(false);const [countdown,setCountdown]=useState(3);const [served,setServed]=useState<StoryAdData|null>(null);const [loading,setLoading]=useState(true);const DURATION=8000;
- useEffect(()=>{let cancelled=false;(async()=>{try{if(ad.campaignId&&!ad.eventToken){if(!cancelled)setServed(null);return;}if(ad.campaignId){if(!cancelled)setServed(ad);return;}const {data,error}=await supabase.functions.invoke('zenad-decision',{body:{appId:'testagram',slotCode:'story',content:{}}});if(error||data?.kind!=='display'||!data?.eventToken)throw error||new Error('No authenticated story ad');if(!cancelled)setServed({id:String(data.impressionId),title:String(data.headline??'Sponsored'),description:String(data.body??''),image_url:data.imageUrl??null,target_url:data.clickThroughUrl??null,campaignId:data.campaignId,creativeId:data.creativeId,eventToken:String(data.eventToken)});}catch{if(!cancelled)setServed(null);}finally{if(!cancelled)setLoading(false);}})();return()=>{cancelled=true;};},[ad]);
- useEffect(()=>{if(!served||impressionTracked.current)return;impressionTracked.current=true;watchStart.current=Date.now();recordFreq();},[served]);
- const emit=useCallback((eventType:string,metadata?:Record<string,unknown>)=>{if(!served?.id||!served.eventToken)return;void supabase.functions.invoke('zenad-event',{body:{impressionId:served.id,eventType,eventToken:served.eventToken,metadata}}).catch(()=>{});},[served]);
- useEffect(()=>{if(!served)return;const start=Date.now();const iv=setInterval(()=>{const elapsed=Date.now()-start;setProgress(Math.min(elapsed/DURATION*100,100));if(elapsed>=3000)setCanSkip(true);else setCountdown(Math.ceil((3000-elapsed)/1000));if(elapsed>=DURATION){clearInterval(iv);if(!completionTracked.current){completionTracked.current=true;emit('video_complete',{watch_seconds:Math.round((Date.now()-watchStart.current)/1000),format:'story'});}onComplete();}},50);return()=>clearInterval(iv);},[served,emit,onComplete]);
- const handleSkip=useCallback(()=>{if(!canSkip||!served)return;emit('viewable',{skipped:true,watch_seconds:Math.round((Date.now()-watchStart.current)/1000),format:'story'});onSkip();},[canSkip,served,emit,onSkip]);
- const handleClick=useCallback((e?:React.MouseEvent)=>{e?.stopPropagation();if(!served)return;emit('click',{format:'story'});if(served.target_url)window.open(served.target_url,'_blank','noopener,noreferrer');},[served,emit]);
- if(loading)return <div className="fixed inset-0 z-[400] bg-black"/>; if(!served)return null;
- let domain='';try{domain=served.target_url?new URL(served.target_url).hostname.replace(/^www\./,''):'';}catch{}
- return <div className="fixed inset-0 z-[400] bg-black select-none" onClick={()=>handleClick()}><div className="absolute top-0 left-0 right-0 h-0.5 bg-white/20 z-30"><div className="h-full bg-white" style={{width:`${progress}%`}}/></div>
-  {served.video_url?<video src={served.video_url} autoPlay muted playsInline className="absolute inset-0 w-full h-full object-cover"/>:served.image_url?<img src={served.image_url} alt={served.title||'Sponsored'} className="absolute inset-0 w-full h-full object-cover" draggable={false}/>:<div className="absolute inset-0 bg-gradient-to-br from-primary/40 to-black"/>}
-  <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80 pointer-events-none"/>
-  <div className="absolute top-6 left-3 right-3 z-30 flex items-center gap-2" onClick={e=>e.stopPropagation()}><div className="w-9 h-9 rounded-full border-2 border-white/70 flex items-center justify-center text-white font-bold">S</div><div className="flex-1"><div className="flex items-center gap-1"><span className="text-white font-bold text-sm">Sponsored</span><BadgeCheck className="w-3.5 h-3.5 text-blue-400" fill="currentColor"/></div><div className="text-white/60 text-[11px] flex items-center gap-1"><Globe className="w-2.5 h-2.5"/>Advertisement</div></div><button onClick={e=>{e.stopPropagation();handleSkip();}} disabled={!canSkip} className="px-3 py-1.5 rounded-full text-xs font-bold border border-white/30 text-white bg-black/60">{canSkip?<><span>Skip</span><X className="inline ml-1 w-3 h-3"/></>:`Skip in ${countdown}s`}</button></div>
-  <div className="absolute bottom-8 left-4 right-4 z-30 space-y-2" onClick={e=>e.stopPropagation()}><p className="text-white font-bold text-lg">{served.title}</p><p className="text-white/80 text-sm line-clamp-2">{served.description}</p>{domain&&<button onClick={handleClick} className="w-full py-3 bg-white text-black rounded-xl font-bold text-sm flex items-center justify-center gap-2"><ExternalLink className="w-4 h-4"/>Visit {domain}</button>}</div>
-  <div className="absolute bottom-24 right-4 z-30"><span className="text-white/70 text-[10px] font-bold bg-black/60 border border-white/20 rounded-full px-2 py-0.5">Ad</span></div>
- </div>;
+/** Compatibility surface for stories. Serving and measurement come from Testagram Ads. */
+export function StoryAdSlide({ ad, onComplete }: StoryAdSlideProps) {
+  useEffect(() => {
+    const timer = window.setTimeout(onComplete, 8000);
+    return () => window.clearTimeout(timer);
+  }, [onComplete]);
+
+  return (
+    <TestagramAdSlot
+      placement="STORIES"
+      context={{
+        content_id: ad.source_id ?? undefined,
+        content_type: ad.source_type ?? 'story',
+        author_id: ad.author_id ?? undefined,
+      }}
+      className="rounded-none border-0 min-h-[100svh] bg-black"
+    />
+  );
 }
