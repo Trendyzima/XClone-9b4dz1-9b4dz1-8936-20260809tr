@@ -18,7 +18,6 @@ import { formatNumber } from '@/lib/utils';
 import { toast } from 'sonner';
 
 import { PageAdBanner } from '@/components/features/AdSenseAd';
-import { CreatorStudioWorkbench } from '@/components/features/CreatorStudioWorkbench';
 function CreatorStudioAdBanner() { return <PageAdBanner />; }
 
 export default function CreatorStudio() {
@@ -916,7 +915,6 @@ export default function CreatorStudio() {
                 const circ = 2 * Math.PI * radius;
                 const dash = (pct / 100) * circ;
                 return (
-      <CreatorStudioWorkbench stats={stats} recentPosts={recentPosts} />
                   <div className="flex items-center gap-6">
                     <div className="relative shrink-0">
                       <svg width="112" height="112" className="-rotate-90">
