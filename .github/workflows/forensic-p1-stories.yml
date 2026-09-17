@@ -1,0 +1,71 @@
+name: One-shot Stories canonical ad migration
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Remove legacy Stories ad path and wire canonical StoryAdSlide
+        shell: bash
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'src/components/features/StoriesStrip.tsx';
+          let s = fs.readFileSync(path, 'utf8');
+
+          if (!s.includes("from './StoryAdSlide'")) throw new Error('StoryAdSlide import not found');
+          if (!s.includes("supabase.from('user_ads')")) {
+            console.log('P1 already applied; nothing to migrate.');
+            process.exit(0);
+          }
+
+          s = s.replace(
+            "import { StoryAdSlide, checkStoryAdFreqCap } from './StoryAdSlide';",
+            "import { StoryAdSlide } from './StoryAdSlide';"
+          );
+
+          const legacyState = /  \/\/ ── Story Ads: inject between groups ──────────────────────────────────────[\\s\\S]*?  \/\/ ── Story Creation Rewards/;
+          if (!legacyState.test(s)) throw new Error('Legacy Stories ad state block not found');
+          s = s.replace(legacyState, '  // ── Canonical Story Ads ────────────────────────────────────────────────────\\n  // Eligibility, frequency caps, campaign selection, impression accounting, and spend are server-owned.\\n  const [showCanonicalStoryAd, setShowCanonicalStoryAd] = useState(false);\\n\\n  // ── Story Creation Rewards');
+
+          s = s.replace(/\\s*maybeShowStoryAd\(\);/g, '');
+
+          const exploreAd = /              \/\* Ad injection in Explore \*\/[\\s\\S]*?              \}\n              <div className=\"grid grid-cols-2 gap-3\">/;
+          if (!exploreAd.test(s)) throw new Error('Legacy Explore ad block not found');
+          s = s.replace(exploreAd, '              <div className="grid grid-cols-2 gap-3">');
+
+          const oldSlide = /      \/\* ── Story Ad Slide ── \*\/[\\s\\S]*?      \}\n\n      \/\* ── Explore Stories Sheet ── \*\//;
+          if (!oldSlide.test(s)) throw new Error('Legacy StoryAdSlide render block not found');
+          const canonicalSlide = `      {/* ── Canonical Story Ad Slide ───────────────────────────────────────── */}\\n      {showCanonicalStoryAd && viewerStory && (\\n        <StoryAdSlide\\n          ad={{\\n            id: 'story-slot',\\n            source_id: viewerStory.id,\\n            source_type: 'story',\\n            author_id: viewerG?.userId ?? null,\\n          }}\\n          onComplete={() => setShowCanonicalStoryAd(false)}\\n          onSkip={() => setShowCanonicalStoryAd(false)}\\n        />\\n      )}\\n\\n      {/* ── Explore Stories Sheet ── */}`;
+          s = s.replace(oldSlide, canonicalSlide);
+
+          const openViewerTail = /      if \(meta\?\.music\?\.preview_url\) playStoryAudio\(meta\.music\.preview_url\);\\n    \}\\n  \};/;
+          if (!openViewerTail.test(s)) throw new Error('openViewer tail not found');
+          s = s.replace(openViewerTail, `      if (meta?.music?.preview_url) playStoryAudio(meta.music.preview_url);\\n      setShowCanonicalStoryAd(true);\\n    }\\n  };`);
+
+          const forbidden = [
+            'user_ads', 'storyAds', 'currentStoryAd', 'showStoryAd',
+            'storyGroupViewCount', 'AD_INJECT_INTERVAL', 'maybeShowStoryAd', 'checkStoryAdFreqCap'
+          ];
+          const leftovers = forbidden.filter(x => s.includes(x));
+          if (leftovers.length) throw new Error('Legacy identifiers remain: ' + leftovers.join(', '));
+
+          fs.writeFileSync(path, s);
+          NODE
+
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/components/features/StoriesStrip.tsx
+          git diff --cached --check
+          git commit -m "fix: route Stories ads through canonical Testagram Ads [stories-p1]"
+          git push
