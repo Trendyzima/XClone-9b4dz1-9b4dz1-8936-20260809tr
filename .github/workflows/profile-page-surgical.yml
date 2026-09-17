@@ -24,7 +24,101 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 -c "import base64;exec(base64.b64decode('ZnJvbSBwYXRobGliIGltcG9ydCBQYXRoCmltcG9ydCBoYXNobGliCgpwYXRoID0gUGF0aCgnc3JjL3BhZ2VzL1Byb2ZpbGVQYWdlLnRzeCcpCnNvdXJjZSA9IHBhdGgucmVhZF90ZXh0KGVuY29kaW5nPSd1dGYtOCcpCm9yaWdpbmFsX2hhc2ggPSBoYXNobGliLnNoYTI1Nihzb3VyY2UuZW5jb2RlKCkpLmhleGRpZ2VzdCgpCgpkZWYgZXhhY3RseSh0ZXh0LCBuZWVkbGUsIGV4cGVjdGVkPTEpOgogICAgY291bnQgPSB0ZXh0LmNvdW50KG5lZWRsZSkKICAgIGlmIGNvdW50ICE9IGV4cGVjdGVkOgogICAgICAgIHJhaXNlIFN5c3RlbUV4aXQoZidBQk9SVDogZXhwZWN0ZWQge2V4cGVjdGVkfSBvY2N1cnJlbmNlcyBvZiB7bmVlZGxlIXJ9LCBmb3VuZCB7Y291bnR9JykKCmd4YWN0bHkoc291cmNlLCAiaW1wb3J0IHsgU3RvcnlIaWdobGlnaHRzIH0gZnJvbSAnQHN5c3RlbS9jb21wb25lbnRzL2ZlYXR1cmVzL1N0b3J5SGlnaGxpZ2h0cSc7IikKZGVsYXRlX2xpbmVzPShzb3VyY2UsICdQcm9maWxlQ29tcGFjdEFjdGlvbnMnLCAwKQpleGFjdGx5KHNvdXJjZSwgJ1Byb2ZpbGVDb21wYWN0QWN0aW9ucycsIDApCmV4YWN0bHkoc291cmNlLCAnUHJvZmlsZUNyZWF0b3JUb29scycsIDApCmV4YWN0bHkoc291cmNlLCAnICAgICAgey8qIFRhYnMgKi99JykKaWYgc291cmNlLmNvdW50KCdzZXRTaG93R2lmdFByZW1pdW1EaWFsb2codHJ1ZSknKSAhPSAxOgogICAgcmFpc2UgU3lzdGVtRXhpdCgnQUJPUlQ6IEdpZnQgUHJlbWl1bSBzdGF0ZSBjYWxsYmFjayBjb3VudCBpcyBub3QgZXhhY3RseSBvbmUnKQpmb3IgbmVlZGxlIGluIFsnaGFuZGxlRm9sbG93JywgJ2hhbmRsZU1lc3NhZ2UnLCAnSGFuZGxlVW5zdWJzY3JpYmUnLCAnSGFuZGxlTXV0ZScsICdoYW5kbGVCbG9jayddOgogICAgaWYgc291cmNlLmNvdW50KG5lZWRsZSkgPCAxOgogICAgICAgIHJhaXNlIFN5c3RlbUV4aXQoZidBQk9SVDogbWlzc2luZyByZXF1aXJlZCBoYW5kbGVyIHtuZWVkbGV9JykKCmltcG9ydF9hbmNob3IgPSAiaW1wb3J0IHsgU3RvcnlIaWdobGlnaHRzIH0gZnJvbSAnQHN5c3RlbS9jb21wb25lbnRzL2ZlYXR1cmVzL1N0b3J5SGlnaGxpZ2h0cSc7IgpuaW1wb3J0cyA9IGltcG9ydF9hbmNob3IgKyAiXG5pbXBvcnQgeyBQcm9maWxlQ29tcGFjdEFjdGlvbnMgfSBmcm9tICdAc3lzL2NvbXBvbmVudHMvZmVhdHVyZXMvUHJvZmlsZUNvbXBhY3RBY3Rpb25zJztcblBpbXBvcnQgeyBQcm9maWxlQ3JlYXRvclRvb2xzIH0gZnJvbSAnQHN5cy9jb21wb25lbnRzL2ZlYXR1cmVzL1Byb2ZpbGVDcmVhdG9yVG9vbHMnOyIKdHJhbnNmb3JtZWQgPSBzb3VyY2UucmVwbGFjZShpbXBvcnRfYW5jaG9yLCBpbXBvcnRzLCAxKQoKb3BlbmluZyA9ICc8ZGl2IGNsYXNzTmFtZT0iZmxleCBnYXAtMiBtdC0yIGZsZXctd3JhcCBpdGVtcy1jZW50ZXIiPicKZW5kaW5nID0gJyAgICAgICAgICBkaXYgY2xhc3NOYW1lPSJtYi0zIj4nCmV4YWN0bHkodHJhbnNmb3JtZWQsIG9wZW5pbmcpCmV4YWN0bHkodHJhbnNmb3JtZWQsIGVuZGluZykKc3RhcnQgPSB0cmFuc2Zvcm1lZC5pbmRleChvcGVuaW5nKQplbmQgPSB0cmFuc2Zvcm1lZC5pbmRleChlbmRpbmcsIHN0YXJ0KQppZiBlbmQgPD0gc3RhcnQ6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCdBQk9SVDogaW52YWxpZCBhY3Rpb24gY2x1c3RlciBib3VuZGFyaWVzJykKCmFjdGlvbiA9ICcnJzxkaXYgY2xhc3NOYW1lPSJmbGV4IGdhcC0yIG10LTIgZmxleC13cmFwIGl0ZW1zLWNlbnRlciI+CiAgICAgICAgICAgIDxQcm9maWxlQ29tcGFjdEFjdGlvbnMKICAgICAgICAgICAgICBpc09zblByb2ZpbGU9e2lzT3duUHJvZmlsZX0KICAgICAgICAgICAgICB1c2VybmFtZT17cHJvZmlsZS51c2VybmFtZX0KICAgICAgICAgICAgICB2ZXJpZmllZD17cHJvZmlsZS52ZXJpZmllZH0KICAgICAgICAgICAgICBpc0NyZWF0b3I9e3Byb2ZpbGUuaXNfY3JlYXRvcn0KICAgICAgICAgICAgICBpc0ZvbGxvd2luZz17aXNGb2xsb3dpbmd9CiAgICAgICAgICAgICAgaXNCbG9ja2VkPXtpc0Jsb2NrZWR9CiAgICAgICAgICAgICAgaXNNdXRlZD17aXNNdXRlZH0KICAgICAgICAgICAgICBoYXNGZWRlcmF0aW9uPXtoYXNBY3RvclJlY29yZH0KICAgICAgICAgICAgICBwcm9maWxlU2hhcmVkPXtwcm9maWxlU2hhcmVkfQogICAgICAgICAgICAgIG9uRWRpdD17KCkgPT4gc2V0U2hvd0VkaXREaWFsb2codHJ1ZSl9CiAgICAgICAgICAgICAgb25Gb2xsb3c9e2hhbmRsZUZvbGxvd30KICAgICAgICAgICAgICBvbk1lc3NhZ2U9e2hhbmRsZU1lc3NhZ2V9CiAgICAgICAgICAgICAgb25TZW5kPXsoKSA9PiBuYXZpZ2F0ZShgL3dhbGxldD90YWI9c2VuZCZ0bz0ke3Byb2ZpbGUudXNlcm5hbWV9YCkKICAgICAgICAgICAgICBvbk1pcz17KCkgPT4gc2V0U2hvd1RpcERpYWxvZyh0cnVlKX0KICAgICAgICAgICAgICBvbkdpZnRQcmVtaXVtPXsoKSA9PiBzZXRTaG93R2lmdFByZW1pdW1EaWFsb2codHJ1ZSl9CiAgICAgICAgICAgICAgb25TdWJzY3JpYmU9eygpID0+IHNldFNob3dTdWJzY3JpYmVEaWFsb2codHJ1ZSl9CiAgICAgICAgICAgICAgb25VbnN1YnNjcmliZT17aGFuZGxlVW5zdWJzY3JpYmV9CiAgICAgICAgICAgICAgc3Vic2NyaWJlZD17ISFhY3RpdmVTdWJzY3JpcHRpb259CiAgICAgICAgICAgICAgb25TaGFyZT17aGFuZGxlU2hhcmVQcm9maWxlfQogICAgICAgICAgICAgIG9uTXV0ZT17aGFuZGxlTXV0ZX0KICAgICAgICAgICAgICBvbkJsb2NrPXtoYW5kbGVCbG9ja30KICAgICAgICAgICAgICBvbkZlZGVyYXRpb249eygpID0+IHsKICAgICAgICAgICAgICAgIGNvbnN0IGhhbmRsZSA9IGBAX3twcm9maWxlLnVzZXJuYW1lfUB0ZXN0YWdyYW0uc2l0ZWAKICAgICAgICAgICAgICAgIG5hdmlnYXRvci5jbGlwYm9hcmQud3JpdGVUZXh0KGhhbmRsZSkudGhlbigoKSA9PiB7CiAgICAgICAgICAgICAgICAgIHNldEZlZEhhbmRsZUNvcGllZCh0cnVlKTsKICAgICAgICAgICAgICAgICAgc2V0VGltZW91dCgoKSA9PiBzZXRGZWRIYW5kbGVDb3BpZWQoZmFsc2UpLCAyMDAwKTsKICAgICAgICAgICAgICAgIH0pOwogICAgICAgICAgICAgIH07CiAgICAgICAgICAgICAgfX0KICAgICAgICAgICAgICBmbGxwPj4KICAgICAgICAgICAgPC9kaXY+CicnJwp0cmFuc2Zvcm1lZCA9IHRyYW5zZm9ybWVkWzpzdGFydF0gKyBhY3Rpb24gKyB0cmFuc2Zvcm1lZFtlbmQ6XQoKdGFicyA9ICcgICAgICB7LyoqIFRhYnMgKi99JwpleGFjdGx5KHRyYW5zZm9ybWVkLCB0YWJzKQpjcmVhdG9yID0gJycne2lzT3duUHJvZmlsZSAmJiBwcm9maWxlICYmICgKICAgICAgICBkaXYgY2xhc3NOYW1lPSJweC00IG10LTMiPgogICAgICAgICAgPFByb2ZpbGVDcmVhdG9yVG9vbHMgdXNlcklkPXtwcm9maWxlLmlkfSAvPgogICAgICAgIDwvZGl2PgogICAgICApfQoKJycndHJhbnNmb3JtZWQgPSB0cmFuc2Zvcm1lZC5yZXBsYWNlKHRhYnMsIGNyZWF0b3IgKyB0YWJzLCAxKQoKZXhhY3RseSh0cmFuc2Zvcm1lZCwgJzxQcm9maWxlQ29tcGFjdEFjdGlvbnMnLCAxKQpleGFjdGx5KHRyYW5zZm9ybWVkLCAnPFByb2ZpbGVDcmVhdG9yVG9vbHMgdXNlcklkPXtwcm9maWxlLmlkfSAvPicsIDEpCmV4YWN0bHkodHJhbnNmb3JtZWQsICdvbkdpZnRQcmVtaXVtPXsoKSA9PiBzZXRTaG93R2lmdFByZW1pdW1EaWFsb2codHJ1ZSl9JywgMSkKaWYgdHJhbnNmb3JtZWQuY291bnQoJ1Byb2ZpbGVDb21wYWN0QWN0aW9ucycpICE9IDI6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCdBQk9SVDogdW5leHBlY3RlZCBQcm9maWxlQ29tcGFjdEFjdGlvbnMgY291bnQnKQppZiB0cmFuc2Zvcm1lZC5jb3VudCgnUHJvZmlsZUNyZWF0b3JUb29scycpICE9IDI6CiAgICByYWlzZSBTeXN0ZW1FeGl0KCdBQk9SVDogdW5leHBlY3RlZCBQcm9maWxlQ3JlYXRvclRvb2xzIGNvdW50JykKCnRtcCA9IHBhdGgud2l0aF9zdWZmaXgoJ3RzeC50bXAnKQp0bXAud3JpdGVfdGV4dCh0cmFuc2Zvcm1lZCwgZW5jb2Rpbmc9J3V0Zi04JykKdG1wLnJlcGxhY2UocGF0aCkKcHJpbnQoJ09yaWdpbmFsIFNIQTI1NjogJywgb3JpZ2luYWxfaGFzaCkKcHJpbnQoJ1RyYW5zZm9ybWVkIFNIQTI1NjogJywgaGFzaGxpYi5zaGEyNTYodHJhbnNmb3JtZWQuZW5jb2RlKCkpLmhleGRpZ2VzdCgp'))"
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+
+          path = Path('src/pages/ProfilePage.tsx')
+          source = path.read_text(encoding='utf-8')
+          original_hash = hashlib.sha256(source.encode()).hexdigest()
+
+          def exactly(text, needle, expected=1):
+              count = text.count(needle)
+              if count != expected:
+                  raise SystemExit(f'ABORT: expected {expected} occurrences of {needle!r}, found {count}')
+
+          import_anchor = "import { StoryHighlights } from '@/components/features/StoryHighlights';"
+          exactly(source, import_anchor)
+          exactly(source, 'ProfileCompactActions', 0)
+          exactly(source, 'ProfileCreatorTools', 0)
+          exactly(source, '      {/* Tabs */}')
+          exactly(source, 'setShowGiftPremiumDialog(true)', 1)
+          for needle in ['handleFollow', 'handleMessage', 'handleUnsubscribe', 'handleMute', 'handleBlock']:
+              if source.count(needle) < 1:
+                  raise SystemExit(f'ABORT: missing required handler {needle}')
+
+          imports = import_anchor + "\nimport { ProfileCompactActions } from '@/components/features/ProfileCompactActions';\nimport { ProfileCreatorTools } from '@/components/features/ProfileCreatorTools';"
+          transformed = source.replace(import_anchor, imports, 1)
+
+          opening = '<div className="flex gap-2 mt-2 flex-wrap items-center">'
+          ending = '          <div className="mb-3">'
+          exactly(transformed, opening)
+          exactly(transformed, ending)
+          start = transformed.index(opening)
+          end = transformed.index(ending, start)
+          if end <= start:
+              raise SystemExit('ABORT: invalid action cluster boundaries')
+
+          action = '''<div className="flex gap-2 mt-2 flex-wrap items-center">
+            <ProfileCompactActions
+              isOwnProfile={isOwnProfile}
+              username={profile.username}
+              verified={profile.verified}
+              isCreator={profile.is_creator}
+              isFollowing={isFollowing}
+              isBlocked={isBlocked}
+              isMuted={isMuted}
+              hasFederation={hasActorRecord}
+              profileShared={profileShared}
+              onEdit={() => setShowEditDialog(true)}
+              onFollow={handleFollow}
+              onMessage={handleMessage}
+              onSend={() => navigate(`/wallet?tab=send&to=${profile.username}`)}
+              onTip={() => setShowTipDialog(true)}
+              onGiftPremium={() => setShowGiftPremiumDialog(true)}
+              onSubscribe={() => setShowSubscribeDialog(true)}
+              onUnsubscribe={handleUnsubscribe}
+              subscribed={!!activeSubscription}
+              onShare={handleShareProfile}
+              onMute={handleMute}
+              onBlock={handleBlock}
+              onFederation={() => {
+                const handle = `@${profile.username}@testagram.site`;
+                navigator.clipboard.writeText(handle).then(() => {
+                  setFedHandleCopied(true);
+                  setTimeout(() => setFedHandleCopied(false), 2000);
+                });
+              }}
+            />
+          </div>
+'''
+          transformed = transformed[:start] + action + transformed[end:]
+
+          tabs = '      {/* Tabs */}'
+          exactly(transformed, tabs)
+          creator = '''      {isOwnProfile && profile && (
+        <div className="px-4 mt-3">
+          <ProfileCreatorTools userId={profile.id} />
+        </div>
+      )}
+
+'''
+          transformed = transformed.replace(tabs, creator + tabs, 1)
+
+          exactly(transformed, '<ProfileCompactActions', 1)
+          exactly(transformed, '<ProfileCreatorTools userId={profile.id} />', 1)
+          exactly(transformed, 'onGiftPremium={() => setShowGiftPremiumDialog(true)}', 1)
+          if transformed.count('ProfileCompactActions') != 2:
+              raise SystemExit('ABORT: unexpected ProfileCompactActions count')
+          if transformed.count('ProfileCreatorTools') != 2:
+              raise SystemExit('ABORT: unexpected ProfileCreatorTools count')
+
+          tmp = path.with_suffix('.tsx.tmp')
+          tmp.write_text(transformed, encoding='utf-8')
+          tmp.replace(path)
+          print('Original SHA256:', original_hash)
+          print('Transformed SHA256:', hashlib.sha256(transformed.encode()).hexdigest())
+          PY
 
           git diff --check
           npm ci
