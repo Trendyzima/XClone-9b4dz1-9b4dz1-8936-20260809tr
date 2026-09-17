@@ -123,8 +123,10 @@ export default function SavingsGoalsTab({ userId, walletBalance, currency }: Pro
   const createGoal = async () => {
     if (!name.trim() || !target || parseFloat(target) <= 0) { toast.error('Enter a name and target amount'); return; }
     setSaving(true);
+    const { data: walletRow } = await supabase.from('wallets').select('id').eq('user_id', userId).single();
+    if (!walletRow?.id) { setSaving(false); toast.error('Wallet not provisioned'); return; }
     const { error } = await supabase.from('wallet_savings_goals').insert({
-      user_id: userId, name: name.trim(), target_amount: parseFloat(target),
+      wallet_id: walletRow.id, user_id: userId, name: name.trim(), target_amount: parseFloat(target),
       deadline: deadline || null, emoji, color,
     });
     setSaving(false);
