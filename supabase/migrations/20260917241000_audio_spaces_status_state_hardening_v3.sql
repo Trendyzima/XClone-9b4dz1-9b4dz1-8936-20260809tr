@@ -1,0 +1,2 @@
+alter table public.audio_spaces drop constraint if exists audio_spaces_status_check;
+alter table public.audio_spaces add constraint audio_spaces_status_check check (status = any (array['draft'::text,'scheduled'::text,'live'::text,'paused'::text,'ended'::text,'cancelled'::text]));
