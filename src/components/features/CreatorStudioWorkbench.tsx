@@ -1,0 +1,167 @@
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import {
+  BarChart3,
+  CalendarDays,
+  ChevronRight,
+  FileText,
+  Image as ImageIcon,
+  Inbox,
+  Megaphone,
+  PenSquare,
+  PlaySquare,
+  Sparkles,
+  Video,
+  WalletCards,
+  WandSparkles,
+} from 'lucide-react';
+
+export type CreatorStudioStats = {
+  total_followers?: number;
+  total_posts?: number;
+  total_views?: number;
+  total_likes?: number;
+  total_earnings?: number;
+  engagement_rate?: number;
+  video_views?: number;
+  article_views?: number;
+};
+
+type Props = {
+  stats?: CreatorStudioStats;
+  recentPosts?: Array<{ id: string; content?: string | null; created_at?: string | null; is_video?: boolean | null }>;
+};
+
+type Tool = {
+  title: string;
+  description: string;
+  icon: typeof PenSquare;
+  route: string;
+  tone: string;
+};
+
+const tools: Tool[] = [
+  { title: 'Publish', description: 'Write, attach media and publish to Testagram.', icon: PenSquare, route: '/', tone: 'bg-primary/10 text-primary' },
+  { title: 'Content calendar', description: 'Plan drafts and scheduled posts in one view.', icon: CalendarDays, route: '/scheduled', tone: 'bg-blue-500/10 text-blue-600 dark:text-blue-400' },
+  { title: 'Media studio', description: 'Turn images and video into reusable creator assets.', icon: WandSparkles, route: '/videos', tone: 'bg-violet-500/10 text-violet-600 dark:text-violet-400' },
+  { title: 'AI assistant', description: 'Use Testagram AI to develop and refine content.', icon: Sparkles, route: '/ai', tone: 'bg-amber-500/10 text-amber-600 dark:text-amber-400' },
+  { title: 'Analytics', description: 'Understand reach, engagement and post performance.', icon: BarChart3, route: '/analytics', tone: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400' },
+  { title: 'Inbox', description: 'Work through platform conversations without leaving Studio.', icon: Inbox, route: '/platform-inbox', tone: 'bg-pink-500/10 text-pink-600 dark:text-pink-400' },
+  { title: 'Campaigns & ads', description: 'Create and monitor Testagram-owned promotion campaigns.', icon: Megaphone, route: '/my-ads', tone: 'bg-orange-500/10 text-orange-600 dark:text-orange-400' },
+  { title: 'Monetization', description: 'Review creator earnings, products and payouts.', icon: WalletCards, route: '/monetization', tone: 'bg-cyan-500/10 text-cyan-600 dark:text-cyan-400' },
+];
+
+const tabs = [
+  { id: 'workspace', label: 'Workspace' },
+  { id: 'content', label: 'Content' },
+  { id: 'insights', label: 'Insights' },
+] as const;
+
+type Tab = typeof tabs[number]['id'];
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-border bg-background/70 px-4 py-3 min-w-0">
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
+      <p className="mt-1 text-lg font-bold truncate">{value}</p>
+    </div>
+  );
+}
+
+export function CreatorStudioWorkbench({ stats = {}, recentPosts = [] }: Props) {
+  const navigate = useNavigate();
+  const [tab, setTab] = useState<Tab>('workspace');
+
+  const format = (value: number | undefined) => new Intl.NumberFormat(undefined, { notation: value && value >= 1000 ? 'compact' : 'standard', maximumFractionDigits: 1 }).format(value ?? 0);
+  const recent = recentPosts.slice(0, 4);
+
+  return (
+    <section className="mb-6 overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
+      <div className="border-b border-border bg-gradient-to-br from-primary/10 via-background to-background p-5 sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-wide text-primary">
+              <Sparkles className="h-3.5 w-3.5" /> Creator workspace
+            </div>
+            <h2 className="text-2xl font-black tracking-tight">Create. Publish. Learn. Grow.</h2>
+            <p className="mt-1 max-w-2xl text-sm text-muted-foreground">A unified Testagram creator workflow inspired by modern social publishing studios — using Testagram's own identity, posts, analytics, AI, inbox, monetization and ad systems.</p>
+          </div>
+          <button onClick={() => navigate('/scheduled')} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-4 py-2.5 text-sm font-bold text-primary-foreground shadow-sm hover:opacity-90">
+            <CalendarDays className="h-4 w-4" /> Open calendar
+          </button>
+        </div>
+
+        <div className="mt-5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Stat label="Followers" value={format(stats.total_followers)} />
+          <Stat label="Posts" value={format(stats.total_posts)} />
+          <Stat label="Views" value={format(stats.total_views)} />
+          <Stat label="Engagement" value={`${(stats.engagement_rate ?? 0).toFixed(1)}%`} />
+        </div>
+      </div>
+
+      <div className="border-b border-border px-3 pt-2 sm:px-5">
+        <div className="flex gap-1 overflow-x-auto">
+          {tabs.map(item => (
+            <button key={item.id} onClick={() => setTab(item.id)} className={`whitespace-nowrap rounded-t-xl px-4 py-2.5 text-sm font-semibold transition-colors ${tab === item.id ? 'border-b-2 border-primary text-foreground' : 'text-muted-foreground hover:bg-muted/50'}`}>
+              {item.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {tab === 'workspace' && (
+        <div className="p-4 sm:p-5">
+          <div className="mb-4 flex items-center justify-between">
+            <div><h3 className="font-bold">Creator tools</h3><p className="text-xs text-muted-foreground">Everything you need without jumping between unrelated dashboards.</p></div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {tools.map(tool => {
+              const Icon = tool.icon;
+              return (
+                <button key={tool.title} onClick={() => navigate(tool.route)} className="group flex items-center gap-3 rounded-2xl border border-border bg-background p-3.5 text-left transition-all hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-sm">
+                  <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${tool.tone}`}><Icon className="h-5 w-5" /></span>
+                  <span className="min-w-0 flex-1"><span className="block text-sm font-bold">{tool.title}</span><span className="mt-0.5 block text-xs leading-5 text-muted-foreground">{tool.description}</span></span>
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {tab === 'content' && (
+        <div className="grid gap-4 p-4 sm:grid-cols-[1.2fr_.8fr] sm:p-5">
+          <div className="rounded-2xl border border-border p-4">
+            <div className="mb-3 flex items-center gap-2"><FileText className="h-4 w-4 text-primary" /><h3 className="font-bold">Recent content</h3></div>
+            <div className="space-y-2">
+              {recent.length === 0 ? <p className="text-sm text-muted-foreground">Your newest posts will appear here as you publish.</p> : recent.map(post => (
+                <button key={post.id} onClick={() => navigate(`/post/${post.id}`)} className="flex w-full items-center gap-3 rounded-xl border border-border/70 p-3 text-left hover:bg-muted/40">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">{post.is_video ? <Video className="h-4 w-4" /> : <ImageIcon className="h-4 w-4" />}</span>
+                  <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{post.content || 'Media post'}</span><span className="text-xs text-muted-foreground">{post.created_at ? new Date(post.created_at).toLocaleDateString() : 'Recently published'}</span></span>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="rounded-2xl border border-border bg-muted/20 p-4">
+            <div className="mb-3 flex items-center gap-2"><PlaySquare className="h-4 w-4 text-primary" /><h3 className="font-bold">Production shortcuts</h3></div>
+            <div className="space-y-2">
+              <button onClick={() => navigate('/scheduled')} className="flex w-full items-center justify-between rounded-xl bg-background px-3 py-3 text-sm font-semibold hover:bg-muted"><span>Schedule content</span><ChevronRight className="h-4 w-4" /></button>
+              <button onClick={() => navigate('/videos')} className="flex w-full items-center justify-between rounded-xl bg-background px-3 py-3 text-sm font-semibold hover:bg-muted"><span>Open video workspace</span><ChevronRight className="h-4 w-4" /></button>
+              <button onClick={() => navigate('/ai')} className="flex w-full items-center justify-between rounded-xl bg-background px-3 py-3 text-sm font-semibold hover:bg-muted"><span>Open AI assistant</span><ChevronRight className="h-4 w-4" /></button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {tab === 'insights' && (
+        <div className="grid gap-3 p-4 sm:grid-cols-3 sm:p-5">
+          <Stat label="Likes" value={format(stats.total_likes)} />
+          <Stat label="Video views" value={format(stats.video_views)} />
+          <Stat label="Earnings" value={`$${(stats.total_earnings ?? 0).toFixed(2)}`} />
+          <button onClick={() => navigate('/analytics')} className="sm:col-span-3 flex items-center justify-between rounded-2xl border border-border p-4 text-left hover:bg-muted/40"><span><span className="block text-sm font-bold">Open full analytics</span><span className="text-xs text-muted-foreground">Deep-dive into creator performance and trends.</span></span><ChevronRight className="h-4 w-4" /></button>
+        </div>
+      )}
+    </section>
+  );
+}
