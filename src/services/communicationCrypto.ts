@@ -63,16 +63,22 @@ const exportPublicKey = async (key: CryptoKey) => {
   return btoa(String.fromCharCode(...new Uint8Array(raw)));
 };
 
+const toArrayBuffer = (bytes: Uint8Array): ArrayBuffer => {
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  return copy.buffer;
+};
+
 const importPublicKey = async (encoded: string) => {
   const raw = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
-  return crypto.subtle.importKey('spki', raw, { name: 'ECDH', namedCurve: 'P-256' }, false, []);
+  return crypto.subtle.importKey('spki', toArrayBuffer(raw), { name: 'ECDH', namedCurve: 'P-256' }, false, []);
 };
 
 const deriveWrappingKey = async (privateKey: CryptoKey, publicKey: CryptoKey, salt: Uint8Array) => {
   const bits = await crypto.subtle.deriveBits({ name: 'ECDH', public: publicKey }, privateKey, 256);
   const material = await crypto.subtle.importKey('raw', bits, 'HKDF', false, ['deriveKey']);
   return crypto.subtle.deriveKey(
-    { name: 'HKDF', hash: 'SHA-256', salt, info: new TextEncoder().encode('testagram-communication-e2ee-v1') },
+    { name: 'HKDF', hash: 'SHA-256', salt: toArrayBuffer(salt), info: new TextEncoder().encode('testagram-communication-e2ee-v1') },
     material,
     { name: 'AES-GCM', length: 256 },
     false,
@@ -102,7 +108,7 @@ export const communicationCrypto = {
 
   async createConversationKey() {
     const bytes = crypto.getRandomValues(new Uint8Array(32));
-    return bytes.buffer;
+    return toArrayBuffer(bytes);
   },
 
   async wrapConversationKey(conversationKey: ArrayBuffer, recipientPublicKey: string) {
@@ -111,14 +117,14 @@ export const communicationCrypto = {
     const salt = crypto.getRandomValues(new Uint8Array(16));
     const wrappingKey = await deriveWrappingKey(device.privateKey, remote, salt);
     const nonce = crypto.getRandomValues(new Uint8Array(12));
-    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: nonce }, wrappingKey, conversationKey);
-    return { ciphertext: encode(ciphertext), nonce: encode(nonce), salt: encode(salt), senderDeviceId: device.deviceId };
+    const ciphertext = await crypto.subtle.encrypt({ name: 'AES-GCM', iv: toArrayBuffer(nonce) }, wrappingKey, conversationKey);
+    return { ciphertext: encode(ciphertext), nonce: encode(toArrayBuffer(nonce)), salt: encode(toArrayBuffer(salt)), senderDeviceId: device.deviceId };
   },
 
   async unwrapConversationKey(envelope: { ciphertext: string; nonce: string; salt: string; senderPublicKey: string }) {
     const device = await ensureDevice();
     const sender = await importPublicKey(envelope.senderPublicKey);
     const wrappingKey = await deriveWrappingKey(device.privateKey, sender, decode(envelope.salt));
-    return crypto.subtle.decrypt({ name: 'AES-GCM', iv: decode(envelope.nonce) }, wrappingKey, decode(envelope.ciphertext));
+    return crypto.subtle.decrypt({ name: 'AES-GCM', iv: toArrayBuffer(decode(envelope.nonce)) }, wrappingKey, toArrayBuffer(decode(envelope.ciphertext)));
   },
 };
