@@ -1,5 +1,6 @@
 name: One-shot Stories canonical ad migration
 
+# Triggered from a user-authored commit so the migration is not suppressed by GITHUB_TOKEN push semantics.
 on:
   push:
     branches: [main]
