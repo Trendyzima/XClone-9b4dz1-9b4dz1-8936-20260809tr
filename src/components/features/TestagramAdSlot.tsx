@@ -47,13 +47,11 @@ export function TestagramAdSlot({ placement, context, className = '' }: {
   const { isActive: isPremium } = usePremium();
   const [ad, setAd] = useState<ServedAd | null>(null);
   const [loading, setLoading] = useState(true);
-  const requestRef = useRef<string>('');
   const impressionRef = useRef<string>('');
 
   useEffect(() => {
     let cancelled = false;
     const requestId = crypto.randomUUID();
-    requestRef.current = requestId;
     (async () => {
       if (isPremium || Capacitor.isNativePlatform()) { setLoading(false); return; }
       try {
