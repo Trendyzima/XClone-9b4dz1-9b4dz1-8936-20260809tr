@@ -74,6 +74,11 @@ Deno.serve(async (req) => {
     }
     if (payout.status === "paid") return json({ ok: true, status: "paid", payout_id: payout.id, provider_payout_id: payout.provider_payout_id });
     if (payout.status === "failed") return json({ ok: false, status: "failed", payout_id: payout.id, error: payout.failure_reason || "Payout failed" }, 409);
+    if (payout.provider_payout_id) return json({ ok: true, status: payout.status, payout_id: payout.id, provider_payout_id: payout.provider_payout_id }, 202);
+
+    // A processing payout without a provider id is an ambiguous external request.
+    // Never submit it again from a retry; wait for provider reconciliation/callback.
+    if (payout.status === "processing") return json({ ok: true, status: "processing", payout_id: payout.id }, 202);
 
     const phone = normalizePhone(String(payout.destination?.phone || body.phone || ""));
     const amountKes = Math.floor(Number(payout.amount_cents) / 100);
@@ -81,15 +86,10 @@ Deno.serve(async (req) => {
       return json({ error: "Payout amount must be between KES 10 and KES 150,000" }, 400);
     }
 
-    // A payout already carrying a provider id has been submitted. Never submit it again.
-    if (payout.provider_payout_id) {
-      return json({ ok: true, status: payout.status, payout_id: payout.id, provider_payout_id: payout.provider_payout_id });
-    }
-
     const begun = await admin.rpc("begin_monetization_payout_processing", { p_payout_id: payout.id });
     if (begun.error) throw begun.error;
     if (!begun.data) throw new Error("Unable to begin payout processing");
-    if (begun.data.status === "paid" || begun.data.status === "failed" || begun.data.provider_payout_id) {
+    if (begun.data.status !== "processing") {
       return json({ ok: true, status: begun.data.status, payout_id: begun.data.id, provider_payout_id: begun.data.provider_payout_id });
     }
 
@@ -135,8 +135,8 @@ Deno.serve(async (req) => {
     return json({ ok: true, status: "processing", payout_id: payout.id, provider_payout_id: providerId, amount_kes: amountKes, currency: "KES" }, 202);
   } catch (e) {
     console.error("creator-mpesa-payout", e);
-    // Ambiguous provider/network failures deliberately do NOT call fail_monetization_payout.
-    // The payout remains processing so the provider callback can settle it exactly once.
+    // Ambiguous provider/network failures deliberately do NOT fail the payout.
+    // It remains processing so the provider callback/reconciliation path can settle it.
     return json({ error: e instanceof Error ? e.message : "Canonical creator payout failed", payout_id: payoutId || null }, 500);
   }
 });
