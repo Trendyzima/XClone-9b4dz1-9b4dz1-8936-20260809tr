@@ -53,11 +53,7 @@ function timestamp() {
 async function verifyProvider(checkout: string) {
   const token = await accessToken();
   const ts = timestamp();
-  const response = await fetch(`${BASE}/mpesa/stkpushquery/v1/query`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ BusinessShortCode: SHORTCODE, Password: btoa(`${SHORTCODE}${PASSKEY}${ts}`), Timestamp: ts, CheckoutRequestID: checkout }),
-  });
+  const response = await fetch(`${BASE}/mpesa/stkpushquery/v1/query`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ BusinessShortCode: SHORTCODE, Password: btoa(`${SHORTCODE}${PASSKEY}${ts}`), Timestamp: ts, CheckoutRequestID: checkout }) });
   const data = await response.json().catch(() => ({}));
   if (!response.ok || String(data.ResponseCode) !== "0" || String(data.ResultCode) !== "0") throw new Error("MPESA_PROVIDER_PAYMENT_NOT_CONFIRMED");
   return data as Record<string, unknown>;
@@ -80,7 +76,6 @@ async function handleCallback(body: any) {
   const resultCode = Number(stk.ResultCode);
   const resultDescription = String(stk.ResultDesc || "");
   if (!checkout || !Number.isInteger(resultCode)) return json({ ResultCode: 1, ResultDesc: "Invalid callback" }, 400);
-
   const payment = await findAdPayment(checkout);
   if (!payment) return json({ ResultCode: 1, ResultDesc: "Payment record not available; retry callback" }, 500);
 
@@ -96,15 +91,11 @@ async function handleCallback(body: any) {
   let providerResponse: Record<string, unknown> = {};
   if (resultCode === 0) {
     if (!receipt || !Number.isFinite(amountKes) || Math.round(amountKes * 100) !== Math.round(Number(payment.amount_kes) * 100)) return json({ ResultCode: 1, ResultDesc: "Callback verification failed" }, 400);
-    try {
-      providerResponse = await verifyProvider(checkout);
-    } catch (error) {
-      console.error("[mpesa-ad] provider verification failed", checkout, error instanceof Error ? error.message : String(error));
-      return json({ ResultCode: 1, ResultDesc: "Provider payment not yet confirmed; retry callback" }, 500);
-    }
+    try { providerResponse = await verifyProvider(checkout); }
+    catch (error) { console.error("[mpesa-ad] provider verification failed", checkout, error instanceof Error ? error.message : String(error)); return json({ ResultCode: 1, ResultDesc: "Provider payment not yet confirmed; retry callback" }, 500); }
   }
 
-  const { data: settlement, error } = await admin.rpc("finalize_zenad_mpesa_ad_payment", {
+  const { data: settlement, error: settlementError } = await admin.rpc("finalize_zenad_mpesa_ad_payment", {
     p_checkout_request_id: checkout,
     p_result_code: resultCode,
     p_receipt_number: receipt,
@@ -113,10 +104,7 @@ async function handleCallback(body: any) {
     p_callback_data: { ...body, callback_phone: callbackPhone },
     p_provider_response: providerResponse,
   });
-  if (error) {
-    console.error("[mpesa-ad] settlement failed", checkout, error.message);
-    return json({ ResultCode: 1, ResultDesc: "Settlement failed; retry callback" }, 500);
-  }
+  if (settlementError) { console.error("[mpesa-ad] settlement failed", checkout, settlementError.message); return json({ ResultCode: 1, ResultDesc: "Settlement failed; retry callback" }, 500); }
   if (!settlement?.ok) return json({ ResultCode: 1, ResultDesc: "Settlement incomplete; retry callback" }, 500);
   return json({ ResultCode: 0, ResultDesc: "Accepted" });
 }
@@ -137,11 +125,7 @@ Deno.serve(async (req) => {
     const requestedAmount = Number(body.amount_kes);
     if (!adId) return json({ error: "ad_id is required" }, 400);
 
-    const { data: campaign, error: campaignError } = await admin
-      .from("zenad_campaigns")
-      .select("id,advertiser_id,status,currency,lifetime_budget_micros,payment_status,payment_reference,starts_at,ends_at")
-      .eq("id", adId)
-      .maybeSingle();
+    const { data: campaign, error: campaignError } = await admin.from("zenad_campaigns").select("id,advertiser_id,status,currency,lifetime_budget_micros,payment_status,payment_reference,starts_at,ends_at").eq("id", adId).maybeSingle();
     if (campaignError) throw new Error(`CAMPAIGN_LOOKUP_FAILED:${campaignError.message}`);
     if (!campaign) return json({ error: "Advertisement not found" }, 404);
 
@@ -155,6 +139,9 @@ Deno.serve(async (req) => {
     if (!Number.isFinite(requestedAmount) || Math.ceil(requestedAmount) !== Math.ceil(budgetKes)) return json({ error: "Payment amount does not match the advertisement budget" }, 400);
     const userPhone = normalizePhone(String(body.phone || ""));
 
+    const { error: appError } = await admin.from("zenad_campaign_apps").upsert({ campaign_id: adId, app_id: "testagram" }, { onConflict: "campaign_id,app_id" });
+    if (appError) throw new Error(`CAMPAIGN_APP_LINK_FAILED:${appError.message}`);
+
     const { data: wallet, error: walletError } = await admin.from("wallets").select("id,currency,status,spending_enabled").eq("user_id", user.id).eq("currency", "KES").maybeSingle();
     if (walletError) throw new Error(`WALLET_LOOKUP_FAILED:${walletError.message}`);
     if (!wallet) return json({ error: "KES wallet required for ad payment" }, 409);
@@ -163,20 +150,14 @@ Deno.serve(async (req) => {
     const { data: existing } = await admin.from("zenad_mpesa_payments").select("checkout_request_id,status").eq("ad_id", adId).eq("user_id", user.id).eq("status", "pending").order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (existing?.checkout_request_id) return json({ success: true, status: "pending", checkout_request_id: existing.checkout_request_id });
 
-    const { data: walletTx, error: txError } = await admin.from("wallet_transactions").insert({
-      user_id: user.id, wallet_id: wallet.id, kind: "topup", type: "deposit", amount: budgetKes, amount_cents: Math.round(budgetKes * 100), currency: "KES", direction: "credit", status: "pending", provider: "mpesa", provider_status: "PENDING", payment_method: "mpesa", description: `M-Pesa ad payment ${adId.slice(0, 8)}`, metadata: { ad_id: adId, amount_kes: budgetKes, phone: userPhone }
-    }).select("id").single();
+    const { data: walletTx, error: txError } = await admin.from("wallet_transactions").insert({ user_id: user.id, wallet_id: wallet.id, kind: "topup", type: "deposit", amount: budgetKes, amount_cents: Math.round(budgetKes * 100), currency: "KES", direction: "credit", status: "pending", provider: "mpesa", provider_status: "PENDING", payment_method: "mpesa", description: `M-Pesa ad payment ${adId.slice(0, 8)}`, metadata: { ad_id: adId, amount_kes: budgetKes, phone: userPhone } }).select("id").single();
     if (txError || !walletTx?.id) throw new Error(`WALLET_TRANSACTION_CREATE_FAILED:${txError?.message || "unknown"}`);
 
     const token = await accessToken();
     const ts = timestamp();
     const reference = `TA${adId.replaceAll("-", "").slice(0, 10)}`.slice(0, 12);
     const callbackUrl = `${SUPABASE_URL}/functions/v1/mpesa-ad-payment`;
-    const stkResponse = await fetch(`${BASE}/mpesa/stkpush/v1/processrequest`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ BusinessShortCode: SHORTCODE, Password: btoa(`${SHORTCODE}${PASSKEY}${ts}`), Timestamp: ts, TransactionType: "CustomerPayBillOnline", Amount: budgetKes, PartyA: userPhone, PartyB: SHORTCODE, PhoneNumber: userPhone, CallBackURL: callbackUrl, AccountReference: reference, TransactionDesc: `Testagram ad ${adId.slice(0, 8)}` }),
-    });
+    const stkResponse = await fetch(`${BASE}/mpesa/stkpush/v1/processrequest`, { method: "POST", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ BusinessShortCode: SHORTCODE, Password: btoa(`${SHORTCODE}${PASSKEY}${ts}`), Timestamp: ts, TransactionType: "CustomerPayBillOnline", Amount: budgetKes, PartyA: userPhone, PartyB: SHORTCODE, PhoneNumber: userPhone, CallBackURL: callbackUrl, AccountReference: reference, TransactionDesc: `Testagram ad ${adId.slice(0, 8)}` }) });
     const provider = await stkResponse.json().catch(() => ({}));
     if (!stkResponse.ok || String(provider.ResponseCode) !== "0" || !provider.CheckoutRequestID) {
       await admin.from("wallet_transactions").update({ status: "failed", provider_status: String(provider.errorMessage || provider.ResponseDescription || "M-Pesa STK Push failed") }).eq("id", walletTx.id).eq("status", "pending");
@@ -187,10 +168,7 @@ Deno.serve(async (req) => {
     if (mpesaPaymentError || !mpesaPayment?.id) throw new Error(`MPESA_PAYMENT_CREATE_FAILED:${mpesaPaymentError?.message || "unknown"}`);
 
     const { error: adPaymentError } = await admin.from("zenad_mpesa_payments").insert({ user_id: user.id, ad_id: adId, wallet_id: wallet.id, wallet_transaction_id: walletTx.id, mpesa_payment_id: mpesaPayment.id, amount_kes: budgetKes, phone: userPhone, merchant_request_id: String(provider.MerchantRequestID || ""), checkout_request_id: String(provider.CheckoutRequestID), status: "pending", provider_response: provider });
-    if (adPaymentError) {
-      console.error("[mpesa-ad] ad payment ledger persistence failed", adPaymentError.message);
-      return json({ error: "M-Pesa request accepted but payment recording is being reconciled. Do not retry immediately." }, 202);
-    }
+    if (adPaymentError) { console.error("[mpesa-ad] ad payment ledger persistence failed", adPaymentError.message); return json({ error: "M-Pesa request accepted but payment recording is being reconciled. Do not retry immediately." }, 202); }
 
     await admin.from("wallets").update({ mpesa_phone: userPhone }).eq("id", wallet.id).eq("user_id", user.id);
     return json({ success: true, status: "pending", checkout_request_id: String(provider.CheckoutRequestID), merchant_request_id: String(provider.MerchantRequestID || ""), amount_kes: budgetKes });
