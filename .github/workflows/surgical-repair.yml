@@ -87,8 +87,8 @@ jobs:
           test "$(git diff --name-only | wc -l)" -eq 1
           test "$(git diff --name-only)" = "scripts/verify-communications-e2ee.mjs"
           git diff --check
-          git diff --unified=0 -- scripts/verify-communications-e2ee.mjs | grep -Fq "-console.log('communications E2EE contract: PASS');"
-          test "$(git diff --unified=0 -- scripts/verify-communications-e2ee.mjs | grep -c '^+' )" -eq 0
+          git diff --unified=0 -- scripts/verify-communications-e2ee.mjs | grep -Fq -- "-console.log('communications E2EE contract: PASS');"
+          test "$(git diff --unified=0 -- scripts/verify-communications-e2ee.mjs | grep -Ec '^\+[^+]' || true)" -eq 0
 
       - name: Validate repaired tree completely
         run: |
