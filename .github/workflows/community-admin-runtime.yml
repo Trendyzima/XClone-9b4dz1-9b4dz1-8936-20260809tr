@@ -23,6 +23,23 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
+      - name: Wait for controller endpoint to be live
+        shell: bash
+        run: |
+          set -euo pipefail
+          url='https://aepbqfrmheihfsauzcby.supabase.co/functions/v1/community-admin-runtime'
+          for attempt in 1 2 3 4 5 6; do
+            http_status="$(curl --max-time 10 --silent --show-error --output /dev/null --write-out '%{http_code}' "$url" || true)"
+            if [[ "$http_status" == '405' ]]; then
+              echo "controller endpoint is live (GET -> 405)"
+              exit 0
+            fi
+            echo "controller endpoint not ready (http=${http_status:-transport-failure}), attempt ${attempt}/6"
+            sleep $((attempt * 5))
+          done
+          echo 'controller endpoint did not become ready'
+          exit 1
+
       - name: Mint GitHub Actions OIDC token
         id: oidc
         shell: bash
@@ -69,6 +86,7 @@ jobs:
           if report.get('ok') is not True or report.get('status') != 'passed':
               raise SystemExit(f"ACCEPTANCE_CONTROLLER_FAILED:{report.get('code', 'unknown')}")
           print('COMMUNITY_ADMIN_RUNTIME_ACCEPTANCE=PASS')
+          print(f"controller_version={report.get('controller_version')}")
           print(f"attempt={report.get('attempt')}")
           for check in report.get('checks', []):
               print(f"check={check}")
