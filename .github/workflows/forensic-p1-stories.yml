@@ -29,10 +29,15 @@ jobs:
           s, n = re.subn(r"  // ── Story Ads: inject between groups ──────────────────────────────────────.*?  // ── Story Creation Rewards", "  // ── Canonical Story Ads ────────────────────────────────────────────────────\n  // Eligibility, frequency caps, campaign selection, impression accounting, and spend are server-owned.\n  const [showCanonicalStoryAd, setShowCanonicalStoryAd] = useState(false);\n\n  // ── Story Creation Rewards", s, count=1, flags=re.S)
           if n != 1: raise SystemExit(f'legacy state block matches={n}')
           s = re.sub(r"\s*maybeShowStoryAd\(\);", '', s)
-          s, n = re.subn(r"\s*\{\/\* Ad injection in Explore \*\/\}[\\s\\S]*?\n\s*<div className=\"grid grid-cols-2 gap-3\">", "\n              <div className=\"grid grid-cols-2 gap-3\">", s, count=1, flags=re.S)
-          if n != 1: raise SystemExit(f'legacy Explore block matches={n}')
-          s, n = re.subn(r"      /\* ── Story Ad Slide ── \*/.*?      \}\n\n      /\* ── Explore Stories Sheet ── \*/", "      {/* ── Canonical Story Ad Slide ───────────────────────────────────────── */}\n      {showCanonicalStoryAd && viewerStory && (\n        <StoryAdSlide\n          ad={{\n            id: 'story-slot',\n            source_id: viewerStory.id,\n            source_type: 'story',\n            author_id: viewerG?.userId ?? null,\n          }}\n          onComplete={() => setShowCanonicalStoryAd(false)}\n          onSkip={() => setShowCanonicalStoryAd(false)}\n        />\n      )}\n\n      {/* ── Explore Stories Sheet ── */}", s, count=1, flags=re.S)
-          if n != 1: raise SystemExit(f'legacy StoryAdSlide render matches={n}')
+          start = s.find('{/* Ad injection in Explore */}')
+          end = s.find('<div className="grid grid-cols-2 gap-3">', start)
+          if start < 0 or end < 0: raise SystemExit(f'Explore markers not found: start={start}, end={end}')
+          s = s[:start] + s[end:]
+          start = s.find('{/* ── Story Ad Slide ── */}')
+          end = s.find('{/* ── Explore Stories Sheet ── */}', start)
+          if start < 0 or end < 0: raise SystemExit(f'StoryAdSlide markers not found: start={start}, end={end}')
+          canonical = "{/* ── Canonical Story Ad Slide ───────────────────────────────────────── */}\n      {showCanonicalStoryAd && viewerStory && (\n        <StoryAdSlide\n          ad={{\n            id: 'story-slot',\n            source_id: viewerStory.id,\n            source_type: 'story',\n            author_id: viewerG?.userId ?? null,\n          }}\n          onComplete={() => setShowCanonicalStoryAd(false)}\n          onSkip={() => setShowCanonicalStoryAd(false)}\n        />\n      )}\n\n      "
+          s = s[:start] + canonical + s[end:]
           marker = "      if (meta?.music?.preview_url) playStoryAudio(meta.music.preview_url);\n    }\n  };"
           if marker not in s: raise SystemExit('openViewer marker not found')
           s = s.replace(marker, "      if (meta?.music?.preview_url) playStoryAudio(meta.music.preview_url);\n      setShowCanonicalStoryAd(true);\n    }\n  };", 1)
