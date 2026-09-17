@@ -947,13 +947,18 @@ function ReferralEarningsTab({ userId }: { userId: string }) {
     const loadData = async () => {
       setLoading(true);
       const [{ data: refs }, { data: creds }] = await Promise.all([
-        supabase.from('wallet_referrals')
-          .select('*, invited_user:profiles!wallet_referrals_invited_user_id_fkey(id,username,avatar_url)')
+        supabase.from('wallet_referrals').select('*')
           .eq('inviter_user_id', userId).order('created_at', { ascending: false }),
         supabase.from('wallet_referral_credits').select('*').eq('user_id', userId)
           .eq('reason', 'referral_signup').order('created_at', { ascending: false }).limit(50),
       ]);
-      setReferrals(refs ?? []); setCredits(creds ?? []); setLoading(false);
+      const ids = (refs ?? []).map((r: any) => r.invited_user_id);
+      const { data: invitedProfiles } = ids.length
+        ? await supabase.from('profiles').select('id,username,avatar_url').in('id', ids)
+        : { data: [] };
+      const profileById = new Map((invitedProfiles ?? []).map((p: any) => [p.id, p]));
+      setReferrals((refs ?? []).map((r: any) => ({ ...r, invited_user: profileById.get(r.invited_user_id) ?? null })));
+      setCredits(creds ?? []); setLoading(false);
     };
     loadData();
   }, [userId]);
