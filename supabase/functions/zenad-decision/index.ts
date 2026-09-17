@@ -12,6 +12,15 @@ const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: 
 
 type Targeting = { countries?: string[]; devices?: string[]; genres?: string[]; keywords?: string[]; segments?: string[]; interests?: string[] };
 
+function isRenderableCreative(creative: any) {
+  if (!creative?.id || creative.enabled !== true) return false;
+  return Boolean(
+    String(creative.headline ?? '').trim() ||
+    String(creative.body ?? '').trim() ||
+    String(creative.asset_url ?? '').trim()
+  );
+}
+
 async function resolveUser(req: Request) {
   const auth = req.headers.get("Authorization") ?? "";
   if (!auth || !ANON) return null;
@@ -85,11 +94,11 @@ Deno.serve(async req => {
       if (adError) throw adError;
       const { data: creative, error: creativeError } = await admin
         .from("testagram_ad_creatives")
-        .select("id,format,headline,body,cta,asset_url,click_through_url")
+        .select("id,format,headline,body,cta,asset_url,click_through_url,enabled")
         .eq("id", existing.creative_id)
         .maybeSingle();
       if (creativeError) throw creativeError;
-      if (!campaign || !ad || !creative) return json({ kind: "no_fill", requestId, reason: "existing impression lineage unavailable" });
+      if (!campaign || !ad || !isRenderableCreative(creative)) return json({ kind: "no_fill", requestId, reason: "existing impression creative is not renderable" });
       const eventToken = await issueEventToken(existing.impression_id);
       return json({ kind: "display", requestId, impressionId: existing.impression_id, eventToken, campaignId: campaign.id, adSetId: ad.ad_set_id, adId: ad.id, creativeId: creative.id, headline: creative.headline, body: creative.body, cta: ad.call_to_action ?? creative.cta, imageUrl: creative.asset_url ?? null, clickThroughUrl: ad.destination_url ?? creative.click_through_url, sponsored: true, format: creative.format, owner: "testagram", servedBy: "zenad", trackers: { click: `${SUPABASE_URL}/functions/v1/zenad-event` } });
     }
@@ -115,11 +124,11 @@ Deno.serve(async req => {
         if (!ad.creative_id) continue;
         const { data: creative, error: creativeError } = await admin.from("testagram_ad_creatives").select("id,format,headline,body,cta,asset_url,click_through_url,weight,enabled").eq("id", ad.creative_id).eq("campaign_id", campaign.id).eq("enabled", true).in("format", formats).maybeSingle();
         if (creativeError) throw creativeError;
-        if (creative) eligible.push({ campaign, ad, creative });
+        if (isRenderableCreative(creative)) eligible.push({ campaign, ad, creative });
       }
     }
 
-    if (!eligible.length) return json({ kind: "no_fill", requestId, reason: "no eligible campaign" });
+    if (!eligible.length) return json({ kind: "no_fill", requestId, reason: "no eligible renderable campaign" });
     eligible.sort((a, b) => (Number(b.campaign.priority) - Number(a.campaign.priority)) || (Number(b.campaign.bid_cpm_micros) - Number(a.campaign.bid_cpm_micros)) || (Number(b.creative.weight) - Number(a.creative.weight)));
     const selected = eligible[0];
     const impressionId = `imp_${crypto.randomUUID().replaceAll("-", "")}`;
