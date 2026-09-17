@@ -1,0 +1,113 @@
+name: Surgical profile tools integration
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: github.event.head_commit.message != 'feat(profile): wire compact actions and creator tools'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Surgically wire profile UI
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+
+          p = Path('src/pages/ProfilePage.tsx')
+          s = p.read_text()
+
+          imp = "import { ProfileCompactActions } from '@/components/features/ProfileCompactActions';\nimport { ProfileCreatorTools } from '@/components/features/ProfileCreatorTools';\n"
+          if 'ProfileCompactActions' not in s:
+              marker = "import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';\n"
+              if marker not in s:
+                  raise SystemExit('ProfilePage import marker not found')
+              s = s.replace(marker, marker + imp, 1)
+
+          # Remove the legacy menu state; the new compact action component owns it.
+          s = s.replace("  const [showMoreMenu, setShowMoreMenu] = useState(false);\n", "")
+          s = s.replace("    setShowMoreMenu(false);\n", "")
+
+          start = "            <div className=\"flex gap-2 mt-2 flex-wrap items-center\">\n"
+          end = "            </div>\n          </div>\n\n          <div className=\"mb-3\">\n"
+          a = s.find(start)
+          if a < 0:
+              raise SystemExit('Profile action cluster start not found')
+          b = s.find(end, a)
+          if b < 0:
+              raise SystemExit('Profile action cluster end not found')
+
+          replacement = '''            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <ProfileCompactActions
+                isOwnProfile={isOwnProfile}
+                username={profile.username}
+                verified={!!profile.verified}
+                isCreator={!!profile.is_creator}
+                isFollowing={isFollowing}
+                isBlocked={isBlocked}
+                isMuted={isMuted}
+                hasFederation={hasActorRecord}
+                profileShared={profileShared}
+                onEdit={() => setShowEditDialog(true)}
+                onFollow={handleFollow}
+                onMessage={handleMessage}
+                onSend={() => navigate(`/wallet?tab=send&to=${profile.username}`)}
+                onTip={() => setShowTipDialog(true)}
+                onSubscribe={() => setShowSubscribeDialog(true)}
+                onUnsubscribe={handleUnsubscribe}
+                subscribed={!!activeSubscription}
+                onShare={handleShareProfile}
+                onMute={handleMute}
+                onBlock={handleBlock}
+                onFederation={() => {
+                  const handle = `@${profile.username}@testagram.site`;
+                  navigator.clipboard.writeText(handle).then(() => {
+                    setFedHandleCopied(true);
+                    setTimeout(() => setFedHandleCopied(false), 2000);
+                  });
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="mb-3">
+'''
+          s = s[:a] + replacement + s[b + len(end):]
+
+          # One compact business bridge on the owner's profile. Ads themselves remain
+          # owned by AdvertiserSurface; this only provides navigation from the profile.
+          anchor = "          {profile.bio && <p className=\"mb-3 break-words\">{profile.bio}</p>}\n"
+          if anchor not in s:
+              raise SystemExit('Profile bio anchor not found')
+          tools = anchor + "          {isOwnProfile && <ProfileCreatorTools userId={profile.id} />}\n"
+          s = s.replace(anchor, tools, 1)
+
+          p.write_text(s)
+
+      - name: Validate surgical result
+        run: |
+          grep -q "ProfileCompactActions" src/pages/ProfilePage.tsx
+          grep -q "ProfileCreatorTools" src/pages/ProfilePage.tsx
+          ! grep -q "showMoreMenu" src/pages/ProfilePage.tsx
+          ! grep -q "Gift Premium" src/pages/ProfilePage.tsx
+          ! grep -q "setShowMoreMenu" src/pages/ProfilePage.tsx
+
+      - name: Commit and remove one-shot workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/pages/ProfilePage.tsx .github/workflows/surgical-profile-tools.yml
+          git commit -m "feat(profile): wire compact actions and creator tools" || exit 0
+          git rm .github/workflows/surgical-profile-tools.yml
+          git commit --amend --no-edit
+          git push origin HEAD:main
