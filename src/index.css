@@ -51,17 +51,17 @@
     --popover: 0 0% 7%;
     --popover-foreground: 0 0% 98%;
 
+    --primary: 142 76% 36%;
+    --primary-foreground: 0 0% 100%;
+
     --secondary: 0 0% 14%;
     --secondary-foreground: 0 0% 98%;
-
-    --muted: 0 0% 14%;
-    --muted-foreground: 0 0% 64%;
 
     --accent: 142 76% 36%;
     --accent-foreground: 0 0% 100%;
 
     --destructive: 0 62% 50%;
-    --destructive-foreground: 0 0% 98%;
+    --destructive-foreground: 0 0% 100%;
 
     --border: 0 0% 15%;
     --input: 0 0% 15%;
@@ -179,7 +179,7 @@ pre, code { white-space: pre-wrap; word-break: break-all; }
 /* ======================== */
 /* Profile header collision guard */
 /* ======================== */
-/* The avatar must not pull upward into the advertiser card when no cover exists. */
+/* Without a cover, the old negative margin pulled the avatar into the ad card. */
 .border-b.border-border > .px-4.pb-4 > .flex.justify-between.items-start.-mt-16.mb-4 {
   margin-top: 0 !important;
   display: grid !important;
@@ -189,12 +189,12 @@ pre, code { white-space: pre-wrap; word-break: break-all; }
   row-gap: 0.75rem;
 }
 
-/* Preserve the intentional avatar/cover overlap only when a cover image exists. */
+/* Keep the intentional avatar overlap only when a cover is actually rendered. */
 .border-b.border-border:has(> .h-48 img[alt="Cover"]) > .px-4.pb-4 > .flex.justify-between.items-start.-mt-16.mb-4 {
   margin-top: -4rem !important;
 }
 
-/* Reserve the right column for every action; wrapping happens inside that column. */
+/* The action cluster owns the right column; controls wrap inside it instead of under the avatar. */
 .border-b.border-border > .px-4.pb-4 > .flex.justify-between.items-start.-mt-16.mb-4 > .flex.flex-wrap.items-center.gap-2\.5.mt-4.max-w-full {
   min-width: 0;
   width: 100%;
