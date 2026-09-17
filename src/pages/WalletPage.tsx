@@ -636,18 +636,10 @@ function InstallmentPanel({ userId, walletBalance, pinHash, currency, onClose }:
   const execute = async () => {
     if (!recipient || !totalAmt || parseFloat(totalAmt) <= 0) return;
     setSaving(true);
-    const now = Date.now();
-    const rows = Array.from({ length: installments }, (_, i) => {
-      const d = new Date(now + (freq === 'weekly' ? (i + 1) * 7 : (i + 1) * 30) * 86400000);
-      d.setHours(10, 0, 0, 0);
-      return {
-        from_user_id: userId, to_user_id: recipient.id, to_username: recipient.username,
-        amount: perInstall,
-        note: note.trim() ? `Installment ${i + 1}/${installments}: ${note.trim()}` : `Installment ${i + 1}/${installments}`,
-        scheduled_for: d.toISOString(),
-      };
+    const { error } = await supabase.rpc('wallet_create_pay_later', {
+      p_to_user_id: recipient.id, p_total: parseFloat(totalAmt), p_installments: installments,
+      p_frequency: freq, p_note: note.trim() || null,
     });
-    const { error } = await supabase.from('wallet_scheduled_transfers').insert(rows);
     setSaving(false);
     if (error) { toast.error('Failed to schedule installments'); return; }
     toast.success(`${installments} installments scheduled!`);
@@ -816,24 +808,15 @@ function SplitPaymentPanel({ userId, senderUsername, walletBalance, pinHash, cur
 
   const executeSplit = async () => {
     setStep('sending');
-    let successCount = 0;
-    for (const recipient of recipients) {
-      const { error } = await supabase.rpc('p2p_wallet_transfer', {
-        p_from_user_id: userId, p_to_user_id: recipient.id, p_amount: perPerson, p_note: note.trim() || null,
-      });
-      if (!error) {
-        successCount++;
-        setSent(successCount);
-        supabase.from('platform_inbox').insert({
-          user_id: recipient.id,
-          subject: `You received ${fmtAmt(perPerson, currency)} from @${senderUsername} (split bill)`,
-          body: `@${senderUsername} split a bill and sent you ${fmtAmt(perPerson, currency)}${note.trim() ? ` — "${note.trim()}"` : ''}.`,
-          type: 'payment', icon_emoji: '💸', cta_label: 'View Wallet', cta_url: '/wallet',
-        }).then(() => {});
-      }
+    const { data: splitId, error } = await supabase.rpc('wallet_create_split', {
+      p_total: parseFloat(total), p_recipient_ids: recipients.map(r => r.id), p_note: note.trim() || null,
+    });
+    if (error || !splitId) {
+      setStep('form'); toast.error(error?.message || 'Split failed — no funds were moved.'); return;
     }
+    setSent(recipients.length);
     setStep('done');
-    toast.success(`Split complete! Sent ${fmtAmt(perPerson, currency)} to ${successCount} people.`);
+    toast.success(`Split complete! Sent ${fmtAmt(perPerson, currency)} to ${recipients.length} people.`);
   };
 
   const handleConfirm = () => { if (pinHash) { setShowPin(true); } else { executeSplit(); } };
@@ -964,11 +947,11 @@ function ReferralEarningsTab({ userId }: { userId: string }) {
     const loadData = async () => {
       setLoading(true);
       const [{ data: refs }, { data: creds }] = await Promise.all([
-        supabase.from('referrals')
-          .select('*, invited_user:user_profiles!referrals_invited_user_fkey(id,username,avatar_url)')
-          .eq('invited_by', userId).order('created_at', { ascending: false }),
-        supabase.from('credit_transactions').select('*').eq('user_id', userId)
-          .ilike('reason', '%referral%').order('created_at', { ascending: false }).limit(50),
+        supabase.from('wallet_referrals')
+          .select('*, invited_user:profiles!wallet_referrals_invited_user_id_fkey(id,username,avatar_url)')
+          .eq('inviter_user_id', userId).order('created_at', { ascending: false }),
+        supabase.from('wallet_referral_credits').select('*').eq('user_id', userId)
+          .eq('reason', 'referral_signup').order('created_at', { ascending: false }).limit(50),
       ]);
       setReferrals(refs ?? []); setCredits(creds ?? []); setLoading(false);
     };
@@ -1040,7 +1023,7 @@ function ReferralEarningsTab({ userId }: { userId: string }) {
                 <p className="text-xs text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</p>
               </div>
               <div className="shrink-0 text-right">
-                <p className="text-sm font-black text-amber-600">+{r.credits_awarded ?? 100}</p>
+                <p className="text-sm font-black text-amber-600">+{r.credits_awarded ?? 0}</p>
                 <p className="text-[10px] text-muted-foreground">credits</p>
               </div>
             </div>
