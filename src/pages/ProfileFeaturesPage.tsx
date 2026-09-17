@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, BarChart3, BookOpen, Check, ChevronRight, Eye, Gift, Globe2, LayoutGrid, Mic2, Settings2, Sparkles, Star, Wallet, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import AccountPrivacyPage from '@/pages/AccountPrivacyPage';
 
 type Feature = { key: string; title: string; description: string; icon: typeof Sparkles; group: string; };
 
@@ -31,6 +32,7 @@ const FEATURES: Feature[] = [
 
 export default function ProfileFeaturesPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
   const [settings, setSettings] = useState<Record<string, boolean>>(DEFAULT_SETTINGS);
   const [query, setQuery] = useState('');
@@ -47,11 +49,8 @@ export default function ProfileFeaturesPage() {
         .eq('id', user.id)
         .maybeSingle();
       if (cancelled) return;
-      if (error) {
-        toast.error('Could not load profile feature settings');
-      } else {
-        setSettings({ ...DEFAULT_SETTINGS, ...(data?.profile_features ?? {}) });
-      }
+      if (error) toast.error('Could not load profile feature settings');
+      else setSettings({ ...DEFAULT_SETTINGS, ...(data?.profile_features ?? {}) });
       setLoading(false);
     };
     void load();
@@ -70,10 +69,7 @@ export default function ProfileFeaturesPage() {
     const previous = settings;
     setSettings(next);
     setSaving(true);
-    const { error } = await supabase
-      .from('profiles')
-      .update({ profile_features: next })
-      .eq('id', user.id);
+    const { error } = await supabase.from('profiles').update({ profile_features: next }).eq('id', user.id);
     setSaving(false);
     if (error) {
       setSettings(previous);
@@ -84,6 +80,8 @@ export default function ProfileFeaturesPage() {
   };
 
   const enabledCount = FEATURES.filter(f => settings[f.key]).length;
+
+  if (searchParams.get('section') === 'account') return <AccountPrivacyPage />;
 
   if (!user) {
     return <div className="min-h-screen bg-background flex items-center justify-center px-4"><div className="text-center"><h1 className="font-bold text-lg">Sign in to manage profile features</h1><button onClick={() => navigate('/auth')} className="mt-4 px-5 py-2 rounded-full bg-primary text-primary-foreground font-semibold">Sign in</button></div></div>;
@@ -103,6 +101,10 @@ export default function ProfileFeaturesPage() {
         <section className="rounded-3xl border border-border bg-gradient-to-br from-primary/10 via-background to-background p-5 mb-5 shadow-sm">
           <div className="flex items-start gap-3"><div className="w-11 h-11 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0"><LayoutGrid className="w-5 h-5 text-primary" /></div><div className="min-w-0"><h2 className="font-bold text-lg">Keep your profile clean</h2><p className="text-sm text-muted-foreground mt-1 leading-5">Turn optional features on when you want them. Your main profile stays focused, spacious and easy to scan.</p></div></div>
           <div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground"><Check className="w-3.5 h-3.5 text-primary" /> Settings are saved to your profile.</div>
+        </section>
+
+        <section className="rounded-3xl border border-border bg-background p-4 mb-5 shadow-sm">
+          <div className="flex items-start gap-3"><div className="w-10 h-10 rounded-2xl bg-muted flex items-center justify-center shrink-0"><Settings2 className="w-4 h-4" /></div><div className="min-w-0 flex-1"><h2 className="font-bold text-sm">Privacy & Account</h2><p className="text-xs text-muted-foreground mt-1">Appearance and profile modules are separate from account security, deactivation and permanent deletion.</p></div><button onClick={() => navigate('/profile-features?section=account')} className="shrink-0 px-3 py-2 rounded-xl bg-foreground text-background text-xs font-bold hover:opacity-90">Manage</button></div>
         </section>
 
         <div className="relative mb-5"><Settings2 className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search profile features" className="w-full h-11 rounded-2xl border border-border bg-muted/30 pl-10 pr-10 text-sm outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary/40" />{query && <button onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground"><X className="w-4 h-4" /></button>}</div>
