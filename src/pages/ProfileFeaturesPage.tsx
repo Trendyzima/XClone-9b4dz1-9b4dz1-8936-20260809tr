@@ -104,6 +104,10 @@ export default function ProfileFeaturesPage() {
         </section>
 
         <section className="rounded-3xl border border-border bg-background p-4 mb-5 shadow-sm">
+          <div className="flex items-start gap-3"><div className="w-10 h-10 rounded-2xl bg-muted flex items-center justify-center shrink-0"><Globe2 className="w-4 h-4 text-primary" /></div><div className="min-w-0 flex-1"><h2 className="font-bold text-sm">Fediverse</h2><p className="text-xs text-muted-foreground mt-1">Open Testagram's existing federated timeline, ActivityPub identity and remote-network tools.</p></div><button onClick={() => navigate('/fediverse')} className="shrink-0 px-3 py-2 rounded-xl bg-foreground text-background text-xs font-bold hover:opacity-90">Open</button></div>
+        </section>
+
+        <section className="rounded-3xl border border-border bg-background p-4 mb-5 shadow-sm">
           <div className="flex items-start gap-3"><div className="w-10 h-10 rounded-2xl bg-muted flex items-center justify-center shrink-0"><Settings2 className="w-4 h-4" /></div><div className="min-w-0 flex-1"><h2 className="font-bold text-sm">Privacy & Account</h2><p className="text-xs text-muted-foreground mt-1">Appearance and profile modules are separate from account security, deactivation and permanent deletion.</p></div><button onClick={() => navigate('/profile-features?section=account')} className="shrink-0 px-3 py-2 rounded-xl bg-foreground text-background text-xs font-bold hover:opacity-90">Manage</button></div>
         </section>
 
