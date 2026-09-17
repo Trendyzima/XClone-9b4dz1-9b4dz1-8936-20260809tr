@@ -18,6 +18,7 @@ create table if not exists public.communication_key_envelopes (
   algorithm text not null default 'ECDH-P256-HKDF-AES-GCM',
   ciphertext text not null,
   nonce text not null,
+  salt text not null,
   created_at timestamptz not null default now(),
   unique(conversation_id, epoch, recipient_device_id)
 );
