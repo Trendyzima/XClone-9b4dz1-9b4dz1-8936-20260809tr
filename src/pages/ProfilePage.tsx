@@ -817,7 +817,7 @@ export default function ProfilePage() {
   };
 
   const fetchPosts = async (userId: string) => {
-    const { data } = await supabase.from('posts').select('*, profiles!posts_user_id_fkey(*)').eq('user_id', userId).order('created_at', { ascending: false });
+    const { data } = await supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(*)').eq('user_id', userId).order('created_at', { ascending: false });
     const postList = data || [];
     setPosts(postList);
     // Fire milestone alerts asynchronously — won't block UI
@@ -828,15 +828,15 @@ export default function ProfilePage() {
     setThreads(data || []);
   };
   const fetchReplies = async (userId: string) => {
-    const { data } = await supabase.from('replies').select('*, posts(*, profiles!posts_user_id_fkey(*))').eq('user_id', userId).order('created_at', { ascending: false });
+    const { data } = await supabase.from('replies').select('*, posts(*, user_profiles:profiles!posts_user_id_fkey(*))').eq('user_id', userId).order('created_at', { ascending: false });
     setReplies(data || []);
   };
   const fetchMedia = async (userId: string) => {
-    const { data } = await supabase.from('posts').select('*, profiles!posts_user_id_fkey(*)').eq('user_id', userId).or('image_url.not.is.null,video_url.not.is.null,media_urls.neq.[]').order('created_at', { ascending: false });
+    const { data } = await supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(*)').eq('user_id', userId).or('image_url.not.is.null,video_url.not.is.null,media_urls.neq.[]').order('created_at', { ascending: false });
     setMedia(data || []);
   };
   const fetchLikedPosts = async (userId: string) => {
-    const { data } = await supabase.from('post_likes').select('posts(*, profiles!posts_user_id_fkey(*))').eq('user_id', userId).order('created_at', { ascending: false });
+    const { data } = await supabase.from('post_likes').select('posts(*, user_profiles:profiles!posts_user_id_fkey(*))').eq('user_id', userId).order('created_at', { ascending: false });
     setLikedPosts((data || []).map((item: any) => item.posts).filter(Boolean));
   };
   const fetchFollowers = async (userId: string) => {
