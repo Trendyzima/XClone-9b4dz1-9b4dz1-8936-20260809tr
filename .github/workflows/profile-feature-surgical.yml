@@ -65,17 +65,17 @@ jobs:
       - name: Verify clean TypeScript build
         run: |
           npm ci
-          npm run typecheck
+          npx tsc --noEmit
           npm run lint
           npm run build
 
       - name: Commit integration and remove temporary workflow
         shell: bash
         run: |
-          rm -f .github/workflows/profile-feature-surgical.yml
+          rm -f .github/workflows/profile-feature-surgical.yml .github/profile-feature-trigger.txt
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/App.tsx src/pages/ProfilePage.tsx .github/workflows/profile-feature-surgical.yml
+          git add src/App.tsx src/pages/ProfilePage.tsx .github/workflows/profile-feature-surgical.yml .github/profile-feature-trigger.txt
           if git diff --cached --quiet; then
             echo 'No integration changes required.'
             exit 0
