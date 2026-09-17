@@ -99,10 +99,8 @@ export default function AuthPage() {
       referrerId = refProfile?.id ?? null;
     }
     if (!referrerId || referrerId === newUserId) return;
-    const { error } = await supabase.from('referrals').insert({ invited_by: referrerId, invited_user: newUserId, credits_awarded: 100 }).select().single();
-    if (error) return;
-    await supabase.rpc('add_to_wallet', { p_user_id: referrerId, p_amount: 100 }).catch(() => {});
-    await supabase.rpc('add_to_wallet', { p_user_id: newUserId, p_amount: 100 }).catch(() => {});
+    const { error } = await supabase.rpc('wallet_claim_referral', { p_inviter: referrerId });
+    if (error) console.warn('Referral claim failed:', error.message);
   };
 
   const handleVerifyEmailOtp = async (e: React.FormEvent) => {
