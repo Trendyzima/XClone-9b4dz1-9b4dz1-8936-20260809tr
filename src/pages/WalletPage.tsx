@@ -3674,6 +3674,12 @@ export default function WalletPage() {
   const { user }                = useAuth();
   const { wallet, fetchWallet } = useWallet();
   const [showTour, setShowTour] = useState(false);
+  const [canonicalSavingsBalance, setCanonicalSavingsBalance] = useState(0);
+  useEffect(() => {
+    if (!user) return;
+    supabase.from('wallet_savings_pockets').select('balance').eq('user_id', user.id).maybeSingle()
+      .then(({ data }) => setCanonicalSavingsBalance(Number(data?.balance ?? 0)));
+  }, [user, wallet]);
 
   useEffect(() => {
     if (!user) return;
@@ -3966,7 +3972,7 @@ export default function WalletPage() {
     walletBalance:  Number(wallet?.balance ?? 0),
     username:       user?.username ?? user?.email?.split('@')[0] ?? 'me',
     totalDeposited: Number((wallet as any)?.total_deposited ?? 0),
-    savingsBalance: Number((wallet as any)?.savings_balance ?? 0),
+    savingsBalance: canonicalSavingsBalance,
   }), [wallet, user]);
 
   return (
