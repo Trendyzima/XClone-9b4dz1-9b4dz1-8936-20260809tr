@@ -290,7 +290,7 @@ export default function VideosPage() {
     if (!q.trim()) { setSearchResults([]); return; }
     searchDebounce.current = setTimeout(async () => {
       setSearchLoading(true);
-      const { data } = await supabase.from('posts').select('*, profiles(*)')
+      const { data } = await supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(*)')
         .eq('is_video', true).ilike('content', `%${q}%`).order('views_count', { ascending: false }).limit(20);
       setSearchResults(data ?? []);
       setSearchLoading(false);
@@ -307,7 +307,7 @@ export default function VideosPage() {
     setDuetsLoading(true);
     supabase
       .from('posts')
-      .select('*, profiles(*)')
+      .select('*, user_profiles:profiles!posts_user_id_fkey(*)')
       .eq('is_video', true)
       .ilike('content', '%Duet with @%')
       .order('created_at', { ascending: false })
