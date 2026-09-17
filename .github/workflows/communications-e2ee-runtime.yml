@@ -1,0 +1,104 @@
+name: Communications E2EE Runtime Acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'src/pages/MessagesPage.tsx'
+      - 'src/services/communicationCrypto.ts'
+      - 'src/services/communicationService.ts'
+      - 'src/lib/supabase.ts'
+      - 'scripts/verify-communications-e2ee-browser.mjs'
+      - '.github/workflows/communications-e2ee-runtime.yml'
+      - 'package.json'
+      - 'package-lock.json'
+
+concurrency:
+  group: communications-e2ee-runtime-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  runtime-acceptance:
+    name: Two-account browser + LiveKit acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      E2EE_TEST_A_EMAIL: ${{ secrets.E2EE_TEST_A_EMAIL }}
+      E2EE_TEST_A_PASSWORD: ${{ secrets.E2EE_TEST_A_PASSWORD }}
+      E2EE_TEST_B_EMAIL: ${{ secrets.E2EE_TEST_B_EMAIL }}
+      E2EE_TEST_B_PASSWORD: ${{ secrets.E2EE_TEST_B_PASSWORD }}
+      E2EE_TEST_FORENSIC_KEY: ${{ secrets.E2EE_TEST_FORENSIC_KEY }}
+      E2EE_TEST_BASE_URL: http://127.0.0.1:4173
+
+    steps:
+      - name: Checkout exact commit
+        uses: actions/checkout@v4
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Fail loudly if runtime identities/forensic access are missing
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(
+            VITE_SUPABASE_URL
+            VITE_SUPABASE_ANON_KEY
+            E2EE_TEST_A_EMAIL
+            E2EE_TEST_A_PASSWORD
+            E2EE_TEST_B_EMAIL
+            E2EE_TEST_B_PASSWORD
+            E2EE_TEST_FORENSIC_KEY
+          )
+          for name in "${required[@]}"; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "MISSING_REQUIRED_SECRET:$name"
+              exit 1
+            fi
+          done
+
+      - name: Install application dependencies
+        run: npm ci
+
+      - name: Install pinned Playwright runtime
+        run: npm install --no-save --no-package-lock playwright@1.55.0
+
+      - name: Install Chromium and CI media dependencies
+        run: npx playwright@1.55.0 install --with-deps chromium
+
+      - name: Build production application
+        run: npm run build
+
+      - name: Start production preview
+        shell: bash
+        run: |
+          set -euo pipefail
+          nohup npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/testagram-preview.log 2>&1 &
+          echo $! > /tmp/testagram-preview.pid
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/testagram-preview.log
+          exit 1
+
+      - name: Run strict two-account E2EE + LiveKit acceptance
+        run: node scripts/verify-communications-e2ee-browser.mjs
+
+      - name: Upload runtime evidence on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: communications-e2ee-runtime-failure-${{ github.run_id }}
+          if-no-files-found: warn
+          path: |
+            artifacts/**
+            /tmp/testagram-preview.log
