@@ -3320,8 +3320,6 @@ function SavingsPocketTab({ userId, mainBalance, savingsBalance, pinHash, curren
     if (type === 'in'  && amt > mainBalance)    { toast.error('Insufficient wallet balance');  return; }
     if (type === 'out' && amt > savingsBalance) { toast.error('Insufficient savings balance'); return; }
     setSaving(true);
-    const newMain    = parseFloat((type === 'in' ? mainBalance - amt : mainBalance + amt).toFixed(2));
-    const newSavings = parseFloat((type === 'in' ? savingsBalance + amt : savingsBalance - amt).toFixed(2));
     const { error } = await supabase.rpc('wallet_move_savings', { p_amount: amt, p_direction: type });
     setSaving(false);
     if (error) { toast.error('Transfer failed'); return; }
@@ -3334,7 +3332,7 @@ function SavingsPocketTab({ userId, mainBalance, savingsBalance, pinHash, curren
         const targetAmt  = Number(goal.target_amount);
         const newGoalAmt = Math.min(prevAmt + amt, targetAmt);
         const completed  = newGoalAmt >= targetAmt;
-        await supabase.from('savings_goals')
+        await supabase.from('wallet_savings_goals')
           .update({ current_amount: newGoalAmt, is_completed: completed }).eq('id', linkedGoalId);
         if (completed) toast.success(`🎉 Goal "${goal.name}" completed!`);
         else toast.info(`Goal progress: ${fmtAmt(newGoalAmt, currency)} / ${fmtAmt(targetAmt, currency)}`);
