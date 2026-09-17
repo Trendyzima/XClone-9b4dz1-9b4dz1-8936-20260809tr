@@ -114,7 +114,7 @@ function SearchPageV2() {
       const since = dateFilter === '24 hours' ? new Date(Date.now() - 86400000).toISOString()
         : dateFilter === '7 days' ? new Date(Date.now() - 7 * 86400000).toISOString()
         : dateFilter === '30 days' ? new Date(Date.now() - 30 * 86400000).toISOString() : null;
-      const postQuery = supabase.from('posts').select('*, profiles(*)')
+      const postQuery = supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(*)')
         .or(`content.ilike.%${clean}%,content.ilike.%${q}%`)
         .is('community_id', null).limit(80);
       if (since) postQuery.gte('created_at', since);
