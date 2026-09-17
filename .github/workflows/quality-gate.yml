@@ -105,4 +105,4 @@ jobs:
           if grep -q "supabase.from('likes')" src/components/features/PostCard.tsx; then exit 1; fi
           if grep -q "supabase.from('reposts')" src/components/features/PostCard.tsx; then exit 1; fi
 
-# Verification trigger: after profile CI cleanup, run the full gate against the repaired main tree.
+# Verification trigger: run the canonical gate against the repaired main tree.
