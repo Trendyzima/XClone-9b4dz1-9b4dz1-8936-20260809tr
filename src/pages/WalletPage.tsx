@@ -3924,7 +3924,6 @@ export default function WalletPage() {
       if (!res.ok || !payload.success) throw new Error(payload.error || 'B2C request failed');
       toast.success('Payout initiated — check your phone!');
       const convId = payload.conversation_id;
-      await supabase.rpc('deduct_from_wallet', { p_user_id: user.id, p_amount: usdAmt });
       await fetchWallet(); startBalancePoll();
       let elapsed = 0; setWPollSecs(0); setWPollMsg('Your M-Pesa payment is on its way…'); setWStep('polling');
       wPollRef.current = setInterval(async () => {
@@ -3941,7 +3940,6 @@ export default function WalletPage() {
           toast.success('Withdrawal complete!');
         } else if (txn?.status === 'failed') {
           clearInterval(wPollRef.current!); stopBalancePoll();
-          await supabase.rpc('add_to_wallet', { p_user_id: user.id, p_amount: usdAmt }); await fetchWallet();
           setWStep('failed'); setWPollMsg('Payout failed — balance restored.'); toast.error('Payout failed. Balance restored.');
         }
       }, 3000);
