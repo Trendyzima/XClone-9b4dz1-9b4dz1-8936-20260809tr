@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   integrate:
-    if: startsWith(github.event.head_commit.message, 'feat(profile): add spacious profile feature toggle prototype')
+    if: startsWith(github.event.head_commit.message, 'feat(profile): add surgical integration workflow')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -40,11 +40,6 @@ jobs:
 
           profile = Path('src/pages/ProfilePage.tsx')
           text = profile.read_text()
-          anchor = "import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';"
-          if anchor not in text:
-              raise SystemExit('Profile import anchor not found')
-          # No extra state is required: the hub is a normal routed page, keeping ProfilePage state untouched.
-
           old_actions = '<div className="flex gap-2 mt-2 flex-wrap items-center">'
           new_actions = '<div className="flex flex-wrap items-center gap-2.5 mt-4 max-w-full">'
           if old_actions not in text:
@@ -56,7 +51,6 @@ jobs:
           if old_edit not in text:
               raise SystemExit('Own-profile Edit profile anchor not found')
           text = text.replace(old_edit, new_edit, 1)
-
           profile.write_text(text)
 
       - name: Verify surgical anchors
