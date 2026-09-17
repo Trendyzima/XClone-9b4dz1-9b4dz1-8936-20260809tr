@@ -974,10 +974,13 @@ export default function ProfilePage() {
                   : <div className="w-full h-full flex items-center justify-center text-4xl font-bold">{profile.username[0].toUpperCase()}</div>}
               </div>
             </button>
-            <div className="flex gap-2 mt-2 flex-wrap items-center">
+            <div className="flex flex-wrap items-center gap-2.5 mt-4 max-w-full">
               {isOwnProfile ? (
                 <>
                   <button onClick={() => setShowEditDialog(true)} className="px-4 py-2 border border-border rounded-full font-semibold hover:bg-muted transition-colors">Edit profile</button>
+                  <button onClick={() => navigate('/profile-features')} className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-primary/20 bg-primary/5 text-primary rounded-full font-semibold text-sm hover:bg-primary/10 transition-colors">
+          <Sparkles className="w-3.5 h-3.5" />More features
+        </button>
                   <button onClick={handleShareProfile} className="p-2 border border-border rounded-full hover:bg-muted transition-colors text-muted-foreground hover:text-foreground">
                     {profileShared ? <Check className="w-4 h-4 text-green-500" /> : <Share2 className="w-4 h-4" />}
                   </button>
