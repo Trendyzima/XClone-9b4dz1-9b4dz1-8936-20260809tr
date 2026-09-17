@@ -1,0 +1,77 @@
+name: Profile feature hub surgical integration
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: startsWith(github.event.head_commit.message, 'feat(profile): add spacious profile feature toggle prototype')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Patch router and profile surgically
+        shell: python
+        run: |
+          from pathlib import Path
+
+          app = Path('src/App.tsx')
+          text = app.read_text()
+          old = "const ProfilePage = lazy(() => import('@/pages/ProfilePage'));"
+          new = old + "\nconst ProfileFeaturesPage = lazy(() => import('@/pages/ProfileFeaturesPage'));"
+          if old not in text:
+              raise SystemExit('App import anchor not found')
+          if "@/pages/ProfileFeaturesPage" not in text:
+              text = text.replace(old, new, 1)
+          route_old = '<Route path="/profile/:username" element={<ProfilePage/>}/>'
+          route_new = route_old + '<Route path="/profile-features" element={<ProfileFeaturesPage/>}/>'
+          if route_old not in text:
+              raise SystemExit('Profile route anchor not found')
+          if 'path="/profile-features"' not in text:
+              text = text.replace(route_old, route_new, 1)
+          app.write_text(text)
+
+          profile = Path('src/pages/ProfilePage.tsx')
+          text = profile.read_text()
+          anchor = "import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';"
+          if anchor not in text:
+              raise SystemExit('Profile import anchor not found')
+          # No extra state is required: the hub is a normal routed page, keeping ProfilePage state untouched.
+
+          old_actions = '<div className="flex gap-2 mt-2 flex-wrap items-center">'
+          new_actions = '<div className="flex flex-wrap items-center gap-2.5 mt-4 max-w-full">'
+          if old_actions not in text:
+              raise SystemExit('Profile action layout anchor not found')
+          text = text.replace(old_actions, new_actions, 1)
+
+          old_edit = '<button onClick={() => setShowEditDialog(true)} className="px-4 py-2 border border-border rounded-full font-semibold hover:bg-muted transition-colors">Edit profile</button>'
+          new_edit = old_edit + '\n                  <button onClick={() => navigate(\'/profile-features\')} className="inline-flex items-center gap-1.5 px-3.5 py-2 border border-primary/20 bg-primary/5 text-primary rounded-full font-semibold text-sm hover:bg-primary/10 transition-colors">\n                    <Sparkles className="w-3.5 h-3.5" />More features\n                  </button>'
+          if old_edit not in text:
+              raise SystemExit('Own-profile Edit profile anchor not found')
+          text = text.replace(old_edit, new_edit, 1)
+
+          profile.write_text(text)
+
+      - name: Verify surgical anchors
+        run: |
+          grep -q "ProfileFeaturesPage" src/App.tsx
+          grep -q 'path="/profile-features"' src/App.tsx
+          grep -q "More features" src/pages/ProfilePage.tsx
+          grep -q "max-w-full" src/pages/ProfilePage.tsx
+
+      - name: Commit integration and remove temporary workflow
+        shell: bash
+        run: |
+          rm -f .github/workflows/profile-feature-surgical.yml
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/App.tsx src/pages/ProfilePage.tsx .github/workflows/profile-feature-surgical.yml
+          git commit -m 'feat(profile): integrate spacious feature hub'
+          git push origin HEAD:main
