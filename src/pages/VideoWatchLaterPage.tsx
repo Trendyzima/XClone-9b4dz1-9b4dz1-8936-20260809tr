@@ -22,7 +22,7 @@ export default function VideoWatchLaterPage() {
     const ids: string[] = stored ? JSON.parse(stored) : [];
     setVideoIds(ids);
     if (ids.length === 0) { setLoading(false); return; }
-    supabase.from('posts').select('*, profiles(*)')
+    supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(*)')
       .in('id', ids).eq('is_video', true)
       .then(({ data }) => {
         // Preserve localStorage order
