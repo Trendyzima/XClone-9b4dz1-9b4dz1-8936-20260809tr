@@ -1,0 +1,9 @@
+-- Enforce the reconciled Audio Spaces UUID as the canonical parent for legacy child tables and media/monetization.
+do $$ begin
+  if not exists(select 1 from pg_constraint where conname='space_participants_audio_space_fk') then alter table public.space_participants add constraint space_participants_audio_space_fk foreign key(space_id) references public.audio_spaces(id) on delete cascade; end if;
+  if not exists(select 1 from pg_constraint where conname='space_recordings_audio_space_fk') then alter table public.space_recordings add constraint space_recordings_audio_space_fk foreign key(space_id) references public.audio_spaces(id) on delete cascade; end if;
+  if not exists(select 1 from pg_constraint where conname='space_speaker_requests_audio_space_fk') then alter table public.space_speaker_requests add constraint space_speaker_requests_audio_space_fk foreign key(space_id) references public.audio_spaces(id) on delete cascade; end if;
+  if not exists(select 1 from pg_constraint where conname='audio_space_access_audio_space_fk') then alter table public.audio_space_access add constraint audio_space_access_audio_space_fk foreign key(space_id) references public.audio_spaces(id) on delete cascade; end if;
+  if not exists(select 1 from pg_constraint where conname='audio_space_monetization_audio_space_fk') then alter table public.audio_space_monetization add constraint audio_space_monetization_audio_space_fk foreign key(space_id) references public.audio_spaces(id) on delete cascade; end if;
+  if not exists(select 1 from pg_constraint where conname='media_assets_audio_space_fk') then alter table public.media_assets add constraint media_assets_audio_space_fk foreign key(space_id) references public.audio_spaces(id) on delete set null; end if;
+end $$;
