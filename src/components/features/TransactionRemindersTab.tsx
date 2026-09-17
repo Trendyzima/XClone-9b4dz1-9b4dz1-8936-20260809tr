@@ -58,7 +58,7 @@ export default function TransactionRemindersTab({ userId, currency }: Props) {
     const { data: walletRow } = await supabase.from('wallets').select('id').eq('user_id', userId).single();
     const { error } = await supabase.from('wallet_transaction_reminders').insert({
       user_id: userId, wallet_id: walletRow?.id, title: label.trim(), amount: amount ? parseFloat(amount) : null,
-      currency: 'USD', remind_at: scheduledDate.toISOString(),
+      to_username: toUsername.trim() || null, frequency, currency: 'USD', remind_at: scheduledDate.toISOString(),
     });
     setSaving(false);
     if (error) { toast.error('Failed to create reminder'); return; }
