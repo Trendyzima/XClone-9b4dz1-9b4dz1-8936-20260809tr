@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase } from '@/lib/supabase';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ type Campaign = { id: string; name: string; status: string; payment_status: stri
 type Creative = { id: string; campaign_id: string; headline: string; asset_url: string | null; click_through_url: string | null };
 type Stats = { impressions: number; clicks: number; spendMicros: number };
 const money = (micros: number, currency = 'KES') => `${currency} ${(Number(micros || 0) / 1_000_000).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const label = (status: string, payment: string) => payment !== 'funded' ? 'Awaiting payment' : status.replaceAll('_', ' ');
+const label = (status: string, payment: string) => payment !== 'funded' ? 'Awaiting payment' : status.replace(/_/g, ' ');
 
 export default function MyAdsPage() {
   const [loading, setLoading] = useState(true);
