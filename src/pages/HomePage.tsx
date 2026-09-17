@@ -209,7 +209,7 @@ export default function HomePage() {
     const since24h = new Date(Date.now() - 24 * 3600000).toISOString();
     const { data } = await supabase
       .from('posts')
-      .select('id, content, image_url, video_url, is_video, views_count, likes_count, profiles(id, username, avatar_url, verified_tier)')
+      .select('id, content, image_url, video_url, is_video, views_count, likes_count, user_profiles:profiles!posts_user_id_fkey(id, username, avatar_url, verified_tier)')
       .is('community_id', null)
       .gte('created_at', since24h)
       .order('views_count', { ascending: false })
@@ -429,7 +429,7 @@ export default function HomePage() {
       if (followIds.length === 0) return;
       const { data: products } = await supabase
         .from('products')
-        .select('*, profiles(id, username, avatar_url, verified_tier)')
+        .select('*, user_profiles:profiles!posts_user_id_fkey(id, username, avatar_url, verified_tier)')
         .in('user_id', followIds)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
