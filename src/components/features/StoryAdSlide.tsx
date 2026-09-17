@@ -17,6 +17,11 @@ export interface StoryAdData {
 }
 interface StoryAdSlideProps { ad: StoryAdData; onComplete: () => void; onSkip: () => void; }
 
+/** Deprecated compatibility shim. Frequency/eligibility is server-owned by Testagram Ads. */
+export function checkStoryAdFreqCap(): boolean {
+  return false;
+}
+
 /** Compatibility surface for stories. Serving and measurement come from Testagram Ads. */
 export function StoryAdSlide({ ad, onComplete }: StoryAdSlideProps) {
   useEffect(() => {
