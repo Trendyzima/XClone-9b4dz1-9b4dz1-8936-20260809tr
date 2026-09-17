@@ -92,7 +92,7 @@ begin
       delete from public.follows where follower_id=v_id and following_id=u;
     end if;
     return jsonb_build_object('requester_id',v_id,'target_id',u,'action',p_input->>'action',
-      'status',case when p_input->>'action'='accepted' then 'accepted' else 'rejected' end);
+      'status',case when p_input->>'action'='accept' then 'accepted' else 'rejected' end);
 $old$;
 
   new:=$new$
