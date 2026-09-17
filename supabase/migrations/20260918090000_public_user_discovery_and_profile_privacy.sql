@@ -38,7 +38,7 @@ begin
   def := replace(
     def,
     'if u is null then raise exception ''AUTH_REQUIRED''; end if;',
-    $$if u is null and p_capability not in (
+    $gate$if u is null and p_capability not in (
       'testagram.search.users',
       'testagram.search.posts',
       'testagram.search.hashtags',
@@ -46,25 +46,25 @@ begin
       'testagram.trends.list'
     ) then
       raise exception 'AUTH_REQUIRED';
-    end if;$inner$
+    end if;$gate$
   );
 
   -- Replace the user-search predicate/output without exposing private profile
   -- settings. The public result is an explicit safe profile projection.
   def := replace(
     def,
-    $inner$select id,username,display_name,avatar_url,bio,(verified_tier is not null and verified_tier <> 'none') as verified,follower_count as followers_count
+    $old$select id,username,display_name,avatar_url,bio,(verified_tier is not null and verified_tier <> 'none') as verified,follower_count as followers_count
         from public.profiles
         where username ilike '%'||v_text||'%' or display_name ilike '%'||v_text||'%' or bio ilike '%'||v_text||'%'
-        order by follower_count desc nulls last,username$$,
-    $$select id,username,display_name,avatar_url,bio,
+        order by follower_count desc nulls last,username$old$,
+    $new$select id,username,display_name,avatar_url,bio,
           (verified_tier is not null and verified_tier <> 'none') as verified,
           follower_count as followers_count,
-          protected_account
+          protected_account as is_protected
         from public.profiles
         where discoverable_by_username = true
           and (username ilike '%'||v_text||'%' or display_name ilike '%'||v_text||'%' or bio ilike '%'||v_text||'%')
-        order by follower_count desc nulls last,username$inner$
+        order by follower_count desc nulls last,username$new$
   );
 
   execute def;
