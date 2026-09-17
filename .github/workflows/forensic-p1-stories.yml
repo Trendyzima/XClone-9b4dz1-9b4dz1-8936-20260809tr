@@ -1,8 +1,7 @@
 name: One-shot Stories canonical ad migration
 
 on:
-  pull_request:
-    types: [opened, synchronize]
+  push:
     branches: [main]
 
 permissions:
@@ -14,7 +13,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 1
       - name: Remove legacy Stories ad path and wire canonical StoryAdSlide
         shell: bash
@@ -70,4 +68,4 @@ jobs:
           git add src/components/features/StoriesStrip.tsx
           git diff --cached --check
           git commit -m "fix: route Stories ads through canonical Testagram Ads [stories-p1]"
-          git push origin HEAD:${{ github.event.pull_request.head.ref }}
+          git push
