@@ -9,70 +9,59 @@ interface PremiumStatus {
   loading: boolean;
 }
 
-// Global cache so all components share one fetch
 let cachedStatus: PremiumStatus | null = null;
+let cachedUserId: string | null = null;
 let listeners: Array<(s: PremiumStatus) => void> = [];
 
-function notify(s: PremiumStatus) {
+function notify(s: PremiumStatus, userId: string | null) {
   cachedStatus = s;
+  cachedUserId = userId;
   listeners.forEach(fn => fn(s));
 }
 
 export function usePremium(): PremiumStatus & { refresh: () => Promise<void> } {
   const { user } = useAuth();
-  const [status, setStatus] = useState<PremiumStatus>(
-    cachedStatus ?? { isActive: false, plan: null, expiresAt: null, loading: true }
-  );
+  const [status, setStatus] = useState<PremiumStatus>(cachedStatus ?? { isActive: false, plan: null, expiresAt: null, loading: true });
 
   const refresh = useCallback(async () => {
     if (!user) {
-      const s = { isActive: false, plan: null, expiresAt: null, loading: false };
-      notify(s);
+      const s: PremiumStatus = { isActive: false, plan: null, expiresAt: null, loading: false };
+      notify(s, null);
       setStatus(s);
       return;
     }
 
-    // Auto-expire stale subscriptions on check
-    await supabase.rpc('expire_premium_subscriptions').catch(() => {});
+    const { data, error } = await supabase.rpc('get_my_premium_status');
+    if (error) {
+      const s: PremiumStatus = { isActive: false, plan: null, expiresAt: null, loading: false };
+      notify(s, user.id);
+      setStatus(s);
+      return;
+    }
 
-    const { data } = await supabase
-      .from('premium_subscriptions')
-      .select('plan, status, expires_at')
-      .eq('user_id', user.id)
-      .eq('status', 'active')
-      .maybeSingle();
-
-    const isActive = !!data && new Date(data.expires_at) > new Date();
+    const active = Boolean(data?.is_active);
     const s: PremiumStatus = {
-      isActive,
-      plan: isActive ? (data!.plan as 'monthly' | 'annual') : null,
-      expiresAt: isActive ? new Date(data!.expires_at) : null,
+      isActive: active,
+      plan: active && (data?.plan === 'monthly' || data?.plan === 'annual') ? data.plan : null,
+      expiresAt: active && data?.expires_at ? new Date(data.expires_at) : null,
       loading: false,
     };
-    notify(s);
+    notify(s, user.id);
     setStatus(s);
   }, [user?.id]);
 
   useEffect(() => {
     const handler = (s: PremiumStatus) => setStatus(s);
     listeners.push(handler);
-
-    // Only fetch if no cache or user changed
-    if (!cachedStatus || cachedStatus.loading) {
-      refresh();
-    } else {
-      setStatus(cachedStatus);
-    }
-
-    return () => {
-      listeners = listeners.filter(l => l !== handler);
-    };
-  }, [refresh]);
+    if (cachedUserId !== user?.id || !cachedStatus || cachedStatus.loading) void refresh();
+    else setStatus(cachedStatus);
+    return () => { listeners = listeners.filter(l => l !== handler); };
+  }, [refresh, user?.id]);
 
   return { ...status, refresh };
 }
 
-// Reset cache on sign-out
 export function resetPremiumCache() {
   cachedStatus = null;
+  cachedUserId = null;
 }
