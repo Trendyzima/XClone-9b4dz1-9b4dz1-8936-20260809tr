@@ -21,8 +21,7 @@ security invoker
 set search_path = public
 as $$
   select exists (
-    select 1
-    from public.platform_control pc
+    select 1 from public.platform_control pc
     where pc.singleton = true
       and pc.owner_user_id = coalesce(p_user_id, auth.uid())
   );
@@ -123,12 +122,10 @@ alter table public.platform_role_features enable row level security;
 alter table public.platform_role_assignments enable row level security;
 alter table public.platform_feature_assignments enable row level security;
 
--- The owner can inspect governance state; normal users cannot read the owner record.
 drop policy if exists platform_control_owner_read on public.platform_control;
 create policy platform_control_owner_read on public.platform_control
-for select to authenticated using (public.is_platform_owner());
+for select to authenticated using (owner_user_id = auth.uid());
 
--- Role/feature catalogs are safe to read only through authenticated sessions.
 drop policy if exists platform_roles_authenticated_read on public.platform_roles;
 create policy platform_roles_authenticated_read on public.platform_roles
 for select to authenticated using (true);
@@ -139,7 +136,6 @@ drop policy if exists platform_role_features_authenticated_read on public.platfo
 create policy platform_role_features_authenticated_read on public.platform_role_features
 for select to authenticated using (true);
 
--- Appointed users may see their own latent assignments; the owner sees all.
 drop policy if exists platform_role_assignments_read on public.platform_role_assignments;
 create policy platform_role_assignments_read on public.platform_role_assignments
 for select to authenticated
@@ -150,7 +146,6 @@ create policy platform_feature_assignments_read on public.platform_feature_assig
 for select to authenticated
 using (user_id = auth.uid() or public.is_platform_owner());
 
--- Only the platform owner can appoint or mutate platform roles/features.
 drop policy if exists platform_role_assignments_owner_write on public.platform_role_assignments;
 create policy platform_role_assignments_owner_write on public.platform_role_assignments
 for all to authenticated
@@ -176,13 +171,8 @@ as $$
 declare
   v_id uuid;
 begin
-  if not public.is_platform_owner() then
-    raise exception 'platform owner required';
-  end if;
-  if not exists (select 1 from public.platform_roles where key = p_role_key) then
-    raise exception 'unknown platform role';
-  end if;
-
+  if not public.is_platform_owner() then raise exception 'platform owner required'; end if;
+  if not exists (select 1 from public.platform_roles where key = p_role_key) then raise exception 'unknown platform role'; end if;
   insert into public.platform_role_assignments(user_id, role_key, active, appointed_by, activated_at)
   values (p_user_id, p_role_key, p_activate, auth.uid(), case when p_activate then now() else null end)
   on conflict (user_id, role_key) do update set
@@ -191,51 +181,30 @@ begin
     revoked_at = null,
     activated_at = case when excluded.active then coalesce(platform_role_assignments.activated_at, now()) else null end
   returning id into v_id;
-
   insert into public.platform_feature_assignments(user_id, feature_key, active, appointed_by, activated_at)
   select p_user_id, rf.feature_key, p_activate, auth.uid(), case when p_activate then now() else null end
-  from public.platform_role_features rf
-  where rf.role_key = p_role_key
+  from public.platform_role_features rf where rf.role_key = p_role_key
   on conflict (user_id, feature_key) do update set
     active = case when excluded.active then true else platform_feature_assignments.active end,
-    appointed_by = auth.uid(),
-    revoked_at = null,
+    appointed_by = auth.uid(), revoked_at = null,
     activated_at = case when excluded.active then coalesce(platform_feature_assignments.activated_at, now()) else platform_feature_assignments.activated_at end;
-
   return v_id;
 end;
 $$;
 
-create or replace function public.platform_set_role_active(
-  p_assignment_id uuid,
-  p_active boolean
-)
+create or replace function public.platform_set_role_active(p_assignment_id uuid, p_active boolean)
 returns void
 language plpgsql
 security invoker
 set search_path = public
 as $$
-declare
-  v_user_id uuid;
-  v_role text;
+declare v_user_id uuid; v_role text;
 begin
   if not public.is_platform_owner() then raise exception 'platform owner required'; end if;
-  select user_id, role_key into v_user_id, v_role
-  from public.platform_role_assignments
-  where id = p_assignment_id;
+  select user_id, role_key into v_user_id, v_role from public.platform_role_assignments where id = p_assignment_id;
   if v_user_id is null then raise exception 'role assignment not found'; end if;
-
-  update public.platform_role_assignments
-  set active = p_active,
-      activated_at = case when p_active then coalesce(activated_at, now()) else activated_at end,
-      revoked_at = case when p_active then null else revoked_at end
-  where id = p_assignment_id;
-
-  update public.platform_feature_assignments pfa
-  set active = case when p_active then true else pfa.active end,
-      activated_at = case when p_active then coalesce(pfa.activated_at, now()) else pfa.activated_at end
-  where pfa.user_id = v_user_id
-    and pfa.feature_key in (select feature_key from public.platform_role_features where role_key = v_role);
+  update public.platform_role_assignments set active=p_active, activated_at=case when p_active then coalesce(activated_at,now()) else activated_at end, revoked_at=case when p_active then null else revoked_at end where id=p_assignment_id;
+  update public.platform_feature_assignments pfa set active=case when p_active then true else pfa.active end, activated_at=case when p_active then coalesce(pfa.activated_at,now()) else pfa.activated_at end where pfa.user_id=v_user_id and pfa.feature_key in (select feature_key from public.platform_role_features where role_key=v_role);
 end;
 $$;
 
@@ -245,16 +214,13 @@ language plpgsql
 security invoker
 set search_path = public
 as $$
-declare
-  v_user_id uuid;
-  v_role text;
+declare v_user_id uuid; v_role text;
 begin
   if not public.is_platform_owner() then raise exception 'platform owner required'; end if;
-  select user_id, role_key into v_user_id, v_role from public.platform_role_assignments where id = p_assignment_id;
+  select user_id, role_key into v_user_id, v_role from public.platform_role_assignments where id=p_assignment_id;
   if v_user_id is null then raise exception 'role assignment not found'; end if;
   update public.platform_role_assignments set active=false, revoked_at=now() where id=p_assignment_id;
-  update public.platform_feature_assignments set active=false, revoked_at=now()
-  where user_id=v_user_id and feature_key in (select feature_key from public.platform_role_features where role_key=v_role);
+  update public.platform_feature_assignments set active=false, revoked_at=now() where user_id=v_user_id and feature_key in (select feature_key from public.platform_role_features where role_key=v_role);
 end;
 $$;
 
@@ -265,13 +231,10 @@ stable
 security invoker
 set search_path = public
 as $$
-  select public.is_platform_owner(p_user_id)
-      or exists (
-        select 1 from public.platform_feature_assignments pfa
-        where pfa.user_id = coalesce(p_user_id, auth.uid())
-          and pfa.feature_key = p_feature_key
-          and pfa.active = true
-      );
+  select public.is_platform_owner(p_user_id) or exists (
+    select 1 from public.platform_feature_assignments pfa
+    where pfa.user_id=coalesce(p_user_id,auth.uid()) and pfa.feature_key=p_feature_key and pfa.active=true
+  );
 $$;
 
 revoke all on function public.is_platform_owner(uuid) from public;
@@ -285,11 +248,10 @@ grant execute on function public.platform_set_role_active(uuid,boolean) to authe
 grant execute on function public.platform_revoke_role(uuid) to authenticated;
 grant execute on function public.platform_has_feature(text,uuid) to authenticated;
 
--- Bootstrap the owner with every feature. These rows are still governed by owner-only writes.
 insert into public.platform_feature_assignments(user_id,feature_key,active,appointed_by,activated_at)
-select pc.owner_user_id, pf.key, true, pc.owner_user_id, now()
+select pc.owner_user_id,pf.key,true,pc.owner_user_id,now()
 from public.platform_control pc cross join public.platform_features pf
-on conflict (user_id,feature_key) do update set active=true, revoked_at=null;
+on conflict (user_id,feature_key) do update set active=true,revoked_at=null;
 
 comment on table public.platform_control is 'Canonical Testagram platform ownership control. Owner identity is a user UUID resolved through Supabase Auth.';
 comment on table public.platform_role_assignments is 'Server-authoritative appointment state for platform admins/managers.';
