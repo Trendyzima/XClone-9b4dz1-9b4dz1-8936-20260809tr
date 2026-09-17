@@ -17,6 +17,7 @@ const npmrcPath = path.join(root, '.npmrc');
 const preloadPath = path.join(root, '_preload.cjs');
 const patcherPath = path.join(root, '_patch-vite.cjs');
 const packageJsonPath = path.join(root, 'package.json');
+const cssPath = path.join(root, 'src', 'index.css');
 
 function log(message) {
   process.stderr.write(`[_self-heal] ${message}\n`);
@@ -34,6 +35,20 @@ function repairNpmrc() {
   if (repaired !== original) {
     fs.writeFileSync(npmrcPath, repaired.endsWith('\n') ? repaired : `${repaired}\n`);
     log('repaired stale runner-specific node-options in .npmrc');
+  }
+}
+
+function repairKnownCssEscapes() {
+  if (!fs.existsSync(cssPath)) return;
+  const original = fs.readFileSync(cssPath, 'utf8');
+  const repairs = [
+    ['.bg-muted\\\\/50', '[class~="bg-muted/50"]'],
+  ];
+  let repaired = original;
+  for (const [broken, fixed] of repairs) repaired = repaired.split(broken).join(fixed);
+  if (repaired !== original) {
+    fs.writeFileSync(cssPath, repaired);
+    log('repaired malformed Tailwind slash selector in src/index.css');
   }
 }
 
@@ -78,6 +93,7 @@ function validateProject() {
 try {
   log('starting deterministic project repair');
   repairNpmrc();
+  repairKnownCssEscapes();
   validateProject();
   runVitePatcher();
   log('compatibility checks complete; real build remains authoritative');
