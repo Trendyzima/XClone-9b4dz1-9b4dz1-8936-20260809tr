@@ -5,7 +5,7 @@ import reactRefresh from "eslint-plugin-react-refresh";
 
 const nodeToolingFiles = [
   "*.cjs",
-  "*.mjs",
+  "**/*.mjs",
   "eslint.config.js",
   "vite.config.cjs",
   "_*.cjs",
