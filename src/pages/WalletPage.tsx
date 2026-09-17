@@ -9,6 +9,7 @@ import { useSEO } from '@/hooks/useSEO';
 import { useSearchParams } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
 import { WalletDashboard } from '@/components/features/WalletDashboard';
+import { AdvertiserSurface } from '@/components/features/AdvertiserSurface';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useWallet } from '@/hooks/useWallet';
@@ -4317,6 +4318,7 @@ export default function WalletPage() {
           </div>
 
           <WalletDashboard />
+        <AdvertiserSurface variant="wallet" />
           {user && wallet && <SpendLimitCard userId={user.id} wallet={wallet} onSaved={fetchWallet} />}
           {user && wallet && <PinSetupCard userId={user.id} pinHash={(wallet as any)?.wallet_pin_hash ?? null} onSaved={fetchWallet} />}
           {user && wallet && <BiometricCard userId={user.id} credentialId={(wallet as any)?.biometric_credential_id ?? null} onSaved={fetchWallet} />}

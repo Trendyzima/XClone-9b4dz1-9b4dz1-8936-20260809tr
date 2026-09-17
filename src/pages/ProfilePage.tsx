@@ -18,6 +18,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { formatNumber } from '@/lib/utils';
 import { Post } from '@/types/app-types';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
+import { AdvertiserSurface } from '@/components/features/AdvertiserSurface';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
 function ProfileAdBanner() { return <PageAdBanner />; }
@@ -945,6 +946,7 @@ export default function ProfilePage() {
       </div>
       <TopBar title={profile.username} showBack />
       <ProfileAdBanner />
+        {isOwnProfile && <AdvertiserSurface variant="profile" />}
 
       <div className="border-b border-border">
         {profile.cover_image && (
