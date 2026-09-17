@@ -132,7 +132,7 @@ export default function SeriesPage() {
     setLoadingPosts(true);
     const { data } = await supabase
       .from('post_series_items')
-      .select('*, posts(*, profiles(username, avatar_url, verified))')
+      .select('*, posts(*, user_profiles:profiles!posts_user_id_fkey(username, avatar_url, verified))')
       .eq('series_id', series.id)
       .order('position', { ascending: true });
     setSeriesPosts(data ?? []);
