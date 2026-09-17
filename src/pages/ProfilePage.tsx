@@ -735,10 +735,10 @@ export default function ProfilePage() {
 
   const fetchProfile = async () => {
     try {
-      const initialProfileQuery = username ? await supabase.from('profiles').select('*').eq('username', username).maybeSingle() : { data: null, error: null };
+      const initialProfileQuery = username ? await supabase.from('profiles').select('id,username,display_name,avatar_url,bio,cover_url,website,location,social_links,verified_tier,follower_count,following_count,pinned_post_id,protected_account,created_at').eq('username', username).maybeSingle() : { data: null, error: null };
       let profileData = initialProfileQuery.data;
       if (!profileData && currentUser) {
-        const ownProfileQuery = await supabase.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
+        const ownProfileQuery = await supabase.from('profiles').select('id,username,display_name,avatar_url,bio,cover_url,website,location,social_links,verified_tier,follower_count,following_count,pinned_post_id,protected_account,created_at').eq('id', currentUser.id).maybeSingle();
         profileData = ownProfileQuery.data;
       }
       if (!profileData) throw initialProfileQuery.error ?? new Error('Canonical profile not found');
