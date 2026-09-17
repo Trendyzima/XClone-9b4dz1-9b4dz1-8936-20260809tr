@@ -1,0 +1,131 @@
+name: Surgical Repair Engine
+
+on:
+  workflow_run:
+    workflows: ["Quality Gate"]
+    types: [completed]
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: surgical-repair-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: true
+
+jobs:
+  repair:
+    name: Bounded deterministic repair
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      startsWith(github.event.workflow_run.head_branch, 'surgical/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout exact failed SHA
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 20
+
+      - name: Verify repository and branch boundary
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          test "$HEAD_REPOSITORY" = "$REPOSITORY"
+          case "$HEAD_BRANCH" in surgical/*) ;; *) echo 'Repair boundary rejected'; exit 1;; esac
+          test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+
+      - name: Recover exact failure signature
+        env:
+          RUN_ID: ${{ github.event.workflow_run.id }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh run view "$RUN_ID" --log-failed > /tmp/failed.log 2>&1 || true
+          grep -Fq "scripts/verify-communications-e2ee.mjs" /tmp/failed.log
+          grep -Fq "'console' is not defined" /tmp/failed.log
+          grep -Fq "no-undef" /tmp/failed.log
+          echo 'Exact allowlisted failure signature confirmed.'
+
+      - name: Enforce one repair per failed SHA
+        run: |
+          set -euo pipefail
+          if git log -20 --format='%B' | grep -Fq "surgical-repair-from: ${{ github.event.workflow_run.head_sha }}"; then
+            echo 'This exact SHA has already received a surgical repair.'
+            exit 1
+          fi
+          if git log -1 --format='%B' | grep -Fq 'ci: surgical repair'; then
+            echo 'Refusing chained automatic repairs; human inspection required.'
+            exit 1
+          fi
+
+      - name: Apply exact allowlisted repair
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs');
+          const path = 'scripts/verify-communications-e2ee.mjs';
+          const oldText = fs.readFileSync(path, 'utf8');
+          const needle = "\nconsole.log('communications E2EE contract: PASS');\n";
+          const occurrences = oldText.split(needle).length - 1;
+          if (occurrences !== 1) {
+            throw new Error(`Refusing repair: expected exactly one console success line, found ${occurrences}`);
+          }
+          const newText = oldText.replace(needle, '\n');
+          fs.writeFileSync(path, newText);
+          NODE
+
+      - name: Prove repair diff is exactly allowlisted
+        run: |
+          set -euo pipefail
+          test "$(git diff --name-only | wc -l)" -eq 1
+          test "$(git diff --name-only)" = "scripts/verify-communications-e2ee.mjs"
+          git diff --check
+          git diff --unified=0 -- scripts/verify-communications-e2ee.mjs | grep -Fq "-console.log('communications E2EE contract: PASS');"
+          test "$(git diff --unified=0 -- scripts/verify-communications-e2ee.mjs | grep -c '^+' )" -eq 0
+
+      - name: Validate repaired tree completely
+        run: |
+          set -euo pipefail
+          npm ci
+          npx tsc --noEmit
+          npm run lint
+          npm run build
+          git diff --quiet -- src
+
+      - name: Commit and push only validated repair
+        env:
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- scripts/verify-communications-e2ee.mjs
+          git diff --cached --check
+          git diff --cached --name-only | grep -Fxq 'scripts/verify-communications-e2ee.mjs'
+          git commit -m "ci: surgical repair verifier lint defect" -m "surgical-repair-from: $HEAD_SHA"
+          git push origin "HEAD:$HEAD_BRANCH"
+
+      - name: Emit repair manifest
+        if: always()
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+        run: |
+          {
+            echo '### Surgical Repair Manifest'
+            echo "- failed SHA: \`$HEAD_SHA\`"
+            echo "- branch: \`$HEAD_BRANCH\`"
+            echo '- rule: E2EE verifier console no-undef'
+            echo '- file: scripts/verify-communications-e2ee.mjs'
+            echo '- mutation: remove exactly one success console.log statement'
+            echo '- validation: tsc + lint + build'
+            echo '- boundary: same-repository surgical/* PR branches only'
+          } >> "$GITHUB_STEP_SUMMARY"
