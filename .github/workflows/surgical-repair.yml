@@ -2,12 +2,13 @@ name: Surgical Repair Engine
 
 on:
   workflow_run:
-    workflows: ["Quality Gate"]
+    workflows: ["Quality Gate", "Final Source Gate"]
     types: [completed]
 
 permissions:
   contents: write
   actions: read
+  pull-requests: write
 
 concurrency:
   group: surgical-repair-${{ github.event.workflow_run.head_sha }}
@@ -18,18 +19,17 @@ jobs:
     name: Bounded deterministic repair
     if: >-
       github.event.workflow_run.conclusion == 'failure' &&
-      github.event.workflow_run.event == 'pull_request' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
-      startsWith(github.event.workflow_run.head_branch, 'surgical/')
+      (github.event.workflow_run.head_branch == 'main' || startsWith(github.event.workflow_run.head_branch, 'surgical/'))
     runs-on: ubuntu-latest
     steps:
       - name: Checkout exact failed SHA
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 20
 
-      - name: Verify repository and branch boundary
+      - name: Verify repository and revision boundary
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
@@ -38,25 +38,34 @@ jobs:
         run: |
           set -euo pipefail
           test "$HEAD_REPOSITORY" = "$REPOSITORY"
-          case "$HEAD_BRANCH" in surgical/*) ;; *) echo 'Repair boundary rejected'; exit 1;; esac
+          case "$HEAD_BRANCH" in main|surgical/*) ;; *) echo 'Repair boundary rejected'; exit 1;; esac
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
 
-      - name: Recover exact failure signature
+      - name: Recover exact allowlisted failure signature
         env:
           RUN_ID: ${{ github.event.workflow_run.id }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           gh run view "$RUN_ID" --log-failed > /tmp/failed.log 2>&1 || true
-          grep -Fq "scripts/verify-communications-e2ee.mjs" /tmp/failed.log
-          grep -Fq "'console' is not defined" /tmp/failed.log
-          grep -Fq "no-undef" /tmp/failed.log
-          echo 'Exact allowlisted failure signature confirmed.'
+          grep -Fq "no-redeclare" /tmp/failed.log
+          matched=0
+          for path in \
+            scripts/verify-communications-e2ee-browser.mjs \
+            scripts/verify-communications-e2ee-runtime.mjs \
+            scripts/verify-community-admin-media-runtime.mjs \
+            scripts/verify-community-admin-rpc-runtime.mjs; do
+            if grep -Fq "$path" /tmp/failed.log; then matched=1; fi
+          done
+          test "$matched" = 1
+          echo 'Exact allowlisted no-redeclare verifier signature confirmed.'
 
-      - name: Enforce one repair per failed SHA
+      - name: Enforce one bounded repair per failed SHA
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          if git log -20 --format='%B' | grep -Fq "surgical-repair-from: ${{ github.event.workflow_run.head_sha }}"; then
+          if git log -50 --format='%B' | grep -Fq "surgical-repair-from: $HEAD_SHA"; then
             echo 'This exact SHA has already received a surgical repair.'
             exit 1
           fi
@@ -65,30 +74,49 @@ jobs:
             exit 1
           fi
 
-      - name: Apply exact allowlisted repair
+      - name: Apply exact allowlisted repair only
         run: |
           set -euo pipefail
           node <<'NODE'
           const fs = require('node:fs');
-          const path = 'scripts/verify-communications-e2ee.mjs';
-          const oldText = fs.readFileSync(path, 'utf8');
-          const needle = "\nconsole.log('communications E2EE contract: PASS');\n";
-          const occurrences = oldText.split(needle).length - 1;
-          if (occurrences !== 1) {
-            throw new Error(`Refusing repair: expected exactly one console success line, found ${occurrences}`);
+          const paths = [
+            'scripts/verify-communications-e2ee-browser.mjs',
+            'scripts/verify-communications-e2ee-runtime.mjs',
+            'scripts/verify-community-admin-media-runtime.mjs',
+            'scripts/verify-community-admin-rpc-runtime.mjs',
+          ];
+          const needle = '/* global console, process */\n';
+          let changed = 0;
+          for (const path of paths) {
+            const text = fs.readFileSync(path, 'utf8');
+            if (!text.startsWith(needle)) continue;
+            fs.writeFileSync(path, text.slice(needle.length));
+            changed += 1;
           }
-          const newText = oldText.replace(needle, '\n');
-          fs.writeFileSync(path, newText);
+          if (changed < 1 || changed > paths.length) {
+            throw new Error(`Refusing repair: expected 1-${paths.length} exact header removals, found ${changed}`);
+          }
+          console.log(`Removed exact redundant Node global declarations from ${changed} allowlisted verifier file(s).`);
           NODE
 
       - name: Prove repair diff is exactly allowlisted
         run: |
           set -euo pipefail
-          test "$(git diff --name-only | wc -l)" -eq 1
-          test "$(git diff --name-only)" = "scripts/verify-communications-e2ee.mjs"
           git diff --check
-          git diff --unified=0 -- scripts/verify-communications-e2ee.mjs | grep -Fq -- "-console.log('communications E2EE contract: PASS');"
-          test "$(git diff --unified=0 -- scripts/verify-communications-e2ee.mjs | grep -Ec '^\+[^+]' || true)" -eq 0
+          changed="$(git diff --name-only)"
+          test -n "$changed"
+          while IFS= read -r path; do
+            case "$path" in
+              scripts/verify-communications-e2ee-browser.mjs|scripts/verify-communications-e2ee-runtime.mjs|scripts/verify-community-admin-media-runtime.mjs|scripts/verify-community-admin-rpc-runtime.mjs) ;;
+              *) echo "Unexpected automatic repair path: $path"; exit 1;;
+            esac
+          done <<< "$changed"
+          if git diff --unified=0 | grep -E '^[-+]' | grep -vE '^(---|\+\+\+|-[*] global console, process \*/)$' >/tmp/unexpected.diff; then
+            cat /tmp/unexpected.diff
+            exit 1
+          fi
+          test "$(git diff --unified=0 | grep -Ec '^-[/][*] global console, process [*]/$' || true)" -ge 1
+          test "$(git diff --unified=0 | grep -Ec '^\+[^+]' || true)" -eq 0
 
       - name: Validate repaired tree completely
         run: |
@@ -99,33 +127,56 @@ jobs:
           npm run build
           git diff --quiet -- src
 
-      - name: Commit and push only validated repair
+      - name: Create repair branch and push only validated repair
         env:
-          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- scripts/verify-communications-e2ee.mjs
+          branch="ci/self-heal/${RUN_ID}-${HEAD_SHA:0:12}"
+          git switch -c "$branch"
+          git add -- \
+            scripts/verify-communications-e2ee-browser.mjs \
+            scripts/verify-communications-e2ee-runtime.mjs \
+            scripts/verify-community-admin-media-runtime.mjs \
+            scripts/verify-community-admin-rpc-runtime.mjs
           git diff --cached --check
-          git diff --cached --name-only | grep -Fxq 'scripts/verify-communications-e2ee.mjs'
-          git commit -m "ci: surgical repair verifier lint defect" -m "surgical-repair-from: $HEAD_SHA"
-          git push origin "HEAD:$HEAD_BRANCH"
+          git commit -m "ci: self-heal verifier Node global lint defect" -m "surgical-repair-from: $HEAD_SHA"
+          git push --set-upstream origin "$branch"
+          echo "REPAIR_BRANCH=$branch" >> "$GITHUB_ENV"
+
+      - name: Open self-healing pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          gh pr create \
+            --base main \
+            --head "$REPAIR_BRANCH" \
+            --title "ci: self-heal verifier lint failure" \
+            --body "Automated bounded repair for failed workflow run #$RUN_ID on $HEAD_BRANCH at $HEAD_SHA. Only redundant Node global declarations in four allowlisted verifier scripts were removed. The repaired tree passed typecheck, lint, and production build before this PR was opened. No application source under src/ was modified."
 
       - name: Emit repair manifest
         if: always()
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
           {
-            echo '### Surgical Repair Manifest'
+            echo '### Surgical Self-Healing Manifest'
+            echo "- failed run: \`$RUN_ID\`"
             echo "- failed SHA: \`$HEAD_SHA\`"
-            echo "- branch: \`$HEAD_BRANCH\`"
-            echo '- rule: E2EE verifier console no-undef'
-            echo '- file: scripts/verify-communications-e2ee.mjs'
-            echo '- mutation: remove exactly one success console.log statement'
+            echo "- failed branch: \`$HEAD_BRANCH\`"
+            echo '- failure class: allowlisted ESLint no-redeclare for Node globals'
+            echo '- mutation: remove only the exact redundant `/* global console, process */` header'
+            echo '- files: four verifier scripts only'
             echo '- validation: tsc + lint + build'
-            echo '- boundary: same-repository surgical/* PR branches only'
+            echo '- delivery: dedicated self-heal branch + pull request; never direct main mutation'
           } >> "$GITHUB_STEP_SUMMARY"

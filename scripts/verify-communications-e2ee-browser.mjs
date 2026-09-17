@@ -1,4 +1,3 @@
-/* global console, process */
 import { chromium } from 'playwright';
 import { createClient } from '@supabase/supabase-js';
 import fs from 'node:fs';
