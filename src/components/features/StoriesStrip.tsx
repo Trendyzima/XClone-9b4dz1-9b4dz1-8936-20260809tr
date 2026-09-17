@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { Plus, X, Loader2, Send, MessageCircle, Music, Search as SearchIcon, Play, Pause, Compass, Gift, Star } from 'lucide-react';
 import { toast } from 'sonner';
-import { StoryAdSlide, checkStoryAdFreqCap } from './StoryAdSlide';
+import { StoryAdSlide } from './StoryAdSlide';
 
 interface Story {
   id: string;
@@ -215,33 +215,9 @@ export function StoriesStrip() {
       .then(({ data }) => setCreatorFollowers(data?.follower_count ?? 0));
   }, [user?.id]);
 
-  // ── Story Ads: inject between groups ──────────────────────────────────────
-  const [storyAds, setStoryAds] = useState<any[]>([]);
-  const [currentStoryAd, setCurrentStoryAd] = useState<any | null>(null);
-  const [showStoryAd, setShowStoryAd] = useState(false);
-  const storyGroupViewCount = useRef(0);
-  const AD_INJECT_INTERVAL = 3;
-
-  useEffect(() => {
-    supabase
-      .from('user_ads')
-      .select('*, user_profiles!user_ads_user_id_fkey(username, avatar_url, verified)')
-      .eq('status', 'active')
-      .eq('payment_status', 'paid')
-      .order('created_at', { ascending: false })
-      .limit(8)
-      .then(({ data }) => setStoryAds(data ?? []));
-  }, []);
-
-  const maybeShowStoryAd = useCallback(() => {
-    if (storyAds.length === 0) return;
-    if (checkStoryAdFreqCap()) return;
-    storyGroupViewCount.current += 1;
-    if (storyGroupViewCount.current % AD_INJECT_INTERVAL !== 0) return;
-    const ad = storyAds[Math.floor(Math.random() * storyAds.length)];
-    setCurrentStoryAd(ad);
-    setShowStoryAd(true);
-  }, [storyAds]);
+  // ── Canonical Story Ads ────────────────────────────────────────────────────
+  // Eligibility, frequency caps, campaign selection, impression accounting, and spend are server-owned.
+  const [showCanonicalStoryAd, setShowCanonicalStoryAd] = useState(false);
 
   // ── Story Creation Rewards: +5 credits per day ─────────────────────────────
   const grantStoryCreationReward = useCallback(async (userId: string) => {
@@ -555,6 +531,7 @@ export function StoriesStrip() {
       if (!viewedIds.has(story.id)) markViewed(story.id);
       const meta = (story as any).metadata;
       if (meta?.music?.preview_url) playStoryAudio(meta.music.preview_url);
+      setShowCanonicalStoryAd(true);
     }
   };
 
@@ -838,12 +815,17 @@ export function StoriesStrip() {
 
   return (
     <>
-      {/* ── Story Ad Slide ── */}
-      {showStoryAd && currentStoryAd && (
+      {/* ── Canonical Story Ad Slide ───────────────────────────────────────── */}
+      {showCanonicalStoryAd && viewerStory && (
         <StoryAdSlide
-          ad={currentStoryAd}
-          onComplete={() => { setShowStoryAd(false); setCurrentStoryAd(null); }}
-          onSkip={() => { setShowStoryAd(false); setCurrentStoryAd(null); }}
+          ad={{
+            id: 'story-slot',
+            source_id: viewerStory.id,
+            source_type: 'story',
+            author_id: viewerG?.userId ?? null,
+          }}
+          onComplete={() => setShowCanonicalStoryAd(false)}
+          onSkip={() => setShowCanonicalStoryAd(false)}
         />
       )}
 
@@ -870,22 +852,6 @@ export function StoriesStrip() {
             </div>
           ) : (
             <div className="flex-1 overflow-y-auto p-4">
-              {/* Ad injection in Explore */}
-              {!checkStoryAdFreqCap() && storyAds.length > 0 && storyAds[0]?.image_url && (
-                <button
-                  onClick={() => { setCurrentStoryAd(storyAds[0]); setShowStoryAd(true); setShowExplore(false); }}
-                  className="w-full mb-4 rounded-2xl overflow-hidden border border-border bg-muted/20 relative text-left"
-                >
-                  <div className="absolute top-2 right-2 z-10 bg-black/60 rounded-full px-2 py-0.5">
-                    <span className="text-white text-[10px] font-bold">Sponsored</span>
-                  </div>
-                  <img src={storyAds[0].image_url} alt={storyAds[0].title} className="w-full h-32 object-cover" loading="lazy" />
-                  <div className="p-3">
-                    <p className="font-bold text-sm">{storyAds[0].title}</p>
-                    <p className="text-xs text-muted-foreground line-clamp-1">{storyAds[0].description}</p>
-                  </div>
-                </button>
-              )}
               <div className="grid grid-cols-2 gap-3">
                 {exploreStories.map((g, idx) => (
                   <button
@@ -955,7 +921,7 @@ export function StoriesStrip() {
                 toast.error(`Unlock story creation by reaching ${FOLLOWER_THRESHOLD} followers — you need ${needed.toLocaleString()} more`);
                 return;
               }
-              if (hasMyStory) { openViewer(myGroupIdx); maybeShowStoryAd(); } else fileInputRef.current?.click();
+              if (hasMyStory) { openViewer(myGroupIdx); } else fileInputRef.current?.click();
             }}
             disabled={uploading}
             className="flex flex-col items-center gap-1 flex-shrink-0 group"
@@ -992,7 +958,7 @@ export function StoriesStrip() {
         {groups.filter(g => g.userId !== user?.id).map(g => {
           const realIdx = groups.indexOf(g);
           return (
-            <button key={g.userId} onClick={() => { openViewer(realIdx); maybeShowStoryAd(); }} className="flex flex-col items-center gap-1 flex-shrink-0 group">
+            <button key={g.userId} onClick={() => { openViewer(realIdx); }} className="flex flex-col items-center gap-1 flex-shrink-0 group">
               <div className={`w-14 h-14 rounded-full ring-2 ring-offset-2 ring-offset-background transition-all ${g.hasUnseen ? 'ring-primary' : 'ring-muted-foreground/20 group-hover:ring-muted-foreground/40'}`}>
                 {g.avatarUrl
                   ? <img src={g.avatarUrl} alt={g.username} className="w-full h-full rounded-full object-cover" />
