@@ -56,6 +56,7 @@ export default function TransactionRemindersTab({ userId, currency }: Props) {
     if (scheduledDate.getTime() <= Date.now()) { toast.error('Must be a future date/time'); return; }
     setSaving(true);
     const { data: walletRow } = await supabase.from('wallets').select('id').eq('user_id', userId).single();
+    if (!walletRow?.id) { setSaving(false); toast.error('Wallet not provisioned'); return; }
     const { error } = await supabase.from('wallet_transaction_reminders').insert({
       user_id: userId, wallet_id: walletRow?.id, title: label.trim(), amount: amount ? parseFloat(amount) : null,
       to_username: toUsername.trim() || null, frequency, currency: 'USD', remind_at: scheduledDate.toISOString(),
