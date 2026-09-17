@@ -44,8 +44,8 @@ export default function TransactionRemindersTab({ userId, currency }: Props) {
 
   const loadReminders = async () => {
     setLoading(true);
-    const { data } = await supabase.from('transaction_reminders').select('*')
-      .eq('user_id', userId).eq('is_active', true).order('next_reminder_at', { ascending: true });
+    const { data } = await supabase.from('wallet_transaction_reminders').select('*')
+      .eq('user_id', userId).eq('is_active', true).order('remind_at', { ascending: true });
     setReminders(data ?? []);
     setLoading(false);
   };
@@ -55,9 +55,10 @@ export default function TransactionRemindersTab({ userId, currency }: Props) {
     const scheduledDate = new Date(remindAt);
     if (scheduledDate.getTime() <= Date.now()) { toast.error('Must be a future date/time'); return; }
     setSaving(true);
-    const { error } = await supabase.from('transaction_reminders').insert({
-      user_id: userId, label: label.trim(), amount: amount ? parseFloat(amount) : null,
-      to_username: toUsername.trim() || null, frequency, next_reminder_at: scheduledDate.toISOString(),
+    const { data: walletRow } = await supabase.from('wallets').select('id').eq('user_id', userId).single();
+    const { error } = await supabase.from('wallet_transaction_reminders').insert({
+      user_id: userId, wallet_id: walletRow?.id, title: label.trim(), amount: amount ? parseFloat(amount) : null,
+      currency: 'USD', remind_at: scheduledDate.toISOString(),
     });
     setSaving(false);
     if (error) { toast.error('Failed to create reminder'); return; }
@@ -71,20 +72,20 @@ export default function TransactionRemindersTab({ userId, currency }: Props) {
     const amtStr = r.amount ? fmtAmt(Number(r.amount), currency) : '';
     await supabase.from('platform_inbox').insert({
       user_id: userId,
-      subject: `🔔 Reminder: ${r.label}`,
+      subject: `🔔 Reminder: ${r.title}`,
       body: `${r.label}${amtStr ? ` — ${amtStr}` : ''}${r.to_username ? ` to @${r.to_username}` : ''}.`,
       type: 'news', icon_emoji: '🔔',
       cta_label: r.to_username ? 'Send Now' : 'View Wallet',
       cta_url: r.to_username ? `/wallet?tab=send&to=${r.to_username}` : '/wallet',
     });
-    await supabase.from('transaction_reminders').update({ last_sent_at: new Date().toISOString() }).eq('id', r.id);
+    await supabase.from('wallet_transaction_reminders').update({ last_sent_at: new Date().toISOString() }).eq('id', r.id);
     setDispatching(null);
     toast.success('Reminder sent to inbox!');
     loadReminders();
   };
 
   const deleteReminder = async (id: string) => {
-    const { error } = await supabase.from('transaction_reminders').update({ is_active: false }).eq('id', id);
+    const { error } = await supabase.from('wallet_transaction_reminders').update({ is_active: false }).eq('id', id);
     if (error) { toast.error('Failed to remove'); return; }
     toast.success('Reminder removed');
     loadReminders();
@@ -158,7 +159,7 @@ export default function TransactionRemindersTab({ userId, currency }: Props) {
       ) : (
         <div className="space-y-3">
           {reminders.map(r => {
-            const due = new Date(r.next_reminder_at);
+            const due = new Date(r.remind_at);
             const isPast = due.getTime() < Date.now();
             return (
               <div key={r.id} className={`p-4 border rounded-2xl bg-card ${isPast ? 'border-amber-500/40 bg-amber-500/5' : 'border-border'}`}>
