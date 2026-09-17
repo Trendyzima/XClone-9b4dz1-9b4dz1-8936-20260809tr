@@ -1822,13 +1822,8 @@ function ScheduledTransfersTab({ userId, currency, pinHash }: { userId: string; 
     const toProcess = transfers.filter(t => selected.includes(t.id));
     let done = 0;
     for (const t of toProcess) {
-      const { error } = await supabase.rpc('p2p_wallet_transfer', {
-        p_from_user_id: userId, p_to_user_id: t.to_user_id, p_amount: Number(t.amount), p_note: t.note ?? null,
-      });
-      if (!error) {
-        await supabase.from('scheduled_transfers').delete().eq('id', t.id).eq('from_user_id', userId);
-        done++; setBatchDone(done);
-      }
+      const { data: executed, error } = await supabase.rpc('wallet_execute_scheduled_transfer', { p_id: t.id });
+      if (!error && executed) { done++; setBatchDone(done); }
     }
     setBatching(false); setSelected([]);
     toast.success(`${done}/${toProcess.length} transfers executed!`);
