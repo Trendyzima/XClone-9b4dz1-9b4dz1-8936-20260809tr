@@ -1776,7 +1776,7 @@ function ScheduledTransfersTab({ userId, currency, pinHash }: { userId: string; 
 
   const loadTransfers = async () => {
     setLoading(true);
-    const { data } = await supabase.from('scheduled_transfers')
+    const { data } = await supabase.from('wallet_scheduled_transfers')
       .select('*').eq('from_user_id', userId).eq('status', 'pending').order('scheduled_for', { ascending: true });
     setTransfers(data ?? []); setLoading(false);
   };
