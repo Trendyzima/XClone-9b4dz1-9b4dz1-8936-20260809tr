@@ -19,14 +19,11 @@ Deno.serve(async (req) => {
 
     const { data: payout, error } = await admin
       .from("monetization_payouts")
-      .select("id,status,provider,provider_payout_id")
+      .select("id,status,provider,provider_payout_id,provider_request_id")
       .eq("provider", "mpesa")
-      .eq("provider_payout_id", conversation)
+      .or(`provider_payout_id.eq.${conversation},provider_request_id.eq.${conversation}`)
       .maybeSingle();
     if (error) throw error;
-
-    // Unknown callbacks are acknowledged so Safaricom does not retry forever.
-    // They do not mutate any financial state.
     if (!payout) return json({ ResultCode: 0, ResultDesc: "Accepted" });
 
     if (Number.isFinite(code) && code === 0) {
