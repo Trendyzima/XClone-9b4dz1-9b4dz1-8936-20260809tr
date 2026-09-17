@@ -1,5 +1,6 @@
 name: ProfilePage Surgical Execution
 
+# Registration activation marker
 on:
   push:
     branches: [main]
