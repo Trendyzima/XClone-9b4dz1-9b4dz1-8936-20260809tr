@@ -40,6 +40,16 @@ const SLOT: Record<TestagramAdPlacement, string> = {
   THREAD: 'post-detail', MARKETPLACE: 'explore', PRODUCT: 'explore', SIDEBAR: 'feed-inline',
 };
 
+function isRealAd(value: ServedAd | null | undefined): value is ServedAd {
+  if (!value?.ok || !value.impression_id || !value.campaign_id || !value.creative_id || !value.event_token) return false;
+  const hasMessage = Boolean(value.headline?.trim() || value.body?.trim());
+  const hasAsset = Boolean(value.asset_url?.trim());
+  const hasDestination = Boolean(value.click_through_url?.trim());
+  // Never render a shell/placeholder as an ad. A valid Testagram ad needs
+  // identifiable campaign lineage plus meaningful creative or a destination.
+  return hasMessage || hasAsset || hasDestination;
+}
+
 export function TestagramAdSlot({ placement, context, className = '' }: {
   placement: TestagramAdPlacement;
   context?: TestagramAdContext;
@@ -55,14 +65,18 @@ export function TestagramAdSlot({ placement, context, className = '' }: {
     let cancelled = false;
     const requestId = crypto.randomUUID();
     (async () => {
+      setLoading(true);
+      setAd(null);
+      impressionRef.current = '';
+      eventTokenRef.current = '';
       if (isPremium || Capacitor.isNativePlatform()) { setLoading(false); return; }
       try {
         const { data, error } = await supabase.functions.invoke('testagram-ads/serve', {
           body: { slot_code: SLOT[placement], request_id: requestId, placement, context: context ?? {} },
         });
-        if (!cancelled && !error && data?.ok && data.impression_id) {
-          impressionRef.current = data.impression_id;
-          eventTokenRef.current = data.event_token || '';
+        if (!cancelled && !error && isRealAd(data)) {
+          impressionRef.current = data.impression_id!;
+          eventTokenRef.current = data.event_token!;
           setAd(data);
         }
       } catch { /* advertising is non-critical to content rendering */ }
@@ -80,7 +94,7 @@ export function TestagramAdSlot({ placement, context, className = '' }: {
     }).catch(() => {});
   };
 
-  if (isPremium || loading || !ad?.ok) return null;
+  if (isPremium || loading || !isRealAd(ad)) return null;
 
   return (
     <article className={`rounded-2xl border border-border bg-card overflow-hidden ${className}`} data-testagram-ad-placement={placement}>
