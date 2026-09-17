@@ -817,7 +817,7 @@ export default function ProfilePage() {
   };
 
   const fetchPosts = async (userId: string) => {
-    const { data } = await supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(*)').eq('user_id', userId).order('created_at', { ascending: false });
+    const { data } = await supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,cover_url,website,location,social_links,verified_tier,follower_count,following_count,pinned_post_id,protected_account,created_at)').eq('user_id', userId).order('created_at', { ascending: false });
     const postList = data || [];
     setPosts(postList);
     // Fire milestone alerts asynchronously — won't block UI
@@ -828,19 +828,19 @@ export default function ProfilePage() {
     setThreads(data || []);
   };
   const fetchReplies = async (userId: string) => {
-    const { data } = await supabase.from('replies').select('*, posts(*, user_profiles:profiles!posts_user_id_fkey(*))').eq('user_id', userId).order('created_at', { ascending: false });
+    const { data } = await supabase.from('replies').select('*, posts(*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,cover_url,website,location,social_links,verified_tier,follower_count,following_count,pinned_post_id,protected_account,created_at))').eq('user_id', userId).order('created_at', { ascending: false });
     setReplies(data || []);
   };
   const fetchMedia = async (userId: string) => {
-    const { data } = await supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(*)').eq('user_id', userId).or('image_url.not.is.null,video_url.not.is.null,media_urls.neq.[]').order('created_at', { ascending: false });
+    const { data } = await supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,cover_url,website,location,social_links,verified_tier,follower_count,following_count,pinned_post_id,protected_account,created_at)').eq('user_id', userId).or('image_url.not.is.null,video_url.not.is.null,media_urls.neq.[]').order('created_at', { ascending: false });
     setMedia(data || []);
   };
   const fetchLikedPosts = async (userId: string) => {
-    const { data } = await supabase.from('post_likes').select('posts(*, user_profiles:profiles!posts_user_id_fkey(*))').eq('user_id', userId).order('created_at', { ascending: false });
+    const { data } = await supabase.from('post_likes').select('posts(*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,cover_url,website,location,social_links,verified_tier,follower_count,following_count,pinned_post_id,protected_account,created_at))').eq('user_id', userId).order('created_at', { ascending: false });
     setLikedPosts((data || []).map((item: any) => item.posts).filter(Boolean));
   };
   const fetchFollowers = async (userId: string) => {
-    const { data } = await supabase.from('follows').select('follower:profiles!follows_follower_id_fkey(*)').eq('following_id', userId);
+    const { data } = await supabase.from('follows').select('follower:profiles!follows_follower_id_fkey(id,username,display_name,avatar_url,bio,cover_url,website,location,social_links,verified_tier,follower_count,following_count,pinned_post_id,protected_account,created_at)').eq('following_id', userId);
     setFollowers((data || []).map((item: any) => item.follower).filter(Boolean));
   };
   const fetchProfileStats = async (userId: string) => {
@@ -853,7 +853,7 @@ export default function ProfilePage() {
     }
   };
   const fetchFollowing = async (userId: string) => {
-    const { data } = await supabase.from('follows').select('following:profiles!follows_following_id_fkey(*)').eq('follower_id', userId);
+    const { data } = await supabase.from('follows').select('following:profiles!follows_following_id_fkey(id,username,display_name,avatar_url,bio,cover_url,website,location,social_links,verified_tier,follower_count,following_count,pinned_post_id,protected_account,created_at)').eq('follower_id', userId);
     setFollowing((data || []).map((item: any) => item.following).filter(Boolean));
   };
   const checkFollowStatus = async () => {
