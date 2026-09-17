@@ -647,7 +647,7 @@ function InstallmentPanel({ userId, walletBalance, pinHash, currency, onClose }:
         scheduled_for: d.toISOString(),
       };
     });
-    const { error } = await supabase.from('scheduled_transfers').insert(rows);
+    const { error } = await supabase.from('wallet_scheduled_transfers').insert(rows);
     setSaving(false);
     if (error) { toast.error('Failed to schedule installments'); return; }
     toast.success(`${installments} installments scheduled!`);
@@ -1185,7 +1185,7 @@ function PayoutScheduleCard({ userId, defaultPhone }: { userId: string; defaultP
 
   const fetchSchedule = async () => {
     setLoading(true);
-    const { data } = await supabase.from('payout_schedules').select('*').eq('user_id', userId).maybeSingle();
+    const { data } = await supabase.from('wallet_auto_payout_schedules').select('*').eq('user_id', userId).maybeSingle();
     if (data) {
       setSchedule(data); setEnabled(data.is_active); setFrequency(data.frequency ?? 'monthly');
       setMinAmount(String(data.minimum_amount ?? 5)); setPhone(data.payout_destination ?? defaultPhone ?? '');
@@ -1206,14 +1206,10 @@ function PayoutScheduleCard({ userId, defaultPhone }: { userId: string; defaultP
     if (frequency === 'weekly') nextPayout.setDate(nextPayout.getDate() + 7);
     else nextPayout.setMonth(nextPayout.getMonth() + 1);
     nextPayout.setHours(9, 0, 0, 0);
-    const payload = {
-      user_id: userId, frequency, payout_method: 'mpesa', payout_destination: phoneTrimmed,
-      minimum_amount: parseFloat(minAmount) || 5, is_active: enabled,
-      next_payout_at: enabled ? nextPayout.toISOString() : null,
-    };
+    const payload = null;
     let err;
-    if (schedule) { const { error } = await supabase.from('payout_schedules').update(payload).eq('id', schedule.id); err = error; }
-    else { const { error } = await supabase.from('payout_schedules').insert(payload); err = error; }
+    const { error: rpcError } = await supabase.rpc('wallet_upsert_auto_payout_schedule', { p_frequency: frequency, p_minimum_amount: parseFloat(minAmount) || 5, p_destination: phoneTrimmed || null, p_enabled: enabled });
+    err = rpcError;
     setSaving(false);
     if (err) { toast.error('Failed to save schedule'); return; }
     toast.success(enabled ? `Auto-payout scheduled ${frequency}` : 'Auto-payout disabled');
@@ -3316,7 +3312,7 @@ function SavingsPocketTab({ userId, mainBalance, savingsBalance, pinHash, curren
   }, [historyKey]);
 
   useEffect(() => {
-    supabase.from('savings_goals').select('id,name,emoji,current_amount,target_amount')
+    supabase.from('wallet_savings_goals').select('id,name,emoji,current_amount,target_amount')
       .eq('user_id', userId).eq('is_completed', false)
       .order('created_at', { ascending: false })
       .then(({ data }) => setGoals(data ?? []));
@@ -3343,13 +3339,12 @@ function SavingsPocketTab({ userId, mainBalance, savingsBalance, pinHash, curren
     setSaving(true);
     const newMain    = parseFloat((type === 'in' ? mainBalance - amt : mainBalance + amt).toFixed(2));
     const newSavings = parseFloat((type === 'in' ? savingsBalance + amt : savingsBalance - amt).toFixed(2));
-    const { error } = await supabase.from('user_wallets')
-      .update({ balance: newMain, savings_balance: newSavings }).eq('user_id', userId);
+    const { error } = await supabase.rpc('wallet_move_savings', { p_amount: amt, p_direction: type });
     setSaving(false);
     if (error) { toast.error('Transfer failed'); return; }
     addHistory(type, amt);
     if (type === 'in' && linkedGoalId) {
-      const { data: goal } = await supabase.from('savings_goals')
+      const { data: goal } = await supabase.from('wallet_savings_goals')
         .select('current_amount,target_amount,name').eq('id', linkedGoalId).eq('user_id', userId).maybeSingle();
       if (goal) {
         const prevAmt    = Number(goal.current_amount);
