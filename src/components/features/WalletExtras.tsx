@@ -389,8 +389,6 @@ export function WalletBudgetPlanner({ userId, currency }: { userId: string; curr
     const next = { ...budgets, [cat]: v };
     setBudgets(next);
     localStorage.setItem(budgetKey, JSON.stringify(next));
-    // Persist to DB so the budget-alerts edge function can read it
-    supabase.from('user_wallets').update({ budget_settings: next }).eq('user_id', userId).then(() => {});
     setEditingCat(null);
     setEditVal('');
     toast.success(`Budget for ${cat}: ${xfmt(v, currency)}/month`);
@@ -597,7 +595,6 @@ export function DirectMpesaSendPanel({ userId, walletBalance, pinHash, currency,
       });
       const payload = await res.json();
       if (!res.ok || !payload.success) throw new Error(payload.error || 'B2C request failed');
-      await supabase.rpc('deduct_from_wallet', { p_user_id: userId, p_amount: usdAmt });
       saveRecent(phone);
       setSending(false);
       const txRef = payload.conversation_id || payload.originator_conversation_id
