@@ -18,6 +18,7 @@ import { formatNumber } from '@/lib/utils';
 import { toast } from 'sonner';
 
 import { PageAdBanner } from '@/components/features/AdSenseAd';
+import { CreatorStudioWorkbench } from '@/components/features/CreatorStudioWorkbench';
 function CreatorStudioAdBanner() { return <PageAdBanner />; }
 
 export default function CreatorStudio() {
@@ -589,6 +590,7 @@ export default function CreatorStudio() {
     <div className="min-h-screen bg-background pb-20 md:pb-0">
       <TopBar title="Creator Studio" showBack />
       <CreatorStudioAdBanner />
+      <CreatorStudioWorkbench stats={stats} recentPosts={recentPosts} />
 
       <div className="p-4 space-y-6">
         {/* Studio tabs */}
