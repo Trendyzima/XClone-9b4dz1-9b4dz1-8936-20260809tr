@@ -1,0 +1,81 @@
+name: Integrate canonical advertiser surfaces
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  integrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Surgical integration
+        shell: python
+        run: |
+          from pathlib import Path
+
+          wallet = Path('src/pages/WalletPage.tsx')
+          profile = Path('src/pages/ProfilePage.tsx')
+
+          w = wallet.read_text()
+          p = profile.read_text()
+
+          import_line = "import { AdvertiserSurface } from '@/components/features/AdvertiserSurface';\n"
+          if import_line not in w:
+              anchor = "import { WalletDashboard } from '@/components/features/WalletDashboard';\n"
+              if anchor not in w:
+                  raise SystemExit('Wallet import anchor not found')
+              w = w.replace(anchor, anchor + import_line, 1)
+
+          wallet_marker = '<WalletDashboard />'
+          if w.count(wallet_marker) != 1:
+              raise SystemExit(f'Expected exactly one WalletDashboard marker, found {w.count(wallet_marker)}')
+          if '<AdvertiserSurface variant="wallet" />' not in w:
+              w = w.replace(wallet_marker, wallet_marker + '\n        <AdvertiserSurface variant="wallet" />', 1)
+
+          if import_line not in p:
+              anchor = "import { PageAdBanner } from '@/components/features/AdSenseAd';\n"
+              if anchor not in p:
+                  raise SystemExit('Profile import anchor not found')
+              p = p.replace(anchor, anchor + import_line, 1)
+
+          profile_marker = '<ProfileAdBanner />'
+          if p.count(profile_marker) < 1:
+              raise SystemExit('ProfileAdBanner usage marker not found')
+          if 'isOwnProfile && <AdvertiserSurface variant="profile" />' not in p:
+              idx = p.find(profile_marker)
+              end = idx + len(profile_marker)
+              insertion = '\n        {isOwnProfile && <AdvertiserSurface variant="profile" />}'
+              p = p[:end] + insertion + p[end:]
+
+          wallet.write_text(w)
+          profile.write_text(p)
+
+          # Hard guard: this integration must not introduce or touch legacy ZenAd tables/functions.
+          for text, name in ((w, 'WalletPage.tsx'), (p, 'ProfilePage.tsx')):
+              if 'zenad_' in text:
+                  raise SystemExit(f'legacy zenad_ identifier detected in {name}')
+
+          print('Surgical advertiser surface integration complete')
+      - name: Verify diff scope
+        run: |
+          git diff --check
+          git diff -- src/pages/WalletPage.tsx src/pages/ProfilePage.tsx
+      - name: Commit integration
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/pages/WalletPage.tsx src/pages/ProfilePage.tsx
+          git diff --cached --quiet || git commit -m 'feat: integrate canonical advertiser surfaces'
+          git push
+      - name: Remove one-shot workflow
+        run: |
+          rm -f .github/workflows/integrate-advertiser-surfaces.yml
+          git add .github/workflows/integrate-advertiser-surfaces.yml
+          git commit -m 'chore: remove one-shot advertiser integration workflow'
+          git push
