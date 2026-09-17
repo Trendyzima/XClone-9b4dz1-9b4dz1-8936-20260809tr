@@ -71,7 +71,7 @@ jobs:
             --header 'Content-Type: application/json' \
             --data '{}' \
             --output "$response_file" \
-            --write-out '%{http_code}' > /tmp/http-status || status=$?
+            --write-out '%{http_code}' "$url" > /tmp/http-status || status=$?
           http_status="$(cat /tmp/http-status 2>/dev/null || true)"
           cat "$response_file"
           echo
