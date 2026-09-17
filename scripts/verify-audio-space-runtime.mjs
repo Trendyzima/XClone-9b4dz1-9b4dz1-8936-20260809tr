@@ -19,7 +19,7 @@ await must(a.rpc('resolve_audio_space_speak_request',{p_request_id:req.id,p_appr
 const {data:cap,error:capErr}=await b.rpc('get_audio_space_capability',{p_space_id:sid}); if(capErr||!cap?.[0]?.can_publish) throw capErr||new Error('CAPABILITY_PUBLISH_FAILED');
 const tokenResp=await b.functions.invoke('livekit-space-token',{body:{space_id:sid}}); if(tokenResp.error||!tokenResp.data?.ok) throw tokenResp.error||new Error('SPACE_TOKEN_FAILED');
 const claims=decode(tokenResp.data.data.token); if(claims.video?.canPublish!==true||claims.video?.canSubscribe!==true||claims.video?.room!==tokenResp.data.data.room_name) throw new Error('TOKEN_CAPABILITY_ASSERT_FAILED');
-await must(a.rpc('mute_audio_space_participant',{p_space_id:sid,p_target_user_id:guest}));
+await must(a.rpc('mute_audio_space_participant',{p_space_id:sid,p_target_user_id:guest,p_muted:true}));
 const mutedResp=await b.functions.invoke('livekit-space-token',{body:{space_id:sid}}); if(mutedResp.error||!mutedResp.data?.ok) throw mutedResp.error||new Error('MUTED_TOKEN_CALL_FAILED'); const mutedClaims=decode(mutedResp.data.data.token); if(mutedClaims.video?.canPublish!==false) throw new Error('MUTED_TOKEN_PUBLISH_ASSERT_FAILED');
 await must(a.rpc('ban_audio_space_participant',{p_space_id:sid,p_target_user_id:guest}));
 const bannedResp=await b.functions.invoke('livekit-space-token',{body:{space_id:sid}}); if(!bannedResp.error && bannedResp.data?.ok) throw new Error('BANNED_TOKEN_WAS_ISSUED');
