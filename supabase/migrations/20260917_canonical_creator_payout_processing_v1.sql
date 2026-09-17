@@ -1,7 +1,13 @@
 -- Canonical creator payout provider boundary.
 -- This migration does NOT touch legacy wallets, creator_payouts, wallet_transactions,
--- ZenAd, or provider settlement functions. It only adds an idempotent state transition
--- for monetization_payouts before an external provider request.
+-- ZenAd, or legacy provider settlement functions.
+
+alter table public.monetization_payouts
+  add column if not exists provider_request_id text;
+
+create unique index if not exists monetization_payouts_provider_request_id_uq
+  on public.monetization_payouts(provider_request_id)
+  where provider_request_id is not null;
 
 create or replace function public.begin_monetization_payout_processing(
   p_payout_id uuid
