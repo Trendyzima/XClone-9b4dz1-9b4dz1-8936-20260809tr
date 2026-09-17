@@ -1,11 +1,12 @@
 name: ProfilePage Surgical Integration
 
-on:
+"on":
   push:
-    branches: [main]
+    branches:
+      - main
     paths:
-      - '.github/workflows/profile-page-surgical.yml'
-  workflow_dispatch:
+      - .github/workflows/profile-page-surgical.yml
+  workflow_dispatch: {}
 
 permissions:
   contents: write
@@ -24,10 +25,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python3 <<'PY'
+          python3 - <<'PY'
           from pathlib import Path
           import hashlib
-          import subprocess
 
           path = Path('src/pages/ProfilePage.tsx')
           source = path.read_text(encoding='utf-8')
@@ -41,7 +41,7 @@ jobs:
           exactly(source, "import { StoryHighlights } from '@/components/features/StoryHighlights';")
           exactly(source, 'ProfileCompactActions', 0)
           exactly(source, 'ProfileCreatorTools', 0)
-          exactly(source, '{/* Tabs */}')
+          exactly(source, '      {/* Tabs */}')
           if source.count('setShowGiftPremiumDialog(true)') != 1:
               raise SystemExit('ABORT: Gift Premium state callback count is not exactly one')
           for needle in ['handleFollow', 'handleMessage', 'handleUnsubscribe', 'handleMute', 'handleBlock']:
@@ -126,8 +126,12 @@ jobs:
           npm ci
           npm run build
 
-          test "$(git diff --name-only)" = "src/pages/ProfilePage.tsx"
-          ! git diff --name-only | grep -q '^\.github/workflows/'
+          changed_files="$(git diff --name-only)"
+          test "$changed_files" = "src/pages/ProfilePage.tsx"
+          if printf '%s\n' "$changed_files" | grep -q '^\.github/workflows/'; then
+            echo 'ABORT: workflow files changed during surgical transform'
+            exit 1
+          fi
           grep -q "import { ProfileCompactActions }" src/pages/ProfilePage.tsx
           grep -q "import { ProfileCreatorTools }" src/pages/ProfilePage.tsx
           test "$(grep -c '<ProfileCompactActions' src/pages/ProfilePage.tsx)" -eq 1
