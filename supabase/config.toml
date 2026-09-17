@@ -2,3 +2,6 @@ project_id = "aepbqfrmheihfsauzcby"
 
 [functions.capability-gateway]
 verify_jwt = false
+
+[functions.community-admin-runtime]
+verify_jwt = false
