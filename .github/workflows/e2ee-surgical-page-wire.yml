@@ -1,0 +1,68 @@
+name: communications-e2ee-page-wire
+on:
+  push:
+    branches: [surgical/communications-e2ee-complete-v2]
+    paths-ignore:
+      - src/pages/MessagesPage.tsx
+      - src/services/communicationService.ts
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: surgical/communications-e2ee-complete-v2
+          fetch-depth: 0
+      - name: Apply surgical client E2EE wiring
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          page = Path('src/pages/MessagesPage.tsx')
+          text = page.read_text()
+          old = "import { Room, RoomEvent, Track } from 'livekit-client';"
+          new = "import { ExternalE2EEKeyProvider, Room, RoomEvent, Track } from 'livekit-client';"
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit('LiveKit import anchor not found')
+
+          old = "import { communicationService, type CallSession, type CommunicationConversation, type CommunicationMessage, type PresenceState, type TypingState } from '@/services/communicationService';"
+          new = "import { communicationService, type CallSession, type CommunicationConversation, type CommunicationMessage, type PresenceState, type TypingState } from '@/services/communicationService';\nimport { communicationCrypto } from '@/services/communicationCrypto';"
+          if old in text:
+              text = text.replace(old, new, 1)
+
+          old = "const r = new Room({ adaptiveStream: true, dynacast: true, disconnectOnPageLeave: true });"
+          new = "const conversationKey = await communicationCrypto.ensureConversationKey(selected.id); const liveKitKey = await communicationCrypto.exportConversationKey(selected.id, conversationKey.epoch); const keyProvider = new ExternalE2EEKeyProvider(); await keyProvider.setKey(liveKitKey); const e2eeWorker = new Worker(new URL('livekit-client/e2ee-worker', import.meta.url), { type: 'module' }); const r = new Room({ adaptiveStream: true, dynacast: true, disconnectOnPageLeave: true, encryption: { keyProvider, worker: e2eeWorker } });"
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif "const e2eeWorker = new Worker(new URL('livekit-client/e2ee-worker'" not in text:
+              raise SystemExit('LiveKit Room construction anchor not found')
+
+          old = "await r.connect(token.url, token.token);"
+          new = "await r.setE2EEEnabled(true); await r.connect(token.url, token.token);"
+          if old in text:
+              text = text.replace(old, new, 1)
+
+          page.write_text(text)
+
+          service = Path('src/services/communicationService.ts')
+          text = service.read_text()
+          old = "listMessages(conversationId: string, limit = 50, cursor?: string) { return backendCapabilities.call<CapabilityPage<CommunicationMessage>>('testagram.messages.list', { conversation_id: conversationId, limit, ...(cursor ? { cursor } : {}) }); },"
+          new = "async listMessages(conversationId: string, limit = 50, cursor?: string) { const result = await backendCapabilities.call<CapabilityPage<CommunicationMessage>>('testagram.messages.list', { conversation_id: conversationId, limit, ...(cursor ? { cursor } : {}) }); return { ...result, items: await this.decryptMessages(result.items ?? []) }; },"
+          if old in text:
+              text = text.replace(old, new, 1)
+          elif new not in text:
+              raise SystemExit('message list anchor not found')
+          service.write_text(text)
+          PY
+
+          git config user.name github-actions[bot]
+          git config user.email 41898282+github-actions[bot]@users.noreply.github.com
+          git add src/pages/MessagesPage.tsx src/services/communicationService.ts
+          git diff --cached --quiet || git commit -m "feat: complete client communications E2EE wiring"
+          git push origin surgical/communications-e2ee-complete-v2
