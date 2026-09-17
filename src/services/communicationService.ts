@@ -20,7 +20,7 @@ const encryptInput = async (conversationId: string, body: string) => { const enc
 export const communicationService = {
   listConversations(limit = 50) { return backendCapabilities.call<{ items: CommunicationConversation[] }>('testagram.conversations.list', { limit }); },
   createConversation(memberIds: string[]) { return backendCapabilities.call<{ conversation_id: string }>('testagram.conversations.create', { member_ids: memberIds }); },
-  listMessages(conversationId: string, limit = 50, cursor?: string) { return backendCapabilities.call<CapabilityPage<CommunicationMessage>>('testagram.messages.list', { conversation_id: conversationId, limit, ...(cursor ? { cursor } : {}) }); },
+  async listMessages(conversationId: string, limit = 50, cursor?: string) { const result = await backendCapabilities.call<CapabilityPage<CommunicationMessage>>('testagram.messages.list', { conversation_id: conversationId, limit, ...(cursor ? { cursor } : {}) }); return { ...result, items: await this.decryptMessages(result.items ?? []) }; },
   async decryptMessage(message: CommunicationMessage) { if (!message.e2ee_enabled || !message.ciphertext || !message.nonce || !message.e2ee_epoch) return message; const body = await communicationCrypto.decryptMessage(message.conversation_id, message.e2ee_epoch, message.ciphertext, message.nonce, message.aad ?? undefined); return { ...message, body }; },
   async decryptMessages(messages: CommunicationMessage[]) { return Promise.all(messages.map(message => this.decryptMessage(message))); },
   async sendMessage(input: { conversationId: string; body: string; clientMessageId?: string; replyToMessageId?: string; sharedPostId?: string }) {
