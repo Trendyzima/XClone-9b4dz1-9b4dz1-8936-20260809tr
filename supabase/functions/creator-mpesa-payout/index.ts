@@ -62,23 +62,18 @@ Deno.serve(async (req) => {
 
     const { data: payout, error: payoutError } = await admin
       .from("monetization_payouts")
-      .select("id,user_id,amount_cents,currency,provider,provider_payout_id,destination,status,idempotency_key")
+      .select("id,user_id,amount_cents,currency,provider,provider_request_id,provider_payout_id,destination,status,idempotency_key")
       .eq("id", payoutId)
       .eq("user_id", user.id)
       .maybeSingle();
     if (payoutError) throw payoutError;
     if (!payout) return json({ error: "Payout not found" }, 404);
     if (payout.provider !== "mpesa") return json({ error: "Payout provider is not M-Pesa" }, 409);
-    if (String(payout.currency).toUpperCase() !== "KES") {
-      return json({ error: "M-Pesa creator payouts currently require a KES monetization account" }, 409);
-    }
+    if (String(payout.currency).toUpperCase() !== "KES") return json({ error: "M-Pesa creator payouts currently require a KES monetization account" }, 409);
     if (payout.status === "paid") return json({ ok: true, status: "paid", payout_id: payout.id, provider_payout_id: payout.provider_payout_id });
     if (payout.status === "failed") return json({ ok: false, status: "failed", payout_id: payout.id, error: payout.failure_reason || "Payout failed" }, 409);
     if (payout.provider_payout_id) return json({ ok: true, status: payout.status, payout_id: payout.id, provider_payout_id: payout.provider_payout_id }, 202);
-
-    // A processing payout without a provider id is an ambiguous external request.
-    // Never submit it again from a retry; wait for provider reconciliation/callback.
-    if (payout.status === "processing") return json({ ok: true, status: "processing", payout_id: payout.id }, 202);
+    if (payout.status === "processing") return json({ ok: true, status: "processing", payout_id: payout.id, provider_request_id: payout.provider_request_id }, 202);
 
     const phone = normalizePhone(String(payout.destination?.phone || body.phone || ""));
     const amountKes = Math.floor(Number(payout.amount_cents) / 100);
@@ -89,12 +84,21 @@ Deno.serve(async (req) => {
     const begun = await admin.rpc("begin_monetization_payout_processing", { p_payout_id: payout.id });
     if (begun.error) throw begun.error;
     if (!begun.data) throw new Error("Unable to begin payout processing");
-    if (begun.data.status !== "processing") {
-      return json({ ok: true, status: begun.data.status, payout_id: begun.data.id, provider_payout_id: begun.data.provider_payout_id });
-    }
+    if (begun.data.status !== "processing") return json({ ok: true, status: begun.data.status, payout_id: begun.data.id, provider_payout_id: begun.data.provider_payout_id });
+
+    const clientReference = `TP${payout.id.replaceAll("-", "").slice(0, 24)}`;
+    const correlated = await admin
+      .from("monetization_payouts")
+      .update({ provider_request_id: clientReference, destination: { ...(payout.destination || {}), phone } })
+      .eq("id", payout.id)
+      .eq("status", "processing")
+      .is("provider_request_id", null)
+      .select("id,provider_request_id")
+      .maybeSingle();
+    if (correlated.error) throw correlated.error;
+    if (!correlated.data) return json({ ok: true, status: "processing", payout_id: payout.id, provider_request_id: clientReference }, 202);
 
     const access = await accessToken();
-    const clientReference = `TP${payout.id.replaceAll("-", "").slice(0, 24)}`;
     const r = await fetch(`${BASE}/mpesa/b2c/v1/paymentrequest`, {
       method: "POST",
       headers: { Authorization: `Bearer ${access}`, "Content-Type": "application/json" },
@@ -114,7 +118,7 @@ Deno.serve(async (req) => {
     const d = await r.json().catch(() => ({}));
     const providerId = String(d.ConversationID || d.OriginatorConversationID || "");
 
-    if (!r.ok || String(d.ResponseCode) !== "0" || !providerId) {
+    if (!r.ok || String(d.ResponseCode) !== "0") {
       await admin.rpc("fail_monetization_payout", {
         p_payout_id: payout.id,
         p_failure_reason: String(d.ResponseDescription || d.errorMessage || "M-Pesa request rejected"),
@@ -122,21 +126,20 @@ Deno.serve(async (req) => {
       return json({ error: d.ResponseDescription || d.errorMessage || "M-Pesa payout request failed" }, 502);
     }
 
-    const updated = await admin
-      .from("monetization_payouts")
-      .update({ provider_payout_id: providerId, destination: { ...(payout.destination || {}), phone } })
-      .eq("id", payout.id)
-      .eq("status", "processing")
-      .is("provider_payout_id", null)
-      .select("id,status,provider_payout_id,amount_cents,currency")
-      .maybeSingle();
-    if (updated.error) throw updated.error;
+    if (providerId) {
+      const updated = await admin
+        .from("monetization_payouts")
+        .update({ provider_payout_id: providerId })
+        .eq("id", payout.id)
+        .eq("status", "processing")
+        .select("id,status,provider_request_id,provider_payout_id,amount_cents,currency")
+        .maybeSingle();
+      if (updated.error) throw updated.error;
+    }
 
-    return json({ ok: true, status: "processing", payout_id: payout.id, provider_payout_id: providerId, amount_kes: amountKes, currency: "KES" }, 202);
+    return json({ ok: true, status: "processing", payout_id: payout.id, provider_request_id: clientReference, provider_payout_id: providerId || null, amount_kes: amountKes, currency: "KES" }, 202);
   } catch (e) {
     console.error("creator-mpesa-payout", e);
-    // Ambiguous provider/network failures deliberately do NOT fail the payout.
-    // It remains processing so the provider callback/reconciliation path can settle it.
     return json({ error: e instanceof Error ? e.message : "Canonical creator payout failed", payout_id: payoutId || null }, 500);
   }
 });
