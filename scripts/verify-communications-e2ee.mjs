@@ -19,7 +19,7 @@ const required = [
   [page, "livekit-client/e2ee-worker", 'LiveKit E2EE worker'],
   [page, 'await r.setE2EEEnabled(true)', 'LiveKit E2EE enablement'],
   [migrations, 'messages_e2ee_plaintext_guard', 'database plaintext guard'],
-  [migrations, "server_plaintext_allowed", 'server plaintext policy boundary'],
+  [migrations, 'server_plaintext_allowed', 'server plaintext policy boundary'],
   [migrations, 'create_message_notification', 'encrypted notification trigger'],
   [migrations, 'enqueue_message_delivery', 'encrypted delivery outbox trigger'],
   [migrations, 'testagram.messages.send_encrypted', 'database capability dispatch'],
@@ -38,5 +38,3 @@ if (/jsonb_build_object\([^;]*new\.body/s.test(migrations)) {
 if (service.includes("testagram.messages.send',") && !service.includes("testagram.messages.send_encrypted")) {
   throw new Error('E2EE send path still uses plaintext message capability');
 }
-
-console.log('communications E2EE contract: PASS');
