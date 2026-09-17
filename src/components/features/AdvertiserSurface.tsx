@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { BadgeCheck, BarChart3, Check, ChevronRight, Loader2, Megaphone, Settings2, WalletCards, X } from 'lucide-react';
+import { BadgeCheck, BarChart3, Check, ChevronRight, Loader2, Megaphone, Settings2, WalletCards, X, Wallet, Crown, Gift, ShieldCheck, Bell, Radio, Users, Lock, CircleDollarSign } from 'lucide-react';
 
 type Props = { variant: 'profile' | 'wallet' };
 
@@ -17,8 +17,8 @@ type Stats = {
 };
 
 type FeatureKey = 'analytics' | 'monetization' | 'podcasts' | 'series' | 'achievements' | 'highlights' | 'social-links' | 'tips';
-
 type FeatureDefinition = { key: FeatureKey; label: string; description: string };
+type ProfileTool = { label: string; description: string; path: string; icon: typeof BarChart3 };
 
 const FEATURES: FeatureDefinition[] = [
   { key: 'analytics', label: 'Analytics', description: 'Profile and post performance' },
@@ -29,6 +29,19 @@ const FEATURES: FeatureDefinition[] = [
   { key: 'highlights', label: 'Story Highlights', description: 'Profile story highlights' },
   { key: 'social-links', label: 'Social Links', description: 'External social profiles' },
   { key: 'tips', label: 'Tips', description: 'Tip history and support tools' },
+];
+
+const PROFILE_TOOLS: ProfileTool[] = [
+  { label: 'Creator Studio', description: 'Create and manage content', path: '/creator-studio', icon: BarChart3 },
+  { label: 'Monetization', description: 'Earnings and creator tools', path: '/monetization', icon: CircleDollarSign },
+  { label: 'Wallet', description: 'Balance and transactions', path: '/wallet', icon: Wallet },
+  { label: 'Rewards', description: 'Rewards and redemptions', path: '/rewards', icon: Gift },
+  { label: 'Create Ad', description: 'Promote your content', path: '/create-ad', icon: Megaphone },
+  { label: 'Premium', description: 'Manage Premium', path: '/premium', icon: Crown },
+  { label: 'Verification', description: 'Creator verification', path: '/verify', icon: ShieldCheck },
+  { label: 'Referrals', description: 'Referral activity', path: '/referral', icon: Users },
+  { label: 'Notifications', description: 'Notification preferences', path: '/notification-preferences', icon: Bell },
+  { label: 'Sessions', description: 'Active signed-in sessions', path: '/sessions', icon: Lock },
 ];
 
 const DEFAULT_FEATURES: Record<FeatureKey, boolean> = {
@@ -57,25 +70,31 @@ function moneyKes(value: number) {
 
 function ProfileFeatureRail() {
   const { user } = useAuth();
+  const { username } = useParams();
   const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [features, setFeatures] = useState<Record<FeatureKey, boolean>>(DEFAULT_FEATURES);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState<FeatureKey | null>(null);
+  const [isOwnProfile, setIsOwnProfile] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     async function load() {
       if (!user) { setLoading(false); return; }
-      const { data, error } = await supabase.from('profiles').select('profile_features').eq('id', user.id).maybeSingle();
+      const [{ data, error }, { data: viewedProfile }] = await Promise.all([
+        supabase.from('profiles').select('profile_features').eq('id', user.id).maybeSingle(),
+        username ? supabase.from('profiles').select('id').eq('username', username).maybeSingle() : Promise.resolve({ data: null }),
+      ]);
       if (!cancelled) {
         if (!error) setFeatures({ ...DEFAULT_FEATURES, ...((data?.profile_features ?? {}) as Partial<Record<FeatureKey, boolean>>) });
+        setIsOwnProfile(viewedProfile?.id === user.id);
         setLoading(false);
       }
     }
     load();
     return () => { cancelled = true; };
-  }, [user]);
+  }, [user, username]);
 
   const toggleFeature = async (key: FeatureKey) => {
     if (!user || savingKey) return;
@@ -98,31 +117,24 @@ function ProfileFeatureRail() {
     <>
       <div data-profile-feature-rail className="fixed right-3 top-24 z-[120] flex flex-col items-end gap-2 pointer-events-none">
         {open && (
-          <div className="pointer-events-auto w-[min(21rem,calc(100vw-1.5rem))] rounded-2xl border border-border bg-background/95 shadow-2xl backdrop-blur-md overflow-hidden">
+          <div className="pointer-events-auto w-[min(23rem,calc(100vw-1.5rem))] rounded-2xl border border-border bg-background/95 shadow-2xl backdrop-blur-md overflow-hidden">
             <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border">
               <div>
                 <p className="text-sm font-bold">Profile Features</p>
-                <p className="text-[10px] text-muted-foreground">Changes save to your profile</p>
+                <p className="text-[10px] text-muted-foreground">Profile modules and account tools</p>
               </div>
               <button onClick={() => setOpen(false)} className="p-1.5 rounded-full hover:bg-muted" aria-label="Close profile features">
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="max-h-[min(70vh,34rem)] overflow-y-auto p-2">
+            <div className="max-h-[min(70vh,38rem)] overflow-y-auto p-2">
               {loading ? (
                 <div className="flex items-center justify-center gap-2 py-8 text-xs text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" />Loading features…</div>
               ) : FEATURES.map(feature => {
                 const enabled = features[feature.key];
                 const saving = savingKey === feature.key;
                 return (
-                  <button
-                    key={feature.key}
-                    type="button"
-                    onClick={() => toggleFeature(feature.key)}
-                    disabled={savingKey !== null}
-                    className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-muted/70 disabled:opacity-60 transition-colors"
-                    aria-pressed={enabled}
-                  >
+                  <button key={feature.key} type="button" onClick={() => toggleFeature(feature.key)} disabled={savingKey !== null} className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 text-left hover:bg-muted/70 disabled:opacity-60 transition-colors" aria-pressed={enabled}>
                     <span className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${enabled ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}`}>
                       {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : enabled ? <Check className="w-4 h-4" /> : <span className="w-1.5 h-1.5 rounded-full bg-current" />}
                     </span>
@@ -134,6 +146,34 @@ function ProfileFeatureRail() {
                   </button>
                 );
               })}
+
+              {isOwnProfile && (
+                <>
+                  <div className="px-3 pt-4 pb-2 flex items-center gap-2">
+                    <Radio className="w-3.5 h-3.5 text-primary" />
+                    <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Creator & account tools</p>
+                  </div>
+                  <div className="grid grid-cols-2 gap-1">
+                    {PROFILE_TOOLS.map(tool => {
+                      const Icon = tool.icon;
+                      return (
+                        <button key={tool.path} type="button" onClick={() => { setOpen(false); navigate(tool.path); }} className="flex min-w-0 items-start gap-2 rounded-xl px-3 py-2.5 text-left hover:bg-muted transition-colors">
+                          <Icon className="w-4 h-4 mt-0.5 shrink-0 text-primary" />
+                          <span className="min-w-0">
+                            <span className="block truncate text-[11px] font-bold">{tool.label}</span>
+                            <span className="block truncate text-[9px] text-muted-foreground">{tool.description}</span>
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <button type="button" onClick={() => { setOpen(false); navigate('/profile-features?section=account'); }} className="mt-1 w-full flex items-center gap-2 rounded-xl px-3 py-2.5 text-left text-xs font-semibold hover:bg-muted transition-colors">
+                    <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+                    <span className="flex-1">Privacy & Account</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </>
+              )}
             </div>
             <div className="border-t border-border p-2">
               <button onClick={() => navigate('/profile-features')} className="w-full flex items-center justify-between rounded-xl px-3 py-2.5 text-xs font-semibold hover:bg-muted transition-colors">
@@ -143,13 +183,7 @@ function ProfileFeatureRail() {
             </div>
           </div>
         )}
-        <button
-          type="button"
-          onClick={() => setOpen(value => !value)}
-          className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-primary/25 bg-background/95 px-3 py-2 text-xs font-bold text-primary shadow-lg backdrop-blur-md hover:bg-primary/5 transition-colors"
-          aria-expanded={open}
-          aria-label="Open profile features"
-        >
+        <button type="button" onClick={() => setOpen(value => !value)} className="pointer-events-auto inline-flex items-center gap-2 rounded-full border border-primary/25 bg-background/95 px-3 py-2 text-xs font-bold text-primary shadow-lg backdrop-blur-md hover:bg-primary/5 transition-colors" aria-expanded={open} aria-label="Open profile features">
           <Settings2 className="w-4 h-4" />
           <span className="hidden sm:inline">Features</span>
         </button>
@@ -168,50 +202,19 @@ export function AdvertiserSurface({ variant }: Props) {
   useEffect(() => {
     let cancelled = false;
     async function load() {
-      if (!user) {
-        setLoading(false);
-        return;
-      }
+      if (!user) { setLoading(false); return; }
       setLoading(true);
       try {
-        const { data: account } = await supabase
-          .from('testagram_ad_accounts')
-          .select('id,name')
-          .eq('owner_user_id', user.id)
-          .order('created_at', { ascending: true })
-          .limit(1)
-          .maybeSingle();
-
-        if (!account) {
-          if (!cancelled) setStats(EMPTY);
-          return;
-        }
-
+        const { data: account } = await supabase.from('testagram_ad_accounts').select('id,name').eq('owner_user_id', user.id).order('created_at', { ascending: true }).limit(1).maybeSingle();
+        if (!account) { if (!cancelled) setStats(EMPTY); return; }
         const [{ data: campaigns }, { data: payments }] = await Promise.all([
-          supabase
-            .from('testagram_ad_campaigns')
-            .select('id,status,funded_micros')
-            .eq('ad_account_id', account.id),
-          supabase
-            .from('testagram_ad_payments')
-            .select('id,amount_kes,status')
-            .eq('user_id', user.id)
-            .eq('status', 'completed')
-            .order('created_at', { ascending: false })
-            .limit(100),
+          supabase.from('testagram_ad_campaigns').select('id,status,funded_micros').eq('ad_account_id', account.id),
+          supabase.from('testagram_ad_payments').select('id,amount_kes,status').eq('user_id', user.id).eq('status', 'completed').order('created_at', { ascending: false }).limit(100),
         ]);
-
         if (cancelled) return;
         const campaignRows = campaigns ?? [];
         const paymentRows = payments ?? [];
-        setStats({
-          accountId: account.id,
-          accountName: account.name ?? 'Testagram Ads',
-          campaigns: campaignRows.length,
-          activeCampaigns: campaignRows.filter(c => c.status === 'active').length,
-          fundedKes: campaignRows.reduce((sum, c) => sum + Number(c.funded_micros ?? 0) / 1_000_000, 0),
-          paidPayments: paymentRows.length,
-        });
+        setStats({ accountId: account.id, accountName: account.name ?? 'Testagram Ads', campaigns: campaignRows.length, activeCampaigns: campaignRows.filter(c => c.status === 'active').length, fundedKes: campaignRows.reduce((sum, c) => sum + Number(c.funded_micros ?? 0) / 1_000_000, 0), paidPayments: paymentRows.length });
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -229,13 +232,8 @@ export function AdvertiserSurface({ variant }: Props) {
         <section className="rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/10 via-card to-card p-5 space-y-4">
           <div className="flex items-start justify-between gap-4">
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center shrink-0">
-                <Megaphone className="w-5 h-5 text-primary" />
-              </div>
-              <div>
-                <p className="font-bold">Advertise on Testagram</p>
-                <p className="text-xs text-muted-foreground mt-0.5">Create and fund campaigns from your Testagram account.</p>
-              </div>
+              <div className="w-10 h-10 rounded-xl bg-primary/15 flex items-center justify-center shrink-0"><Megaphone className="w-5 h-5 text-primary" /></div>
+              <div><p className="font-bold">Advertise on Testagram</p><p className="text-xs text-muted-foreground mt-0.5">Create and fund campaigns from your Testagram account.</p></div>
             </div>
             {stats.accountId && <BadgeCheck className="w-5 h-5 text-primary shrink-0" />}
           </div>
@@ -244,9 +242,7 @@ export function AdvertiserSurface({ variant }: Props) {
             <div className="rounded-xl bg-background/70 border border-border p-3"><p className="text-[10px] text-muted-foreground">Active</p><p className="text-lg font-black mt-1">{stats.activeCampaigns}</p></div>
             <div className="rounded-xl bg-background/70 border border-border p-3"><p className="text-[10px] text-muted-foreground">Funded</p><p className="text-sm font-black mt-2">{moneyKes(stats.fundedKes)}</p></div>
           </div>
-          <Button className="w-full" onClick={() => navigate('/create-ad')}>
-            <Megaphone className="w-4 h-4 mr-2" /> {stats.accountId ? 'Create another ad' : 'Create your first ad'}
-          </Button>
+          <Button className="w-full" onClick={() => navigate('/create-ad')}><Megaphone className="w-4 h-4 mr-2" /> {stats.accountId ? 'Create another ad' : 'Create your first ad'}</Button>
         </section>
       </>
     );
