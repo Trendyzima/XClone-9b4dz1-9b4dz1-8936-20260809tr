@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { buildPersonalizedFeed } from '@/services/recommendations';
 import { TrendingUp, Loader2, BadgeCheck, Flame, Sparkles, Clock, Users, Search } from 'lucide-react';
 import { formatNumber } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -9,7 +10,7 @@ import { formatDistanceToNow } from 'date-fns';
 type SuggestionPost = {
   id: string; content?: string; image_url?: string; video_url?: string; is_video?: boolean;
   likes_count?: number; reposts_count?: number; views_count?: number; created_at: string; user_id?: string;
-  profiles?: { username: string; avatar_url?: string; verified_tier?: string | null; is_creator?: boolean } | null;
+  profiles?: { username: string; avatar_url?: string; verified_tier?: string | null; is_creator?: boolean; verified?: boolean } | null;
   _reason?: string;
 };
 
@@ -25,25 +26,29 @@ export function ContentSuggestionsWidget() {
     const load = async () => {
       setLoading(true);
       try {
-        const following = user ? (await supabase.from('follows').select('following_id').eq('follower_id', user.id)).data ?? [] : [];
-        const followingIds = following.map(row => row.following_id);
         const since = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
         let posts: SuggestionPost[] = [];
 
-        if (activeTab === 'for-you' && followingIds.length) {
-          const { data } = await supabase.from('posts').select('id,content,image_url,video_url,is_video,likes_count,reposts_count,views_count,created_at,user_id,profiles(username,avatar_url,verified_tier,is_creator)').is('community_id', null).in('user_id', followingIds.slice(0, 50)).order('created_at', { ascending: false }).limit(12);
-          posts = (data ?? []).map(p => ({ ...p, _reason: 'from people you follow' }));
+        if (activeTab === 'for-you' && user) {
+          // Use the same interest/social/recency engine as the main recommendation path.
+          // This prevents the sidebar from becoming a separate, less-intelligent ranking system.
+          const ranked = await buildPersonalizedFeed(user.id, 18);
+          posts = ranked.map(item => ({
+            ...item.post,
+            _reason: item.reason,
+          }));
         }
+
         if (activeTab === 'trending' || (activeTab === 'for-you' && posts.length < 5)) {
-          const { data } = await supabase.from('posts').select('id,content,image_url,video_url,is_video,likes_count,reposts_count,views_count,created_at,user_id,profiles(username,avatar_url,verified_tier,is_creator)').is('community_id', null).gt('likes_count', 0).order('likes_count', { ascending: false }).limit(12);
+          const { data } = await supabase.from('posts').select('id,content,image_url,video_url,is_video,likes_count,reposts_count,views_count,created_at,user_id,profiles(username,avatar_url,verified_tier,is_creator,verified)').is('community_id', null).gt('likes_count', 0).order('likes_count', { ascending: false }).limit(18);
           posts = [...posts, ...(data ?? []).map(p => ({ ...p, _reason: 'trending now' }))];
         }
         if (activeTab === 'new') {
-          const { data } = await supabase.from('posts').select('id,content,image_url,video_url,is_video,likes_count,reposts_count,views_count,created_at,user_id,profiles(username,avatar_url,verified_tier,is_creator)').is('community_id', null).gte('created_at', since).order('created_at', { ascending: false }).limit(12);
+          const { data } = await supabase.from('posts').select('id,content,image_url,video_url,is_video,likes_count,reposts_count,views_count,created_at,user_id,profiles(username,avatar_url,verified_tier,is_creator,verified)').is('community_id', null).gte('created_at', since).order('created_at', { ascending: false }).limit(18);
           posts = (data ?? []).map(p => ({ ...p, _reason: 'fresh on Testagram' }));
         }
         if (activeTab === 'creators') {
-          const { data } = await supabase.from('posts').select('id,content,image_url,video_url,is_video,likes_count,reposts_count,views_count,created_at,user_id,profiles!inner(username,avatar_url,verified_tier,is_creator)').is('community_id', null).eq('profiles.is_creator', true).order('views_count', { ascending: false }).limit(12);
+          const { data } = await supabase.from('posts').select('id,content,image_url,video_url,is_video,likes_count,reposts_count,views_count,created_at,user_id,profiles!inner(username,avatar_url,verified_tier,is_creator,verified)').is('community_id', null).eq('profiles.is_creator', true).order('views_count', { ascending: false }).limit(18);
           posts = (data ?? []).map(p => ({ ...p, _reason: 'creator content' }));
         }
 
@@ -85,7 +90,7 @@ export function ContentSuggestionsWidget() {
                 {profile?.avatar_url ? <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" /> : <span className="w-full h-full grid place-items-center text-xs font-bold">{profile?.username?.[0]?.toUpperCase()}</span>}
               </button>
               <button type="button" className="min-w-0 text-left" onClick={e => { e.stopPropagation(); if (profile?.username) navigate(`/profile/${profile.username}`); }}>
-                <span className="flex items-center gap-1 font-semibold text-xs truncate">{profile?.username ?? 'Testagram'}{profile?.verified_tier && <BadgeCheck className="w-3 h-3 text-primary" fill="currentColor" />}</span>
+                <span className="flex items-center gap-1 font-semibold text-xs truncate">{profile?.username ?? 'Testagram'}{(profile?.verified_tier || profile?.verified) && <BadgeCheck className="w-3 h-3 text-primary" fill="currentColor" />}</span>
                 <span className="text-[10px] text-muted-foreground">{post._reason} · {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</span>
               </button>
             </div>
