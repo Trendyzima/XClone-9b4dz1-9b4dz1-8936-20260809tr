@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'src/services/communityNotes.ts'
+      - 'src/pages/ProfilePage.tsx'
       - 'supabase/migrations/*community_notes*'
       - '.github/workflows/community-notes-gate.yml'
   pull_request:
@@ -14,7 +15,7 @@ on:
       - '.github/workflows/community-notes-gate.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   community-notes:
@@ -40,3 +41,103 @@ jobs:
           grep -q "refresh_community_note_score" supabase/migrations/20260915212000_community_notes_adaptive_scoring_v1.sql
           grep -q "distinct_rater_count" supabase/migrations/20260915212000_community_notes_adaptive_scoring_v1.sql
           grep -q "perspective_count" supabase/migrations/20260915212000_community_notes_adaptive_scoring_v1.sql
+
+  profile-surgical:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply exact ProfilePage surgical patch
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('src/pages/ProfilePage.tsx')
+          s = p.read_text()
+          anchor = "import { StoryHighlights } from '@/components/features/StoryHighlights';\n"
+          imports = "import { ProfileCompactActions } from '@/components/features/ProfileCompactActions';\nimport { ProfileCreatorTools } from '@/components/features/ProfileCreatorTools';\n"
+          if 'ProfileCompactActions' not in s:
+              assert anchor in s, 'import anchor missing'
+              s = s.replace(anchor, anchor + imports, 1)
+
+          start_marker = '            <div className="flex gap-2 mt-2 flex-wrap items-center">'
+          end_marker = '\n          </div>\n          </div>\n\n          <div className="mb-3">'
+          start = s.find(start_marker)
+          assert start >= 0, 'action cluster start missing'
+          end = s.find(end_marker, start)
+          assert end >= 0, 'action cluster end missing'
+          replacement = '''            <div className="flex gap-2 mt-2 flex-wrap items-center">
+              <ProfileCompactActions
+                isOwnProfile={isOwnProfile}
+                username={profile.username}
+                verified={profile.verified}
+                isCreator={profile.is_creator}
+                isFollowing={isFollowing}
+                isBlocked={isBlocked}
+                isMuted={isMuted}
+                hasFederation={hasActorRecord}
+                profileShared={profileShared}
+                onEdit={() => setShowEditDialog(true)}
+                onFollow={handleFollow}
+                onMessage={handleMessage}
+                onSend={() => navigate(`/wallet?tab=send&to=${profile.username}`)}
+                onTip={() => setShowTipDialog(true)}
+                onGiftPremium={() => setShowGiftPremiumDialog(true)}
+                onSubscribe={() => setShowSubscribeDialog(true)}
+                onUnsubscribe={handleUnsubscribe}
+                subscribed={!!activeSubscription}
+                onShare={handleShareProfile}
+                onMute={handleMute}
+                onBlock={handleBlock}
+                onFederation={() => {
+                  const handle = `@${profile.username}@testagram.site`;
+                  navigator.clipboard.writeText(handle).then(() => {
+                    setFedHandleCopied(true);
+                    setTimeout(() => setFedHandleCopied(false), 2000);
+                  });
+                }}
+              />
+            </div>'''
+          s = s[:start] + replacement + s[end:]
+
+          tabs = '      {/* Tabs */}'
+          tools = '''      {isOwnProfile && profile && (
+        <div className="px-4 mt-3">
+          <ProfileCreatorTools userId={profile.id} />
+        </div>
+      )}
+
+'''
+          if '<ProfileCreatorTools userId={profile.id} />' not in s:
+              i = s.find(tabs)
+              assert i >= 0, 'tabs marker missing'
+              s = s[:i] + tools + s[i:]
+          p.write_text(s)
+          PY
+      - name: Verify surgical patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          git diff --check
+          grep -q "import { ProfileCompactActions }" src/pages/ProfilePage.tsx
+          grep -q "import { ProfileCreatorTools }" src/pages/ProfilePage.tsx
+          grep -q "<ProfileCompactActions" src/pages/ProfilePage.tsx
+          grep -q "onGiftPremium={() => setShowGiftPremiumDialog(true)}" src/pages/ProfilePage.tsx
+          grep -q "<ProfileCreatorTools userId={profile.id} />" src/pages/ProfilePage.tsx
+          test "$(grep -c '<ProfileCompactActions' src/pages/ProfilePage.tsx)" = 1
+          test "$(grep -c '<ProfileCreatorTools userId={profile.id} />' src/pages/ProfilePage.tsx)" = 1
+      - name: Commit ProfilePage only and restore gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          git checkout HEAD -- .github/workflows/community-notes-gate.yml
+          git add src/pages/ProfilePage.tsx
+          if git diff --cached --quiet; then
+            echo 'ProfilePage already patched; nothing to commit.'
+            exit 0
+          fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'feat(profile): mount compact actions and creator tools'
+          git push origin HEAD:main
