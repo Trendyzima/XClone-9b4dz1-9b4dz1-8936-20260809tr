@@ -17,7 +17,7 @@ const json = (body: unknown, status = 200, requestId = crypto.randomUUID()) => n
   },
 });
 
-const fail = (requestId: string, code: string, message: string, status: number) =>
+const PUBLIC_CAPABILITIES = new Set([\n  "testagram.search.users",\n  "testagram.search.posts",\n  "testagram.search.hashtags",\n  "testagram.search.communities",\n  "testagram.trends.list",\n]);\n\nconst fail = (requestId: string, code: string, message: string, status: number) =>
   json({ ok: false, data: null, error: { code, message }, request_id: requestId }, status, requestId);
 
 Deno.serve(async (req) => {
