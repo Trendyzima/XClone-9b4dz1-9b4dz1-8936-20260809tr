@@ -3,7 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
-import { BadgeCheck, BarChart3, Check, ChevronRight, Loader2, Megaphone, Settings2, WalletCards, X, Wallet, Crown, Gift, ShieldCheck, Bell, Radio, Users, Lock, CircleDollarSign } from 'lucide-react';
+import { BadgeCheck, BarChart3, Check, ChevronRight, Globe2, Loader2, Megaphone, Settings2, WalletCards, X, Wallet, Crown, Gift, ShieldCheck, Bell, Radio, Users, Lock, CircleDollarSign } from 'lucide-react';
 
 type Props = { variant: 'profile' | 'wallet' };
 
@@ -42,6 +42,7 @@ const PROFILE_TOOLS: ProfileTool[] = [
   { label: 'Referrals', description: 'Referral activity', path: '/referral', icon: Users },
   { label: 'Notifications', description: 'Notification preferences', path: '/notification-preferences', icon: Bell },
   { label: 'Sessions', description: 'Active signed-in sessions', path: '/sessions', icon: Lock },
+  { label: 'Fediverse', description: 'ActivityPub and remote network', path: '/fediverse', icon: Globe2 },
 ];
 
 const DEFAULT_FEATURES: Record<FeatureKey, boolean> = {
