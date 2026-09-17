@@ -1,0 +1,232 @@
+name: platform-rbac-wire
+
+on:
+  push:
+    paths:
+      - '.github/workflows/platform-rbac-wire.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  wire:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Wire canonical platform capability gate
+        shell: python
+        run: |
+          from pathlib import Path
+          import re
+          import subprocess
+
+          root = Path('.')
+
+          def replace_once(path, old, new):
+              p = root / path
+              text = p.read_text()
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'{path}: expected exactly one occurrence, found {count}: {old[:120]}')
+              p.write_text(text.replace(old, new, 1))
+
+          # App: every platform/admin surface gets a server-backed capability gate.
+          app = root / 'src/App.tsx'
+          text = app.read_text()
+          if "@/components/auth/PlatformFeatureRoute" not in text:
+              text = text.replace(
+                  "import { useCreatorTierAlert } from '@/hooks/useCreatorTierAlert';",
+                  "import { useCreatorTierAlert } from '@/hooks/useCreatorTierAlert';\nimport { PlatformFeatureRoute } from '@/components/auth/PlatformFeatureRoute';"
+              )
+          if "const PlatformControlPage" not in text:
+              text = text.replace(
+                  "const AdminPanel = lazy(() => import('@/pages/AdminPanel'));",
+                  "const AdminPanel = lazy(() => import('@/pages/AdminPanel'));\nconst PlatformControlPage = lazy(() => import('@/pages/PlatformControlPage'));"
+              )
+
+          routes = {
+              '/admin': ('platform.overview', 'AdminPanel'),
+              '/admin/ads': ('platform.ads', 'AdConfigPage'),
+              '/revenue-analytics': ('platform.analytics', 'RevenueAnalytics'),
+              '/fraud-detection': ('platform.fraud', 'FraudDetection'),
+              '/admin/revenue': ('platform.finance', 'AdminRevenueDashboard'),
+              '/admin/verifications': ('platform.verification', 'AdminVerificationPage'),
+              '/admin/ads-review': ('platform.ads', 'AdminAdsDashboard'),
+              '/platform-inbox': ('platform.support', 'PlatformInboxPage'),
+              '/regulator': ('platform.audit', 'RegulatorPanel'),
+              '/admin/platform-revenue': ('platform.finance', 'PlatformRevenueDashboard'),
+          }
+          for path, (feature, component) in routes.items():
+              old = f'<Route path="{path}" element={{<{component}/>}}/>'
+              new = f'<Route path="{path}" element={{<PlatformFeatureRoute feature="{feature}"><{component}/></PlatformFeatureRoute>}}/>'
+              if old in text and new not in text:
+                  text = text.replace(old, new, 1)
+
+          if '<Route path="/platform-control"' not in text:
+              anchor = '<Route path="/admin" element={<PlatformFeatureRoute feature="platform.overview"><AdminPanel/></PlatformFeatureRoute>}/>'
+              route = '<Route path="/platform-control" element={<PlatformFeatureRoute feature="platform.roles"><PlatformControlPage/></PlatformFeatureRoute>}/>'
+              if anchor not in text:
+                  raise SystemExit('App.tsx: admin route anchor not found while adding platform-control route')
+              text = text.replace(anchor, anchor + route, 1)
+          app.write_text(text)
+
+          # Sidebar: admin navigation is capability-driven; latent/inactive roles produce no links.
+          sidebar = root / 'src/components/layout/Sidebar.tsx'
+          text = sidebar.read_text()
+          if "@/hooks/usePlatformFeature" not in text:
+              text = text.replace(
+                  "import { useIsRegulator } from '@/hooks/useFeatureUnlock';",
+                  "import { useIsRegulator } from '@/hooks/useFeatureUnlock';\nimport { usePlatformFeatures } from '@/hooks/usePlatformFeature';"
+              )
+          text = text.replace(
+              "const isReg = useIsRegulator();",
+              "const isReg = useIsRegulator();\n  const { hasFeature } = usePlatformFeatures();",
+              1,
+          )
+          text = re.sub(
+              r"\s*const checkAdminAds = async \(\) => \{.*?\n    \};\n    checkAdminAds\(\);",
+              "\n    const checkAdminAds = async () => {\n      if (!hasFeature('platform.ads')) { setPendingAdsBadge(0); return; }\n      const { count } = await supabase.from('user_ads').select('id', { count: 'exact', head: true }).eq('status', 'pending');\n      setPendingAdsBadge(count ?? 0);\n    };\n    checkAdminAds();",
+              text,
+              count=1,
+              flags=re.S,
+          )
+          text = text.replace("  }, [user?.id]);\n\n  // Poll help ticket reply badge", "  }, [user?.id, hasFeature]);\n\n  // Poll help ticket reply badge", 1)
+
+          old_admin = """  const adminTools = [
+    { icon: LineChart, label: 'Revenue Analytics', path: '/revenue-analytics', requireAuth: true, badge: 0 },
+    { icon: TrendingUp, label: 'Admin Revenue', path: '/admin/revenue', requireAuth: true, badge: 0 },
+    { icon: Megaphone, label: 'Ad Review', path: '/admin/ads-review', requireAuth: true, badge: pendingAdsBadge },
+    { icon: Shield, label: 'Fraud Detection', path: '/fraud-detection', requireAuth: true, badge: 0 },
+  ];"""
+          new_admin = """  const adminTools = [
+    { icon: LineChart, label: 'Revenue Analytics', path: '/revenue-analytics', feature: 'platform.analytics', requireAuth: true, badge: 0 },
+    { icon: TrendingUp, label: 'Admin Revenue', path: '/admin/revenue', feature: 'platform.finance', requireAuth: true, badge: 0 },
+    { icon: Megaphone, label: 'Ad Review', path: '/admin/ads-review', feature: 'platform.ads', requireAuth: true, badge: pendingAdsBadge },
+    { icon: Shield, label: 'Fraud Detection', path: '/fraud-detection', feature: 'platform.fraud', requireAuth: true, badge: 0 },
+  ];"""
+          replace_once('src/components/layout/Sidebar.tsx', old_admin, new_admin)
+          text = sidebar.read_text()
+          text = text.replace("{adminTools.map((item) => {", "{adminTools.filter((item) => hasFeature(item.feature)).map((item) => {", 1)
+          text = text.replace(
+              "  const regulatorItems = isReg ? [",
+              "  const regulatorItems = hasFeature('platform.audit') ? [",
+              1,
+          )
+          text = text.replace(
+              "{ icon: Inbox, label: 'Wise Brain', path: '/platform-inbox', requireAuth: true },",
+              "{ icon: Inbox, label: 'Wise Brain', path: '/platform-inbox', feature: 'platform.support', requireAuth: true },",
+              1,
+          )
+          text = text.replace(
+              "{ icon: DollarSign, label: 'Platform Revenue', path: '/admin/platform-revenue', requireAuth: true },",
+              "{ icon: DollarSign, label: 'Platform Revenue', path: '/admin/platform-revenue', feature: 'platform.finance', requireAuth: true },",
+              1,
+          )
+          text = text.replace(
+              "{userTools.map((item) => {",
+              "{userTools.filter((item) => !item.feature || hasFeature(item.feature)).map((item) => {",
+              1,
+          )
+          sidebar.write_text(text)
+
+          # Admin panel: replace legacy admin_users authorization with canonical capability state,
+          # and hide tabs whose corresponding capability is not active.
+          admin = root / 'src/pages/AdminPanel.tsx'
+          text = admin.read_text()
+          if "const [platformFeatures" not in text:
+              text = text.replace(
+                  "  const [isAdmin, setIsAdmin] = useState(false);",
+                  "  const [isAdmin, setIsAdmin] = useState(false);\n  const [platformFeatures, setPlatformFeatures] = useState<Set<string>>(new Set());\n  const hasPlatformFeature = (feature: string) => platformFeatures.has(feature);",
+                  1,
+              )
+          old_check = re.search(r"  const checkAdmin = async \(\) => \{.*?\n  \};", text, flags=re.S)
+          if not old_check:
+              raise SystemExit('AdminPanel.tsx: checkAdmin function not found')
+          new_check = """  const checkAdmin = async () => {
+    if (!user) return;
+    const [{ data: overviewAllowed, error: overviewError }, { data: featureRows }] = await Promise.all([
+      supabase.rpc('platform_has_feature', { p_feature_key: 'platform.overview', p_user_id: user.id }),
+      supabase.from('platform_feature_assignments').select('feature_key').eq('user_id', user.id).eq('active', true),
+    ]);
+    const features = new Set((featureRows ?? []).map((row: any) => row.feature_key));
+    if (overviewError || overviewAllowed !== true) {
+      setIsAdmin(false);
+      navigate('/');
+      return;
+    }
+    setPlatformFeatures(features);
+    setIsAdmin(true);
+    const jobs: Promise<unknown>[] = [fetchStats()];
+    if (features.has('platform.verification')) jobs.push(fetchVerifications());
+    if (features.has('platform.ads')) jobs.push(fetchUserAds());
+    if (features.has('platform.users') || features.has('platform.moderation')) jobs.push(fetchUsers(), fetchReportedPosts());
+    if (features.has('platform.fraud')) jobs.push(fetchFraudAlerts());
+    await Promise.all(jobs);
+    setLoading(false);
+  };"""
+          text = text[:old_check.start()] + new_check + text[old_check.end():]
+
+          # Replace the fixed five-tab cluster with capability-aware triggers.
+          old_tabs = """          <TabsList className=\"grid grid-cols-5 w-full h-auto p-1\">
+            <TabsTrigger value=\"overview\" className=\"text-xs py-2\">Overview</TabsTrigger>
+            <TabsTrigger value=\"verifications\" className=\"relative text-xs py-2\">
+              Verify
+              {stats.pending_verifications > 0 && (
+                <span className=\"absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold\">
+                  {stats.pending_verifications > 9 ? '9+' : stats.pending_verifications}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value=\"ads\" className=\"relative text-xs py-2\">
+              Ads
+              {stats.pending_ads > 0 && (
+                <span className=\"absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold\">
+                  {stats.pending_ads > 9 ? '9+' : stats.pending_ads}
+                </span>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value=\"users\" className=\"text-xs py-2\">Users</TabsTrigger>
+            <TabsTrigger value=\"fraud\" className=\"relative text-xs py-2\">
+              Fraud
+              {stats.fraud_alerts > 0 && (
+                <span className=\"absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold\">
+                  {stats.fraud_alerts > 9 ? '9+' : stats.fraud_alerts}
+                </span>
+              )}
+            </TabsTrigger>
+          </TabsList>"""
+          new_tabs = """          <TabsList className=\"grid grid-cols-2 sm:grid-cols-5 w-full h-auto p-1\">
+            {hasPlatformFeature('platform.overview') && <TabsTrigger value=\"overview\" className=\"text-xs py-2\">Overview</TabsTrigger>}
+            {hasPlatformFeature('platform.verification') && <TabsTrigger value=\"verifications\" className=\"relative text-xs py-2\">Verify{stats.pending_verifications > 0 && <span className=\"absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold\">{stats.pending_verifications > 9 ? '9+' : stats.pending_verifications}</span>}</TabsTrigger>}
+            {hasPlatformFeature('platform.ads') && <TabsTrigger value=\"ads\" className=\"relative text-xs py-2\">Ads{stats.pending_ads > 0 && <span className=\"absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold\">{stats.pending_ads > 9 ? '9+' : stats.pending_ads}</span>}</TabsTrigger>}
+            {hasPlatformFeature('platform.users') && <TabsTrigger value=\"users\" className=\"text-xs py-2\">Users</TabsTrigger>}
+            {hasPlatformFeature('platform.fraud') && <TabsTrigger value=\"fraud\" className=\"relative text-xs py-2\">Fraud{stats.fraud_alerts > 0 && <span className=\"absolute -top-1 -right-1 w-4 h-4 bg-red-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold\">{stats.fraud_alerts > 9 ? '9+' : stats.fraud_alerts}</span>}</TabsTrigger>}
+          </TabsList>"""
+          if old_tabs not in text:
+              raise SystemExit('AdminPanel.tsx: tab cluster did not match expected source')
+          text = text.replace(old_tabs, new_tabs, 1)
+
+          # Ensure a stale/unauthorized tab value cannot remain selected after a role change.
+          marker = "  if (!user) return null;\n"
+          guard = """  useEffect(() => {
+    if (activeTab === 'verifications' && !hasPlatformFeature('platform.verification')) setActiveTab('overview');
+    if (activeTab === 'ads' && !hasPlatformFeature('platform.ads')) setActiveTab('overview');
+    if (activeTab === 'users' && !hasPlatformFeature('platform.users')) setActiveTab('overview');
+    if (activeTab === 'fraud' && !hasPlatformFeature('platform.fraud')) setActiveTab('overview');
+  }, [activeTab, platformFeatures]);
+
+"""
+          if guard not in text:
+              text = text.replace(marker, guard + marker, 1)
+          admin.write_text(text)
+
+          # Remove the one-shot workflow after successful source mutation.
+          workflow = root / '.github/workflows/platform-rbac-wire.yml'
+          workflow.unlink()
+
+          subprocess.run(['git', 'config', 'user.name', 'github-actions[bot]'], check=True)
+          subprocess.run(['git', 'config', 'user.email', '41898282+github-actions[bot]@users.noreply.github.com'], check=True)
+          subprocess.run(['git', 'add', 'src/App.tsx', 'src/components/layout/Sidebar.tsx', 'src/pages/AdminPanel.tsx', '.github/workflows/platform-rbac-wire.yml'], check=True)
+          subprocess.run(['git', 'commit', '-m', 'feat: wire profile admin features to platform RBAC'], check=True)
+          subprocess.run(['git', 'push'], check=True)
