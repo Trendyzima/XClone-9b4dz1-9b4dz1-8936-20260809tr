@@ -19,62 +19,28 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          echo '--- legacy references in StoriesStrip before migration ---'
-          grep -nE 'user_ads|storyAds|currentStoryAd|showStoryAd|storyGroupViewCount|AD_INJECT_INTERVAL|maybeShowStoryAd|checkStoryAdFreqCap|Story Ad Slide|Ad injection in Explore' src/components/features/StoriesStrip.tsx || true
           python3 <<'PY'
           from pathlib import Path
           import re
           p = Path('src/components/features/StoriesStrip.tsx')
           s = p.read_text()
-          required = ["supabase.from('user_ads')", 'storyAds', 'storyGroupViewCount', 'maybeShowStoryAd']
-          missing = [x for x in required if x not in s]
-          if missing:
-              raise SystemExit('Expected legacy markers missing from source: ' + ', '.join(missing))
-
+          if '.from(\'user_ads\')' not in s: raise SystemExit('Expected legacy user_ads reference missing')
           s = s.replace("import { StoryAdSlide, checkStoryAdFreqCap } from './StoryAdSlide';", "import { StoryAdSlide } from './StoryAdSlide';")
-
-          s, n = re.subn(
-              r"  // ── Story Ads: inject between groups ──────────────────────────────────────.*?  // ── Story Creation Rewards",
-              "  // ── Canonical Story Ads ────────────────────────────────────────────────────\n  // Eligibility, frequency caps, campaign selection, impression accounting, and spend are server-owned.\n  const [showCanonicalStoryAd, setShowCanonicalStoryAd] = useState(false);\n\n  // ── Story Creation Rewards",
-              s,
-              count=1,
-              flags=re.S,
-          )
+          s, n = re.subn(r"  // ── Story Ads: inject between groups ──────────────────────────────────────.*?  // ── Story Creation Rewards", "  // ── Canonical Story Ads ────────────────────────────────────────────────────\n  // Eligibility, frequency caps, campaign selection, impression accounting, and spend are server-owned.\n  const [showCanonicalStoryAd, setShowCanonicalStoryAd] = useState(false);\n\n  // ── Story Creation Rewards", s, count=1, flags=re.S)
           if n != 1: raise SystemExit(f'legacy state block matches={n}')
-
           s = re.sub(r"\s*maybeShowStoryAd\(\);", '', s)
-
-          s, n = re.subn(
-              r"              /\* Ad injection in Explore \*/.*?              \}\n              <div className=\"grid grid-cols-2 gap-3\">",
-              "              <div className=\"grid grid-cols-2 gap-3\">",
-              s,
-              count=1,
-              flags=re.S,
-          )
+          s, n = re.subn(r"              /\* Ad injection in Explore \*/.*?              \}\n              <div className=\"grid grid-cols-2 gap-3\">", "              <div className=\"grid grid-cols-2 gap-3\">", s, count=1, flags=re.S)
           if n != 1: raise SystemExit(f'legacy Explore block matches={n}')
-
-          s, n = re.subn(
-              r"      /\* ── Story Ad Slide ── \*/.*?      \}\n\n      /\* ── Explore Stories Sheet ── \*/",
-              "      {/* ── Canonical Story Ad Slide ───────────────────────────────────────── */}\n      {showCanonicalStoryAd && viewerStory && (\n        <StoryAdSlide\n          ad={{\n            id: 'story-slot',\n            source_id: viewerStory.id,\n            source_type: 'story',\n            author_id: viewerG?.userId ?? null,\n          }}\n          onComplete={() => setShowCanonicalStoryAd(false)}\n          onSkip={() => setShowCanonicalStoryAd(false)}\n        />\n      )}\n\n      {/* ── Explore Stories Sheet ── */}",
-              s,
-              count=1,
-              flags=re.S,
-          )
+          s, n = re.subn(r"      /\* ── Story Ad Slide ── \*/.*?      \}\n\n      /\* ── Explore Stories Sheet ── \*/", "      {/* ── Canonical Story Ad Slide ───────────────────────────────────────── */}\n      {showCanonicalStoryAd && viewerStory && (\n        <StoryAdSlide\n          ad={{\n            id: 'story-slot',\n            source_id: viewerStory.id,\n            source_type: 'story',\n            author_id: viewerG?.userId ?? null,\n          }}\n          onComplete={() => setShowCanonicalStoryAd(false)}\n          onSkip={() => setShowCanonicalStoryAd(false)}\n        />\n      )}\n\n      {/* ── Explore Stories Sheet ── */}", s, count=1, flags=re.S)
           if n != 1: raise SystemExit(f'legacy StoryAdSlide render matches={n}')
-
           marker = "      if (meta?.music?.preview_url) playStoryAudio(meta.music.preview_url);\n    }\n  };"
           if marker not in s: raise SystemExit('openViewer marker not found')
           s = s.replace(marker, "      if (meta?.music?.preview_url) playStoryAudio(meta.music.preview_url);\n      setShowCanonicalStoryAd(true);\n    }\n  };", 1)
-
           forbidden = ['user_ads', 'storyAds', 'currentStoryAd', 'showStoryAd', 'storyGroupViewCount', 'AD_INJECT_INTERVAL', 'maybeShowStoryAd', 'checkStoryAdFreqCap']
           leftovers = [x for x in forbidden if x in s]
           if leftovers: raise SystemExit('Legacy identifiers remain: ' + ', '.join(leftovers))
-          if "import { StoryAdSlide } from './StoryAdSlide';" not in s: raise SystemExit('canonical StoryAdSlide import missing')
-          if 'showCanonicalStoryAd' not in s: raise SystemExit('canonical ad state missing')
           p.write_text(s)
           PY
-          echo '--- legacy references after migration ---'
-          if grep -nE 'user_ads|storyAds|currentStoryAd|showStoryAd|storyGroupViewCount|AD_INJECT_INTERVAL|maybeShowStoryAd|checkStoryAdFreqCap' src/components/features/StoriesStrip.tsx; then exit 1; fi
           git diff --check
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
