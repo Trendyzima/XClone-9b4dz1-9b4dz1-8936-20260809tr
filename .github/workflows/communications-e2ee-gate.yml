@@ -6,6 +6,8 @@ on:
       - 'src/services/communicationCrypto.ts'
       - 'src/services/communicationService.ts'
       - 'src/pages/MessagesPage.tsx'
+      - 'scripts/verify-communications-e2ee.mjs'
+      - 'scripts/verify-communications-e2ee-runtime.mjs'
       - 'supabase/migrations/*communication_e2ee*'
       - '.github/workflows/communications-e2ee-gate.yml'
   push:
@@ -14,6 +16,8 @@ on:
       - 'src/services/communicationCrypto.ts'
       - 'src/services/communicationService.ts'
       - 'src/pages/MessagesPage.tsx'
+      - 'scripts/verify-communications-e2ee.mjs'
+      - 'scripts/verify-communications-e2ee-runtime.mjs'
       - 'supabase/migrations/*communication_e2ee*'
       - '.github/workflows/communications-e2ee-gate.yml'
 permissions:
@@ -30,4 +34,6 @@ jobs:
       - run: npm ci
       - name: Static E2EE contract gate
         run: node scripts/verify-communications-e2ee.mjs
+      - name: Deterministic two-account crypto runtime gate
+        run: node scripts/verify-communications-e2ee-runtime.mjs
       - run: npm run build
