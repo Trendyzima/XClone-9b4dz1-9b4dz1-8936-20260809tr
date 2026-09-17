@@ -34,14 +34,6 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return fail(requestId, "METHOD_NOT_ALLOWED", "POST required", 405);
 
   const authorization = req.headers.get("authorization");
-  if (!authorization?.startsWith("Bearer ")) {
-    return fail(requestId, "AUTH_REQUIRED", "Bearer authentication required", 401);
-  }
-
-  const db = createClient(url, anonKey, {
-    global: { headers: { Authorization: authorization } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
 
   let payload: { capability?: unknown; input?: unknown };
   try {
@@ -53,14 +45,26 @@ Deno.serve(async (req) => {
   const capability = typeof payload.capability === "string" ? payload.capability.trim() : "";
   if (!capability) return fail(requestId, "CAPABILITY_REQUIRED", "Capability is required", 400);
 
+  const isPublicCapability = PUBLIC_CAPABILITIES.has(capability);
+  if (!isPublicCapability && !authorization?.startsWith("Bearer ")) {
+    return fail(requestId, "AUTH_REQUIRED", "Bearer authentication required", 401);
+  }
+
+  const db = createClient(url, anonKey, {
+    global: authorization?.startsWith("Bearer ") ? { headers: { Authorization: authorization } } : undefined,
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
   const input = payload.input && typeof payload.input === "object" && !Array.isArray(payload.input)
     ? payload.input as Record<string, unknown>
     : {};
 
   const started = performance.now();
   try {
-    const { data: userResult, error: userError } = await db.auth.getUser();
-    if (userError || !userResult.user) return fail(requestId, "AUTH_REQUIRED", "Authentication required", 401);
+    if (!isPublicCapability) {
+      const { data: userResult, error: userError } = await db.auth.getUser();
+      if (userError || !userResult.user) return fail(requestId, "AUTH_REQUIRED", "Authentication required", 401);
+    }
 
     const { data, error } = await db.rpc("capability_dispatch", {
       p_capability: capability,
