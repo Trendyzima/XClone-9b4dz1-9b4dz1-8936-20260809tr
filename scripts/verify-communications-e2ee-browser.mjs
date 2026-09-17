@@ -1,3 +1,4 @@
+/* eslint-env node */
 import { chromium } from 'playwright';
 import { createClient } from '@supabase/supabase-js';
 import fs from 'node:fs';
@@ -14,7 +15,6 @@ for (const name of required) {
 
 const baseURL = process.env.E2EE_TEST_BASE_URL || 'http://127.0.0.1:4173';
 const supabaseUrl = process.env.VITE_SUPABASE_URL;
-const anonKey = process.env.VITE_SUPABASE_ANON_KEY;
 const forensicKey = process.env.E2EE_TEST_FORENSIC_KEY;
 const forensic = createClient(supabaseUrl, forensicKey, {
   auth: { persistSession: false, autoRefreshToken: false },
