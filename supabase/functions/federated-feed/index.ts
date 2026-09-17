@@ -21,6 +21,20 @@ function parseLimit(value: string | null): number {
   return Math.min(Math.max(Number.isFinite(n) ? n : 20, 1), 50);
 }
 
+function parseCursor(value: string): { publishedAt: string; id?: string } | null {
+  try {
+    const decoded = decodeURIComponent(value);
+    const separator = decoded.indexOf("|");
+    const publishedAt = separator >= 0 ? decoded.slice(0, separator) : decoded;
+    const id = separator >= 0 ? decoded.slice(separator + 1) : undefined;
+    const date = new Date(publishedAt);
+    if (Number.isNaN(date.getTime())) return null;
+    return { publishedAt: date.toISOString(), id: id || undefined };
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (request.method !== "GET") return json({ error: "GET required" }, 405);
@@ -41,9 +55,14 @@ Deno.serve(async (request) => {
       .limit(limit + 1);
 
     if (before) {
-      const cursor = new Date(before);
-      if (Number.isNaN(cursor.getTime())) return json({ error: "Invalid before cursor" }, 400);
-      query = query.lt("published_at", cursor.toISOString());
+      const cursor = parseCursor(before);
+      if (!cursor) return json({ error: "Invalid before cursor" }, 400);
+      if (cursor.id) {
+        query = query.or(`published_at.lt.${cursor.publishedAt},and(published_at.eq.${cursor.publishedAt},id.lt.${cursor.id})`);
+      } else {
+        // Backwards-compatible ISO timestamp cursor for older clients.
+        query = query.lt("published_at", cursor.publishedAt);
+      }
     }
 
     const { data, error } = await query;
@@ -52,7 +71,10 @@ Deno.serve(async (request) => {
     const rows = data || [];
     const hasMore = rows.length > limit;
     const items = hasMore ? rows.slice(0, limit) : rows;
-    const nextCursor = hasMore && items.length ? items[items.length - 1].published_at : null;
+    const last = items[items.length - 1];
+    const nextCursor = hasMore && last?.published_at
+      ? encodeURIComponent(`${last.published_at}|${last.id}`)
+      : null;
 
     return json({ items, pagination: { limit, hasMore, nextCursor } });
   } catch (error) {
