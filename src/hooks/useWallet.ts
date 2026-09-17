@@ -7,7 +7,6 @@ import {
 } from '@/services/walletPhoneAuthService';
 
 export interface Wallet {
-  // `id` must come from public.wallets (the payment gateway wallet), not user_wallets.
   id: string;
   user_id: string;
   balance: number;
@@ -23,6 +22,10 @@ export interface Wallet {
   savings_balance?: number;
   spend_limit_enabled?: boolean;
   daily_spend_limit?: number | null;
+  currency?: string | null;
+  status?: string;
+  spending_enabled?: boolean;
+  withdrawals_enabled?: boolean;
 }
 
 export function useWallet() {
@@ -33,7 +36,13 @@ export function useWallet() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user) fetchWallet();
+    if (!user) {
+      setWallet(null);
+      setPhoneIdentity(null);
+      setLoading(false);
+      return;
+    }
+    void fetchWallet();
   }, [user]);
 
   const fetchWallet = async () => {
@@ -43,78 +52,37 @@ export function useWallet() {
       setLoading(true);
       setError(null);
 
-      const [{ data: userWallet, error: userWalletError }, { data: gatewayWallet, error: gatewayWalletError }] = await Promise.all([
-        supabase
-          .from('user_wallets')
-          .select('*')
-          .eq('user_id', user.id)
-          .maybeSingle(),
-        supabase
-          .from('wallets')
-          .select('id,user_id,balance,total_deposited,total_withdrawn,mpesa_phone,paypal_email,created_at,updated_at,status,spending_enabled,currency')
-          .eq('user_id', user.id)
-          .maybeSingle(),
-      ]);
+      // The payment gateway wallet is the sole source of monetary truth.
+      // Do not hydrate balances from the legacy user_wallets credits table.
+      const { data: gatewayWallet, error: walletError } = await supabase
+        .rpc('get_my_wallet')
+        .maybeSingle();
 
-      if (userWalletError) throw userWalletError;
-      if (gatewayWalletError) throw gatewayWalletError;
+      if (walletError) throw walletError;
+      if (!gatewayWallet) throw new Error('Payment wallet is not provisioned for this account');
 
-      const resolvedWalletId = gatewayWallet?.id ?? '';
-      if (resolvedWalletId) {
-        const { data: identity, error: identityError } = await supabase
-          .from('wallet_phone_identities')
-          .select('*')
-          .eq('wallet_id', resolvedWalletId)
-          .maybeSingle();
-        if (identityError) throw identityError;
-        setPhoneIdentity(identity as WalletPhoneIdentity | null);
-      } else {
-        setPhoneIdentity(null);
-      }
+      const resolvedWallet = gatewayWallet as Wallet;
 
-      if (userWallet) {
-        setWallet({
-          ...userWallet,
-          id: resolvedWalletId,
-          user_id: user.id,
-          balance: Number((userWallet as any).balance ?? gatewayWallet?.balance ?? 0),
-          total_deposited: Number((userWallet as any).total_deposited ?? gatewayWallet?.total_deposited ?? 0),
-          total_withdrawn: Number((userWallet as any).total_withdrawn ?? gatewayWallet?.total_withdrawn ?? 0),
-          mpesa_phone: (userWallet as any).mpesa_phone ?? gatewayWallet?.mpesa_phone ?? null,
-          paypal_email: (userWallet as any).paypal_email ?? gatewayWallet?.paypal_email ?? null,
-          created_at: (userWallet as any).created_at ?? gatewayWallet?.created_at ?? new Date().toISOString(),
-          updated_at: (userWallet as any).updated_at ?? gatewayWallet?.updated_at ?? new Date().toISOString(),
-        } as Wallet);
-        return;
-      }
+      const { data: identity, error: identityError } = await supabase
+        .from('wallet_phone_identities')
+        .select('*')
+        .eq('wallet_id', resolvedWallet.id)
+        .maybeSingle();
 
-      if (gatewayWallet) {
-        const { data: newWallet, error: createError } = await supabase
-          .from('user_wallets')
-          .insert({ user_id: user.id, balance: Number(gatewayWallet.balance ?? 0) })
-          .select()
-          .single();
+      if (identityError) throw identityError;
 
-        if (createError) throw createError;
-        setWallet({
-          ...newWallet,
-          id: gatewayWallet.id,
-          user_id: user.id,
-          balance: Number((newWallet as any).balance ?? gatewayWallet.balance ?? 0),
-          total_deposited: Number((newWallet as any).total_deposited ?? gatewayWallet.total_deposited ?? 0),
-          total_withdrawn: Number((newWallet as any).total_withdrawn ?? gatewayWallet.total_withdrawn ?? 0),
-          mpesa_phone: (newWallet as any).mpesa_phone ?? gatewayWallet.mpesa_phone ?? null,
-          paypal_email: (newWallet as any).paypal_email ?? gatewayWallet.paypal_email ?? null,
-          created_at: (newWallet as any).created_at ?? gatewayWallet.created_at ?? new Date().toISOString(),
-          updated_at: (newWallet as any).updated_at ?? gatewayWallet.updated_at ?? new Date().toISOString(),
-        } as Wallet);
-        return;
-      }
-
-      throw new Error('Payment wallet is not provisioned for this account');
+      setPhoneIdentity(identity as WalletPhoneIdentity | null);
+      setWallet({
+        ...resolvedWallet,
+        id: resolvedWallet.id,
+        user_id: user.id,
+        balance: Number(resolvedWallet.balance ?? 0),
+        total_deposited: Number(resolvedWallet.total_deposited ?? 0),
+        total_withdrawn: Number(resolvedWallet.total_withdrawn ?? 0),
+      });
     } catch (err: any) {
       console.error('Wallet error:', err);
-      setError(err.message);
+      setError(err?.message || 'Unable to load wallet');
       setWallet(null);
       setPhoneIdentity(null);
     } finally {
@@ -123,8 +91,7 @@ export function useWallet() {
   };
 
   const requestPhoneOtp = async (phone: string) => {
-    const result = await walletPhoneAuthService.requestWalletPhoneOtp(phone);
-    return result;
+    return walletPhoneAuthService.requestWalletPhoneOtp(phone);
   };
 
   const verifyPhoneOtp = async (phone: string, token: string) => {
@@ -136,38 +103,31 @@ export function useWallet() {
     return identity;
   };
 
-  const updatePaymentMethods = async (mpesaPhone: string, paypalEmail: string) => {
+  const updatePaymentMethods = async (_mpesaPhone: string, paypalEmail: string) => {
     if (!user || !wallet) return { success: false, error: 'No wallet found' };
 
     try {
-      const [legacyUpdate, gatewayUpdate] = await Promise.all([
-        supabase
-          .from('user_wallets')
-          .update({
-            // Do not treat an arbitrary browser-supplied phone as verified.
-            // Verified wallet phone linking is handled by verifyPhoneOtp().
-            mpesa_phone: phoneIdentity?.phone_e164 ?? null,
-            paypal_email: paypalEmail || null,
-          })
-          .eq('user_id', user.id),
-        supabase
-          .from('wallets')
-          .update({
-            mpesa_phone: phoneIdentity?.phone_e164 ?? null,
-            paypal_email: paypalEmail || null,
-          })
-          .eq('id', wallet.id)
-          .eq('user_id', user.id),
-      ]);
+      // Phone is intentionally sourced only from the verified wallet identity.
+      // The caller cannot turn an arbitrary browser-entered number into a
+      // verified M-Pesa payout destination.
+      const { data, error: updateError } = await supabase.rpc('update_wallet_payment_methods', {
+        p_mpesa_phone: phoneIdentity?.phone_e164 ?? null,
+        p_paypal_email: paypalEmail || null,
+      });
 
-      if (legacyUpdate.error) throw legacyUpdate.error;
-      if (gatewayUpdate.error) throw gatewayUpdate.error;
+      if (updateError) throw updateError;
 
-      setWallet(prev => prev ? { ...prev, mpesa_phone: phoneIdentity?.phone_e164 ?? null, paypal_email: paypalEmail || null } : null);
+      const updated = data as Wallet;
+      setWallet(prev => prev ? {
+        ...prev,
+        mpesa_phone: updated?.mpesa_phone ?? prev.mpesa_phone,
+        paypal_email: updated?.paypal_email ?? null,
+        updated_at: updated?.updated_at ?? prev.updated_at,
+      } : prev);
       return { success: true };
     } catch (err: any) {
       console.error('Update payment methods error:', err);
-      return { success: false, error: err.message };
+      return { success: false, error: err?.message || 'Failed to update payment methods' };
     }
   };
 
