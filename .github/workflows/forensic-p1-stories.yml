@@ -1,6 +1,5 @@
 name: One-shot Stories canonical ad migration
 
-# Triggered from a user-authored commit so the migration is not suppressed by GITHUB_TOKEN push semantics.
 on:
   push:
     branches: [main]
@@ -25,12 +24,12 @@ jobs:
           import re
           p = Path('src/components/features/StoriesStrip.tsx')
           s = p.read_text()
-          if '.from(\'user_ads\')' not in s: raise SystemExit('Expected legacy user_ads reference missing')
+          if ".from('user_ads')" not in s: raise SystemExit('Expected legacy user_ads reference missing')
           s = s.replace("import { StoryAdSlide, checkStoryAdFreqCap } from './StoryAdSlide';", "import { StoryAdSlide } from './StoryAdSlide';")
           s, n = re.subn(r"  // ── Story Ads: inject between groups ──────────────────────────────────────.*?  // ── Story Creation Rewards", "  // ── Canonical Story Ads ────────────────────────────────────────────────────\n  // Eligibility, frequency caps, campaign selection, impression accounting, and spend are server-owned.\n  const [showCanonicalStoryAd, setShowCanonicalStoryAd] = useState(false);\n\n  // ── Story Creation Rewards", s, count=1, flags=re.S)
           if n != 1: raise SystemExit(f'legacy state block matches={n}')
           s = re.sub(r"\s*maybeShowStoryAd\(\);", '', s)
-          s, n = re.subn(r"              /\* Ad injection in Explore \*/.*?              \}\n              <div className=\"grid grid-cols-2 gap-3\">", "              <div className=\"grid grid-cols-2 gap-3\">", s, count=1, flags=re.S)
+          s, n = re.subn(r"\s*\{\/\* Ad injection in Explore \*\/\}[\\s\\S]*?\n\s*<div className=\"grid grid-cols-2 gap-3\">", "\n              <div className=\"grid grid-cols-2 gap-3\">", s, count=1, flags=re.S)
           if n != 1: raise SystemExit(f'legacy Explore block matches={n}')
           s, n = re.subn(r"      /\* ── Story Ad Slide ── \*/.*?      \}\n\n      /\* ── Explore Stories Sheet ── \*/", "      {/* ── Canonical Story Ad Slide ───────────────────────────────────────── */}\n      {showCanonicalStoryAd && viewerStory && (\n        <StoryAdSlide\n          ad={{\n            id: 'story-slot',\n            source_id: viewerStory.id,\n            source_type: 'story',\n            author_id: viewerG?.userId ?? null,\n          }}\n          onComplete={() => setShowCanonicalStoryAd(false)}\n          onSkip={() => setShowCanonicalStoryAd(false)}\n        />\n      )}\n\n      {/* ── Explore Stories Sheet ── */}", s, count=1, flags=re.S)
           if n != 1: raise SystemExit(f'legacy StoryAdSlide render matches={n}')
