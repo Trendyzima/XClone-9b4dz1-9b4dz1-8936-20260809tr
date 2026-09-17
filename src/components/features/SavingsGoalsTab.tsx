@@ -114,7 +114,7 @@ export default function SavingsGoalsTab({ userId, walletBalance, currency }: Pro
 
   const loadGoals = async () => {
     setLoading(true);
-    const { data } = await supabase.from('savings_goals').select('*')
+    const { data } = await supabase.from('wallet_savings_goals').select('*')
       .eq('user_id', userId).order('created_at', { ascending: false });
     setGoals(data ?? []);
     setLoading(false);
@@ -123,7 +123,7 @@ export default function SavingsGoalsTab({ userId, walletBalance, currency }: Pro
   const createGoal = async () => {
     if (!name.trim() || !target || parseFloat(target) <= 0) { toast.error('Enter a name and target amount'); return; }
     setSaving(true);
-    const { error } = await supabase.from('savings_goals').insert({
+    const { error } = await supabase.from('wallet_savings_goals').insert({
       user_id: userId, name: name.trim(), target_amount: parseFloat(target),
       deadline: deadline || null, emoji, color,
     });
@@ -139,9 +139,11 @@ export default function SavingsGoalsTab({ userId, walletBalance, currency }: Pro
     if (!amt || amt <= 0) { toast.error('Enter an amount to add'); return; }
     if (amt > walletBalance) { toast.error('Insufficient wallet balance'); return; }
     setDepositing(goal.id);
-    const newAmt = Number(goal.current_amount) + amt;
+    const { error: moveError } = await supabase.rpc('wallet_move_savings', { p_amount: amt, p_direction: 'in' });
+    if (moveError) { setDepositing(null); toast.error(moveError.message || 'Failed to move funds into savings'); return; }
+    const newAmt = Math.min(Number(goal.current_amount) + amt, Number(goal.target_amount));
     const isComplete = newAmt >= Number(goal.target_amount);
-    const { error } = await supabase.from('savings_goals').update({
+    const { error } = await supabase.from('wallet_savings_goals').update({
       current_amount: newAmt, is_completed: isComplete, updated_at: new Date().toISOString(),
     }).eq('id', goal.id);
     if (!error && isComplete) {
@@ -160,7 +162,7 @@ export default function SavingsGoalsTab({ userId, walletBalance, currency }: Pro
   };
 
   const deleteGoal = async (id: string) => {
-    const { error } = await supabase.from('savings_goals').delete().eq('id', id);
+    const { error } = await supabase.from('wallet_savings_goals').delete().eq('id', id);
     if (error) { toast.error('Failed to delete'); return; }
     toast.success('Goal removed'); loadGoals();
   };
@@ -172,14 +174,14 @@ export default function SavingsGoalsTab({ userId, walletBalance, currency }: Pro
     // Remove any existing auto-fund for this goal
     const existingAutoEntry = getExistingAuto(goalId);
     if (existingAutoEntry) {
-      await supabase.from('transaction_reminders').update({ is_active: false }).eq('id', existingAutoEntry.id);
+      await supabase.from('wallet_transaction_reminders').update({ is_active: false }).eq('id', existingAutoEntry.id);
     }
     const nextDate = new Date(Date.now() + (autoFundFreq === 'weekly' ? 7 : 30) * 86400000);
     nextDate.setHours(9, 0, 0, 0);
-    const { error } = await supabase.from('transaction_reminders').insert({
-      user_id: userId, label: `Auto-fund:${goalId}`,
-      amount: amt, to_username: null, frequency: autoFundFreq,
-      next_reminder_at: nextDate.toISOString(),
+    const { error } = await supabase.from('wallet_transaction_reminders').insert({
+      user_id: userId, wallet_id: (await supabase.from('wallets').select('id').eq('user_id', userId).single()).data?.id,
+      title: `Auto-fund:${goalId}`, amount: amt, currency: 'USD',
+      remind_at: nextDate.toISOString(),
     });
     setSavingAuto(false);
     if (error) { toast.error('Failed to set auto-fund'); return; }
@@ -191,7 +193,7 @@ export default function SavingsGoalsTab({ userId, walletBalance, currency }: Pro
   const removeAutoFund = async (goalId: string) => {
     const r = getExistingAuto(goalId);
     if (!r) return;
-    await supabase.from('transaction_reminders').update({ is_active: false }).eq('id', r.id);
+    await supabase.from('wallet_transaction_reminders').update({ is_active: false }).eq('id', r.id);
     toast.success('Auto-fund removed');
     loadAutoFunds();
   };
