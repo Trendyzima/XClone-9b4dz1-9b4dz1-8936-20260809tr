@@ -1,60 +1,43 @@
 name: Repair Creator Studio JSX
-
 on:
   push:
     branches: [main]
-
 permissions:
   contents: write
-
 jobs:
   repair:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - name: Repair exact Creator Studio integration
         shell: python
         run: |
           from pathlib import Path
-
           path = Path('src/pages/CreatorStudio.tsx')
           text = path.read_text()
-
           import_line = "import { CreatorStudioWorkbench } from '@/components/features/CreatorStudioWorkbench';\n"
           anchor = "import { PageAdBanner } from '@/components/features/AdSenseAd';\n"
           if import_line not in text:
-              if anchor not in text:
-                  raise SystemExit('Creator Studio import anchor not found')
+              if anchor not in text: raise SystemExit('Creator Studio import anchor not found')
               text = text.replace(anchor, anchor + import_line, 1)
-
-          malformed = "      <CreatorStudioWorkbench stats={stats} recentPosts={recentPosts} />\n"
-          text = text.replace(malformed, '')
-
+          text = text.replace("      <CreatorStudioWorkbench stats={stats} recentPosts={recentPosts} />\n", '')
           marker = "      <CreatorStudioAdBanner />\n"
-          if marker not in text:
-              raise SystemExit('CreatorStudioAdBanner marker not found')
-          if text.count("<CreatorStudioWorkbench stats={stats} recentPosts={recentPosts} />") == 0:
-              text = text.replace(marker, marker + "      <CreatorStudioWorkbench stats={stats} recentPosts={recentPosts} />\n", 1)
-
-          if text.count("<CreatorStudioWorkbench stats={stats} recentPosts={recentPosts} />") != 1:
-              raise SystemExit('Expected exactly one CreatorStudioWorkbench render')
-
+          if marker not in text: raise SystemExit('CreatorStudioAdBanner marker not found')
+          text = text.replace(marker, marker + "      <CreatorStudioWorkbench stats={stats} recentPosts={recentPosts} />\n", 1)
+          if text.count("<CreatorStudioWorkbench stats={stats} recentPosts={recentPosts} />") != 1: raise SystemExit('Expected exactly one CreatorStudioWorkbench render')
           path.write_text(text)
-          print('Creator Studio JSX repaired')
-
-      - name: Verify source gate
+      - name: Verify source
         run: |
           grep -n "CreatorStudioWorkbench" src/pages/CreatorStudio.tsx
           git diff --check
-          if grep -n "return (.*$" src/pages/CreatorStudio.tsx >/dev/null; then true; fi
-
-      - name: Commit repair
+      - name: Remove temporary repair workflow
+        run: rm -f .github/workflows/repair-creator-studio-jsx.yml
+      - name: Commit repair and cleanup
         shell: bash
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/pages/CreatorStudio.tsx
-          git diff --cached --quiet || git commit -m 'fix(creator-studio): repair malformed workbench JSX'
+          git add src/pages/CreatorStudio.tsx .github/workflows/repair-creator-studio-jsx.yml
+          git diff --cached --quiet || git commit -m 'fix(creator-studio): integrate workbench and remove repair workflow'
           git push
