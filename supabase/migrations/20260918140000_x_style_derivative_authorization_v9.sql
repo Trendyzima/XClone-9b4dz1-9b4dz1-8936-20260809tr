@@ -1,6 +1,20 @@
 -- X-style derivative authorization hardening v9
 -- Align direct table access with the canonical post/profile visibility boundary.
 
+create or replace function public.testagram_profile_is_visible_to_viewer(p_profile_id uuid)
+returns boolean language sql stable security definer set search_path=public as $$
+  select exists (
+    select 1 from public.profiles pr
+    where pr.id=p_profile_id
+      and (pr.protected_account=false or pr.id=auth.uid() or exists (
+        select 1 from public.follows f
+        where f.follower_id=auth.uid() and f.following_id=pr.id and f.status='accepted'
+      ))
+  );
+$$;
+revoke all on function public.testagram_profile_is_visible_to_viewer(uuid) from public;
+grant execute on function public.testagram_profile_is_visible_to_viewer(uuid) to anon,authenticated;
+
 create or replace function public.testagram_post_is_interactable_to_viewer(p_post_id uuid,p_viewer_id uuid default auth.uid())
 returns boolean language sql stable security definer set search_path=public as $$
   select exists (
@@ -17,23 +31,6 @@ $$;
 revoke all on function public.testagram_post_is_interactable_to_viewer(uuid,uuid) from public;
 grant execute on function public.testagram_post_is_interactable_to_viewer(uuid,uuid) to anon,authenticated;
 
-drop policy if exists follows_public_read on public.follows;
-create policy follows_public_read on public.follows for select to anon,authenticated using (
-  status='accepted'
-  and exists (select 1 from public.profiles follower where follower.id=follows.follower_id and (follower.protected_account=false or follower.id=auth.uid() or exists (select 1 from public.follows af where af.follower_id=auth.uid() and af.following_id=follower.id and af.status='accepted')))
-  and exists (select 1 from public.profiles following where following.id=follows.following_id and (following.protected_account=false or following.id=auth.uid() or exists (select 1 from public.follows af where af.follower_id=auth.uid() and af.following_id=following.id and af.status='accepted')))
-);
-
-drop policy if exists replies_public_read on public.replies;
-create policy replies_public_read on public.replies for select to anon,authenticated using (
-  public.testagram_post_is_visible_to_viewer(post_id,auth.uid()) and public.testagram_profile_is_visible_to_viewer(user_id)
-);
-
-drop policy if exists replies_authenticated_insert on public.replies;
-create policy replies_authenticated_insert on public.replies for insert to authenticated with check (user_id=auth.uid() and public.testagram_post_is_interactable_to_viewer(post_id,auth.uid()));
-
-drop policy if exists replies_authenticated_update on public.replies;
-create policy replies_authenticated_update on public.replies for update to authenticated using (user_id=auth.uid()) with check (user_id=auth.uid() and public.testagram_post_is_interactable_to_viewer(post_id,auth.uid()));
 
 drop policy if exists reply_likes_authenticated_read on public.reply_likes;
 create policy reply_likes_authenticated_read on public.reply_likes for select to authenticated using (exists (select 1 from public.replies r where r.id=reply_likes.reply_id and public.testagram_post_is_visible_to_viewer(r.post_id,auth.uid())));
