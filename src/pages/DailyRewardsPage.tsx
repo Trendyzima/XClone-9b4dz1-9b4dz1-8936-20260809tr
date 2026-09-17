@@ -28,6 +28,25 @@ type ClaimResult = {
   claimed_at: string;
 };
 
+function getErrorMessage(error: unknown, fallback: string) {
+  if (error instanceof Error && error.message) return error.message;
+  if (typeof error === 'string' && error.trim()) return error;
+  if (error && typeof error === 'object') {
+    const value = error as Record<string, unknown>;
+    if (typeof value.message === 'string' && value.message.trim()) return value.message;
+    if (typeof value.error === 'string' && value.error.trim()) return value.error;
+    if (typeof value.details === 'string' && value.details.trim()) return value.details;
+    if (typeof value.hint === 'string' && value.hint.trim()) return value.hint;
+    try {
+      const serialized = JSON.stringify(error);
+      if (serialized && serialized !== '{}') return serialized;
+    } catch {
+      // Fall through to the stable user-facing fallback.
+    }
+  }
+  return fallback;
+}
+
 function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 }
@@ -112,8 +131,7 @@ export default function DailyRewardsPage() {
       toast.success(`+${result.credits_earned} credits earned! Day ${result.streak_day} streak!`);
       await fetchData();
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      toast.error(message || 'Failed to claim reward');
+      toast.error(getErrorMessage(error, 'Failed to claim reward'));
     } finally {
       setClaiming(false);
     }
