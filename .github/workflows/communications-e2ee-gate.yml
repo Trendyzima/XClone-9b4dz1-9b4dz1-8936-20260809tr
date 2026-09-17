@@ -1,0 +1,33 @@
+name: communications-e2ee-gate
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/services/communicationCrypto.ts'
+      - 'src/services/communicationService.ts'
+      - 'src/pages/MessagesPage.tsx'
+      - 'supabase/migrations/*communication_e2ee*'
+      - '.github/workflows/communications-e2ee-gate.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/services/communicationCrypto.ts'
+      - 'src/services/communicationService.ts'
+      - 'src/pages/MessagesPage.tsx'
+      - 'supabase/migrations/*communication_e2ee*'
+      - '.github/workflows/communications-e2ee-gate.yml'
+permissions:
+  contents: read
+jobs:
+  e2ee-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Static E2EE contract gate
+        run: node scripts/verify-communications-e2ee.mjs
+      - run: npm run build
