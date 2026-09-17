@@ -5,9 +5,8 @@ on:
   push:
     branches: [main]
     paths:
-      - 'scripts/verify-community-admin-rpc-runtime.mjs'
-      - 'scripts/verify-community-admin-media-runtime.mjs'
-      - 'supabase/migrations/*community_admin*'
+      - 'supabase/functions/community-admin-runtime/**'
+      - 'supabase/config.toml'
       - '.github/workflows/community-admin-runtime.yml'
 
 concurrency:
@@ -16,132 +15,61 @@ concurrency:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   acceptance:
-    name: Two-account community admin authorization + media
+    name: Supabase-hosted community admin acceptance
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-    env:
-      # URL and publishable anon key may be stored as Actions secrets OR repository variables.
-      # Secrets win without exposing values; variables provide a non-secret recovery path.
-      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL }}
-      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
-      COMMUNITY_ADMIN_TEST_A_EMAIL: ${{ secrets.COMMUNITY_ADMIN_TEST_A_EMAIL }}
-      COMMUNITY_ADMIN_TEST_A_PASSWORD: ${{ secrets.COMMUNITY_ADMIN_TEST_A_PASSWORD }}
-      COMMUNITY_ADMIN_TEST_B_EMAIL: ${{ secrets.COMMUNITY_ADMIN_TEST_B_EMAIL }}
-      COMMUNITY_ADMIN_TEST_B_PASSWORD: ${{ secrets.COMMUNITY_ADMIN_TEST_B_PASSWORD }}
-      COMMUNITY_ADMIN_TEST_COMMUNITY_ID: ${{ secrets.COMMUNITY_ADMIN_TEST_COMMUNITY_ID }}
-      COMMUNITY_ADMIN_TEST_FORENSIC_KEY: ${{ secrets.COMMUNITY_ADMIN_TEST_FORENSIC_KEY }}
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Diagnose and recover runtime configuration
-        id: config
+      - name: Mint GitHub Actions OIDC token
+        id: oidc
         shell: bash
         run: |
           set -euo pipefail
-          missing=()
-          for name in \
-            VITE_SUPABASE_URL \
-            VITE_SUPABASE_ANON_KEY \
-            COMMUNITY_ADMIN_TEST_A_EMAIL \
-            COMMUNITY_ADMIN_TEST_A_PASSWORD \
-            COMMUNITY_ADMIN_TEST_B_EMAIL \
-            COMMUNITY_ADMIN_TEST_B_PASSWORD \
-            COMMUNITY_ADMIN_TEST_COMMUNITY_ID \
-            COMMUNITY_ADMIN_TEST_FORENSIC_KEY; do
-            if [[ -z "${!name:-}" ]]; then
-              missing+=("$name")
-            fi
-          done
+          token_url="${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=https%3A%2F%2Faepbqfrmheihfsauzcby.supabase.co%2Ffunctions%2Fv1%2Fcommunity-admin-runtime"
+          token="$(curl --fail-with-body --silent --show-error \
+            -H "Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}" \
+            "${token_url}" | python -c 'import json,sys; print(json.load(sys.stdin)["value"])')"
+          test -n "$token"
+          {
+            echo 'token<<EOF'
+            echo "$token"
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
 
-          if (( ${#missing[@]} > 0 )); then
-            printf '%s\n' '### Community-admin runtime configuration recovery' >> "$GITHUB_STEP_SUMMARY"
-            printf '%s\n' '' >> "$GITHUB_STEP_SUMMARY"
-            printf '%s\n' 'The acceptance runner cannot safely manufacture credentials or privileged database access.' >> "$GITHUB_STEP_SUMMARY"
-            printf '%s\n' 'It did, however, automatically recover URL/publishable-key configuration from repository variables when available.' >> "$GITHUB_STEP_SUMMARY"
-            printf '%s\n' '' >> "$GITHUB_STEP_SUMMARY"
-            printf '%s\n' '**Still missing:**' >> "$GITHUB_STEP_SUMMARY"
-            for name in "${missing[@]}"; do
-              printf '%s\n' "- \\`$name\\`" >> "$GITHUB_STEP_SUMMARY"
-            done
-            printf '%s\n' '' >> "$GITHUB_STEP_SUMMARY"
-            printf '%s\n' '**Recovery rule:** credentials are never generated, logged, guessed, or committed by CI.' >> "$GITHUB_STEP_SUMMARY"
-            echo "MISSING_RUNTIME_CONFIG:${missing[*]}"
-            exit 78
+      - name: Run Supabase-hosted acceptance controller
+        shell: bash
+        env:
+          OIDC_TOKEN: ${{ steps.oidc.outputs.token }}
+        run: |
+          set -euo pipefail
+          url='https://aepbqfrmheihfsauzcby.supabase.co/functions/v1/community-admin-runtime'
+          response_file="$(mktemp)"
+          status=0
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer ${OIDC_TOKEN}" \
+            --header 'Content-Type: application/json' \
+            --data '{}' \
+            --output "$response_file" \
+            --write-out '%{http_code}' > /tmp/http-status || status=$?
+          http_status="$(cat /tmp/http-status 2>/dev/null || true)"
+          cat "$response_file"
+          echo
+          if [[ "$status" -ne 0 || "$http_status" != '200' ]]; then
+            echo "Community-admin acceptance controller failed (transport=${status}, http=${http_status:-unknown})."
+            exit 1
           fi
-
-          echo 'RUNTIME_CONFIG=ready' >> "$GITHUB_OUTPUT"
-
-      - name: Install dependencies
-        if: steps.config.outcome == 'success'
-        run: npm ci
-
-      - name: Run authenticated RPC boundary test with bounded transient retry
-        if: steps.config.outcome == 'success'
-        shell: bash
-        run: |
-          set -euo pipefail
-          run_with_retry() {
-            local label="$1"
-            local command="$2"
-            local max=3
-            local delay=5
-            local attempt
-            for attempt in $(seq 1 "$max"); do
-              set +e
-              output=$(bash -lc "$command" 2>&1)
-              status=$?
-              set -e
-              printf '%s\n' "$output"
-              if [[ "$status" -eq 0 ]]; then return 0; fi
-              if ! grep -Eqi 'ECONNRESET|ECONNREFUSED|ETIMEDOUT|fetch failed|network|502|503|504|429|temporarily unavailable|socket hang up' <<<"$output"; then
-                echo "${label}: non-transient failure; refusing blind retry"
-                return "$status"
-              fi
-              if [[ "$attempt" -lt "$max" ]]; then
-                echo "${label}: transient failure on attempt $attempt/$max; retrying in ${delay}s"
-                sleep "$delay"
-                delay=$((delay * 2))
-              fi
-            done
-            return "$status"
-          }
-          run_with_retry rpc 'node scripts/verify-community-admin-rpc-runtime.mjs'
-
-      - name: Run authenticated storage boundary test with bounded transient retry
-        if: steps.config.outcome == 'success'
-        shell: bash
-        run: |
-          set -euo pipefail
-          run_with_retry() {
-            local label="$1"
-            local command="$2"
-            local max=3
-            local delay=5
-            local attempt
-            for attempt in $(seq 1 "$max"); do
-              set +e
-              output=$(bash -lc "$command" 2>&1)
-              status=$?
-              set -e
-              printf '%s\n' "$output"
-              if [[ "$status" -eq 0 ]]; then return 0; fi
-              if ! grep -Eqi 'ECONNRESET|ECONNREFUSED|ETIMEDOUT|fetch failed|network|502|503|504|429|temporarily unavailable|socket hang up' <<<"$output"; then
-                echo "${label}: non-transient failure; refusing blind retry"
-                return "$status"
-              fi
-              if [[ "$attempt" -lt "$max" ]]; then
-                echo "${label}: transient failure on attempt $attempt/$max; retrying in ${delay}s"
-                sleep "$delay"
-                delay=$((delay * 2))
-              fi
-            done
-            return "$status"
-          }
-          run_with_retry media 'node scripts/verify-community-admin-media-runtime.mjs'
+          python - "$response_file" <<'PY'
+          import json, sys
+          with open(sys.argv[1], encoding='utf-8') as f:
+              report = json.load(f)
+          if report.get('ok') is not True or report.get('status') != 'passed':
+              raise SystemExit(f"ACCEPTANCE_CONTROLLER_FAILED:{report.get('code', 'unknown')}")
+          print('COMMUNITY_ADMIN_RUNTIME_ACCEPTANCE=PASS')
+          print(f"attempt={report.get('attempt')}")
+          for check in report.get('checks', []):
+              print(f"check={check}")
+          PY
