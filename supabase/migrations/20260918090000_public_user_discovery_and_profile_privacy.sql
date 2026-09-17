@@ -19,7 +19,7 @@ grant execute on function public.capability_dispatch(text,jsonb) to anon;
 
 -- Preserve the existing capability dispatcher and only relax authentication for
 -- explicitly public discovery capabilities.
-do $$
+do $outer$
 declare
   def text;
 begin
@@ -46,14 +46,14 @@ begin
       'testagram.trends.list'
     ) then
       raise exception 'AUTH_REQUIRED';
-    end if;$$
+    end if;$inner$
   );
 
   -- Replace the user-search predicate/output without exposing private profile
   -- settings. The public result is an explicit safe profile projection.
   def := replace(
     def,
-    $$select id,username,display_name,avatar_url,bio,(verified_tier is not null and verified_tier <> 'none') as verified,follower_count as followers_count
+    $inner$select id,username,display_name,avatar_url,bio,(verified_tier is not null and verified_tier <> 'none') as verified,follower_count as followers_count
         from public.profiles
         where username ilike '%'||v_text||'%' or display_name ilike '%'||v_text||'%' or bio ilike '%'||v_text||'%'
         order by follower_count desc nulls last,username$$,
@@ -64,8 +64,8 @@ begin
         from public.profiles
         where discoverable_by_username = true
           and (username ilike '%'||v_text||'%' or display_name ilike '%'||v_text||'%' or bio ilike '%'||v_text||'%')
-        order by follower_count desc nulls last,username$$
+        order by follower_count desc nulls last,username$inner$
   );
 
   execute def;
-end $$;
+end $outer$;
