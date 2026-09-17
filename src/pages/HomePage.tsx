@@ -151,7 +151,7 @@ export default function HomePage() {
         // We replicate the core query here to avoid mutating activeTab state
         let query = supabase
           .from('posts')
-          .select('*, user_profiles:profiles!posts_user_id_fkey(*)')
+          .select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
           .is('community_id', null)
           .range(0, PAGE_SIZE - 1);
         if (tabId === 'following' && user) {
@@ -159,7 +159,7 @@ export default function HomePage() {
             .from('follows').select('following_id').eq('follower_id', user.id);
           const ids = (followingData ?? []).map((f: any) => f.following_id);
           if (ids.length === 0) return;
-          query = supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(*)')
+          query = supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
             .is('community_id', null).in('user_id', ids)
             .order('created_at', { ascending: false }).range(0, PAGE_SIZE - 1);
         } else if (tabId === 'popular') {
@@ -347,7 +347,7 @@ export default function HomePage() {
         const postIds = recs.map((r: any) => r.recommended_post_id);
         const { data: posts } = await supabase
           .from('posts')
-          .select('*, user_profiles:profiles!posts_user_id_fkey(*)')
+          .select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
           .in('id', postIds)
           .is('community_id', null);
         if (posts && posts.length > 0) {
@@ -382,7 +382,7 @@ export default function HomePage() {
           const pids = [...new Set((phs ?? []).map((ph: any) => ph.post_id))] as string[];
           if (pids.length > 0) {
             const { data: intPosts } = await supabase
-              .from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(*)')
+              .from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
               .in('id', pids.slice(0, 10))
               .is('community_id', null)
               .neq('user_id', user.id);
@@ -405,7 +405,7 @@ export default function HomePage() {
       const followIds = (followingData ?? []).map((f: any) => f.following_id);
       if (followIds.length > 0) {
         const { data: followPosts } = await supabase
-          .from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(*)')
+          .from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
           .in('user_id', followIds)
           .is('community_id', null)
           .order('likes_count', { ascending: false })
@@ -587,13 +587,13 @@ export default function HomePage() {
     try {
       let postsQuery = supabase
         .from('posts')
-        .select('*, user_profiles:profiles!posts_user_id_fkey(*)')
+        .select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
         .is('community_id', null)
         .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
 
       let threadsQuery = supabase
         .from('threads')
-        .select('*, user_profiles:profiles!posts_user_id_fkey(*)')
+        .select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
         .eq('is_published', true)
         .order('created_at', { ascending: false })
         .range(pageNum * 5, (pageNum + 1) * 5 - 1);
@@ -626,7 +626,7 @@ export default function HomePage() {
         const pagedIds = allIds.slice(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE);
         if (!pagedIds.length) return [];
         postsQuery = supabase
-          .from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(*)').is('community_id', null)
+          .from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)').is('community_id', null)
           .in('id', pagedIds).order('likes_count', { ascending: false });
       } else {
         postsQuery = postsQuery.order('created_at', { ascending: false });
@@ -865,7 +865,7 @@ export default function HomePage() {
       if (postIds.length === 0) { setHashtagFeedItems([]); setHashtagFeedLoading(false); return; }
       const { data: posts } = await supabase
         .from('posts')
-        .select('*, user_profiles:profiles!posts_user_id_fkey(*)')
+        .select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
         .in('id', postIds.slice(0, 50))
         .is('community_id', null)
         .order('created_at', { ascending: false });
