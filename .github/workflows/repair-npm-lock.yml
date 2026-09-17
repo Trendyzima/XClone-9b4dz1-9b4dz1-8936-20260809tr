@@ -1,12 +1,9 @@
 name: Repair npm lockfile
-
 on:
   push:
     branches: [main]
-
 permissions:
   contents: write
-
 jobs:
   repair:
     if: github.actor != 'github-actions[bot]'
@@ -16,18 +13,14 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 24
-
       - name: Generate lockfile
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-
       - name: Verify clean install
         run: npm ci --ignore-scripts --no-audit --no-fund
-
       - name: Detect and repair preload configuration
         shell: bash
         run: |
@@ -35,11 +28,7 @@ jobs:
           test -f "$GITHUB_WORKSPACE/_preload.cjs"
           test -f "$GITHUB_WORKSPACE/_build.cjs"
           node -e "require('./_preload.cjs'); console.log('preload hook loaded from repository path')"
-          if grep -qE '^node-options=' .npmrc 2>/dev/null; then
-            sed -i '/^node-options=/d' .npmrc
-            echo 'Removed stale runner-specific node-options from .npmrc.'
-          fi
-
+          if grep -qE '^node-options=' .npmrc 2>/dev/null; then sed -i '/^node-options=/d' .npmrc; fi
       - name: Detect and repair ESLint configuration
         shell: bash
         run: |
@@ -50,97 +39,68 @@ jobs:
           import globals from "globals";
           import reactHooks from "eslint-plugin-react-hooks";
           import reactRefresh from "eslint-plugin-react-refresh";
-
           const nodeToolingFiles = ["*.cjs", "*.mjs", "eslint.config.js", "vite.config.cjs", "_*.cjs", "vite-fix-loader.mjs"];
-
           export default [
             { ignores: ["dist/**", "node_modules/**", ".vercel/**", "coverage/**", "**/*.ts", "**/*.tsx"] },
             js.configs.recommended,
-            {
-              files: nodeToolingFiles,
-              languageOptions: { ecmaVersion: "latest", sourceType: "module", globals: globals.node },
-              rules: {
-                "no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_$", caughtErrorsIgnorePattern: "^_" }],
-                "no-empty": ["error", { allowEmptyCatch: true }],
-              },
-            },
-            {
-              files: ["src/**/*.{js,jsx}"],
-              languageOptions: { ecmaVersion: "latest", sourceType: "module", globals: globals.browser, parserOptions: { ecmaFeatures: { jsx: true } } },
-              plugins: { "react-hooks": reactHooks, "react-refresh": reactRefresh },
-              rules: {
-                ...reactHooks.configs.recommended.rules,
-                "react-refresh/only-export-components": ["warn", { allowConstantExport: true }],
-              },
-            },
+            { files: nodeToolingFiles, languageOptions: { ecmaVersion: "latest", sourceType: "module", globals: globals.node }, rules: { "no-unused-vars": ["error", { argsIgnorePattern: "^_", varsIgnorePattern: "^_$", caughtErrorsIgnorePattern: "^_" }], "no-empty": ["error", { allowEmptyCatch: true }] } },
+            { files: ["src/**/*.{js,jsx}"], languageOptions: { ecmaVersion: "latest", sourceType: "module", globals: globals.browser, parserOptions: { ecmaFeatures: { jsx: true } } }, plugins: { "react-hooks": reactHooks, "react-refresh": reactRefresh }, rules: { ...reactHooks.configs.recommended.rules, "react-refresh/only-export-components": ["warn", { allowConstantExport: true }] } }
           ];
           EOF
-            echo 'Generated missing ESLint 9 flat configuration.'
           fi
-
+      - name: Repair Creator Studio integration
+        shell: python
+        run: |
+          from pathlib import Path
+          path = Path('src/pages/CreatorStudio.tsx')
+          text = path.read_text()
+          line = "import { CreatorStudioWorkbench } from '@/components/features/CreatorStudioWorkbench';\n"
+          anchor = "import { PageAdBanner } from '@/components/features/AdSenseAd';\n"
+          if line not in text:
+              text = text.replace(anchor, anchor + line, 1)
+          render = "      <CreatorStudioWorkbench stats={stats} recentPosts={recentPosts} />\n"
+          text = text.replace(render, '')
+          marker = "      <CreatorStudioAdBanner />\n"
+          if marker not in text: raise SystemExit('CreatorStudioAdBanner marker missing')
+          text = text.replace(marker, marker + render, 1)
+          if text.count('CreatorStudioWorkbench') < 2 or text.count(render) != 1: raise SystemExit('Creator Studio workbench integration invariant failed')
+          path.write_text(text)
+          Path('.github/workflows/repair-creator-studio-jsx.yml').unlink(missing_ok=True)
       - name: Lint (blocking quality gate)
         id: lint
         run: npm run lint
-
       - name: Build with repository preload wrapper
         id: build
         run: node _build.cjs
-
       - name: Report quality status
         if: always()
         shell: bash
         run: |
-          if [ "${{ steps.lint.outcome }}" != "success" ]; then
-            echo 'Lint failed: application or tooling quality errors must be repaired before the build can pass.'
-          else
-            echo 'Lint passed.'
-          fi
-          if [ "${{ steps.build.outcome }}" = "success" ]; then
-            echo 'Build completed successfully.'
-          else
-            echo 'Build failed: this is a genuine build failure and requires repair.'
-          fi
-
-      - name: Commit repaired project metadata
+          test "${{ steps.lint.outcome }}" = success
+          test "${{ steps.build.outcome }}" = success
+          echo 'Lint and production build passed.'
+      - name: Commit repaired project metadata and source
         if: success()
         shell: bash
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add package-lock.json .npmrc eslint.config.js
-          if git diff --cached --quiet; then
-            echo 'No repaired metadata changes to commit.'
-          else
-            git commit -m 'chore(ci): persist self-healed project compatibility metadata'
-          fi
-
+          git add package-lock.json .npmrc eslint.config.js src/pages/CreatorStudio.tsx .github/workflows/repair-creator-studio-jsx.yml
+          if git diff --cached --quiet; then echo 'No repair changes to commit.'; else git commit -m 'fix(creator-studio): integrate workbench and remove temporary repair'; fi
       - name: Rebase repair onto latest main and push
         if: success()
         shell: bash
         run: |
           set -euo pipefail
-          # npm/lint/build tooling can leave tracked generated metadata modified after
-          # the repair commit. The repair commit above is the source of truth, so make
-          # the worktree deterministic before attempting the rebase.
           git reset --hard HEAD
           git clean -fd -e node_modules -e .git
-          git status --short
           for attempt in 1 2 3; do
             git fetch origin main
-            if git rebase origin/main; then
-              if git push origin HEAD:main; then
-                echo "Repair metadata pushed successfully on attempt ${attempt}."
-                exit 0
-              fi
-            else
-              echo "Rebase failed on attempt ${attempt}."
-              git rebase --abort || true
-              git reset --hard HEAD
-              git clean -fd -e node_modules -e .git
-            fi
-            echo "Main changed while repairing; retrying (${attempt}/3)."
+            if git rebase origin/main && git push origin HEAD:main; then echo "Repair pushed on attempt ${attempt}."; exit 0; fi
+            git rebase --abort || true
+            git reset --hard HEAD
+            git clean -fd -e node_modules -e .git
             sleep 2
           done
-          echo 'Unable to rebase/push repaired metadata after 3 attempts.'
           exit 1
