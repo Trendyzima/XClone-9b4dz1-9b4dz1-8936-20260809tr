@@ -14,7 +14,7 @@ export function TrendingVideoRow() {
       const since = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
       const { data: recent } = await supabase
         .from('posts')
-        .select('id, video_url, image_url, views_count, likes_count, content, profiles(username, avatar_url)')
+        .select('id, video_url, image_url, views_count, likes_count, content, user_profiles:profiles!posts_user_id_fkey(username, avatar_url)')
         .eq('is_video', true)
         .gte('created_at', since)
         .order('views_count', { ascending: false })
@@ -26,7 +26,7 @@ export function TrendingVideoRow() {
         // Fallback: all-time top videos
         const { data: allTime } = await supabase
           .from('posts')
-          .select('id, video_url, image_url, views_count, likes_count, content, profiles(username, avatar_url)')
+          .select('id, video_url, image_url, views_count, likes_count, content, user_profiles:profiles!posts_user_id_fkey(username, avatar_url)')
           .eq('is_video', true)
           .order('views_count', { ascending: false })
           .limit(8);
