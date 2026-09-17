@@ -366,7 +366,7 @@ export default function VideosPage() {
     try {
       let query = supabase
         .from('posts')
-        .select('*, profiles (*)')
+        .select('*, user_profiles:profiles!posts_user_id_fkey(*)')
         .eq('is_video', true)
         .order('created_at', { ascending: false })
         .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
@@ -379,7 +379,7 @@ export default function VideosPage() {
         }
         query = supabase
           .from('posts')
-          .select('*, profiles (*)')
+          .select('*, user_profiles:profiles!posts_user_id_fkey(*)')
           .eq('is_video', true)
           .in('user_id', followingIds)
           .order('created_at', { ascending: false })
