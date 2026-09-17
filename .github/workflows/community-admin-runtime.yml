@@ -14,14 +14,19 @@ concurrency:
   group: community-admin-runtime-${{ github.ref }}
   cancel-in-progress: false
 
+permissions:
+  contents: read
+
 jobs:
   acceptance:
     name: Two-account community admin authorization + media
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     env:
-      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      # URL and publishable anon key may be stored as Actions secrets OR repository variables.
+      # Secrets win without exposing values; variables provide a non-secret recovery path.
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
       COMMUNITY_ADMIN_TEST_A_EMAIL: ${{ secrets.COMMUNITY_ADMIN_TEST_A_EMAIL }}
       COMMUNITY_ADMIN_TEST_A_PASSWORD: ${{ secrets.COMMUNITY_ADMIN_TEST_A_PASSWORD }}
       COMMUNITY_ADMIN_TEST_B_EMAIL: ${{ secrets.COMMUNITY_ADMIN_TEST_B_EMAIL }}
@@ -29,21 +34,114 @@ jobs:
       COMMUNITY_ADMIN_TEST_COMMUNITY_ID: ${{ secrets.COMMUNITY_ADMIN_TEST_COMMUNITY_ID }}
       COMMUNITY_ADMIN_TEST_FORENSIC_KEY: ${{ secrets.COMMUNITY_ADMIN_TEST_FORENSIC_KEY }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
-      - name: Fail loudly if runtime identities or fixture are missing
+
+      - name: Diagnose and recover runtime configuration
+        id: config
         shell: bash
         run: |
           set -euo pipefail
-          required=(VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY COMMUNITY_ADMIN_TEST_A_EMAIL COMMUNITY_ADMIN_TEST_A_PASSWORD COMMUNITY_ADMIN_TEST_B_EMAIL COMMUNITY_ADMIN_TEST_B_PASSWORD COMMUNITY_ADMIN_TEST_COMMUNITY_ID COMMUNITY_ADMIN_TEST_FORENSIC_KEY)
-          for name in "${required[@]}"; do
-            if [[ -z "${!name:-}" ]]; then echo "MISSING_REQUIRED_SECRET:$name"; exit 1; fi
+          missing=()
+          for name in \
+            VITE_SUPABASE_URL \
+            VITE_SUPABASE_ANON_KEY \
+            COMMUNITY_ADMIN_TEST_A_EMAIL \
+            COMMUNITY_ADMIN_TEST_A_PASSWORD \
+            COMMUNITY_ADMIN_TEST_B_EMAIL \
+            COMMUNITY_ADMIN_TEST_B_PASSWORD \
+            COMMUNITY_ADMIN_TEST_COMMUNITY_ID \
+            COMMUNITY_ADMIN_TEST_FORENSIC_KEY; do
+            if [[ -z "${!name:-}" ]]; then
+              missing+=("$name")
+            fi
           done
-      - run: npm ci
-      - name: Run direct authenticated RPC boundary test
-        run: node scripts/verify-community-admin-rpc-runtime.mjs
-      - name: Run direct authenticated storage boundary test
-        run: node scripts/verify-community-admin-media-runtime.mjs
+
+          if (( ${#missing[@]} > 0 )); then
+            printf '%s\n' '### Community-admin runtime configuration recovery' >> "$GITHUB_STEP_SUMMARY"
+            printf '%s\n' '' >> "$GITHUB_STEP_SUMMARY"
+            printf '%s\n' 'The acceptance runner cannot safely manufacture credentials or privileged database access.' >> "$GITHUB_STEP_SUMMARY"
+            printf '%s\n' 'It did, however, automatically recover URL/publishable-key configuration from repository variables when available.' >> "$GITHUB_STEP_SUMMARY"
+            printf '%s\n' '' >> "$GITHUB_STEP_SUMMARY"
+            printf '%s\n' '**Still missing:**' >> "$GITHUB_STEP_SUMMARY"
+            for name in "${missing[@]}"; do
+              printf '%s\n' "- \\`$name\\`" >> "$GITHUB_STEP_SUMMARY"
+            done
+            printf '%s\n' '' >> "$GITHUB_STEP_SUMMARY"
+            printf '%s\n' '**Recovery rule:** credentials are never generated, logged, guessed, or committed by CI.' >> "$GITHUB_STEP_SUMMARY"
+            echo "MISSING_RUNTIME_CONFIG:${missing[*]}"
+            exit 78
+          fi
+
+          echo 'RUNTIME_CONFIG=ready' >> "$GITHUB_OUTPUT"
+
+      - name: Install dependencies
+        if: steps.config.outcome == 'success'
+        run: npm ci
+
+      - name: Run authenticated RPC boundary test with bounded transient retry
+        if: steps.config.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_with_retry() {
+            local label="$1"
+            local command="$2"
+            local max=3
+            local delay=5
+            local attempt
+            for attempt in $(seq 1 "$max"); do
+              set +e
+              output=$(bash -lc "$command" 2>&1)
+              status=$?
+              set -e
+              printf '%s\n' "$output"
+              if [[ "$status" -eq 0 ]]; then return 0; fi
+              if ! grep -Eqi 'ECONNRESET|ECONNREFUSED|ETIMEDOUT|fetch failed|network|502|503|504|429|temporarily unavailable|socket hang up' <<<"$output"; then
+                echo "${label}: non-transient failure; refusing blind retry"
+                return "$status"
+              fi
+              if [[ "$attempt" -lt "$max" ]]; then
+                echo "${label}: transient failure on attempt $attempt/$max; retrying in ${delay}s"
+                sleep "$delay"
+                delay=$((delay * 2))
+              fi
+            done
+            return "$status"
+          }
+          run_with_retry rpc 'node scripts/verify-community-admin-rpc-runtime.mjs'
+
+      - name: Run authenticated storage boundary test with bounded transient retry
+        if: steps.config.outcome == 'success'
+        shell: bash
+        run: |
+          set -euo pipefail
+          run_with_retry() {
+            local label="$1"
+            local command="$2"
+            local max=3
+            local delay=5
+            local attempt
+            for attempt in $(seq 1 "$max"); do
+              set +e
+              output=$(bash -lc "$command" 2>&1)
+              status=$?
+              set -e
+              printf '%s\n' "$output"
+              if [[ "$status" -eq 0 ]]; then return 0; fi
+              if ! grep -Eqi 'ECONNRESET|ECONNREFUSED|ETIMEDOUT|fetch failed|network|502|503|504|429|temporarily unavailable|socket hang up' <<<"$output"; then
+                echo "${label}: non-transient failure; refusing blind retry"
+                return "$status"
+              fi
+              if [[ "$attempt" -lt "$max" ]]; then
+                echo "${label}: transient failure on attempt $attempt/$max; retrying in ${delay}s"
+                sleep "$delay"
+                delay=$((delay * 2))
+              fi
+            done
+            return "$status"
+          }
+          run_with_retry media 'node scripts/verify-community-admin-media-runtime.mjs'
