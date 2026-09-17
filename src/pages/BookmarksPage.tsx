@@ -66,7 +66,7 @@ export function BookmarksPage() {
     try {
       const { data, error } = await supabase
         .from('bookmarks')
-        .select('*, post:posts(*, user:user_profiles:profiles!posts_user_id_fkey(*))')
+        .select('*, post:posts(*, user:profiles!posts_user_id_fkey(*))')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       if (error) throw error;
