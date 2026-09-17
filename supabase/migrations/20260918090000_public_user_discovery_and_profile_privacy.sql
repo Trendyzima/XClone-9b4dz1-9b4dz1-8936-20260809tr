@@ -69,3 +69,65 @@ begin
 
   execute def;
 end $outer$;
+
+
+-- Keep anonymous public reads independent of authenticated-only community membership helpers.
+-- This prevents the public discovery path from requiring EXECUTE on security-definer
+-- membership functions and preserves private-community isolation.
+drop policy if exists communities_public_or_member_read on public.communities;
+drop policy if exists communities_public_read on public.communities;
+drop policy if exists communities_authenticated_read on public.communities;
+create policy communities_public_read on public.communities
+  for select to anon
+  using (is_private = false);
+create policy communities_authenticated_read on public.communities
+  for select to authenticated
+  using (
+    is_private = false
+    or created_by = (select auth.uid())
+    or owner_id = (select auth.uid())
+    or exists (
+      select 1
+      from public.community_members cm
+      where cm.community_id = communities.id
+        and cm.user_id = (select auth.uid())
+        and cm.status = 'active'
+    )
+  );
+
+drop policy if exists posts_public_read on public.posts;
+create policy posts_public_read on public.posts
+  for select to anon, authenticated
+  using (
+    deleted_at is null
+    and (
+      (
+        community_id is null
+        and exists (
+          select 1
+          from public.profiles pr
+          where pr.id = coalesce(posts.author_id, posts.user_id)
+            and (
+              pr.protected_account = false
+              or pr.id = (select auth.uid())
+              or exists (
+                select 1
+                from public.follows f
+                where f.follower_id = (select auth.uid())
+                  and f.following_id = pr.id
+                  and f.status = 'accepted'
+              )
+            )
+        )
+      )
+      or (
+        community_id is not null
+        and exists (
+          select 1
+          from public.communities c
+          where c.id = posts.community_id
+            and c.is_private = false
+        )
+      )
+    )
+  );
