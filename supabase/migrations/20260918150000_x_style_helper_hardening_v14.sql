@@ -25,7 +25,7 @@ select auth.uid() is not null and exists (
 $$;
 revoke all on function public.testagram_accounts_blocked_between(uuid) from public;
 grant execute on function public.testagram_accounts_blocked_between(uuid) to anon,authenticated;
-drop function public.testagram_accounts_blocked_between(uuid,uuid);
+drop function if exists public.testagram_accounts_blocked_between(uuid,uuid);
 
 create or replace function public.testagram_post_is_visible_to_viewer(p_post_id uuid,p_viewer_id uuid default auth.uid())
 returns boolean language sql stable security definer set search_path=public as $$
