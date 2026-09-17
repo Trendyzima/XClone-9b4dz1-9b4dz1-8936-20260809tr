@@ -1,0 +1,38 @@
+name: Audio Spaces runtime acceptance
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'scripts/verify-audio-space-runtime.mjs'
+      - 'supabase/functions/livekit-space-token/**'
+      - 'supabase/migrations/*audio_spaces*'
+jobs:
+  acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL || vars.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
+      AUDIO_SPACE_TEST_A_EMAIL: ${{ secrets.AUDIO_SPACE_TEST_A_EMAIL }}
+      AUDIO_SPACE_TEST_A_PASSWORD: ${{ secrets.AUDIO_SPACE_TEST_A_PASSWORD }}
+      AUDIO_SPACE_TEST_B_EMAIL: ${{ secrets.AUDIO_SPACE_TEST_B_EMAIL }}
+      AUDIO_SPACE_TEST_B_PASSWORD: ${{ secrets.AUDIO_SPACE_TEST_B_PASSWORD }}
+      AUDIO_SPACE_TEST_FORENSIC_KEY: ${{ secrets.AUDIO_SPACE_TEST_FORENSIC_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - name: Preflight
+        shell: bash
+        run: |
+          set -euo pipefail
+          missing=0
+          for n in VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY AUDIO_SPACE_TEST_A_EMAIL AUDIO_SPACE_TEST_A_PASSWORD AUDIO_SPACE_TEST_B_EMAIL AUDIO_SPACE_TEST_B_PASSWORD AUDIO_SPACE_TEST_FORENSIC_KEY; do
+            if [[ -z "${!n:-}" ]]; then echo "MISSING_REQUIRED_SECRET:$n"; missing=1; fi
+          done
+          if [[ "$missing" == 1 ]]; then exit 78; fi
+      - run: npm ci
+      - name: Two-user Audio Spaces acceptance
+        run: node scripts/verify-audio-space-runtime.mjs
