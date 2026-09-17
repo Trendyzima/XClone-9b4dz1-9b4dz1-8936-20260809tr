@@ -38,5 +38,3 @@ if (/jsonb_build_object\([^;]*new\.body/s.test(migrations)) {
 if (service.includes("testagram.messages.send',") && !service.includes("testagram.messages.send_encrypted")) {
   throw new Error('E2EE send path still uses plaintext message capability');
 }
-
-console.log('communications E2EE contract: PASS');
