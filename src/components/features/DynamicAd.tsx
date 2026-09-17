@@ -1,126 +1,62 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { Capacitor } from '@/lib/capacitor-stub';
 import { usePremium } from '@/hooks/usePremium';
+import { ExternalLink, Megaphone } from 'lucide-react';
 
-interface DynamicAdProps {
-  location: 'feed_top' | 'feed_inline' | 'sidebar' | 'profile' | 'explore';
-  className?: string;
-}
+interface DynamicAdProps { location: 'feed_top' | 'feed_inline' | 'sidebar' | 'profile' | 'explore'; className?: string; }
+interface ServedAd { ok: boolean; impression_id?: string; campaign_id?: string; creative_id?: string; format?: string; headline?: string; body?: string; cta?: string; asset_url?: string; click_through_url?: string; slot_code?: string; }
 
-interface AdPlacement {
-  id: string;
-  network: string;
-  placement_type: string;
-  code: string;
-  location: string;
-}
-
-// Track slots already pushed to avoid double-push
-const pushedSlots: Set<string> = /* @__PURE__ */ new Set<string>();
+const SLOT_BY_LOCATION: Record<string,string> = {
+  feed_top: 'feed-top', feed_inline: 'feed-inline', sidebar: 'feed-inline', profile: 'profile', explore: 'explore',
+};
 
 export function DynamicAd({ location, className = '' }: DynamicAdProps) {
-  const [adPlacements, setAdPlacements] = useState<AdPlacement[]>([]);
+  const [ad, setAd] = useState<ServedAd | null>(null);
   const [loading, setLoading] = useState(true);
-  const isNative = Capacitor.isNativePlatform();
   const { isActive: isPremium } = usePremium();
 
   useEffect(() => {
-    fetchAds();
-  }, [location]);
-
-  const fetchAds = async () => {
-    try {
-      const { data } = await supabase.rpc('get_active_ads', { location_filter: location });
-      const filtered = isNative
-        ? (data || []).filter((a: AdPlacement) => a.network !== 'adsense')
-        : (data || []);
-      setAdPlacements(filtered);
-    } catch {
-      // silent — ads are non-critical
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const trackImpression = async (adId: string) => {
-    supabase.rpc('track_ad_view', { ad_id_param: adId, user_id_param: null }).catch(() => {});
-  };
-
-  if (isPremium) return null; // Ad-free for premium users
-  if (loading || adPlacements.length === 0) return null;
-  if (isNative) return null;
-
-  const ad = adPlacements[0];
-  if (!ad.code) return null;
-
-  if (ad.network === 'adsense') {
-    return (
-      <div className={className}>
-        <WebAdSense adSlot={ad.code} adId={ad.id} onLoad={() => trackImpression(ad.id)} />
-      </div>
-    );
-  }
-
-  return null;
-}
-
-function WebAdSense({ adSlot, adId, onLoad }: { adSlot: string; adId: string; onLoad: () => void }) {
-  const insRef  = useRef<HTMLModElement>(null);
-  const key     = `${adId}-${adSlot}`;
-  const [filled, setFilled] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    if (pushedSlots.has(key)) return;
-    const timer = setTimeout(() => {
+    let cancelled = false;
+    (async () => {
+      if (isPremium || Capacitor.isNativePlatform()) { setLoading(false); return; }
       try {
-        if (typeof window !== 'undefined') {
-          ((window as any).adsbygoogle = (window as any).adsbygoogle || []).push({});
-          pushedSlots.add(key);
-          onLoad();
-        }
-      } catch (_) {}
-    }, 300);
+        const { data, error } = await supabase.functions.invoke('testagram-ads/serve', {
+          body: { slot_code: SLOT_BY_LOCATION[location] ?? 'feed-inline', request_id: crypto.randomUUID() },
+        });
+        if (!cancelled && !error && data?.ok) setAd(data);
+      } catch { /* ads are non-critical */ }
+      finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [location, isPremium]);
 
-    // Check fill status after AdSense has had time to respond
-    const checkFill = () => {
-      const el = insRef.current;
-      if (!el) { setFilled(false); return; }
-      const status = el.getAttribute('data-ad-status');
-      if (status === 'unfilled') { setFilled(false); return; }
-      setFilled(el.children.length > 0 || (el as any).offsetHeight > 4);
-    };
-    const t1 = setTimeout(checkFill, 1800);
-    const t2 = setTimeout(checkFill, 3500);
+  const handleClick = () => {
+    if (!ad?.impression_id) return;
+    supabase.functions.invoke('testagram-ads/event', { body: { impression_id: ad.impression_id, event_type: 'click' } }).catch(() => {});
+    if (ad.click_through_url) window.open(ad.click_through_url, '_blank', 'noopener,noreferrer');
+  };
 
-    return () => { clearTimeout(timer); clearTimeout(t1); clearTimeout(t2); };
-  }, [key, onLoad]);
-
-  // Collapse completely if unfilled — no dead space
-  if (filled === false) return null;
+  if (isPremium || loading || !ad?.ok) return null;
 
   return (
-    <div>
-      {/* Native-style ad label */}
-      <div className="flex items-center gap-1.5 mb-1 px-1">
-        <span className="text-[9px] font-bold uppercase tracking-widest text-muted-foreground/50">Sponsored</span>
-        <span className="text-[9px] font-bold uppercase tracking-widest px-1 py-0.5 rounded-sm bg-amber-500/10 text-amber-500 border border-amber-500/15">Ad</span>
-      </div>
-      {/* No minHeight — collapses if empty */}
-      <ins
-        ref={insRef}
-        className="adsbygoogle"
-        style={{ display: 'block' }}
-        data-ad-client="ca-pub-2458567543017441"
-        data-ad-slot={adSlot}
-        data-ad-format="fluid"
-        data-ad-layout="in-article"
-        data-full-width-responsive="true"
-      />
-    </div>
+    <article className={`rounded-2xl border border-border bg-card/80 overflow-hidden ${className}`}>
+      <button type="button" onClick={handleClick} className="w-full text-left group">
+        <div className="flex items-center gap-2 px-3 pt-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          <Megaphone className="w-3 h-3" /> Sponsored · Testagram Ads
+        </div>
+        {ad.asset_url ? (
+          ad.format?.toLowerCase().includes('video') ? <video src={ad.asset_url} className="w-full max-h-[420px] object-cover mt-2" muted playsInline preload="metadata" /> : <img src={ad.asset_url} alt={ad.headline || 'Sponsored content'} className="w-full max-h-[420px] object-cover mt-2" loading="lazy" />
+        ) : null}
+        <div className="p-3">
+          {ad.headline ? <h3 className="font-bold text-base leading-tight">{ad.headline}</h3> : null}
+          {ad.body ? <p className="text-sm text-muted-foreground mt-1 line-clamp-3">{ad.body}</p> : null}
+          <div className="flex items-center justify-between gap-3 mt-3">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground">{ad.cta || 'Learn more'} <ExternalLink className="w-3 h-3" /></span>
+            <span className="text-[10px] text-muted-foreground">Ad</span>
+          </div>
+        </div>
+      </button>
+    </article>
   );
-}
-
-declare global {
-  interface Window { adsbygoogle: any[]; }
 }
