@@ -1,16 +1,134 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-const SUPABASE_URL=Deno.env.get("SUPABASE_URL")??"";
-const ANON=Deno.env.get("SUPABASE_ANON_KEY")??Deno.env.get("SUPABASE_PUBLISHABLE_KEY")??"";
-const SERVICE=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")??Deno.env.get("SUPABASE_SECRET_KEY")??"";
-const SIGNING_SECRET=Deno.env.get("ZENAD_EVENT_SIGNING_SECRET")??SERVICE;
-const admin=createClient(SUPABASE_URL,SERVICE,{auth:{persistSession:false,autoRefreshToken:false}});
-const cors={...corsHeaders,"Access-Control-Allow-Methods":"POST,OPTIONS"};
-const json=(b:unknown,s=200)=>new Response(JSON.stringify(b),{status:s,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
-type Targeting={countries?:string[];devices?:string[];genres?:string[];keywords?:string[];segments?:string[];interests?:string[]};
-async function resolveUser(req:Request){const auth=req.headers.get("Authorization")??"";if(!auth||!ANON)return null;const token=auth.replace(/^Bearer\s+/i,"");if(!token)return null;const client=createClient(SUPABASE_URL,ANON,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});const {data:{user}}=await client.auth.getUser(token);return user??null;}
-function matchesTargeting(target:Targeting,user:any,content:any){const country=String(user?.country??"").toLowerCase();const device=String(user?.device??"").toLowerCase();const interests=(user?.interests??[]).map((x:unknown)=>String(x).toLowerCase());const genres=(content?.genres??[]).map((x:unknown)=>String(x).toLowerCase());const keywords=(content?.keywords??[]).map((x:unknown)=>String(x).toLowerCase());const segments=(user?.segments??[]).map((x:unknown)=>String(x).toLowerCase());const lm=(list:string[]|undefined,v:string)=>!list?.length||list.map(x=>x.toLowerCase()).includes(v);const am=(list:string[]|undefined,vs:string[])=>!list?.length||vs.some(v=>list.map(x=>x.toLowerCase()).includes(v));return lm(target.countries,country)&&lm(target.devices,device)&&am(target.genres,genres)&&am(target.keywords,keywords)&&am(target.segments,segments)&&am(target.interests,interests);}
-function b64url(bytes:Uint8Array){let s="";for(const x of bytes)s+=String.fromCharCode(x);return btoa(s).replaceAll("+","-").replaceAll("/","_").replace(/=+$/g,"");}
-async function issueEventToken(impressionId:string){const payload=b64url(new TextEncoder().encode(JSON.stringify({i:impressionId,e:Math.floor(Date.now()/1000)+900})));const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(SIGNING_SECRET),{name:"HMAC",hash:"SHA-256"},false,["sign"]);const sig=b64url(new Uint8Array(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(payload))));return `${payload}.${sig}`;}
-Deno.serve(async req=>{if(req.method==="OPTIONS")return new Response(null,{status:204,headers:cors});if(req.method!=="POST")return json({error:"Method not allowed"},405);if(!SERVICE||!SIGNING_SECRET)return json({error:"Ad serving is not configured"},503);try{const body=await req.json();const slotCode=String(body.slotCode??"feed-top");const requestId=String(body.id??crypto.randomUUID());const content=body.content??{};const suppliedUser=body.user??{};const authUser=await resolveUser(req);const userId=authUser?.id??null;const user={...suppliedUser,id:userId??suppliedUser.id??undefined};const {data:slot,error:slotError}=await admin.from("testagram_ad_slots").select("code,kind,floor_cpm_micros,enabled").eq("code",slotCode).maybeSingle();if(slotError)throw slotError;if(!slot?.enabled)return json({kind:"no_fill",requestId,reason:"slot not found or disabled"});const now=new Date().toISOString();const {data:campaigns,error:campaignError}=await admin.from("testagram_ad_campaigns").select("id,name,status,priority,bid_cpm_micros,starts_at,ends_at,targeting,payment_status,lifetime_budget_micros,funded_micros").eq("status","active").eq("payment_status","funded").lte("starts_at",now);if(campaignError)throw campaignError;const eligible:any[]=[];const formats=slotCode==="story"?["display","story"]:["display"];for(const campaign of campaigns??[]){if(campaign.ends_at&&campaign.ends_at<now)continue;if(Number(campaign.bid_cpm_micros)<Number(slot.floor_cpm_micros))continue;if(Number(campaign.lifetime_budget_micros)<=0||Number(campaign.funded_micros)<Number(campaign.lifetime_budget_micros))continue;if(!matchesTargeting(campaign.targeting??{},user,content))continue;const {data:adSets,error:adSetError}=await admin.from("testagram_ad_sets").select("id,name,status,optimization_goal,placement_mode").eq("campaign_id",campaign.id).eq("status","active");if(adSetError)throw adSetError;const adSetIds=(adSets??[]).map((s:any)=>s.id).filter(Boolean);if(adSetIds.length===0)continue;const {data:ads,error:adError}=await admin.from("testagram_ads").select("id,ad_set_id,creative_id,name,status,destination_type,destination_url,call_to_action").eq("status","active").in("ad_set_id",adSetIds);if(adError)throw adError;for(const ad of ads??[]){if(!ad.creative_id)continue;const {data:creative,error:creativeError}=await admin.from("testagram_ad_creatives").select("id,format,headline,body,cta,asset_url,click_through_url,weight,enabled").eq("id",ad.creative_id).eq("campaign_id",campaign.id).eq("enabled",true).in("format",formats).maybeSingle();if(creativeError)throw creativeError;if(creative)eligible.push({campaign,ad,creative});}}if(!eligible.length)return json({kind:"no_fill",requestId,reason:"no eligible campaign"});eligible.sort((a,b)=>(Number(b.campaign.priority)-Number(a.campaign.priority))||(Number(b.campaign.bid_cpm_micros)-Number(a.campaign.bid_cpm_micros))||(Number(b.creative.weight)-Number(a.creative.weight)));const selected=eligible[0];const impressionId=`imp_${crypto.randomUUID().replaceAll("-","")}`;const {data:claimed,error:claimError}=await admin.rpc("testagram_claim_ad_impression",{p_request_id:requestId,p_impression_id:impressionId,p_slot_code:slotCode,p_campaign_id:selected.campaign.id,p_creative_id:selected.creative.id,p_user_id:userId,p_billable_micros:Number(selected.campaign.bid_cpm_micros),p_consent:body.privacy??{},p_metadata:{content,device:user.device??null,source:"testagram",served_by:"zenad",format:selected.creative.format,ad_id:selected.ad.id,ad_set_id:selected.ad.ad_set_id}});if(claimError||claimed!==true)return json({kind:"no_fill",requestId,reason:"campaign budget or frequency cap reached"});const eventToken=await issueEventToken(impressionId);return json({kind:"display",requestId,impressionId,eventToken,campaignId:selected.campaign.id,adSetId:selected.ad.ad_set_id,adId:selected.ad.id,creativeId:selected.creative.id,headline:selected.creative.headline,body:selected.creative.body,cta:selected.ad.call_to_action??selected.creative.cta,imageUrl:selected.creative.asset_url??null,clickThroughUrl:selected.ad.destination_url??selected.creative.click_through_url,sponsored:true,format:selected.creative.format,owner:"testagram",servedBy:"zenad",trackers:{click:`${SUPABASE_URL}/functions/v1/zenad-event`}});}catch(error){console.error("zenad-decision error",error);return json({error:"Ad decision failed"},500);}});
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const ANON = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? "";
+const SERVICE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SECRET_KEY") ?? "";
+const SIGNING_SECRET = Deno.env.get("ZENAD_EVENT_SIGNING_SECRET") ?? SERVICE;
+const admin = createClient(SUPABASE_URL, SERVICE, { auth: { persistSession: false, autoRefreshToken: false } });
+const cors = { ...corsHeaders, "Access-Control-Allow-Methods": "POST,OPTIONS" };
+const json = (b: unknown, s = 200) => new Response(JSON.stringify(b), { status: s, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+
+type Targeting = { countries?: string[]; devices?: string[]; genres?: string[]; keywords?: string[]; segments?: string[]; interests?: string[] };
+
+async function resolveUser(req: Request) {
+  const auth = req.headers.get("Authorization") ?? "";
+  if (!auth || !ANON) return null;
+  const token = auth.replace(/^Bearer\s+/i, "");
+  if (!token) return null;
+  const client = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: auth } }, auth: { persistSession: false, autoRefreshToken: false } });
+  const { data: { user } } = await client.auth.getUser(token);
+  return user ?? null;
+}
+
+function matchesTargeting(target: Targeting, user: any, content: any) {
+  const country = String(user?.country ?? "").toLowerCase();
+  const device = String(user?.device ?? "").toLowerCase();
+  const interests = (user?.interests ?? []).map((x: unknown) => String(x).toLowerCase());
+  const genres = (content?.genres ?? []).map((x: unknown) => String(x).toLowerCase());
+  const keywords = (content?.keywords ?? []).map((x: unknown) => String(x).toLowerCase());
+  const segments = (user?.segments ?? []).map((x: unknown) => String(x).toLowerCase());
+  const lm = (list: string[] | undefined, v: string) => !list?.length || list.map(x => x.toLowerCase()).includes(v);
+  const am = (list: string[] | undefined, vs: string[]) => !list?.length || vs.some(v => list.map(x => x.toLowerCase()).includes(v));
+  return lm(target.countries, country) && lm(target.devices, device) && am(target.genres, genres) && am(target.keywords, keywords) && am(target.segments, segments) && am(target.interests, interests);
+}
+
+function b64url(bytes: Uint8Array) { let s = ""; for (const x of bytes) s += String.fromCharCode(x); return btoa(s).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/g, ""); }
+
+async function issueEventToken(impressionId: string) {
+  const payload = b64url(new TextEncoder().encode(JSON.stringify({ i: impressionId, e: Math.floor(Date.now() / 1000) + 900 })));
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(SIGNING_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = b64url(new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload))));
+  return `${payload}.${sig}`;
+}
+
+Deno.serve(async req => {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  if (!SERVICE || !SIGNING_SECRET) return json({ error: "Ad serving is not configured" }, 503);
+  try {
+    const body = await req.json();
+    const slotCode = String(body.slotCode ?? "feed-top");
+    const requestId = String(body.id ?? crypto.randomUUID());
+    const content = body.content ?? {};
+    const suppliedUser = body.user ?? {};
+    const authUser = await resolveUser(req);
+    const userId = authUser?.id ?? null;
+    const user = { ...suppliedUser, id: userId ?? suppliedUser.id ?? undefined };
+
+    const { data: slot, error: slotError } = await admin.from("testagram_ad_slots").select("code,kind,floor_cpm_micros,enabled").eq("code", slotCode).maybeSingle();
+    if (slotError) throw slotError;
+    if (!slot?.enabled) return json({ kind: "no_fill", requestId, reason: "slot not found or disabled" });
+
+    // Request-level idempotency: a retried request must reuse the already-billed impression.
+    const { data: existing, error: existingError } = await admin
+      .from("testagram_ad_impressions")
+      .select("impression_id,campaign_id,creative_id,user_id,billable_micros,slot_code,metadata")
+      .eq("request_id", requestId)
+      .maybeSingle();
+    if (existingError) throw existingError;
+    if (existing) {
+      if (existing.user_id && existing.user_id !== userId) return json({ kind: "no_fill", requestId, reason: "request already belongs to another user" }, 403);
+      const { data: campaign, error: campaignError } = await admin
+        .from("testagram_ad_campaigns")
+        .select("id,priority,bid_cpm_micros")
+        .eq("id", existing.campaign_id)
+        .maybeSingle();
+      if (campaignError) throw campaignError;
+      const adId = String((existing.metadata as any)?.ad_id ?? "");
+      const { data: ad, error: adError } = await admin
+        .from("testagram_ads")
+        .select("id,ad_set_id,call_to_action,destination_url,creative_id")
+        .eq("id", adId)
+        .maybeSingle();
+      if (adError) throw adError;
+      const { data: creative, error: creativeError } = await admin
+        .from("testagram_ad_creatives")
+        .select("id,format,headline,body,cta,asset_url,click_through_url")
+        .eq("id", existing.creative_id)
+        .maybeSingle();
+      if (creativeError) throw creativeError;
+      if (!campaign || !ad || !creative) return json({ kind: "no_fill", requestId, reason: "existing impression lineage unavailable" });
+      const eventToken = await issueEventToken(existing.impression_id);
+      return json({ kind: "display", requestId, impressionId: existing.impression_id, eventToken, campaignId: campaign.id, adSetId: ad.ad_set_id, adId: ad.id, creativeId: creative.id, headline: creative.headline, body: creative.body, cta: ad.call_to_action ?? creative.cta, imageUrl: creative.asset_url ?? null, clickThroughUrl: ad.destination_url ?? creative.click_through_url, sponsored: true, format: creative.format, owner: "testagram", servedBy: "zenad", trackers: { click: `${SUPABASE_URL}/functions/v1/zenad-event` } });
+    }
+
+    const now = new Date().toISOString();
+    const { data: campaigns, error: campaignError } = await admin.from("testagram_ad_campaigns").select("id,name,status,priority,bid_cpm_micros,starts_at,ends_at,targeting,payment_status,lifetime_budget_micros,funded_micros").eq("status", "active").eq("payment_status", "funded").lte("starts_at", now);
+    if (campaignError) throw campaignError;
+    const eligible: any[] = [];
+    const formats = slotCode === "story" ? ["display", "story"] : ["display"];
+
+    for (const campaign of campaigns ?? []) {
+      if (campaign.ends_at && campaign.ends_at < now) continue;
+      if (Number(campaign.bid_cpm_micros) < Number(slot.floor_cpm_micros)) continue;
+      if (Number(campaign.lifetime_budget_micros) <= 0 || Number(campaign.funded_micros) < Number(campaign.lifetime_budget_micros)) continue;
+      if (!matchesTargeting(campaign.targeting ?? {}, user, content)) continue;
+      const { data: adSets, error: adSetError } = await admin.from("testagram_ad_sets").select("id,name,status,optimization_goal,placement_mode").eq("campaign_id", campaign.id).eq("status", "active");
+      if (adSetError) throw adSetError;
+      const adSetIds = (adSets ?? []).map((s: any) => s.id).filter(Boolean);
+      if (adSetIds.length === 0) continue;
+      const { data: ads, error: adError } = await admin.from("testagram_ads").select("id,ad_set_id,creative_id,name,status,destination_type,destination_url,call_to_action").eq("status", "active").in("ad_set_id", adSetIds);
+      if (adError) throw adError;
+      for (const ad of ads ?? []) {
+        if (!ad.creative_id) continue;
+        const { data: creative, error: creativeError } = await admin.from("testagram_ad_creatives").select("id,format,headline,body,cta,asset_url,click_through_url,weight,enabled").eq("id", ad.creative_id).eq("campaign_id", campaign.id).eq("enabled", true).in("format", formats).maybeSingle();
+        if (creativeError) throw creativeError;
+        if (creative) eligible.push({ campaign, ad, creative });
+      }
+    }
+
+    if (!eligible.length) return json({ kind: "no_fill", requestId, reason: "no eligible campaign" });
+    eligible.sort((a, b) => (Number(b.campaign.priority) - Number(a.campaign.priority)) || (Number(b.campaign.bid_cpm_micros) - Number(a.campaign.bid_cpm_micros)) || (Number(b.creative.weight) - Number(a.creative.weight)));
+    const selected = eligible[0];
+    const impressionId = `imp_${crypto.randomUUID().replaceAll("-", "")}`;
+    const { data: claimed, error: claimError } = await admin.rpc("testagram_claim_ad_impression", { p_request_id: requestId, p_impression_id: impressionId, p_slot_code: slotCode, p_campaign_id: selected.campaign.id, p_creative_id: selected.creative.id, p_user_id: userId, p_billable_micros: Number(selected.campaign.bid_cpm_micros), p_consent: body.privacy ?? {}, p_metadata: { content, device: user.device ?? null, source: "testagram", served_by: "zenad", format: selected.creative.format, ad_id: selected.ad.id, ad_set_id: selected.ad.ad_set_id } });
+    if (claimError || claimed !== true) return json({ kind: "no_fill", requestId, reason: "campaign budget or frequency cap reached" });
+    const eventToken = await issueEventToken(impressionId);
+    return json({ kind: "display", requestId, impressionId, eventToken, campaignId: selected.campaign.id, adSetId: selected.ad.ad_set_id, adId: selected.ad.id, creativeId: selected.creative.id, headline: selected.creative.headline, body: selected.creative.body, cta: selected.ad.call_to_action ?? selected.creative.cta, imageUrl: selected.creative.asset_url ?? null, clickThroughUrl: selected.ad.destination_url ?? selected.creative.click_through_url, sponsored: true, format: selected.creative.format, owner: "testagram", servedBy: "zenad", trackers: { click: `${SUPABASE_URL}/functions/v1/zenad-event` } });
+  } catch (error) {
+    console.error("zenad-decision error", error);
+    return json({ error: "Ad decision failed" }, 500);
+  }
+});
