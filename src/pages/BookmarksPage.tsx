@@ -51,7 +51,7 @@ export function BookmarksPage() {
     try {
       const { data } = await supabase
         .from('bookmarks')
-        .select('*, post:posts(*, user:profiles(*))')
+        .select('*, post:posts(*, user:user_profiles:profiles!posts_user_id_fkey(*))')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       const vids = ((data ?? []).map((b: any) => b.post).filter((p: any) => p && p.is_video));
@@ -66,7 +66,7 @@ export function BookmarksPage() {
     try {
       const { data, error } = await supabase
         .from('bookmarks')
-        .select('*, post:posts(*, user:profiles(*))')
+        .select('*, post:posts(*, user:user_profiles:profiles!posts_user_id_fkey(*))')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       if (error) throw error;
