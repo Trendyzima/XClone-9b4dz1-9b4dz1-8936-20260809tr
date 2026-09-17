@@ -1,19 +1,20 @@
 name: One-shot Stories canonical ad migration
 
 on:
-  push:
-    branches: [fix/p1-stories-canonical-ads]
+  pull_request:
+    types: [opened, synchronize]
+    branches: [main]
 
 permissions:
   contents: write
 
 jobs:
   migrate:
-    if: ${{ !contains(github.event.head_commit.message, '[stories-p1]') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ github.event.pull_request.head.ref }}
           fetch-depth: 1
       - name: Remove legacy Stories ad path and wire canonical StoryAdSlide
         shell: bash
@@ -24,7 +25,10 @@ jobs:
           let s = fs.readFileSync(path, 'utf8');
 
           if (!s.includes("from './StoryAdSlide'")) throw new Error('StoryAdSlide import not found');
-          if (!s.includes("supabase.from('user_ads')")) throw new Error('Expected legacy user_ads writer/read path not found');
+          if (!s.includes("supabase.from('user_ads')")) {
+            console.log('P1 already applied; nothing to migrate.');
+            process.exit(0);
+          }
 
           s = s.replace(
             "import { StoryAdSlide, checkStoryAdFreqCap } from './StoryAdSlide';",
@@ -46,12 +50,6 @@ jobs:
           const canonicalSlide = `      {/* ── Canonical Story Ad Slide ───────────────────────────────────────── */}\\n      {showCanonicalStoryAd && viewerStory && (\\n        <StoryAdSlide\\n          ad={{\\n            id: 'story-slot',\\n            source_id: viewerStory.id,\\n            source_type: 'story',\\n            author_id: viewerG?.userId ?? null,\\n          }}\\n          onComplete={() => setShowCanonicalStoryAd(false)}\\n          onSkip={() => setShowCanonicalStoryAd(false)}\\n        />\\n      )}\\n\\n      {/* ── Explore Stories Sheet ── */}`;
           s = s.replace(oldSlide, canonicalSlide);
 
-          const openViewer = /  const openViewer = \(groupIdx: number\) => \{([\\s\\S]*?)    if \(story\) \{/;
-          if (!openViewer.test(s)) throw new Error('openViewer block not found');
-          s = s.replace(openViewer, (m, inner) => `  const openViewer = (groupIdx: number) => {${inner}    setShowCanonicalStoryAd(false);\\n    if (story) {`);
-
-          // The canonical ad is requested by the server whenever a story viewer is opened.
-          // The server-side frequency/eligibility contract, not the browser, decides whether anything renders.
           const openViewerTail = /      if \(meta\?\.music\?\.preview_url\) playStoryAudio\(meta\.music\.preview_url\);\\n    \}\\n  \};/;
           if (!openViewerTail.test(s)) throw new Error('openViewer tail not found');
           s = s.replace(openViewerTail, `      if (meta?.music?.preview_url) playStoryAudio(meta.music.preview_url);\\n      setShowCanonicalStoryAd(true);\\n    }\\n  };`);
@@ -67,10 +65,9 @@ jobs:
           NODE
 
           git diff --check
-          git diff -- src/components/features/StoriesStrip.tsx
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add src/components/features/StoriesStrip.tsx
           git diff --cached --check
           git commit -m "fix: route Stories ads through canonical Testagram Ads [stories-p1]"
-          git push
+          git push origin HEAD:${{ github.event.pull_request.head.ref }}
