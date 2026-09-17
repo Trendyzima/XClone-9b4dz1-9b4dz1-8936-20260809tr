@@ -91,18 +91,17 @@ jobs:
               }}
             />
           </div>
-'''
+          '''
           transformed = transformed[:start] + action + transformed[end:]
 
           tabs = '      {/* Tabs */}'
           exactly(transformed, tabs)
           creator = '''      {isOwnProfile && profile && (
-        <div className="px-4 mt-3">
-          <ProfileCreatorTools userId={profile.id} />
-        </div>
-      )}
-
-'''
+          <div className="px-4 mt-3">
+            <ProfileCreatorTools userId={profile.id} />
+          </div>
+          )}
+          '''
           transformed = transformed.replace(tabs, creator + tabs, 1)
 
           exactly(transformed, '<ProfileCompactActions', 1)
