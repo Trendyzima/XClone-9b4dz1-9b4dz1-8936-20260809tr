@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { BadgeCheck, Ban, Check, Crown, DollarSign, Globe, MessageCircle, MoreHorizontal, Send, Share2, ShieldCheck, Volume2, VolumeX } from 'lucide-react';
+import { BadgeCheck, Ban, Check, Crown, DollarSign, Gift, Globe, MessageCircle, MoreHorizontal, Send, Share2, ShieldCheck, Volume2, VolumeX } from 'lucide-react';
 import { toast } from 'sonner';
 
 export type ProfileCompactActionsProps = {
@@ -17,6 +17,7 @@ export type ProfileCompactActionsProps = {
   onMessage: () => void;
   onSend: () => void;
   onTip: () => void;
+  onGiftPremium?: () => void;
   onSubscribe?: () => void;
   onUnsubscribe?: () => void;
   subscribed?: boolean;
@@ -45,6 +46,7 @@ export function ProfileCompactActions({
   onMessage,
   onSend,
   onTip,
+  onGiftPremium,
   onSubscribe,
   onUnsubscribe,
   subscribed,
@@ -99,6 +101,11 @@ export function ProfileCompactActions({
                 <button onClick={() => { close(); onSend(); }} className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted">
                   <Send className="w-4 h-4 text-primary" /> Send money
                 </button>
+                {onGiftPremium && (
+                  <button onClick={() => { close(); onGiftPremium(); }} className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted">
+                    <Gift className="w-4 h-4 text-amber-500" /> Gift Premium
+                  </button>
+                )}
                 {isCreator && onSubscribe && (
                   <button onClick={() => { close(); subscribed ? onUnsubscribe?.() : onSubscribe(); }} className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted">
                     <Crown className="w-4 h-4 text-purple-600" /> {subscribed ? 'Cancel subscription' : 'Subscribe'}
