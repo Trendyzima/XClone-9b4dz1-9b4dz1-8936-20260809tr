@@ -3776,7 +3776,7 @@ export default function WalletPage() {
 
   const handleCurrencyChange = async (c: CurrencyCode) => {
     setCurrency(c);
-    if (user) await supabase.from('user_wallets').update({ preferred_currency: c }).eq('user_id', user.id);
+    if (user) await supabase.rpc('set_wallet_preferred_currency', { p_currency: c });
   };
 
   const pinHash: string | null               = (wallet as any)?.wallet_pin_hash         ?? null;
