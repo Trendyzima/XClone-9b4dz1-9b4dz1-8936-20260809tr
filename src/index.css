@@ -2,184 +2,43 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ======================== */
-/* CSS Variables – Light Theme (default) */
-/* ======================== */
 @layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 0 0% 5%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 0 0% 5%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 5%;
-
-    --primary: 142 76% 32%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 0 0% 95%;
-    --secondary-foreground: 0 0% 9%;
-
-    --muted: 0 0% 95%;
-    --muted-foreground: 0 0% 42%;
-
-    --accent: 142 76% 32%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 0 0% 88%;
-    --input: 0 0% 88%;
-    --ring: 142 76% 32%;
-
-    --radius: 0.75rem;
-  }
-
-  /* ======================== */
-  /* Dark Theme */
-  /* ======================== */
-  .dark {
-    --background: 0 0% 0%;
-    --foreground: 0 0% 98%;
-
-    --card: 0 0% 7%;
-    --card-foreground: 0 0% 98%;
-
-    --popover: 0 0% 7%;
-    --popover-foreground: 0 0% 98%;
-
-    --primary: 142 76% 36%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 0 0% 14%;
-    --secondary-foreground: 0 0% 98%;
-
-    --accent: 142 76% 36%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 62% 50%;
-    --destructive-foreground: 0 0% 100%;
-
-    --border: 0 0% 15%;
-    --input: 0 0% 15%;
-    --ring: 142 76% 36%;
-  }
-
-  body {
-    @apply bg-background text-foreground;
-    font-feature-settings: "rlig" 1, "calt" 1;
-    transition: background-color 0.2s ease, color 0.2s ease;
-  }
+  :root { --background: 0 0% 100%; --foreground: 0 0% 5%; --card: 0 0% 100%; --card-foreground: 0 0% 5%; --popover: 0 0% 100%; --popover-foreground: 0 0% 5%; --primary: 142 76% 32%; --primary-foreground: 0 0% 100%; --secondary: 0 0% 95%; --secondary-foreground: 0 0% 9%; --muted: 0 0% 95%; --muted-foreground: 0 0% 42%; --accent: 142 76% 32%; --accent-foreground: 0 0% 100%; --destructive: 0 84% 60%; --destructive-foreground: 0 0% 100%; --border: 0 0% 88%; --input: 0 0% 88%; --ring: 142 76% 32%; --radius: 0.75rem; }
+  .dark { --background: 0 0% 0%; --foreground: 0 0% 98%; --card: 0 0% 7%; --card-foreground: 0 0% 98%; --popover: 0 0% 7%; --popover-foreground: 0 0% 98%; --primary: 142 76% 36%; --primary-foreground: 0 0% 100%; --secondary: 0 0% 14%; --secondary-foreground: 0 0% 98%; --accent: 142 76% 36%; --accent-foreground: 0 0% 100%; --destructive: 0 62% 50%; --destructive-foreground: 0 0% 100%; --border: 0 0% 15%; --input: 0 0% 15%; --ring: 142 76% 36%; }
+  body { @apply bg-background text-foreground; font-feature-settings: "rlig" 1, "calt" 1; transition: background-color 0.2s ease, color 0.2s ease; }
 }
 
-/* ======================== */
-/* Scrollbars */
-/* ======================== */
 .scrollbar-hide::-webkit-scrollbar { display: none; }
 .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: hsl(var(--muted)); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / 0.5); }
-
-/* ======================== */
-/* Animations */
-/* ======================== */
 html { scroll-behavior: smooth; }
-
-@keyframes slideIn {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-@keyframes slideInLeft {
-  from { opacity: 0; transform: translateX(-10px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-@keyframes scaleIn {
-  from { opacity: 0; transform: scale(0.95); }
-  to   { opacity: 1; transform: scale(1); }
-}
-
-.animate-slide-in     { animation: slideIn 0.3s ease-out; }
-.animate-slide-left   { animation: slideInLeft 0.3s ease-out; }
-.animate-fade-in      { animation: fadeIn 0.3s ease-out; }
-.animate-scale-in     { animation: scaleIn 0.2s ease-out; }
-
-/* ======================== */
-/* Post content */
-/* ======================== */
+@keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes slideInLeft { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: translateX(0); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes scaleIn { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+.animate-slide-in { animation: slideIn 0.3s ease-out; }
+.animate-slide-left { animation: slideInLeft 0.3s ease-out; }
+.animate-fade-in { animation: fadeIn 0.3s ease-out; }
+.animate-scale-in { animation: scaleIn 0.2s ease-out; }
 .post-content a { @apply text-primary hover:underline; }
-
-/* ======================== */
-/* Overflow / responsive */
-/* ======================== */
 * { max-width: 100%; word-wrap: break-word; overflow-wrap: break-word; box-sizing: border-box; }
 html, body { overflow-x: hidden; width: 100%; }
 img, video, iframe, svg { max-width: 100%; height: auto; }
 pre, code { white-space: pre-wrap; word-break: break-all; }
-
-/* ======================== */
-/* TikTok-style video feed */
-/* ======================== */
-.video-feed-container {
-  height: 100svh;
-  overflow-y: scroll;
-  scroll-snap-type: y mandatory;
-  -webkit-overflow-scrolling: touch;
-}
-.video-feed-item {
-  height: 100svh;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
-  position: relative;
-}
-
-/* ======================== */
-/* Theme-aware glass effects */
-/* ======================== */
+.video-feed-container { height: 100svh; overflow-y: scroll; scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch; }
+.video-feed-item { height: 100svh; scroll-snap-align: start; scroll-snap-stop: always; position: relative; }
 .glass-light { background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); }
 .dark .glass-light { background: rgba(0,0,0,0.75); backdrop-filter: blur(12px); }
-
-/* ======================== */
-/* Pulse animation for live badge */
-/* ======================== */
-@keyframes livePulse {
-  0%, 100% { opacity: 1; }
-  50%       { opacity: 0.4; }
-}
+@keyframes livePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 .animate-live-pulse { animation: livePulse 1.4s ease-in-out infinite; }
+@keyframes floatUp { 0% { opacity: 1; transform: translateY(0) scale(1); } 80% { opacity: 0.7; transform: translateY(-120px) scale(1.2); } 100% { opacity: 0; transform: translateY(-160px) scale(0.8); } }
+:root:not(.dark) .border-border { border-color: hsl(0 0% 88%); }
+:root:not(.dark) .bg-muted\\/50 { background-color: hsl(0 0% 96% / 0.5); }
 
-/* ======================== */
-/* Float-up reaction animation (live spaces, community chat) */
-/* ======================== */
-@keyframes floatUp {
-  0%   { opacity: 1; transform: translateY(0) scale(1); }
-  80%  { opacity: 0.7; transform: translateY(-120px) scale(1.2); }
-  100% { opacity: 0; transform: translateY(-160px) scale(0.8); }
-}
-
-/* ======================== */
-/* Light theme specific overrides */
-/* ======================== */
-:root:not(.dark) .border-border {
-  border-color: hsl(0 0% 88%);
-}
-:root:not(.dark) .bg-muted\\/50 {
-  background-color: hsl(0 0% 96% / 0.5);
-}
-
-/* ======================== */
-/* Profile header collision guard */
-/* ======================== */
-/* Without a cover, the old negative margin pulled the avatar into the ad card. */
+/* Surgical profile header collision guard. Attribute selectors avoid escaping Tailwind's gap-2.5 class. */
 .border-b.border-border > .px-4.pb-4 > .flex.justify-between.items-start.-mt-16.mb-4 {
   margin-top: 0 !important;
   display: grid !important;
@@ -188,33 +47,16 @@ pre, code { white-space: pre-wrap; word-break: break-all; }
   column-gap: 1rem;
   row-gap: 0.75rem;
 }
-
-/* Keep the intentional avatar overlap only when a cover is actually rendered. */
-.border-b.border-border:has(> .h-48 img[alt="Cover"]) > .px-4.pb-4 > .flex.justify-between.items-start.-mt-16.mb-4 {
-  margin-top: -4rem !important;
-}
-
-/* The action cluster owns the right column; controls wrap inside it instead of under the avatar. */
-.border-b.border-border > .px-4.pb-4 > .flex.justify-between.items-start.-mt-16.mb-4 > .flex.flex-wrap.items-center.gap-2\.5.mt-4.max-w-full {
+.border-b.border-border:has(> .h-48 img[alt="Cover"]) > .px-4.pb-4 > .flex.justify-between.items-start.-mt-16.mb-4 { margin-top: -4rem !important; }
+.border-b.border-border > .px-4.pb-4 > .flex.justify-between.items-start.-mt-16.mb-4 > [class~="flex"][class~="flex-wrap"][class~="items-center"][class~="gap-2.5"][class~="mt-4"][class~="max-w-full"] {
   min-width: 0;
   width: 100%;
   margin-top: 1rem !important;
   justify-content: flex-end;
   align-content: flex-start;
 }
-
 @media (max-width: 639px) {
-  .border-b.border-border > .px-4.pb-4 > .flex.justify-between.items-start.-mt-16.mb-4 {
-    grid-template-columns: minmax(0, 1fr);
-    row-gap: 0.75rem;
-  }
-
-  .border-b.border-border:has(> .h-48 img[alt="Cover"]) > .px-4.pb-4 > .flex.justify-between.items-start.-mt-16.mb-4 {
-    margin-top: -4rem !important;
-  }
-
-  .border-b.border-border > .px-4.pb-4 > .flex.justify-between.items-start.-mt-16.mb-4 > .flex.flex-wrap.items-center.gap-2\.5.mt-4.max-w-full {
-    justify-content: flex-start;
-    margin-top: 0.25rem !important;
-  }
+  .border-b.border-border > .px-4.pb-4 > .flex.justify-between.items-start.-mt-16.mb-4 { grid-template-columns: minmax(0, 1fr); row-gap: 0.75rem; }
+  .border-b.border-border:has(> .h-48 img[alt="Cover"]) > .px-4.pb-4 > .flex.justify-between.items-start.-mt-16.mb-4 { margin-top: -4rem !important; }
+  .border-b.border-border > .px-4.pb-4 > .flex.justify-between.items-start.-mt-16.mb-4 > [class~="flex"][class~="flex-wrap"][class~="items-center"][class~="gap-2.5"][class~="mt-4"][class~="max-w-full"] { justify-content: flex-start; margin-top: 0.25rem !important; }
 }
