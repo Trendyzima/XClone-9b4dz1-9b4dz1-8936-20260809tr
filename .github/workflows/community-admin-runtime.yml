@@ -1,0 +1,50 @@
+name: Community Admin Runtime Acceptance
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/verify-community-admin-rpc-runtime.mjs'
+      - 'scripts/verify-community-admin-media-runtime.mjs'
+      - 'supabase/migrations/*community_admin*'
+      - '.github/workflows/community-admin-runtime.yml'
+
+concurrency:
+  group: community-admin-runtime-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  acceptance:
+    name: Two-account community admin authorization + media
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+      VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+      COMMUNITY_ADMIN_TEST_A_EMAIL: ${{ secrets.COMMUNITY_ADMIN_TEST_A_EMAIL }}
+      COMMUNITY_ADMIN_TEST_A_PASSWORD: ${{ secrets.COMMUNITY_ADMIN_TEST_A_PASSWORD }}
+      COMMUNITY_ADMIN_TEST_B_EMAIL: ${{ secrets.COMMUNITY_ADMIN_TEST_B_EMAIL }}
+      COMMUNITY_ADMIN_TEST_B_PASSWORD: ${{ secrets.COMMUNITY_ADMIN_TEST_B_PASSWORD }}
+      COMMUNITY_ADMIN_TEST_COMMUNITY_ID: ${{ secrets.COMMUNITY_ADMIN_TEST_COMMUNITY_ID }}
+      COMMUNITY_ADMIN_TEST_TARGET_USER_ID: ${{ secrets.COMMUNITY_ADMIN_TEST_TARGET_USER_ID }}
+      COMMUNITY_ADMIN_TEST_FORENSIC_KEY: ${{ secrets.COMMUNITY_ADMIN_TEST_FORENSIC_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Fail loudly if runtime identities or fixture are missing
+        shell: bash
+        run: |
+          set -euo pipefail
+          required=(VITE_SUPABASE_URL VITE_SUPABASE_ANON_KEY COMMUNITY_ADMIN_TEST_A_EMAIL COMMUNITY_ADMIN_TEST_A_PASSWORD COMMUNITY_ADMIN_TEST_B_EMAIL COMMUNITY_ADMIN_TEST_B_PASSWORD COMMUNITY_ADMIN_TEST_COMMUNITY_ID COMMUNITY_ADMIN_TEST_TARGET_USER_ID COMMUNITY_ADMIN_TEST_FORENSIC_KEY)
+          for name in "${required[@]}"; do
+            if [[ -z "${!name:-}" ]]; then echo "MISSING_REQUIRED_SECRET:$name"; exit 1; fi
+          done
+      - run: npm ci
+      - name: Run direct authenticated RPC boundary test
+        run: node scripts/verify-community-admin-rpc-runtime.mjs
+      - name: Run direct authenticated storage boundary test
+        run: node scripts/verify-community-admin-media-runtime.mjs
