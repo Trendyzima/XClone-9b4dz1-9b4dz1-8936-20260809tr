@@ -1,13 +1,14 @@
 import { supabase } from '@/lib/supabase';
 import { backendCapabilities, type CapabilityPage } from '@/services/testagramCapabilityClient';
+import { communicationCrypto } from '@/services/communicationCrypto';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 
 export type CommunicationConversation = { id: string; created_at: string; updated_at: string; latest_message?: Record<string, unknown> | null; [key: string]: unknown };
-export type CommunicationMessage = { id: string; conversation_id: string; sender_id: string; body: string; media_url?: string | null; media_type?: string | null; created_at: string; edited_at?: string | null; deleted_at?: string | null; reply_to_message_id?: string | null; shared_post_id?: string | null; client_message_id?: string | null; delivered_at?: string | null; read_at?: string | null; sender?: Record<string, unknown> | null };
+export type CommunicationMessage = { id: string; conversation_id: string; sender_id: string; body: string; media_url?: string | null; media_type?: string | null; created_at: string; edited_at?: string | null; deleted_at?: string | null; reply_to_message_id?: string | null; shared_post_id?: string | null; client_message_id?: string | null; delivered_at?: string | null; read_at?: string | null; e2ee_enabled?: boolean; e2ee_version?: string | null; e2ee_epoch?: number | null; ciphertext?: string | null; nonce?: string | null; aad?: string | null; sender?: Record<string, unknown> | null };
 export type MessageAttachment = { id: string; message_id: string; owner_id: string; media_url: string; media_type: string; mime_type?: string | null; byte_size: number; duration_ms?: number | null; width?: number | null; height?: number | null; created_at: string };
 export type TypingState = { user_id: string; typing: boolean; at: string };
 export type PresenceState = { user_id: string; status: 'online' | 'away' | 'offline'; at: string };
-export type CallSession = { call_id: string; provider: 'livekit'; room_name: string; conversation_id?: string; created_by?: string; status?: 'ringing' | 'active' | 'ended' | 'failed'; kind?: 'voice' | 'video' | 'screen' };
+export type CallSession = { call_id: string; provider: 'livekit'; room_name: string; conversation_id?: string; created_by?: string; status?: 'ringing' | 'active' | 'ended' | 'failed'; kind?: 'voice' | 'video' | 'screen'; e2ee_enabled?: boolean; e2ee_epoch?: number | null };
 export type CallSessionChange = { operation: 'INSERT' | 'UPDATE' | 'DELETE'; session: CallSession; previous?: Partial<CallSession> | null };
 
 const conversationTopic = (conversationId: string) => `conversation:${conversationId}`;
@@ -27,20 +28,48 @@ const normalizeCall = (row: Record<string, unknown>): CallSession => ({
   ...(row as CallSession),
   call_id: String(row.id ?? row.call_id),
   provider: 'livekit',
+  e2ee_enabled: Boolean(row.e2ee_enabled),
+  e2ee_epoch: row.e2ee_epoch == null ? null : Number(row.e2ee_epoch),
 });
+
+const encryptInput = async (input: { conversationId: string; body: string; clientMessageId?: string; replyToMessageId?: string; sharedPostId?: string }) => {
+  const encrypted = await communicationCrypto.encryptMessage(input.conversationId, input.body);
+  return { ...encrypted, aad: `${input.conversationId}:${encrypted.epoch}`, e2ee_version: 'v1' };
+};
 
 export const communicationService = {
   listConversations(limit = 50) { return backendCapabilities.call<{ items: CommunicationConversation[] }>('testagram.conversations.list', { limit }); },
   createConversation(memberIds: string[]) { return backendCapabilities.call<{ conversation_id: string }>('testagram.conversations.create', { member_ids: memberIds }); },
   listMessages(conversationId: string, limit = 50, cursor?: string) { return backendCapabilities.call<CapabilityPage<CommunicationMessage>>('testagram.messages.list', { conversation_id: conversationId, limit, ...(cursor ? { cursor } : {}) }); },
+  async decryptMessage(message: CommunicationMessage) {
+    if (!message.e2ee_enabled || !message.ciphertext || !message.nonce || !message.e2ee_epoch) return message;
+    const body = await communicationCrypto.decryptMessage(message.conversation_id, message.e2ee_epoch, message.ciphertext, message.nonce, message.aad ?? undefined);
+    return { ...message, body };
+  },
+  async decryptMessages(messages: CommunicationMessage[]) {
+    return Promise.all(messages.map(message => this.decryptMessage(message)));
+  },
   async sendMessage(input: { conversationId: string; body: string; clientMessageId?: string; replyToMessageId?: string; sharedPostId?: string }) {
-    const result = await backendCapabilities.call<{ message_id: string }>('testagram.messages.send', { conversation_id: input.conversationId, body: input.body, ...(input.clientMessageId ? { client_message_id: input.clientMessageId } : {}), ...(input.replyToMessageId ? { reply_to_message_id: input.replyToMessageId } : {}), ...(input.sharedPostId ? { shared_post_id: input.sharedPostId } : {}) });
-    trackTestagramEvent(TestagramEvent.MESSAGE_SENT, { conversation_id: input.conversationId, message_id: result.message_id, has_reply: Boolean(input.replyToMessageId), has_shared_post: Boolean(input.sharedPostId) });
+    const encrypted = await encryptInput(input);
+    const result = await backendCapabilities.call<{ message_id: string; encrypted: boolean }>('testagram.messages.send_encrypted', {
+      conversation_id: input.conversationId,
+      e2ee_version: encrypted.e2ee_version,
+      e2ee_epoch: encrypted.epoch,
+      ciphertext: encrypted.ciphertext,
+      nonce: encrypted.nonce,
+      aad: encrypted.aad,
+      ...(input.clientMessageId ? { client_message_id: input.clientMessageId } : {}),
+      ...(input.replyToMessageId ? { reply_to_message_id: input.replyToMessageId } : {}),
+      ...(input.sharedPostId ? { shared_post_id: input.sharedPostId } : {}),
+    });
+    trackTestagramEvent(TestagramEvent.MESSAGE_SENT, { conversation_id: input.conversationId, message_id: result.message_id, has_reply: Boolean(input.replyToMessageId), has_shared_post: Boolean(input.sharedPostId), encrypted: true });
     return result;
   },
-  async editMessage(messageId: string, body: string) {
-    const result = await backendCapabilities.call<{ message_id: string; edited: boolean }>('testagram.messages.edit', { message_id: messageId, body });
-    trackTestagramEvent(TestagramEvent.MESSAGE_EDITED, { message_id: result.message_id });
+  async editMessage(messageId: string, body: string, conversationId?: string) {
+    if (!conversationId) throw new Error('Conversation id required for encrypted edit');
+    const encrypted = await encryptInput({ conversationId, body });
+    const result = await backendCapabilities.call<{ message_id: string; edited: boolean }>('testagram.messages.edit_encrypted', { message_id: messageId, e2ee_version: encrypted.e2ee_version, e2ee_epoch: encrypted.epoch, ciphertext: encrypted.ciphertext, nonce: encrypted.nonce, aad: encrypted.aad });
+    trackTestagramEvent(TestagramEvent.MESSAGE_EDITED, { message_id: result.message_id, encrypted: true });
     return result;
   },
   async deleteMessage(messageId: string) {
@@ -56,8 +85,9 @@ export const communicationService = {
     return result;
   },
   async createCall(conversationId: string, kind: 'voice' | 'video' | 'screen' = 'video') {
-    const result = await backendCapabilities.call<CallSession>('testagram.calls.create', { conversation_id: conversationId, kind });
-    trackTestagramEvent('testagram_call_started' as never, { conversation_id: conversationId, call_id: result.call_id, kind });
+    const key = await communicationCrypto.ensureConversationKey(conversationId);
+    const result = await backendCapabilities.call<CallSession>('testagram.calls.create', { conversation_id: conversationId, kind, e2ee_enabled: true, e2ee_epoch: key.epoch });
+    trackTestagramEvent('testagram_call_started' as never, { conversation_id: conversationId, call_id: result.call_id, kind, encrypted: true });
     return result;
   },
   async joinCall(callId: string) {
@@ -77,79 +107,45 @@ export const communicationService = {
     const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/livekit-token`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ call_id: callId }) });
     const payload = await response.json().catch(() => null);
     if (!response.ok || !payload?.ok) throw new Error(payload?.error?.message ?? 'Unable to obtain call token');
-    return payload.data as { token: string; url: string; room_name: string; call_id: string; kind: string };
+    return payload.data as { token: string; url: string; room_name: string; call_id: string; kind: string; e2ee_enabled?: boolean; e2ee_epoch?: number | null };
   },
   subscribeToConversation(conversationId: string, handlersOrCallback: ConversationHandlers | ((message: CommunicationMessage) => void) = {}) {
     const handlers: ConversationHandlers = typeof handlersOrCallback === 'function' ? { onMessage: handlersOrCallback } : handlersOrCallback;
     const channel = supabase
       .channel(conversationTopic(conversationId), { config: { private: true, broadcast: { self: false } } })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onMessage?.(payload.new as CommunicationMessage))
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` }, payload => { const message = payload.new as CommunicationMessage; void this.decryptMessage(message).then(handlers.onMessage).catch(error => console.warn('[communication] decrypt message failed', error)); })
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` }, payload => {
         const message = payload.new as CommunicationMessage;
         if (message.deleted_at) handlers.onMessageDeleted?.(message);
-        else handlers.onMessageChanged?.(message);
+        else void this.decryptMessage(message).then(handlers.onMessageChanged).catch(error => console.warn('[communication] decrypt update failed', error));
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'INSERT', session: normalizeCall(payload.new as Record<string, unknown>) }))
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'UPDATE', session: normalizeCall(payload.new as Record<string, unknown>), previous: payload.old as Partial<CallSession> }))
       .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'DELETE', session: normalizeCall(payload.old as Record<string, unknown>) }))
-      .on('broadcast', { event: 'typing' }, payload => {
-        const value = payload.payload as Partial<TypingState>;
-        if (value.user_id && typeof value.typing === 'boolean') handlers.onTyping?.({ user_id: value.user_id, typing: value.typing, at: value.at ?? new Date().toISOString() });
-      })
-      .on('presence', { event: 'sync' }, () => {
-        const state = channel.presenceState<TypingState & { status?: PresenceState['status']; at?: string }>();
-        Object.entries(state).forEach(([key, values]) => {
-          const value = values[0];
-          if (value?.status) handlers.onPresence?.({ user_id: key, status: value.status, at: value.at ?? new Date().toISOString() });
-        });
-      })
-      .on('presence', { event: 'join' }, ({ key, newPresences }) => {
-        const value = newPresences[0] as Partial<PresenceState> | undefined;
-        if (value?.status) handlers.onPresence?.({ user_id: key, status: value.status, at: value.at ?? new Date().toISOString() });
-      })
+      .on('broadcast', { event: 'typing' }, payload => { const value = payload.payload as Partial<TypingState>; if (value.user_id && typeof value.typing === 'boolean') handlers.onTyping?.({ user_id: value.user_id, typing: value.typing, at: value.at ?? new Date().toISOString() }); })
+      .on('presence', { event: 'sync' }, () => { const state = channel.presenceState<TypingState & { status?: PresenceState['status']; at?: string }>(); Object.entries(state).forEach(([key, values]) => { const value = values[0]; if (value?.status) handlers.onPresence?.({ user_id: key, status: value.status, at: value.at ?? new Date().toISOString() }); }); })
+      .on('presence', { event: 'join' }, ({ key, newPresences }) => { const value = newPresences[0] as Partial<PresenceState> | undefined; if (value?.status) handlers.onPresence?.({ user_id: key, status: value.status, at: value.at ?? new Date().toISOString() }); })
       .on('presence', { event: 'leave' }, ({ key }) => handlers.onPresence?.({ user_id: key, status: 'offline', at: new Date().toISOString() }));
-    void channel.subscribe((status, error) => {
-      if (status === 'SUBSCRIBED') {
-        void supabase.auth.getSession().then(({ data }) => {
-          const userId = data.session?.user.id;
-          if (userId) return channel.track({ user_id: userId, status: 'online', at: new Date().toISOString() });
-          return undefined;
-        });
-      }
-      if (error) console.warn('[communication] realtime subscription error', error);
-    });
+    void channel.subscribe((status, error) => { if (status === 'SUBSCRIBED') void supabase.auth.getSession().then(({ data }) => { const userId = data.session?.user.id; if (userId) return channel.track({ user_id: userId, status: 'online', at: new Date().toISOString() }); return undefined; }); if (error) console.warn('[communication] realtime subscription error', error); });
     return () => { void supabase.removeChannel(channel); };
   },
   subscribeToCallSessions(conversationId: string, handlersOrCallback: CallHandlers | ((change: CallSessionChange) => void) = {}) {
     const handlers: CallHandlers = typeof handlersOrCallback === 'function' ? { onCall: handlersOrCallback } : handlersOrCallback;
-    const channel = supabase
-      .channel(conversationTopic(conversationId), { config: { private: true, broadcast: { self: false } } })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'INSERT', session: normalizeCall(payload.new as Record<string, unknown>) }))
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'UPDATE', session: normalizeCall(payload.new as Record<string, unknown>), previous: payload.old as Partial<CallSession> }))
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'DELETE', session: normalizeCall(payload.old as Record<string, unknown>) }))
-      .subscribe((status, error) => { if (error) console.warn('[communication] call realtime error', status, error); });
+    const channel = supabase.channel(conversationTopic(conversationId), { config: { private: true, broadcast: { self: false } } }).on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'INSERT', session: normalizeCall(payload.new as Record<string, unknown>) })).on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'UPDATE', session: normalizeCall(payload.new as Record<string, unknown>), previous: payload.old as Partial<CallSession> })).on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'call_sessions', filter: `conversation_id=eq.${conversationId}` }, payload => handlers.onCall?.({ operation: 'DELETE', session: normalizeCall(payload.old as Record<string, unknown>) })).subscribe((status, error) => { if (error) console.warn('[communication] call realtime error', status, error); });
     return () => { void supabase.removeChannel(channel); };
   },
   async setTyping(conversationId: string, typing: boolean) {
-    const channel = supabase.channel(conversationTopic(conversationId), { config: { private: true, broadcast: { self: false, ack: true } } });
-    const session = await supabase.auth.getSession();
-    const userId = session.data.session?.user.id;
-    if (!userId) throw new Error('Authentication required');
+    const channel = supabase.channel(conversationTopic(conversationId), { config: { private: true, broadcast: { self: false, ack: true } });
+    const session = await supabase.auth.getSession(); const userId = session.data.session?.user.id; if (!userId) throw new Error('Authentication required');
     await channel.subscribe();
-    try {
-      const result = await channel.send({ type: 'broadcast', event: 'typing', payload: { user_id: userId, typing, at: new Date().toISOString() } });
-      if (result !== 'ok') throw new Error(`Typing broadcast failed: ${String(result)}`);
-    } finally { await supabase.removeChannel(channel); }
+    try { const result = await channel.send({ type: 'broadcast', event: 'typing', payload: { user_id: userId, typing, at: new Date().toISOString() } }); if (result !== 'ok') throw new Error(`Typing broadcast failed: ${String(result)}`); }
+    finally { await supabase.removeChannel(channel); }
   },
   async setPresence(conversationId: string, status: PresenceState['status']) {
     const channel = supabase.channel(conversationTopic(conversationId), { config: { private: true } });
-    const session = await supabase.auth.getSession();
-    const userId = session.data.session?.user.id;
-    if (!userId) throw new Error('Authentication required');
+    const session = await supabase.auth.getSession(); const userId = session.data.session?.user.id; if (!userId) throw new Error('Authentication required');
     await channel.subscribe();
-    try {
-      const result = await channel.track({ user_id: userId, status, at: new Date().toISOString() });
-      if (result !== 'ok') throw new Error(`Presence update failed: ${String(result)}`);
-    } finally { await supabase.removeChannel(channel); }
+    try { const result = await channel.track({ user_id: userId, status, at: new Date().toISOString() }); if (result !== 'ok') throw new Error(`Presence update failed: ${String(result)}`); }
+    finally { await supabase.removeChannel(channel); }
   },
 };
