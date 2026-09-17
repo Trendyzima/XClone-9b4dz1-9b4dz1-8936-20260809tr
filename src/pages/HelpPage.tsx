@@ -60,11 +60,12 @@ const ACCOUNT_TOPICS = [
   {
     q: 'Privacy settings',
     a: [
-      'Go to Settings → Privacy to control who can see your content.',
-      'You can make your account private — new followers need your approval.',
-      'Control who can send you Direct Messages: Everyone, Followers only, or Nobody.',
-      'Mute or Block users from their profile page or the three-dot menu on their posts.',
-      'Your email and phone number are always private and never shown publicly.',
+      'Open Settings → Privacy & Security to control account visibility and discovery.',
+      'Private Account controls whether new followers need your approval before they can see protected posts.',
+      'Discoverable by Username controls whether other people can find your profile through @username, display name, or bio search.',
+      'Your public profile can be discovered even when your account is protected; protected posts remain limited to you and approved followers.',
+      'Email and phone discovery are separate controls and do not make your email address or phone number public.',
+      'Changes to discovery settings are saved to your profile and apply across Search, Explore, and public profile discovery.',
     ],
   },
 ];
