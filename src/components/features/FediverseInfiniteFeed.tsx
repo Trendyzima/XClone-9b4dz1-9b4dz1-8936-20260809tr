@@ -16,7 +16,6 @@ const cursorFor = (item: any): string | null => {
 export function FediverseInfiniteFeed({ initialItems, renderItem, pageSize = 30 }: Props) {
   const [items, setItems] = useState<any[]>(initialItems);
   const [cursor, setCursor] = useState<string | null>(() => cursorFor(initialItems[initialItems.length - 1]));
-  const [hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
   const [caughtUp, setCaughtUp] = useState(false);
   const loadingRef = useRef(false);
@@ -26,7 +25,6 @@ export function FediverseInfiniteFeed({ initialItems, renderItem, pageSize = 30 
   useEffect(() => {
     setItems(initialItems);
     setCursor(cursorFor(initialItems[initialItems.length - 1]));
-    setHasMore(true);
     setCaughtUp(false);
   }, [initialItems]);
 
@@ -43,6 +41,11 @@ export function FediverseInfiniteFeed({ initialItems, renderItem, pageSize = 30 
     });
   }, []);
 
+  const scheduleRetry = useCallback((delayMs: number, next: () => void) => {
+    if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+    retryTimerRef.current = setTimeout(next, delayMs);
+  }, []);
+
   const loadNext = useCallback(async () => {
     if (loadingRef.current) return;
     if (!cursor && items.length > 0) return;
@@ -56,30 +59,30 @@ export function FediverseInfiniteFeed({ initialItems, renderItem, pageSize = 30 
         before: cursor ?? undefined,
       });
       const incoming = page.items ?? [];
-      const beforeCount = items.length;
+      const nextCursor = page.pagination?.nextCursor ?? cursorFor(incoming[incoming.length - 1]) ?? cursor;
       merge(incoming);
-      setCursor(page.pagination?.nextCursor ?? cursor);
+      setCursor(nextCursor);
 
-      if (incoming.length === 0 || items.length === beforeCount) {
-        // Do not render an "end of feed" state. Keep the sentinel alive and
-        // periodically check for newly federated objects while the user remains
-        // at the bottom of the stream.
+      if (incoming.length === 0) {
+        // There is deliberately no terminal "end of feed" state. Keep the
+        // bottom sentinel alive and check again for newly federated content.
         setCaughtUp(true);
-        if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
-        retryTimerRef.current = setTimeout(loadNext, 15000);
-      } else {
-        setHasMore(page.pagination?.hasMore ?? incoming.length >= pageSize);
+        scheduleRetry(15000, loadNext);
+      } else if (!page.pagination?.hasMore) {
+        // We reached the currently stored boundary. Keep polling from the last
+        // item so newly arriving ActivityPub objects can extend the stream.
+        setCaughtUp(true);
+        scheduleRetry(15000, loadNext);
       }
     } catch {
-      // A transient gateway/database failure should not terminate the stream.
+      // A transient gateway/database failure must not terminate the feed.
       setCaughtUp(true);
-      if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
-      retryTimerRef.current = setTimeout(loadNext, 10000);
+      scheduleRetry(10000, loadNext);
     } finally {
       loadingRef.current = false;
       setLoading(false);
     }
-  }, [cursor, items.length, merge, pageSize]);
+  }, [cursor, items.length, merge, pageSize, scheduleRetry]);
 
   useEffect(() => () => {
     if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
@@ -108,8 +111,6 @@ export function FediverseInfiniteFeed({ initialItems, renderItem, pageSize = 30 
             <RefreshCw className="w-3.5 h-3.5" />
             Loading more federated content automatically…
           </div>
-        ) : hasMore ? (
-          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground/40" />
         ) : null}
       </div>
     </>
