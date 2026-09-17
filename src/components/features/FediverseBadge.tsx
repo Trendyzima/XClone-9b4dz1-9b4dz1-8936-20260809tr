@@ -8,16 +8,21 @@ interface FediverseBadgeProps {
   compact?: boolean;
 }
 
+function getLocalFederationDomain(): string {
+  if (typeof window !== 'undefined' && window.location.hostname) return window.location.hostname;
+  return 'testagram.site';
+}
+
 export function FediverseBadge({ username, remoteFollowers = 0, compact = false }: FediverseBadgeProps) {
   const [copied, setCopied] = useState(false);
-  const handle = `@${username}@testagram.site`;
+  const handle = `@${username}@${getLocalFederationDomain()}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(handle).then(() => {
       setCopied(true);
       toast.success('Fediverse handle copied!');
       setTimeout(() => setCopied(false), 2000);
-    });
+    }).catch(() => toast.error('Could not copy Fediverse handle'));
   };
 
   if (compact) {
