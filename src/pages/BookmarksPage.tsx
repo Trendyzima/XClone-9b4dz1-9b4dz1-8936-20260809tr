@@ -87,7 +87,7 @@ export function BookmarksPage() {
     setLoadingCollectionPosts(true);
     const { data } = await supabase
       .from('list_posts')
-      .select('*, post:posts(*, profiles(*))')
+      .select('*, post:posts(*, user_profiles:profiles!posts_user_id_fkey(*))')
       .eq('list_id', listId)
       .order('added_at', { ascending: false });
     setCollectionPosts((data ?? []).map((lp: any) => lp.post).filter(Boolean));
