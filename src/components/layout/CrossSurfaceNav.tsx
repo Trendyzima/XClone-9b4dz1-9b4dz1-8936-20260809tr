@@ -5,7 +5,7 @@ const SURFACES = [
   { label: 'Home', path: '/', icon: Home },
   { label: 'Explore', path: '/explore', icon: Compass },
   { label: 'Search', path: '/search', icon: Search },
-  { label: 'Hashtags', path: '/hashtag/trending', icon: Hash },
+  { label: 'Hashtags', path: '/search?tab=Hashtags', icon: Hash },
   { label: 'Discover', path: '/discover', icon: Users },
   { label: 'Threads', path: '/threads', icon: FileText },
 ] as const;
@@ -23,12 +23,11 @@ export function CrossSurfaceNav() {
     <nav aria-label="Explore Testagram" className="border-b border-border bg-background/95 backdrop-blur overflow-x-auto scrollbar-hide">
       <div className="flex min-w-max px-2">
         {SURFACES.map(({ label, path, icon: Icon }) => {
-          const root = path === '/' ? '/' : path;
-          const active = path === '/'
-            ? activeRoot === '/'
-            : path === '/hashtag/trending'
-              ? activeRoot === '/hashtag/'
-              : activeRoot === root;
+          const active = label === 'Hashtags'
+            ? activeRoot === '/hashtag/' || (location.pathname === '/search' && location.search.includes('tab=Hashtags'))
+            : path === '/'
+              ? activeRoot === '/'
+              : activeRoot === path;
           return (
             <button
               key={label}
