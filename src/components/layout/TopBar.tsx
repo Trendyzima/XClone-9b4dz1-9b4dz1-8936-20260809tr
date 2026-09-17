@@ -4,6 +4,7 @@ import { ArrowLeft, Settings } from 'lucide-react';
 import { ThemeToggle } from './ThemeToggle';
 import { MobileSidebarDrawer } from './MobileSidebarDrawer';
 import { CrossSurfaceNav } from './CrossSurfaceNav';
+import { CommunityAdminOverlay } from '@/components/features/CommunityAdminOverlay';
 
 interface TopBarProps {
   title: string;
@@ -27,6 +28,7 @@ export function TopBar({ title, showProfile = true, showBack = false, onBack, sh
   const location = useLocation();
   const isHome = location.pathname === '/';
   const showCrossSurfaceNav = shouldShowCrossSurfaceNav(location.pathname);
+  const isCommunity = location.pathname.startsWith('/c/');
 
   return (
     <div className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border">
@@ -80,6 +82,7 @@ export function TopBar({ title, showProfile = true, showBack = false, onBack, sh
         </div>
       </div>
       {showCrossSurfaceNav && <CrossSurfaceNav />}
+      {isCommunity && <CommunityAdminOverlay />}
     </div>
   );
 }
