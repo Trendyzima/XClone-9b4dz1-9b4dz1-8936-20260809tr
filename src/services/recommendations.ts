@@ -154,7 +154,7 @@ export async function fetchCandidates(
   if (signals.followingIds.length > 0) {
     const { data: followPosts } = await supabase
       .from('posts')
-      .select('*, profiles(*)')
+      .select('*, user_profiles:profiles!posts_user_id_fkey(*)')
       .in('user_id', signals.followingIds)
       .not('user_id', 'in', `(${[...signals.mutedIds, ...signals.blockedIds].slice(0, 50).join(',') || "''"})`)
       .is('community_id', null)
@@ -196,7 +196,7 @@ export async function fetchCandidates(
       if (interestPostIds.length > 0) {
         const { data: intPosts } = await supabase
           .from('posts')
-          .select('*, profiles(*)')
+          .select('*, user_profiles:profiles!posts_user_id_fkey(*)')
           .in('id', interestPostIds.slice(0, 50))
           .not('user_id', 'eq', userId)
           .is('community_id', null)
@@ -218,7 +218,7 @@ export async function fetchCandidates(
   // Batch 3: Viral/trending posts (2nd-degree connections + popular)
   const { data: viralPosts } = await supabase
     .from('posts')
-    .select('*, profiles(*)')
+    .select('*, user_profiles:profiles!posts_user_id_fkey(*)')
     .is('community_id', null)
     .gte('views_count', VIRAL_THRESHOLD)
     .not('user_id', 'eq', userId)
@@ -285,7 +285,7 @@ export async function buildFollowingFeed(
   // Primary: chronological posts from following
   const { data: primaryPosts } = await supabase
     .from('posts')
-    .select('*, profiles(*)')
+    .select('*, user_profiles:profiles!posts_user_id_fkey(*)')
     .in('user_id', followingIds)
     .not('user_id', 'in', `(${signals.mutedIds.slice(0, 50).join(',') || "''"})`)
     .is('community_id', null)
@@ -313,7 +313,7 @@ export async function buildFollowingFeed(
     if (secondDegreeIds.length > 0) {
       const { data: viralPosts } = await supabase
         .from('posts')
-        .select('*, profiles(*)')
+        .select('*, user_profiles:profiles!posts_user_id_fkey(*)')
         .in('user_id', secondDegreeIds)
         .is('community_id', null)
         .order('likes_count', { ascending: false })
