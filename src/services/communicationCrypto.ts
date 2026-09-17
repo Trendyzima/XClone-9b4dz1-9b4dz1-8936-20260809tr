@@ -10,6 +10,12 @@ type StoredDevice = {
   publicKey: CryptoKey;
 };
 
+export type CommunicationDeviceIdentity = {
+  deviceId: string;
+  databaseDeviceId: string;
+  publicKey: string;
+};
+
 const openDb = () => new Promise<IDBDatabase>((resolve, reject) => {
   const request = indexedDB.open(DB_NAME, 1);
   request.onupgradeneeded = () => request.result.createObjectStore(STORE, { keyPath: 'deviceId' });
@@ -90,20 +96,34 @@ const encode = (bytes: ArrayBuffer) => btoa(String.fromCharCode(...new Uint8Arra
 const decode = (value: string) => Uint8Array.from(atob(value), c => c.charCodeAt(0));
 
 export const communicationCrypto = {
-  async registerDevice() {
+  async registerDevice(): Promise<CommunicationDeviceIdentity> {
     const device = await ensureDevice();
     const identityPublicKey = await exportPublicKey(device.publicKey);
     const { data: session } = await supabase.auth.getSession();
     if (!session.session?.user.id) throw new Error('Authentication required');
-    const { error } = await supabase.from('communication_devices').upsert({
-      user_id: session.session.user.id,
-      device_id: device.deviceId,
-      identity_public_key: identityPublicKey,
-      last_seen_at: new Date().toISOString(),
-      revoked_at: null,
-    }, { onConflict: 'user_id,device_id' });
+
+    const { data: registeredDevice, error } = await supabase
+      .from('communication_devices')
+      .upsert({
+        user_id: session.session.user.id,
+        device_id: device.deviceId,
+        identity_public_key: identityPublicKey,
+        last_seen_at: new Date().toISOString(),
+        revoked_at: null,
+      }, { onConflict: 'user_id,device_id' })
+      .select('id, device_id, identity_public_key')
+      .single();
+
     if (error) throw error;
-    return { id: device.deviceId, publicKey: identityPublicKey };
+    if (!registeredDevice?.id || registeredDevice.device_id !== device.deviceId) {
+      throw new Error('Communication device identity reconciliation failed');
+    }
+
+    return {
+      deviceId: device.deviceId,
+      databaseDeviceId: registeredDevice.id,
+      publicKey: registeredDevice.identity_public_key,
+    };
   },
 
   async createConversationKey() {
