@@ -34,7 +34,7 @@ interface ServedAd {
 
 const SLOT: Record<TestagramAdPlacement, string> = {
   HOME_FEED: 'feed-top', FOLLOWING_FEED: 'feed-inline', VIDEO_FEED: 'video-feed',
-  REELS: 'reels', STORIES: 'stories', EXPLORE: 'explore', SEARCH: 'search',
+  REELS: 'reels', STORIES: 'story', EXPLORE: 'explore', SEARCH: 'search',
   PROFILE: 'profile', POST_DETAIL: 'post-detail', COMMUNITY: 'community',
   THREAD: 'post-detail', MARKETPLACE: 'explore', PRODUCT: 'explore', SIDEBAR: 'feed-inline',
 };
