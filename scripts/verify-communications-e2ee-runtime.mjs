@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { webcrypto } from 'node:crypto';
+import { Buffer } from 'node:buffer';
 
 const crypto = webcrypto;
 const te = new TextEncoder();
