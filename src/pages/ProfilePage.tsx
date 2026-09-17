@@ -884,6 +884,8 @@ export default function ProfilePage() {
   if (loading) return <ProfileSkeleton />;
 
   if (!profile) return null;
+  const profileFeatureSettings = { analytics: true, monetization: true, podcasts: true, series: true, achievements: true, highlights: true, 'social-links': true, tips: true, ...(profile.profile_features ?? {}) };
+  const featureEnabled = (key: string) => profileFeatureSettings[key as keyof typeof profileFeatureSettings] !== false;
   const videoPosts = posts.filter(p => p.is_video && p.video_url);
   // ── goalAchieved: MUST be declared before JSX — was missing, causing blank screen ──
   const goalAchieved = tipGoal !== null && tipGoal > 0 && currentMonthTips >= tipGoal;
@@ -912,9 +914,13 @@ export default function ProfilePage() {
   const podTotalSecs = profilePodcasts.reduce((s: number, p: any) => s + (p.duration ?? 0), 0);
   // Pre-computed highlight viewer story — esbuild guard: no IIFE in render
   const viewerHighlightStory = viewingHighlight ? (highlightStories[highlightStoryIdx] ?? null) : null;
-  const tabs = isOwnProfile
+  const tabs = (isOwnProfile
     ? ['Posts', 'Threads', 'Replies', 'Media', 'Videos', 'Podcasts', 'Series', 'Likes', 'Tips', 'Gifts', 'Followers', 'Following', 'Analytics']
-    : ['Posts', 'Threads', 'Replies', 'Media', 'Videos', 'Podcasts', 'Series', 'Likes', 'Tips', 'Gifts', 'Followers', 'Following'];
+    : ['Posts', 'Threads', 'Replies', 'Media', 'Videos', 'Podcasts', 'Series', 'Likes', 'Tips', 'Gifts', 'Followers', 'Following'])
+    .filter(tab => tab !== 'Podcasts' || featureEnabled('podcasts'))
+    .filter(tab => tab !== 'Series' || featureEnabled('series'))
+    .filter(tab => tab !== 'Tips' || featureEnabled('tips'))
+    .filter(tab => tab !== 'Analytics' || featureEnabled('analytics'));
 
   // ── Creator Tip Goal Progress Ring — visible on all profiles to all visitors —————
   // Fetched fresh from user_monetization + tips; goalAchieved triggers celebration badge
@@ -1066,7 +1072,7 @@ export default function ProfilePage() {
           {profile.bio && <p className="mb-3 break-words">{profile.bio}</p>}
 
           {/* Achievements */}
-          {profileAchievementsUnlocked.length > 0 && (
+          {featureEnabled('achievements') && profileAchievementsUnlocked.length > 0 && (
             <div className="mb-3">
               <div className="flex items-center gap-2 mb-1.5">
                 <span className="text-xs font-bold text-muted-foreground uppercase tracking-wide">Achievements</span>
@@ -1084,7 +1090,7 @@ export default function ProfilePage() {
           )}
 
           {/* Tip Goal */}
-          {(tipGoal !== null || isOwnProfile) && (
+          {featureEnabled('tips') && (tipGoal !== null || isOwnProfile) && (
             <div className="mb-3 space-y-2">
               {!editingGoal ? (
                 <div className={`rounded-2xl border p-3 transition-all ${goalAchieved ? 'border-yellow-400/60 bg-gradient-to-br from-yellow-500/15 to-amber-400/10 animate-pulse' : 'border-yellow-500/20 bg-yellow-500/5'}`}>
@@ -1176,10 +1182,10 @@ export default function ProfilePage() {
 
           {/* Story Highlights */}
           {/* StoryHighlights component */}
-          {profile && (
+          {featureEnabled('highlights') && profile && (
             <StoryHighlights profileUserId={profile.id} isOwnProfile={isOwnProfile} />
           )}
-          {(highlights.length > 0 || isOwnProfile) && (
+          {featureEnabled('highlights') && (highlights.length > 0 || isOwnProfile) && (
             <div className="flex items-start gap-4 py-3 overflow-x-auto scrollbar-hide">
               {isOwnProfile && (
                 <button onClick={() => { fetchAvailableStories(profile.id); setShowCreateHighlight(true); }} className="flex flex-col items-center gap-1.5 shrink-0 group">
@@ -1246,7 +1252,7 @@ export default function ProfilePage() {
           </div>
 
           {/* ── Social Links Row ── */}
-          {(profile.twitter_handle || profile.instagram_handle || profile.linkedin_url || isOwnProfile) && (
+          {featureEnabled('social-links') && (profile.twitter_handle || profile.instagram_handle || profile.linkedin_url || isOwnProfile) && (
             <div className="mb-3 space-y-2">
               {(profile.twitter_handle || profile.instagram_handle || profile.linkedin_url) && (
                 <div className="flex items-center gap-2 flex-wrap">
@@ -1445,8 +1451,8 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {isOwnProfile && <div className="px-4 mt-4"><RevenueAnalyticsWidget /></div>}
-      {isOwnProfile && profile && <div className="px-4 mt-4"><CreatorMonetizationHub userId={profile.id} /></div>}
+      {featureEnabled('analytics') && isOwnProfile && <div className="px-4 mt-4"><RevenueAnalyticsWidget /></div>}
+      {featureEnabled('monetization') && isOwnProfile && profile && <div className="px-4 mt-4"><CreatorMonetizationHub userId={profile.id} /></div>}
       {!isOwnProfile && profile && currentUser && (
         <div className="px-4 mt-4 space-y-3">
           <SubscriptionTiersDisplay creatorId={profile.id} viewerId={currentUser.id} creatorUsername={profile.username ?? 'creator'} />
@@ -1596,7 +1602,7 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {activeTab === 'Podcasts' && (
+        {featureEnabled('podcasts') && activeTab === 'Podcasts' && (
           loadingPodcasts ? (
             <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>
           ) : (
@@ -1727,7 +1733,7 @@ export default function ProfilePage() {
           )
         )}
 
-        {activeTab === 'Tips' && (
+        {featureEnabled('tips') && activeTab === 'Tips' && (
           loadingTips ? <div className="flex items-center justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
           : tipHistory.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground">
@@ -1761,7 +1767,7 @@ export default function ProfilePage() {
           )
         )}
 
-        {activeTab === 'Series' && (
+        {featureEnabled('series') && activeTab === 'Series' && (
           loadingProfileSeries ? (
             <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>
           ) : profileSeries.length === 0 ? (
