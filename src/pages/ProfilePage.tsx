@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsRegulator } from '@/hooks/useFeatureUnlock';
 import { TopBar } from '@/components/layout/TopBar';
@@ -244,6 +245,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Posts');
   const [isFollowing, setIsFollowing] = useState(false);
+  const [followRequested, setFollowRequested] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [verifyBannerDismissed, setVerifyBannerDismissed] = useState(false);
   const [followers, setFollowers] = useState([]);
@@ -817,11 +819,15 @@ export default function ProfilePage() {
   };
 
   const fetchPosts = async (userId: string) => {
-    const { data } = await supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,cover_url,website,location,social_links,verified_tier,follower_count,following_count,pinned_post_id,protected_account,created_at)').eq('user_id', userId).order('created_at', { ascending: false });
-    const postList = data || [];
-    setPosts(postList);
-    // Fire milestone alerts asynchronously — won't block UI
-    checkImpressionMilestones(userId, postList).catch(() => {});
+    try {
+      const result = await backendCapabilities.getProfileTimeline(userId, 50);
+      const postList = (result.items ?? []) as Post[];
+      setPosts(postList);
+      checkImpressionMilestones(userId, postList).catch(() => {});
+    } catch (error) {
+      console.error('Canonical profile timeline failed:', error);
+      setPosts([]);
+    }
   };
   const fetchThreads = async (userId: string) => {
     const { data } = await supabase.from('threads').select('*').eq('user_id', userId).eq('is_published', true).order('created_at', { ascending: false });
@@ -832,8 +838,14 @@ export default function ProfilePage() {
     setReplies(data || []);
   };
   const fetchMedia = async (userId: string) => {
-    const { data } = await supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,cover_url,website,location,social_links,verified_tier,follower_count,following_count,pinned_post_id,protected_account,created_at)').eq('user_id', userId).or('image_url.not.is.null,video_url.not.is.null,media_urls.neq.[]').order('created_at', { ascending: false });
-    setMedia(data || []);
+    try {
+      const result = await backendCapabilities.getProfileTimeline(userId, 50);
+      const visible = (result.items ?? []) as any[];
+      setMedia(visible.filter(p => !!(p.image_url || p.video_url || (Array.isArray(p.media_urls) && p.media_urls.length))));
+    } catch (error) {
+      console.error('Canonical profile media failed:', error);
+      setMedia([]);
+    }
   };
   const fetchLikedPosts = async (userId: string) => {
     const { data } = await supabase.from('post_likes').select('posts(*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,cover_url,website,location,social_links,verified_tier,follower_count,following_count,pinned_post_id,protected_account,created_at))').eq('user_id', userId).order('created_at', { ascending: false });
@@ -858,20 +870,28 @@ export default function ProfilePage() {
   };
   const checkFollowStatus = async () => {
     if (!currentUser || !profile) return;
-    const { data } = await supabase.from('follows').select('id').eq('follower_id', currentUser.id).eq('following_id', profile.id).single();
-    setIsFollowing(!!data);
+    try {
+      const result = await backendCapabilities.getFollowState(profile.id);
+      setIsFollowing(!!result.state?.following);
+      setFollowRequested(!!result.state?.requested);
+    } catch (error) {
+      console.error('Canonical follow state failed:', error);
+      setIsFollowing(false);
+      setFollowRequested(false);
+    }
   };
   const handleFollow = async () => {
     if (!currentUser) { navigate('/auth'); return; }
-    if (isFollowing) {
-      await supabase.from('follows').delete().eq('follower_id', currentUser.id).eq('following_id', profile.id);
-    } else {
-      await supabase.from('follows').insert({ follower_id: currentUser.id, following_id: profile.id });
-      await supabase.from('notifications').insert({ recipient_id: profile.id, kind: 'follow', actor_id: currentUser.id  });
-      await sendActivityNotification({ recipientUserId: profile.id, title: 'New Follower', body: `${currentUser.username} started following you`, data: { route: `/profile/${currentUser.username}`, type: 'follow', fromUserId: currentUser.id } });
+    if (!profile) return;
+    try {
+      const result = await backendCapabilities.followUser(profile.id, !(isFollowing || followRequested));
+      setIsFollowing(!!result.state?.following);
+      setFollowRequested(!!result.state?.requested);
+      await checkFollowStatus();
+      await fetchProfile();
+    } catch (error: any) {
+      toast.error(error?.message || 'Could not update follow state');
     }
-    setIsFollowing(!isFollowing);
-    fetchProfile();
   };
   const handleMessage = () => {
     if (!currentUser) { navigate('/auth'); return; }
@@ -1003,7 +1023,7 @@ export default function ProfilePage() {
                     <Send className="w-3.5 h-3.5" />Send
                   </button>
                   <button onClick={handleFollow} className={`px-4 py-2 rounded-full font-semibold transition-colors ${isFollowing ? 'border border-border hover:bg-muted' : 'bg-foreground text-background hover:opacity-90'}`}>
-                    {isFollowing ? 'Following' : 'Follow'}
+                    {isFollowing ? 'Following' : followRequested ? 'Requested' : 'Follow'}
                   </button>
                   <button onClick={() => setShowTipDialog(true)} className={`p-2 border rounded-full transition-colors ${tipSent ? 'border-yellow-500/30 bg-yellow-500/10 text-yellow-500' : 'border-border hover:bg-yellow-500/10 hover:border-yellow-500/30 text-muted-foreground hover:text-yellow-600'}`}>
                     {tipSent ? <Check className="w-4 h-4 text-yellow-500" /> : <DollarSign className="w-4 h-4" />}
