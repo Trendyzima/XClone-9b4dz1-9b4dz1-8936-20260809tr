@@ -70,6 +70,8 @@ export default function SettingsPage() {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState(true);
   const [privateAccount, setPrivateAccount] = useState(false);
+  const [discoverableByUsername, setDiscoverableByUsername] = useState(true);
+  const [savingPrivacyDiscovery, setSavingPrivacyDiscovery] = useState(false);
   const [themeChoice, setThemeChoice] = useState(getStoredThemeChoice);
   // 2FA toggle
   const [twoFaEnabled, setTwoFaEnabled] = useState(() => localStorage.getItem(TWO_FA_KEY) !== 'false');
@@ -129,6 +131,39 @@ export default function SettingsPage() {
     setSoundEnabled(v);
     setSoundsOn(v);
     if (v) playSound('dm');
+  };
+
+  // Load profile privacy/discovery settings
+  useEffect(() => {
+    if (!user) return;
+    supabase.from('profiles').select('protected_account, discoverable_by_username').eq('id', user.id).single()
+      .then(({ data }) => {
+        if (!data) return;
+        setPrivateAccount(!!data.protected_account);
+        setDiscoverableByUsername(data.discoverable_by_username !== false);
+      });
+  }, [user?.id]);
+
+  const savePrivacyDiscovery = async (patch: { protected_account?: boolean; discoverable_by_username?: boolean }) => {
+    if (!user) return;
+    setSavingPrivacyDiscovery(true);
+    const { error } = await supabase.from('profiles').update(patch).eq('id', user.id);
+    setSavingPrivacyDiscovery(false);
+    if (error) {
+      toast.error(error.message || 'Failed to update privacy settings');
+      return;
+    }
+    toast.success('Privacy settings updated');
+  };
+
+  const togglePrivateAccount = (value: boolean) => {
+    setPrivateAccount(value);
+    void savePrivacyDiscovery({ protected_account: value });
+  };
+
+  const toggleUsernameDiscovery = (value: boolean) => {
+    setDiscoverableByUsername(value);
+    void savePrivacyDiscovery({ discoverable_by_username: value });
   };
 
   // Verification + creator tier
@@ -313,7 +348,21 @@ export default function SettingsPage() {
                   <p className="text-xs text-muted-foreground">Only followers see your posts</p>
                 </div>
               </div>
-              <Switch checked={privateAccount} onCheckedChange={setPrivateAccount} />
+              <Switch checked={privateAccount} onCheckedChange={togglePrivateAccount} disabled={savingPrivacyDiscovery} />
+            </div>
+
+            {/* Public discovery */}
+            <div className="flex items-center justify-between p-3 hover:bg-muted/50 rounded-xl transition-colors">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-full bg-blue-500/10 flex items-center justify-center">
+                  <Globe className="w-4 h-4 text-blue-500" />
+                </div>
+                <div>
+                  <p className="font-semibold text-sm">Discoverable by Username</p>
+                  <p className="text-xs text-muted-foreground">Let people find your profile by @username and display name</p>
+                </div>
+              </div>
+              <Switch checked={discoverableByUsername} onCheckedChange={toggleUsernameDiscovery} disabled={savingPrivacyDiscovery} />
             </div>
 
             {/* ── Verification Status ── */}
