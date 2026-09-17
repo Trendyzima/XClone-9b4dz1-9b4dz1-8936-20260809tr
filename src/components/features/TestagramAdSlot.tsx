@@ -30,6 +30,7 @@ interface ServedAd {
   asset_url?: string;
   click_through_url?: string;
   slot_code?: string;
+  event_token?: string;
 }
 
 const SLOT: Record<TestagramAdPlacement, string> = {
@@ -48,6 +49,7 @@ export function TestagramAdSlot({ placement, context, className = '' }: {
   const [ad, setAd] = useState<ServedAd | null>(null);
   const [loading, setLoading] = useState(true);
   const impressionRef = useRef<string>('');
+  const eventTokenRef = useRef<string>('');
 
   useEffect(() => {
     let cancelled = false;
@@ -60,6 +62,7 @@ export function TestagramAdSlot({ placement, context, className = '' }: {
         });
         if (!cancelled && !error && data?.ok && data.impression_id) {
           impressionRef.current = data.impression_id;
+          eventTokenRef.current = data.event_token || '';
           setAd(data);
         }
       } catch { /* advertising is non-critical to content rendering */ }
@@ -70,9 +73,10 @@ export function TestagramAdSlot({ placement, context, className = '' }: {
 
   const event = (eventType: string) => {
     const impressionId = impressionRef.current;
-    if (!impressionId) return;
+    const eventToken = eventTokenRef.current;
+    if (!impressionId || !eventToken) return;
     supabase.functions.invoke('testagram-ads/event', {
-      body: { impression_id: impressionId, event_type: eventType, metadata: { placement, ...context } },
+      body: { impression_id: impressionId, event_type: eventType, event_token: eventToken, metadata: { placement, ...context } },
     }).catch(() => {});
   };
 
