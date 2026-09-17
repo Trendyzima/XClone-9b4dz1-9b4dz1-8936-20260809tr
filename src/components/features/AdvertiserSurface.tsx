@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
+import { FediverseBadge } from '@/components/features/FediverseBadge';
 import { BadgeCheck, BarChart3, Check, ChevronRight, Globe2, Loader2, Megaphone, Settings2, WalletCards, X, Wallet, Crown, Gift, ShieldCheck, Bell, Radio, Users, Lock, CircleDollarSign } from 'lucide-react';
 
 type Props = { variant: 'profile' | 'wallet' };
@@ -129,6 +130,7 @@ function ProfileFeatureRail() {
               </button>
             </div>
             <div className="max-h-[min(70vh,38rem)] overflow-y-auto p-2">
+              {username && <div className="px-1 pb-2"><FediverseBadge username={username} compact /></div>}
               {loading ? (
                 <div className="flex items-center justify-center gap-2 py-8 text-xs text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" />Loading features…</div>
               ) : FEATURES.map(feature => {
