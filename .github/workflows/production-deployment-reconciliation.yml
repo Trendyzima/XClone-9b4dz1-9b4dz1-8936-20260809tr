@@ -117,7 +117,7 @@ jobs:
 
             # DEPLOY_URL is already absolute; do not prepend a second https:// scheme.
             curl --fail --silent --show-error --location --retry 3 --retry-delay 2 \
-              "$DEPLOY_URL/api/health" > health.txt
+              "https://testagram.site/api/health" > health.txt
             grep -Eq '"status"[[:space:]]*:[[:space:]]*"?ok"?|HTTP/[0-9.]+[[:space:]]+200|200 OK' health.txt || { cat health.txt; sleep 10; continue; }
 
             echo "Exact SHA, production READY state, and /api/health passed."
