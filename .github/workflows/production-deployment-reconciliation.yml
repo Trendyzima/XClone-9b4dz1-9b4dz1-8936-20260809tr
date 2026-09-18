@@ -104,16 +104,7 @@ jobs:
             vercel inspect "$DEPLOY_URL" --wait --token="$VERCEL_TOKEN" > deployment-inspect.txt
 
             vercel ls --yes --format json --token="$VERCEL_TOKEN" --meta "githubCommitSha=$TARGET_SHA" > deployment-list.json
-            TARGET_SHA="$TARGET_SHA" node <<'NODE'
-            const fs = require("fs");
-            const data = JSON.parse(fs.readFileSync("deployment-list.json", "utf8"));
-            const deployments = Array.isArray(data) ? data : (data.deployments || []);
-            const matches = deployments.filter(d => d?.meta?.githubCommitSha === process.env.TARGET_SHA);
-            if (!matches.length) process.exit(20);
-            const ready = matches.find(d => d.target === "production" && d.state === "READY");
-            if (!ready) { console.error(JSON.stringify(matches, null, 2)); process.exit(21); }
-            console.log(JSON.stringify({id:ready.id,url:ready.url,state:ready.state,target:ready.target,sha:ready.meta.githubCommitSha},null,2));
-            NODE
+            node scripts/verify-vercel-deployment.mjs
 
             vercel curl /api/health --deployment "$DEPLOY_URL" --token="$VERCEL_TOKEN" > health.txt
             grep -Eq '"status"[[:space:]]*:[[:space:]]*"?ok"?|HTTP/[0-9.]+[[:space:]]+200|200 OK' health.txt || { cat health.txt; sleep 10; continue; }
