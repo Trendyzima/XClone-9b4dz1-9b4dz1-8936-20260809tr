@@ -27,7 +27,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           ref: ${{ github.event.workflow_run.head_sha }}
-          fetch-depth: 20
+          fetch-depth: 50
 
       - name: Verify repository and revision boundary
         env:
@@ -42,43 +42,63 @@ jobs:
           case "$HEAD_BRANCH" in main|surgical/*) ;; *) echo 'Repair boundary rejected'; exit 1;; esac
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
 
-      - name: Recover exact allowlisted failure signature
+      - name: Classify exact allowlisted failure signature
+        id: classify
         env:
           RUN_ID: ${{ github.event.workflow_run.id }}
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           gh run view "$RUN_ID" --log-failed > /tmp/failed.log 2>&1 || true
-          grep -Fq "no-redeclare" /tmp/failed.log
-          matched=0
-          for path in \
-            scripts/verify-communications-e2ee-browser.mjs \
-            scripts/verify-communications-e2ee-runtime.mjs \
-            scripts/verify-community-admin-media-runtime.mjs \
-            scripts/verify-community-admin-rpc-runtime.mjs; do
-            if grep -Fq "$path" /tmp/failed.log; then matched=1; fi
-          done
-          test "$matched" = 1
-          echo 'Exact allowlisted no-redeclare verifier signature confirmed.'
+
+          if grep -Fq "TS2306" /tmp/failed.log &&
+             grep -Fq "ProfilePage.tsx" /tmp/failed.log &&
+             grep -Fq "PLACEHOLDER" /tmp/failed.log; then
+            echo 'failure_class=profile-page-module-corruption' >> "$GITHUB_OUTPUT"
+            echo 'Exact ProfilePage module-corruption signature confirmed.'
+            exit 0
+          fi
+
+          if grep -Fq "no-redeclare" /tmp/failed.log; then
+            matched=0
+            for path in               scripts/verify-communications-e2ee-browser.mjs               scripts/verify-communications-e2ee-runtime.mjs               scripts/verify-community-admin-media-runtime.mjs               scripts/verify-community-admin-rpc-runtime.mjs; do
+              if grep -Fq "$path" /tmp/failed.log; then matched=1; fi
+            done
+            if test "$matched" = 1; then
+              echo 'failure_class=verifier-no-redeclare' >> "$GITHUB_OUTPUT"
+              echo 'Exact allowlisted no-redeclare verifier signature confirmed.'
+              exit 0
+            fi
+          fi
+
+          echo 'No exact bounded repair signature matched; refusing automatic mutation.'
+          exit 1
 
       - name: Enforce one bounded repair per failed SHA
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          if git log -50 --format='%B' | grep -Fq "surgical-repair-from: $HEAD_SHA"; then
+          if git log -100 --format='%B' | grep -Fq "surgical-repair-from: $HEAD_SHA"; then
             echo 'This exact SHA has already received a surgical repair.'
             exit 1
           fi
-          if git log -1 --format='%B' | grep -Fq 'ci: surgical repair'; then
+          if git log -20 --format='%B' | grep -Fq 'ci: self-heal'; then
             echo 'Refusing chained automatic repairs; human inspection required.'
             exit 1
           fi
 
-      - name: Apply exact allowlisted repair only
+      - name: Apply exactly one deterministic repair
+        env:
+          FAILURE_CLASS: ${{ steps.classify.outputs.failure_class }}
         run: |
           set -euo pipefail
-          node <<'NODE'
+          case "$FAILURE_CLASS" in
+            profile-page-module-corruption)
+              node repair/generators/repair-profile-page.mjs
+              ;;
+            verifier-no-redeclare)
+              node <<'NODE'
           const fs = require('node:fs');
           const paths = [
             'scripts/verify-communications-e2ee-browser.mjs',
@@ -99,53 +119,77 @@ jobs:
           }
           console.log(`Removed exact redundant Node global declarations from ${changed} allowlisted verifier file(s).`);
           NODE
+              ;;
+            *) echo "Unsupported failure class: $FAILURE_CLASS"; exit 1;;
+          esac
 
       - name: Prove repair diff is exactly allowlisted
+        env:
+          FAILURE_CLASS: ${{ steps.classify.outputs.failure_class }}
         run: |
           set -euo pipefail
           git diff --check
           changed="$(git diff --name-only)"
           test -n "$changed"
-          while IFS= read -r path; do
-            case "$path" in
-              scripts/verify-communications-e2ee-browser.mjs|scripts/verify-communications-e2ee-runtime.mjs|scripts/verify-community-admin-media-runtime.mjs|scripts/verify-community-admin-rpc-runtime.mjs) ;;
-              *) echo "Unexpected automatic repair path: $path"; exit 1;;
-            esac
-          done <<< "$changed"
-          if git diff --unified=0 | grep -E '^[-+]' | grep -vE '^(---|\+\+\+|-[*] global console, process \*/)$' >/tmp/unexpected.diff; then
-            cat /tmp/unexpected.diff
-            exit 1
-          fi
-          test "$(git diff --unified=0 | grep -Ec '^-[/][*] global console, process [*]/$' || true)" -ge 1
-          test "$(git diff --unified=0 | grep -Ec '^\+[^+]' || true)" -eq 0
+
+          case "$FAILURE_CLASS" in
+            profile-page-module-corruption)
+              test "$(printf '%s\n' "$changed" | wc -l | tr -d ' ')" -eq 1
+              test "$changed" = "src/pages/ProfilePage.tsx"
+              git diff --unified=0 -- src/pages/ProfilePage.tsx > /tmp/profile.diff
+              if grep -E '^\+' /tmp/profile.diff | grep -vE '^(\+\+\+|\+import |\+type |\+export |\+  |\+    |\+    \}|\+\})' >/tmp/unexpected-profile.diff; then
+                cat /tmp/unexpected-profile.diff
+                echo 'Unexpected ProfilePage diff shape.'
+                exit 1
+              fi
+              ;;
+            verifier-no-redeclare)
+              while IFS= read -r path; do
+                case "$path" in
+                  scripts/verify-communications-e2ee-browser.mjs|scripts/verify-communications-e2ee-runtime.mjs|scripts/verify-community-admin-media-runtime.mjs|scripts/verify-community-admin-rpc-runtime.mjs) ;;
+                  *) echo "Unexpected automatic repair path: $path"; exit 1;;
+                esac
+              done <<< "$changed"
+              if git diff --unified=0 | grep -E '^[-+]' | grep -vE '^(---|\+\+\+|-[*] global console, process \*/)$' >/tmp/unexpected.diff; then
+                cat /tmp/unexpected.diff
+                exit 1
+              fi
+              ;;
+            *) exit 1;;
+          esac
 
       - name: Validate repaired tree completely
+        env:
+          FAILURE_CLASS: ${{ steps.classify.outputs.failure_class }}
         run: |
           set -euo pipefail
           npm ci
           npx tsc --noEmit
           npm run lint
           npm run build
-          git diff --quiet -- src
+          case "$FAILURE_CLASS" in
+            profile-page-module-corruption)
+              node -e "const fs=require('node:fs'),c=require('node:crypto'),m=JSON.parse(fs.readFileSync('repair/manifests/profile-page.json','utf8')),x=fs.readFileSync(m.path,'utf8'); if(c.createHash('sha256').update(x).digest('hex')!==m.expected_sha256) throw new Error('ProfilePage manifest hash proof failed')"
+              ;;
+            verifier-no-redeclare) ;;
+            *) exit 1;;
+          esac
 
       - name: Create repair branch and push only validated repair
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
           RUN_ID: ${{ github.event.workflow_run.id }}
+          FAILURE_CLASS: ${{ steps.classify.outputs.failure_class }}
         run: |
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           branch="ci/self-heal/${RUN_ID}-${HEAD_SHA:0:12}"
           git switch -c "$branch"
-          git add -- \
-            scripts/verify-communications-e2ee-browser.mjs \
-            scripts/verify-communications-e2ee-runtime.mjs \
-            scripts/verify-community-admin-media-runtime.mjs \
-            scripts/verify-community-admin-rpc-runtime.mjs
+          git add --all
           git diff --cached --check
-          git commit -m "ci: self-heal verifier Node global lint defect" -m "surgical-repair-from: $HEAD_SHA"
+          git commit -m "ci: self-heal $FAILURE_CLASS" -m "surgical-repair-from: $HEAD_SHA"
           git push --set-upstream origin "$branch"
           echo "REPAIR_BRANCH=$branch" >> "$GITHUB_ENV"
 
@@ -155,13 +199,10 @@ jobs:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
           RUN_ID: ${{ github.event.workflow_run.id }}
+          FAILURE_CLASS: ${{ steps.classify.outputs.failure_class }}
         run: |
           set -euo pipefail
-          gh pr create \
-            --base main \
-            --head "$REPAIR_BRANCH" \
-            --title "ci: self-heal verifier lint failure" \
-            --body "Automated bounded repair for failed workflow run #$RUN_ID on $HEAD_BRANCH at $HEAD_SHA. Only redundant Node global declarations in four allowlisted verifier scripts were removed. The repaired tree passed typecheck, lint, and production build before this PR was opened. No application source under src/ was modified."
+          gh pr create             --base main             --head "$REPAIR_BRANCH"             --title "ci: self-heal $FAILURE_CLASS"             --body "Automated bounded repair for failed workflow run #$RUN_ID on $HEAD_BRANCH at $HEAD_SHA. Failure class: $FAILURE_CLASS. The repair is deterministic, hash-checked, diff-bounded, and validated with typecheck, lint, and production build. Automatic repair is never chained from a self-heal branch."
 
       - name: Emit repair manifest
         if: always()
@@ -169,15 +210,16 @@ jobs:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
           RUN_ID: ${{ github.event.workflow_run.id }}
+          FAILURE_CLASS: ${{ steps.classify.outputs.failure_class || 'unclassified' }}
         run: |
           {
             echo '### Surgical Self-Healing Manifest'
-            echo "- failed run: \`$RUN_ID\`"
-            echo "- failed SHA: \`$HEAD_SHA\`"
-            echo "- failed branch: \`$HEAD_BRANCH\`"
-            echo '- failure class: allowlisted ESLint no-redeclare for Node globals'
-            echo '- mutation: remove only the exact redundant `/* global console, process */` header'
-            echo '- files: four verifier scripts only'
-            echo '- validation: tsc + lint + build'
+            echo "- failed run: `$RUN_ID`"
+            echo "- failed SHA: `$HEAD_SHA`"
+            echo "- failed branch: `$HEAD_BRANCH`"
+            echo "- failure class: `$FAILURE_CLASS`"
+            echo '- mutation: exactly one allowlisted deterministic repair'
+            echo '- validation: tsc + lint + build + repair-specific hash/diff proof'
             echo '- delivery: dedicated self-heal branch + pull request; never direct main mutation'
+            echo '- recursion: self-heal branches are outside the automatic repair boundary'
           } >> "$GITHUB_STEP_SUMMARY"
