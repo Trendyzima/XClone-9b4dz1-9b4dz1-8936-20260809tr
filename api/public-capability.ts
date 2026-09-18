@@ -1,12 +1,11 @@
 export const config = { runtime: "edge" };
 
+// Must stay aligned with the canonical registry in
+// supabase/functions/_shared/capabilities.ts. Only capabilities explicitly
+// marked access: "public" may cross this unauthenticated CDN boundary.
 const PUBLIC_CAPABILITIES = new Set([
-  "testagram.search.users",
-  "testagram.search.posts",
-  "testagram.search.hashtags",
-  "testagram.search.communities",
-  "testagram.trends.list",
-  "testagram.profile.timeline",
+  "testagram.capabilities.list",
+  "testagram.health.read",
 ]);
 
 const CACHE_CONTROL = "public, s-maxage=60, stale-while-revalidate=300";
