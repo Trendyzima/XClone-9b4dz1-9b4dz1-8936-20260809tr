@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
 import * as federation from '@/api/federation';
 
 export type Post = {
@@ -36,16 +36,12 @@ function normalizeFederated(item: any): Post {
 }
 
 export async function getMergedHomeTimeline({ limit = 20, before }: { limit?: number; before?: string } = {}) {
-  // Fetch local posts from Supabase (adapt schema as needed)
-  let localRes: any = { data: [] };
+  // Canonical local timeline now comes through the authenticated capability gateway.
+  let localRes: any = { items: [] };
   try {
-    // Example: table `posts` with columns id, content, author, created_at
-    // If supabase is not configured, the proxy will throw when used — catch and continue.
-    localRes = await supabase.from('posts').select('*').order('created_at', { ascending: false }).limit(limit);
+    localRes = await backendCapabilities.listPosts(limit, before);
   } catch (err) {
-    // eslint-disable-next-line no-console
-    console.warn('[feed] failed to fetch local posts', err);
-    localRes = { data: [] };
+    console.warn('[feed] failed to fetch native timeline', err);
   }
 
   let fedRes: any = { posts: [] };
@@ -57,7 +53,7 @@ export async function getMergedHomeTimeline({ limit = 20, before }: { limit?: nu
     fedRes = { posts: [] };
   }
 
-  const localPosts = (localRes?.data ?? []).map(normalizeLocal);
+  const localPosts = (localRes?.items ?? []).map(normalizeLocal);
   const fedPosts = (fedRes?.posts ?? []).map(normalizeFederated);
 
   // Merge and dedupe by federation_id or fallback to id
