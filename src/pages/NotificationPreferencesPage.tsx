@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
+import { enableLocalPushNotifications, disableLocalPushNotifications, getLocalPushStatus } from '@/services/pushNotifications';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -11,7 +12,6 @@ import {
   Smartphone, Mail, BellRing, Loader2, CheckCircle2, Volume2,
   ShieldCheck, Star, Trophy, Gift,
 } from 'lucide-react';
-import { FunctionsHttpError } from '@supabase/supabase-js';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 
 function NotifPrefsAdBanner() { return <PageAdBanner />; }
@@ -126,20 +126,20 @@ export default function NotificationPreferencesPage() {
   const [saving, setSaving] = useState('');   // esbuild guard: string not string|null
   const [masterMute, setMasterMute] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [pushStatus, setPushStatus] = useState<NotificationPermission | 'unsupported'>('unsupported');
+  const [pushBusy, setPushBusy] = useState(false);
 
   useEffect(() => {
     if (!user) { navigate('/auth'); return; }
     loadPrefs();
+    void getLocalPushStatus().then(setPushStatus);
   }, [user]);
 
   const loadPrefs = async () => {
     if (!user) return;
     setLoading(true);
     try {
-      const { data } = await supabase
-        .from('notification_preferences')
-        .select('*')
-        .eq('user_id', user.id);
+      const { items: data } = await backendCapabilities.listNotificationPreferences();
       const map: Record<string, NotifPref> = {};
       buildDefaults().forEach(d => { map[d.notif_type] = d; });
       (data ?? []).forEach((row: any) => {
@@ -157,13 +157,22 @@ export default function NotificationPreferencesPage() {
     const current = prefs[type] ?? { notif_type: type, in_app: true, push: false, email: false };
     const updated = { ...current, [channel]: !current[channel] };
     setPrefs(prev => ({ ...prev, [type]: updated }));
-    const { error } = await supabase.from('notification_preferences').upsert({
-      user_id: user.id, notif_type: type,
-      in_app: updated.in_app, push: updated.push, email: updated.email,
-      updated_at: new Date().toISOString(),
-    }, { onConflict: 'user_id,notif_type' });
-    if (error) { setPrefs(prev => ({ ...prev, [type]: current })); toast.error('Failed to save preference'); }
+    await backendCapabilities.upsertNotificationPreference({ notif_type: type, in_app: updated.in_app, push: updated.push, email: updated.email });
     setSaving('');
+  };
+
+  const enablePush = async () => {
+    setPushBusy(true);
+    try { const result = await enableLocalPushNotifications(); if (result.enabled) { setPushStatus('granted'); toast.success('Push notifications enabled on this device'); } else toast.error(`Push notifications unavailable: ${result.reason ?? 'unknown error'}`); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Failed to enable push notifications'); }
+    finally { setPushBusy(false); }
+  };
+
+  const disablePush = async () => {
+    setPushBusy(true);
+    try { await disableLocalPushNotifications(); setPushStatus('default'); toast.success('Push notifications disabled on this device'); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Failed to disable push notifications'); }
+    finally { setPushBusy(false); }
   };
 
   const toggleMasterMute = async () => {
@@ -174,7 +183,7 @@ export default function NotificationPreferencesPage() {
       const current = prefs[type] ?? { notif_type: type, in_app: true, push: false, email: false };
       return { user_id: user.id, notif_type: type, in_app: current.in_app, push: next ? false : current.push, email: current.email, updated_at: new Date().toISOString() };
     });
-    await supabase.from('notification_preferences').upsert(updates, { onConflict: 'user_id,notif_type' });
+    await Promise.all(updates.map(row => backendCapabilities.upsertNotificationPreference({ notif_type: row.notif_type, in_app: row.in_app, push: row.push, email: row.email })));
     if (next) {
       setPrefs(prev => { const clone = { ...prev }; ALL_TYPES.forEach(t => { clone[t] = { ...clone[t], push: false }; }); return clone; });
       toast.success('Push notifications muted');
@@ -191,35 +200,15 @@ export default function NotificationPreferencesPage() {
       in_app: p.in_app, push: p.push, email: p.email,
       updated_at: new Date().toISOString(),
     }));
-    const { error } = await supabase.from('notification_preferences').upsert(rows, { onConflict: 'user_id,notif_type' });
-    setSaving('');
-    if (error) { toast.error('Failed to save preferences'); return; }
+    await Promise.all(rows.map(row => backendCapabilities.upsertNotificationPreference({ notif_type: row.notif_type, in_app: row.in_app, push: row.push, email: row.email })));
     toast.success('Notification preferences saved!');
   };
 
   const handleTestNotification = async () => {
-    if (!user) return;
     setTesting(true);
-    const { data: fcmRow } = await supabase.from('fcm_tokens').select('token').eq('user_id', user.id).limit(1).maybeSingle();
-    const { error } = await supabase.functions.invoke('send-push-notification', {
-      body: {
-        user_id: user.id,
-        token: fcmRow?.token ?? null,
-        title: '\uD83D\uDD14 Test Notification',
-        body: 'Push notifications are working correctly on this device.',
-        data: { route: '/notifications', type: 'test' },
-      },
-    });
-    setTesting(false);
-    if (error) {
-      let msg = error.message;
-      if (error instanceof FunctionsHttpError) {
-        try { msg = (await error.context?.text()) || msg; } catch { /* */ }
-      }
-      toast.error(`Test failed: ${msg}`);
-      return;
-    }
-    toast.success('Test notification sent! Check your notifications.');
+    try { await backendCapabilities.testPush(); toast.success('Test notification queued. Close Testagram and check your device notifications.'); }
+    catch (error) { toast.error(error instanceof Error ? error.message : 'Test notification failed'); }
+    finally { setTesting(false); }
   };
 
   if (!user) return null;
@@ -267,6 +256,14 @@ export default function NotificationPreferencesPage() {
               {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 text-primary" />}
               {testing ? 'Sending test\u2026' : 'Send Test Notification'}
             </button>
+          </div>
+
+          <div className="bg-muted/30 border border-border rounded-2xl p-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"><Smartphone className="w-5 h-5 text-primary" /></div>
+              <div className="flex-1"><p className="font-bold">This device</p><p className="text-xs text-muted-foreground">Receive notifications even when Testagram is closed.</p></div>
+              {pushStatus === 'granted' ? <button onClick={disablePush} disabled={pushBusy} className="px-3 py-2 rounded-xl border border-border text-sm font-semibold disabled:opacity-60">{pushBusy ? 'Working…' : 'Disable'}</button> : <button onClick={enablePush} disabled={pushBusy || pushStatus === 'unsupported'} className="px-3 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-60">{pushBusy ? 'Enabling…' : 'Enable'}</button>}
+            </div>
           </div>
 
           {/* Groups */}
