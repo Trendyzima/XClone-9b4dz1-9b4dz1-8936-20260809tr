@@ -32,16 +32,7 @@ export default function AuthPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const referrerIdRef = useRef(searchParams.get('ref'));
-  const authUser = useAuthStore((state) => state.user);
-
-  useEffect(() => {
-    const ref = searchParams.get('ref');
-    if (ref) {
-      localStorage.setItem('ts-pending-ref', ref);
-      setMode('signup');
-    }
-  }, [searchParams]);
+    const authUser = useAuthStore((state) => state.user);
 
   useEffect(() => {
     if (authUser && !pendingUserId && mode !== 'verify' && mode !== 'verify-phone') {
@@ -134,8 +125,6 @@ export default function AuthPage() {
     }
   };
 
-  const pendingRef = typeof window !== 'undefined' ? (localStorage.getItem('ts-pending-ref') ?? referrerIdRef.current) : null;
-
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
       <AuthAdBanner />
@@ -145,7 +134,6 @@ export default function AuthPage() {
           <h2 className="text-3xl font-bold">
             {mode === 'signin' ? 'Sign in to T' : mode === 'signup' ? 'Join T today' : mode === 'verify-phone' ? 'Verify your phone' : 'Verify your email'}
           </h2>
-          {pendingRef && mode !== 'signin' && <div className="mt-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-primary/10 border border-primary/20"><span className="text-xs font-bold text-primary">🎁 Invited by @{pendingRef}</span><span className="text-[10px] text-muted-foreground">· Invitation applied after account setup</span></div>}
         </div>
 
         {(mode === 'signin' || mode === 'signup') && (
