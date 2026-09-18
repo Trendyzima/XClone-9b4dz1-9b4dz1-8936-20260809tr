@@ -208,3 +208,128 @@ do $$ begin
  if exists(select 1 from public.backend_change_registry where status='active' and (action_key is null or reverse_key is null or action_key=reverse_key)) then raise exception 'invalid backend action/reverse key'; end if;
  if exists(select 1 from public.frontend_backend_contract where read_action_key=read_reverse_key or (write_action_key is not null and write_action_key=write_reverse_key)) then raise exception 'invalid frontend contract action/reverse key'; end if;
 end $$;
+
+-- Frontend compatibility domains discovered from the live page/service surface.
+alter table public.profiles add column if not exists verified boolean not null default false;
+alter table public.profiles add column if not exists subscriber_count bigint not null default 0;
+alter table public.profiles add column if not exists creator_tier text;
+alter table public.profiles add column if not exists is_creator boolean not null default false;
+
+create table if not exists public.replies(
+ id uuid primary key default gen_random_uuid(),post_id uuid not null references public.posts(id) on delete cascade,
+ user_id uuid not null references auth.users(id) on delete cascade,content text not null,created_at timestamptz not null default now(),updated_at timestamptz not null default now()
+);
+create index if not exists replies_post_created_idx on public.replies(post_id,created_at desc);
+
+create table if not exists public.trending_topics(
+ id uuid primary key default gen_random_uuid(),topic text not null unique,category text not null default 'general',
+ posts_count bigint not null default 0,created_at timestamptz not null default now(),updated_at timestamptz not null default now()
+);
+create table if not exists public.user_suggestions(
+ id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,
+ suggested_user_id uuid not null references auth.users(id) on delete cascade,score numeric(12,6) not null default 0,reason text,created_at timestamptz not null default now(),
+ unique(user_id,suggested_user_id)
+);
+
+create table if not exists public.daily_rewards(
+ user_id uuid primary key references auth.users(id) on delete cascade,streak_day integer not null default 0 check(streak_day between 0 and 7),
+ credits_earned integer not null default 0,last_claimed_at timestamptz,updated_at timestamptz not null default now()
+);
+create table if not exists public.user_wallets(
+ user_id uuid primary key references auth.users(id) on delete cascade,credits bigint not null default 0 check(credits>=0),
+ updated_at timestamptz not null default now()
+);
+create table if not exists public.credit_transactions(
+ id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,
+ amount bigint not null,reason text not null,reference_type text,reference_id uuid,idempotency_key text unique,created_at timestamptz not null default now()
+);
+
+create table if not exists public.tips(
+ id uuid primary key default gen_random_uuid(),from_user_id uuid not null references auth.users(id) on delete cascade,
+ to_user_id uuid not null references auth.users(id) on delete cascade,amount bigint not null check(amount>0),created_at timestamptz not null default now()
+);
+create index if not exists tips_recipient_created_idx on public.tips(to_user_id,created_at desc);
+
+create table if not exists public.platform_inbox(
+ id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,
+ type text not null,subject text not null,body text not null,icon_emoji text,cta_label text,cta_url text,
+ read boolean not null default false,sent_at timestamptz not null default now(),created_at timestamptz not null default now(),
+ dedupe_key text not null unique,metadata jsonb not null default '{}'::jsonb,generation_version integer not null default 1
+);
+create index if not exists platform_inbox_user_sent_idx on public.platform_inbox(user_id,sent_at desc);
+
+create table if not exists public.spaces(
+ id uuid primary key default gen_random_uuid(),host_id uuid not null references auth.users(id) on delete cascade,
+ title text not null,description text,is_live boolean not null default false,listener_count integer not null default 0,
+ started_at timestamptz not null default now(),ended_at timestamptz,category text,artwork_url text,episode_number integer,
+ chapters jsonb not null default '[]'::jsonb,tags text[] not null default '{}',subscriber_only boolean not null default false,
+ room_name text,created_at timestamptz not null default now()
+);
+create table if not exists public.space_participants(
+ space_id uuid not null references public.spaces(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,
+ joined_at timestamptz not null default now(),left_at timestamptz,primary key(space_id,user_id)
+);
+
+create table if not exists public.creator_earnings(
+ id uuid primary key default gen_random_uuid(),creator_id uuid not null references auth.users(id) on delete cascade,
+ source_type text not null,source_id uuid,amount numeric(20,6) not null default 0,currency text not null default 'KES',
+ status text not null default 'pending',created_at timestamptz not null default now()
+);
+create table if not exists public.post_reports(
+ id uuid primary key default gen_random_uuid(),post_id uuid not null references public.posts(id) on delete cascade,
+ reporter_id uuid not null references auth.users(id) on delete cascade,reason text not null,details text,status text not null default 'open',
+ created_at timestamptz not null default now()
+);
+create table if not exists public.user_ads(
+ id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,
+ campaign_id uuid references public.ad_campaigns(id) on delete set null,status text not null default 'draft',name text,created_at timestamptz not null default now()
+);
+create table if not exists public.ad_impressions(
+ id uuid primary key default gen_random_uuid(),ad_id uuid references public.user_ads(id) on delete cascade,
+ user_id uuid references auth.users(id) on delete set null,impression_type text not null default 'view',created_at timestamptz not null default now()
+);
+create table if not exists public.browsing_history(
+ id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,
+ entity_type text not null,entity_id uuid,metadata jsonb not null default '{}'::jsonb,created_at timestamptz not null default now()
+);
+
+create table if not exists public.post_series(
+ id uuid primary key default gen_random_uuid(),owner_id uuid not null references auth.users(id) on delete cascade,
+ title text not null,description text,created_at timestamptz not null default now(),updated_at timestamptz not null default now()
+);
+create table if not exists public.post_series_items(
+ series_id uuid not null references public.post_series(id) on delete cascade,post_id uuid not null references public.posts(id) on delete cascade,
+ sort_order integer not null default 0,primary key(series_id,post_id),unique(series_id,sort_order)
+);
+
+do $$ declare t text; begin foreach t in array ARRAY['replies','trending_topics','user_suggestions','daily_rewards','user_wallets','credit_transactions','tips','platform_inbox','spaces','space_participants','creator_earnings','post_reports','user_ads','ad_impressions','browsing_history','post_series','post_series_items'] loop execute format('alter table public.%I enable row level security',t); execute format('grant select,insert,update,delete on public.%I to authenticated',t); end loop; end $$;
+
+drop policy if exists replies_owner on public.replies; create policy replies_owner on public.replies for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists trending_topics_read on public.trending_topics; create policy trending_topics_read on public.trending_topics for select to authenticated using(true);
+drop policy if exists suggestions_owner on public.user_suggestions; create policy suggestions_owner on public.user_suggestions for select to authenticated using(user_id=auth.uid());
+drop policy if exists daily_rewards_owner on public.daily_rewards; create policy daily_rewards_owner on public.daily_rewards for select to authenticated using(user_id=auth.uid());
+drop policy if exists wallet_credits_owner on public.user_wallets; create policy wallet_credits_owner on public.user_wallets for select to authenticated using(user_id=auth.uid());
+drop policy if exists credit_transactions_owner on public.credit_transactions; create policy credit_transactions_owner on public.credit_transactions for select to authenticated using(user_id=auth.uid());
+drop policy if exists tips_participant on public.tips; create policy tips_participant on public.tips for select to authenticated using(from_user_id=auth.uid() or to_user_id=auth.uid());
+drop policy if exists platform_inbox_owner on public.platform_inbox; create policy platform_inbox_owner on public.platform_inbox for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists spaces_read on public.spaces; create policy spaces_read on public.spaces for select to authenticated using(true);
+drop policy if exists spaces_owner on public.spaces; create policy spaces_owner on public.spaces for all to authenticated using(host_id=auth.uid()) with check(host_id=auth.uid());
+drop policy if exists space_participants_self on public.space_participants; create policy space_participants_self on public.space_participants for all to authenticated using(user_id=auth.uid() or exists(select 1 from public.spaces s where s.id=space_id and s.host_id=auth.uid())) with check(user_id=auth.uid() or exists(select 1 from public.spaces s where s.id=space_id and s.host_id=auth.uid()));
+drop policy if exists creator_earnings_owner on public.creator_earnings; create policy creator_earnings_owner on public.creator_earnings for select to authenticated using(creator_id=auth.uid());
+drop policy if exists post_reports_owner on public.post_reports; create policy post_reports_owner on public.post_reports for all to authenticated using(reporter_id=auth.uid()) with check(reporter_id=auth.uid());
+drop policy if exists user_ads_owner on public.user_ads; create policy user_ads_owner on public.user_ads for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists ad_impressions_owner on public.ad_impressions; create policy ad_impressions_owner on public.ad_impressions for select to authenticated using(user_id=auth.uid());
+drop policy if exists browsing_history_owner on public.browsing_history; create policy browsing_history_owner on public.browsing_history for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists post_series_owner on public.post_series; create policy post_series_owner on public.post_series for all to authenticated using(owner_id=auth.uid()) with check(owner_id=auth.uid());
+drop policy if exists post_series_items_owner on public.post_series_items; create policy post_series_items_owner on public.post_series_items for all to authenticated using(exists(select 1 from public.post_series s where s.id=series_id and s.owner_id=auth.uid())) with check(exists(select 1 from public.post_series s where s.id=series_id and s.owner_id=auth.uid()));
+
+-- Compatibility columns for the frontend notification/profile contract.
+alter table public.notifications add column if not exists user_id uuid references auth.users(id) on delete cascade;
+alter table public.notifications add column if not exists type text;
+alter table public.notifications add column if not exists from_user_id uuid references auth.users(id) on delete set null;
+alter table public.notifications add column if not exists read_at timestamptz;
+alter table public.notifications add column if not exists data jsonb not null default '{}'::jsonb;
+update public.notifications set user_id=recipient_id where user_id is null;
+update public.notifications set type=kind where type is null;
+update public.notifications set from_user_id=actor_id where from_user_id is null;
+update public.notifications set read_at=case when read then coalesce(read_at,created_at) else null end;
