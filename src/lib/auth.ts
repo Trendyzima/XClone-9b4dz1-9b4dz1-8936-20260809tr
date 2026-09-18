@@ -90,23 +90,46 @@ export async function mapSupabaseUserWithCanonicalProfile(user: User): Promise<A
   }
 }
 
+const AUTH_REQUEST_TIMEOUT_MS = 15_000;
+
+async function withAuthTimeout<T>(operation: Promise<T>, label: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(`${label} timed out. Check your connection and try again.`));
+    }, AUTH_REQUEST_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([operation, timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 export class AuthService {
   async sendOtp(email: string) {
     const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) throw new Error('Enter your email address');
-    const { error } = await supabase.auth.signInWithOtp({
-      email: normalizedEmail,
-      options: { shouldCreateUser: true },
-    });
+    const { error } = await withAuthTimeout(
+      supabase.auth.signInWithOtp({
+        email: normalizedEmail,
+        options: { shouldCreateUser: true },
+      }),
+      'Email OTP request'
+    );
     if (error) throw error;
   }
 
   async sendPhoneOtp(phoneInput: string) {
     const phone = normalizeKenyaPhone(phoneInput);
-    const { error } = await supabase.auth.signInWithOtp({
-      phone,
-      options: { shouldCreateUser: true },
-    });
+    const { error } = await withAuthTimeout(
+      supabase.auth.signInWithOtp({
+        phone,
+        options: { shouldCreateUser: true },
+      }),
+      'SMS OTP request'
+    );
     if (error) throw error;
     return phone;
   }
@@ -115,11 +138,14 @@ export class AuthService {
     const normalizedEmail = email.trim().toLowerCase();
     const cleanToken = token.replace(/\D/g, '');
     if (cleanToken.length !== 6) throw new Error('Enter the 6-digit code from your email');
-    const { data, error } = await supabase.auth.verifyOtp({
-      email: normalizedEmail,
-      token: cleanToken,
-      type: 'email',
-    });
+    const { data, error } = await withAuthTimeout(
+      supabase.auth.verifyOtp({
+        email: normalizedEmail,
+        token: cleanToken,
+        type: 'email',
+      }),
+      'Email OTP verification'
+    );
     if (error) throw error;
     if (!data.user) throw new Error('Email verification succeeded but no user session was returned');
     return data.user;
@@ -129,11 +155,14 @@ export class AuthService {
     const phone = normalizeKenyaPhone(phoneInput);
     const cleanToken = token.replace(/\D/g, '');
     if (cleanToken.length !== 6) throw new Error('Enter the 6-digit code from your SMS');
-    const { data, error } = await supabase.auth.verifyOtp({
-      phone,
-      token: cleanToken,
-      type: 'sms',
-    });
+    const { data, error } = await withAuthTimeout(
+      supabase.auth.verifyOtp({
+        phone,
+        token: cleanToken,
+        type: 'sms',
+      }),
+      'SMS OTP verification'
+    );
     if (error) throw error;
     if (!data.user) throw new Error('Phone verification succeeded but no user session was returned');
     return data.user;
