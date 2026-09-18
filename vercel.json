@@ -7,17 +7,17 @@
     "api/media.ts": { "maxDuration": 10 }
   },
   "rewrites": [
-    { "source": "/.well-known/webfinger", "destination": "https://aepbqfrmheihfsauzcby.supabase.co/functions/v1/mastodon-edge/.well-known/webfinger" },
-    { "source": "/.well-known/nodeinfo", "destination": "https://aepbqfrmheihfsauzcby.supabase.co/functions/v1/mastodon-edge/.well-known/nodeinfo" },
-    { "source": "/.well-known/oauth-authorization-server", "destination": "https://aepbqfrmheihfsauzcby.supabase.co/functions/v1/mastodon-api/.well-known/oauth-authorization-server" },
-    { "source": "/nodeinfo/2.0", "destination": "https://aepbqfrmheihfsauzcby.supabase.co/functions/v1/mastodon-edge/nodeinfo/2.0" },
-    { "source": "/users/:username", "destination": "https://aepbqfrmheihfsauzcby.supabase.co/functions/v1/mastodon-edge/users/:username" },
-    { "source": "/users/:username/:collection(followers|following|outbox)", "destination": "https://aepbqfrmheihfsauzcby.supabase.co/functions/v1/mastodon-edge/users/:username/:collection" },
-    { "source": "/users/:username/inbox", "destination": "https://aepbqfrmheihfsauzcby.supabase.co/functions/v1/mastodon-edge/users/:username/inbox" },
-    { "source": "/inbox", "destination": "https://aepbqfrmheihfsauzcby.supabase.co/functions/v1/mastodon-edge/inbox" },
-    { "source": "/api/v1/(.*)", "destination": "https://aepbqfrmheihfsauzcby.supabase.co/functions/v1/mastodon-api/api/v1/$1" },
-    { "source": "/api/v2/(.*)", "destination": "https://aepbqfrmheihfsauzcby.supabase.co/functions/v1/mastodon-api/api/v2/$1" },
-    { "source": "/oauth/(.*)", "destination": "https://aepbqfrmheihfsauzcby.supabase.co/functions/v1/mastodon-api/oauth/$1" },
+    { "source": "/.well-known/webfinger", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/.well-known/webfinger" },
+    { "source": "/.well-known/nodeinfo", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/.well-known/nodeinfo" },
+    { "source": "/.well-known/oauth-authorization-server", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-api/.well-known/oauth-authorization-server" },
+    { "source": "/nodeinfo/2.0", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/nodeinfo/2.0" },
+    { "source": "/users/:username", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/users/:username" },
+    { "source": "/users/:username/:collection(followers|following|outbox)", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/users/:username/:collection" },
+    { "source": "/users/:username/inbox", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/users/:username/inbox" },
+    { "source": "/inbox", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/inbox" },
+    { "source": "/api/v1/(.*)", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-api/api/v1/$1" },
+    { "source": "/api/v2/(.*)", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-api/api/v2/$1" },
+    { "source": "/oauth/(.*)", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-api/oauth/$1" },
     { "source": "/((?!assets/).*)", "destination": "/index.html" }
   ],
   "headers": [
