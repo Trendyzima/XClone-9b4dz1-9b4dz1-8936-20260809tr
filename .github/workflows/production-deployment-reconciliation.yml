@@ -113,7 +113,7 @@ jobs:
             const ready = matches.find(d => d.target === "production" && d.state === "READY");
             if (!ready) { console.error(JSON.stringify(matches, null, 2)); process.exit(21); }
             console.log(JSON.stringify({id:ready.id,url:ready.url,state:ready.state,target:ready.target,sha:ready.meta.githubCommitSha},null,2));
-NODE
+            NODE
 
             vercel curl /api/health --deployment "$DEPLOY_URL" --token="$VERCEL_TOKEN" > health.txt
             grep -Eq '"status"[[:space:]]*:[[:space:]]*"?ok"?|HTTP/[0-9.]+[[:space:]]+200|200 OK' health.txt || { cat health.txt; sleep 10; continue; }
