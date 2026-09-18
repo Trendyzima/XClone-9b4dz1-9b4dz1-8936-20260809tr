@@ -1,0 +1,180 @@
+name: Surgical PR Self-Heal Engine
+
+on:
+  workflow_run:
+    workflows: ["Quality Gate", "Final Source Gate", "Vercel Production Deploy"]
+    types: [completed]
+
+permissions:
+  contents: write
+  actions: read
+  pull-requests: write
+
+concurrency:
+  group: surgical-pr-self-heal-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    name: Bounded PR repair
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      github.event.workflow_run.head_branch != 'main' &&
+      !startsWith(github.event.workflow_run.head_branch, 'ci/self-heal/')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Establish immutable failure identity
+        id: identity
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
+          REPOSITORY: ${{ github.repository }}
+          RUN_ID: ${{ github.event.workflow_run.id }}
+        run: |
+          set -euo pipefail
+          test "$HEAD_REPOSITORY" = "$REPOSITORY"
+          test "$(git ls-remote "https://github.com/$REPOSITORY.git" "$HEAD_SHA" | awk '{print $1}')" = "$HEAD_SHA"
+          echo "HEAD_SHA=$HEAD_SHA" >> "$GITHUB_OUTPUT"
+          echo "HEAD_BRANCH=$HEAD_BRANCH" >> "$GITHUB_OUTPUT"
+          echo "RUN_ID=$RUN_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce one repair artifact per failed SHA
+        id: dedupe
+        env:
+          HEAD_SHA: ${{ steps.identity.outputs.HEAD_SHA }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch="ci/self-heal/$HEAD_SHA"
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/$branch" >/dev/null 2>&1; then
+            existing_url="$(gh pr list --base main --head "$branch" --state open --json url --jq '.[0].url // empty')"
+            if test -n "$existing_url"; then
+              echo "A self-healing PR already exists: $existing_url"
+              exit 0
+            fi
+            echo "::error::Repair branch exists without an open PR; refusing a second mutation."
+            exit 1
+          fi
+
+      - name: Classify exact allowlisted failure without executing failed code
+        id: classify
+        env:
+          RUN_ID: ${{ steps.identity.outputs.RUN_ID }}
+          HEAD_SHA: ${{ steps.identity.outputs.HEAD_SHA }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh run view "$RUN_ID" --log-failed > /tmp/failed.log 2>&1 || true
+
+          if grep -Fq "src/services/testagramCapabilityClient.ts(19,49): error TS1127: Invalid character." /tmp/failed.log &&
+             grep -Fq "src/services/testagramCapabilityClient.ts(19,142): error TS1127: Invalid character." /tmp/failed.log &&
+             grep -Fq "src/services/testagramCapabilityClient.ts(19,50): error TS1435:" /tmp/failed.log &&
+             grep -Fq "src/services/testagramCapabilityClient.ts(19,143): error TS1435:" /tmp/failed.log; then
+            gh api "repos/${GITHUB_REPOSITORY}/contents/src/services/testagramCapabilityClient.ts?ref=$HEAD_SHA" --jq '.content' | tr -d '\n' | base64 --decode > /tmp/capability-client.ts
+            python3 - <<'PY'
+from pathlib import Path
+p = Path('/tmp/capability-client.ts')
+s = p.read_text()
+bad = 'const PUBLIC_EDGE_PATH="/api/public-capability";\\nconst PUBLIC_CAPABILITIES=new Set(["testagram.capabilities.list","testagram.health.read"]);\\nconst PUBLIC_EDGE_PATH="/api/public-capability";'
+good = 'const PUBLIC_EDGE_PATH="/api/public-capability";'
+if s.count(bad) != 1:
+    raise SystemExit('Exact malformed capability-client signature not present; refusing repair')
+s2 = s.replace(bad, good, 1)
+if s2 == s:
+    raise SystemExit('Repair made no change')
+p.write_text(s2)
+PY
+            if grep -Fq '\\nconst PUBLIC_CAPABILITIES' /tmp/capability-client.ts; then
+              echo "::error::Literal newline escape remains after repair."
+              exit 1
+            fi
+            echo 'failure_class=capability-client-literal-newline' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo 'No exact bounded PR repair signature matched; refusing automatic mutation.'
+          exit 1
+
+      - name: Create deterministic repair branch from failed SHA
+        id: branch
+        env:
+          HEAD_SHA: ${{ steps.identity.outputs.HEAD_SHA }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch="ci/self-heal/$HEAD_SHA"
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f "ref=refs/heads/$branch" \
+            -f "sha=$HEAD_SHA"
+          echo "REPAIR_BRANCH=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Apply exactly one API-level deterministic repair
+        env:
+          HEAD_SHA: ${{ steps.identity.outputs.HEAD_SHA }}
+          REPAIR_BRANCH: ${{ steps.branch.outputs.REPAIR_BRANCH }}
+          FAILURE_CLASS: ${{ steps.classify.outputs.failure_class }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$FAILURE_CLASS" = "capability-client-literal-newline"
+
+          blob_sha="$(gh api "repos/${GITHUB_REPOSITORY}/contents/src/services/testagramCapabilityClient.ts?ref=$HEAD_SHA" --jq '.sha')"
+          content_b64="$(base64 -w0 /tmp/capability-client.ts)"
+
+          gh api --method PUT "repos/${GITHUB_REPOSITORY}/contents/src/services/testagramCapabilityClient.ts" \
+            -f "message=ci: self-heal capability client literal newline" \
+            -f "content=$content_b64" \
+            -f "sha=$blob_sha" \
+            -f "branch=$REPAIR_BRANCH"
+
+      - name: Prove repair commit is single-file and derived from failed SHA
+        env:
+          HEAD_SHA: ${{ steps.identity.outputs.HEAD_SHA }}
+          REPAIR_BRANCH: ${{ steps.branch.outputs.REPAIR_BRANCH }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          repair_sha="$(gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/$REPAIR_BRANCH" --jq '.object.sha')"
+          compare="$(gh api "repos/${GITHUB_REPOSITORY}/compare/$HEAD_SHA...$repair_sha")"
+          test "$(printf '%s' "$compare" | jq -r '.base_commit.sha')" = "$HEAD_SHA"
+          test "$(printf '%s' "$compare" | jq '.files | length')" -eq 1
+          test "$(printf '%s' "$compare" | jq -r '.files[0].filename')" = "src/services/testagramCapabilityClient.ts"
+          test "$(printf '%s' "$compare" | jq -r '.ahead_by')" -eq 1
+
+      - name: Open deterministic self-healing PR
+        env:
+          HEAD_SHA: ${{ steps.identity.outputs.HEAD_SHA }}
+          HEAD_BRANCH: ${{ steps.identity.outputs.HEAD_BRANCH }}
+          RUN_ID: ${{ steps.identity.outputs.RUN_ID }}
+          REPAIR_BRANCH: ${{ steps.branch.outputs.REPAIR_BRANCH }}
+          FAILURE_CLASS: ${{ steps.classify.outputs.failure_class }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          title="ci: self-heal $FAILURE_CLASS"
+          body="Automated bounded repair for failed run #$RUN_ID at $HEAD_SHA on $HEAD_BRANCH. The repair is API-level, exact-signature gated, single-file bounded, and derived directly from the failed SHA. CI on the repair PR must pass before any merge. Self-heal branches are outside the automatic repair boundary."
+          gh pr create --base main --head "$REPAIR_BRANCH" --title "$title" --body "$body"
+
+      - name: Emit repair manifest
+        if: always()
+        env:
+          HEAD_SHA: ${{ steps.identity.outputs.HEAD_SHA }}
+          HEAD_BRANCH: ${{ steps.identity.outputs.HEAD_BRANCH }}
+          RUN_ID: ${{ steps.identity.outputs.RUN_ID }}
+          FAILURE_CLASS: ${{ steps.classify.outputs.failure_class || 'unclassified' }}
+          REPAIR_BRANCH: ${{ steps.branch.outputs.REPAIR_BRANCH || '' }}
+        run: |
+          set -euo pipefail
+          {
+            echo '### Surgical PR Self-Healing Manifest'
+            printf '%s\n' "- failed run: \`$RUN_ID\`"
+            printf '%s\n' "- failed SHA: \`$HEAD_SHA\`"
+            printf '%s\n' "- failed branch: \`$HEAD_BRANCH\`"
+            printf '%s\n' "- failure class: \`$FAILURE_CLASS\`"
+            printf '%s\n' "- repair branch: \`$REPAIR_BRANCH\`"
+            printf '%s\n' '- execution model: no checkout or execution of failed application code'
+            printf '%s\n' '- mutation model: exact signature -> GitHub Contents API -> one-file diff'
+            printf '%s\n' '- recursion guard: ci/self-heal/* is never auto-repaired'
+          } >> "$GITHUB_STEP_SUMMARY"
