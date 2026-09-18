@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? 'https://placeholder.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? 'placeholder-anon-key';
+// Publishable/anon keys are intentionally safe for browser exposure. Environment
+// variables remain preferred; canonical fallbacks keep the rebuilt app bootable
+// if Vercel env injection is temporarily absent.
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? 'https://ffrhglgkukgsuhxenena.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya';
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
@@ -11,9 +14,8 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 });
 
 // PostgREST builders are PromiseLike rather than native Promises. The
-// application historically uses `.catch()` on those builders, so install a
-// Promise-compatible bridge at the shared client boundary without importing
-// Supabase's internal PostgREST implementation package into the browser bundle.
+// application historically uses .catch() on those builders, so install a
+// Promise-compatible bridge at the shared client boundary.
 let postgrestBuilderPrototype: object | null = Object.getPrototypeOf(
   supabase.from('__prototype_probe__'),
 );
