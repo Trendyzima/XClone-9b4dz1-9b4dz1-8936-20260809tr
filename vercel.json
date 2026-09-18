@@ -1,34 +1,172 @@
 {
-  "installCommand": "sed -i '/^node-options/d' .npmrc && npm install && node _patch-vite.cjs",
+  "installCommand": "npm ci && node _patch-vite.cjs",
   "buildCommand": "node _build.cjs",
   "outputDirectory": "dist",
   "framework": "vite",
   "functions": {
-    "api/media.ts": { "maxDuration": 10 }
+    "api/media.ts": {
+      "maxDuration": 10
+    }
   },
   "rewrites": [
-    { "source": "/.well-known/webfinger", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/.well-known/webfinger" },
-    { "source": "/.well-known/nodeinfo", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/.well-known/nodeinfo" },
-    { "source": "/.well-known/oauth-authorization-server", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-api/.well-known/oauth-authorization-server" },
-    { "source": "/nodeinfo/2.0", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/nodeinfo/2.0" },
-    { "source": "/users/:username", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/users/:username" },
-    { "source": "/users/:username/:collection(followers|following|outbox)", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/users/:username/:collection" },
-    { "source": "/users/:username/inbox", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/users/:username/inbox" },
-    { "source": "/inbox", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/inbox" },
-    { "source": "/api/v1/(.*)", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-api/api/v1/$1" },
-    { "source": "/api/v2/(.*)", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-api/api/v2/$1" },
-    { "source": "/oauth/(.*)", "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-api/oauth/$1" },
-    { "source": "/((?!assets/).*)", "destination": "/index.html" }
+    {
+      "source": "/.well-known/webfinger",
+      "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/.well-known/webfinger"
+    },
+    {
+      "source": "/.well-known/nodeinfo",
+      "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/.well-known/nodeinfo"
+    },
+    {
+      "source": "/.well-known/oauth-authorization-server",
+      "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-api/.well-known/oauth-authorization-server"
+    },
+    {
+      "source": "/nodeinfo/2.0",
+      "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/nodeinfo/2.0"
+    },
+    {
+      "source": "/users/:username",
+      "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/users/:username"
+    },
+    {
+      "source": "/users/:username/:collection(followers|following|outbox)",
+      "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/users/:username/:collection"
+    },
+    {
+      "source": "/users/:username/inbox",
+      "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/users/:username/inbox"
+    },
+    {
+      "source": "/inbox",
+      "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/inbox"
+    },
+    {
+      "source": "/api/v1/(.*)",
+      "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-api/api/v1/$1"
+    },
+    {
+      "source": "/api/v2/(.*)",
+      "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-api/api/v2/$1"
+    },
+    {
+      "source": "/oauth/(.*)",
+      "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-api/oauth/$1"
+    },
+    {
+      "source": "/((?!assets/).*)",
+      "destination": "/index.html"
+    }
   ],
   "headers": [
-    { "source": "/assets/(.*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },
-    { "source": "/(.*)\\.js", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },
-    { "source": "/(.*)\\.css", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },
-    { "source": "/((?!assets/).*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }] },
-    { "source": "/sitemap.xml", "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }, { "key": "Content-Type", "value": "application/xml" }] },
-    { "source": "/sitemap-static.xml", "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }, { "key": "Content-Type", "value": "application/xml" }] },
-    { "source": "/sitemap-community.xml", "headers": [{ "key": "Cache-Control", "value": "public, max-age=21600" }, { "key": "Content-Type", "application/xml" }] },
-    { "source": "/robots.txt", "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }, { "key": "Content-Type", "value": "text/plain" }] },
-    { "source": "/(.*)", "headers": [{ "key": "X-Frame-Options", "value": "SAMEORIGIN" }, { "key": "X-Content-Type-Options", "value": "nosniff" }, { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }, { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }] }
+    {
+      "source": "/assets/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)\\.js",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)\\.css",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/((?!assets/).*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/sitemap.xml",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        },
+        {
+          "key": "Content-Type",
+          "value": "application/xml"
+        }
+      ]
+    },
+    {
+      "source": "/sitemap-static.xml",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        },
+        {
+          "key": "Content-Type",
+          "value": "application/xml"
+        }
+      ]
+    },
+    {
+      "source": "/sitemap-community.xml",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=21600"
+        },
+        {
+          "key": "Content-Type",
+          "value": "application/xml"
+        }
+      ]
+    },
+    {
+      "source": "/robots.txt",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=86400"
+        },
+        {
+          "key": "Content-Type",
+          "value": "text/plain"
+        }
+      ]
+    },
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        }
+      ]
+    }
   ]
 }
