@@ -2,7 +2,7 @@
   "schema_version": 1,
   "repair_id": "profile-page-module-corruption-v1",
   "path": "src/pages/ProfilePage.tsx",
-  "expected_sha256": "f376e47fe74e8e7dd00d4086694b74dad6a22fd5",
+  "expected_sha256": "c08bee06f3141d4586074a192aedea8b7548258cbfc6f23fc4fc4875a8f8e15b",
   "corruption_signatures": {
     "exact_content": "PLACEHOLDER",
     "bytes": 11,
