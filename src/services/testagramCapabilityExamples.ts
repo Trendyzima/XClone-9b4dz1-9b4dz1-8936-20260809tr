@@ -9,7 +9,7 @@ import type { TestagramCapabilityClient } from "./testagramCapabilityClient";
  */
 export async function sampleSearchAndCreatePost(client: TestagramCapabilityClient, query: string, body: string) {
   const search = await client.searchPosts(query, 20);
-  const created = await client.createPost(body);
+  const created = await client.createPost({ content: body });
   return { search, created };
 }
 
