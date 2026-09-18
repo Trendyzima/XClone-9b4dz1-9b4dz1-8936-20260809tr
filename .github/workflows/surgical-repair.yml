@@ -139,6 +139,7 @@ jobs:
 
       - name: Enforce one bounded repair per failed SHA
         if: steps.classify.outputs.should_repair == 'true'
+        if: steps.classify.outputs.should_repair == 'true'
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
@@ -153,6 +154,7 @@ jobs:
           fi
 
       - name: Apply exactly one deterministic repair
+        if: steps.classify.outputs.should_repair == 'true'
         env:
           FAILURE_CLASS: ${{ steps.classify.outputs.failure_class }}
         run: |
@@ -174,6 +176,7 @@ jobs:
           esac
 
       - name: Prove repair diff is exactly allowlisted
+        if: steps.classify.outputs.should_repair == 'true'
         env:
           FAILURE_CLASS: ${{ steps.classify.outputs.failure_class }}
         run: |
@@ -217,6 +220,7 @@ jobs:
           esac
 
       - name: Validate repaired tree completely
+        if: steps.classify.outputs.should_repair == 'true'
         env:
           FAILURE_CLASS: ${{ steps.classify.outputs.failure_class }}
         run: |
@@ -241,6 +245,7 @@ jobs:
           esac
 
       - name: Create repair branch and push only validated repair
+        if: steps.classify.outputs.should_repair == 'true'
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
@@ -259,6 +264,7 @@ jobs:
           echo "REPAIR_BRANCH=$branch" >> "$GITHUB_ENV"
 
       - name: Open self-healing pull request
+        if: steps.classify.outputs.should_repair == 'true'
         id: open_pr
         env:
           GH_TOKEN: ${{ github.token }}
