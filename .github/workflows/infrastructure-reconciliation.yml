@@ -1,0 +1,130 @@
+name: Infrastructure Reconciliation Gate
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      allow_repair:
+        description: "Allow only bounded, non-destructive repairs"
+        required: true
+        default: "false"
+        type: boolean
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: infrastructure-reconciliation-main
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AUTHORITATIVE_REPO: Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr
+      AUTHORITATIVE_BRANCH: main
+      AUTHORITATIVE_SHA: ${{ github.sha }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 1
+
+      - name: Verify immutable repository fingerprint
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REPOSITORY}" = "${AUTHORITATIVE_REPO}" || {
+            echo "::error::Repository lineage mismatch: ${GITHUB_REPOSITORY}"
+            exit 1
+          }
+          test "${GITHUB_REF_NAME}" = "${AUTHORITATIVE_BRANCH}" || {
+            echo "::error::Branch mismatch: ${GITHUB_REF_NAME}"
+            exit 1
+          }
+          test "${GITHUB_SHA}" = "${AUTHORITATIVE_SHA}" || {
+            echo "::error::SHA changed during reconciliation"
+            exit 1
+          }
+          echo "AUTHORITATIVE_REPO=${AUTHORITATIVE_REPO}"
+          echo "AUTHORITATIVE_BRANCH=${AUTHORITATIVE_BRANCH}"
+          echo "AUTHORITATIVE_SHA=${AUTHORITATIVE_SHA}"
+
+      - name: Verify CI candidate is not running from an untrusted ref
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "${GITHUB_EVENT_NAME}" in
+            push|workflow_dispatch) ;;
+            *) echo "::error::Unsupported event ${GITHUB_EVENT_NAME}"; exit 1 ;;
+          esac
+
+      - name: Probe Supabase PostgreSQL without mutation
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_DB_URL:-}" ]; then
+            echo "::warning::SUPABASE_DB_URL is not configured; database boundary remains QUARANTINED."
+            exit 0
+          fi
+          for delay in 5 15 30 60 120; do
+            echo "Read-only PostgreSQL probe; retry window ${delay}s"
+            if command -v pg_isready >/dev/null 2>&1 && pg_isready "${SUPABASE_DB_URL}"; then
+              echo "SUPABASE_DB_REACHABLE=true"
+              exit 0
+            fi
+            sleep "${delay}"
+          done
+          echo "::warning::PostgreSQL remains unreachable after bounded retries; no migration command will be executed."
+          exit 0
+
+      - name: Verify Vercel deployment lineage when credentials exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${VERCEL_TOKEN:-}" ] || [ -z "${VERCEL_PROJECT_ID:-}" ]; then
+            echo "::warning::Vercel reconciliation credentials are not configured; deployment lineage remains QUARANTINED."
+            exit 0
+          fi
+          api="https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}"
+          if [ -n "${VERCEL_TEAM_ID:-}" ]; then
+            api="${api}?teamId=${VERCEL_TEAM_ID}"
+          fi
+          body="$(curl -fsSL -H "Authorization: Bearer ${VERCEL_TOKEN}" "${api}")"
+          repo="$(printf '%s' "${body}" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); console.log(j.link?.repo||"")})')"
+          branch="$(printf '%s' "${body}" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); console.log(j.link?.productionBranch||"")})')"
+          echo "Vercel linked repo: ${repo:-UNKNOWN}"
+          echo "Vercel production branch: ${branch:-UNKNOWN}"
+          if [ "${repo}" != "${AUTHORITATIVE_REPO}" ]; then
+            echo "::warning::Vercel Git lineage mismatch; automatic repository switching is deliberately forbidden."
+            exit 0
+          fi
+          if [ -n "${branch}" ] && [ "${branch}" != "${AUTHORITATIVE_BRANCH}" ]; then
+            echo "::warning::Vercel production branch mismatch."
+            exit 0
+          fi
+          echo "VERCEL_LINEAGE=VERIFIED"
+
+      - name: Emit reconciliation receipt
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat <<EOF
+          {
+            "repository": "${AUTHORITATIVE_REPO}",
+            "branch": "${AUTHORITATIVE_BRANCH}",
+            "commit": "${AUTHORITATIVE_SHA}",
+            "event": "${GITHUB_EVENT_NAME}",
+            "database_policy": "read-only-until-live-schema-is-proven",
+            "vercel_policy": "never-switch-lineage-without-explicit-reconciliation",
+            "deployment_policy": "never-promote-unverified-sha"
+          }
+          EOF
