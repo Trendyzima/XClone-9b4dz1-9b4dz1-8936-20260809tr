@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
@@ -31,7 +31,6 @@ export default function AuthPage() {
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
     const authUser = useAuthStore((state) => state.user);
 
   useEffect(() => {
