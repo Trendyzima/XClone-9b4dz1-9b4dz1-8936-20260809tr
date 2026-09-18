@@ -51,6 +51,7 @@ export default function AuthPage() {
   const [confirmation, setConfirmation] = useState('');
   const [username, setUsername] = useState('');
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
+  const [verificationPurpose, setVerificationPurpose] = useState<'otp' | 'signup'>('otp');
   const { toast } = useToast();
   const navigate = useNavigate();
   const authUser = useAuthStore((state) => state.user);
@@ -109,6 +110,22 @@ export default function AuthPage() {
     }
   };
 
+  const handleResetPassword = async () => {
+    if (!email.trim() || !email.includes('@')) {
+      toast({ title: 'Enter your email first', description: 'Password recovery uses your email address.', variant: 'destructive' });
+      return;
+    }
+    setLoading(true);
+    try {
+      await authService.resetPassword(email);
+      toast({ title: 'Reset link sent', description: 'Check your email for the password reset link.' });
+    } catch (error: any) {
+      toast({ title: 'Password reset error', description: error?.message || 'Unable to send the reset link.', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handlePasswordSignUp = async (event: React.FormEvent) => {
     event.preventDefault();
     if (password.length < 8 || password !== confirmation) {
@@ -117,17 +134,25 @@ export default function AuthPage() {
     }
     setLoading(true);
     try {
-      const { session } = await authService.signUpWithPassword(email, password, username);
-      if (session) {
-        const user = await finalizeAuthenticatedSession(session.user);
+      const result = await authService.signUpWithPassword(email, password, username);
+      if (result.session) {
+        const user = await finalizeAuthenticatedSession(result.session.user);
         login(user);
         navigate('/', { replace: true });
         return;
       }
       setLoading(false);
-      setMode('verify');
+      setVerificationPurpose('signup');
       setOtp('');
-      toast({ title: 'Account created', description: 'Check your email for the confirmation link or code.' });
+      if (result.identifierKind === 'phone') {
+        setPhone(result.identifier);
+        setVerifiedPhone(result.identifier);
+        setMode('verify-phone');
+        toast({ title: 'Account created', description: 'Enter the 6-digit code sent to your phone to finish signing up.' });
+      } else {
+        setMode('verify');
+        toast({ title: 'Account created', description: 'Check your email for the confirmation code or link to finish signing up.' });
+      }
     } catch (error: any) {
       setLoading(false);
       toast({ title: 'Account creation error', description: error?.message || 'Unable to create account.', variant: 'destructive' });
@@ -141,6 +166,7 @@ export default function AuthPage() {
       await authService.sendOtp(email);
       setOtp('');
       setLoading(false);
+      setVerificationPurpose('otp');
       setMode('verify');
       toast({ title: 'Code sent', description: 'Enter the 6-digit code sent to your email.' });
     } catch (error: any) {
@@ -158,6 +184,7 @@ export default function AuthPage() {
       setVerifiedPhone(normalized);
       setOtp('');
       setLoading(false);
+      setVerificationPurpose('otp');
       setMode('verify-phone');
       toast({ title: 'OTP sent', description: 'Enter the 6-digit code sent by SMS.' });
     } catch (error: any) {
@@ -188,6 +215,25 @@ export default function AuthPage() {
     }
   };
 
+  const handleResendVerification = async () => {
+    setLoading(true);
+    try {
+      if (verificationPurpose === 'signup') {
+        if (mode === 'verify-phone') await authService.resendSignupPhone(phone);
+        else await authService.resendSignupEmail(email);
+      } else if (mode === 'verify-phone') {
+        await authService.sendPhoneOtp(phone);
+      } else {
+        await authService.sendOtp(email);
+      }
+      toast({ title: 'Code sent', description: 'A fresh verification code has been sent.' });
+    } catch (error: any) {
+      toast({ title: 'Could not resend code', description: error?.message || 'Please try again in a moment.', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const changeIdentifier = () => {
     setOtp('');
     setLoading(false);
@@ -211,7 +257,7 @@ export default function AuthPage() {
           <>
             <form onSubmit={mode === 'signin' ? handlePasswordSignIn : handlePasswordSignUp} className="space-y-4">
               {mode === 'signup' && <Input type="text" autoComplete="username" placeholder="Username (optional)" value={username} onChange={(e) => setUsername(e.target.value)} className="h-14" />}
-              <Input type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="h-14" />
+              <Input type="text" inputMode="email" autoComplete="username" placeholder="Email or Kenyan phone number" value={email} onChange={(e) => setEmail(e.target.value)} required className="h-14" />
               <Input type="password" autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} placeholder="Password (8+ characters)" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} className="h-14" />
               {mode === 'signup' && <Input type="password" autoComplete="new-password" placeholder="Confirm password" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} required minLength={8} className="h-14" />}
               <Button type="submit" className="w-full h-12 rounded-full" disabled={loading}>{loading ? <Loader2 className="w-5 h-5 animate-spin" /> : mode === 'signin' ? 'Sign in with password' : 'Create account'}</Button>
@@ -228,7 +274,7 @@ export default function AuthPage() {
             {method === 'email' ? (
               <form onSubmit={handleSendEmailOtp} className="space-y-4">
                 <p className="text-sm text-muted-foreground text-center">Use a 6-digit code. The same flow signs in existing accounts and creates new accounts.</p>
-                <Input type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={(event) => setEmail(event.target.value)} required className="h-14" />
+                <Input type="email" inputMode="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={(event) => setEmail(event.target.value)} required className="h-14" />
                 <Button type="submit" className="w-full h-12 rounded-full" disabled={loading}>{loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Send email code'}</Button>
               </form>
             ) : (
@@ -244,20 +290,20 @@ export default function AuthPage() {
 
         {mode === 'verify' && (
           <form onSubmit={handleVerifyEmailOtp} className="space-y-4">
-            <p className="text-muted-foreground text-center">Enter the 6-digit code sent to {email}.</p>
+            <p className="text-muted-foreground text-center">Enter the 6-digit code sent to {email} to {verificationPurpose === 'signup' ? 'finish creating your account' : 'sign in'}.</p>
             <Input type="text" inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit code" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))} required maxLength={6} minLength={6} className="h-14 text-center text-2xl tracking-widest" />
             <Button type="submit" className="w-full h-12 rounded-full" disabled={loading}>{loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Verify and enter Testagram'}</Button>
-            <button type="button" onClick={handleSendEmailOtp} className="w-full text-primary hover:underline text-sm" disabled={loading}>Resend email code</button>
+            <button type="button" onClick={handleResendVerification} className="w-full text-primary hover:underline text-sm" disabled={loading}>Resend email code</button>
             <button type="button" onClick={changeIdentifier} className="w-full text-muted-foreground hover:underline text-sm">Use a different email or phone</button>
           </form>
         )}
 
         {mode === 'verify-phone' && (
           <form onSubmit={handleVerifyPhoneOtp} className="space-y-4">
-            <p className="text-muted-foreground text-center">Enter the 6-digit code sent to {verifiedPhone || phone}.</p>
+            <p className="text-muted-foreground text-center">Enter the 6-digit code sent to {verifiedPhone || phone} to {verificationPurpose === 'signup' ? 'finish creating your account' : 'sign in'}.</p>
             <Input type="text" inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit OTP" value={otp} onChange={(event) => setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))} required maxLength={6} minLength={6} className="h-14 text-center text-2xl tracking-widest" />
             <Button type="submit" className="w-full h-12 rounded-full" disabled={loading}>{loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Verify and enter Testagram'}</Button>
-            <button type="button" onClick={handleSendPhoneOtp} className="w-full text-primary hover:underline text-sm" disabled={loading}>Resend phone code</button>
+            <button type="button" onClick={handleResendVerification} className="w-full text-primary hover:underline text-sm" disabled={loading}>Resend phone code</button>
             <button type="button" onClick={changeIdentifier} className="w-full text-muted-foreground hover:underline text-sm">Use a different email or phone</button>
           </form>
         )}

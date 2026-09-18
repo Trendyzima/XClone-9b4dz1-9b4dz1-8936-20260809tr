@@ -111,9 +111,18 @@ export class AuthService {
   async signUpWithPassword(identifierInput: string, password: string, username?: string) {
     const identifier = normalizeIdentifier(identifierInput); if (password.length < 8) throw new Error('Password must be at least 8 characters');
     const metadata = username?.trim() ? { username: username.trim() } : {};
-    const credentials = identifier.kind === 'email' ? { email: identifier.value, password, options: { data: metadata, emailRedirectTo: `${window.location.origin}/auth` } } : { phone: identifier.value, password, options: { data: metadata } };
+    const credentials = identifier.kind === 'email'
+      ? { email: identifier.value, password, options: { data: metadata, emailRedirectTo: `${window.location.origin}/auth` } }
+      : { phone: identifier.value, password, options: { data: metadata, channel: 'sms' as const } };
     const { data, error } = await withAuthTimeout(supabase.auth.signUp(credentials), 'Account creation');
-    if (error) throw error; if (!data.user) throw new Error('Account creation succeeded but no user was returned'); return { user: data.user, session: data.session, requiresConfirmation: !data.session };
+    if (error) throw error;
+    if (!data.user) throw new Error('Account creation succeeded but no user was returned');
+    return { user: data.user, session: data.session, requiresConfirmation: !data.session, identifierKind: identifier.kind, identifier: identifier.value };
+  }
+  async resendSignupPhone(phoneInput: string) {
+    const phone = normalizeKenyaPhone(phoneInput);
+    const { error } = await withAuthTimeout(supabase.auth.resend({ type: 'sms', phone }), 'Signup SMS confirmation');
+    if (error) throw error;
   }
   async resendSignupEmail(email: string) {
     const identifier = normalizeIdentifier(email); if (identifier.kind !== 'email') throw new Error('Enter the signup email address');
