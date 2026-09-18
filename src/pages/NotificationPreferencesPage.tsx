@@ -201,6 +201,7 @@ export default function NotificationPreferencesPage() {
       updated_at: new Date().toISOString(),
     }));
     await Promise.all(rows.map(row => backendCapabilities.upsertNotificationPreference({ notif_type: row.notif_type, in_app: row.in_app, push: row.push, email: row.email })));
+    setSaving('');
     toast.success('Notification preferences saved!');
   };
 
