@@ -14,6 +14,7 @@ on:
       - 'vite.config.*'
       - 'eslint.config.*'
       - '_build.cjs'
+      - 'supabase/**'
       - '.github/workflows/quality-gate.yml'
   pull_request:
     paths:
