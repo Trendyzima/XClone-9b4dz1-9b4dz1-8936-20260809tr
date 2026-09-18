@@ -168,10 +168,55 @@ export class AuthService {
     return data.user;
   }
 
-  async signInWithPassword(email: string, password: string) {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  async signInWithPassword(identifier: string, password: string) {
+    const value = identifier.trim();
+    if (!value) throw new Error('Enter your email or phone number');
+    if (!password) throw new Error('Enter your password');
+    const credentials = value.includes('@')
+      ? { email: value.toLowerCase(), password }
+      : { phone: normalizeKenyaPhone(value), password };
+    const { data, error } = await withAuthTimeout(
+      supabase.auth.signInWithPassword(credentials),
+      'Password sign-in'
+    );
     if (error) throw error;
+    if (!data.user) throw new Error('Sign-in succeeded but no user session was returned');
     return data.user;
+  }
+
+  async signUpWithPassword(identifier: string, password: string, username?: string) {
+    const value = identifier.trim();
+    if (!value) throw new Error('Enter your email or phone number');
+    if (password.length < 8) throw new Error('Password must be at least 8 characters');
+    const metadata = username?.trim() ? { username: username.trim() } : {};
+    const credentials = value.includes('@')
+      ? {
+          email: value.toLowerCase(),
+          password,
+          options: { data: metadata, emailRedirectTo: window.location.origin + '/auth' },
+        }
+      : { phone: normalizeKenyaPhone(value), password, options: { data: metadata } };
+    const { data, error } = await withAuthTimeout(
+      supabase.auth.signUp(credentials),
+      'Account creation'
+    );
+    if (error) throw error;
+    if (!data.user) throw new Error('Account creation succeeded but no user was returned');
+    return { user: data.user, session: data.session };
+  }
+
+  async resendSignupEmail(email: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail || !normalizedEmail.includes('@')) throw new Error('Enter a valid email address');
+    const { error } = await withAuthTimeout(
+      supabase.auth.resend({
+        type: 'signup',
+        email: normalizedEmail,
+        options: { emailRedirectTo: window.location.origin + '/auth' },
+      }),
+      'Signup confirmation email'
+    );
+    if (error) throw error;
   }
 
   async signOut() {
