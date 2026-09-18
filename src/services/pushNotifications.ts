@@ -2,11 +2,13 @@ import { backendCapabilities } from '@/services/backendClient';
 
 const SERVICE_WORKER_PATH = '/sw.js';
 
-function base64UrlToUint8Array(value: string): Uint8Array {
+function base64UrlToArrayBuffer(value: string): ArrayBuffer {
   const padding = '='.repeat((4 - (value.length % 4)) % 4);
   const normalized = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
   const raw = atob(normalized);
-  return Uint8Array.from(raw, (char) => char.charCodeAt(0));
+  const bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+  return bytes.buffer;
 }
 
 function supported(): boolean {
@@ -33,7 +35,7 @@ export async function enableLocalPushNotifications(): Promise<{ enabled: boolean
   if (!subscription) {
     subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: base64UrlToUint8Array(config.public_key),
+      applicationServerKey: base64UrlToArrayBuffer(config.public_key),
     });
   }
 
