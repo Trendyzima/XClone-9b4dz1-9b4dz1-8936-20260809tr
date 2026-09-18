@@ -115,12 +115,36 @@ jobs:
               > deployment-list.json
             node scripts/verify-vercel-deployment.mjs
 
-            # DEPLOY_URL is already absolute; do not prepend a second https:// scheme.
-            curl --fail --silent --show-error --location --retry 3 --retry-delay 2 \
-              "https://testagram.site/api/health" > health.txt
-            grep -Eq '"status"[[:space:]]*:[[:space:]]*"?ok"?|HTTP/[0-9.]+[[:space:]]+200|200 OK' health.txt || { cat health.txt; sleep 10; continue; }
+            # Probe the public production alias. The health contract is JSON: { "ok": true, ... }.
+            # Keep the exact deployment URL probe too, so a healthy public alias cannot mask a bad deployment.
+            for HEALTH_BASE_URL in "$DEPLOY_URL" "https://testagram.site"; do
+              curl --fail --silent --show-error --location --retry 3 --retry-delay 2 \
+                "$HEALTH_BASE_URL/api/health" > health.txt || {
+                echo "::warning::Health probe failed for $HEALTH_BASE_URL on attempt $attempt"
+                cat health.txt || true
+                sleep 10
+                continue 2
+              }
+              node --input-type=module <<'NODE'
+import fs from "node:fs";
+const body = fs.readFileSync("health.txt", "utf8").trim();
+let payload;
+try {
+  payload = JSON.parse(body);
+} catch (error) {
+  console.error("Health endpoint did not return valid JSON:", error instanceof Error ? error.message : error);
+  console.error(body);
+  process.exit(1);
+}
+if (payload?.ok !== true || payload?.database !== "reachable") {
+  console.error("Health contract failed:", JSON.stringify(payload));
+  process.exit(1);
+}
+console.log("Health contract passed:", JSON.stringify(payload));
+NODE
+            done
 
-            echo "Exact SHA, production READY state, and /api/health passed."
+            echo "Exact SHA, production READY state, deployment health, and public production health passed."
             exit 0
           done
           echo "::error::Production deployment reconciliation exhausted its 3-attempt circuit breaker."
