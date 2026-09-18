@@ -26,6 +26,7 @@ import { VideoMonetizationAd } from './VideoMonetizationAd';
 import { EmbedRenderer, PostContentEmbeds } from './EmbedRenderer';
 import { updateInterestSignal } from '@/services/recommendations';
 import { togglePostLike, togglePostRepost } from '@/services/postInteractionService';
+import { backendCapabilities } from '@/services/backendClient';
 
 // esbuild guard: no 'as const' on module-level objects/arrays used in .map() render
 const REPORT_CATEGORIES = [
@@ -304,13 +305,13 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
 
   const fetchInlineReplies = async () => {
     setInlineLoading(true);
-    const { data } = await supabase
-      .from('replies')
-      .select('*, profiles(id, username, avatar_url, verified_tier)')
-      .eq('post_id', post.id)
-      .order('created_at', { ascending: true })
-      .limit(50);
-    setInlineReplies(data ?? []);
+    try {
+      const result = await backendCapabilities.listReplies(post.id, 50);
+      setInlineReplies(result.items.map((reply: any) => ({ ...reply, user_profiles: reply.profile })));
+    } catch (error) {
+      console.error('Reply list error:', error);
+      setInlineReplies([]);
+    }
     setInlineLoading(false);
   };
 
@@ -326,8 +327,12 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     if (parentId) { setReplyText(''); setReplyingToId(null); }
     else setInlineReplyText('');
     setInlinePosting(true);
-    await supabase.from('replies').insert({ post_id: post.id, user_id: user.id, content: text });
-    await fetchInlineReplies();
+    try {
+      await backendCapabilities.createReply(post.id, text);
+      await fetchInlineReplies();
+    } catch (error) {
+      toast({ title: 'Reply failed', description: error instanceof Error ? error.message : 'Failed to reply', variant: 'destructive' });
+    }
     setInlinePosting(false);
   };
 
@@ -502,14 +507,14 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     if (!user) return;
     const checkUserInteractions = async () => {
       try {
-        const [{ data: likeData, error: likeError }, { data: repostData, error: repostError }] = await Promise.all([
-          supabase.from('post_likes').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle(),
-          supabase.from('post_reposts').select('id').eq('user_id', user.id).eq('post_id', post.id).maybeSingle(),
+        const [likeResult, repostResult] = await Promise.all([
+          backendCapabilities.getLikeState(post.id),
+          backendCapabilities.getRepostState(post.id),
         ]);
-        if (likeError) throw likeError;
-        if (repostError) throw repostError;
-        setIsLiked(!!likeData);
-        setIsReposted(!!repostData);
+        setIsLiked(likeResult.state.is_liked);
+        setIsReposted(repostResult.state.is_reposted);
+        setLikesCount(likeResult.state.likes_count);
+        setRepostsCount(repostResult.state.reposts_count);
       } catch (error) {
         console.error('Error checking user interactions:', error);
       }
@@ -529,10 +534,6 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       setIsLiked(state.is_liked);
       setLikesCount(state.likes_count);
       if (state.is_liked) {
-        if (post.user_id !== user.id) {
-          await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'like', actor_id: user.id, post_id: post.id  });
-          sendActivityNotification({ recipientUserId: post.user_id, title: 'New Like', body: `${user.username} liked your post`, data: { route: `/post/${post.id}`, type: 'like' } });
-        }
         updateInterestSignal(user.id, post.id, 'like').catch(() => {});
       }
       onUpdate?.();
@@ -556,10 +557,6 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       setIsReposted(state.is_reposted);
       setRepostsCount(state.reposts_count);
       if (state.is_reposted) {
-        if (post.user_id !== user.id) {
-          await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'repost', actor_id: user.id, post_id: post.id  });
-          sendActivityNotification({ recipientUserId: post.user_id, title: 'New Repost', body: `${user.username} reposted your post`, data: { route: `/post/${post.id}`, type: 'repost' } });
-        }
         toast({ title: 'Reposted successfully' });
         updateInterestSignal(user.id, post.id, 'repost').catch(() => {});
       } else {
