@@ -182,8 +182,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
         setIsLiked(state.is_liked);
         setLikesCount(state.likes_count);
         if (state.is_liked && post.user_id !== user.id) {
-          await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'like', actor_id: user.id, post_id: post.id  });
-          sendActivityNotification({ recipientUserId: post.user_id, title: 'New Reaction', body: `${user.username} reacted ❤️ to your post`, data: { route: `/post/${post.id}`, type: 'like' } });
+
         }
       } else if (prevReaction === '❤️' && emoji !== '❤️' && isLiked) {
         const state = await togglePostLike(post.id);
