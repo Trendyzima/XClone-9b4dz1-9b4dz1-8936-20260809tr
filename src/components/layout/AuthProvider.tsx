@@ -96,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const existing = finalizationInFlight.get(user.id);
       if (existing) return;
 
-      const task = new Promise<void>((resolve, reject) => {
+      const task = new Promise<void>((resolve) => {
         window.setTimeout(() => {
           if (!mounted) {
             resolve();
@@ -113,7 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             })
             .catch(async (error) => {
               if (!mounted) {
-                reject(error);
+                resolve();
                 return;
               }
               const message = error instanceof Error ? error.message : 'Profile provisioning failed';
