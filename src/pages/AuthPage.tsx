@@ -34,7 +34,7 @@ function AuthAdBanner() {
   );
 }
 
-type AuthMode = 'signin' | 'signup' | 'verify' | 'verify-phone';
+type AuthMode = 'signin' | 'signup' | 'verify' | 'verify-phone' | 'reset';
 type AuthMethod = 'email' | 'phone';
 
 export default function AuthPage() {
@@ -58,7 +58,12 @@ export default function AuthPage() {
   const login = useAuthStore((state) => state.login);
 
   useEffect(() => {
-    if (authUser && !pendingUserId && mode !== 'verify' && mode !== 'verify-phone') {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('reset') === '1' && mode !== 'reset') setMode('reset');
+  }, [mode]);
+
+  useEffect(() => {
+    if (authUser && !pendingUserId && mode !== 'verify' && mode !== 'verify-phone' && mode !== 'reset') {
       navigate('/', { replace: true });
     }
   }, [authUser, pendingUserId, mode, navigate]);
@@ -85,12 +90,7 @@ export default function AuthPage() {
 
   const finishLogin = async (user: any) => {
     if (!user) throw new Error('Authentication succeeded but no user was returned');
-    const { data, error } = await supabase.auth.getUser();
-    if (error) throw error;
-    if (!data.user || data.user.id !== user.id) {
-      throw new Error('Authentication succeeded but the session could not be confirmed');
-    }
-    const finalized = await finalizeAuthenticatedSession(data.user);
+    const finalized = await finalizeAuthenticatedSession(user);
     login(finalized);
     setPendingUserId(null);
     setLoading(false);
@@ -121,6 +121,26 @@ export default function AuthPage() {
       toast({ title: 'Reset link sent', description: 'Check your email for the password reset link.' });
     } catch (error: any) {
       toast({ title: 'Password reset error', description: error?.message || 'Unable to send the reset link.', variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleUpdatePassword = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (password.length < 8 || password !== confirmation) {
+      toast({ title: 'Check your password', description: password !== confirmation ? 'Passwords do not match.' : 'Password must be at least 8 characters.', variant: 'destructive' });
+      return;
+    }
+    setLoading(true);
+    try {
+      const user = await authService.updatePassword(password);
+      const finalized = await finalizeAuthenticatedSession(user);
+      login(finalized);
+      window.history.replaceState({}, document.title, '/auth');
+      navigate('/', { replace: true });
+    } catch (error: any) {
+      toast({ title: 'Password update error', description: error?.message || 'Unable to update your password.', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -249,7 +269,7 @@ export default function AuthPage() {
             <span className="text-4xl font-bold text-primary-foreground">T</span>
           </div>
           <h2 className="text-3xl font-bold">
-            {mode === 'signin' ? 'Sign in to T' : mode === 'signup' ? 'Join T today' : mode === 'verify-phone' ? 'Verify your phone' : 'Verify your email'}
+            {mode === 'signin' ? 'Sign in to T' : mode === 'signup' ? 'Join T today' : mode === 'reset' ? 'Set a new password' : mode === 'verify-phone' ? 'Verify your phone' : 'Verify your email'}
           </h2>
         </div>
 
@@ -286,6 +306,15 @@ export default function AuthPage() {
             )}
             <div className="text-center"><button type="button" onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')} className="text-primary hover:underline">{mode === 'signin' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}</button></div>
           </>
+        )}
+
+        {mode === 'reset' && (
+          <form onSubmit={handleUpdatePassword} className="space-y-4">
+            <p className="text-muted-foreground text-center">Choose a new password for your Testagram account.</p>
+            <Input type="password" autoComplete="new-password" placeholder="New password (8+ characters)" value={password} onChange={(event) => setPassword(event.target.value)} required minLength={8} className="h-14" />
+            <Input type="password" autoComplete="new-password" placeholder="Confirm new password" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required minLength={8} className="h-14" />
+            <Button type="submit" className="w-full h-12 rounded-full" disabled={loading}>{loading ? <Loader2 className="w-5 h-5 animate-spin" /> : 'Update password and enter Testagram'}</Button>
+          </form>
         )}
 
         {mode === 'verify' && (
