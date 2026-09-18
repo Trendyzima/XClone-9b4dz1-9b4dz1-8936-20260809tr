@@ -106,7 +106,7 @@ jobs:
             curl -fsS               -H "Authorization: Bearer $VERCEL_TOKEN"               "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&limit=20"               > deployment-list.json
             node scripts/verify-vercel-deployment.mjs
 
-            curl -fsS "https://$DEPLOY_URL/api/health" > health.txt
+            curl -fsS "$DEPLOY_URL/api/health" > health.txt
             grep -Eq '"status"[[:space:]]*:[[:space:]]*"?ok"?|HTTP/[0-9.]+[[:space:]]+200|200 OK' health.txt || { cat health.txt; sleep 10; continue; }
 
             echo "Exact SHA, production READY state, and /api/health passed."
