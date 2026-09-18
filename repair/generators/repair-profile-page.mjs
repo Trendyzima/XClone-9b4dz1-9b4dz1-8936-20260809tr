@@ -14,13 +14,11 @@ if (manifest.path !== targetPath || typeof manifest.content !== 'string' || !man
 }
 
 const before = fs.readFileSync(targetPath, 'utf8');
-const beforeLooksCorrupt =
-  before.includes('PLACEHOLDER') ||
-  (!/\bexport\s+default\s+function\s+ProfilePage\b/.test(before) &&
-   !/\bexport\s+default\s+class\s+ProfilePage\b/.test(before));
-
-if (!beforeLooksCorrupt) {
-  throw new Error('Refusing repair: target does not match the bounded ProfilePage corruption signature');
+const beforeHash = crypto.createHash('sha256').update(before).digest('hex');
+const beforeBytes = Buffer.byteLength(before);
+const signatures = manifest.corruption_signatures ?? {};
+if (beforeHash !== signatures.sha256 || beforeBytes !== signatures.bytes || before !== signatures.exact_content) {
+  throw new Error('Refusing repair: target does not match the exact bounded ProfilePage corruption signature');
 }
 
 const expected = manifest.content;
