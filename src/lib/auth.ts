@@ -131,7 +131,7 @@ export class AuthService {
   }
   async resetPassword(email: string) {
     const identifier = normalizeIdentifier(email); if (identifier.kind !== 'email') throw new Error('Password recovery requires an email address');
-    const { error } = await withAuthTimeout(supabase.auth.resetPasswordForEmail(identifier.value, { redirectTo: `${window.location.origin}/auth/reset-password` }), 'Password recovery email');
+    const { error } = await withAuthTimeout(supabase.auth.resetPasswordForEmail(identifier.value, { redirectTo: `${window.location.origin}/auth?reset=1` }), 'Password recovery email');
     if (error) throw error;
   }
   async updatePassword(password: string) {
