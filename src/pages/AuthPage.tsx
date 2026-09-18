@@ -4,7 +4,7 @@ import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
-import { authService } from '@/lib/auth';
+import { authService, finalizeAuthenticatedSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { useSEO } from '@/hooks/useSEO';
 import { useAuthStore } from '@/stores/authStore';
@@ -54,6 +54,7 @@ export default function AuthPage() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const authUser = useAuthStore((state) => state.user);
+  const login = useAuthStore((state) => state.login);
 
   useEffect(() => {
     if (authUser && !pendingUserId && mode !== 'verify' && mode !== 'verify-phone') {
@@ -88,14 +89,19 @@ export default function AuthPage() {
     if (!data.user || data.user.id !== user.id) {
       throw new Error('Authentication succeeded but the session could not be confirmed');
     }
-    setPendingUserId(data.user.id);
+    const finalized = await finalizeAuthenticatedSession(data.user);
+    login(finalized);
+    setPendingUserId(null);
+    setLoading(false);
+    navigate('/', { replace: true });
   };
 
   const handlePasswordSignIn = async (event: React.FormEvent) => {
     event.preventDefault();
     setLoading(true);
     try {
-      await authService.signInWithPassword(email, password);
+      const user = await authService.signInWithPassword(email, password);
+      login(await finalizeAuthenticatedSession(user));
       navigate('/', { replace: true });
     } catch (error: any) {
       setLoading(false);
@@ -113,6 +119,8 @@ export default function AuthPage() {
     try {
       const { session } = await authService.signUpWithPassword(email, password, username);
       if (session) {
+        const user = await finalizeAuthenticatedSession(session.user);
+        login(user);
         navigate('/', { replace: true });
         return;
       }
