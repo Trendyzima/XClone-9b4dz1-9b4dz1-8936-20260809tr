@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
-import { mapSupabaseUserWithCanonicalProfile } from '@/lib/auth';
+import { mapSupabaseUser, mapSupabaseUserWithCanonicalProfile } from '@/lib/auth';
 import { Capacitor, PushNotifications } from '@/lib/capacitor-stub';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 
@@ -20,7 +20,6 @@ async function triggerKeygenForUser(userId: string) {
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
       body: JSON.stringify({ user_id: userId }),
     });
-    console.log('[ActivityPub] RSA keys generated for', userId);
   } catch (err) {
     console.warn('[ActivityPub] Keygen failed (non-fatal):', err);
   }
@@ -84,45 +83,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
-    const applyAuthenticatedUser = async (user: User) => {
-      const mappedUser = await mapSupabaseUserWithCanonicalProfile(user);
-      if (!mounted) return;
-      login(mappedUser);
+    const hydrateUser = (user: User) => {
+      // Keep auth state changes synchronous and cheap. Supabase warns that async
+      // calls made directly inside onAuthStateChange can deadlock the client.
+      login(mapSupabaseUser(user));
+      setLoading(false);
+
+      window.setTimeout(() => {
+        if (!mounted) return;
+        void mapSupabaseUserWithCanonicalProfile(user).then((mappedUser) => {
+          if (!mounted) return;
+          login(mappedUser);
+        }).catch((error) => {
+          console.warn('[Auth] Background profile hydration failed:', error);
+        });
+      }, 0);
+
+      window.setTimeout(() => {
+        if (!mounted) return;
+        void registerPushNotifications(user.id);
+        void triggerKeygenForUser(user.id);
+      }, 0);
     };
 
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session?.user) {
-        void applyAuthenticatedUser(session.user).then(() => {
-          if (!mounted) return;
-          registerPushNotifications(session.user.id);
-          triggerKeygenForUser(session.user.id);
-          setLoading(false);
-        });
-      } else if (mounted) {
-        setLoading(false);
-      }
-    });
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (!mounted) return;
-      if (event === 'SIGNED_IN' && session?.user) {
-        const signedInUser = session.user;
-        trackTestagramEvent(TestagramEvent.LOGGED_IN, { auth_event: event });
-        void applyAuthenticatedUser(signedInUser).then(() => {
-          if (!mounted) return;
-          setLoading(false);
-          registerPushNotifications(signedInUser.id);
-          triggerKeygenForUser(signedInUser.id);
-        });
-      } else if (event === 'SIGNED_OUT') {
+      if (event === 'SIGNED_OUT') {
         trackTestagramEvent(TestagramEvent.LOGGED_OUT, { auth_event: event });
         logout();
         setLoading(false);
-      } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-        void applyAuthenticatedUser(session.user);
-      } else if (event === 'USER_UPDATED' && session?.user) {
-        trackTestagramEvent(TestagramEvent.PROFILE_UPDATED, { source: 'auth_user_updated' });
-        void applyAuthenticatedUser(session.user);
+        return;
+      }
+
+      if (!session?.user) {
+        if (event === 'INITIAL_SESSION') setLoading(false);
+        return;
+      }
+
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+        if (event === 'SIGNED_IN') {
+          trackTestagramEvent(TestagramEvent.LOGGED_IN, { auth_event: event });
+        }
+        if (event === 'USER_UPDATED') {
+          trackTestagramEvent(TestagramEvent.PROFILE_UPDATED, { source: 'auth_user_updated' });
+        }
+        hydrateUser(session.user);
       }
     });
 
