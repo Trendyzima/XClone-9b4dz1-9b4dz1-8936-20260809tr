@@ -83,6 +83,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
+    const finalizationInFlight = new Map<string, Promise<void>>();
+
     const hydrateUser = (user: User) => {
       // Never expose an authenticated app state until the canonical profile
       // boundary has succeeded. The work is deferred out of onAuthStateChange
@@ -91,28 +93,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       clearAuthError();
 
-      window.setTimeout(() => {
-        if (!mounted) return;
-        void finalizeAuthenticatedSession(user)
-          .then((mappedUser) => {
-            if (!mounted) return;
-            login(mappedUser);
-            setLoading(false);
-            void registerPushNotifications(user.id);
-            void triggerKeygenForUser(user.id);
-          })
-          .catch(async (error) => {
-            if (!mounted) return;
-            const message = error instanceof Error ? error.message : 'Profile provisioning failed';
-            setAuthError(message);
-            logout();
-            setLoading(false);
-            // Do not leave a valid Supabase session behind when the app's
-            // canonical profile contract could not be established.
-            try { await supabase.auth.signOut(); } catch { /* best effort */ }
-            console.error('[Auth] Session finalization failed:', error);
-          });
-      }, 0);
+      const existing = finalizationInFlight.get(user.id);
+      if (existing) return;
+
+      const task = new Promise<void>((resolve, reject) => {
+        window.setTimeout(() => {
+          if (!mounted) {
+            resolve();
+            return;
+          }
+          void finalizeAuthenticatedSession(user)
+            .then((mappedUser) => {
+              if (!mounted) return;
+              login(mappedUser);
+              setLoading(false);
+              void registerPushNotifications(user.id);
+              void triggerKeygenForUser(user.id);
+              resolve();
+            })
+            .catch(async (error) => {
+              if (!mounted) {
+                reject(error);
+                return;
+              }
+              const message = error instanceof Error ? error.message : 'Profile provisioning failed';
+              setAuthError(message);
+              logout();
+              setLoading(false);
+              // Do not leave a valid Supabase session behind when the app's
+              // canonical profile contract could not be established.
+              try { await supabase.auth.signOut(); } catch { /* best effort */ }
+              console.error('[Auth] Session finalization failed:', error);
+              reject(error);
+            });
+        }, 0);
+      }).finally(() => {
+        finalizationInFlight.delete(user.id);
+      });
+
+      finalizationInFlight.set(user.id, task);
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -128,7 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'USER_UPDATED') {
         if (event === 'SIGNED_IN') {
           trackTestagramEvent(TestagramEvent.LOGGED_IN, { auth_event: event });
         }
