@@ -198,6 +198,7 @@ jobs:
           echo "REPAIR_BRANCH=$branch" >> "$GITHUB_ENV"
 
       - name: Open self-healing pull request
+        id: open_pr
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
@@ -206,7 +207,24 @@ jobs:
           FAILURE_CLASS: ${{ steps.classify.outputs.failure_class }}
         run: |
           set -euo pipefail
-          gh pr create             --base main             --head "$REPAIR_BRANCH"             --title "ci: self-heal $FAILURE_CLASS"             --body "Automated bounded repair for failed workflow run #$RUN_ID on $HEAD_BRANCH at $HEAD_SHA. Failure class: $FAILURE_CLASS. The repair is deterministic, hash-checked, diff-bounded, and validated with typecheck, lint, and production build. Automatic repair is never chained from a self-heal branch."
+          title="ci: self-heal $FAILURE_CLASS"
+          body="Automated bounded repair for failed workflow run #$RUN_ID on $HEAD_BRANCH at $HEAD_SHA. Failure class: $FAILURE_CLASS. The repair is deterministic, hash-checked, diff-bounded, and validated with typecheck, lint, and production build. Automatic repair is never chained from a self-heal branch."
+
+          existing_url="$(gh pr list --base main --head "$REPAIR_BRANCH" --state open --json url --jq '.[0].url // empty')"
+          if test -n "$existing_url"; then
+            echo "Self-healing PR already exists: $existing_url"
+            echo "PR_URL=$existing_url" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! gh pr create --base main --head "$REPAIR_BRANCH" --title "$title" --body "$body"; then
+            echo "::error::GitHub Actions could not create the self-healing PR. The repository setting 'Allow GitHub Actions to create and approve pull requests' must be enabled, or the workflow must use an explicitly authorized PR-creation credential."
+            exit 1
+          fi
+
+          pr_url="$(gh pr view "$REPAIR_BRANCH" --json url --jq '.url')"
+          echo "PR_URL=$pr_url" >> "$GITHUB_OUTPUT"
+          echo "Self-healing PR: $pr_url"
 
       - name: Emit repair manifest
         if: always()
@@ -215,15 +233,23 @@ jobs:
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
           RUN_ID: ${{ github.event.workflow_run.id }}
           FAILURE_CLASS: ${{ steps.classify.outputs.failure_class || 'unclassified' }}
+          REPAIR_BRANCH: ${{ env.REPAIR_BRANCH || '' }}
+          PR_URL: ${{ steps.open_pr.outputs.PR_URL || '' }}
         run: |
+          set -euo pipefail
           {
             echo '### Surgical Self-Healing Manifest'
-            echo "- failed run: `$RUN_ID`"
-            echo "- failed SHA: `$HEAD_SHA`"
-            echo "- failed branch: `$HEAD_BRANCH`"
-            echo "- failure class: `$FAILURE_CLASS`"
-            echo '- mutation: exactly one allowlisted deterministic repair'
-            echo '- validation: tsc + lint + build + repair-specific hash/diff proof'
-            echo '- delivery: dedicated self-heal branch + pull request; never direct main mutation'
-            echo '- recursion: self-heal branches are outside the automatic repair boundary'
+            printf '%s\n' "- failed run: \`$RUN_ID\`"
+            printf '%s\n' "- failed SHA: \`$HEAD_SHA\`"
+            printf '%s\n' "- failed branch: \`$HEAD_BRANCH\`"
+            printf '%s\n' "- failure class: \`$FAILURE_CLASS\`"
+            printf '%s\n' '- mutation: exactly one allowlisted deterministic repair'
+            printf '%s\n' '- validation: tsc + lint + build + repair-specific hash/diff proof'
+            printf '%s\n' "- delivery branch: \`$REPAIR_BRANCH\`"
+            if test -n "$PR_URL"; then
+              printf '%s\n' "- pull request: $PR_URL"
+            else
+              printf '%s\n' '- pull request: NOT CREATED — repository Actions PR-creation permission is required'
+            fi
+            printf '%s\n' '- recursion: self-heal branches are outside the automatic repair boundary'
           } >> "$GITHUB_STEP_SUMMARY"
