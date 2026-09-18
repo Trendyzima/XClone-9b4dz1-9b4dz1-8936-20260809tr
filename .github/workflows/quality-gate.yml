@@ -77,9 +77,13 @@ jobs:
           test -f src/services/postInteractionService.ts
           grep -q "togglePostLike" src/components/features/PostCard.tsx
           grep -q "togglePostRepost" src/components/features/PostCard.tsx
-          grep -q "post_likes" src/components/features/PostCard.tsx
-          grep -q "post_reposts" src/components/features/PostCard.tsx
-          if grep -q "supabase.from('likes')" src/components/features/PostCard.tsx; then exit 1; fi
-          if grep -q "supabase.from('reposts')" src/components/features/PostCard.tsx; then exit 1; fi
+          grep -q "backendCapabilities.getLikeState" src/components/features/PostCard.tsx
+          grep -q "backendCapabilities.getRepostState" src/components/features/PostCard.tsx
+          grep -q "backendCapabilities.listReplies" src/components/features/PostCard.tsx
+          grep -q "backendCapabilities.createReply" src/components/features/PostCard.tsx
+          if grep -q "supabase.from('post_likes')" src/components/features/PostCard.tsx; then exit 1; fi
+          if grep -q "supabase.from('post_reposts')" src/components/features/PostCard.tsx; then exit 1; fi
+          if grep -q "supabase.from('replies')" src/components/features/PostCard.tsx; then exit 1; fi
+          if grep -qE "from\\(['\"]post_likes['\"]\\)|from\\(['\"]post_reposts['\"]\\)|from\\(['\"]replies['\"]\\)" src/components/features/PostCard.tsx; then exit 1; fi
 
 # Verification trigger: run the canonical gate against the committed tree only.
