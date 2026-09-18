@@ -80,8 +80,9 @@ jobs:
         run: |
           set -euo pipefail
           nohup npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/testagram-preview.log 2>&1 &
-          echo $! > /tmp/testagram-preview.pid
-          for _ in {1..60}; do
+          preview_pid=$!
+          echo "$preview_pid" > /tmp/testagram-preview.pid
+          for attempt in {1..60}; do
             if curl -fsS http://127.0.0.1:4173/ >/dev/null; then
               exit 0
             fi
