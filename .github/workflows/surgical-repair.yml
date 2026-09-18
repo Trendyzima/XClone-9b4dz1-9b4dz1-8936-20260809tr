@@ -139,7 +139,6 @@ jobs:
 
       - name: Enforce one bounded repair per failed SHA
         if: steps.classify.outputs.should_repair == 'true'
-        if: steps.classify.outputs.should_repair == 'true'
         env:
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
