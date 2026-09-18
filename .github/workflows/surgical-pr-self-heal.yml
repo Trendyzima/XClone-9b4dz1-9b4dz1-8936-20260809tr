@@ -36,6 +36,7 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           RUN_ID: ${{ github.event.workflow_run.id }}
         run: |
+          # shellcheck disable=SC2129
           set -euo pipefail
           test "$HEAD_REPOSITORY" = "$REPOSITORY"
           test "$(git ls-remote "https://github.com/$REPOSITORY.git" "$HEAD_SHA" | awk '{print $1}')" = "$HEAD_SHA"
