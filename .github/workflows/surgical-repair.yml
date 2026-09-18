@@ -82,6 +82,13 @@ jobs:
             fi
           fi
 
+          if grep -Fq "Invalid workflow file" /tmp/failed.log &&
+             grep -Fq ".github/workflows/production-deployment-reconciliation.yml" /tmp/failed.log; then
+            echo 'failure_class=workflow-syntax-production-reconciliation' >> "$GITHUB_OUTPUT"
+            echo 'Exact production deployment workflow syntax-failure signature confirmed.'
+            exit 0
+          fi
+
           if grep -Fq "no-redeclare" /tmp/failed.log; then
             matched=0
             for path in               scripts/verify-communications-e2ee-browser.mjs               scripts/verify-communications-e2ee-runtime.mjs               scripts/verify-community-admin-media-runtime.mjs               scripts/verify-community-admin-rpc-runtime.mjs; do
@@ -119,6 +126,9 @@ jobs:
           case "$FAILURE_CLASS" in
             profile-page-module-corruption)
               node repair/generators/repair-profile-page.mjs
+              ;;
+            workflow-syntax-production-reconciliation)
+              node repair/generators/repair-production-workflow-from-main.mjs
               ;;
             verifier-no-redeclare)
               node <<'NODE'
@@ -164,6 +174,11 @@ jobs:
               grep -Fq -- '-PLACEHOLDER' /tmp/profile.diff
               grep -Fq '+import { useEffect, useState } from '\''react'\'';' /tmp/profile.diff
               ;;
+            workflow-syntax-production-reconciliation)
+              test "$(printf '%s\n' "$changed" | wc -l | tr -d ' ')" -eq 1
+              test "$changed" = ".github/workflows/production-deployment-reconciliation.yml"
+              git diff --check
+              ;;
             verifier-no-redeclare)
               while IFS= read -r path; do
                 case "$path" in
@@ -192,6 +207,9 @@ jobs:
           case "$FAILURE_CLASS" in
             profile-page-module-corruption)
               node -e "const fs=require('node:fs'),c=require('node:crypto'),m=JSON.parse(fs.readFileSync('repair/manifests/profile-page.json','utf8')),x=fs.readFileSync(m.path,'utf8'); if(c.createHash('sha256').update(x).digest('hex')!==m.expected_sha256) throw new Error('ProfilePage manifest hash proof failed')"
+              ;;
+            workflow-syntax-production-reconciliation)
+              node repair/generators/verify-production-workflow-repair.mjs
               ;;
             verifier-no-redeclare) ;;
             *) exit 1;;
