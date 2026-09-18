@@ -20,7 +20,7 @@ jobs:
     if: >-
       github.event.workflow_run.conclusion == 'failure' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
-      (github.event.workflow_run.head_branch == 'main' || startsWith(github.event.workflow_run.head_branch, 'surgical/'))
+      github.event.workflow_run.head_branch == 'main'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout exact failed SHA
@@ -52,11 +52,16 @@ jobs:
           gh run view "$RUN_ID" --log-failed > /tmp/failed.log 2>&1 || true
 
           if grep -Fq "TS2306" /tmp/failed.log &&
-             grep -Fq "ProfilePage.tsx" /tmp/failed.log &&
-             grep -Fq "PLACEHOLDER" /tmp/failed.log; then
-            echo 'failure_class=profile-page-module-corruption' >> "$GITHUB_OUTPUT"
-            echo 'Exact ProfilePage module-corruption signature confirmed.'
-            exit 0
+             grep -Fq "ProfilePage.tsx" /tmp/failed.log; then
+            profile_sha="$(sha256sum src/pages/ProfilePage.tsx | awk '{print $1}')"
+            profile_bytes="$(wc -c < src/pages/ProfilePage.tsx | tr -d ' ')"
+            if test "$profile_sha" = "83acce8cff053ecb1dd5f36bf2fad7bc51ee4720e1d17b0c43afa1b029264ec3" &&
+               test "$profile_bytes" = "11" &&
+               test "$(cat src/pages/ProfilePage.tsx)" = "PLACEHOLDER"; then
+              echo 'failure_class=profile-page-module-corruption' >> "$GITHUB_OUTPUT"
+              echo 'Exact ProfilePage module-corruption signature confirmed.'
+              exit 0
+            fi
           fi
 
           if grep -Fq "no-redeclare" /tmp/failed.log; then
@@ -83,7 +88,7 @@ jobs:
             echo 'This exact SHA has already received a surgical repair.'
             exit 1
           fi
-          if git log -20 --format='%B' | grep -Fq 'ci: self-heal'; then
+          if git log -50 --format='%B' | grep -Fq 'ci: self-heal'; then
             echo 'Refusing chained automatic repairs; human inspection required.'
             exit 1
           fi
@@ -136,12 +141,10 @@ jobs:
             profile-page-module-corruption)
               test "$(printf '%s\n' "$changed" | wc -l | tr -d ' ')" -eq 1
               test "$changed" = "src/pages/ProfilePage.tsx"
+              test "$(git diff --quiet -- . ':!src/pages/ProfilePage.tsx'; echo $?)" -eq 0
               git diff --unified=0 -- src/pages/ProfilePage.tsx > /tmp/profile.diff
-              if grep -E '^\+' /tmp/profile.diff | grep -vE '^(\+\+\+|\+import |\+type |\+export |\+  |\+    |\+    \}|\+\})' >/tmp/unexpected-profile.diff; then
-                cat /tmp/unexpected-profile.diff
-                echo 'Unexpected ProfilePage diff shape.'
-                exit 1
-              fi
+              grep -Fq -- '-PLACEHOLDER' /tmp/profile.diff
+              grep -Fq '+import { useEffect, useState } from '\''react'\'';' /tmp/profile.diff
               ;;
             verifier-no-redeclare)
               while IFS= read -r path; do
@@ -167,6 +170,7 @@ jobs:
           npx tsc --noEmit
           npm run lint
           npm run build
+          git diff --check
           case "$FAILURE_CLASS" in
             profile-page-module-corruption)
               node -e "const fs=require('node:fs'),c=require('node:crypto'),m=JSON.parse(fs.readFileSync('repair/manifests/profile-page.json','utf8')),x=fs.readFileSync(m.path,'utf8'); if(c.createHash('sha256').update(x).digest('hex')!==m.expected_sha256) throw new Error('ProfilePage manifest hash proof failed')"
