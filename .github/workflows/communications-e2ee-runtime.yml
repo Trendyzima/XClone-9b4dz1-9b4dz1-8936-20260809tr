@@ -46,6 +46,7 @@ jobs:
       - name: Fail loudly if runtime identities/forensic access are missing
         shell: bash
         run: |
+          # shellcheck disable=SC2034
           set -euo pipefail
           required=(
             VITE_SUPABASE_URL
