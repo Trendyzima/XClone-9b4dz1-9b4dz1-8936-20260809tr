@@ -356,48 +356,35 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
       }
 
       if (scheduledDate) {
-        const { error: scheduleError } = await supabase.from('scheduled_posts').insert({ user_id: user!.id, content: content.trim(), image_url: imageUrls[0] ?? gifUrl ?? null, video_url: videoUrl, scheduled_for: scheduledDate.toISOString(), status: 'pending' });
-        if (scheduleError) throw scheduleError;
-        setContent(''); setImages([]); setVideo(null); setPollData(null); setGifUrl(null); setScheduledDate(null); setTaggedProducts([]);
+        if (images.length > 0 || video || gifUrl || pollData || taggedProducts.length > 0) {
+          throw new Error('Scheduled posts currently support text only. Remove media, poll, GIF, or product tags before scheduling.');
+        }
+        await backendCapabilities.schedulePost(content.trim(), scheduledDate.toISOString());
+        setContent(''); setScheduledDate(null);
         toast({ title: 'Success', description: 'Post scheduled successfully' });
         onSuccess?.();
         setLoading(false);
         return;
       }
 
-      const postPayload: any = { user_id: user!.id, content: content.trim() || '', community_id: communityId || null, media_urls: [], media_count: 0, is_video: false };
-
-      if (videoUrl && video) {
-        postPayload.video_url = videoUrl; postPayload.is_video = true; postPayload.image_url = null;
-      } else if (imageUrls.length > 0) {
-        postPayload.image_url = imageUrls[0]; postPayload.media_urls = imageUrls; postPayload.media_count = imageUrls.length;
-      } else if (gifUrl) {
-        postPayload.image_url = gifUrl; postPayload.media_urls = [gifUrl]; postPayload.media_count = 1;
-      }
-
-      const { data: postData, error: postError } = await supabase.from('posts').insert(postPayload).select().single();
-      if (postError) throw postError;
-
-      if (pollData && postData) {
-        const expiresAt = new Date(Date.now() + pollData.duration * 60 * 1000);
-        const { data: poll, error: pollError } = await supabase.from('polls').insert({ post_id: postData.id, question: pollData.question, expires_at: expiresAt.toISOString() }).select().single();
-        if (pollError) throw pollError;
-        await supabase.from('poll_options').insert(pollData.options.map((opt: string) => ({ poll_id: poll.id, option_text: opt })));
-      }
-
-      if (taggedProducts.length > 0 && postData) {
-        await supabase.from('product_tags').insert(taggedProducts.map(p => ({ post_id: postData.id, product_id: p.id }))).select().then(() => {});
-      }
-
-      const mentionMatches = content.match(/@(\w+)/g);
-      if (mentionMatches && postData) {
-        const uniqueUsernames = [...new Set(mentionMatches.map(m => m.slice(1).toLowerCase()))];
-        const { data: mentionedUsers } = await supabase.from('profiles').select('id, username').in('username', uniqueUsernames).neq('id', user!.id);
-        if (mentionedUsers && mentionedUsers.length > 0) {
-          await supabase.from('notifications').insert(mentionedUsers.map(mu => ({ recipient_id: mu.id, kind: 'mention', actor_id: user!.id, post_id: postData.id })));
-          await supabase.from('mentions').insert(mentionedUsers.map(mu => ({ post_id: postData.id, mentioned_user_id: mu.id }))).select().then(() => {});
-        }
-      }
+      const mediaUrls = imageUrls.length > 0 ? imageUrls : (gifUrl ? [gifUrl] : []);
+      const postResult = await backendCapabilities.createPost({
+        content: content.trim() || '',
+        communityId,
+        mediaUrls,
+        mediaCount: mediaUrls.length,
+        imageUrl: imageUrls[0] ?? gifUrl ?? undefined,
+        videoUrl: videoUrl ?? undefined,
+        isVideo: !!videoUrl,
+        quotedPostId: quotedPostId ?? undefined,
+        productIds: taggedProducts.map((p: any) => String(p.id)),
+        poll: pollData ? {
+          question: pollData.question,
+          options: pollData.options,
+          durationMinutes: pollData.duration,
+        } : undefined,
+      });
+      const postData = { id: postResult.post_id };
 
       if (postToFediverse) {
         try { await federation.postStatus({ content: content.trim(), visibility: 'public' }); sonnerToast.success('Also posted to Fediverse!'); }
@@ -447,18 +434,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
                 : `🏆 Your post entered the "${firstChallenge.title}" challenge!`,
               { duration: 6000, action: { label: 'View', onClick: () => window.location.href = `/challenge/${firstChallenge.id}` } }
             );
-            // Insert platform_inbox notification
-            await supabase.from('platform_inbox').insert({
-              user_id: user!.id,
-              subject: `🏆 You entered the "${firstChallenge.title}" challenge!`,
-              body: `Your post with #${uniqueTags[0] ?? ''} was entered into the active challenge "${firstChallenge.title}"${
-                firstChallenge.prize ? ` — Prize: ${firstChallenge.prize}` : ''
-              }. Check the leaderboard to see how you rank!`,
-              type: 'update',
-              icon_emoji: '🏆',
-              cta_label: 'View Challenge',
-              cta_url: `/challenge/${firstChallenge.id}`,
-            }).catch(() => {});
+            // Challenge delivery remains read/toast-only here; notification writes are server-owned.
           }
         }
       }
@@ -539,7 +515,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
                 for (let idx = 0; idx < validParts.length; idx++) {
                   const part = validParts[idx];
                   const label = validParts.length > 1 ? ` \ud83e\uddf5 ${idx + 1}/${validParts.length}\n\n` : '';
-                  await supabase.from('posts').insert({ user_id: user!.id, content: label + part.trim(), community_id: communityId || null });
+                  await backendCapabilities.createPost({ content: label + part.trim(), communityId });
                 }
                 setLoading(false); setShowThreadMode(false); setThreadParts(['', '']);
                 sonnerToast.success(`Thread posted (${validParts.length} parts)!`);
