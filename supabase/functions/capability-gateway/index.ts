@@ -5,17 +5,18 @@ const url = Deno.env.get("SUPABASE_URL") ?? "";
 const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? "";
 if (!url || !anonKey) throw new Error("SUPABASE_URL and SUPABASE_ANON_KEY are required");
 
-const json = (body: unknown, status = 200, requestId = crypto.randomUUID()) => new Response(JSON.stringify(body), {
-  status,
-  headers: {
-    "Content-Type": "application/json; charset=utf-8",
-    "Cache-Control": "no-store",
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-request-id, x-client-info, x-testagram-client, x-testagram-client-version",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "X-Request-Id": requestId,
-  },
-});
+const json = (body: unknown, status = 200, requestId = crypto.randomUUID(), cacheControl = "no-store") =>
+  new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": cacheControl,
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-request-id, x-client-info, x-testagram-client, x-testagram-client-version",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "X-Request-Id": requestId,
+    },
+  });
 
 const PUBLIC_CAPABILITIES = new Set([
   "testagram.search.users",
@@ -23,7 +24,34 @@ const PUBLIC_CAPABILITIES = new Set([
   "testagram.search.hashtags",
   "testagram.search.communities",
   "testagram.trends.list",
+  "testagram.profile.timeline",
 ]);
+
+const SUCCESS_METRIC_SAMPLE_RATE = 0.01;
+const shouldSampleSuccess = () => crypto.getRandomValues(new Uint32Array(1))[0] / 0xffffffff < SUCCESS_METRIC_SAMPLE_RATE;
+
+const recordMetric = async (
+  db: ReturnType<typeof createClient>,
+  capability: string,
+  status: "ok" | "error",
+  durationMs: number,
+  requestId: string,
+  error?: string,
+) => {
+  if (status === "ok" && !shouldSampleSuccess()) return;
+  await db.rpc("record_service_metric", {
+    p_service: "capability-gateway",
+    p_operation: capability,
+    p_status: status,
+    p_duration_ms: durationMs,
+    p_metadata: {
+      capability,
+      request_id: requestId,
+      ...(error ? { error: error.slice(0, 200) } : {}),
+      ...(status === "ok" ? { sampled: true } : {}),
+    },
+  }).catch(() => undefined);
+};
 
 const fail = (requestId: string, code: string, message: string, status: number) =>
   json({ ok: false, data: null, error: { code, message }, request_id: requestId }, status, requestId);
@@ -60,6 +88,7 @@ Deno.serve(async (req) => {
     : {};
 
   const started = performance.now();
+
   try {
     if (!isPublicCapability) {
       const { data: userResult, error: userError } = await db.auth.getUser();
@@ -74,29 +103,18 @@ Deno.serve(async (req) => {
     if (error) {
       const message = error.message || "Capability execution failed";
       const status = /AUTH_REQUIRED/i.test(message) ? 401 : /REQUIRED|INVALID|NOT_IMPLEMENTED/i.test(message) ? 400 : 500;
+      await recordMetric(db, capability, "error", Math.round(performance.now() - started), requestId, message);
       return fail(requestId, status === 500 ? "CAPABILITY_EXECUTION_FAILED" : message, message.slice(0, 300), status);
     }
 
     const durationMs = Math.round(performance.now() - started);
-    await db.rpc("record_service_metric", {
-      p_service: "capability-gateway",
-      p_operation: capability,
-      p_status: "ok",
-      p_duration_ms: durationMs,
-      p_metadata: { capability, request_id: requestId },
-    }).catch(() => undefined);
+    await recordMetric(db, capability, "ok", durationMs, requestId);
 
-    return json({ ok: true, data: data ?? {}, error: null, request_id: requestId }, 200, requestId);
+    return json({ ok: true, data: data ?? {}, error: null, request_id: requestId });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const durationMs = Math.round(performance.now() - started);
-    await db.rpc("record_service_metric", {
-      p_service: "capability-gateway",
-      p_operation: capability,
-      p_status: "error",
-      p_duration_ms: durationMs,
-      p_metadata: { capability, request_id: requestId, error: message.slice(0, 200) },
-    }).catch(() => undefined);
+    await recordMetric(db, capability, "error", durationMs, requestId, message);
     return fail(requestId, "CAPABILITY_EXECUTION_FAILED", message.slice(0, 300), 500);
   }
 });
