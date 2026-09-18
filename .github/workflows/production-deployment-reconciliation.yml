@@ -1,0 +1,185 @@
+name: Production Deployment Reconciliation
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: "Exact Git commit SHA to deploy and prove"
+        required: false
+        type: string
+
+concurrency:
+  group: production-deployment-reconciliation
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  VERCEL_ORG_ID: \${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: \${{ secrets.VERCEL_PROJECT_ID }}
+  MAX_DEPLOY_ATTEMPTS: "3"
+
+jobs:
+  reconcile-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Resolve target SHA
+        id: target
+        shell: bash
+        run: |
+          set -euo pipefail
+          TARGET_SHA="\${{ github.event.inputs.target_sha || github.sha }}"
+          if [[ ! "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::target_sha must be a full 40-character commit SHA"
+            exit 1
+          fi
+          echo "sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact target revision
+        uses: actions/checkout@v4
+        with:
+          ref: \${{ steps.target.outputs.sha }}
+          fetch-depth: 1
+
+      - name: Prove checkout SHA
+        shell: bash
+        run: |
+          set -euo pipefail
+          ACTUAL_SHA="$(git rev-parse HEAD)"
+          EXPECTED_SHA="\${{ steps.target.outputs.sha }}"
+          test "$ACTUAL_SHA" = "$EXPECTED_SHA" || {
+            echo "::error::Checkout SHA mismatch: expected $EXPECTED_SHA, got $ACTUAL_SHA"
+            exit 1
+          }
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Production build
+        run: npm run build
+
+      - name: Install pinned Vercel CLI
+        run: npm install --global vercel@48.4.0
+
+      - name: Pull production Vercel configuration
+        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: \${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy and reconcile exact SHA
+        id: deploy
+        shell: bash
+        env:
+          VERCEL_TOKEN: \${{ secrets.VERCEL_TOKEN }}
+          TARGET_SHA: \${{ steps.target.outputs.sha }}
+          REPO: \${{ github.repository }}
+          REPO_OWNER: \${{ github.repository_owner }}
+          REPO_NAME: \${{ github.event.repository.name }}
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 "$MAX_DEPLOY_ATTEMPTS"); do
+            echo "Deployment reconciliation attempt $attempt/$MAX_DEPLOY_ATTEMPTS"
+
+            rm -f deployment-url.txt deployment-list.json
+
+            vercel build --prod --token="$VERCEL_TOKEN"
+
+            vercel deploy --prebuilt --prod --yes \
+              --token="$VERCEL_TOKEN" \
+              --meta "githubDeployment=1" \
+              --meta "githubCommitSha=$TARGET_SHA" \
+              --meta "githubCommitRef=main" \
+              --meta "githubCommitRepo=$REPO_NAME" \
+              --meta "githubCommitOrg=$REPO_OWNER" \
+              --meta "githubOrg=$REPO_OWNER" \
+              --meta "githubRepo=$REPO_NAME" \
+              > deployment-url.txt
+
+            DEPLOY_URL="$(tail -n 1 deployment-url.txt | tr -d '\r')"
+            test -n "$DEPLOY_URL" || {
+              echo "::warning::Deployment command returned no URL; retrying"
+              sleep 10
+              continue
+            }
+
+            echo "deployment_url=$DEPLOY_URL" >> "$GITHUB_OUTPUT"
+
+            vercel inspect "$DEPLOY_URL" --wait --token="$VERCEL_TOKEN" > deployment-inspect.txt
+
+            vercel ls --yes --format json \
+              --token="$VERCEL_TOKEN" \
+              --meta "githubCommitSha=$TARGET_SHA" \
+              > deployment-list.json
+
+            TARGET_SHA="$TARGET_SHA" node <<'NODE'
+const fs = require('fs');
+const raw = fs.readFileSync('deployment-list.json', 'utf8');
+const data = JSON.parse(raw);
+const deployments = Array.isArray(data) ? data : (data.deployments || []);
+const matches = deployments.filter(d => d?.meta?.githubCommitSha === process.env.TARGET_SHA);
+if (!matches.length) {
+  console.error('No Vercel deployment with the exact target SHA was found.');
+  process.exit(20);
+}
+const productionReady = matches.find(d => d.target === 'production' && d.state === 'READY');
+if (!productionReady) {
+  console.error('Exact-SHA deployment exists, but no production READY deployment was found.');
+  console.error(JSON.stringify(matches, null, 2));
+  process.exit(21);
+}
+console.log(JSON.stringify({
+  id: productionReady.id,
+  url: productionReady.url,
+  state: productionReady.state,
+  target: productionReady.target,
+  githubCommitSha: productionReady.meta.githubCommitSha
+}, null, 2));
+NODE
+
+            vercel curl /api/health --deployment "$DEPLOY_URL" \
+              --token="$VERCEL_TOKEN" > health.txt
+
+            grep -Eq '"status"[[:space:]]*:[[:space:]]*"?ok"?|HTTP/[0-9.]+[[:space:]]+200|200 OK' health.txt || {
+              echo "::warning::/api/health did not expose an unambiguous 200/ok response; retrying"
+              cat health.txt
+              sleep 10
+              continue
+            }
+
+            echo "Exact SHA, production READY state, and /api/health passed."
+            exit 0
+          done
+
+          echo "::error::Production deployment reconciliation exhausted its bounded 3-attempt circuit breaker."
+          exit 1
+
+      - name: Emit immutable gate evidence
+        shell: bash
+        env:
+          TARGET_SHA: \${{ steps.target.outputs.sha }}
+        run: |
+          set -euo pipefail
+          {
+            echo "target_sha=$TARGET_SHA"
+            echo "deployment_url=\${{ steps.deploy.outputs.deployment_url }}"
+            echo "gate=build-typecheck-lint-deploy-sha-ready-health"
+            echo "status=passed"
+          } >> "$GITHUB_STEP_SUMMARY"
