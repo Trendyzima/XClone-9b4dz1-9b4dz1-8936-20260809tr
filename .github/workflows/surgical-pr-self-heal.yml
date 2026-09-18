@@ -1,6 +1,9 @@
 name: Surgical PR Self-Heal Engine
 
 on:
+  push:
+    branches: [main]
+  workflow_dispatch:
   workflow_run:
     workflows: ["Quality Gate", "Final Source Gate", "Vercel Production Deploy"]
     types: [completed]
@@ -186,4 +189,15 @@ jobs:
             printf '%s\n' '- recursion guard: ci/self-heal/* is never auto-repaired'
           } >> "$GITHUB_STEP_SUMMARY"
 
-# trigger-only no-op: force validation of repaired workflow
+
+  syntax-validation:
+    name: Validate workflow activation
+    if: github.event_name != 'workflow_run'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm parsed workflow reached execution
+        run: |
+          set -euo pipefail
+          test -n "$GITHUB_SHA"
+          test "$GITHUB_REF_NAME" = "main"
+          echo "Surgical self-heal workflow parsed and executed on $GITHUB_SHA"
