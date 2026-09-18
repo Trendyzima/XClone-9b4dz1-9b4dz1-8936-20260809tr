@@ -351,3 +351,75 @@ on conflict(action_key) do nothing;
 do $$ begin
  if exists(select 1 from public.backend_change_registry where status='active' and (action_key is null or reverse_key is null or action_key=reverse_key)) then raise exception 'invalid active backend action/reverse key'; end if;
 end $$;
+
+-- Avoid recursive RLS between membership/parent tables. These narrowly-scoped
+-- SECURITY DEFINER helpers live in a private schema, pin search_path, require
+-- the authenticated identity, and expose only boolean membership checks.
+create schema if not exists private;
+create or replace function private.is_conversation_member(p_conversation_id uuid,p_user_id uuid)
+returns boolean language sql security definer set search_path=pg_catalog,public
+as $$ select p_user_id is not null and p_user_id=auth.uid() and exists(
+  select 1 from public.conversation_members cm where cm.conversation_id=p_conversation_id and cm.user_id=p_user_id and cm.left_at is null
+); $$;
+create or replace function private.is_call_participant(p_call_id uuid,p_user_id uuid)
+returns boolean language sql security definer set search_path=pg_catalog,public
+as $$ select p_user_id is not null and p_user_id=auth.uid() and exists(
+  select 1 from public.call_participants cp where cp.call_id=p_call_id and cp.user_id=p_user_id
+); $$;
+revoke all on function private.is_conversation_member(uuid,uuid) from public;
+revoke all on function private.is_call_participant(uuid,uuid) from public;
+grant execute on function private.is_conversation_member(uuid,uuid) to authenticated;
+grant execute on function private.is_call_participant(uuid,uuid) to authenticated;
+
+drop policy if exists conversations_member on public.conversations;
+create policy conversations_member on public.conversations for select to authenticated
+using(created_by=auth.uid() or private.is_conversation_member(id,auth.uid()));
+
+drop policy if exists conversation_members_access on public.conversation_members;
+create policy conversation_members_access on public.conversation_members for select to authenticated
+using(user_id=auth.uid() or private.is_conversation_member(conversation_id,auth.uid()));
+drop policy if exists conversation_members_insert on public.conversation_members;
+create policy conversation_members_insert on public.conversation_members for insert to authenticated
+with check(user_id=auth.uid() or exists(select 1 from public.conversations c where c.id=conversation_id and c.created_by=auth.uid()));
+drop policy if exists conversation_members_update on public.conversation_members;
+create policy conversation_members_update on public.conversation_members for update to authenticated
+using(user_id=auth.uid() or exists(select 1 from public.conversations c where c.id=conversation_id and c.created_by=auth.uid()))
+with check(user_id=auth.uid() or exists(select 1 from public.conversations c where c.id=conversation_id and c.created_by=auth.uid()));
+drop policy if exists conversation_members_delete on public.conversation_members;
+create policy conversation_members_delete on public.conversation_members for delete to authenticated
+using(user_id=auth.uid() or exists(select 1 from public.conversations c where c.id=conversation_id and c.created_by=auth.uid()));
+
+drop policy if exists calls_access on public.calls;
+create policy calls_access on public.calls for all to authenticated
+using(created_by=auth.uid() or private.is_call_participant(id,auth.uid()))
+with check(created_by=auth.uid());
+
+drop policy if exists call_participants_access on public.call_participants;
+create policy call_participants_access on public.call_participants for select to authenticated
+using(user_id=auth.uid() or private.is_call_participant(call_id,auth.uid()));
+drop policy if exists call_participants_insert on public.call_participants;
+create policy call_participants_insert on public.call_participants for insert to authenticated
+with check(user_id=auth.uid() or exists(select 1 from public.calls c where c.id=call_id and c.created_by=auth.uid()));
+drop policy if exists call_participants_update on public.call_participants;
+create policy call_participants_update on public.call_participants for update to authenticated
+using(user_id=auth.uid() or exists(select 1 from public.calls c where c.id=call_id and c.created_by=auth.uid()))
+with check(user_id=auth.uid() or exists(select 1 from public.calls c where c.id=call_id and c.created_by=auth.uid()));
+drop policy if exists call_participants_delete on public.call_participants;
+create policy call_participants_delete on public.call_participants for delete to authenticated
+using(user_id=auth.uid() or exists(select 1 from public.calls c where c.id=call_id and c.created_by=auth.uid()));
+
+-- The list-members table is private to the list owner/member.
+drop policy if exists list_members_owner on public.list_members;
+create policy list_members_owner on public.list_members for all to authenticated
+using(user_id=auth.uid() or exists(select 1 from public.lists l where l.id=list_id and l.owner_id=auth.uid()))
+with check(user_id=auth.uid() or exists(select 1 from public.lists l where l.id=list_id and l.owner_id=auth.uid()));
+
+-- Register the private authorization helpers with reversible keys.
+insert into public.backend_change_registry(object_kind,object_name,action,action_key,reverse_action,reverse_key,migration_key,metadata) values
+('function','private.is_conversation_member','ensure','function:private:is_conversation_member:ensure:v1','drop function','function:private:is_conversation_member:drop:v1','20260919003000_frontend_feature_complete_backend','{"security":"security_definer","purpose":"rls-membership-check"}'),
+('function','private.is_call_participant','ensure','function:private:is_call_participant:ensure:v1','drop function','function:private:is_call_participant:drop:v1','20260919003000_frontend_feature_complete_backend','{"security":"security_definer","purpose":"rls-membership-check"}')
+on conflict(action_key) do nothing;
+
+do $$ begin
+ if exists(select 1 from public.backend_change_registry where status='active' and (action_key is null or reverse_key is null or action_key=reverse_key)) then raise exception 'invalid active backend action/reverse key'; end if;
+end $$;
