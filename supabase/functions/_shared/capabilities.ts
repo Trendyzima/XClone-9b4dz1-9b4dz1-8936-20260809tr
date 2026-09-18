@@ -13,8 +13,8 @@ export const CAPABILITIES = [
   { name: "testagram.capabilities.list", version: 1, access: "public", readonly: true, description: "List capabilities available to the caller." },
   { name: "testagram.health.read", version: 1, access: "public", readonly: true, description: "Read service-plane health." },
   { name: "testagram.posts.list", version: 1, access: "authenticated", readonly: true, description: "Read visible Testagram posts." },
-  { name: "testagram.posts.create
-  { name: "testagram.posts.schedule", version: 1, access: "authenticated", readonly: false, description: "Schedule a native Testagram text post." },", version: 1, access: "authenticated", readonly: false, description: "Create a native Testagram post." },
+  { name: "testagram.posts.create", version: 1, access: "authenticated", readonly: false, description: "Create a native Testagram post." },
+  { name: "testagram.posts.schedule", version: 1, access: "authenticated", readonly: false, description: "Schedule a native Testagram text post." },
   { name: "testagram.search.posts", version: 1, access: "authenticated", readonly: true, description: "Search visible posts." },
   { name: "testagram.search.users", version: 1, access: "authenticated", readonly: true, description: "Search visible profiles." },
   { name: "testagram.search.hashtags", version: 1, access: "authenticated", readonly: true, description: "Search visible hashtags." },
