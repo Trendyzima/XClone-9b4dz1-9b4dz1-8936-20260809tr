@@ -53,6 +53,13 @@ export function mapSupabaseUser(user: User): AuthUser {
   return { id: user.id, email, username, avatar: user.user_metadata?.avatar_url || user.user_metadata?.picture };
 }
 
+export async function finalizeAuthenticatedSession(user: User): Promise<AuthUser> {
+  // Every authenticated entry point (password, email OTP, phone OTP, and
+  // restored sessions) must cross the same canonical profile boundary before
+  // the UI treats the session as ready.
+  return mapSupabaseUserWithCanonicalProfile(user);
+}
+
 export async function mapSupabaseUserWithCanonicalProfile(user: User): Promise<AuthUser> {
   const mapped = mapSupabaseUser(user);
   await ensureCanonicalProfile(user);

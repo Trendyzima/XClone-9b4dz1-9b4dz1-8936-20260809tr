@@ -2,7 +2,7 @@ import { useEffect } from 'react';
 import { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
-import { mapSupabaseUser, mapSupabaseUserWithCanonicalProfile } from '@/lib/auth';
+import { finalizeAuthenticatedSession } from '@/lib/auth';
 import { Capacitor, PushNotifications } from '@/lib/capacitor-stub';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 
@@ -78,31 +78,40 @@ async function registerPushNotifications(userId: string) {
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { login, logout, setLoading } = useAuthStore();
+  const { login, logout, setLoading, setAuthError, clearAuthError } = useAuthStore();
 
   useEffect(() => {
     let mounted = true;
 
     const hydrateUser = (user: User) => {
-      // Keep auth state changes synchronous and cheap. Supabase warns that async
-      // calls made directly inside onAuthStateChange can deadlock the client.
-      login(mapSupabaseUser(user));
-      setLoading(false);
+      // Never expose an authenticated app state until the canonical profile
+      // boundary has succeeded. The work is deferred out of onAuthStateChange
+      // because Supabase warns that async auth calls inside the callback can
+      // deadlock the client.
+      setLoading(true);
+      clearAuthError();
 
       window.setTimeout(() => {
         if (!mounted) return;
-        void mapSupabaseUserWithCanonicalProfile(user).then((mappedUser) => {
-          if (!mounted) return;
-          login(mappedUser);
-        }).catch((error) => {
-          console.warn('[Auth] Background profile hydration failed:', error);
-        });
-      }, 0);
-
-      window.setTimeout(() => {
-        if (!mounted) return;
-        void registerPushNotifications(user.id);
-        void triggerKeygenForUser(user.id);
+        void finalizeAuthenticatedSession(user)
+          .then((mappedUser) => {
+            if (!mounted) return;
+            login(mappedUser);
+            setLoading(false);
+            void registerPushNotifications(user.id);
+            void triggerKeygenForUser(user.id);
+          })
+          .catch(async (error) => {
+            if (!mounted) return;
+            const message = error instanceof Error ? error.message : 'Profile provisioning failed';
+            setAuthError(message);
+            logout();
+            setLoading(false);
+            // Do not leave a valid Supabase session behind when the app's
+            // canonical profile contract could not be established.
+            try { await supabase.auth.signOut(); } catch { /* best effort */ }
+            console.error('[Auth] Session finalization failed:', error);
+          });
       }, 0);
     };
 
@@ -134,7 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [login, logout, setLoading]);
+  }, [login, logout, setLoading, setAuthError, clearAuthError]);
 
   return <>{children}</>;
 }
