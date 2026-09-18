@@ -16,7 +16,7 @@ export class CapabilityClientError extends Error{readonly code:string;readonly r
 // same-origin edge path. Search, timelines, trends and all account-bound reads
 // remain authenticated and therefore bypass CDN caching.
 const PUBLIC_CAPABILITIES=new Set(["testagram.capabilities.list","testagram.health.read"]);
-const PUBLIC_EDGE_PATH="/api/public-capability";\nconst PUBLIC_CAPABILITIES=new Set(["testagram.capabilities.list","testagram.health.read"]);\nconst PUBLIC_EDGE_PATH="/api/public-capability";
+const PUBLIC_EDGE_PATH="/api/public-capability";
 const limit=(n=20)=>Math.min(100,Math.max(1,Number.isFinite(n)?Math.floor(n):20));
 const cursor=(c?:string)=>c?{cursor:c}:{};
 const rid=()=>typeof crypto?.randomUUID==="function"?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`;
