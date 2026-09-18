@@ -47,6 +47,9 @@ export default function AuthPage() {
   const [otp, setOtp] = useState('');
   const [loading, setLoading] = useState(false);
   const [verifiedPhone, setVerifiedPhone] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmation, setConfirmation] = useState('');
+  const [username, setUsername] = useState('');
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -86,6 +89,41 @@ export default function AuthPage() {
       throw new Error('Authentication succeeded but the session could not be confirmed');
     }
     setPendingUserId(data.user.id);
+  };
+
+  const handlePasswordSignIn = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setLoading(true);
+    try {
+      await authService.signInWithPassword(email, password);
+      navigate('/', { replace: true });
+    } catch (error: any) {
+      setLoading(false);
+      toast({ title: 'Sign-in error', description: error?.message || 'Unable to sign in.', variant: 'destructive' });
+    }
+  };
+
+  const handlePasswordSignUp = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (password.length < 8 || password !== confirmation) {
+      toast({ title: 'Check your password', description: password !== confirmation ? 'Passwords do not match.' : 'Password must be at least 8 characters.', variant: 'destructive' });
+      return;
+    }
+    setLoading(true);
+    try {
+      const { session } = await authService.signUpWithPassword(email, password, username);
+      if (session) {
+        navigate('/', { replace: true });
+        return;
+      }
+      setLoading(false);
+      setMode('verify');
+      setOtp('');
+      toast({ title: 'Account created', description: 'Check your email for the confirmation link or code.' });
+    } catch (error: any) {
+      setLoading(false);
+      toast({ title: 'Account creation error', description: error?.message || 'Unable to create account.', variant: 'destructive' });
+    }
   };
 
   const handleSendEmailOtp = async (event?: React.FormEvent | React.MouseEvent) => {
@@ -163,6 +201,18 @@ export default function AuthPage() {
 
         {(mode === 'signin' || mode === 'signup') && (
           <>
+            <form onSubmit={mode === 'signin' ? handlePasswordSignIn : handlePasswordSignUp} className="space-y-4">
+              {mode === 'signup' && <Input type="text" autoComplete="username" placeholder="Username (optional)" value={username} onChange={(e) => setUsername(e.target.value)} className="h-14" />}
+              <Input type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required className="h-14" />
+              <Input type="password" autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} placeholder="Password (8+ characters)" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} className="h-14" />
+              {mode === 'signup' && <Input type="password" autoComplete="new-password" placeholder="Confirm password" value={confirmation} onChange={(e) => setConfirmation(e.target.value)} required minLength={8} className="h-14" />}
+              <Button type="submit" className="w-full h-12 rounded-full" disabled={loading}>{loading ? <Loader2 className="w-5 h-5 animate-spin" /> : mode === 'signin' ? 'Sign in with password' : 'Create account'}</Button>
+            </form>
+            <div className="text-center text-sm">
+              <button type="button" onClick={() => setMode(mode === 'signin' ? 'signup' : 'signin')} className="text-primary hover:underline">
+                {mode === 'signin' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+              </button>
+            </div>
             <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-muted">
               <Button type="button" variant={method === 'email' ? 'default' : 'ghost'} className="rounded-lg" onClick={() => setMethod('email')}>Email OTP</Button>
               <Button type="button" variant={method === 'phone' ? 'default' : 'ghost'} className="rounded-lg" onClick={() => setMethod('phone')}>Phone OTP</Button>
