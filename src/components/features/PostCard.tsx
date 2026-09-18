@@ -26,6 +26,7 @@ import { EmbedRenderer, PostContentEmbeds } from './EmbedRenderer';
 import { updateInterestSignal } from '@/services/recommendations';
 import { togglePostLike, togglePostRepost } from '@/services/postInteractionService';
 import { backendCapabilities } from '@/services/backendClient';
+// Canonical social interaction reads/writes stay behind backend capabilities.
 
 // esbuild guard: no 'as const' on module-level objects/arrays used in .map() render
 const REPORT_CATEGORIES = [
