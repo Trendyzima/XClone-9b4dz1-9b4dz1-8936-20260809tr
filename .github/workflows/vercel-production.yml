@@ -89,3 +89,4 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
 # Deployment trigger: run against the latest main revision.
+# Exact-SHA deployment proof trigger.
