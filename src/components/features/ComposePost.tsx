@@ -3,6 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
 import { pingGoogleSitemap } from '@/lib/pingGoogle';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -142,8 +143,8 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
     setMentionIdx(0);
     mentionSearchRef.current = q;
     if (q.length === 0) { setMentionResults([]); return; }
-    const { data } = await supabase.from('profiles').select('id, username, avatar_url').ilike('username', `${q}%`).limit(5);
-    if (mentionSearchRef.current === q) setMentionResults(data ?? []);
+    const result = await backendCapabilities.searchUsers(q, 5);
+    if (mentionSearchRef.current === q) setMentionResults(result.items as any[]);
   }, [linkPreview]);
 
   const insertMention = useCallback((username: string) => {
