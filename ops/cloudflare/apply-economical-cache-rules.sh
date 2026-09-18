@@ -50,7 +50,7 @@ echo "zone_id: $ZONE_ID"
 
 echo "== DNS safety check =="
 DNS="$(cf_get "$API/zones/$ZONE_ID/dns_records?name=${CF_HOSTNAME}&per_page=100")"
-PROXIED="$(echo "$DNS" | jq -r '[.result[] | select(.name == env.CF_HOSTNAME) | .proxied] | any')"
+PROXIED="$(echo "$DNS" | jq -r --arg hostname "$CF_HOSTNAME" '[.result[] | select(.name == $hostname) | .proxied] | any')"
 if [ "$PROXIED" != "true" ]; then
   echo "Refusing to install cache rules: $CF_HOSTNAME is not currently proxied through Cloudflare." >&2
   echo "No DNS changes were made." >&2
