@@ -35,18 +35,28 @@ jobs:
           fi
 
       - name: Install dependencies
-        id: install
+        run: npm ci
+
+      - name: Validate current tree
+        id: validate
         continue-on-error: true
-        run: npm ci 2>&1 | tee self-heal.log
+        shell: bash
+        run: |
+          set -o pipefail
+          {
+            npm run typecheck
+            npm run lint
+            npm run build
+          } 2>&1 | tee self-heal.log
 
       - name: Deterministic repair
-        if: steps.install.outcome == 'failure'
+        if: steps.validate.outcome == 'failure'
         env:
           SELF_HEAL_LOG: self-heal.log
         run: node scripts/ci-self-heal.mjs
 
       - name: Validate repaired tree
-        if: steps.install.outcome == 'failure'
+        if: steps.validate.outcome == 'failure'
         run: |
           npm ci
           npm run typecheck
@@ -54,7 +64,7 @@ jobs:
           npm run build
 
       - name: Commit bounded repair
-        if: steps.install.outcome == 'failure'
+        if: steps.validate.outcome == 'failure'
         shell: bash
         run: |
           if git diff --quiet -- package.json package-lock.json; then
