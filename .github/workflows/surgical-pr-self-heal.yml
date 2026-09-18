@@ -81,11 +81,8 @@ jobs:
              grep -Fq "src/services/testagramCapabilityClient.ts(19,50): error TS1435:" /tmp/failed.log &&
              grep -Fq "src/services/testagramCapabilityClient.ts(19,143): error TS1435:" /tmp/failed.log; then
             gh api "repos/${GITHUB_REPOSITORY}/contents/src/services/testagramCapabilityClient.ts?ref=$HEAD_SHA" --jq '.content' | tr -d '\n' | base64 --decode > /tmp/capability-client.ts
-             node repair/generators/repair-capability-client.mjs
-            if grep -Fq '\\nconst PUBLIC_CAPABILITIES' /tmp/capability-client.ts; then
-              echo "::error::Literal newline escape remains after repair."
-              exit 1
-            fi
+            node repair/generators/repair-capability-client.mjs
+            node scripts/verify-capability-client-signature.mjs /tmp/failed.log /tmp/capability-client.ts
             echo 'failure_class=capability-client-literal-newline' >> "$GITHUB_OUTPUT"
             exit 0
           fi
