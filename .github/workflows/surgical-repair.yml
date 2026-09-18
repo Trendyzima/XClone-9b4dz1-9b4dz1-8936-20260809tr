@@ -12,7 +12,7 @@ permissions:
 
 concurrency:
   group: surgical-repair-${{ github.event.workflow_run.head_sha }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   repair:
@@ -41,6 +41,25 @@ jobs:
           test -n "$HEAD_SHA"
           case "$HEAD_BRANCH" in main) ;; *) echo 'Repair boundary rejected'; exit 1;; esac
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
+
+      - name: Enforce one repair artifact per failed SHA
+        id: dedupe
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          branch="ci/self-heal/$HEAD_SHA"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            existing_url="$(gh pr list --base main --head "$branch" --state open --json url --jq '.[0].url // empty')"
+            if test -n "$existing_url"; then
+              echo "A self-healing PR already exists for failed SHA $HEAD_SHA: $existing_url"
+              exit 0
+            fi
+            echo "::error::A deterministic self-heal branch already exists for failed SHA $HEAD_SHA but has no open PR. Refusing a second mutation; manual recovery is required."
+            exit 1
+          fi
+          echo "No existing repair artifact for failed SHA $HEAD_SHA. Continuing as the sole repair candidate."
 
       - name: Classify exact allowlisted failure signature
         id: classify
@@ -189,7 +208,7 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          branch="ci/self-heal/${RUN_ID}-${HEAD_SHA:0:12}"
+          branch="ci/self-heal/$HEAD_SHA"
           git switch -c "$branch"
           git add --all
           git diff --cached --check
