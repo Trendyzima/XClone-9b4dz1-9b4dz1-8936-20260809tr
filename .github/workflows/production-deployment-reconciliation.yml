@@ -103,7 +103,7 @@ jobs:
 
             vercel inspect "$DEPLOY_URL" --wait --token="$VERCEL_TOKEN" > deployment-inspect.txt
 
-            vercel ls --yes --json --token="$VERCEL_TOKEN" --meta "githubCommitSha=$TARGET_SHA" > deployment-list.json
+            curl -fsS               -H "Authorization: Bearer $VERCEL_TOKEN"               "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&limit=20"               > deployment-list.json
             node scripts/verify-vercel-deployment.mjs
 
             vercel curl /api/health --deployment "$DEPLOY_URL" --token="$VERCEL_TOKEN" > health.txt
