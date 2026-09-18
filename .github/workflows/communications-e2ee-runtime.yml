@@ -82,6 +82,7 @@ jobs:
           nohup npm run preview -- --host 127.0.0.1 --port 4173 > /tmp/testagram-preview.log 2>&1 &
           preview_pid=$!
           echo "$preview_pid" > /tmp/testagram-preview.pid
+          # shellcheck disable=SC2034
           for attempt in {1..60}; do
             if curl -fsS http://127.0.0.1:4173/ >/dev/null; then
               exit 0
