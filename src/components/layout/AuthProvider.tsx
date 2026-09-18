@@ -124,7 +124,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               // canonical profile contract could not be established.
               try { await supabase.auth.signOut(); } catch { /* best effort */ }
               console.error('[Auth] Session finalization failed:', error);
-              reject(error);
+              resolve();
             });
         }, 0);
       }).finally(() => {
