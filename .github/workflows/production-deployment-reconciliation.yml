@@ -119,6 +119,7 @@ jobs:
         env:
           TARGET_SHA: ${{ steps.target.outputs.sha }}
         run: |
+          # shellcheck disable=SC2129
           {
             echo "target_sha=$TARGET_SHA"
             echo "deployment_url=${{ steps.deploy.outputs.deployment_url }}"
