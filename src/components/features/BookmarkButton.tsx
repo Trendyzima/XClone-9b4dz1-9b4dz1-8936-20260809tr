@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Bookmark } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { updateInterestSignal } from '@/services/recommendations';
@@ -21,15 +20,11 @@ export function BookmarkButton({ postId }: BookmarkButtonProps) {
       return;
     }
     let cancelled = false;
-    supabase
-      .from('bookmarks')
-      .select('post_id')
-      .eq('post_id', postId)
-      .eq('user_id', user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!cancelled) setIsBookmarked(!!data);
-      });
+    backendCapabilities.listBookmarks(100).then(({ items }) => {
+      if (!cancelled) setIsBookmarked(items.some((item: any) => String(item.post_id ?? item.id) === postId));
+    }).catch(() => {
+      if (!cancelled) setIsBookmarked(false);
+    });
     return () => { cancelled = true; };
   }, [postId, user]);
 
