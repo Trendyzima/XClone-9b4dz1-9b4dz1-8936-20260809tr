@@ -52,13 +52,16 @@ jobs:
             existing_url="$(gh pr list --base main --head "$branch" --state open --json url --jq '.[0].url // empty')"
             if test -n "$existing_url"; then
               echo "A self-healing PR already exists: $existing_url"
+              echo "should_repair=false" >> "$GITHUB_OUTPUT"
               exit 0
             fi
             echo "::error::Repair branch exists without an open PR; refusing a second mutation."
             exit 1
           fi
+          echo "should_repair=true" >> "$GITHUB_OUTPUT"
 
       - name: Classify exact allowlisted failure without executing failed code
+        if: steps.dedupe.outputs.should_repair == 'true'
         id: classify
         env:
           RUN_ID: ${{ steps.identity.outputs.RUN_ID }}
@@ -98,6 +101,7 @@ PY
           exit 1
 
       - name: Create deterministic repair branch from failed SHA
+        if: steps.dedupe.outputs.should_repair == 'true'
         id: branch
         env:
           HEAD_SHA: ${{ steps.identity.outputs.HEAD_SHA }}
@@ -111,6 +115,7 @@ PY
           echo "REPAIR_BRANCH=$branch" >> "$GITHUB_OUTPUT"
 
       - name: Apply exactly one API-level deterministic repair
+        if: steps.dedupe.outputs.should_repair == 'true'
         env:
           HEAD_SHA: ${{ steps.identity.outputs.HEAD_SHA }}
           REPAIR_BRANCH: ${{ steps.branch.outputs.REPAIR_BRANCH }}
@@ -130,6 +135,7 @@ PY
             -f "branch=$REPAIR_BRANCH"
 
       - name: Prove repair commit is single-file and derived from failed SHA
+        if: steps.dedupe.outputs.should_repair == 'true'
         env:
           HEAD_SHA: ${{ steps.identity.outputs.HEAD_SHA }}
           REPAIR_BRANCH: ${{ steps.branch.outputs.REPAIR_BRANCH }}
@@ -144,6 +150,7 @@ PY
           test "$(printf '%s' "$compare" | jq -r '.ahead_by')" -eq 1
 
       - name: Open deterministic self-healing PR
+        if: steps.dedupe.outputs.should_repair == 'true'
         env:
           HEAD_SHA: ${{ steps.identity.outputs.HEAD_SHA }}
           HEAD_BRANCH: ${{ steps.identity.outputs.HEAD_BRANCH }}
