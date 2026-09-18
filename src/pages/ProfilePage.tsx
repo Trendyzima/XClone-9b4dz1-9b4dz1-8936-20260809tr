@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Loader2, UserPlus, Clock, UserCheck } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
 import { useAuth } from '@/hooks/useAuth';
 
 type Profile = {
@@ -26,13 +26,22 @@ export default function ProfilePage() {
     (async () => {
       if (!username) return;
       setLoading(true); setError(null);
-      const { data, error: rpcError } = await supabase.rpc('get_public_profile', { p_username: username });
-      if (cancelled) return;
-      if (rpcError) { setError(rpcError.message); setProfile(null); setLoading(false); return; }
-      const next = (data ?? null) as Profile | null;
-      setProfile(next);
-      setFollowState(next?.id === user?.id ? 'self' : next?.is_following ? 'following' : 'none');
-      setLoading(false);
+      try {
+        const result = await backendCapabilities.searchUsers(username, 10);
+        const match = result.items.find((item: any) => String(item.username ?? '').toLowerCase() === username.toLowerCase());
+        if (!match) throw new Error('Profile not found');
+        const next = { ...match, follower_count: match.follower_count ?? match.followers_count ?? 0, following_count: match.following_count ?? 0 } as Profile;
+        if (cancelled) return;
+        setProfile(next);
+        if (next?.id === user?.id) setFollowState('self');
+        else {
+          const follow = await backendCapabilities.getFollowState(String(next.id));
+          setFollowState(follow.state?.following ? 'following' : follow.state?.requested ? 'requested' : 'none');
+        }
+        setLoading(false);
+      } catch (err) {
+        if (!cancelled) { setError(err instanceof Error ? err.message : 'Profile lookup failed'); setProfile(null); setLoading(false); }
+      }
     })();
     return () => { cancelled = true; };
   }, [username, user?.id]);
@@ -41,12 +50,10 @@ export default function ProfilePage() {
     let cancelled = false;
     (async () => {
       if (!user?.id || !profile?.id || user.id === profile.id) return;
-      const { data } = await supabase.from('follow_requests').select('status')
-        .eq('requester_id', user.id).eq('target_id', profile.id)
-        .in('status', ['pending', 'accepted']).maybeSingle();
+      const { state } = await backendCapabilities.getFollowState(profile.id);
       if (cancelled) return;
-      if (data?.status === 'accepted') setFollowState('following');
-      else if (data?.status === 'pending') setFollowState('requested');
+      if (state?.following) setFollowState('following');
+      else if (state?.requested) setFollowState('requested');
     })();
     return () => { cancelled = true; };
   }, [user?.id, profile?.id]);
@@ -54,13 +61,12 @@ export default function ProfilePage() {
   async function handleFollow() {
     if (!user || !profile || user.id === profile.id || acting) return;
     setActing(true); setError(null);
-    const protectedTarget = profile.protected_account;
-    const { error: actionError } = await supabase.rpc(
-      protectedTarget ? 'request_follow' : 'follow_user',
-      protectedTarget ? { p_target_user_id: profile.id } : { target_user_id: profile.id }
-    );
-    if (actionError) setError(actionError.message);
-    else setFollowState(protectedTarget ? 'requested' : 'following');
+    try {
+      const result = await backendCapabilities.followUser(profile.id, true);
+      setFollowState(result.state?.following ? 'following' : result.state?.requested ? 'requested' : 'none');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Follow failed');
+    }
     setActing(false);
   }
 
