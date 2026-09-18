@@ -13,7 +13,7 @@ export const TESTAGRAM_CAPABILITY_NAMES = [
   "testagram.replies.list",
   "testagram.posts.repost.state",
   "testagram.posts.like.state",
-  "testagram.posts.schedule",,
+  "testagram.posts.schedule",
   "testagram.search.posts",
   "testagram.search.users",
   "testagram.recommendations.generate",
