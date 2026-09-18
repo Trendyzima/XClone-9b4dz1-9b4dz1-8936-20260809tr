@@ -2,7 +2,7 @@ name: Surgical Repair Engine
 
 on:
   workflow_run:
-    workflows: ["Quality Gate", "Final Source Gate", "Vercel Production Deploy"]
+    workflows: ["Quality Gate", "Final Source Gate", "Vercel Production Deploy", "Workflow Syntax Gate"]
     types: [completed]
 
 permissions:
@@ -108,6 +108,17 @@ jobs:
             exit 0
           fi
 
+          if grep -Fq ".github/workflows/surgical-pr-self-heal.yml" /tmp/failed.log &&
+             grep -Fq "SC1039:error" /tmp/failed.log &&
+             grep -Fq "SC1072:error" /tmp/failed.log &&
+             grep -Fq "SC1073:error" /tmp/failed.log &&
+             grep -Fq "Here document was not correctly terminated" /tmp/failed.log; then
+            echo 'failure_class=workflow-syntax-surgical-pr-self-heal' >> "$GITHUB_OUTPUT"
+            echo 'should_repair=true' >> "$GITHUB_OUTPUT"
+            echo 'Exact surgical PR self-heal heredoc syntax-failure signature confirmed.'
+            exit 0
+          fi
+
           if grep -Fq "no-redeclare" /tmp/failed.log; then
             matched=0
             for path in               scripts/verify-communications-e2ee-browser.mjs               scripts/verify-communications-e2ee-runtime.mjs               scripts/verify-community-admin-media-runtime.mjs               scripts/verify-community-admin-rpc-runtime.mjs; do
@@ -153,6 +164,9 @@ jobs:
             workflow-syntax-production-reconciliation)
               node repair/generators/repair-production-workflow-from-main.mjs
               ;;
+            workflow-syntax-surgical-pr-self-heal)
+              node repair/generators/repair-surgical-pr-self-heal-workflow.mjs
+              ;;
             verifier-no-redeclare)
               node repair/generators/repair-verifier-no-redeclare.mjs
               ;;
@@ -180,6 +194,11 @@ jobs:
             workflow-syntax-production-reconciliation)
               test "$(printf '%s\n' "$changed" | wc -l | tr -d ' ')" -eq 1
               test "$changed" = ".github/workflows/production-deployment-reconciliation.yml"
+              git diff --check
+              ;;
+            workflow-syntax-surgical-pr-self-heal)
+              test "$(printf '%s\n' "$changed" | wc -l | tr -d ' ')" -eq 1
+              test "$changed" = ".github/workflows/surgical-pr-self-heal.yml"
               git diff --check
               ;;
             verifier-no-redeclare)
@@ -213,6 +232,9 @@ jobs:
               ;;
             workflow-syntax-production-reconciliation)
               node repair/generators/verify-production-workflow-repair.mjs
+              ;;
+            workflow-syntax-surgical-pr-self-heal)
+              node repair/generators/repair-surgical-pr-self-heal-workflow.mjs --verify-only
               ;;
             verifier-no-redeclare) ;;
             *) exit 1;;
