@@ -1,5 +1,6 @@
 export const config = { runtime: 'edge' };
 
+// Production smoke endpoint: always resolves the rebuilt Supabase control plane.
 const CANONICAL_SUPABASE_URL = 'https://ffrhglgkukgsuhxenena.supabase.co';
 const CANONICAL_PUBLISHABLE_KEY = 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya';
 
