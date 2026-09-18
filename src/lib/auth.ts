@@ -124,7 +124,6 @@ export class AuthService {
     const { error } = await withAuthTimeout(supabase.auth.resend({ type: 'sms', phone }), 'Signup SMS confirmation');
     if (error) throw error;
   }
-  async resetPassword(email: string) {
   async resendSignupEmail(email: string) {
     const identifier = normalizeIdentifier(email); if (identifier.kind !== 'email') throw new Error('Enter the signup email address');
     const { error } = await withAuthTimeout(supabase.auth.resend({ type: 'signup', email: identifier.value, options: { emailRedirectTo: `${window.location.origin}/auth` } }), 'Signup confirmation email');
