@@ -6,7 +6,7 @@ on:
       project_ref:
         description: "Fresh Supabase project ref to reconstruct"
         required: true
-    default: ffrhglgkukgsuhxenena
+        default: ffrhglgkukgsuhxenena
         type: string
       deploy_functions:
         description: "Deploy repository Edge Functions after migrations"
