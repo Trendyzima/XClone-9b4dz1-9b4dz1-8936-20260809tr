@@ -1,7 +1,7 @@
 import { useFollow } from '@/hooks/useFollow';
 
 export function FollowButton({ acct }: { acct: string }) {
-  const { state, follow } = useFollow();
+  const { state, follow } = useFollow(acct);
 
   return (
     <button
