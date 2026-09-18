@@ -60,6 +60,11 @@ jobs:
           fi
           echo "No existing repair artifact for failed SHA $HEAD_SHA. Continuing as the sole repair candidate."
 
+      - name: Install workflow syntax validator
+        run: |
+          set -euo pipefail
+          curl -fsSL https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash | bash -s -- latest /usr/local/bin
+
       - name: Classify exact allowlisted failure signature
         id: classify
         env:
