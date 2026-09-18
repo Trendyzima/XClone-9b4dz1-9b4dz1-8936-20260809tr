@@ -79,19 +79,7 @@ jobs:
              grep -Fq "src/services/testagramCapabilityClient.ts(19,50): error TS1435:" /tmp/failed.log &&
              grep -Fq "src/services/testagramCapabilityClient.ts(19,143): error TS1435:" /tmp/failed.log; then
             gh api "repos/${GITHUB_REPOSITORY}/contents/src/services/testagramCapabilityClient.ts?ref=$HEAD_SHA" --jq '.content' | tr -d '\n' | base64 --decode > /tmp/capability-client.ts
-            python3 - <<'PY'
-            from pathlib import Path
-            p = Path('/tmp/capability-client.ts')
-            s = p.read_text()
-            bad = 'const PUBLIC_EDGE_PATH="/api/public-capability";\\nconst PUBLIC_CAPABILITIES=new Set(["testagram.capabilities.list","testagram.health.read"]);\\nconst PUBLIC_EDGE_PATH="/api/public-capability";'
-            good = 'const PUBLIC_EDGE_PATH="/api/public-capability";'
-            if s.count(bad) != 1:
-                raise SystemExit('Exact malformed capability-client signature not present; refusing repair')
-            s2 = s.replace(bad, good, 1)
-            if s2 == s:
-                raise SystemExit('Repair made no change')
-            p.write_text(s2)
-            PY
+             node repair/generators/repair-capability-client.mjs
             if grep -Fq '\\nconst PUBLIC_CAPABILITIES' /tmp/capability-client.ts; then
               echo "::error::Literal newline escape remains after repair."
               exit 1
