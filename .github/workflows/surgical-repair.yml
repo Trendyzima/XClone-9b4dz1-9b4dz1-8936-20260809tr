@@ -39,7 +39,7 @@ jobs:
           set -euo pipefail
           test "$HEAD_REPOSITORY" = "$REPOSITORY"
           test -n "$HEAD_SHA"
-          case "$HEAD_BRANCH" in main|surgical/*) ;; *) echo 'Repair boundary rejected'; exit 1;; esac
+          case "$HEAD_BRANCH" in main) ;; *) echo 'Repair boundary rejected'; exit 1;; esac
           test "$(git rev-parse HEAD)" = "$HEAD_SHA"
 
       - name: Classify exact allowlisted failure signature
