@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Heart, MessageCircle, Repeat2, Share, MoreHorizontal, BadgeCheck, Trash2, TrendingUp, Zap, Eye, BarChart3, Users, History, X, Languages, Loader2 as TransLoader, DollarSign, Flag, Check as CheckIcon, ChevronDown, ChevronUp, Send as SendIcon, Crown, Megaphone, Quote, Activity } from 'lucide-react';
-import { sendActivityNotification } from '@/components/layout/AuthProvider';
 import { Post } from '@/types/app-types';
 import { formatDistanceToNow } from 'date-fns';
 import { supabase } from '@/lib/supabase';
