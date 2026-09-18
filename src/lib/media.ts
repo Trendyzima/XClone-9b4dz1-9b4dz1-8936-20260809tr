@@ -31,12 +31,19 @@ async function mediaFunction(action: string, body: Record<string, unknown>) {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session?.access_token) throw new Error('Authentication required');
 
-  const { data, error } = await supabase.functions.invoke('r2-media', {
-    body: { action, ...body },
-    headers: { Authorization: `Bearer ${session.access_token}` },
+  const response = await fetch('/api/media', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer ' + session.access_token,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ action, ...body }),
   });
-  if (error) throw error;
-  if (data?.error) throw new Error(String(data.error));
+
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok || data?.error) {
+    throw new Error(String(data?.error ?? 'Media backend request failed (' + response.status + ').'));
+  }
   return data;
 }
 
@@ -59,7 +66,7 @@ export async function uploadMedia(file: File, postId?: string | null): Promise<M
 
   if (!response.ok) {
     await mediaFunction('delete', { media_id: initialized.media_id }).catch(() => undefined);
-    throw new Error(`Cloudflare media upload failed (${response.status}).`);
+    throw new Error('Cloudflare media upload failed (' + response.status + ').');
   }
 
   return mediaFunction('complete', { media_id: initialized.media_id });

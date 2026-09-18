@@ -1,0 +1,452 @@
+-- Frontend/backend feature-complete additive migration.
+-- Economical planes: Supabase Auth/Postgres text+metadata; Cloudflare R2 binary media; Vercel privileged control plane.
+create extension if not exists pgcrypto;
+create table if not exists public.comments (id uuid primary key default gen_random_uuid(),post_id uuid not null references public.posts(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,parent_id uuid references public.comments(id) on delete cascade,content text not null,edited_at timestamptz,deleted_at timestamptz,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create table if not exists public.reposts (id uuid primary key default gen_random_uuid(),post_id uuid not null references public.posts(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,quote text,created_at timestamptz not null default now(),unique(post_id,user_id));
+create table if not exists public.bookmarks (id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,post_id uuid not null references public.posts(id) on delete cascade,created_at timestamptz not null default now(),unique(user_id,post_id));
+create table if not exists public.hashtags (id uuid primary key default gen_random_uuid(),tag text not null unique,usage_count bigint not null default 0,created_at timestamptz not null default now());
+create table if not exists public.post_hashtags (post_id uuid not null references public.posts(id) on delete cascade,hashtag_id uuid not null references public.hashtags(id) on delete cascade,primary key(post_id,hashtag_id));
+create table if not exists public.user_interests (user_id uuid not null references auth.users(id) on delete cascade,hashtag_id uuid not null references public.hashtags(id) on delete cascade,interest_score numeric(10,4) not null default 0,updated_at timestamptz not null default now(),primary key(user_id,hashtag_id));
+create table if not exists public.lists (id uuid primary key default gen_random_uuid(),owner_id uuid not null references auth.users(id) on delete cascade,name text not null,description text,is_private boolean not null default true,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create table if not exists public.list_members (list_id uuid not null references public.lists(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,created_at timestamptz not null default now(),primary key(list_id,user_id));
+create table if not exists public.blocks (blocker_id uuid not null references auth.users(id) on delete cascade,blocked_id uuid not null references auth.users(id) on delete cascade,created_at timestamptz not null default now(),primary key(blocker_id,blocked_id),check(blocker_id<>blocked_id));
+create table if not exists public.mutes (muter_id uuid not null references auth.users(id) on delete cascade,muted_id uuid not null references auth.users(id) on delete cascade,created_at timestamptz not null default now(),primary key(muter_id,muted_id),check(muter_id<>muted_id));
+create table if not exists public.communities (id uuid primary key default gen_random_uuid(),owner_id uuid not null references auth.users(id) on delete cascade,name text not null unique,slug text not null unique,description text,avatar_url text,cover_url text,visibility text not null default 'public',created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create table if not exists public.community_members (community_id uuid not null references public.communities(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,role text not null default 'member',status text not null default 'active',created_at timestamptz not null default now(),primary key(community_id,user_id));
+create table if not exists public.threads (id uuid primary key default gen_random_uuid(),owner_id uuid not null references auth.users(id) on delete cascade,title text,body text not null default '',visibility text not null default 'public',created_at timestamptz not null default now(),updated_at timestamptz not null default now(),deleted_at timestamptz);
+create table if not exists public.thread_replies (id uuid primary key default gen_random_uuid(),thread_id uuid not null references public.threads(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,content text not null,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create table if not exists public.conversations (id uuid primary key default gen_random_uuid(),created_by uuid not null references auth.users(id) on delete cascade,kind text not null default 'direct',title text,encrypted boolean not null default true,current_key_epoch bigint not null default 0,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create table if not exists public.conversation_members (conversation_id uuid not null references public.conversations(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,role text not null default 'member',joined_at timestamptz not null default now(),left_at timestamptz,last_read_at timestamptz,primary key(conversation_id,user_id));
+create table if not exists public.messages (id uuid primary key default gen_random_uuid(),conversation_id uuid not null references public.conversations(id) on delete cascade,sender_id uuid not null references auth.users(id) on delete cascade,client_message_id text,ciphertext text,nonce text,key_epoch bigint not null default 0,plaintext_content text,message_type text not null default 'text',reply_to_id uuid references public.messages(id) on delete set null,attachment_metadata jsonb not null default '[]'::jsonb,edited_at timestamptz,deleted_at timestamptz,created_at timestamptz not null default now(),updated_at timestamptz not null default now(),unique(conversation_id,client_message_id));
+create table if not exists public.message_reactions (message_id uuid not null references public.messages(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,emoji text not null,created_at timestamptz not null default now(),primary key(message_id,user_id,emoji));
+create table if not exists public.message_edits (id uuid primary key default gen_random_uuid(),message_id uuid not null references public.messages(id) on delete cascade,editor_id uuid not null references auth.users(id) on delete cascade,ciphertext text,nonce text,key_epoch bigint,created_at timestamptz not null default now());
+create table if not exists public.calls (id uuid primary key default gen_random_uuid(),conversation_id uuid references public.conversations(id) on delete set null,created_by uuid not null references auth.users(id) on delete cascade,provider text not null default 'livekit',room_name text,kind text not null default 'audio',status text not null default 'ringing',started_at timestamptz,ended_at timestamptz,metadata jsonb not null default '{}'::jsonb,created_at timestamptz not null default now());
+create table if not exists public.call_participants (call_id uuid not null references public.calls(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,joined_at timestamptz,left_at timestamptz,role text not null default 'participant',primary key(call_id,user_id));
+create table if not exists public.presence (user_id uuid primary key references auth.users(id) on delete cascade,state text not null default 'offline',last_seen_at timestamptz not null default now(),metadata jsonb not null default '{}'::jsonb);
+create table if not exists public.typing_indicators (conversation_id uuid not null references public.conversations(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,expires_at timestamptz not null,primary key(conversation_id,user_id));
+create table if not exists public.stories (id uuid primary key default gen_random_uuid(),owner_id uuid not null references auth.users(id) on delete cascade,media_asset_id uuid references public.media_assets(id) on delete set null,caption text,expires_at timestamptz not null,visibility text not null default 'public',created_at timestamptz not null default now(),deleted_at timestamptz);
+create table if not exists public.story_views (story_id uuid not null references public.stories(id) on delete cascade,viewer_id uuid not null references auth.users(id) on delete cascade,viewed_at timestamptz not null default now(),primary key(story_id,viewer_id));
+create table if not exists public.live_spaces (id uuid primary key default gen_random_uuid(),host_id uuid not null references auth.users(id) on delete cascade,title text not null,description text,status text not null default 'scheduled',room_name text,started_at timestamptz,ended_at timestamptz,recording_asset_id uuid references public.media_assets(id) on delete set null,created_at timestamptz not null default now());
+create table if not exists public.live_space_members (space_id uuid not null references public.live_spaces(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,role text not null default 'listener',joined_at timestamptz,left_at timestamptz,primary key(space_id,user_id));
+create table if not exists public.wallets (id uuid primary key default gen_random_uuid(),user_id text not null unique,currency text not null default 'KES',balance numeric not null default 0,available_minor bigint not null default 0,pending_minor bigint not null default 0,status text not null default 'active',created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create table if not exists public.wallet_ledger (id uuid primary key default gen_random_uuid(),wallet_id uuid not null references public.wallets(id) on delete cascade,user_id text not null,direction text not null,amount_minor bigint not null check(amount_minor>0),currency text not null default 'KES',reason text not null,reference_type text,reference_id uuid,idempotency_key text not null unique,metadata jsonb not null default '{}'::jsonb,created_at timestamptz not null default now());
+create table if not exists public.creator_payables (id uuid primary key default gen_random_uuid(),creator_id uuid not null references auth.users(id) on delete cascade,source_type text not null,source_id uuid,amount_minor bigint not null check(amount_minor>=0),currency text not null default 'KES',status text not null default 'pending',idempotency_key text not null unique,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create table if not exists public.payout_accounts (id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,provider text not null,provider_account_ref text not null,display_label text,status text not null default 'pending',metadata jsonb not null default '{}'::jsonb,created_at timestamptz not null default now(),unique(provider,provider_account_ref));
+create table if not exists public.payouts (id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,payout_account_id uuid references public.payout_accounts(id) on delete set null,amount_minor bigint not null check(amount_minor>0),currency text not null default 'KES',status text not null default 'requested',provider text,provider_reference text,idempotency_key text not null unique,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create table if not exists public.products (id uuid primary key default gen_random_uuid(),seller_id uuid not null references auth.users(id) on delete cascade,name text not null,description text,price_minor bigint not null check(price_minor>=0),currency text not null default 'KES',media_asset_id uuid references public.media_assets(id) on delete set null,status text not null default 'active',created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create table if not exists public.orders (id uuid primary key default gen_random_uuid(),buyer_id uuid not null references auth.users(id) on delete cascade,seller_id uuid not null references auth.users(id) on delete cascade,product_id uuid references public.products(id) on delete set null,quantity integer not null default 1,total_minor bigint not null check(total_minor>=0),currency text not null default 'KES',status text not null default 'pending',created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create table if not exists public.wishlists (user_id uuid not null references auth.users(id) on delete cascade,product_id uuid not null references public.products(id) on delete cascade,created_at timestamptz not null default now(),primary key(user_id,product_id));
+create table if not exists public.subscriptions (id uuid primary key default gen_random_uuid(),subscriber_id uuid not null references auth.users(id) on delete cascade,creator_id uuid references auth.users(id) on delete set null,plan text not null,status text not null default 'active',started_at timestamptz not null default now(),ends_at timestamptz,provider text,provider_reference text);
+create table if not exists public.boosts (id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,post_id uuid references public.posts(id) on delete cascade,budget_minor bigint not null check(budget_minor>0),currency text not null default 'KES',status text not null default 'draft',starts_at timestamptz,ends_at timestamptz,created_at timestamptz not null default now());
+create table if not exists public.ad_campaigns (id uuid primary key default gen_random_uuid(),owner_id uuid not null references auth.users(id) on delete cascade,name text not null,budget_minor bigint not null default 0,currency text not null default 'KES',status text not null default 'draft',targeting jsonb not null default '{}'::jsonb,starts_at timestamptz,ends_at timestamptz,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create table if not exists public.ad_events (id uuid primary key default gen_random_uuid(),campaign_id uuid not null references public.ad_campaigns(id) on delete cascade,viewer_id uuid references auth.users(id) on delete set null,event_type text not null,post_id uuid references public.posts(id) on delete set null,occurred_at timestamptz not null default now(),metadata jsonb not null default '{}'::jsonb);
+create table if not exists public.reward_events (id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,reward_type text not null,amount_minor bigint not null default 0,currency text not null default 'KES',source text,source_id uuid,idempotency_key text not null unique,created_at timestamptz not null default now());
+create table if not exists public.referrals (id uuid primary key default gen_random_uuid(),referrer_id uuid not null references auth.users(id) on delete cascade,referred_id uuid not null unique references auth.users(id) on delete cascade,code text,status text not null default 'pending',created_at timestamptz not null default now());
+create table if not exists public.challenges (id uuid primary key default gen_random_uuid(),owner_id uuid references auth.users(id) on delete set null,name text not null,description text,starts_at timestamptz,ends_at timestamptz,status text not null default 'active',created_at timestamptz not null default now());
+create table if not exists public.challenge_entries (challenge_id uuid not null references public.challenges(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,score bigint not null default 0,updated_at timestamptz not null default now(),primary key(challenge_id,user_id));
+create table if not exists public.verification_requests (id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,tier text not null default 'standard',status text not null default 'pending',evidence jsonb not null default '{}'::jsonb,reviewed_by uuid references auth.users(id) on delete set null,reviewed_at timestamptz,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create table if not exists public.appeals (id uuid primary key default gen_random_uuid(),appellant_id uuid not null references auth.users(id) on delete cascade,target_type text not null,target_id uuid,reason text not null,status text not null default 'open',resolution text,reviewed_by uuid references auth.users(id) on delete set null,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create table if not exists public.reports (id uuid primary key default gen_random_uuid(),reporter_id uuid not null references auth.users(id) on delete cascade,target_type text not null,target_id uuid,reason text not null,details text,status text not null default 'open',reviewed_by uuid references auth.users(id) on delete set null,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create table if not exists public.notification_preferences (user_id uuid primary key references auth.users(id) on delete cascade,preferences jsonb not null default '{}'::jsonb,push_enabled boolean not null default true,email_enabled boolean not null default true,updated_at timestamptz not null default now());
+create table if not exists public.user_settings (user_id uuid primary key references auth.users(id) on delete cascade,settings jsonb not null default '{}'::jsonb,updated_at timestamptz not null default now());
+create table if not exists public.series (id uuid primary key default gen_random_uuid(),owner_id uuid not null references auth.users(id) on delete cascade,title text not null,description text,cover_asset_id uuid references public.media_assets(id) on delete set null,status text not null default 'active',created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create table if not exists public.series_posts (series_id uuid not null references public.series(id) on delete cascade,post_id uuid not null references public.posts(id) on delete cascade,sort_order integer not null default 0,primary key(series_id,post_id),unique(series_id,sort_order));
+create table if not exists public.podcasts (id uuid primary key default gen_random_uuid(),owner_id uuid not null references auth.users(id) on delete cascade,title text not null,description text,cover_asset_id uuid references public.media_assets(id) on delete set null,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create table if not exists public.podcast_episodes (id uuid primary key default gen_random_uuid(),podcast_id uuid not null references public.podcasts(id) on delete cascade,title text not null,description text,media_asset_id uuid references public.media_assets(id) on delete set null,duration_seconds integer,published_at timestamptz,created_at timestamptz not null default now());
+
+create index if not exists comments_post_created_idx on public.comments(post_id,created_at desc);
+create index if not exists messages_conversation_created_idx on public.messages(conversation_id,created_at desc);
+create index if not exists conversation_members_user_idx on public.conversation_members(user_id,joined_at desc);
+create index if not exists stories_owner_created_idx on public.stories(owner_id,created_at desc);
+create index if not exists wallet_ledger_user_created_idx on public.wallet_ledger(user_id,created_at desc);
+create index if not exists ad_events_campaign_time_idx on public.ad_events(campaign_id,occurred_at desc);
+create index if not exists hashtags_tag_lower_idx on public.hashtags(lower(tag));
+
+-- Explicitly protect every new exposed table with RLS.
+do $$ declare t text; begin foreach t in array ARRAY['comments','reposts','bookmarks','hashtags','post_hashtags','user_interests','lists','list_members','blocks','mutes','communities','community_members','threads','thread_replies','conversations','conversation_members','messages','message_reactions','message_edits','calls','call_participants','presence','typing_indicators','stories','story_views','live_spaces','live_space_members','wallets','wallet_ledger','creator_payables','payout_accounts','payouts','products','orders','wishlists','subscriptions','boosts','ad_campaigns','ad_events','reward_events','referrals','challenges','challenge_entries','verification_requests','appeals','reports','notification_preferences','user_settings','series','series_posts','podcasts','podcast_episodes'] loop execute format('alter table public.%I enable row level security',t); end loop; end $$;
+drop policy if exists comments_owner on public.comments; create policy comments_owner on public.comments for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists reposts_owner on public.reposts; create policy reposts_owner on public.reposts for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists bookmarks_owner on public.bookmarks; create policy bookmarks_owner on public.bookmarks for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists user_interests_owner on public.user_interests; create policy user_interests_owner on public.user_interests for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists lists_owner on public.lists; create policy lists_owner on public.lists for all to authenticated using(owner_id=auth.uid()) with check(owner_id=auth.uid());
+drop policy if exists blocks_owner on public.blocks; create policy blocks_owner on public.blocks for all to authenticated using(blocker_id=auth.uid()) with check(blocker_id=auth.uid());
+drop policy if exists mutes_owner on public.mutes; create policy mutes_owner on public.mutes for all to authenticated using(muter_id=auth.uid()) with check(muter_id=auth.uid());
+drop policy if exists threads_owner on public.threads; create policy threads_owner on public.threads for all to authenticated using(owner_id=auth.uid()) with check(owner_id=auth.uid());
+drop policy if exists thread_replies_owner on public.thread_replies; create policy thread_replies_owner on public.thread_replies for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists presence_owner on public.presence; create policy presence_owner on public.presence for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists typing_indicators_owner on public.typing_indicators; create policy typing_indicators_owner on public.typing_indicators for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists stories_owner on public.stories; create policy stories_owner on public.stories for all to authenticated using(owner_id=auth.uid()) with check(owner_id=auth.uid());
+drop policy if exists live_spaces_owner on public.live_spaces; create policy live_spaces_owner on public.live_spaces for all to authenticated using(host_id=auth.uid()) with check(host_id=auth.uid());
+drop policy if exists wallets_owner on public.wallets; create policy wallets_owner on public.wallets for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists wallet_ledger_owner on public.wallet_ledger; create policy wallet_ledger_owner on public.wallet_ledger for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists creator_payables_owner on public.creator_payables; create policy creator_payables_owner on public.creator_payables for all to authenticated using(creator_id=auth.uid()) with check(creator_id=auth.uid());
+drop policy if exists payout_accounts_owner on public.payout_accounts; create policy payout_accounts_owner on public.payout_accounts for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists payouts_owner on public.payouts; create policy payouts_owner on public.payouts for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists products_owner on public.products; create policy products_owner on public.products for all to authenticated using(seller_id=auth.uid()) with check(seller_id=auth.uid());
+drop policy if exists boosts_owner on public.boosts; create policy boosts_owner on public.boosts for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists ad_campaigns_owner on public.ad_campaigns; create policy ad_campaigns_owner on public.ad_campaigns for all to authenticated using(owner_id=auth.uid()) with check(owner_id=auth.uid());
+drop policy if exists reward_events_owner on public.reward_events; create policy reward_events_owner on public.reward_events for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists referrals_owner on public.referrals; create policy referrals_owner on public.referrals for all to authenticated using(referrer_id=auth.uid()) with check(referrer_id=auth.uid());
+drop policy if exists challenges_owner on public.challenges; create policy challenges_owner on public.challenges for all to authenticated using(owner_id=auth.uid()) with check(owner_id=auth.uid());
+drop policy if exists challenge_entries_owner on public.challenge_entries; create policy challenge_entries_owner on public.challenge_entries for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists verification_requests_owner on public.verification_requests; create policy verification_requests_owner on public.verification_requests for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists appeals_owner on public.appeals; create policy appeals_owner on public.appeals for all to authenticated using(appellant_id=auth.uid()) with check(appellant_id=auth.uid());
+drop policy if exists reports_owner on public.reports; create policy reports_owner on public.reports for all to authenticated using(reporter_id=auth.uid()) with check(reporter_id=auth.uid());
+drop policy if exists notification_preferences_owner on public.notification_preferences; create policy notification_preferences_owner on public.notification_preferences for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists user_settings_owner on public.user_settings; create policy user_settings_owner on public.user_settings for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists series_owner on public.series; create policy series_owner on public.series for all to authenticated using(owner_id=auth.uid()) with check(owner_id=auth.uid());
+drop policy if exists podcasts_owner on public.podcasts; create policy podcasts_owner on public.podcasts for all to authenticated using(owner_id=auth.uid()) with check(owner_id=auth.uid());
+
+-- Discovery/shared-read policies.
+drop policy if exists hashtags_read on public.hashtags; create policy hashtags_read on public.hashtags for select to authenticated using(true);
+drop policy if exists post_hashtags_read on public.post_hashtags; create policy post_hashtags_read on public.post_hashtags for select to authenticated using(true);
+drop policy if exists post_hashtags_owner on public.post_hashtags; create policy post_hashtags_owner on public.post_hashtags for all to authenticated using(exists(select 1 from public.posts p where p.id=post_id and p.user_id=auth.uid())) with check(exists(select 1 from public.posts p where p.id=post_id and p.user_id=auth.uid()));
+drop policy if exists communities_read on public.communities; create policy communities_read on public.communities for select to authenticated using(visibility='public' or owner_id=auth.uid());
+drop policy if exists communities_owner on public.communities; create policy communities_owner on public.communities for all to authenticated using(owner_id=auth.uid()) with check(owner_id=auth.uid());
+drop policy if exists community_members_self on public.community_members; create policy community_members_self on public.community_members for select to authenticated using(user_id=auth.uid() or exists(select 1 from public.communities c where c.id=community_id and c.owner_id=auth.uid()));
+drop policy if exists community_members_owner on public.community_members; create policy community_members_owner on public.community_members for all to authenticated using(exists(select 1 from public.communities c where c.id=community_id and c.owner_id=auth.uid())) with check(exists(select 1 from public.communities c where c.id=community_id and c.owner_id=auth.uid()));
+drop policy if exists conversations_member on public.conversations; create policy conversations_member on public.conversations for select to authenticated using(exists(select 1 from public.conversation_members cm where cm.conversation_id=id and cm.user_id=auth.uid()));
+drop policy if exists conversations_creator on public.conversations; create policy conversations_creator on public.conversations for insert to authenticated with check(created_by=auth.uid());
+drop policy if exists conversation_members_access on public.conversation_members; create policy conversation_members_access on public.conversation_members for all to authenticated using(user_id=auth.uid() or exists(select 1 from public.conversations c where c.id=conversation_id and c.created_by=auth.uid())) with check(user_id=auth.uid() or exists(select 1 from public.conversations c where c.id=conversation_id and c.created_by=auth.uid()));
+drop policy if exists messages_member on public.messages; create policy messages_member on public.messages for all to authenticated using(exists(select 1 from public.conversation_members cm where cm.conversation_id=conversation_id and cm.user_id=auth.uid() and cm.left_at is null)) with check(sender_id=auth.uid() and exists(select 1 from public.conversation_members cm where cm.conversation_id=conversation_id and cm.user_id=auth.uid() and cm.left_at is null));
+drop policy if exists message_reactions_member on public.message_reactions; create policy message_reactions_member on public.message_reactions for all to authenticated using(exists(select 1 from public.messages m join public.conversation_members cm on cm.conversation_id=m.conversation_id where m.id=message_id and cm.user_id=auth.uid())) with check(user_id=auth.uid());
+drop policy if exists message_edits_member on public.message_edits; create policy message_edits_member on public.message_edits for all to authenticated using(editor_id=auth.uid() and exists(select 1 from public.messages m join public.conversation_members cm on cm.conversation_id=m.conversation_id where m.id=message_id and cm.user_id=auth.uid())) with check(editor_id=auth.uid());
+drop policy if exists calls_access on public.calls; create policy calls_access on public.calls for all to authenticated using(created_by=auth.uid() or exists(select 1 from public.call_participants cp where cp.call_id=id and cp.user_id=auth.uid())) with check(created_by=auth.uid());
+drop policy if exists call_participants_access on public.call_participants; create policy call_participants_access on public.call_participants for all to authenticated using(user_id=auth.uid() or exists(select 1 from public.calls c where c.id=call_id and c.created_by=auth.uid())) with check(user_id=auth.uid() or exists(select 1 from public.calls c where c.id=call_id and c.created_by=auth.uid()));
+drop policy if exists presence_read on public.presence; create policy presence_read on public.presence for select to authenticated using(true);
+drop policy if exists live_space_members_access on public.live_space_members; create policy live_space_members_access on public.live_space_members for all to authenticated using(user_id=auth.uid() or exists(select 1 from public.live_spaces s where s.id=space_id and s.host_id=auth.uid())) with check(user_id=auth.uid() or exists(select 1 from public.live_spaces s where s.id=space_id and s.host_id=auth.uid()));
+drop policy if exists products_read on public.products; create policy products_read on public.products for select to authenticated using(status='active' or seller_id=auth.uid());
+drop policy if exists orders_participant on public.orders; create policy orders_participant on public.orders for select to authenticated using(buyer_id=auth.uid() or seller_id=auth.uid());
+drop policy if exists orders_buyer on public.orders; create policy orders_buyer on public.orders for insert to authenticated with check(buyer_id=auth.uid());
+drop policy if exists wishlists_owner on public.wishlists; create policy wishlists_owner on public.wishlists for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists subscriptions_participant on public.subscriptions; create policy subscriptions_participant on public.subscriptions for select to authenticated using(subscriber_id=auth.uid() or creator_id=auth.uid());
+drop policy if exists challenges_read on public.challenges; create policy challenges_read on public.challenges for select to authenticated using(true);
+drop policy if exists series_posts_owner on public.series_posts; create policy series_posts_owner on public.series_posts for all to authenticated using(exists(select 1 from public.series s where s.id=series_id and s.owner_id=auth.uid())) with check(exists(select 1 from public.series s where s.id=series_id and s.owner_id=auth.uid()));
+drop policy if exists podcast_episodes_read on public.podcast_episodes; create policy podcast_episodes_read on public.podcast_episodes for select to authenticated using(true);
+
+-- Data API grants; RLS remains authoritative.
+do $$ declare t text; begin foreach t in array ARRAY['comments','reposts','bookmarks','hashtags','post_hashtags','user_interests','lists','list_members','blocks','mutes','communities','community_members','threads','thread_replies','conversations','conversation_members','messages','message_reactions','message_edits','calls','call_participants','presence','typing_indicators','stories','story_views','live_spaces','live_space_members','wallets','wallet_ledger','creator_payables','payout_accounts','payouts','products','orders','wishlists','subscriptions','boosts','ad_campaigns','ad_events','reward_events','referrals','challenges','challenge_entries','verification_requests','appeals','reports','notification_preferences','user_settings','series','series_posts','podcasts','podcast_episodes'] loop execute format('grant select,insert,update,delete on public.%I to authenticated',t); end loop; end $$;
+
+-- Feed must be readable by authenticated users; writes remain owner-scoped.
+drop policy if exists posts_owner_all on public.posts;
+drop policy if exists posts_public_read on public.posts;
+create policy posts_public_read on public.posts for select to authenticated using(deleted_at is null or user_id=auth.uid());
+create policy posts_owner_insert on public.posts for insert to authenticated with check(user_id=auth.uid());
+create policy posts_owner_update on public.posts for update to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+create policy posts_owner_delete on public.posts for delete to authenticated using(user_id=auth.uid());
+
+-- Frontend feature contract: explicit route/domain boundary and forward/reverse keys.
+create table if not exists public.frontend_backend_contract(
+ feature_key text primary key,route_pattern text not null,domain text not null,
+ read_action_key text not null unique,read_reverse_key text not null unique,
+ write_action_key text,write_reverse_key text unique,media_plane text not null default 'none',
+ realtime boolean not null default false,e2ee boolean not null default false,notes text not null default '',
+ created_at timestamptz not null default now(),updated_at timestamptz not null default now(),
+ check(read_action_key<>read_reverse_key),check(write_action_key is null or write_action_key<>write_reverse_key)
+);
+alter table public.frontend_backend_contract enable row level security;
+revoke all on public.frontend_backend_contract from anon,authenticated;
+grant select,insert,update,delete on public.frontend_backend_contract to service_role;
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('home','/','social','feature:home:read:v1','feature:home:reverse-read:v1','feature:home:write:v1','feature:home:reverse-write:v1','none',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('videos','/videos','media','feature:videos:read:v1','feature:videos:reverse-read:v1','feature:videos:write:v1','feature:videos:reverse-write:v1','r2',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('shorts','/shorts','media','feature:shorts:read:v1','feature:shorts:reverse-read:v1','feature:shorts:write:v1','feature:shorts:reverse-write:v1','r2',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('explore','/explore','discovery','feature:explore:read:v1','feature:explore:reverse-read:v1','feature:explore:write:v1','feature:explore:reverse-write:v1','none',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('notifications','/notifications','notifications','feature:notifications:read:v1','feature:notifications:reverse-read:v1','feature:notifications:write:v1','feature:notifications:reverse-write:v1','none',true,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('messages','/messages','messaging','feature:messages:read:v1','feature:messages:reverse-read:v1','feature:messages:write:v1','feature:messages:reverse-write:v1','r2',true,true) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('profile','/profile','profiles','feature:profile:read:v1','feature:profile:reverse-read:v1','feature:profile:write:v1','feature:profile:reverse-write:v1','r2',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('search','/search','discovery','feature:search:read:v1','feature:search:reverse-read:v1','feature:search:write:v1','feature:search:reverse-write:v1','none',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('spaces','/spaces','live','feature:spaces:read:v1','feature:spaces:reverse-read:v1','feature:spaces:write:v1','feature:spaces:reverse-write:v1','r2',true,true) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('analytics','/analytics','analytics','feature:analytics:read:v1','feature:analytics:reverse-read:v1','feature:analytics:write:v1','feature:analytics:reverse-write:v1','none',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('communities','/communities','communities','feature:communities:read:v1','feature:communities:reverse-read:v1','feature:communities:write:v1','feature:communities:reverse-write:v1','r2',true,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('hashtags','/hashtag/:tag','discovery','feature:hashtags:read:v1','feature:hashtags:reverse-read:v1','feature:hashtags:write:v1','feature:hashtags:reverse-write:v1','none',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('bookmarks','/bookmarks','social','feature:bookmarks:read:v1','feature:bookmarks:reverse-read:v1','feature:bookmarks:write:v1','feature:bookmarks:reverse-write:v1','none',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('lists','/lists','social','feature:lists:read:v1','feature:lists:reverse-read:v1','feature:lists:write:v1','feature:lists:reverse-write:v1','none',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('monetization','/monetization','monetization','feature:monetization:read:v1','feature:monetization:reverse-read:v1','feature:monetization:write:v1','feature:monetization:reverse-write:v1','none',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('products','/products','commerce','feature:products:read:v1','feature:products:reverse-read:v1','feature:products:write:v1','feature:products:reverse-write:v1','r2',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('wallet','/wallet','wallet','feature:wallet:read:v1','feature:wallet:reverse-read:v1','feature:wallet:write:v1','feature:wallet:reverse-write:v1','none',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('ads','/ads','advertising','feature:ads:read:v1','feature:ads:reverse-read:v1','feature:ads:write:v1','feature:ads:reverse-write:v1','r2',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('payouts','/payouts','payouts','feature:payouts:read:v1','feature:payouts:reverse-read:v1','feature:payouts:write:v1','feature:payouts:reverse-write:v1','none',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('rewards','/rewards','rewards','feature:rewards:read:v1','feature:rewards:reverse-read:v1','feature:rewards:write:v1','feature:rewards:reverse-write:v1','none',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('referrals','/referrals','growth','feature:referrals:read:v1','feature:referrals:reverse-read:v1','feature:referrals:write:v1','feature:referrals:reverse-write:v1','none',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('verification','/verification','trust','feature:verification:read:v1','feature:verification:reverse-read:v1','feature:verification:write:v1','feature:verification:reverse-write:v1','r2',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('settings','/settings','settings','feature:settings:read:v1','feature:settings:reverse-read:v1','feature:settings:write:v1','feature:settings:reverse-write:v1','none',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('stories','/stories','stories','feature:stories:read:v1','feature:stories:reverse-read:v1','feature:stories:write:v1','feature:stories:reverse-write:v1','r2',true,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('threads','/threads','threads','feature:threads:read:v1','feature:threads:reverse-read:v1','feature:threads:write:v1','feature:threads:reverse-write:v1','r2',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('series','/series','series','feature:series:read:v1','feature:series:reverse-read:v1','feature:series:write:v1','feature:series:reverse-write:v1','r2',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('podcasts','/podcasts','podcasts','feature:podcasts:read:v1','feature:podcasts:reverse-read:v1','feature:podcasts:write:v1','feature:podcasts:reverse-write:v1','r2',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('admin','/admin','admin','feature:admin:read:v1','feature:admin:reverse-read:v1','feature:admin:write:v1','feature:admin:reverse-write:v1','none',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('platform-inbox','/platform-inbox','platform','feature:platform-inbox:read:v1','feature:platform-inbox:reverse-read:v1','feature:platform-inbox:write:v1','feature:platform-inbox:reverse-write:v1','none',true,true) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('creator-studio','/creator-studio','creator','feature:creator-studio:read:v1','feature:creator-studio:reverse-read:v1','feature:creator-studio:write:v1','feature:creator-studio:reverse-write:v1','r2',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('premium','/premium','monetization','feature:premium:read:v1','feature:premium:reverse-read:v1','feature:premium:write:v1','feature:premium:reverse-write:v1','none',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('leaderboards','/leaderboard','growth','feature:leaderboards:read:v1','feature:leaderboards:reverse-read:v1','feature:leaderboards:write:v1','feature:leaderboards:reverse-write:v1','none',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('fraud','/fraud','risk','feature:fraud:read:v1','feature:fraud:reverse-read:v1','feature:fraud:write:v1','feature:fraud:reverse-write:v1','none',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('appeals','/appeals','trust','feature:appeals:read:v1','feature:appeals:reverse-read:v1','feature:appeals:write:v1','feature:appeals:reverse-write:v1','none',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+insert into public.frontend_backend_contract(feature_key,route_pattern,domain,read_action_key,read_reverse_key,write_action_key,write_reverse_key,media_plane,realtime,e2ee) values('orders','/orders','commerce','feature:orders:read:v1','feature:orders:reverse-read:v1','feature:orders:write:v1','feature:orders:reverse-write:v1','r2',false,false) on conflict(feature_key) do update set route_pattern=excluded.route_pattern,domain=excluded.domain,read_action_key=excluded.read_action_key,read_reverse_key=excluded.read_reverse_key,write_action_key=excluded.write_action_key,write_reverse_key=excluded.write_reverse_key,media_plane=excluded.media_plane,realtime=excluded.realtime,e2ee=excluded.e2ee,updated_at=now();
+
+-- Register tables, policies and feature contracts with deterministic action/reverse keys.
+insert into public.backend_change_registry(object_kind,object_name,action,action_key,reverse_action,reverse_key,migration_key,metadata)
+select 'table',c.relname,'create','table:'||c.relname||':ensure:v2','drop table','table:'||c.relname||':drop:v2','20260919003000_frontend_feature_complete_backend',jsonb_build_object('frontend_contract',true)
+from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r'
+and c.relname in ('comments','reposts','bookmarks','hashtags','post_hashtags','user_interests','lists','list_members','blocks','mutes','communities','community_members','threads','thread_replies','conversations','conversation_members','messages','message_reactions','message_edits','calls','call_participants','presence','typing_indicators','stories','story_views','live_spaces','live_space_members','wallets','wallet_ledger','creator_payables','payout_accounts','payouts','products','orders','wishlists','subscriptions','boosts','ad_campaigns','ad_events','reward_events','referrals','challenges','challenge_entries','verification_requests','appeals','reports','notification_preferences','user_settings','series','series_posts','podcasts','podcast_episodes')
+on conflict(action_key) do nothing;
+
+insert into public.backend_change_registry(object_kind,object_name,action,action_key,reverse_action,reverse_key,migration_key,metadata)
+select 'policy',tablename||':'||policyname,'create','policy:'||tablename||':'||policyname||':ensure:v2','drop policy','policy:'||tablename||':'||policyname||':drop:v2','20260919003000_frontend_feature_complete_backend',jsonb_build_object('rls',true)
+from pg_policies where schemaname='public'
+and tablename in ('comments','reposts','bookmarks','hashtags','post_hashtags','user_interests','lists','list_members','blocks','mutes','communities','community_members','threads','thread_replies','conversations','conversation_members','messages','message_reactions','message_edits','calls','call_participants','presence','typing_indicators','stories','story_views','live_spaces','live_space_members','wallets','wallet_ledger','creator_payables','payout_accounts','payouts','products','orders','wishlists','subscriptions','boosts','ad_campaigns','ad_events','reward_events','referrals','challenges','challenge_entries','verification_requests','appeals','reports','notification_preferences','user_settings','series','series_posts','podcasts','podcast_episodes')
+on conflict(action_key) do nothing;
+
+insert into public.backend_change_registry(object_kind,object_name,action,action_key,reverse_action,reverse_key,migration_key,metadata)
+select 'constraint',feature_key,'bind','feature:'||feature_key||':read:v1','unbind','feature:'||feature_key||':reverse-read:v1','20260919003000_frontend_feature_complete_backend',jsonb_build_object('route',route_pattern,'domain',domain,'media_plane',media_plane,'realtime',realtime,'e2ee',e2ee)
+from public.frontend_backend_contract on conflict(action_key) do nothing;
+
+insert into public.backend_change_registry(object_kind,object_name,action,action_key,reverse_action,reverse_key,migration_key,metadata)
+select 'constraint',feature_key,'bind-write',write_action_key,'unbind-write',write_reverse_key,'20260919003000_frontend_feature_complete_backend',jsonb_build_object('route',route_pattern,'domain',domain)
+from public.frontend_backend_contract where write_action_key is not null on conflict(action_key) do nothing;
+
+do $$ begin
+ if exists(select 1 from public.backend_change_registry where status='active' and (action_key is null or reverse_key is null or action_key=reverse_key)) then raise exception 'invalid backend action/reverse key'; end if;
+ if exists(select 1 from public.frontend_backend_contract where read_action_key=read_reverse_key or (write_action_key is not null and write_action_key=write_reverse_key)) then raise exception 'invalid frontend contract action/reverse key'; end if;
+end $$;
+
+-- Frontend compatibility domains discovered from the live page/service surface.
+alter table public.profiles add column if not exists verified boolean not null default false;
+alter table public.profiles add column if not exists subscriber_count bigint not null default 0;
+alter table public.profiles add column if not exists creator_tier text;
+alter table public.profiles add column if not exists is_creator boolean not null default false;
+
+create table if not exists public.replies(
+ id uuid primary key default gen_random_uuid(),post_id uuid not null references public.posts(id) on delete cascade,
+ user_id uuid not null references auth.users(id) on delete cascade,content text not null,created_at timestamptz not null default now(),updated_at timestamptz not null default now()
+);
+create index if not exists replies_post_created_idx on public.replies(post_id,created_at desc);
+
+create table if not exists public.trending_topics(
+ id uuid primary key default gen_random_uuid(),topic text not null unique,category text not null default 'general',
+ posts_count bigint not null default 0,created_at timestamptz not null default now(),updated_at timestamptz not null default now()
+);
+create table if not exists public.user_suggestions(
+ id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,
+ suggested_user_id uuid not null references auth.users(id) on delete cascade,score numeric(12,6) not null default 0,reason text,created_at timestamptz not null default now(),
+ unique(user_id,suggested_user_id)
+);
+
+create table if not exists public.daily_rewards(
+ user_id uuid primary key references auth.users(id) on delete cascade,streak_day integer not null default 0 check(streak_day between 0 and 7),
+ credits_earned integer not null default 0,last_claimed_at timestamptz,updated_at timestamptz not null default now()
+);
+create table if not exists public.user_wallets(
+ user_id uuid primary key references auth.users(id) on delete cascade,credits bigint not null default 0 check(credits>=0),
+ updated_at timestamptz not null default now()
+);
+create table if not exists public.credit_transactions(
+ id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,
+ amount bigint not null,reason text not null,reference_type text,reference_id uuid,idempotency_key text unique,created_at timestamptz not null default now()
+);
+
+create table if not exists public.tips(
+ id uuid primary key default gen_random_uuid(),from_user_id uuid not null references auth.users(id) on delete cascade,
+ to_user_id uuid not null references auth.users(id) on delete cascade,amount bigint not null check(amount>0),created_at timestamptz not null default now()
+);
+create index if not exists tips_recipient_created_idx on public.tips(to_user_id,created_at desc);
+
+create table if not exists public.platform_inbox(
+ id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,
+ type text not null,subject text not null,body text not null,icon_emoji text,cta_label text,cta_url text,
+ read boolean not null default false,sent_at timestamptz not null default now(),created_at timestamptz not null default now(),
+ dedupe_key text not null unique,metadata jsonb not null default '{}'::jsonb,generation_version integer not null default 1
+);
+create index if not exists platform_inbox_user_sent_idx on public.platform_inbox(user_id,sent_at desc);
+
+create table if not exists public.spaces(
+ id uuid primary key default gen_random_uuid(),host_id uuid not null references auth.users(id) on delete cascade,
+ title text not null,description text,is_live boolean not null default false,listener_count integer not null default 0,
+ started_at timestamptz not null default now(),ended_at timestamptz,category text,artwork_url text,episode_number integer,
+ chapters jsonb not null default '[]'::jsonb,tags text[] not null default '{}',subscriber_only boolean not null default false,
+ room_name text,created_at timestamptz not null default now()
+);
+create table if not exists public.space_participants(
+ space_id uuid not null references public.spaces(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,
+ joined_at timestamptz not null default now(),left_at timestamptz,primary key(space_id,user_id)
+);
+
+create table if not exists public.creator_earnings(
+ id uuid primary key default gen_random_uuid(),creator_id uuid not null references auth.users(id) on delete cascade,
+ source_type text not null,source_id uuid,amount numeric(20,6) not null default 0,currency text not null default 'KES',
+ status text not null default 'pending',created_at timestamptz not null default now()
+);
+create table if not exists public.post_reports(
+ id uuid primary key default gen_random_uuid(),post_id uuid not null references public.posts(id) on delete cascade,
+ reporter_id uuid not null references auth.users(id) on delete cascade,reason text not null,details text,status text not null default 'open',
+ created_at timestamptz not null default now()
+);
+create table if not exists public.user_ads(
+ id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,
+ campaign_id uuid references public.ad_campaigns(id) on delete set null,status text not null default 'draft',name text,created_at timestamptz not null default now()
+);
+create table if not exists public.ad_impressions(
+ id uuid primary key default gen_random_uuid(),ad_id uuid references public.user_ads(id) on delete cascade,
+ user_id uuid references auth.users(id) on delete set null,impression_type text not null default 'view',created_at timestamptz not null default now()
+);
+create table if not exists public.browsing_history(
+ id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,
+ entity_type text not null,entity_id uuid,metadata jsonb not null default '{}'::jsonb,created_at timestamptz not null default now()
+);
+
+create table if not exists public.post_series(
+ id uuid primary key default gen_random_uuid(),owner_id uuid not null references auth.users(id) on delete cascade,
+ title text not null,description text,created_at timestamptz not null default now(),updated_at timestamptz not null default now()
+);
+create table if not exists public.post_series_items(
+ series_id uuid not null references public.post_series(id) on delete cascade,post_id uuid not null references public.posts(id) on delete cascade,
+ sort_order integer not null default 0,primary key(series_id,post_id),unique(series_id,sort_order)
+);
+
+do $$ declare t text; begin foreach t in array ARRAY['replies','trending_topics','user_suggestions','daily_rewards','user_wallets','credit_transactions','tips','platform_inbox','spaces','space_participants','creator_earnings','post_reports','user_ads','ad_impressions','browsing_history','post_series','post_series_items'] loop execute format('alter table public.%I enable row level security',t); execute format('grant select,insert,update,delete on public.%I to authenticated',t); end loop; end $$;
+
+drop policy if exists replies_owner on public.replies; create policy replies_owner on public.replies for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists trending_topics_read on public.trending_topics; create policy trending_topics_read on public.trending_topics for select to authenticated using(true);
+drop policy if exists suggestions_owner on public.user_suggestions; create policy suggestions_owner on public.user_suggestions for select to authenticated using(user_id=auth.uid());
+drop policy if exists daily_rewards_owner on public.daily_rewards; create policy daily_rewards_owner on public.daily_rewards for select to authenticated using(user_id=auth.uid());
+drop policy if exists wallet_credits_owner on public.user_wallets; create policy wallet_credits_owner on public.user_wallets for select to authenticated using(user_id=auth.uid());
+drop policy if exists credit_transactions_owner on public.credit_transactions; create policy credit_transactions_owner on public.credit_transactions for select to authenticated using(user_id=auth.uid());
+drop policy if exists tips_participant on public.tips; create policy tips_participant on public.tips for select to authenticated using(from_user_id=auth.uid() or to_user_id=auth.uid());
+drop policy if exists platform_inbox_owner on public.platform_inbox; create policy platform_inbox_owner on public.platform_inbox for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists spaces_read on public.spaces; create policy spaces_read on public.spaces for select to authenticated using(true);
+drop policy if exists spaces_owner on public.spaces; create policy spaces_owner on public.spaces for all to authenticated using(host_id=auth.uid()) with check(host_id=auth.uid());
+drop policy if exists space_participants_self on public.space_participants; create policy space_participants_self on public.space_participants for all to authenticated using(user_id=auth.uid() or exists(select 1 from public.spaces s where s.id=space_id and s.host_id=auth.uid())) with check(user_id=auth.uid() or exists(select 1 from public.spaces s where s.id=space_id and s.host_id=auth.uid()));
+drop policy if exists creator_earnings_owner on public.creator_earnings; create policy creator_earnings_owner on public.creator_earnings for select to authenticated using(creator_id=auth.uid());
+drop policy if exists post_reports_owner on public.post_reports; create policy post_reports_owner on public.post_reports for all to authenticated using(reporter_id=auth.uid()) with check(reporter_id=auth.uid());
+drop policy if exists user_ads_owner on public.user_ads; create policy user_ads_owner on public.user_ads for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists ad_impressions_owner on public.ad_impressions; create policy ad_impressions_owner on public.ad_impressions for select to authenticated using(user_id=auth.uid());
+drop policy if exists browsing_history_owner on public.browsing_history; create policy browsing_history_owner on public.browsing_history for all to authenticated using(user_id=auth.uid()) with check(user_id=auth.uid());
+drop policy if exists post_series_owner on public.post_series; create policy post_series_owner on public.post_series for all to authenticated using(owner_id=auth.uid()) with check(owner_id=auth.uid());
+drop policy if exists post_series_items_owner on public.post_series_items; create policy post_series_items_owner on public.post_series_items for all to authenticated using(exists(select 1 from public.post_series s where s.id=series_id and s.owner_id=auth.uid())) with check(exists(select 1 from public.post_series s where s.id=series_id and s.owner_id=auth.uid()));
+
+-- Compatibility columns for the frontend notification/profile contract.
+alter table public.notifications add column if not exists user_id uuid references auth.users(id) on delete cascade;
+alter table public.notifications add column if not exists type text;
+alter table public.notifications add column if not exists from_user_id uuid references auth.users(id) on delete set null;
+alter table public.notifications add column if not exists read_at timestamptz;
+alter table public.notifications add column if not exists data jsonb not null default '{}'::jsonb;
+update public.notifications set user_id=recipient_id where user_id is null;
+update public.notifications set type=kind where type is null;
+update public.notifications set from_user_id=actor_id where from_user_id is null;
+update public.notifications set read_at=case when read then coalesce(read_at,created_at) else null end;
+
+-- Register the compatibility domains and policies as forward/reverse operations too.
+insert into public.backend_change_registry(object_kind,object_name,action,action_key,reverse_action,reverse_key,migration_key,metadata)
+select 'table',c.relname,'ensure','table:'||c.relname||':ensure:v2','drop table','table:'||c.relname||':drop:v2','20260919003000_frontend_feature_complete_backend',jsonb_build_object('frontend_compatibility',true)
+from pg_class c join pg_namespace n on n.oid=c.relnamespace
+where n.nspname='public' and c.relkind='r'
+and c.relname in ('replies','trending_topics','user_suggestions','daily_rewards','user_wallets','credit_transactions','tips','platform_inbox','spaces','space_participants','creator_earnings','post_reports','user_ads','ad_impressions','browsing_history','post_series','post_series_items')
+on conflict(action_key) do nothing;
+
+insert into public.backend_change_registry(object_kind,object_name,action,action_key,reverse_action,reverse_key,migration_key,metadata)
+select 'policy',tablename||':'||policyname,'ensure','policy:'||tablename||':'||policyname||':ensure:v2','drop policy','policy:'||tablename||':'||policyname||':drop:v2','20260919003000_frontend_feature_complete_backend',jsonb_build_object('rls',true,'frontend_compatibility',true)
+from pg_policies where schemaname='public'
+and tablename in ('replies','trending_topics','user_suggestions','daily_rewards','user_wallets','credit_transactions','tips','platform_inbox','spaces','space_participants','creator_earnings','post_reports','user_ads','ad_impressions','browsing_history','post_series','post_series_items')
+on conflict(action_key) do nothing;
+
+do $$ begin
+ if exists(select 1 from public.backend_change_registry where status='active' and (action_key is null or reverse_key is null or action_key=reverse_key)) then raise exception 'invalid active backend action/reverse key'; end if;
+end $$;
+
+-- Avoid recursive RLS between membership/parent tables. These narrowly-scoped
+-- SECURITY DEFINER helpers live in a private schema, pin search_path, require
+-- the authenticated identity, and expose only boolean membership checks.
+create schema if not exists private;
+create or replace function private.is_conversation_member(p_conversation_id uuid,p_user_id uuid)
+returns boolean language sql security definer set search_path=pg_catalog,public
+as $$ select p_user_id is not null and p_user_id=auth.uid() and exists(
+  select 1 from public.conversation_members cm where cm.conversation_id=p_conversation_id and cm.user_id=p_user_id and cm.left_at is null
+); $$;
+create or replace function private.is_call_participant(p_call_id uuid,p_user_id uuid)
+returns boolean language sql security definer set search_path=pg_catalog,public
+as $$ select p_user_id is not null and p_user_id=auth.uid() and exists(
+  select 1 from public.call_participants cp where cp.call_id=p_call_id and cp.user_id=p_user_id
+); $$;
+revoke all on function private.is_conversation_member(uuid,uuid) from public;
+revoke all on function private.is_call_participant(uuid,uuid) from public;
+grant execute on function private.is_conversation_member(uuid,uuid) to authenticated;
+grant execute on function private.is_call_participant(uuid,uuid) to authenticated;
+
+drop policy if exists conversations_member on public.conversations;
+create policy conversations_member on public.conversations for select to authenticated
+using(created_by=auth.uid() or private.is_conversation_member(id,auth.uid()));
+
+drop policy if exists conversation_members_access on public.conversation_members;
+create policy conversation_members_access on public.conversation_members for select to authenticated
+using(user_id=auth.uid() or private.is_conversation_member(conversation_id,auth.uid()));
+drop policy if exists conversation_members_insert on public.conversation_members;
+create policy conversation_members_insert on public.conversation_members for insert to authenticated
+with check(user_id=auth.uid() or exists(select 1 from public.conversations c where c.id=conversation_id and c.created_by=auth.uid()));
+drop policy if exists conversation_members_update on public.conversation_members;
+create policy conversation_members_update on public.conversation_members for update to authenticated
+using(user_id=auth.uid() or exists(select 1 from public.conversations c where c.id=conversation_id and c.created_by=auth.uid()))
+with check(user_id=auth.uid() or exists(select 1 from public.conversations c where c.id=conversation_id and c.created_by=auth.uid()));
+drop policy if exists conversation_members_delete on public.conversation_members;
+create policy conversation_members_delete on public.conversation_members for delete to authenticated
+using(user_id=auth.uid() or exists(select 1 from public.conversations c where c.id=conversation_id and c.created_by=auth.uid()));
+
+drop policy if exists calls_access on public.calls;
+create policy calls_access on public.calls for all to authenticated
+using(created_by=auth.uid() or private.is_call_participant(id,auth.uid()))
+with check(created_by=auth.uid());
+
+drop policy if exists call_participants_access on public.call_participants;
+create policy call_participants_access on public.call_participants for select to authenticated
+using(user_id=auth.uid() or private.is_call_participant(call_id,auth.uid()));
+drop policy if exists call_participants_insert on public.call_participants;
+create policy call_participants_insert on public.call_participants for insert to authenticated
+with check(user_id=auth.uid() or exists(select 1 from public.calls c where c.id=call_id and c.created_by=auth.uid()));
+drop policy if exists call_participants_update on public.call_participants;
+create policy call_participants_update on public.call_participants for update to authenticated
+using(user_id=auth.uid() or exists(select 1 from public.calls c where c.id=call_id and c.created_by=auth.uid()))
+with check(user_id=auth.uid() or exists(select 1 from public.calls c where c.id=call_id and c.created_by=auth.uid()));
+drop policy if exists call_participants_delete on public.call_participants;
+create policy call_participants_delete on public.call_participants for delete to authenticated
+using(user_id=auth.uid() or exists(select 1 from public.calls c where c.id=call_id and c.created_by=auth.uid()));
+
+-- The list-members table is private to the list owner/member.
+drop policy if exists list_members_owner on public.list_members;
+create policy list_members_owner on public.list_members for all to authenticated
+using(user_id=auth.uid() or exists(select 1 from public.lists l where l.id=list_id and l.owner_id=auth.uid()))
+with check(user_id=auth.uid() or exists(select 1 from public.lists l where l.id=list_id and l.owner_id=auth.uid()));
+
+-- Register the private authorization helpers with reversible keys.
+insert into public.backend_change_registry(object_kind,object_name,action,action_key,reverse_action,reverse_key,migration_key,metadata) values
+('function','private.is_conversation_member','ensure','function:private:is_conversation_member:ensure:v1','drop function','function:private:is_conversation_member:drop:v1','20260919003000_frontend_feature_complete_backend','{"security":"security_definer","purpose":"rls-membership-check"}'),
+('function','private.is_call_participant','ensure','function:private:is_call_participant:ensure:v1','drop function','function:private:is_call_participant:drop:v1','20260919003000_frontend_feature_complete_backend','{"security":"security_definer","purpose":"rls-membership-check"}')
+on conflict(action_key) do nothing;
+
+do $$ begin
+ if exists(select 1 from public.backend_change_registry where status='active' and (action_key is null or reverse_key is null or action_key=reverse_key)) then raise exception 'invalid active backend action/reverse key'; end if;
+end $$;
+
+-- Existing rebuilt-project wallet schema uses text user IDs. Keep it locked down
+-- and expose only owner rows; privileged balance mutations belong to server/RPCs.
+alter table public.wallets enable row level security;
+alter table public.transactions enable row level security;
+drop policy if exists wallets_owner_read on public.wallets;
+create policy wallets_owner_read on public.wallets for select to authenticated using(user_id=(select auth.uid()::text));
+drop policy if exists wallets_owner_update on public.wallets;
+create policy wallets_owner_update on public.wallets for update to authenticated using(user_id=(select auth.uid()::text)) with check(user_id=(select auth.uid()::text));
+drop policy if exists transactions_owner_read on public.transactions;
+create policy transactions_owner_read on public.transactions for select to authenticated using(user_id=(select auth.uid()::text));
+revoke all on public.wallets from anon;
+revoke all on public.transactions from anon;
+grant select,update on public.wallets to authenticated;
+grant select on public.transactions to authenticated;
+
+insert into public.backend_change_registry(object_kind,object_name,action,action_key,reverse_action,reverse_key,migration_key,metadata) values
+('table','wallets','enable-rls','table:wallets:rls:v1','disable-rls','table:wallets:no-rls:v1','20260919003000_frontend_feature_complete_backend','{"security":"owner-only"}'),
+('table','transactions','enable-rls','table:transactions:rls:v1','disable-rls','table:transactions:no-rls:v1','20260919003000_frontend_feature_complete_backend','{"security":"owner-only-read"}'),
+('policy','wallets:owner-read','create','policy:wallets:owner-read:v1','drop','policy:wallets:owner-read:drop:v1','20260919003000_frontend_feature_complete_backend','{"rls":true}'),
+('policy','wallets:owner-update','create','policy:wallets:owner-update:v1','drop','policy:wallets:owner-update:drop:v1','20260919003000_frontend_feature_complete_backend','{"rls":true}'),
+('policy','transactions:owner-read','create','policy:transactions:owner-read:v1','drop','policy:transactions:owner-read:drop:v1','20260919003000_frontend_feature_complete_backend','{"rls":true}')
+on conflict(action_key) do nothing;
+
+do $$ begin
+ if exists(select 1 from public.backend_change_registry where status='active' and (action_key is null or reverse_key is null or action_key=reverse_key)) then raise exception 'invalid active backend action/reverse key'; end if;
+end $$;

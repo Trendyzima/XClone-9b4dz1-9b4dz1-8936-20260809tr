@@ -3,6 +3,9 @@
   "buildCommand": "node _build.cjs",
   "outputDirectory": "dist",
   "framework": "vite",
+  "functions": {
+    "api/media.ts": { "maxDuration": 10 }
+  },
   "rewrites": [
     { "source": "/.well-known/webfinger", "destination": "https://aepbqfrmheihfsauzcby.supabase.co/functions/v1/mastodon-edge/.well-known/webfinger" },
     { "source": "/.well-known/nodeinfo", "destination": "https://aepbqfrmheihfsauzcby.supabase.co/functions/v1/mastodon-edge/.well-known/nodeinfo" },
@@ -24,7 +27,7 @@
     { "source": "/((?!assets/).*)", "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }] },
     { "source": "/sitemap.xml", "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }, { "key": "Content-Type", "value": "application/xml" }] },
     { "source": "/sitemap-static.xml", "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }, { "key": "Content-Type", "value": "application/xml" }] },
-    { "source": "/sitemap-community.xml", "headers": [{ "key": "Cache-Control", "value": "public, max-age=21600" }, { "key": "Content-Type", "value": "application/xml" }] },
+    { "source": "/sitemap-community.xml", "headers": [{ "key": "Cache-Control", "value": "public, max-age=21600" }, { "key": "Content-Type", "application/xml" }] },
     { "source": "/robots.txt", "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }, { "key": "Content-Type", "value": "text/plain" }] },
     { "source": "/(.*)", "headers": [{ "key": "X-Frame-Options", "value": "SAMEORIGIN" }, { "key": "X-Content-Type-Options", "value": "nosniff" }, { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" }, { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" }] }
   ]

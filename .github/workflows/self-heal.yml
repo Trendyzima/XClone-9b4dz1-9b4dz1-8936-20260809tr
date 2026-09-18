@@ -1,0 +1,78 @@
+name: Bounded CI Self-Heal
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [economical-backend-50k]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: self-heal-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  self-heal:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Circuit-breaker check
+        shell: bash
+        run: |
+          attempts=$(git log -10 --format='%s' | grep -c '\[self-heal\]' || true)
+          if [ "$attempts" -ge 3 ]; then
+            echo "Self-heal circuit breaker open: 3 recent repair commits."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate current tree
+        id: validate
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          {
+            npm run typecheck
+            npm run lint
+            npm run build
+          } 2>&1 | tee self-heal.log
+
+      - name: Deterministic repair
+        if: steps.validate.outcome == 'failure'
+        env:
+          SELF_HEAL_LOG: self-heal.log
+        run: node scripts/ci-self-heal.mjs
+
+      - name: Validate repaired tree
+        if: steps.validate.outcome == 'failure'
+        run: |
+          npm ci
+          npm run typecheck
+          npm run lint
+          npm run build
+
+      - name: Commit bounded repair
+        if: steps.validate.outcome == 'failure'
+        shell: bash
+        run: |
+          if git diff --quiet -- package.json package-lock.json; then
+            echo "No safe repair was produced."
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "fix(ci): bounded self-heal dependency contract [self-heal]"
+          git push
