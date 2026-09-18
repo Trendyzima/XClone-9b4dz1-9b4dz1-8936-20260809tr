@@ -24,11 +24,6 @@ function profileCandidate(user: User) {
   return { username, displayName, avatar };
 }
 
-/**
- * Last-mile safety net for account provisioning. The database trigger is the
- * primary path; this authenticated client-side upsert makes signup resilient
- * if a trigger was temporarily missing or an older account predates it.
- */
 export async function ensureCanonicalProfile(user: User): Promise<void> {
   const candidate = profileCandidate(user);
   const { data: existing, error: readError } = await supabase
@@ -51,7 +46,6 @@ export async function ensureCanonicalProfile(user: User): Promise<void> {
   }, { onConflict: 'id' });
 
   if (error) {
-    // Username collision: use an ID-derived suffix and retry once.
     const fallbackUsername = `${candidate.username.slice(0, 15)}_${user.id.replace(/-/g, '').slice(0, 8)}`;
     const retry = await supabase.from('profiles').upsert({
       id: user.id,
@@ -83,10 +77,7 @@ export async function mapSupabaseUserWithCanonicalProfile(user: User): Promise<A
       console.warn('[Auth] Canonical profile lookup failed; using auth fallback:', error.message);
       return mapped;
     }
-    if (!profile?.username) {
-      console.warn('[Auth] Authenticated user has no canonical profile username:', user.id);
-      return mapped;
-    }
+    if (!profile?.username) return mapped;
     return {
       ...mapped,
       username: profile.username,
@@ -101,38 +92,51 @@ export async function mapSupabaseUserWithCanonicalProfile(user: User): Promise<A
 
 export class AuthService {
   async sendOtp(email: string) {
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: true } });
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) throw new Error('Enter your email address');
+    const { error } = await supabase.auth.signInWithOtp({
+      email: normalizedEmail,
+      options: { shouldCreateUser: true },
+    });
     if (error) throw error;
   }
 
   async sendPhoneOtp(phoneInput: string) {
     const phone = normalizeKenyaPhone(phoneInput);
-    const { error } = await supabase.auth.signInWithOtp({ phone, options: { shouldCreateUser: true } });
+    const { error } = await supabase.auth.signInWithOtp({
+      phone,
+      options: { shouldCreateUser: true },
+    });
     if (error) throw error;
     return phone;
   }
 
-  async verifyOtpAndSetPassword(email: string, token: string, password: string) {
-    const { data, error } = await supabase.auth.verifyOtp({ email, token, type: 'email' });
+  async verifyEmailOtp(email: string, token: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const cleanToken = token.replace(/\D/g, '');
+    if (cleanToken.length !== 6) throw new Error('Enter the 6-digit code from your email');
+    const { data, error } = await supabase.auth.verifyOtp({
+      email: normalizedEmail,
+      token: cleanToken,
+      type: 'email',
+    });
     if (error) throw error;
-    const username = email.split('@')[0];
-    const { data: updateData, error: updateError } = await supabase.auth.updateUser({ password, data: { username } });
-    if (updateError) throw updateError;
-    return updateData.user;
+    if (!data.user) throw new Error('Email verification succeeded but no user session was returned');
+    return data.user;
   }
 
   async verifyPhoneOtp(phoneInput: string, token: string) {
     const phone = normalizeKenyaPhone(phoneInput);
-    const { data, error } = await supabase.auth.verifyOtp({ phone, token, type: 'sms' });
+    const cleanToken = token.replace(/\D/g, '');
+    if (cleanToken.length !== 6) throw new Error('Enter the 6-digit code from your SMS');
+    const { data, error } = await supabase.auth.verifyOtp({
+      phone,
+      token: cleanToken,
+      type: 'sms',
+    });
     if (error) throw error;
-    const currentUser = data.user;
-    if (!currentUser) throw new Error('Phone verification succeeded but no user session was returned');
-    if (!currentUser.user_metadata?.username) {
-      const { data: updateData, error: updateError } = await supabase.auth.updateUser({ data: { username: `user_${phone.slice(-9)}` } });
-      if (updateError) throw updateError;
-      return updateData.user;
-    }
-    return currentUser;
+    if (!data.user) throw new Error('Phone verification succeeded but no user session was returned');
+    return data.user;
   }
 
   async signInWithPassword(email: string, password: string) {
