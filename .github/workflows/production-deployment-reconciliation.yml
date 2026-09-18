@@ -125,23 +125,7 @@ jobs:
                 sleep 10
                 continue 2
               }
-              node -e '
-const fs = require("node:fs");
-const body = fs.readFileSync("health.txt", "utf8").trim();
-let payload;
-try {
-  payload = JSON.parse(body);
-} catch (error) {
-  console.error("Health endpoint did not return valid JSON:", error instanceof Error ? error.message : error);
-  console.error(body);
-  process.exit(1);
-}
-if (payload?.ok !== true || payload?.database !== "reachable") {
-  console.error("Health contract failed:", JSON.stringify(payload));
-  process.exit(1);
-}
-console.log("Health contract passed:", JSON.stringify(payload));
-' 
+              node -e 'const fs=require("node:fs"); const body=fs.readFileSync("health.txt","utf8").trim(); let payload; try { payload=JSON.parse(body); } catch (error) { console.error("Health endpoint did not return valid JSON:", error instanceof Error ? error.message : error); console.error(body); process.exit(1); } if (payload?.ok !== true || payload?.database !== "reachable") { console.error("Health contract failed:", JSON.stringify(payload)); process.exit(1); } console.log("Health contract passed:", JSON.stringify(payload));'
             done
 
             echo "Exact SHA, production READY state, deployment health, and public production health passed."
