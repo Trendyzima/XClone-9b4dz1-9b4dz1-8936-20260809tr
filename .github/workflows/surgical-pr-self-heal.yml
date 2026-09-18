@@ -185,3 +185,5 @@ jobs:
             printf '%s\n' '- mutation model: exact signature -> GitHub Contents API -> one-file diff'
             printf '%s\n' '- recursion guard: ci/self-heal/* is never auto-repaired'
           } >> "$GITHUB_STEP_SUMMARY"
+
+# trigger-only no-op: force validation of repaired workflow
