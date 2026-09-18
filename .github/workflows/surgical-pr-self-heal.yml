@@ -39,9 +39,11 @@ jobs:
           set -euo pipefail
           test "$HEAD_REPOSITORY" = "$REPOSITORY"
           test "$(git ls-remote "https://github.com/$REPOSITORY.git" "$HEAD_SHA" | awk '{print $1}')" = "$HEAD_SHA"
-          echo "HEAD_SHA=$HEAD_SHA" >> "$GITHUB_OUTPUT"
-          echo "HEAD_BRANCH=$HEAD_BRANCH" >> "$GITHUB_OUTPUT"
-          echo "RUN_ID=$RUN_ID" >> "$GITHUB_OUTPUT"
+          {
+            echo "HEAD_SHA=$HEAD_SHA"
+            echo "HEAD_BRANCH=$HEAD_BRANCH"
+            echo "RUN_ID=$RUN_ID"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Enforce one repair artifact per failed SHA
         id: dedupe
