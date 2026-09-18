@@ -1,5 +1,3 @@
-project_id = "aepbqfrmheihfsauzcby"
-
 [functions.capability-gateway]
 verify_jwt = false
 
