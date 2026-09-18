@@ -28,8 +28,8 @@ create table if not exists public.stories (id uuid primary key default gen_rando
 create table if not exists public.story_views (story_id uuid not null references public.stories(id) on delete cascade,viewer_id uuid not null references auth.users(id) on delete cascade,viewed_at timestamptz not null default now(),primary key(story_id,viewer_id));
 create table if not exists public.live_spaces (id uuid primary key default gen_random_uuid(),host_id uuid not null references auth.users(id) on delete cascade,title text not null,description text,status text not null default 'scheduled',room_name text,started_at timestamptz,ended_at timestamptz,recording_asset_id uuid references public.media_assets(id) on delete set null,created_at timestamptz not null default now());
 create table if not exists public.live_space_members (space_id uuid not null references public.live_spaces(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,role text not null default 'listener',joined_at timestamptz,left_at timestamptz,primary key(space_id,user_id));
-create table if not exists public.wallets (id uuid primary key default gen_random_uuid(),user_id uuid not null unique references auth.users(id) on delete cascade,currency text not null default 'KES',available_minor bigint not null default 0,pending_minor bigint not null default 0,status text not null default 'active',created_at timestamptz not null default now(),updated_at timestamptz not null default now());
-create table if not exists public.wallet_ledger (id uuid primary key default gen_random_uuid(),wallet_id uuid not null references public.wallets(id) on delete cascade,user_id uuid not null references auth.users(id) on delete cascade,direction text not null,amount_minor bigint not null check(amount_minor>0),currency text not null default 'KES',reason text not null,reference_type text,reference_id uuid,idempotency_key text not null unique,metadata jsonb not null default '{}'::jsonb,created_at timestamptz not null default now());
+create table if not exists public.wallets (id uuid primary key default gen_random_uuid(),user_id text not null unique,currency text not null default 'KES',balance numeric not null default 0,available_minor bigint not null default 0,pending_minor bigint not null default 0,status text not null default 'active',created_at timestamptz not null default now(),updated_at timestamptz not null default now());
+create table if not exists public.wallet_ledger (id uuid primary key default gen_random_uuid(),wallet_id uuid not null references public.wallets(id) on delete cascade,user_id text not null,direction text not null,amount_minor bigint not null check(amount_minor>0),currency text not null default 'KES',reason text not null,reference_type text,reference_id uuid,idempotency_key text not null unique,metadata jsonb not null default '{}'::jsonb,created_at timestamptz not null default now());
 create table if not exists public.creator_payables (id uuid primary key default gen_random_uuid(),creator_id uuid not null references auth.users(id) on delete cascade,source_type text not null,source_id uuid,amount_minor bigint not null check(amount_minor>=0),currency text not null default 'KES',status text not null default 'pending',idempotency_key text not null unique,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
 create table if not exists public.payout_accounts (id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,provider text not null,provider_account_ref text not null,display_label text,status text not null default 'pending',metadata jsonb not null default '{}'::jsonb,created_at timestamptz not null default now(),unique(provider,provider_account_ref));
 create table if not exists public.payouts (id uuid primary key default gen_random_uuid(),user_id uuid not null references auth.users(id) on delete cascade,payout_account_id uuid references public.payout_accounts(id) on delete set null,amount_minor bigint not null check(amount_minor>0),currency text not null default 'KES',status text not null default 'requested',provider text,provider_reference text,idempotency_key text not null unique,created_at timestamptz not null default now(),updated_at timestamptz not null default now());
@@ -418,6 +418,33 @@ with check(user_id=auth.uid() or exists(select 1 from public.lists l where l.id=
 insert into public.backend_change_registry(object_kind,object_name,action,action_key,reverse_action,reverse_key,migration_key,metadata) values
 ('function','private.is_conversation_member','ensure','function:private:is_conversation_member:ensure:v1','drop function','function:private:is_conversation_member:drop:v1','20260919003000_frontend_feature_complete_backend','{"security":"security_definer","purpose":"rls-membership-check"}'),
 ('function','private.is_call_participant','ensure','function:private:is_call_participant:ensure:v1','drop function','function:private:is_call_participant:drop:v1','20260919003000_frontend_feature_complete_backend','{"security":"security_definer","purpose":"rls-membership-check"}')
+on conflict(action_key) do nothing;
+
+do $$ begin
+ if exists(select 1 from public.backend_change_registry where status='active' and (action_key is null or reverse_key is null or action_key=reverse_key)) then raise exception 'invalid active backend action/reverse key'; end if;
+end $$;
+
+-- Existing rebuilt-project wallet schema uses text user IDs. Keep it locked down
+-- and expose only owner rows; privileged balance mutations belong to server/RPCs.
+alter table public.wallets enable row level security;
+alter table public.transactions enable row level security;
+drop policy if exists wallets_owner_read on public.wallets;
+create policy wallets_owner_read on public.wallets for select to authenticated using(user_id=(select auth.uid()::text));
+drop policy if exists wallets_owner_update on public.wallets;
+create policy wallets_owner_update on public.wallets for update to authenticated using(user_id=(select auth.uid()::text)) with check(user_id=(select auth.uid()::text));
+drop policy if exists transactions_owner_read on public.transactions;
+create policy transactions_owner_read on public.transactions for select to authenticated using(user_id=(select auth.uid()::text));
+revoke all on public.wallets from anon;
+revoke all on public.transactions from anon;
+grant select,update on public.wallets to authenticated;
+grant select on public.transactions to authenticated;
+
+insert into public.backend_change_registry(object_kind,object_name,action,action_key,reverse_action,reverse_key,migration_key,metadata) values
+('table','wallets','enable-rls','table:wallets:rls:v1','disable-rls','table:wallets:no-rls:v1','20260919003000_frontend_feature_complete_backend','{"security":"owner-only"}'),
+('table','transactions','enable-rls','table:transactions:rls:v1','disable-rls','table:transactions:no-rls:v1','20260919003000_frontend_feature_complete_backend','{"security":"owner-only-read"}'),
+('policy','wallets:owner-read','create','policy:wallets:owner-read:v1','drop','policy:wallets:owner-read:drop:v1','20260919003000_frontend_feature_complete_backend','{"rls":true}'),
+('policy','wallets:owner-update','create','policy:wallets:owner-update:v1','drop','policy:wallets:owner-update:drop:v1','20260919003000_frontend_feature_complete_backend','{"rls":true}'),
+('policy','transactions:owner-read','create','policy:transactions:owner-read:v1','drop','policy:transactions:owner-read:drop:v1','20260919003000_frontend_feature_complete_backend','{"rls":true}')
 on conflict(action_key) do nothing;
 
 do $$ begin
