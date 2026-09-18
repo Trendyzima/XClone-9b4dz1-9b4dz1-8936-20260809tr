@@ -99,17 +99,20 @@ jobs:
 
             # Vercel CLI emits Inspect/Production URLs plus progress/status lines.
             # Extract the canonical Production URL instead of assuming the final line is a URL.
-            DEPLOY_URL="$(grep -E '^Production:[[:space:]]+https?://[^[:space:]]+' deployment-url.txt | tail -n 1 | sed -E 's/^Production:[[:space:]]+//; s/[[:space:]]+$//')"
+            DEPLOY_URL="$(grep -E '^Production:[[:space:]]+https?://[^[:space:]]+' deployment-url.txt | tail -n 1 | sed -E 's/^Production:[[:space:]]+//; s/[[:space:]]+$//' || true)"
             # Fallback for CLI output that emits only a bare URL.
             if [[ -z "$DEPLOY_URL" ]]; then
-              DEPLOY_URL="$(grep -Eo 'https?://[^[:space:]]+' deployment-url.txt | tail -n 1 | tr -d '\r')"
+              DEPLOY_URL="$(grep -Eo 'https?://[^[:space:]]+' deployment-url.txt | tail -n 1 | tr -d '\r' || true)"
             fi
             [[ "$DEPLOY_URL" =~ ^https?://[^[:space:]]+$ ]] || { echo "::warning::No canonical deployment URL found on attempt $attempt"; sleep 10; continue; }
             echo "deployment_url=$DEPLOY_URL" >> "$GITHUB_OUTPUT"
 
             vercel inspect "$DEPLOY_URL" --wait --token="$VERCEL_TOKEN" > deployment-inspect.txt
 
-            curl -fsS               -H "Authorization: Bearer $VERCEL_TOKEN"               "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&limit=20"               > deployment-list.json
+            curl --fail --silent --show-error --location --retry 3 --retry-delay 2 \
+              -H "Authorization: Bearer $VERCEL_TOKEN" \
+              "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&limit=20" \
+              > deployment-list.json
             node scripts/verify-vercel-deployment.mjs
 
             # DEPLOY_URL is already absolute; do not prepend a second https:// scheme.
