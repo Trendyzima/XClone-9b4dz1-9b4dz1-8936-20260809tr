@@ -119,7 +119,9 @@ jobs:
         env:
           TARGET_SHA: ${{ steps.target.outputs.sha }}
         run: |
-          echo "target_sha=$TARGET_SHA" >> "$GITHUB_STEP_SUMMARY"
-          echo "deployment_url=${{ steps.deploy.outputs.deployment_url }}" >> "$GITHUB_STEP_SUMMARY"
-          echo "gate=build-typecheck-lint-deploy-sha-ready-health" >> "$GITHUB_STEP_SUMMARY"
-          echo "status=passed" >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "target_sha=$TARGET_SHA"
+            echo "deployment_url=${{ steps.deploy.outputs.deployment_url }}"
+            echo "gate=build-typecheck-lint-deploy-sha-ready-health"
+            echo "status=passed"
+          } >> "$GITHUB_STEP_SUMMARY"
