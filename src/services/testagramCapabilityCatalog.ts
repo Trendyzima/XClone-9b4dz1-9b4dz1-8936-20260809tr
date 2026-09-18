@@ -8,7 +8,8 @@ export const TESTAGRAM_CAPABILITY_NAMES = [
   "testagram.capabilities.list",
   "testagram.health.read",
   "testagram.posts.list",
-  "testagram.posts.create",
+  "testagram.posts.create
+  { name: "testagram.posts.schedule", version: 1, access: "authenticated", readonly: false, description: "Schedule a native Testagram text post." },",
   "testagram.search.posts",
   "testagram.search.users",
   "testagram.recommendations.generate",
