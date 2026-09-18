@@ -3,6 +3,16 @@ import fs from "node:fs";
 const path = ".github/workflows/surgical-pr-self-heal.yml";
 const source = fs.readFileSync(path, "utf8");
 
+if (process.argv.includes("--verify-only")) {
+  if (source.includes("python3 - <<'PY'")) {
+    throw new Error("Malformed heredoc signature remains in surgical-pr-self-heal workflow");
+  }
+  if (!source.includes("node repair/generators/repair-capability-client.mjs")) {
+    throw new Error("Expected standalone capability-client repair generator call is missing");
+  }
+  process.exit(0);
+}
+
 const badStart = "            python3 - <<'PY'\n";
 const badEnd = "            PY\n";
 const start = source.indexOf(badStart);
