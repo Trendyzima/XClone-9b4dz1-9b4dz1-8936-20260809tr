@@ -333,3 +333,21 @@ update public.notifications set user_id=recipient_id where user_id is null;
 update public.notifications set type=kind where type is null;
 update public.notifications set from_user_id=actor_id where from_user_id is null;
 update public.notifications set read_at=case when read then coalesce(read_at,created_at) else null end;
+
+-- Register the compatibility domains and policies as forward/reverse operations too.
+insert into public.backend_change_registry(object_kind,object_name,action,action_key,reverse_action,reverse_key,migration_key,metadata)
+select 'table',c.relname,'ensure','table:'||c.relname||':ensure:v2','drop table','table:'||c.relname||':drop:v2','20260919003000_frontend_feature_complete_backend',jsonb_build_object('frontend_compatibility',true)
+from pg_class c join pg_namespace n on n.oid=c.relnamespace
+where n.nspname='public' and c.relkind='r'
+and c.relname in ('replies','trending_topics','user_suggestions','daily_rewards','user_wallets','credit_transactions','tips','platform_inbox','spaces','space_participants','creator_earnings','post_reports','user_ads','ad_impressions','browsing_history','post_series','post_series_items')
+on conflict(action_key) do nothing;
+
+insert into public.backend_change_registry(object_kind,object_name,action,action_key,reverse_action,reverse_key,migration_key,metadata)
+select 'policy',tablename||':'||policyname,'ensure','policy:'||tablename||':'||policyname||':ensure:v2','drop policy','policy:'||tablename||':'||policyname||':drop:v2','20260919003000_frontend_feature_complete_backend',jsonb_build_object('rls',true,'frontend_compatibility',true)
+from pg_policies where schemaname='public'
+and tablename in ('replies','trending_topics','user_suggestions','daily_rewards','user_wallets','credit_transactions','tips','platform_inbox','spaces','space_participants','creator_earnings','post_reports','user_ads','ad_impressions','browsing_history','post_series','post_series_items')
+on conflict(action_key) do nothing;
+
+do $$ begin
+ if exists(select 1 from public.backend_change_registry where status='active' and (action_key is null or reverse_key is null or action_key=reverse_key)) then raise exception 'invalid active backend action/reverse key'; end if;
+end $$;
