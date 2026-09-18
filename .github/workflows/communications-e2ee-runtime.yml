@@ -126,10 +126,14 @@ jobs:
         run: |
           set -euo pipefail
           if [[ "$RUNTIME_CONFIGURED" == "true" ]]; then
-            echo "### Communications E2EE Runtime Acceptance" >> "$GITHUB_STEP_SUMMARY"
-            echo "Live two-account E2EE + LiveKit acceptance was executed." >> "$GITHUB_STEP_SUMMARY"
+            {
+              echo "### Communications E2EE Runtime Acceptance"
+              echo "Live two-account E2EE + LiveKit acceptance was executed."
+            } >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "### Communications E2EE Runtime Acceptance" >> "$GITHUB_STEP_SUMMARY"
-            echo "Runtime acceptance was not executed because its dedicated CI secrets are not configured." >> "$GITHUB_STEP_SUMMARY"
-            echo "This is a configuration state, not an E2EE pass claim." >> "$GITHUB_STEP_SUMMARY"
+            {
+              echo "### Communications E2EE Runtime Acceptance"
+              echo "Runtime acceptance was not executed because its dedicated CI secrets are not configured."
+              echo "This is a configuration state, not an E2EE pass claim."
+            } >> "$GITHUB_STEP_SUMMARY"
           fi
