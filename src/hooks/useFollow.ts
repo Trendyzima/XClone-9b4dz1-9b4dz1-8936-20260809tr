@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
 import { backendCapabilities } from '@/services/backendClient';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 
@@ -9,10 +8,10 @@ export function useFollow(acct?: string) {
   const resolveUserId = useCallback(async (value: string): Promise<string> => {
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) return value;
     const username = value.startsWith('@') ? value.slice(1) : value;
-    const { data, error } = await supabase.from('profiles').select('id').eq('username', username).maybeSingle();
-    if (error) throw error;
-    if (!data?.id) throw new Error('Profile not found');
-    return data.id;
+    const result = await backendCapabilities.searchUsers(username, 10);
+    const exact = result.items.find((profile: any) => String(profile.username ?? '').toLowerCase() === username.toLowerCase());
+    if (!exact?.id) throw new Error('Profile not found');
+    return String(exact.id);
   }, []);
 
   useEffect(() => {
