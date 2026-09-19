@@ -1,0 +1,34 @@
+name: Production Capacity Baseline
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "api/**"
+      - "scripts/production-capacity-baseline.mjs"
+      - ".github/workflows/production-capacity-baseline.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-capacity-baseline
+  cancel-in-progress: true
+
+jobs:
+  baseline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    env:
+      APP_ORIGIN: ${{ vars.APP_ORIGIN || 'https://kooone-9b4dz1-9b4dz1-8936-20260809tr.vercel.app' }}
+      LOAD_REQUESTS: "2000"
+      LOAD_CONCURRENCY: "100"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Run production capacity baseline
+        run: node scripts/production-capacity-baseline.mjs
