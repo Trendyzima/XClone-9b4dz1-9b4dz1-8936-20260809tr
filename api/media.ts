@@ -13,7 +13,7 @@ function env(name: string, fallback = '') { return process.env[name] ?? fallback
 function corsHeaders() {
   const origin = env('APP_ORIGIN');
   return {
-    'Access-Control-Allow-Origin': origin || '*',
+    'Access-Control-Allow-Origin': origin || 'https://kooone-9b4dz1-9b4dz1-8936-20260809tr.vercel.app',
     'Access-Control-Allow-Headers': 'authorization, content-type',
     'Access-Control-Allow-Methods': 'POST,OPTIONS',
     'Vary': 'Origin',
@@ -190,8 +190,12 @@ export default async function handler(req: any, res: any) {
         .select('id,storage_key,post_id,byte_size,mime_type,media_type,status,media_url,etag')
         .single();
       if (error) return json(res, 500, { error: 'Unable to finalize media record' });
+      const readUrl = await getSignedUrl(r2, new GetObjectCommand({
+        Bucket: media.bucket ?? cfg.r2Bucket, Key: media.storage_key,
+      }), { expiresIn: 3600 });
       return json(res, 200, {
-        ...updated, object_key: updated.storage_key, size_bytes: updated.byte_size, public_url: updated.media_url,
+        ...updated, object_key: updated.storage_key, size_bytes: updated.byte_size,
+        public_url: readUrl, expires_in: 3600,
       });
     }
 
