@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 export type CapabilityError={code:string;message:string};
 export type CapabilityResponse<T>={ok:boolean;data:T|null;error:CapabilityError|null;request_id:string};
@@ -64,8 +64,8 @@ schedulePost(body:string,scheduledFor:string){return this.call<{scheduled_post_i
 }
 
 export const backendCapabilities = new TestagramCapabilityClient({
- endpoint: `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/capability-gateway`,
+ endpoint: `${supabaseUrl}/functions/v1/capability-gateway`,
  getAccessToken: async () => (await supabase.auth.getSession()).data.session?.access_token ?? null,
- apiKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+ apiKey: supabasePublishableKey,
 });
 // Canonical capability client boundary: authenticated browser gateway only.
