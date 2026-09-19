@@ -28,8 +28,8 @@ const TERMS_SECTIONS: TermsSection[] = [
     iconBg: 'bg-blue-500/10',
     title: '1. Eligibility & Account',
     points: [
-      'You must be at least 13 years old to use Testagram. Users under 18 must have parental consent.',
-      'You may only create one personal account. Multiple accounts for the purpose of ban evasion are prohibited.',
+      'Testagram is intended for adults. If a person under 18 is permitted to use the service, required age-verification and verifiable parent or guardian consent must be obtained before processing their personal data, as required by applicable law.',
+      'You may maintain accounts only as permitted by the product. Creating accounts to evade enforcement, impersonate others, abuse promotions, or circumvent security controls is prohibited.',
       'You are responsible for keeping your login credentials secure. Do not share your password with anyone.',
       'You must provide accurate information when creating your account. Impersonating another person or entity is prohibited.',
       'We reserve the right to suspend or terminate accounts that violate these Terms.',
@@ -41,7 +41,7 @@ const TERMS_SECTIONS: TermsSection[] = [
     title: '2. Content & Intellectual Property',
     points: [
       'You retain ownership of all content you post on Testagram (posts, videos, photos, threads).',
-      'By posting content, you grant Testagram a non-exclusive, royalty-free licence to display, distribute, and promote your content within the platform.',
+      'By posting content, you grant Testagram a limited, non-exclusive, worldwide, royalty-free licence to host, reproduce, process, display, and distribute that content as necessary to operate, secure, moderate, and improve the service. The licence ends for deleted content when it is removed from active systems, except where retention is required by law, safety, dispute resolution, backups, or other legitimate purposes.',
       'You confirm that you have the rights to post any content you share, including music, images, and videos.',
       'Testagram\'s trademarks, logos, and platform code are the exclusive property of T Social Ltd and may not be reproduced without permission.',
       'You may not scrape, crawl, or extract data from Testagram without explicit written permission from T Social Ltd.',
@@ -53,12 +53,12 @@ const TERMS_SECTIONS: TermsSection[] = [
     iconBg: 'bg-purple-500/10',
     title: '3. Payments & Creator Earnings',
     points: [
-      'Testagram Wallet balances are held in trust. You may withdraw your balance at any time, subject to minimum withdrawal thresholds.',
-      'Creator earnings (CPM revenue, tips, subscription revenue) are distributed according to our published revenue share model: 40% to creators for ad revenue, 85% for tips.',
-      'A 5% platform fee applies to all peer-to-peer (P2P) wallet transfers between users.',
+      'Wallet balances and payment functionality are subject to the applicable product terms, transaction status, verification requirements, fraud controls, and withdrawal limits displayed in the service. A wallet balance should not be treated as a bank deposit or guarantee of funds unless expressly stated in a separate agreement.',
+      'Creator earnings, including advertising revenue, tips, subscriptions, and other eligible programs, are calculated and distributed according to the applicable creator or monetization terms shown when the feature is enabled. Rates and revenue shares may change prospectively with notice where required.',
+      'Any applicable platform, payment, conversion, or withdrawal fee will be disclosed in the relevant transaction flow before confirmation.',
       'All M-Pesa transactions are processed in KES by Safaricom\'s M-Pesa service. Exchange rates apply for USD conversions.',
       'Testagram is not responsible for failed M-Pesa transactions due to network issues outside our control. Failed transactions are automatically reversed within 24 hours.',
-      'Earned balances are subject to a minimum payout threshold of $5 USD (or KES 650 equivalent).',
+      'Payout eligibility, minimum thresholds, supported payout methods, and processing times are displayed in the applicable wallet or creator-earnings flow and may change.',
       'We reserve the right to withhold earnings pending investigation if fraud or Terms violations are suspected.',
     ],
   },
@@ -82,9 +82,9 @@ const TERMS_SECTIONS: TermsSection[] = [
     title: '5. Enforcement & Termination',
     points: [
       'Violations of these Terms may result in content removal, account restrictions, or permanent termination.',
-      'We operate a three-strike system: first violation results in a warning and temporary restriction; second in a 72-hour ban; third in permanent suspension.',
+      'Enforcement is proportionate to the severity, frequency, context, and potential harm of a violation and may include warnings, content removal, feature restrictions, temporary suspension, or permanent suspension. Some severe violations may result in immediate action.',
       'You may appeal any enforcement action at testagram.site/appeals within 30 days of the action.',
-      'We reserve the right to terminate any account at any time for any reason, with or without notice, if we believe it poses a risk to the platform or its users.',
+      'We may restrict or terminate access where reasonably necessary to enforce these Terms, protect users or the service, comply with law, address fraud or security risks, or respond to serious or repeated violations. Where appropriate, we will provide notice and available appeal or review mechanisms.',
       'Upon termination, your right to use the platform ceases immediately. Content may be removed within 30 days.',
     ],
   },
@@ -105,8 +105,8 @@ const TERMS_SECTIONS: TermsSection[] = [
     iconBg: 'bg-teal-500/10',
     title: '7. Governing Law',
     points: [
-      'These Terms are governed by the laws of the Republic of Kenya.',
-      'Any disputes arising from these Terms shall be subject to the exclusive jurisdiction of the courts of Nairobi, Kenya.',
+      'These Terms are governed by the laws of the Republic of Kenya, subject to any mandatory consumer or other rights that apply to you.',
+      'Disputes will be handled through the complaint, support, and appeal mechanisms made available by Testagram and, where unresolved, through a competent forum under applicable law.',
       'If you are accessing Testagram from outside Kenya, you agree that Kenyan law applies.',
       'Nothing in these Terms affects any statutory rights you have as a consumer under applicable local law.',
     ],
@@ -116,7 +116,7 @@ const TERMS_SECTIONS: TermsSection[] = [
     iconBg: 'bg-rose-500/10',
     title: '8. Changes to These Terms',
     points: [
-      'We may update these Terms at any time. We will notify you of material changes via the platform inbox at least 14 days before they take effect.',
+      'We may update these Terms to reflect product, security, legal, or operational changes. For material changes, we will provide notice and any legally required advance period before the changes take effect.',
       'Continuing to use Testagram after a change takes effect constitutes acceptance of the new Terms.',
       'If you do not agree with an update, you may delete your account before the new Terms take effect.',
       'The most recent version of these Terms is always available at testagram.site/terms.',
@@ -147,7 +147,7 @@ export default function TermsOfServicePage() {
           <p className="text-sm text-muted-foreground leading-relaxed max-w-sm mx-auto">
             By using Testagram you agree to these terms. Please read them carefully — they explain your rights, our obligations, and how the platform works.
           </p>
-          <p className="text-[11px] text-muted-foreground mt-3 opacity-70">Last updated: August 2026 · Effective immediately</p>
+          <p className="text-[11px] text-muted-foreground mt-3 opacity-70">Last updated: September 2026 · Effective immediately</p>
         </div>
 
         {/* Summary */}
