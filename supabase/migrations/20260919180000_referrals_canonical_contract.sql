@@ -4,6 +4,7 @@
 -- No client can directly write referral/reward rows.
 
 alter table public.referrals alter column referred_id drop not null;
+alter table public.referrals alter column referred_id drop not null;
 alter table public.referrals add column if not exists completed_at timestamptz;
 alter table public.referrals add column if not exists reward_amount_minor bigint not null default 0;
 alter table public.referrals add column if not exists reward_currency text not null default 'CREDITS';
@@ -50,6 +51,11 @@ select jsonb_build_object(
 ) where auth.uid() is not null;
 $;
 
+create or replace function public.get_referral_status()
+returns jsonb language sql security definer set search_path=pg_catalog,public as $
+select jsonb_build_object('code',(select r.code from public.referrals r where r.referrer_id=auth.uid() and r.referred_id is null limit 1),'referred_count',(select count(*) from public.referrals r where r.referrer_id=auth.uid() and r.referred_id is not null),'pending_count',(select count(*) from public.referrals r where r.referrer_id=auth.uid() and r.status='pending'),'completed_count',(select count(*) from public.referrals r where r.referrer_id=auth.uid() and r.status='completed'),'earned_credits',(select coalesce(sum(r.reward_amount_minor),0) from public.referrals r where r.referrer_id=auth.uid() and r.status='completed')) where auth.uid() is not null;
+$;
+
 create or replace function public.complete_referral()
 returns jsonb language plpgsql security definer set search_path=pg_catalog,public as $$
 declare v_user_id uuid:=auth.uid(); v_ref public.referrals%rowtype; v_amount bigint:=100; v_key text; v_event uuid:=gen_random_uuid();
@@ -70,9 +76,11 @@ end; $$;
 revoke all on function public.ensure_referral_code() from public,anon,authenticated;
 revoke all on function public.apply_referral_code(text) from public,anon,authenticated;
 revoke all on function public.get_referral_status() from public,anon,authenticated;
+revoke all on function public.get_referral_status() from public,anon,authenticated;
 revoke all on function public.complete_referral() from public,anon,authenticated;
 grant execute on function public.ensure_referral_code() to authenticated;
 grant execute on function public.apply_referral_code(text) to authenticated;
+grant execute on function public.get_referral_status() to authenticated;
 grant execute on function public.get_referral_status() to authenticated;
 grant execute on function public.complete_referral() to authenticated;
 
@@ -83,7 +91,26 @@ insert into public.capability_registry(name,version,access,readonly,enabled,desc
 values
 ('testagram.referrals.code',1,'authenticated',false,true,'Get or create current user referral code'),
 ('testagram.referrals.apply',1,'authenticated',false,true,'Apply a referral code once to the current account'),
-('testagram.referrals.complete',1,'authenticated',false,true,'Complete a pending referral and mint its one-time referrer reward'),
+('testagram.referrals.complete',1,'authenticated',false,true,'Complete a pending referral and award both users once'),
+('testagram.referrals.status',1,'authenticated',true,true,'Read referral status'),
+('testagram.referrals.read',1,'authenticated',true,true,'Read referral history'),
+('testagram.referrals.leaderboard',1,'authenticated',true,true,'Read aggregate referral leaderboard'),
 ('testagram.referrals.status',1,'authenticated',true,true,'Read current referral code and referral reward status'),
 ('testagram.referrals.read',1,'authenticated',true,true,'Read referral status and history')
 on conflict(name) do update set version=excluded.version,access=excluded.access,readonly=excluded.readonly,enabled=true,description=excluded.description,updated_at=now();
+
+
+create or replace function public.list_referrals()
+returns jsonb language sql security definer set search_path=pg_catalog,public as $$
+select jsonb_build_object('items',coalesce((select jsonb_agg(jsonb_build_object('id',r.id,'referred_id',r.referred_id,'status',r.status,'credits_awarded',r.reward_amount_minor,'created_at',r.created_at,'completed_at',r.completed_at,'profile',case when p.id is null then null else jsonb_build_object('username',p.username,'avatar_url',p.avatar_url,'verified',coalesce(p.verified,false)) end) order by r.created_at desc) from public.referrals r left join public.profiles p on p.id=r.referred_id where r.referrer_id=auth.uid() and r.referred_id is not null),'[]'::jsonb));
+$$;
+
+create or replace function public.referral_leaderboard()
+returns jsonb language sql security definer set search_path=pg_catalog,public as $$
+select jsonb_build_object('items',coalesce((select jsonb_agg(x.obj order by x.referral_count desc,x.credits desc,x.username) from (select r.referrer_id,jsonb_build_object('userId',r.referrer_id,'username',coalesce(p.username,'user'),'avatar',p.avatar_url,'verified',coalesce(p.verified,false),'count',count(*)::integer,'credits',coalesce(sum(r.reward_amount_minor),0)::bigint) obj,count(*)::integer referral_count,coalesce(sum(r.reward_amount_minor),0)::bigint credits,coalesce(p.username,'user') username from public.referrals r join public.profiles p on p.id=r.referrer_id where r.referred_id is not null and r.status='completed' group by r.referrer_id,p.username,p.avatar_url,p.verified order by count(*) desc,coalesce(sum(r.reward_amount_minor),0) desc,coalesce(p.username,'user') limit 10) x),'[]'::jsonb));
+$$;
+
+revoke all on function public.list_referrals() from public,anon,authenticated;
+revoke all on function public.referral_leaderboard() from public,anon,authenticated;
+grant execute on function public.list_referrals() to authenticated;
+grant execute on function public.referral_leaderboard() to authenticated;
