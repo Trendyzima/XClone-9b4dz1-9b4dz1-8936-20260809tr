@@ -70,6 +70,10 @@ export async function mapSupabaseUserWithCanonicalProfile(user: User): Promise<A
 }
 
 const AUTH_REQUEST_TIMEOUT_MS = 15_000;
+
+// Auth emails must never redirect to Capacitor's local WebView origin (typically
+// http://localhost). The production callback is the canonical public auth route.
+const CANONICAL_AUTH_REDIRECT_URL = 'https://testagram.site/auth';
 async function withAuthTimeout<T>(operation: Promise<T>, label: string): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => { timeoutId = setTimeout(() => reject(new Error(`${label} timed out. Check your connection and try again.`)), AUTH_REQUEST_TIMEOUT_MS); });
@@ -80,7 +84,7 @@ export class AuthService {
   async sendOtp(email: string) {
     const identifier = normalizeIdentifier(email);
     if (identifier.kind !== 'email') throw new Error('Enter an email address for email OTP');
-    const { error } = await withAuthTimeout(supabase.auth.signInWithOtp({ email: identifier.value, options: { shouldCreateUser: true } }), 'Email OTP request');
+    const { error } = await withAuthTimeout(supabase.auth.signInWithOtp({ email: identifier.value, options: { shouldCreateUser: true, emailRedirectTo: CANONICAL_AUTH_REDIRECT_URL } }), 'Email OTP request');
     if (error) throw error;
   }
   async sendPhoneOtp(phoneInput: string) {
@@ -112,7 +116,7 @@ export class AuthService {
     const identifier = normalizeIdentifier(identifierInput); if (password.length < 8) throw new Error('Password must be at least 8 characters');
     const metadata = username?.trim() ? { username: username.trim() } : {};
     const credentials = identifier.kind === 'email'
-      ? { email: identifier.value, password, options: { data: metadata, emailRedirectTo: `${window.location.origin}/auth` } }
+      ? { email: identifier.value, password, options: { data: metadata, emailRedirectTo: CANONICAL_AUTH_REDIRECT_URL } }
       : { phone: identifier.value, password, options: { data: metadata, channel: 'sms' as const } };
     const { data, error } = await withAuthTimeout(supabase.auth.signUp(credentials), 'Account creation');
     if (error) throw error;
@@ -131,7 +135,7 @@ export class AuthService {
   }
   async resetPassword(email: string) {
     const identifier = normalizeIdentifier(email); if (identifier.kind !== 'email') throw new Error('Password recovery requires an email address');
-    const { error } = await withAuthTimeout(supabase.auth.resetPasswordForEmail(identifier.value, { redirectTo: `${window.location.origin}/auth?reset=1` }), 'Password recovery email');
+    const { error } = await withAuthTimeout(supabase.auth.resetPasswordForEmail(identifier.value, { redirectTo: `${CANONICAL_AUTH_REDIRECT_URL}?reset=1` }), 'Password recovery email');
     if (error) throw error;
   }
   async updatePassword(password: string) {
