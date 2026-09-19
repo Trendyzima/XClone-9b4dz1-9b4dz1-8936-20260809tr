@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Heart, MessageCircle, Repeat2, Share, MoreHorizontal, BadgeCheck, Trash2, TrendingUp, Zap, Eye, BarChart3, Users, History, X, Languages, Loader2 as TransLoader, DollarSign, Flag, Check as CheckIcon, ChevronDown, ChevronUp, Send as SendIcon, Crown, Megaphone, Quote, Activity } from 'lucide-react';
+import { VerifiedTick } from '@/components/ui/VerifiedTick';
+import { Heart, MessageCircle, Repeat2, Share, MoreHorizontal, Trash2, TrendingUp, Zap, Eye, BarChart3, Users, History, X, Languages, Loader2 as TransLoader, DollarSign, Flag, Check as CheckIcon, ChevronDown, ChevronUp, Send as SendIcon, Crown, Megaphone, Quote, Activity } from 'lucide-react';
 import { Post } from '@/types/app-types';
 import { formatDistanceToNow } from 'date-fns';
 import { supabase } from '@/lib/supabase';
@@ -648,7 +649,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
             >
               <span className="font-bold text-foreground truncate">{post.user_profiles?.username}</span>
               {post.user_profiles?.verified && (
-                <BadgeCheck className="w-4 h-4 text-primary flex-shrink-0" fill="currentColor" />
+                <VerifiedTick className="w-4 h-4 text-primary flex-shrink-0" />
               )}
               {isAuthorPremium && (
                 <Crown className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" fill="currentColor" aria-label="Premium Member" />
@@ -1085,7 +1086,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-xs font-bold">{reply.user_profiles?.username}</span>
-                      {reply.user_profiles?.verified && <BadgeCheck className="w-3 h-3 text-primary shrink-0" fill="currentColor" />}
+                      {reply.user_profiles?.verified && <VerifiedTick className="w-3 h-3 text-primary shrink-0" />}
                       <span className="text-[10px] text-muted-foreground">
                         {formatDistanceToNow(new Date(reply.created_at), { addSuffix: true })}
                       </span>
