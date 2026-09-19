@@ -431,7 +431,7 @@ export function StoriesStrip() {
     // the 24-hour expiry and public/owner visibility.
     const { data, error } = await supabase
       .from('stories')
-      .select('*, user_profiles:profiles!stories_owner_id_fkey(username, avatar_url)')
+      .select('*, media_assets(*)')
       .in('owner_id', allowedIds)
       .gt('expires_at', new Date().toISOString())
       .is('deleted_at', null)
@@ -444,9 +444,18 @@ export function StoriesStrip() {
       return;
     }
 
+    const { data: profileRows } = await supabase
+      .from('profiles')
+      .select('id, username, avatar_url')
+      .in('id', allowedIds);
+    const profilesById = new Map((profileRows ?? []).map((profile: any) => [profile.id, profile]));
+
     const rawStories: Story[] = (data ?? []).map((story: any) => ({
       ...story,
       user_id: story.owner_id,
+      media_url: story.media_url ?? story.media_assets?.media_url ?? '',
+      media_type: story.media_type ?? story.media_assets?.media_type ?? 'image',
+      user_profiles: profilesById.get(story.owner_id) ?? null,
     })) as Story[];
     let viewedSet = new Set<string>();
     if (user?.id) {
