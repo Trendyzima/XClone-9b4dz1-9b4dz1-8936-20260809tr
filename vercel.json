@@ -9,6 +9,9 @@
     },
     "api/auth/send-sms.ts": {
       "maxDuration": 10
+    },
+    "api/story-cleanup.ts": {
+      "maxDuration": 30
     }
   },
   "rewrites": [
@@ -170,6 +173,12 @@
           "value": "camera=(), microphone=(), geolocation=()"
         }
       ]
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/story-cleanup",
+      "schedule": "*/10 * * * *"
     }
   ]
 }
