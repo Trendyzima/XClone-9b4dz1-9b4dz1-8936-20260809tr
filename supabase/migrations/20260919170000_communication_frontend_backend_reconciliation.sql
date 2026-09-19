@@ -35,6 +35,8 @@ create policy communication_keys_member on public.communication_key_envelopes fo
 );
 revoke all on public.communication_key_envelopes from anon,authenticated;
 grant select,insert on public.communication_key_envelopes to authenticated;
+drop policy if exists communication_keys_member_write on public.communication_key_envelopes;
+create policy communication_keys_member_write on public.communication_key_envelopes for insert to authenticated with check(exists(select 1 from public.conversation_members cm where cm.conversation_id=communication_key_envelopes.conversation_id and cm.user_id=(select auth.uid()) and cm.left_at is null) and exists(select 1 from public.communication_devices d where d.id=communication_key_envelopes.sender_device_id and d.user_id=(select auth.uid())));
 grant select,insert,update,delete on public.communication_devices to authenticated;
 create index if not exists communication_key_envelopes_lookup_idx on public.communication_key_envelopes(conversation_id,epoch,recipient_device_id);
 
