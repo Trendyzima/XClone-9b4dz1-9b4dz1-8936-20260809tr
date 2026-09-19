@@ -10,7 +10,7 @@ on:
       - "supabase/migrations/20260919082909_heartbeat_function_execute_hardening.sql"
       - "supabase/migrations/20260919093000_user_heartbeat_lease.sql"
       - "supabase/migrations/20260919093500_user_heartbeat_lease_window.sql"
-      - "src/services/heartbeatClient.ts"
+      - "src/services/heartbeatClient.ts"\n      - "supabase/migrations/20260919143000_economical_heartbeat.sql"
       - ".github/workflows/cloudflare-heartbeat.yml"
 
 permissions:
