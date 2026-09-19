@@ -685,18 +685,33 @@ export default function SettingsPage() {
 
           <div className="p-3 rounded-2xl bg-muted/20 border border-border space-y-3">
             <p className="text-xs font-semibold">Customize</p>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium">Accent color</p>
-                <p className="text-[11px] text-muted-foreground">Personalize buttons, links and highlights</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-background border border-border">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">Accent</p>
+                  <p className="text-[10px] text-muted-foreground truncate">Buttons & highlights</p>
+                </div>
+                <input
+                  type="color"
+                  value={appearance.accent || '#16a34a'}
+                  onChange={e => updateAccent(e.target.value)}
+                  className="w-9 h-9 rounded-lg border border-border bg-background cursor-pointer p-1 shrink-0"
+                  aria-label="Choose accent color"
+                />
               </div>
-              <input
-                type="color"
-                value={appearance.accent || '#16a34a'}
-                onChange={e => updateAccent(e.target.value)}
-                className="w-10 h-10 rounded-lg border border-border bg-background cursor-pointer p-1"
-                aria-label="Choose accent color"
-              />
+              <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-background border border-border">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium">Background</p>
+                  <p className="text-[10px] text-muted-foreground truncate">Main app surface</p>
+                </div>
+                <input
+                  type="color"
+                  value={appearance.background || (effectiveTheme === 'dark' ? '#000000' : '#ffffff')}
+                  onChange={e => void persistAppearance({ ...appearance, background: e.target.value })}
+                  className="w-9 h-9 rounded-lg border border-border bg-background cursor-pointer p-1 shrink-0"
+                  aria-label="Choose background color"
+                />
+              </div>
             </div>
             <div>
               <p className="text-sm font-medium mb-2">Corner style</p>
