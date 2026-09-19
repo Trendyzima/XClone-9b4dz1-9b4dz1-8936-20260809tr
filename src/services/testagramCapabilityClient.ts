@@ -17,6 +17,9 @@ export class CapabilityClientError extends Error{readonly code:string;readonly r
 // remain authenticated and therefore bypass CDN caching.
 const PUBLIC_CAPABILITIES=new Set(["testagram.capabilities.list","testagram.health.read"]);
 const PUBLIC_EDGE_PATH="/api/public-capability";
+// Keep every capability call on the same browser Supabase configuration used by Auth.
+// This prevents profile/search paths from falling back to a stale VITE_* key.
+const CAPABILITY_GATEWAY_ENDPOINT=`${supabaseUrl}/functions/v1/capability-gateway`;
 const limit=(n=20)=>Math.min(100,Math.max(1,Number.isFinite(n)?Math.floor(n):20));
 const cursor=(c?:string)=>c?{cursor:c}:{};
 const rid=()=>typeof crypto?.randomUUID==="function"?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -64,7 +67,7 @@ schedulePost(body:string,scheduledFor:string){return this.call<{scheduled_post_i
 }
 
 export const backendCapabilities = new TestagramCapabilityClient({
- endpoint: `${supabaseUrl}/functions/v1/capability-gateway`,
+ endpoint: CAPABILITY_GATEWAY_ENDPOINT,
  getAccessToken: async () => (await supabase.auth.getSession()).data.session?.access_token ?? null,
  apiKey: supabasePublishableKey,
 });
