@@ -76,6 +76,7 @@ export default function ReferralPage() {
 
   const loadReferrals = async () => {
     if (!user) return;
+    await supabase.rpc('ensure_referral_code');
     const [{ data: statusData, error: statusError }, { data: listData, error: listError }] = await Promise.all([
       supabase.rpc('get_referral_status'),
       supabase.rpc('list_referrals'),
