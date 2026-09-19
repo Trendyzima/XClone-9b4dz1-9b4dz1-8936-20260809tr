@@ -58,19 +58,18 @@ $;
 
 create or replace function public.complete_referral()
 returns jsonb language plpgsql security definer set search_path=pg_catalog,public as $$
-declare v_user_id uuid:=auth.uid(); v_ref public.referrals%rowtype; v_amount bigint:=100; v_key text; v_event uuid:=gen_random_uuid();
+declare v_user_id uuid:=auth.uid(); v_ref public.referrals%rowtype; v_amount bigint:=100; v_key text; v_ref_event uuid:=gen_random_uuid(); v_referred_event uuid:=gen_random_uuid(); v_ref_wallet bigint; v_self_wallet bigint;
 begin
  if v_user_id is null then raise exception using errcode='28000',message='Authentication required'; end if;
  select * into v_ref from public.referrals where referred_id=v_user_id and status='pending' for update;
  if v_ref.id is null then return jsonb_build_object('ok',true,'completed',false,'reason','NO_PENDING_REFERRAL'); end if;
  v_key:='referral:'||v_ref.id::text;
  update public.referrals set status='completed',completed_at=now(),reward_amount_minor=v_amount,reward_currency='CREDITS',reward_idempotency_key=v_key where id=v_ref.id;
- insert into public.user_wallets(user_id,credits,updated_at) values(v_ref.referrer_id,v_amount,now())
- on conflict(user_id) do update set credits=public.user_wallets.credits+excluded.credits,updated_at=now();
- insert into public.reward_events(id,user_id,reward_type,amount_minor,currency,source,source_id,idempotency_key,created_at)
- values(v_event,v_ref.referrer_id,'referral',v_amount,'CREDITS','referrals',v_ref.id,v_key,now())
- on conflict(idempotency_key) do nothing;
- return jsonb_build_object('ok',true,'completed',true,'reward_credits',v_amount,'referrer_id',v_ref.referrer_id);
+ insert into public.user_wallets(user_id,credits,updated_at) values(v_ref.referrer_id,v_amount,now()) on conflict(user_id) do update set credits=user_wallets.credits+excluded.credits,updated_at=now() returning credits into v_ref_wallet;
+ insert into public.user_wallets(user_id,credits,updated_at) values(v_user_id,v_amount,now()) on conflict(user_id) do update set credits=user_wallets.credits+excluded.credits,updated_at=now() returning credits into v_self_wallet;
+ insert into public.reward_events(id,user_id,reward_type,amount_minor,currency,source,source_id,idempotency_key,created_at) values(v_ref_event,v_ref.referrer_id,'referral',v_amount,'CREDITS','referrals',v_ref.id,v_key,now()) on conflict(idempotency_key) do nothing;
+ insert into public.reward_events(id,user_id,reward_type,amount_minor,currency,source,source_id,idempotency_key,created_at) values(v_referred_event,v_user_id,'referral_signup',v_amount,'CREDITS','referrals',v_ref.id,v_key||':referred',now()) on conflict(idempotency_key) do nothing;
+ return jsonb_build_object('ok',true,'completed',true,'reward_credits',v_amount,'referrer_id',v_ref.referrer_id,'referrer_wallet_credits',v_ref_wallet,'referred_wallet_credits',v_self_wallet);
 end; $$;
 
 revoke all on function public.ensure_referral_code() from public,anon,authenticated;
