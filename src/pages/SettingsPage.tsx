@@ -116,7 +116,7 @@ export default function SettingsPage() {
     localStorage.setItem(DARK_SCHEDULE_KEY, v ? 'true' : 'false');
     if (!v) {
       // Restore theme choice
-      applyTheme(themeChoice);
+      applyAppearance(appearance);
     }
     toast.success(v ? 'Auto Dark Mode enabled (20:00 – 07:00)' : 'Auto Dark Mode disabled');
   };
