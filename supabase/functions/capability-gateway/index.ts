@@ -99,10 +99,11 @@ Deno.serve(async (req) => {
       if (userError || !userResult.user) return fail(requestId, "AUTH_REQUIRED", "Authentication required", 401);
     }
 
-    const { data, error } = await db.rpc("capability_dispatch", {
-      p_capability: capability,
-      p_input: input,
-    });
+    const rpcName = capability === "testagram.profile.update" ? "profile_update" : "capability_dispatch";
+    const rpcArgs = capability === "testagram.profile.update"
+      ? { p_input: input }
+      : { p_capability: capability, p_input: input };
+    const { data, error } = await db.rpc(rpcName, rpcArgs);
 
     if (error) {
       const message = error.message || "Capability execution failed";
