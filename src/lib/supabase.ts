@@ -6,8 +6,11 @@ const RETIRED_SUPABASE_URL = 'https://aepbqfrmheihfsauzcby.supabase.co';
 // Publishable/anon keys are intentionally safe for browser exposure. Environment
 // variables remain preferred; the canonical fallback keeps the rebuilt app bootable
 // if Vercel env injection is temporarily absent.
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? CANONICAL_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY ?? 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya';
+export const supabaseUrl = import.meta.env.VITE_SUPABASE_URL ?? CANONICAL_SUPABASE_URL;
+export const supabasePublishableKey =
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ??
+  import.meta.env.VITE_SUPABASE_ANON_KEY ??
+  'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya';
 
 // Fail closed if an environment variable accidentally points the frontend back at
 // the retired Auth/database project. This prevents local/preview builds from
@@ -19,7 +22,7 @@ if (supabaseUrl === RETIRED_SUPABASE_URL) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
