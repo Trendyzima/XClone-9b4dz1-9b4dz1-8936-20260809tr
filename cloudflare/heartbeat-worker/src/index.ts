@@ -11,20 +11,19 @@ const ALLOWED_ORIGINS = new Set([
 
 function json(body: unknown, status = 200, request?: Request, extra: Record<string, string> = {}) {
   const origin = request?.headers.get("origin") ?? "";
-  const allowOrigin = ALLOWED_ORIGINS.has(origin) ? origin : "https://testagram.site";
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      "cache-control": "no-store",
-      "access-control-allow-origin": allowOrigin,
-      "access-control-allow-headers": "authorization, content-type, x-client-version",
-      "access-control-allow-methods": "POST, OPTIONS",
-      "vary": "Origin",
-      "x-testagram-heartbeat": "cloudflare-edge",
-      ...extra,
-    },
-  });
+  const headers: Record<string, string> = {
+    "content-type": "application/json; charset=utf-8",
+    "cache-control": "no-store",
+    "access-control-allow-headers": "authorization, content-type, x-client-version",
+    "access-control-allow-methods": "POST, OPTIONS",
+    "vary": "Origin",
+    "x-testagram-heartbeat": "cloudflare-edge",
+    ...extra,
+  };
+  if (ALLOWED_ORIGINS.has(origin)) {
+    headers["access-control-allow-origin"] = origin;
+  }
+  return new Response(JSON.stringify(body), { status, headers });
 }
 
 async function sha256Hex(value: string): Promise<string> {
@@ -88,6 +87,9 @@ export default {
       },
     );
     ctx.waitUntil(cache.put(cacheKey, suppression.clone()));
-    return suppression;
+    return json({ ok: true, suppressed: false }, 200, request, {
+      "cache-control": `no-store`,
+      "x-testagram-heartbeat-cache": "MISS",
+    });
   },
 } satisfies ExportedHandler<Env>;
