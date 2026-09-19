@@ -23,11 +23,11 @@ begin
 
   update public.user_heartbeat_leases
      set last_seen_at = v_now,
-         expires_at = v_now + interval '30 minutes',
+         expires_at = v_now + interval '45 minutes',
          client_version = v_client_version,
          updated_at = v_now
    where user_id = v_user_id
-     and expires_at <= v_now + interval '20 minutes';
+     and expires_at <= v_now + interval '30 minutes';
 
   if found then
     v_refreshed := true;
