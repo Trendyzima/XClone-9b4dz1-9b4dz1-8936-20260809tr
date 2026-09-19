@@ -1,0 +1,44 @@
+name: Cloudflare Heartbeat Edge
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "cloudflare/heartbeat-worker/**"
+      - "supabase/functions/heartbeat/**"
+      - "supabase/migrations/20260919093000_user_heartbeat_lease.sql"
+      - "src/services/heartbeatClient.ts"
+      - ".github/workflows/cloudflare-heartbeat.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-heartbeat
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy heartbeat edge
+    environment: production
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Node 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+
+      - name: Deploy Cloudflare Worker
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: cloudflare/heartbeat-worker
+          command: deploy
+
+      - name: Validate required Worker secret presence
+        if: ${{ success() }}
+        run: echo "Cloudflare heartbeat Worker deployed; secret values were never printed."
