@@ -3,6 +3,7 @@
 -- minted only after the referred account completes the qualifying activation.
 -- No client can directly write referral/reward rows.
 
+alter table public.referrals alter column referred_id drop not null;
 alter table public.referrals add column if not exists completed_at timestamptz;
 alter table public.referrals add column if not exists reward_amount_minor bigint not null default 0;
 alter table public.referrals add column if not exists reward_currency text not null default 'CREDITS';
@@ -38,6 +39,17 @@ begin
  return jsonb_build_object('ok',true,'status','pending');
 end; $$;
 
+create or replace function public.get_referral_status()
+returns jsonb language sql security definer set search_path=pg_catalog,public as $
+select jsonb_build_object(
+ 'code',(select r.code from public.referrals r where r.referrer_id=auth.uid() and r.referred_id is null limit 1),
+ 'referred_count',(select count(*) from public.referrals r where r.referrer_id=auth.uid() and r.referred_id is not null),
+ 'pending_count',(select count(*) from public.referrals r where r.referrer_id=auth.uid() and r.status='pending'),
+ 'completed_count',(select count(*) from public.referrals r where r.referrer_id=auth.uid() and r.status='completed'),
+ 'earned_credits',(select coalesce(sum(r.reward_amount_minor),0) from public.referrals r where r.referrer_id=auth.uid() and r.status='completed')
+) where auth.uid() is not null;
+$;
+
 create or replace function public.complete_referral()
 returns jsonb language plpgsql security definer set search_path=pg_catalog,public as $$
 declare v_user_id uuid:=auth.uid(); v_ref public.referrals%rowtype; v_amount bigint:=100; v_key text; v_event uuid:=gen_random_uuid();
@@ -57,9 +69,11 @@ end; $$;
 
 revoke all on function public.ensure_referral_code() from public,anon,authenticated;
 revoke all on function public.apply_referral_code(text) from public,anon,authenticated;
+revoke all on function public.get_referral_status() from public,anon,authenticated;
 revoke all on function public.complete_referral() from public,anon,authenticated;
 grant execute on function public.ensure_referral_code() to authenticated;
 grant execute on function public.apply_referral_code(text) to authenticated;
+grant execute on function public.get_referral_status() to authenticated;
 grant execute on function public.complete_referral() to authenticated;
 
 revoke insert,update,delete on public.referrals from authenticated;
@@ -70,5 +84,6 @@ values
 ('testagram.referrals.code',1,'authenticated',false,true,'Get or create current user referral code'),
 ('testagram.referrals.apply',1,'authenticated',false,true,'Apply a referral code once to the current account'),
 ('testagram.referrals.complete',1,'authenticated',false,true,'Complete a pending referral and mint its one-time referrer reward'),
+('testagram.referrals.status',1,'authenticated',true,true,'Read current referral code and referral reward status'),
 ('testagram.referrals.read',1,'authenticated',true,true,'Read referral status and history')
 on conflict(name) do update set version=excluded.version,access=excluded.access,readonly=excluded.readonly,enabled=true,description=excluded.description,updated_at=now();
