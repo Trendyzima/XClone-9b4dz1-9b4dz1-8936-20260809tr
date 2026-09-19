@@ -9,3 +9,6 @@ verify_jwt = false
 
 [functions.federated-feed]
 verify_jwt = true
+
+[functions.megalodon-gateway]
+verify_jwt = true
