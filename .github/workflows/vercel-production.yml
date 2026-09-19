@@ -115,15 +115,25 @@ jobs:
           put_production_secret "SMS_RATE_LIMIT_SECRET" "$SMS_RATE_LIMIT_SECRET"
           put_production_secret "SMS_GATEWAY_URL" "$SMS_GATEWAY_URL"
           put_production_secret "SMS_GATEWAY_API_KEY" "$SMS_GATEWAY_API_KEY"
-          if [[ -n "$SMS_GATEWAY_USERNAME" ]]; then
-            put_production_secret "SMS_GATEWAY_USERNAME" "$SMS_GATEWAY_USERNAME"
-          else
-            echo "::warning::GitHub SMS_GATEWAY_USERNAME is not configured; preserving any existing Vercel production value."
-            if ! vercel env ls production --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" | grep -Eq '^SMS_GATEWAY_USERNAME([[:space:]]|$)'; then
-              echo "::error::SMS_GATEWAY_USERNAME is missing from both GitHub and Vercel production. Configure it before SMS OTP can be used."
+          # Africa's Talking requires the literal username "sandbox" for Sandbox.
+          # Never guess a live username: live must provide the application's real username.
+          if [[ -z "$SMS_GATEWAY_USERNAME" ]]; then
+            if [[ "$SMS_GATEWAY_URL" =~ sandbox ]]; then
+              SMS_GATEWAY_USERNAME="sandbox"
+              echo "Africa's Talking Sandbox detected; using the documented Sandbox username."
+            else
+              echo "::error::SMS_GATEWAY_USERNAME is missing. Configure the live Africa's Talking application username in GitHub/Vercel production."
               exit 1
             fi
           fi
+
+          # Prevent an easy but dangerous environment mismatch.
+          if [[ "$SMS_GATEWAY_USERNAME" == "sandbox" && ! "$SMS_GATEWAY_URL" =~ sandbox ]]; then
+            echo "::error::SMS_GATEWAY_USERNAME=sandbox cannot be used with a non-Sandbox Africa's Talking endpoint."
+            exit 1
+          fi
+
+          put_production_secret "SMS_GATEWAY_USERNAME" "$SMS_GATEWAY_USERNAME"
           if [[ -n "$SMS_SENDER_NAME" ]]; then
             put_production_secret "SMS_SENDER_NAME" "$SMS_SENDER_NAME"
           else
