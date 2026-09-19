@@ -90,22 +90,20 @@ export default async function handler(req: any, res: any) {
     const orphanCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const { data: orphanAssets } = await db
       .from('media_assets')
-      .select('id, storage_key, bucket, status')
+      .select('id, storage_key, bucket, status, stories!left(id, deleted_at)')
       .is('post_id', null)
       .lt('created_at', orphanCutoff)
       .in('status', ['pending', 'uploaded'])
       .limit(500);
 
     let deletedOrphans = 0;
-    for (const asset of orphanAssets ?? []) {
-      const { count: storyRefs } = await db
-        .from('stories')
-        .select('id', { count: 'exact', head: true })
-        .eq('media_asset_id', asset.id)
-        .is('deleted_at', null);
-      if ((storyRefs ?? 0) > 0) continue;
+    for (const rawAsset of orphanAssets ?? []) {
+      const activeStories = Array.isArray(rawAsset.stories)
+        ? rawAsset.stories.filter((story: any) => !story.deleted_at)
+        : [];
+      if (activeStories.length > 0) continue;
 
-      try {
+      const asset = rawAsset;
         if (asset.storage_key) {
           await r2.send(new DeleteObjectCommand({
             Bucket: asset.bucket || cfg.r2Bucket,
