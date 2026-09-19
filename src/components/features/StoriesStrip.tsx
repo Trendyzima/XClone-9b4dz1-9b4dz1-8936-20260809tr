@@ -420,20 +420,34 @@ export function StoriesStrip() {
       followedIds = (followData ?? []).map((f: any) => f.following_id);
     }
     const allowedIds = user?.id ? [user.id, ...followedIds] : [];
-    let query = supabase
-      .from('stories')
-      .select('*, profiles(username, avatar_url)')
-      .gt('expires_at', new Date().toISOString())
-      .order('created_at', { ascending: false });
-    if (allowedIds.length > 0) {
-      query = query.in('user_id', allowedIds);
-    } else {
+    if (allowedIds.length === 0) {
       setGroups([]);
       setLoading(false);
       return;
     }
-    const { data } = await query;
-    const rawStories: Story[] = (data as Story[]) ?? [];
+
+    // Stories use owner_id as the canonical backend column. Query only the
+    // active rows visible to this user; the database RLS policy also enforces
+    // the 24-hour expiry and public/owner visibility.
+    const { data, error } = await supabase
+      .from('stories')
+      .select('*, user_profiles:profiles!stories_owner_id_fkey(username, avatar_url)')
+      .in('owner_id', allowedIds)
+      .gt('expires_at', new Date().toISOString())
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Story fetch failed', error);
+      setGroups([]);
+      setLoading(false);
+      return;
+    }
+
+    const rawStories: Story[] = (data ?? []).map((story: any) => ({
+      ...story,
+      user_id: story.owner_id,
+    })) as Story[];
     let viewedSet = new Set<string>();
     if (user?.id) {
       const { data: vd } = await supabase.from('story_views').select('story_id').eq('viewer_id', user.id);
