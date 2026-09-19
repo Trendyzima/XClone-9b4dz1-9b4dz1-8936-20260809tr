@@ -67,6 +67,28 @@ jobs:
       - name: Production build
         run: npm run build
 
+      - name: Deploy and gate Fediverse gateway functions
+        shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+        run: |
+          set -euo pipefail
+          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required for the Fediverse gateway deployment gate."; exit 1; }
+          PROJECT_REF="$SUPABASE_PROJECT_REF"
+          if [[ -z "$PROJECT_REF" ]]; then
+            PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
+          fi
+          [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref."; exit 1; }
+          export SUPABASE_ACCESS_TOKEN
+          npx --yes supabase@latest functions deploy gateway-relay --project-ref "$PROJECT_REF" --no-verify-jwt
+          npx --yes supabase@latest functions deploy federated-feed --project-ref "$PROJECT_REF"
+
+          GATEWAY_URL="https://${PROJECT_REF}.supabase.co/functions/v1/gateway-relay?action=health"
+          curl --fail --silent --show-error --location --retry 3 --retry-delay 2 "$GATEWAY_URL" > fediverse-gateway-health.json
+          node -e 'const fs=require("node:fs"); const body=fs.readFileSync("fediverse-gateway-health.json","utf8").trim(); let p; try { p=JSON.parse(body); } catch { console.error("Fediverse gateway returned invalid JSON:", body); process.exit(1); } if (p?.ok !== true || p?.service !== "gateway-relay" || p?.backend !== "supabase") { console.error("Fediverse gateway contract failed:", JSON.stringify(p)); process.exit(1); } console.log("Fediverse gateway gate passed:", JSON.stringify(p));'
+
       - name: Install pinned Vercel CLI
         run: npm install --global vercel@48.4.0
 
