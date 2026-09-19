@@ -178,7 +178,7 @@
   "crons": [
     {
       "path": "/api/story-cleanup",
-      "schedule": "*/10 * * * *"
+      "schedule": "17 3 * * *"
     }
   ]
 }
