@@ -56,7 +56,7 @@ export function createBackendCapabilityClient(
   endpoint: string = `${supabaseUrl}/functions/v1/capability-gateway`,
   client: SupabaseClient = supabase,
 ): TestagramCapabilityClient {
-  return new TestagramCapabilityClient({ endpoint, getAccessToken: () => requireAccessToken(client), clientName: 'testagram-web', clientVersion: '4' });
+  return new TestagramCapabilityClient({ endpoint, getAccessToken: () => requireAccessToken(client), clientName: 'testagram-web', clientVersion: '4', apiKey: supabasePublishableKey });
 }
 
 export const backendCapabilities = createBackendCapabilityClient();
