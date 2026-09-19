@@ -36,15 +36,10 @@ jobs:
         shell: bash
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
           if [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
             echo "::error::Missing GitHub Actions production secret CLOUDFLARE_API_TOKEN. Wrangler cannot authenticate without a Cloudflare API token."
-            exit 1
-          fi
-          if [[ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]]; then
-            echo "::error::Missing GitHub Actions production secret CLOUDFLARE_ACCOUNT_ID."
             exit 1
           fi
           printf "::add-mask::%s\\n" "$CLOUDFLARE_API_TOKEN"
@@ -54,7 +49,6 @@ jobs:
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: cloudflare/heartbeat-worker
           command: deploy
 
