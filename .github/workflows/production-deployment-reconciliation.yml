@@ -84,6 +84,7 @@ jobs:
           export SUPABASE_ACCESS_TOKEN
           npx --yes supabase@latest functions deploy gateway-relay --project-ref "$PROJECT_REF" --no-verify-jwt
           npx --yes supabase@latest functions deploy federated-feed --project-ref "$PROJECT_REF"
+          npx --yes supabase@latest functions deploy megalodon-gateway --project-ref "$PROJECT_REF"
 
           GATEWAY_URL="https://${PROJECT_REF}.supabase.co/functions/v1/gateway-relay?action=health"
           curl --fail --silent --show-error --location --retry 3 --retry-delay 2 "$GATEWAY_URL" > fediverse-gateway-health.json
