@@ -2,9 +2,10 @@ import { createClient } from '@supabase/supabase-js';
 import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-// Hard application-wide media ceiling: 20 MiB (20,971,520 bytes).
-// Keep this as the server-side source of truth; clients are only UX validation.
-const MAX_BYTES = 20 * 1024 * 1024;
+// Per-object safety ceiling. Media bytes go directly from the browser to R2;
+// this endpoint only signs/finalizes metadata, so increasing this does not route
+// large payloads through Vercel. R2 single-PUT supports up to 5 GiB.
+const MAX_BYTES = 500 * 1024 * 1024;
 const ALLOWED = new Set([
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif',
   'video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska',
@@ -104,7 +105,7 @@ export default async function handler(req: any, res: any) {
       if (!name || name.length > 255) return json(res, 400, { error: 'Invalid file name' });
       if (!ALLOWED.has(mime)) return json(res, 415, { error: 'Unsupported media type' });
       if (!Number.isInteger(size) || size <= 0 || size > MAX_BYTES) {
-        return json(res, 413, { error: 'Media must be 20 MiB or smaller' });
+        return json(res, 413, { error: 'Media must be 500 MiB or smaller' });
       }
       if (postId && !(await ownedPost(admin, postId, user.id))) {
         return json(res, 404, { error: 'Post not found or not owned by user' });
