@@ -42,10 +42,10 @@ function B2CStatusPoller({ userId }: { userId: string }) {
 
   const fetchLatestB2C = async () => {
     const { data } = await supabase
-      .from('mpesa_transactions')
+      .from('wallet_transactions')
       .select('*')
       .eq('user_id', userId)
-      .eq('type', 'b2c')
+      .eq('type', 'withdrawal').eq('provider', 'mpesa_b2c')
       .order('created_at', { ascending: false })
       .limit(5);
     setTxns(data ?? []);
@@ -155,7 +155,7 @@ function B2CStatusPoller({ userId }: { userId: string }) {
                 </div>
                 <div>
                   <p className="font-bold text-sm">M-Pesa Payout</p>
-                  <p className="text-[10px] text-muted-foreground">{txn.phone_number}</p>
+                  <p className="text-[10px] text-muted-foreground">{txn.metadata?.phone}</p>
                 </div>
               </div>
               <B2CStatusBadge status={txn.status} />
@@ -168,10 +168,10 @@ function B2CStatusPoller({ userId }: { userId: string }) {
               </p>
             </div>
 
-            {txn.mpesa_receipt_number && (
+            {txn.provider_capture_id && (
               <div className="mt-2 flex items-center gap-1.5">
                 <span className="text-[10px] text-muted-foreground">Receipt:</span>
-                <span className="font-mono text-[10px] font-bold">{txn.mpesa_receipt_number}</span>
+                <span className="font-mono text-[10px] font-bold">{txn.provider_capture_id}</span>
               </div>
             )}
 
@@ -203,10 +203,10 @@ function WithdrawalHistoryTab({ userId, currency }: { userId: string; currency: 
   useEffect(() => {
     setLoading(true);
     supabase
-      .from('mpesa_transactions')
+      .from('wallet_transactions')
       .select('*')
       .eq('user_id', userId)
-      .eq('type', 'b2c')
+      .eq('type', 'withdrawal').eq('provider', 'mpesa_b2c')
       .order('created_at', { ascending: false })
       .limit(10)
       .then(({ data }) => { setTxns(data ?? []); setLoading(false); });
@@ -267,9 +267,9 @@ function WithdrawalHistoryTab({ userId, currency }: { userId: string; currency: 
                       <p className="font-semibold text-sm">KES {Number(txn.amount).toLocaleString()}</p>
                       <B2CStatusBadge status={txn.status} />
                     </div>
-                    <p className="text-xs text-muted-foreground">{txn.phone_number}</p>
-                    {txn.mpesa_receipt_number && (
-                      <p className="text-[10px] font-mono text-muted-foreground">Receipt: {txn.mpesa_receipt_number}</p>
+                    <p className="text-xs text-muted-foreground">{txn.metadata?.phone}</p>
+                    {txn.provider_capture_id && (
+                      <p className="text-[10px] font-mono text-muted-foreground">Receipt: {txn.provider_capture_id}</p>
                     )}
                     <p className="text-[10px] text-muted-foreground mt-0.5">{new Date(txn.created_at).toLocaleString()}</p>
                   </div>
@@ -317,7 +317,7 @@ function SpendLimitPanel({ userId, wallet, onSaved }: { userId: string; wallet: 
 
   const handleSave = async () => {
     setSaving(true);
-    const { error } = await supabase.from('user_wallets').update({
+    const { error } = await supabase.from('wallets').update({
       spend_limit_enabled: enabled,
       daily_spend_limit: limitUsd ? parseFloat(limitUsd) : null,
     }).eq('user_id', userId);
