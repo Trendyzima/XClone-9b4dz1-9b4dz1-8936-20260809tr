@@ -309,3 +309,5 @@ jobs:
             echo "gate=build-typecheck-lint-deploy-sha-liveness-readiness"
             echo "status=passed"
           } >> "$GITHUB_STEP_SUMMARY"
+
+# Story media reconciliation CI trigger marker.
