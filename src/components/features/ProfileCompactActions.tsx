@@ -147,7 +147,6 @@ export function ProfileCompactActions({
 
       {verified && <span className="sr-only">Verified profile</span>}
       {isCreator && <span className="sr-only">Creator profile</span>}
-      <BadgeCheck className="sr-only" />
     </div>
   );
 }
