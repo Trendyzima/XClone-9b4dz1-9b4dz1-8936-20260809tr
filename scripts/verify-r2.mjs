@@ -1,6 +1,6 @@
 import { DeleteObjectCommand, HeadBucketCommand, HeadObjectCommand, ListObjectsV2Command, PutBucketCorsCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
-const required = ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_MEDIA_BUCKET"];
+const required = ["R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_MEDIA_BUCKET"];\n\n// GitHub Actions secrets can accidentally contain trailing newlines/whitespace.\n// Never pass those bytes into HTTP authorization headers.\nfor (const name of required) {\n  if (process.env[name]) process.env[name] = process.env[name].trim();\n}
 for (const name of required) {
   if (!process.env[name]) throw new Error("Missing required R2 configuration: " + name);
 }
