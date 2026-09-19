@@ -26,6 +26,7 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
   let activityGateAt = 0;
   let sending = false;
   let authenticated = false;
+  let accessToken: string | null = null;
 
   const clearTimer = () => {
     if (timer !== undefined) {
@@ -61,8 +62,7 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
 
     sending = true;
     try {
-      const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
+      const token = accessToken;
       if (!token) return;
 
       const response = await fetch(HEARTBEAT_URL, {
@@ -107,6 +107,7 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
 
   const onAuthStateChange = (event: string, session: { access_token?: string } | null) => {
     if (!session?.access_token) {
+      accessToken = null;
       authenticated = false;
       lastActivityAt = 0;
       lastSentAt = 0;
@@ -114,6 +115,7 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
       return;
     }
 
+    accessToken = session.access_token;
     authenticated = true;
 
     // Token refreshes keep the session valid but do not prove user activity.
@@ -142,6 +144,7 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
 
   void supabase.auth.getSession().then(({ data }) => {
     if (stopped || !data.session) return;
+    accessToken = data.session.access_token;
     authenticated = true;
     lastActivityAt = Date.now();
     void maybeSend();
@@ -150,6 +153,7 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
   cleanup = () => {
     stopped = true;
     authenticated = false;
+    accessToken = null;
     clearTimer();
     for (const event of activityEvents) {
       window.removeEventListener(event, markActivity);
