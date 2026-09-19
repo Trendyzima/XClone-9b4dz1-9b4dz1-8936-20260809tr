@@ -731,8 +731,8 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
           )}
 
           {/* Toolbar */}
-          <div className="flex items-center justify-between mt-3 pt-3 border-t border-border overflow-x-auto">
-            <div className="flex space-x-2">
+          <div className="mt-3 pt-3 border-t border-border space-y-2.5">
+            <div className="flex flex-wrap items-center gap-1.5 min-w-0">
               <label className="cursor-pointer p-2 hover:bg-primary/10 rounded-full text-primary transition-colors flex-shrink-0">
                 <Image className="w-5 h-5" />
                 <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageChange} disabled={loading || !!video || !!gifUrl || images.length >= 4} />
@@ -779,21 +779,23 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
                 <Link2 className="w-5 h-5" />
               </button>
             </div>
-            <div className="flex items-center gap-2 mr-1 px-2.5 py-1.5 rounded-full bg-muted/60 border border-border text-xs whitespace-nowrap" title="Posts and threads share this daily limit">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+              <div className="flex items-center gap-2 min-w-0 px-2.5 py-1.5 rounded-full bg-muted/60 border border-border text-xs whitespace-nowrap" title="Posts and threads share this daily limit">
               <span className={creationQuota.remaining === 0 ? 'text-destructive font-bold' : 'text-muted-foreground'}>
                 {creationQuota.used}/{creationQuota.limit} today
               </span>
               <span className={creationQuota.remaining === 0 ? 'text-destructive font-semibold' : 'text-primary font-semibold'}>
                 {creationQuota.remaining} remaining
               </span>
-            </div>
-            <div className="flex items-center space-x-3 flex-shrink-0">
+              </div>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 min-w-0 sm:ml-auto">
               {images.length > 0 && <span className="text-sm text-muted-foreground">{images.length}/4 images</span>}
               {content.length > 0 && <span className={`text-sm ${content.length > 680 ? 'text-destructive' : 'text-muted-foreground'}`}>{content.length}/700</span>}
               {postToFediverse && <span className="flex items-center gap-1 text-xs text-purple-500 font-medium"><Globe className="w-3 h-3" />+Fediverse</span>}
               <Button onClick={handlePost} disabled={loading || creationQuota.remaining <= 0 || (!content.trim() && images.length === 0 && !video && !gifUrl && !pollData) || content.length > 700} className="rounded-full px-6 font-semibold">
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Post'}
               </Button>
+              </div>
             </div>
           </div>
 
