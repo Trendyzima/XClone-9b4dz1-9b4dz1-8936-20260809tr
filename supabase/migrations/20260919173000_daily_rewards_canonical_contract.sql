@@ -20,6 +20,13 @@ begin
     raise exception using errcode='28000', message='Authentication required';
   end if;
 
+  -- Lock the user's wallet first. This serializes concurrent first-time claims
+  -- before the daily_rewards row necessarily exists, preventing double credits.
+  insert into public.user_wallets(user_id, credits, updated_at)
+  values(v_user_id, 0, now())
+  on conflict(user_id) do update set updated_at = public.user_wallets.updated_at
+  returning * into v_wallet;
+
   select * into v_reward
   from public.daily_rewards
   where user_id = v_user_id
@@ -51,11 +58,9 @@ begin
 
   v_idempotency := 'daily-reward:' || v_user_id::text || ':' || v_today::text;
 
-  insert into public.user_wallets(user_id, credits, updated_at)
-  values(v_user_id, v_credits, now())
-  on conflict(user_id) do update
-    set credits = public.user_wallets.credits + excluded.credits,
-        updated_at = now()
+  update public.user_wallets
+  set credits = credits + v_credits, updated_at = now()
+  where user_id = v_user_id
   returning * into v_wallet;
 
   insert into public.daily_rewards(user_id, streak_day, credits_earned, last_claimed_at, updated_at)
