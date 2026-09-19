@@ -28,11 +28,11 @@ const POLICY_SECTIONS: PolicySection[] = [
     iconBg: 'bg-blue-500/10',
     title: 'Information We Collect',
     points: [
-      'Account information: username, email address, profile photo, bio, and optional details like website and location.',
-      'Content you create: posts, replies, threads, videos, polls, and any media you upload.',
-      'Usage data: pages visited, features used, time spent, interactions with posts and other users.',
-      'Device & technical data: IP address, browser type, operating system, and device identifiers.',
-      'Payment information: for M-Pesa transactions we collect your phone number; for PayPal we collect your email. We do not store full card numbers.',
+      'Account information: username, email address or phone number where provided, profile photo, bio, and optional profile details such as website and location.',
+      'Content you create: posts, replies, threads, videos, polls, messages, and media you upload. Media is stored through our designated media-storage infrastructure rather than the application database.',
+      'Usage data: pages visited, features used, approximate activity timestamps, interactions with posts and other users, and security events needed to operate the service.',
+      'Device & technical data: IP address and request/security metadata, browser or app information, operating system, device identifiers where available, and diagnostic information.',
+      'Payment information: transaction references and payment-account details needed to reconcile payments and payouts. Payment providers may separately collect and process payment credentials under their own terms and privacy notices.',
       'Communications: messages you send to our support team and any feedback you provide.',
     ],
   },
@@ -55,8 +55,8 @@ const POLICY_SECTIONS: PolicySection[] = [
     iconBg: 'bg-green-500/10',
     title: 'Information Sharing',
     points: [
-      'We do NOT sell your personal data to third parties — ever.',
-      'Public profile information (username, bio, posts) is visible to all users and search engines unless your account is set to private.',
+      'We do not sell personal data to third parties for their independent advertising or data-broker use.',
+      'Public profile information and public content may be visible to other users and, where applicable, search engines. Privacy and discovery controls can limit some visibility.',
       'We share data with trusted service providers (cloud infrastructure, payment processors) only as needed to operate the platform.',
       'We may disclose information to comply with legal obligations, court orders, or to protect the safety of our users.',
       'In the event of a business transfer, user data may be transferred as part of that transaction with advance notice to users.',
@@ -68,12 +68,12 @@ const POLICY_SECTIONS: PolicySection[] = [
     iconBg: 'bg-red-500/10',
     title: 'Data Security',
     points: [
-      'All data is encrypted in transit using TLS 1.3 and encrypted at rest using AES-256.',
-      'Access to production databases is restricted to authorised personnel only via multi-factor authentication.',
+      'We use transport encryption and access controls appropriate to the service, including database row-level security and restricted production access. Exact cryptographic implementations may vary by service provider and infrastructure layer.',
+      'Production access is restricted through role-based permissions and administrative security controls.',
       'We use Row-Level Security (RLS) policies in our database so users can only access their own private data.',
       'Payment credentials are handled by PCI-compliant processors — we never store raw card data.',
       'Security incidents are investigated immediately; affected users are notified within 72 hours if required by law.',
-      'We perform regular security audits and penetration testing on our infrastructure.',
+      'We continuously monitor and harden the platform and review security controls as the service evolves.',
     ],
   },
   {
@@ -81,10 +81,10 @@ const POLICY_SECTIONS: PolicySection[] = [
     iconBg: 'bg-amber-500/10',
     title: 'Your Rights & Choices',
     points: [
-      'Access: you can view all data associated with your account at any time from your profile settings.',
-      'Correction: update your profile information, email address, and preferences from Settings.',
-      'Deletion: you may delete your account from Settings → Account. All personal data is removed within 30 days.',
-      'Data portability: request a copy of your data by contacting support@tsocial.com.',
+      'Access: you can request access to personal data we hold about you.',
+      'Correction: update available profile information and request correction of inaccurate personal data.',
+      'Deletion: you may request deletion of personal data, subject to applicable law, legitimate retention requirements, transaction records, backups, and safety/legal needs.',
+      'Data portability and other data-subject requests can be made through support or the privacy contact below.',
       'Opt-out of personalisation: disable "Personalised Feed" in Settings → Feed & Personalisation.',
       'Marketing communications: unsubscribe from any marketing email using the link in the footer.',
     ],
@@ -94,11 +94,11 @@ const POLICY_SECTIONS: PolicySection[] = [
     iconBg: 'bg-indigo-500/10',
     title: 'Cookies & Tracking',
     points: [
-      'We use essential cookies to keep you logged in and remember your preferences.',
-      'Analytics cookies (anonymised) help us understand how people use the platform.',
-      'We do not use third-party advertising cookies or cross-site tracking pixels.',
+      'We use essential browser or device storage needed for authentication, security, session continuity, and preferences.',
+      'Where analytics are enabled, we use aggregated or pseudonymised usage information to understand reliability and product usage.',
+      'We do not intentionally use third-party advertising cookies for cross-site behavioral advertising; individual integrations may have their own policies.',
       'You can clear cookies at any time via your browser settings; this will log you out.',
-      'Our mobile apps use equivalent on-device storage (AsyncStorage) with the same principles.',
+      'Our mobile applications may use local device storage for session state, preferences, and other app functionality.',
     ],
   },
   {
@@ -109,7 +109,7 @@ const POLICY_SECTIONS: PolicySection[] = [
       'Active account data is retained as long as your account exists.',
       'After account deletion, personal data is purged within 30 days from live systems.',
       'Some data may be retained in encrypted backups for up to 90 days for legal compliance.',
-      'Transaction records are retained for 7 years as required by financial regulations in Kenya.',
+      'Transaction records may be retained for as long as required by applicable financial, tax, anti-fraud, or other legal obligations.',
       'Content reported for safety violations may be retained longer for legal proceedings.',
     ],
   },
@@ -121,8 +121,8 @@ const POLICY_SECTIONS: PolicySection[] = [
       'Privacy enquiries: privacy@tsocial.com',
       'Data deletion requests: support@tsocial.com with subject "DATA DELETION REQUEST"',
       'General support: support@tsocial.com',
-      'We aim to respond to all privacy-related requests within 30 days.',
-      'Testagram is operated by T Social Ltd. Our registered address is available upon request.',
+      'We will handle privacy requests within the time required by applicable law and may ask for information needed to verify the request.',
+      'Testagram is operated by the entity identified in the applicable account, commercial, or legal records. Any registered-office or data-protection contact details required by law will be provided through the privacy contact process.',
     ],
   },
 ];
@@ -149,7 +149,7 @@ export default function PrivacyPolicyPage() {
           <p className="text-sm text-muted-foreground leading-relaxed max-w-sm mx-auto">
             We believe privacy is a right, not a feature. Here's exactly what data we collect, why we collect it, and how we protect it.
           </p>
-          <p className="text-[11px] text-muted-foreground mt-3 opacity-70">Last updated: August 2026 · Effective immediately</p>
+          <p className="text-[11px] text-muted-foreground mt-3 opacity-70">Last updated: September 2026 · Effective immediately</p>
         </div>
 
         {/* TL;DR */}
@@ -160,8 +160,8 @@ export default function PrivacyPolicyPage() {
           <div className="space-y-2 text-sm text-muted-foreground leading-relaxed">
             <p>✅ We only collect what we need to run the platform.</p>
             <p>✅ We never sell your data to advertisers or third parties.</p>
-            <p>✅ You can delete your account and all your data at any time.</p>
-            <p>✅ Your messages are private — we can't read them.</p>
+            <p>✅ You can request account deletion and exercise applicable data-subject rights.</p>
+            <p>✅ Private communications are access-controlled. Where end-to-end encryption is enabled for a communication feature, the platform is designed not to have the keys needed to read that encrypted content.</p>
             <p>✅ Payment data is handled by PCI-compliant processors.</p>
           </div>
         </div>
