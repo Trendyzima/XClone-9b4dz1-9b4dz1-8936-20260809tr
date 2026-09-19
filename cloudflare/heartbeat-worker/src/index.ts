@@ -2,7 +2,7 @@ interface Env {
   SUPABASE_HEARTBEAT_URL: string;
 }
 
-const SUPPRESSION_SECONDS = 4 * 60 + 55;
+const SUPPRESSION_SECONDS = 14 * 60 + 55;
 
 const ALLOWED_ORIGINS = new Set([
   "https://testagram.site",
