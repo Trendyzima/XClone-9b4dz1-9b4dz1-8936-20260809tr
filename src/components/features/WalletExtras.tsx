@@ -544,6 +544,110 @@ export function FriendBalanceComparison({ savingsBalance, totalDeposited, curren
   );
 }
 
+// ── Testagram wallet-to-wallet transfer ───────────────────────────────────
+export function PeerWalletTransferPanel({ walletBalance, currency, onComplete }: {
+  walletBalance: number; currency: ExtCur; onComplete: () => void;
+}) {
+  const [username, setUsername] = useState('');
+  const [amount, setAmount] = useState('');
+  const [note, setNote] = useState('');
+  const [sending, setSending] = useState(false);
+  const [done, setDone] = useState<{ username: string; amount: number; transferId: string } | null>(null);
+
+  const amountKes = Number(amount || 0);
+  const walletRate = EXTRAS_USD_TO_KES;
+  const debit = currency === 'KES' ? amountKes : amountKes / walletRate;
+  const canSend = amountKes >= 10 && amountKes <= 10000 && debit <= walletBalance && username.trim().length >= 2 && !sending;
+
+  const send = async () => {
+    if (!canSend) return;
+    setSending(true);
+    try {
+      const key = crypto.randomUUID();
+      const { data, error } = await supabase.rpc('send_wallet_money', {
+        p_recipient_username: username.trim().replace(/^@/, ''),
+        p_amount_kes: Math.floor(amountKes),
+        p_note: note.trim() || null,
+        p_idempotency_key: key,
+      });
+      if (error) throw error;
+      if (!data?.success) throw new Error('Transfer could not be completed');
+      setDone({ username: username.trim().replace(/^@/, ''), amount: Number(data.amount_kes), transferId: data.transfer_id });
+      setUsername('');
+      setAmount('');
+      setNote('');
+      toast.success(`KES ${Number(data.amount_kes).toLocaleString()} sent to @${data.recipient_username}`);
+      onComplete();
+    } catch (err: any) {
+      toast.error(err?.message || 'Unable to send wallet money');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="p-4 rounded-2xl bg-primary/5 border border-primary/20">
+        <p className="text-sm font-bold">💸 Send to another Testagram user</p>
+        <p className="text-xs text-muted-foreground mt-1">Transfer wallet funds instantly using their @username.</p>
+        <p className="text-xs font-semibold mt-2">Limit: KES 10,000 per transfer · Minimum KES 10</p>
+      </div>
+
+      {done ? (
+        <div className="p-5 rounded-2xl border border-green-500/20 bg-green-500/5 text-center space-y-3">
+          <CheckCircle2 className="w-10 h-10 mx-auto text-green-600" />
+          <p className="font-black text-lg">Money sent</p>
+          <p className="text-3xl font-black text-green-600">KES {done.amount.toLocaleString()}</p>
+          <p className="text-sm text-muted-foreground">Sent to <strong>@{done.username}</strong></p>
+          <p className="text-[11px] font-mono text-muted-foreground break-all">Transfer: {done.transferId}</p>
+          <button onClick={() => setDone(null)} className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-bold">Send Another</button>
+        </div>
+      ) : (
+        <>
+          <div>
+            <label className="text-sm font-semibold mb-2 block">Recipient username</label>
+            <input value={username} onChange={e => setUsername(e.target.value)}
+              placeholder="@username" autoComplete="off"
+              className="w-full h-11 px-3 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+          <div>
+            <label className="text-sm font-semibold mb-2 block">Amount (KES)</label>
+            <div className="grid grid-cols-4 gap-2 mb-2">
+              {[100,500,1000,5000].map(v => (
+                <button key={v} type="button" onClick={() => setAmount(String(v))}
+                  className={`py-2 rounded-xl font-bold text-xs border-2 ${amount===String(v) ? 'border-primary bg-primary/10' : 'border-border hover:border-primary/40'}`}>
+                  {v.toLocaleString()}
+                </button>
+              ))}
+            </div>
+            <input type="number" min="10" max="10000" step="1" value={amount}
+              onChange={e => setAmount(e.target.value)}
+              placeholder="Enter up to 10,000"
+              className="w-full h-11 px-3 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            <div className="flex justify-between text-xs mt-1 text-muted-foreground">
+              <span>Min KES 10</span><span>Max KES 10,000</span>
+            </div>
+          </div>
+          <div>
+            <label className="text-sm font-semibold mb-2 block">Note (optional)</label>
+            <input value={note} onChange={e => setNote(e.target.value)} maxLength={80}
+              placeholder="What's this for?"
+              className="w-full h-11 px-3 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/30" />
+          </div>
+          {amountKes > 10000 && <p className="text-xs text-red-500">Maximum transfer is KES 10,000.</p>}
+          {amountKes > 0 && debit > walletBalance && <p className="text-xs text-red-500">Insufficient wallet balance.</p>}
+          <button type="button" onClick={send} disabled={!canSend}
+            className="w-full py-4 rounded-xl bg-primary text-primary-foreground font-bold disabled:opacity-50 flex items-center justify-center gap-2">
+            {sending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+            {sending ? 'Sending…' : amountKes > 0 ? `Send KES ${Math.floor(amountKes).toLocaleString()}` : 'Send Money'}
+          </button>
+          <p className="text-[11px] text-muted-foreground text-center">The transfer is atomic: the sender is debited and the recipient credited together, or neither changes.</p>
+        </>
+      )}
+    </div>
+  );
+}
+
 // ── Direct M-Pesa Send Panel ─────────────────────────────────────────────
 export function DirectMpesaSendPanel({ userId, walletBalance, pinHash, currency, onComplete }: {
   userId: string; walletBalance: number; pinHash: string | null;
@@ -746,6 +850,8 @@ ${done.note ? `<tr><td>Note</td><td>${done.note}</td></tr>` : ''}
 
   return (
     <>
+      <PeerWalletTransferPanel walletBalance={walletBalance} currency={currency} onComplete={onComplete} />
+      <div className="my-6 border-t border-border" />
       {showPin && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm"
           onClick={() => setShowPin(false)}>
