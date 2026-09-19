@@ -6,6 +6,9 @@
   "functions": {
     "api/media.ts": {
       "maxDuration": 10
+    },
+    "api/auth/send-sms.ts": {
+      "maxDuration": 10
     }
   },
   "rewrites": [
