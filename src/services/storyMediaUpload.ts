@@ -31,7 +31,7 @@ interface CompleteResponse {
 }
 
 const MAX_RETRIES = 3;
-const CONCURRENCY = 4;
+const CONCURRENCY = 4; // bounded browser-side fan-out; large bytes never transit Vercel
 
 function mediaApiUrl() {
   return '/api/media';
