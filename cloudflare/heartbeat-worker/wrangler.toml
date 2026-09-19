@@ -5,7 +5,8 @@ compatibility_date = "2026-09-19"
 workers_dev = false
 
 [vars]
-SUPABASE_HEARTBEAT_URL = "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/heartbeat"
+SUPABASE_HEARTBEAT_RPC_URL = "https://ffrhglgkukgsuhxenena.supabase.co/rest/v1/rpc/touch_user_heartbeat"
+SUPABASE_PUBLISHABLE_KEY = "sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya"
 
 [observability]
 enabled = true
