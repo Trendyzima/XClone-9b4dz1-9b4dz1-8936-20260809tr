@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 
 const HEARTBEAT_URL = "https://heartbeat.testagram.site";
-const HEARTBEAT_INTERVAL_MS = 60_000;
+const HEARTBEAT_INTERVAL_MS = 5 * 60_000;
 
 let timer: number | undefined;
 let running = false;
