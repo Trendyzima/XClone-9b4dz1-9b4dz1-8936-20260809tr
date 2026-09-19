@@ -83,6 +83,8 @@ grant execute on function public.get_referral_status() to authenticated;
 grant execute on function public.get_referral_status() to authenticated;
 grant execute on function public.complete_referral() to authenticated;
 
+drop policy if exists referrals_owner on public.referrals;
+create policy referrals_owner on public.referrals for select to authenticated using(referrer_id=(select auth.uid()) or referred_id=(select auth.uid()));
 revoke insert,update,delete on public.referrals from authenticated;
 revoke insert,update,delete on public.reward_events from authenticated;
 
