@@ -5,7 +5,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? "";
-const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SECRET_KEY") ?? "";
+
 const ACCOUNT_ID = Deno.env.get("CLOUDFLARE_ACCOUNT_ID") ?? Deno.env.get("R2_ACCOUNT_ID") ?? "";
 const ACCESS_KEY = Deno.env.get("CLOUDFLARE_R2_ACCESS_KEY_ID") ?? Deno.env.get("R2_ACCESS_KEY_ID") ?? "";
 const SECRET_KEY = Deno.env.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY") ?? Deno.env.get("R2_SECRET_ACCESS_KEY") ?? "";
@@ -19,7 +19,7 @@ const cors = { ...corsHeaders, "Access-Control-Allow-Methods": "POST,OPTIONS" };
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
 
-const configured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY && SERVICE_ROLE && ACCOUNT_ID && ACCESS_KEY && SECRET_KEY && BUCKET && PUBLIC_BASE);
+const configured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY && ACCOUNT_ID && ACCESS_KEY && SECRET_KEY && BUCKET && PUBLIC_BASE);
 const r2 = configured
   ? new S3Client({
       region: "auto",
@@ -63,7 +63,7 @@ async function detectImageMime(file: File): Promise<string | null> {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed", code: "METHOD_NOT_ALLOWED" }, 405);
-  if (!configured || !r2) return json({ error: "Cloudflare R2 media storage is not configured", code: "R2_NOT_CONFIGURED" }, 503);
+  if (!configured || !r2) return json({ error: "Cloudflare R2 media storage is not configured", code: "R2_NOT_CONFIGURED", missing: [!ACCOUNT_ID && "CLOUDFLARE_ACCOUNT_ID", !ACCESS_KEY && "CLOUDFLARE_R2_ACCESS_KEY_ID", !SECRET_KEY && "CLOUDFLARE_R2_SECRET_ACCESS_KEY", !BUCKET && "CLOUDFLARE_R2_BUCKET", !PUBLIC_BASE && "R2_PUBLIC_BASE_URL"].filter(Boolean) }, 503);
 
   try {
     const user = await authenticate(req);
