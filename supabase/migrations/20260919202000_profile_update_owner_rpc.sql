@@ -22,6 +22,15 @@ begin
   if p_input ? 'website_url' and length(coalesce(p_input->>'website_url',''))>500 then raise exception using errcode='22023',message='Website URL is too long'; end if;
   if p_input ? 'location' and length(coalesce(p_input->>'location',''))>120 then raise exception using errcode='22023',message='Location is too long'; end if;
   if p_input ? 'pronouns' and length(coalesce(p_input->>'pronouns',''))>80 then raise exception using errcode='22023',message='Pronouns are too long'; end if;
+  if p_input ? 'birth_date' then
+    if nullif(btrim(p_input->>'birth_date'),'') is not null then
+      begin
+        perform (p_input->>'birth_date')::date;
+      exception when others then
+        raise exception using errcode='22023',message='Invalid birth date';
+      end;
+    end if;
+  end if;
   if p_input ? 'avatar_url' and length(coalesce(p_input->>'avatar_url',''))>2000 then raise exception using errcode='22023',message='Avatar URL is too long'; end if;
   if p_input ? 'cover_url' and length(coalesce(p_input->>'cover_url',''))>2000 then raise exception using errcode='22023',message='Cover URL is too long'; end if;
   if p_input ? 'social_links' and jsonb_typeof(p_input->'social_links')<>'object' then raise exception using errcode='22023',message='social_links must be an object'; end if;
@@ -37,6 +46,7 @@ begin
     location=case when p_input ? 'location' then nullif(btrim(p_input->>'location'),'') else location end,
     social_links=case when p_input ? 'social_links' then p_input->'social_links' else social_links end,
     pronouns=case when p_input ? 'pronouns' then nullif(btrim(p_input->>'pronouns'),'') else pronouns end,
+    birth_date=case when p_input ? 'birth_date' then nullif(btrim(p_input->>'birth_date'),'')::date else birth_date end,
     profile_features=case when p_input ? 'profile_features' then p_input->'profile_features' else profile_features end,
     appearance_settings=case when p_input ? 'appearance_settings' then p_input->'appearance_settings' else appearance_settings end,
     updated_at=now()
