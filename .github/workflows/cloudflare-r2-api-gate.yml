@@ -1,0 +1,59 @@
+name: Cloudflare R2 API Connection Gate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "api/media.ts"
+      - "scripts/verify-r2.mjs"
+      - ".github/workflows/cloudflare-r2-api-gate.yml"
+      - "package.json"
+      - "package-lock.json"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-r2-api-gate
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Verify Cloudflare R2 S3 API
+    environment: production
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+      R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+      R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+      R2_MEDIA_BUCKET: ${{ secrets.R2_MEDIA_BUCKET || vars.R2_MEDIA_BUCKET }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Verify R2 credentials are present without exposing them
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in R2_ACCOUNT_ID R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_MEDIA_BUCKET; do
+            value="${!name:-}"
+            if [[ -z "$value" ]]; then echo "::error::Missing GitHub production configuration: $name"; exit 1; fi
+            printf "::add-mask::%s\n" "$value"
+          done
+      - name: Probe R2 S3 API and target bucket
+        run: node scripts/verify-r2.mjs
+      - name: Emit non-secret connection receipt
+        run: |
+          {
+            echo "CLOUDFLARE_R2_API=CONNECTED"
+            echo "R2_BUCKET=${R2_MEDIA_BUCKET}"
+            echo "SECRETS_EXPOSED=NO"
+          } >> "$GITHUB_STEP_SUMMARY"
