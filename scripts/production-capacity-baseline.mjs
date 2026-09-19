@@ -5,6 +5,8 @@ const expectedCommit = process.env.BASELINE_SHA || process.env.GITHUB_SHA || "";
 const waitSeconds = Number(process.env.DEPLOY_WAIT_SECONDS || 300);
 const target = base + "/api/health";
 const latencies = [];
+const statusCounts = new Map();
+const failureSamples = [];
 let completed = 0;
 let failed = 0;
 let revisionMismatches = 0;
@@ -23,9 +25,18 @@ function assertConfig() {
   if (!Number.isInteger(concurrency) || concurrency < 1) throw new Error("LOAD_CONCURRENCY must be a positive integer.");
 }
 
+function recordStatus(status) {
+  const key = String(status);
+  statusCounts.set(key, (statusCounts.get(key) || 0) + 1);
+}
+
 async function readHealth() {
   const response = await fetch(target, {
-    headers: { Accept: "application/json", "Cache-Control": "no-cache" },
+    headers: {
+      Accept: "application/json",
+      "Cache-Control": "no-cache",
+      "User-Agent": "testagram-production-capacity-baseline/1.0",
+    },
     cache: "no-store",
   });
   let body = null;
@@ -43,6 +54,31 @@ function isExactHealthContract(response, body) {
     body?.service === "testagram" &&
     body?.edge === "reachable" &&
     body?.commit === expectedCommit;
+}
+
+function sampleFailure(response, body, reason) {
+  if (failureSamples.length >= 10) return;
+  const headers = {};
+  for (const name of [
+    "server",
+    "retry-after",
+    "cf-ray",
+    "cf-cache-status",
+    "x-vercel-id",
+    "x-vercel-cache",
+    "x-ratelimit-limit",
+    "x-ratelimit-remaining",
+    "x-ratelimit-reset",
+  ]) {
+    const value = response.headers.get(name);
+    if (value) headers[name] = value;
+  }
+  failureSamples.push({
+    status: response.status,
+    reason,
+    headers,
+    body: typeof body === "string" ? body.slice(0, 300) : body,
+  });
 }
 
 async function waitForExactDeployment() {
@@ -93,24 +129,36 @@ async function worker() {
     try {
       const { response, body } = await readHealth();
       latencies.push(performance.now() - started);
+      recordStatus(response.status);
 
       if (!response.ok) {
         failed++;
+        sampleFailure(response, body, "http_error");
       } else if (!body || typeof body !== "object") {
         failed++;
         invalidContracts++;
+        sampleFailure(response, body, "invalid_json_contract");
       } else if (body.commit !== expectedCommit) {
         failed++;
         revisionMismatches++;
+        sampleFailure(response, body, "revision_mismatch");
       } else if (!isExactHealthContract(response, body)) {
         failed++;
         invalidContracts++;
+        sampleFailure(response, body, "health_contract_mismatch");
       }
 
       await response.body?.cancel();
-    } catch {
+    } catch (error) {
       latencies.push(performance.now() - started);
       failed++;
+      recordStatus("network_error");
+      if (failureSamples.length < 10) {
+        failureSamples.push({
+          status: "network_error",
+          reason: error instanceof Error ? error.message : String(error),
+        });
+      }
     } finally {
       completed++;
     }
@@ -138,6 +186,9 @@ const percentile = p =>
 const errorRate = failed / Math.max(1, completed);
 const p95 = percentile(95);
 const p99 = percentile(99);
+const status_counts = Object.fromEntries(
+  [...statusCounts.entries()].sort(([a], [b]) => a.localeCompare(b)),
+);
 
 console.log(JSON.stringify({
   LOAD_GATE: "COMPLETED",
@@ -148,6 +199,8 @@ console.log(JSON.stringify({
   failures: failed,
   revision_mismatches: revisionMismatches,
   invalid_contracts: invalidContracts,
+  status_counts,
+  failure_samples: failureSamples,
   error_rate: Number(errorRate.toFixed(4)),
   p95_ms: Math.round(p95),
   p99_ms: Math.round(p99),
