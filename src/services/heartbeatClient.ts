@@ -25,6 +25,7 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
   let lastSentAt = 0;
   let activityGateAt = 0;
   let sending = false;
+  let authenticated = false;
 
   const clearTimer = () => {
     if (timer !== undefined) {
@@ -40,7 +41,7 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
 
   const schedule = () => {
     clearTimer();
-    if (stopped || !isVisible() || !hasRecentActivity()) return;
+    if (stopped || !authenticated || !isVisible() || !hasRecentActivity()) return;
 
     const remaining = Math.max(1_000, HEARTBEAT_INTERVAL_MS - (Date.now() - lastSentAt));
     timer = window.setTimeout(() => {
@@ -50,7 +51,7 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
   };
 
   const maybeSend = async () => {
-    if (stopped || sending || !isVisible() || !hasRecentActivity()) return;
+    if (stopped || !authenticated || sending || !isVisible() || !hasRecentActivity()) return;
 
     const now = Date.now();
     if (lastSentAt > 0 && now - lastSentAt < HEARTBEAT_INTERVAL_MS) {
@@ -85,7 +86,7 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
   };
 
   const markActivity = () => {
-    if (stopped) return;
+    if (stopped || !authenticated) return;
     const now = Date.now();
     lastActivityAt = now;
 
@@ -96,7 +97,7 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
   };
 
   const onVisibility = () => {
-    if (isVisible()) {
+    if (isVisible() && authenticated) {
       lastActivityAt = Date.now();
       void maybeSend();
     } else {
@@ -106,10 +107,12 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
 
   const onAuthStateChange = (_event: string, session: { access_token?: string } | null) => {
     if (session?.access_token) {
+      authenticated = true;
       lastActivityAt = Date.now();
       lastSentAt = 0;
       void maybeSend();
     } else {
+      authenticated = false;
       lastActivityAt = 0;
       lastSentAt = 0;
       clearTimer();
@@ -133,12 +136,14 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
 
   void supabase.auth.getSession().then(({ data }) => {
     if (stopped || !data.session) return;
+    authenticated = true;
     lastActivityAt = Date.now();
     void maybeSend();
   });
 
   cleanup = () => {
     stopped = true;
+    authenticated = false;
     clearTimer();
     for (const event of activityEvents) {
       window.removeEventListener(event, markActivity);
