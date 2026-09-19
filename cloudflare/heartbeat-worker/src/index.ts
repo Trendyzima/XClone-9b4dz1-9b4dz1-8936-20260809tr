@@ -17,6 +17,7 @@ function json(body: unknown, status = 200, request?: Request, extra: Record<stri
     "cache-control": "no-store",
     "access-control-allow-headers": "authorization, content-type, x-client-version",
     "access-control-allow-methods": "POST, OPTIONS",
+    "access-control-max-age": "3600",
     "vary": "Origin",
     "x-testagram-heartbeat": "cloudflare-edge",
     ...extra,
