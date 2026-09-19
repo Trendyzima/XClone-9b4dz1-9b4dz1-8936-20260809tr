@@ -27,6 +27,7 @@ concurrency:
 jobs:
   deploy:
     name: Build and deploy exact main revision
+    environment: production
     runs-on: ubuntu-latest
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
