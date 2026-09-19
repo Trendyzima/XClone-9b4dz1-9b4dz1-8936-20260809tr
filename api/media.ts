@@ -81,8 +81,8 @@ export default async function handler(req: any, res: any) {
 
   const cfg = config();
   const r2 = makeR2(cfg);
-  if (!r2 || !cfg.serviceRole || !cfg.supabaseUrl) {
-    return json(res, 503, { error: 'Economical media backend is not configured.' });
+  if (!r2 || !cfg.serviceRole || !cfg.supabaseUrl || !cfg.publicBaseUrl) {
+    return json(res, 503, { error: 'Economical media backend is not fully configured. Set the R2 public base URL.' });
   }
 
   const user = await authenticate(req, cfg);
@@ -198,7 +198,7 @@ export default async function handler(req: any, res: any) {
       }), { expiresIn: 3600 });
       return json(res, 200, {
         ...updated, object_key: updated.storage_key, size_bytes: updated.byte_size,
-        public_url: readUrl, expires_in: 3600,
+        public_url: updated.media_url ?? media.media_url ?? readUrl, expires_in: updated.media_url ? null : 3600,
       });
     }
 
