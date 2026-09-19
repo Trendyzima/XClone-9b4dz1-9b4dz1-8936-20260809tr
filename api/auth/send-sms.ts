@@ -1,6 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 
-export const config = { runtime: 'nodejs' };
+export const config = { runtime: 'nodejs', api: { bodyParser: false } };
 
 const MAX_HOOK_SKEW_SECONDS = 300;
 const SMS_COOLDOWN_SECONDS = 60;
@@ -107,10 +107,17 @@ async function sendToGateway(cfg: ReturnType<typeof configValues>, phone: string
   }
 }
 
+async function rawBody(req: any): Promise<string> {
+  if (typeof req.body === 'string') return req.body;
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  return Buffer.concat(chunks).toString('utf8');
+}
+
 export default async function handler(req: any, res: any) {
   if (req.method !== 'POST') return json(res, 405, { error: 'Method not allowed' });
 
-  const body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body ?? {});
+  const body = await rawBody(req);
   if (!verifyWebhook(body, req)) return json(res, 401, { error: 'Invalid webhook signature' });
 
   let event: any;
