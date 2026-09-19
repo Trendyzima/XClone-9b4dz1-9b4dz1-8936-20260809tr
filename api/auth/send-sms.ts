@@ -21,27 +21,30 @@ function timingSafeHexEqual(a: string, b: string) {
 }
 
 function verifyWebhook(body: string, req: any) {
-  const secret = env('SEND_SMS_HOOK_SECRET');
+  const configuredSecrets = env('SEND_SMS_HOOK_SECRETS') || env('SEND_SMS_HOOK_SECRET');
+  const secrets = configuredSecrets.split('|').map((value) => value.trim()).filter(Boolean);
   const webhookId = String(req.headers['webhook-id'] ?? '');
   const timestamp = String(req.headers['webhook-timestamp'] ?? '');
   const signatures = String(req.headers['webhook-signature'] ?? '')
     .split(/\s+/).filter(Boolean);
 
-  if (!secret || !webhookId || !timestamp || signatures.length === 0) return false;
+  if (secrets.length === 0 || !webhookId || !timestamp || signatures.length === 0) return false;
   const ts = Number(timestamp);
   if (!Number.isInteger(ts) || Math.abs(Math.floor(Date.now() / 1000) - ts) > MAX_HOOK_SKEW_SECONDS) return false;
 
-  const rawSecret = secret.replace(/^v1,whsec_/, '');
-  let key: Buffer;
-  try { key = Buffer.from(rawSecret, 'base64'); } catch { return false; }
   const signed = webhookId + '.' + timestamp + '.' + body;
-  const expected = createHmac('sha256', key).update(signed).digest('base64');
+  return secrets.some((secret) => {
+    const rawSecret = secret.replace(/^v1,whsec_/, '');
+    let key: Buffer;
+    try { key = Buffer.from(rawSecret, 'base64'); } catch { return false; }
+    const expected = createHmac('sha256', key).update(signed).digest('base64');
 
-  return signatures.some((entry) => {
-    const value = entry.replace(/^v1,/, '');
-    const left = Buffer.from(value);
-    const right = Buffer.from(expected);
-    return left.length === right.length && timingSafeEqual(left, right);
+    return signatures.some((entry) => {
+      const value = entry.replace(/^v1,/, '');
+      const left = Buffer.from(value);
+      const right = Buffer.from(expected);
+      return left.length === right.length && timingSafeEqual(left, right);
+    });
   });
 }
 
@@ -51,6 +54,7 @@ function configValues() {
     serviceRole: env('SUPABASE_SERVICE_ROLE_KEY') || env('SUPABASE_SECRET_KEY'),
     gatewayUrl: env('SMS_GATEWAY_URL'),
     gatewayKey: env('SMS_GATEWAY_API_KEY'),
+    gatewayUsername: env('SMS_GATEWAY_USERNAME'),
     sender: env('SMS_SENDER_NAME') || 'Testagram',
     rateSecret: env('SMS_RATE_LIMIT_SECRET'),
   };
@@ -85,25 +89,38 @@ async function consumeRateLimit(cfg: ReturnType<typeof configValues>, phoneHash:
 }
 
 async function sendToGateway(cfg: ReturnType<typeof configValues>, phone: string, otp: string) {
-  if (!cfg.gatewayUrl || !cfg.gatewayKey) throw new Error('SMS gateway is not configured');
+  if (!cfg.gatewayUrl || !cfg.gatewayKey || !cfg.gatewayUsername) {
+    throw new Error('SMS gateway is not configured');
+  }
+
+  const form = new URLSearchParams({
+    username: cfg.gatewayUsername,
+    to: normalizePhone(phone),
+    message: 'Your Testagram verification code is ' + otp + '. It expires soon. Do not share this code.',
+  });
+  if (cfg.sender) form.set('from', cfg.sender);
 
   const response = await fetch(cfg.gatewayUrl, {
     method: 'POST',
     headers: {
-      Authorization: 'Bearer ' + cfg.gatewayKey,
-      'Content-Type': 'application/json',
+      Accept: 'application/json',
+      'Content-Type': 'application/x-www-form-urlencoded',
+      apiKey: cfg.gatewayKey,
     },
-    body: JSON.stringify({
-      to: normalizePhone(phone),
-      message: 'Your Testagram verification code is ' + otp + '. It expires soon. Do not share this code.',
-      sender: cfg.sender,
-      channel: 'sms',
-    }),
+    body: form.toString(),
   });
 
+  const responseText = await response.text().catch(() => '');
+  let payload: any = null;
+  try { payload = responseText ? JSON.parse(responseText) : null; } catch { /* provider may return non-JSON */ }
+
   if (!response.ok) {
-    const detail = await response.text().catch(() => '');
-    throw new Error('SMS gateway rejected message (' + response.status + ')' + (detail ? ': ' + detail.slice(0, 200) : ''));
+    throw new Error('SMS gateway rejected message (' + response.status + ')');
+  }
+
+  const recipient = payload?.SMSMessageData?.Recipients?.[0];
+  if (recipient && recipient.status !== 'Success') {
+    throw new Error('SMS gateway reported delivery failure');
   }
 }
 
