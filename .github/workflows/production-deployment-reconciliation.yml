@@ -97,29 +97,29 @@ jobs:
           [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required for M-Pesa secret synchronization."; exit 1; }
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref for M-Pesa secret synchronization."; exit 1; }
 
-          require_secret() {
-            local name="$1"
-            local value="$2"
-            if [[ -z "$value" ]]; then
-              echo "::error::Required M-Pesa sandbox configuration is missing: $name"
-              exit 1
-            fi
-          }
+          # M-Pesa is optional during the sandbox phase. Never substitute
+          # fake/default credentials: if the real sandbox configuration is not
+          # provisioned yet, keep reconciliation green and deploy the functions.
+          # The runtime config-status endpoint will report STK as not ready.
+          missing=()
+          [[ -n "$MPESA_ENV" ]] || missing+=(MPESA_ENV)
+          [[ -n "$MPESA_CONSUMER_KEY" ]] || missing+=(MPESA_CONSUMER_KEY)
+          [[ -n "$MPESA_CONSUMER_SECRET" ]] || missing+=(MPESA_CONSUMER_SECRET)
+          [[ -n "$MPESA_SHORTCODE" ]] || missing+=(MPESA_SHORTCODE)
+          [[ -n "$MPESA_PASSKEY" ]] || missing+=(MPESA_PASSKEY)
+          [[ -n "$MPESA_USD_KES_RATE" ]] || missing+=(MPESA_USD_KES_RATE)
 
-          require_secret "MPESA_ENV" "$MPESA_ENV"
-          require_secret "MPESA_CONSUMER_KEY" "$MPESA_CONSUMER_KEY"
-          require_secret "MPESA_CONSUMER_SECRET" "$MPESA_CONSUMER_SECRET"
-          require_secret "MPESA_SHORTCODE" "$MPESA_SHORTCODE"
-          require_secret "MPESA_PASSKEY" "$MPESA_PASSKEY"
-          require_secret "MPESA_USD_KES_RATE" "$MPESA_USD_KES_RATE"
+          if (( ${#missing[@]} > 0 )); then
+            echo "::warning::M-Pesa sandbox secrets are not fully provisioned; skipping secret synchronization."
+            echo "::warning::Missing sandbox configuration names: ${missing[*]}"
+            echo "M-Pesa functions will still be deployed; STK readiness remains false until real sandbox credentials are added."
+            exit 0
+          fi
 
           case "$MPESA_ENV" in
             sandbox) ;;
             live)
-              require_secret "MPESA_B2C_SHORTCODE" "$MPESA_B2C_SHORTCODE"
-              require_secret "MPESA_INITIATOR_NAME" "$MPESA_INITIATOR_NAME"
-              require_secret "MPESA_SECURITY_CRED" "$MPESA_SECURITY_CRED"
-              echo "::error::Live M-Pesa configuration is intentionally blocked by this sandbox-only deployment gate. Set MPESA_ENV=sandbox until live credentials are provisioned."
+              echo "::error::Live M-Pesa configuration is intentionally blocked by this sandbox-only deployment gate. Set MPESA_ENV=sandbox."
               exit 1
               ;;
             *) echo "::error::MPESA_ENV must be exactly 'sandbox' for the current deployment."; exit 1 ;;
