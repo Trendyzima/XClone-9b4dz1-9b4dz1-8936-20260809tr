@@ -167,9 +167,9 @@ const AD_RULES: AdRule[] = [
 interface StepDef { step: string; color: string; bg: string; title: string; desc: string }
 
 const ENFORCEMENT_STEPS: StepDef[] = [
-  { step: '1', color: 'text-orange-500', bg: 'bg-orange-500/10', title: 'First Strike',  desc: '24-hour posting restriction + warning notification sent to your inbox.' },
-  { step: '2', color: 'text-red-500',    bg: 'bg-red-500/10',    title: 'Second Strike', desc: '72-hour full account restriction. Appeal available via /appeals.' },
-  { step: '3', color: 'text-red-700',    bg: 'bg-red-700/10',    title: 'Third Strike',  desc: 'Permanent account suspension. Final appeal may be submitted once.' },
+  { step: '1', color: 'text-orange-500', bg: 'bg-orange-500/10', title: 'First Enforcement Action',  desc: 'Possible warning, content removal, or temporary feature restriction, depending on severity.' },
+  { step: '2', color: 'text-red-500',    bg: 'bg-red-500/10',    title: 'Further Enforcement', desc: 'Additional or longer restriction may apply. Appeal or review may be available via /appeals.' },
+  { step: '3', color: 'text-red-700',    bg: 'bg-red-700/10',    title: 'Severe or Repeated Violations',  desc: 'Severe or repeated violations may result in permanent suspension, subject to applicable review or appeal procedures.' },
 ];
 
 // Pure helper — returns icon JSX for enforcement step (esbuild guard)
@@ -200,7 +200,7 @@ export default function ContentPolicyPage() {
           </div>
           <h1 className="text-2xl font-black mb-2">Community Content Policy</h1>
           <p className="text-sm text-muted-foreground leading-relaxed max-w-sm mx-auto">
-            Testagram is built for authentic human connection. Our policies protect that space — ensuring everyone can participate safely and freely.
+            Testagram is built for authentic human connection. These guidelines explain the standards we apply to protect safety, privacy, lawful participation, and meaningful expression.
           </p>
           <div className="flex justify-center gap-2 mt-4 flex-wrap">
             <span className="text-[10px] bg-green-500/10 text-green-600 font-bold px-2.5 py-1 rounded-full border border-green-500/20">AI-Powered Enforcement</span>
@@ -237,15 +237,15 @@ export default function ContentPolicyPage() {
         <div className="space-y-4">
           <h2 className="font-black text-lg">Moderation Categories</h2>
           <p className="text-sm text-muted-foreground -mt-2">
-            Our AI system scores every post across 6 harm categories (0–100). Scores ≥80 trigger immediate action; 50–79 are flagged for human review.
+            Automated safety systems may assist with screening and prioritisation across multiple harm categories. Automated signals are not the sole basis for every enforcement decision; human review, appeals, context, severity, and applicable law may be considered.
           </p>
 
           {/* Score bands */}
           <div className="grid grid-cols-3 gap-2">
             {[
-              { range: '0 – 49',   label: 'Pass ✅',      bg: 'bg-green-500/8 border-green-500/20',   text: 'text-green-600' },
-              { range: '50 – 79',  label: 'Flag 🚩',      bg: 'bg-orange-500/8 border-orange-500/20', text: 'text-orange-600' },
-              { range: '80 – 100', label: 'Auto-Ban 🚫',  bg: 'bg-red-500/8 border-red-500/20',       text: 'text-red-600' },
+              { range: 'Review', label: 'Automated signal', bg: 'bg-green-500/8 border-green-500/20', text: 'text-green-600' },
+              { range: 'Context', label: 'Human review', bg: 'bg-orange-500/8 border-orange-500/20', text: 'text-orange-600' },
+              { range: 'Action', label: 'Enforcement', bg: 'bg-red-500/8 border-red-500/20', text: 'text-red-600' },
             ].map(b => (
               <div key={b.range} className={`p-3 rounded-xl border text-center ${b.bg}`}>
                 <p className={`font-black text-sm ${b.text}`}>{b.range}</p>
@@ -301,7 +301,7 @@ export default function ContentPolicyPage() {
             <Megaphone className="w-5 h-5 text-primary" />Advertisement Policy
           </h2>
           <p className="text-sm text-muted-foreground">
-            All advertisements are AI-screened using a strict zero-tolerance model, then reviewed by the platform regulator. Ads scoring ≥60/100 are auto-rejected; 30–59 are flagged for human review.
+            Advertisements may be automatically screened for prohibited or deceptive content and may receive additional review. Enforcement can include rejection, removal, account restrictions, or advertising restrictions depending on the issue.
           </p>
           <div className="bg-red-500/5 border border-red-500/20 rounded-2xl p-4">
             <p className="text-xs font-black text-red-600 uppercase tracking-wide mb-2">🚫 ZERO TOLERANCE</p>
@@ -353,7 +353,7 @@ export default function ContentPolicyPage() {
               <button onClick={() => navigate('/appeals')} className="text-primary font-semibold hover:underline">
                 testagram.site/appeals
               </button>.
-              Include a clear explanation of why you believe the restriction was applied in error. The platform regulator reviews all appeals within 48 hours.
+              Include a clear explanation of why you believe the restriction was applied in error. Appeals are reviewed using the applicable moderation process; timing can vary with case complexity and volume.
             </p>
           </div>
         </div>
@@ -364,14 +364,14 @@ export default function ContentPolicyPage() {
             <Shield className="w-5 h-5 text-violet-600" />AI + Human Moderation
           </h2>
           <p className="text-sm text-muted-foreground leading-relaxed">
-            Testagram uses a multi-layer moderation system. Our OnSpace AI model analyzes posts in real-time, providing scores across all 6 harm categories. High-confidence violations (≥80/100) are acted on automatically to protect users. All auto-moderation decisions are logged and available for human review by the platform regulator — nothing happens in a black box.
+            Testagram uses a multi-layer moderation system that may combine automated detection, user reports, safety signals, and human review. Automated systems help identify and prioritise potentially harmful content, while enforcement can take account of context, severity, repetition, appeals, and applicable law. Moderation records may be retained for safety, security, dispute resolution, and legal purposes.
           </p>
           <div className="grid grid-cols-2 gap-2 mt-4 text-xs">
             {[
-              { label: 'Posts Analyzed', val: 'Every post' },
-              { label: 'Review Time',    val: '< 2 seconds' },
-              { label: 'Appeal Window',  val: 'Always open' },
-              { label: 'Human Review',   val: 'Within 48h' },
+              { label: 'Screening', val: 'Automated + human' },
+              { label: 'Context', val: 'Considered' },
+              { label: 'Appeals', val: 'Available where provided' },
+              { label: 'Review Time', val: 'Varies by case' },
             ].map(s => (
               <div key={s.label} className="bg-background/60 rounded-xl p-2.5 text-center">
                 <p className="font-black text-sm">{s.val}</p>
@@ -385,9 +385,9 @@ export default function ContentPolicyPage() {
         <div className="text-center pb-4">
           <p className="text-xs text-muted-foreground">
             Questions about this policy? Contact the platform at{' '}
-            <a href="mailto:contact@onspace.ai" className="text-primary hover:underline font-semibold">contact@onspace.ai</a>
+            <a href="mailto:support@tsocial.com" className="text-primary hover:underline font-semibold">contact@onspace.ai</a>
           </p>
-          <p className="text-[10px] text-muted-foreground mt-2 opacity-60">Last updated: August 2026 · Testagram Content Team</p>
+          <p className="text-[10px] text-muted-foreground mt-2 opacity-60">Last updated: September 2026 · Testagram Safety & Policy Team</p>
         </div>
       </div>
     </div>
