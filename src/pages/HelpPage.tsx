@@ -76,9 +76,9 @@ const POSTS_TOPICS = [
     a: [
       'Tap the green + FAB button on the Home screen to open the Compose sheet.',
       'Tap the video camera icon or "Attach Video" to select a video from your gallery.',
-      'Videos up to 10 MB are supported. For longer videos use the upload-to-storage flow.',
+      'Images and videos are limited to 20 MiB per file. Posts can include up to 4 images; threads can include up to 6 inline images plus one cover image or video.',
       'Add a caption, hashtags (#), and mentions (@) before posting.',
-      'Toggle "Monetize" on the post card to earn CPM revenue from video views.',
+      'If monetization is available to your account, use the Monetize controls shown in the creator tools. Earnings and eligibility are governed by the current monetization terms.',
     ],
   },
   {
@@ -140,14 +140,14 @@ const PAYMENTS_TOPICS = [
       'Go to Wallet → M-Pesa tab to deposit via STK push (Kenya only).',
       'Enter your Safaricom number, amount, and tap "Pay" — a PIN prompt appears on your phone.',
       'For PayPal: go to Wallet → Withdraw and enter your PayPal email for payouts.',
-      'Minimum deposit via M-Pesa: KES 10. Minimum payout: $5 USD.',
+      'Applicable deposit, transfer, conversion, and payout limits are shown in the Wallet and checkout flows and may change.',
       'All transactions are recorded in Wallet → History.',
     ],
   },
   {
     q: 'Creator earnings',
     a: [
-      'Earnings come from: video CPM ($1.50–$3.50 per 1k views), tips (85% to you), ad revenue share, and subscriptions.',
+      'Creator earnings can come from eligible advertising, tips, subscriptions, and other monetization features. Rates, eligibility, revenue shares, and payout thresholds can change and are shown in the applicable creator terms and wallet screens.',
       'Your CPM tier upgrades automatically as your video views grow.',
       'View your full earnings breakdown in Creator Studio → Earnings tab.',
       'Earnings are distributed daily by our automated system.',
@@ -158,7 +158,7 @@ const PAYMENTS_TOPICS = [
     q: 'Premium subscriptions',
     a: [
       'Go to /premium to view available plans (Monthly or Annual).',
-      'Premium removes all ads, gives you a Premium badge, and unlocks advanced creator tools.',
+      'Premium features, pricing, billing frequency, and benefits are shown on the Premium purchase screen before checkout.',
       'Pay with your wallet balance, M-Pesa, or PayPal.',
       'Your subscription auto-renews unless cancelled 24 hours before renewal.',
       'Cancel anytime from Settings → Premium → Cancel Subscription.',
@@ -191,16 +191,16 @@ const SAFETY_TOPICS = [
     a: [
       'Tap the ··· menu on a post or user profile and select Report.',
       'For urgent safety concerns (threats, CSAM) use the Priority Report option.',
-      'All abuse reports go to our Safety team and are reviewed within 24 hours.',
+      'Reports are routed for moderation review. Review time can vary with severity, volume, and whether additional investigation is required.',
       'You can also email abuse@tsocial.com for sensitive or urgent matters.',
-      'Our platform regulators can issue temporary bans, strikes, or permanent bans.',
+      'Moderation may result in warnings, content removal, temporary restrictions, or account suspension under the Community Guidelines and applicable enforcement procedures.',
     ],
   },
   {
     q: 'Two-factor authentication',
     a: [
       'Go to Settings → Security → Two-Factor Authentication.',
-      'Currently 2FA is implemented via OTP code sent to your registered email.',
+      'Use the authentication and OTP options currently offered in Settings. Never share a verification code with anyone.',
       'Every new login from an unrecognised device triggers an OTP verification step.',
       'Do not share your OTP codes with anyone — Testagram staff will never ask for them.',
       'If you lose access to your email, contact support immediately to recover your account.',
@@ -221,7 +221,7 @@ const SAFETY_TOPICS = [
     a: [
       'Testagram prohibits: hate speech, harassment, graphic violence, NSFW content, and spam.',
       'Posts are reviewed by our AI moderation system and human regulators.',
-      'First violation: warning + content removal. Second: temporary ban. Third: permanent ban.',
+      'Enforcement depends on the severity and context of the violation and may include content removal, warnings, temporary restrictions, or account suspension. Appeals are available where provided.',
       'You can appeal a ban via the Appeals page (/appeals).',
       'Read the full Content Policy at /content-policy.',
     ],
@@ -362,21 +362,21 @@ const ARTICLE_LAST_UPDATED = {
   'verify-your-account': 'Aug 2026',
   'delete-your-account': 'Jul 2026',
   'privacy-settings': 'Aug 2026',
-  'how-to-post-videos': 'Aug 2026',
-  'create-polls': 'Jul 2026',
-  'schedule-posts': 'Aug 2026',
-  'use-hashtags-effectively': 'Jul 2026',
-  'report-inappropriate-content': 'Jun 2026',
+  'how-to-post-videos': 'Sep 2026',
+  'create-polls': 'Sep 2026',
+  'schedule-posts': 'Sep 2026',
+  'use-hashtags-effectively': 'Sep 2026',
+  'report-inappropriate-content': 'Sep 2026',
   'boost-your-posts': 'Aug 2026',
-  'payment-methods-paypal-m-pesa': 'Aug 2026',
-  'creator-earnings': 'Aug 2026',
-  'premium-subscriptions': 'Jul 2026',
-  'refund-policy': 'Jun 2026',
+  'payment-methods-paypal-m-pesa': 'Sep 2026',
+  'creator-earnings': 'Sep 2026',
+  'premium-subscriptions': 'Sep 2026',
+  'refund-policy': 'Sep 2026',
   'block-or-mute-users': 'Jul 2026',
-  'report-abuse': 'Aug 2026',
-  'two-factor-authentication': 'Jun 2026',
-  'suspicious-activity': 'Jul 2026',
-  'content-guidelines': 'Aug 2026',
+  'report-abuse': 'Sep 2026',
+  'two-factor-authentication': 'Sep 2026',
+  'suspicious-activity': 'Sep 2026',
+  'content-guidelines': 'Sep 2026',
 };
 
 // ── Article date lookup (esbuild guard: module-level — no inline lookup in JSX) ──
@@ -1414,7 +1414,7 @@ export default function HelpPage() {
               Community Guidelines
             </button>
           </div>
-          <p className="text-center text-[10px] text-muted-foreground/50 mt-2">© 2026 Testagram · Help Center</p>
+          <p className="text-center text-[10px] text-muted-foreground/50 mt-2">© 2026 Testagram · Help Center · Policies updated September 2026</p>
         </div>
 
         {/* Quick Links */}
