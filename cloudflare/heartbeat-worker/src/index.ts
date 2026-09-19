@@ -4,15 +4,23 @@ interface Env {
 
 const SUPPRESSION_SECONDS = 4 * 60 + 55;
 
-function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
+const ALLOWED_ORIGINS = new Set([
+  "https://testagram.site",
+  "https://www.testagram.site",
+]);
+
+function json(body: unknown, status = 200, request?: Request, extra: Record<string, string> = {}) {
+  const origin = request?.headers.get("origin") ?? "";
+  const allowOrigin = ALLOWED_ORIGINS.has(origin) ? origin : "https://testagram.site";
   return new Response(JSON.stringify(body), {
     status,
     headers: {
       "content-type": "application/json; charset=utf-8",
       "cache-control": "no-store",
-      "access-control-allow-origin": "https://testagram.site",
+      "access-control-allow-origin": allowOrigin,
       "access-control-allow-headers": "authorization, content-type, x-client-version",
       "access-control-allow-methods": "POST, OPTIONS",
+      "vary": "Origin",
       "x-testagram-heartbeat": "cloudflare-edge",
       ...extra,
     },
@@ -27,12 +35,12 @@ async function sha256Hex(value: string): Promise<string> {
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    if (request.method === "OPTIONS") return json({ ok: true });
-    if (request.method !== "POST") return json({ ok: false, error: "POST required" }, 405);
+    if (request.method === "OPTIONS") return json({ ok: true }, 200, request);
+    if (request.method !== "POST") return json({ ok: false, error: "POST required" }, 405, request);
 
     const authorization = request.headers.get("authorization");
     if (!authorization?.startsWith("Bearer ")) {
-      return json({ ok: false, error: "Authentication required" }, 401);
+      return json({ ok: false, error: "Authentication required" }, 401, request);
     }
 
     const tokenHash = await sha256Hex(authorization.slice(7));
@@ -44,7 +52,7 @@ export default {
     const cache = caches.default;
     const cached = await cache.match(cacheKey);
     if (cached) {
-      return json({ ok: true, suppressed: true }, 200, { "x-testagram-heartbeat-cache": "HIT" });
+      return json({ ok: true, suppressed: true }, 200, request, { "x-testagram-heartbeat-cache": "HIT" });
     }
 
     const upstream = await fetch(env.SUPABASE_HEARTBEAT_URL, {
@@ -60,11 +68,11 @@ export default {
     });
 
     if (upstream.status === 401) {
-      return json({ ok: false, error: "Authentication required" }, 401, { "x-testagram-heartbeat-cache": "MISS" });
+      return json({ ok: false, error: "Authentication required" }, 401, request, { "x-testagram-heartbeat-cache": "MISS" });
     }
 
     if (!upstream.ok) {
-      return json({ ok: false, error: "Heartbeat unavailable" }, 503, { "x-testagram-heartbeat-cache": "MISS" });
+      return json({ ok: false, error: "Heartbeat unavailable" }, 503, request, { "x-testagram-heartbeat-cache": "MISS" });
     }
 
     const suppression = new Response(
