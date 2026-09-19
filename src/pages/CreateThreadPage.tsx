@@ -43,6 +43,27 @@ export default function CreateThreadPage() {
   const [extraPreviews, setExtraPreviews] = useState([] as string[]);
   const [loading, setLoading] = useState(false);
 
+  // Daily content allowance: posts + threads share one 10/day quota.
+  const [creationQuota, setCreationQuota] = useState({ used: 0, remaining: 10, limit: 10 });
+  const loadCreationQuota = useCallback(async () => {
+    if (!user) return;
+    const { data, error } = await supabase.rpc('get_daily_content_creation_status');
+    if (!error && data) {
+      const row = Array.isArray(data) ? data[0] : data;
+      if (row) {
+        setCreationQuota({
+          used: Number(row.used ?? 0),
+          remaining: Number(row.remaining ?? 10),
+          limit: Number(row.daily_limit ?? 10),
+        });
+      }
+    }
+  }, [user]);
+
+  useEffect(() => {
+    void loadCreationQuota();
+  }, [loadCreationQuota]);
+
   // ── Rich Editor ──────────────────────────────────────────────────────────
   const contentRef = useRef<HTMLTextAreaElement>(null);
   const DRAFT_KEY = user ? `ts-thread-draft-${user.id}` : 'thread_draft_v2';
@@ -383,6 +404,7 @@ Requirements:
       // Clear draft on success
       localStorage.removeItem(DRAFT_KEY);
 
+      void loadCreationQuota();
       toast({ title: 'Success', description: 'Thread published successfully' });
       pingGoogleSitemap();
       navigate('/threads');
@@ -445,6 +467,20 @@ Requirements:
       )}
 
       <div className="max-w-2xl mx-auto p-4 space-y-6">
+        <div className="flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-2xl border border-border bg-muted/40">
+          <div>
+            <p className="text-sm font-semibold">Daily posts & threads</p>
+            <p className="text-[11px] text-muted-foreground">Posts and threads share a 10-per-day allowance.</p>
+          </div>
+          <div className="text-right shrink-0">
+            <p className={creationQuota.remaining === 0 ? 'text-sm font-bold text-destructive' : 'text-sm font-bold text-foreground'}>
+              {creationQuota.used}/{creationQuota.limit}
+            </p>
+            <p className={creationQuota.remaining === 0 ? 'text-[11px] font-semibold text-destructive' : 'text-[11px] font-semibold text-primary'}>
+              {creationQuota.remaining} remaining
+            </p>
+          </div>
+        </div>
         {/* Cover media */}
         <div>
           <label className="block text-sm font-semibold mb-2">Cover Media (Optional)</label>
@@ -835,7 +871,7 @@ Requirements:
           <Button
             onClick={handlePublish}
             className="flex-1 bg-gradient-to-r from-primary to-purple-600 hover:opacity-90"
-            disabled={loading || !title.trim() || !content.trim()}
+            disabled={loading || creationQuota.remaining <= 0 || !title.trim() || !content.trim()}
           >
             {loading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
             Publish Thread
