@@ -30,8 +30,21 @@ img, video, iframe, svg { max-width: 100%; height: auto; }
 pre, code { white-space: pre-wrap; word-break: break-all; }
 .video-feed-container { height: 100svh; overflow-y: scroll; scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch; }
 .video-feed-item { height: 100svh; scroll-snap-align: start; scroll-snap-stop: always; position: relative; }
-.glass-light { background: rgba(255,255,255,0.85); backdrop-filter: blur(12px); }
-.dark .glass-light { background: rgba(0,0,0,0.75); backdrop-filter: blur(12px); }
+.glass-light { background: hsl(var(--background) / 0.85); color: hsl(var(--foreground)); border-color: hsl(var(--border) / 0.8); backdrop-filter: blur(12px); }
+.dark .glass-light { background: hsl(var(--background) / 0.75); color: hsl(var(--foreground)); border-color: hsl(var(--border) / 0.8); }
+
+/* Theme contract: every semantic surface follows the active user appearance. */
+html { background: hsl(var(--background)); color-scheme: light; }
+html.dark { color-scheme: dark; }
+body { background-color: hsl(var(--background)); color: hsl(var(--foreground)); }
+.bg-background { background-color: hsl(var(--background)); }
+.bg-card { background-color: hsl(var(--card)); }
+.bg-popover { background-color: hsl(var(--popover)); }
+.text-foreground { color: hsl(var(--foreground)); }
+.text-muted-foreground { color: hsl(var(--muted-foreground)); }
+.border-border { border-color: hsl(var(--border)); }
+.divide-border > :not([hidden]) ~ :not([hidden]) { border-color: hsl(var(--border)); }
+
 @keyframes livePulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 .animate-live-pulse { animation: livePulse 1.4s ease-in-out infinite; }
 @keyframes floatUp { 0% { opacity: 1; transform: translateY(0) scale(1); } 80% { opacity: 0.7; transform: translateY(-120px) scale(1.2); } 100% { opacity: 0; transform: translateY(-160px) scale(0.8); } }
