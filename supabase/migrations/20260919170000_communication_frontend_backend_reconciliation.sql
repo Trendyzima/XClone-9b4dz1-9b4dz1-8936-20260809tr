@@ -40,6 +40,16 @@ create policy communication_keys_member_write on public.communication_key_envelo
 grant select,insert,update,delete on public.communication_devices to authenticated;
 create index if not exists communication_key_envelopes_lookup_idx on public.communication_key_envelopes(conversation_id,epoch,recipient_device_id);
 
+-- Enable the Realtime publication for the canonical communication tables used by the browser.
+do $ begin
+  if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='messages') then
+    execute 'alter publication supabase_realtime add table public.messages';
+  end if;
+  if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='calls') then
+    execute 'alter publication supabase_realtime add table public.calls';
+  end if;
+end $;
+
 insert into public.capability_registry(name,version,access,readonly,enabled,description) values
 ('testagram.conversations.list',1,'authenticated',true,true,'List conversations for current user'),
 ('testagram.conversations.create',1,'authenticated',false,true,'Create a conversation and memberships'),
