@@ -125,6 +125,14 @@ function setVariables(palette: ThemePalette, settings: AppearanceSettings) {
       root.style.setProperty('--ring', accent);
     }
   }
+  if (settings.background) {
+    const background = hexToHsl(settings.background);
+    if (background) {
+      root.style.setProperty('--background', background);
+      root.style.setProperty('--card', background);
+      root.style.setProperty('--popover', background);
+    }
+  }
   const radius = settings.radius === 'compact' ? '0.45rem' : settings.radius === 'pill' ? '1rem' : '0.75rem';
   root.style.setProperty('--radius', radius);
 }
