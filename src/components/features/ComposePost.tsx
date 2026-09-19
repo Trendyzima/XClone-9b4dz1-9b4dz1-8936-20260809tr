@@ -76,6 +76,27 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
   const [embedPlatform, setEmbedPlatform] = useState(null as string | null);
   const { toast } = useToast();
 
+  // Daily content allowance: posts + threads share one 10/day quota.
+  const [creationQuota, setCreationQuota] = useState({ used: 0, remaining: 10, limit: 10 });
+  const loadCreationQuota = useCallback(async () => {
+    if (!user) return;
+    const { data, error } = await supabase.rpc('get_daily_content_creation_status');
+    if (!error && data) {
+      const row = Array.isArray(data) ? data[0] : data;
+      if (row) {
+        setCreationQuota({
+          used: Number(row.used ?? 0),
+          remaining: Number(row.remaining ?? 10),
+          limit: Number(row.daily_limit ?? 10),
+        });
+      }
+    }
+  }, [user]);
+
+  useEffect(() => {
+    void loadCreationQuota();
+  }, [loadCreationQuota]);
+
   // ── @Mentions Autocomplete ─────────────────────────────────────────────────
   const textareaRef = useRef(null as HTMLTextAreaElement | null);
   const [mentionQuery, setMentionQuery] = useState(null as string | null);
@@ -365,7 +386,8 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
           throw new Error('Scheduled posts currently support text only. Remove media, poll, GIF, or product tags before scheduling.');
         }
         await backendCapabilities.schedulePost(content.trim(), scheduledDate.toISOString());
-        setContent(''); setScheduledDate(null);
+        setContent('');
+      void loadCreationQuota(); setScheduledDate(null);
         toast({ title: 'Success', description: 'Post scheduled successfully' });
         onSuccess?.();
         setLoading(false);
@@ -757,11 +779,19 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
                 <Link2 className="w-5 h-5" />
               </button>
             </div>
+            <div className="flex items-center gap-2 mr-1 px-2.5 py-1.5 rounded-full bg-muted/60 border border-border text-xs whitespace-nowrap" title="Posts and threads share this daily limit">
+              <span className={creationQuota.remaining === 0 ? 'text-destructive font-bold' : 'text-muted-foreground'}>
+                {creationQuota.used}/{creationQuota.limit} today
+              </span>
+              <span className={creationQuota.remaining === 0 ? 'text-destructive font-semibold' : 'text-primary font-semibold'}>
+                {creationQuota.remaining} remaining
+              </span>
+            </div>
             <div className="flex items-center space-x-3 flex-shrink-0">
               {images.length > 0 && <span className="text-sm text-muted-foreground">{images.length}/4 images</span>}
               {content.length > 0 && <span className={`text-sm ${content.length > 680 ? 'text-destructive' : 'text-muted-foreground'}`}>{content.length}/700</span>}
               {postToFediverse && <span className="flex items-center gap-1 text-xs text-purple-500 font-medium"><Globe className="w-3 h-3" />+Fediverse</span>}
-              <Button onClick={handlePost} disabled={loading || (!content.trim() && images.length === 0 && !video && !gifUrl && !pollData) || content.length > 700} className="rounded-full px-6 font-semibold">
+              <Button onClick={handlePost} disabled={loading || creationQuota.remaining <= 0 || (!content.trim() && images.length === 0 && !video && !gifUrl && !pollData) || content.length > 700} className="rounded-full px-6 font-semibold">
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Post'}
               </Button>
             </div>
