@@ -7,6 +7,7 @@ on:
     paths:
       - "cloudflare/heartbeat-worker/**"
       - "supabase/functions/heartbeat/**"
+      - "supabase/migrations/20260919082909_heartbeat_function_execute_hardening.sql"
       - "supabase/migrations/20260919093000_user_heartbeat_lease.sql"
       - "supabase/migrations/20260919093500_user_heartbeat_lease_window.sql"
       - "src/services/heartbeatClient.ts"
@@ -51,8 +52,48 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           workingDirectory: cloudflare/heartbeat-worker
+          wranglerVersion: "4.135.0"
           command: deploy
+
+      - name: Validate live Worker authentication boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          headers="$(mktemp)"
+          body="$(mktemp)"
+          status="$(curl -sS --retry 6 --retry-delay 5 --retry-all-errors \
+            -D "$headers" -o "$body" -w "%{http_code}" \
+            -X POST "https://heartbeat.testagram.site" \
+            -H "Content-Type: application/json" \
+            --data '{}')"
+          if [[ "$status" != "401" ]]; then
+            echo "::error::Heartbeat Worker live endpoint returned HTTP $status; expected 401 for an unauthenticated POST."
+            cat "$body"
+            exit 1
+          fi
+          if ! grep -qi '^x-testagram-heartbeat: cloudflare-edge' "$headers"; then
+            echo "::error::Live heartbeat endpoint did not identify the Cloudflare Worker response."
+            cat "$headers"
+            exit 1
+          fi
+          echo "Live heartbeat Worker is reachable and rejects unauthenticated heartbeats as expected."
+
+      - name: Validate live Supabase heartbeat authentication boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          status="$(curl -sS --retry 6 --retry-delay 5 --retry-all-errors \
+            -o /tmp/supabase-heartbeat-body -w "%{http_code}" \
+            -X POST "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/heartbeat" \
+            -H "Content-Type: application/json" \
+            --data '{}')"
+          if [[ "$status" != "401" ]]; then
+            echo "::error::Supabase heartbeat function returned HTTP $status without a user JWT; expected 401."
+            cat /tmp/supabase-heartbeat-body
+            exit 1
+          fi
+          echo "Supabase heartbeat function rejects unauthenticated calls as expected."
 
       - name: Emit non-secret deployment receipt
         if: ${{ success() }}
-        run: echo "Cloudflare heartbeat Worker deployed; secret values were never printed."
+        run: echo "Cloudflare heartbeat Worker deployed and live unauthenticated boundary checks passed; secret values were never printed."
