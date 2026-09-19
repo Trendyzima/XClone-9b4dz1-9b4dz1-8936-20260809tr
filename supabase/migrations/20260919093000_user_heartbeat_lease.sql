@@ -1,7 +1,7 @@
 create table if not exists public.user_heartbeat_leases (
   user_id uuid primary key references auth.users(id) on delete cascade,
   last_seen_at timestamptz not null default now(),
-  expires_at timestamptz not null default (now() + interval '10 minutes'),
+  expires_at timestamptz not null default (now() + interval '2 minutes'),
   client_version text,
   updated_at timestamptz not null default now()
 );
@@ -49,7 +49,7 @@ begin
   values (
     v_user_id,
     v_now,
-    v_now + interval '10 minutes',
+    v_now + interval '2 minutes',
     nullif(left(trim(coalesce(p_client_version,'')),40),''),
     v_now
   )
@@ -62,7 +62,7 @@ begin
   return jsonb_build_object(
     'ok', true,
     'last_seen_at', v_now,
-    'expires_at', v_now + interval '10 minutes'
+    'expires_at', v_now + interval '2 minutes'
   );
 end;
 $$;
