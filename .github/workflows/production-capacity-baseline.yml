@@ -12,9 +12,11 @@ on:
 permissions:
   contents: read
 
+# Never cancel a baseline that is already validating a production deployment.
+# Runs are serialized so each commit gets an auditable result.
 concurrency:
   group: production-capacity-baseline
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   baseline:
@@ -22,13 +24,31 @@ jobs:
     timeout-minutes: 10
     environment: production
     env:
-      APP_ORIGIN: ${{ vars.APP_ORIGIN || 'https://kooone-9b4dz1-9b4dz1-8936-20260809tr.vercel.app' }}
+      APP_ORIGIN: ${{ vars.APP_ORIGIN || 'https://testagram.site' }}
       LOAD_REQUESTS: "2000"
       LOAD_CONCURRENCY: "100"
+      DEPLOY_WAIT_SECONDS: "300"
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          ref: ${{ github.sha }}
+
+      - name: Verify checked-out revision
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual="$(git rev-parse HEAD)"
+          expected="${{ github.sha }}"
+          test "$actual" = "$expected"
+          echo "Verified source SHA: $actual"
+
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+
+      - name: Wait for exact Vercel deployment
+        run: node scripts/production-capacity-baseline.mjs --wait-for-deployment
+
       - name: Run production capacity baseline
         run: node scripts/production-capacity-baseline.mjs
