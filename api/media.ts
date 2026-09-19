@@ -81,8 +81,8 @@ export default async function handler(req: any, res: any) {
 
   const cfg = config();
   const r2 = makeR2(cfg);
-  if (!r2 || !cfg.serviceRole || !cfg.supabaseUrl || !cfg.publicBaseUrl) {
-    return json(res, 503, { error: 'Economical media backend is not fully configured. Set the R2 public base URL.' });
+  if (!r2 || !cfg.serviceRole || !cfg.supabaseUrl) {
+    return json(res, 503, { error: 'Economical media backend is not configured.' });
   }
 
   const user = await authenticate(req, cfg);
@@ -195,10 +195,14 @@ export default async function handler(req: any, res: any) {
       if (error) return json(res, 500, { error: 'Unable to finalize media record' });
       const readUrl = await getSignedUrl(r2, new GetObjectCommand({
         Bucket: media.bucket ?? cfg.r2Bucket, Key: media.storage_key,
-      }), { expiresIn: 3600 });
+      }), { expiresIn: 24 * 60 * 60 + 15 * 60 });
+      const playbackUrl = updated.media_url ?? media.media_url ?? readUrl;
+      if (!updated.media_url && !media.media_url) {
+        await admin.from('media_assets').update({ media_url: playbackUrl }).eq('id', media.id).eq('owner_id', user.id);
+      }
       return json(res, 200, {
         ...updated, object_key: updated.storage_key, size_bytes: updated.byte_size,
-        public_url: updated.media_url ?? media.media_url ?? readUrl, expires_in: updated.media_url ? null : 3600,
+        public_url: playbackUrl, expires_in: updated.media_url ? null : 24 * 60 * 60 + 15 * 60,
       });
     }
 
