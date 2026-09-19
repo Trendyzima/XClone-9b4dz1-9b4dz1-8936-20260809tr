@@ -2717,7 +2717,7 @@ function SpendingAlertsCard({ userId }: { userId: string }) {
                 ))}
               </div>
               <input type="number" min="1" step="0.01" placeholder="Custom threshold…" value={!['5','10','25','50'].includes(prefs.threshold) ? prefs.threshold : ''}
-                onChange={e => save({ ...prefs, threshold: e.target.value })}
+                onChange={e => setPrefs({ ...prefs, threshold: e.target.value })}
                 className="w-full h-10 px-3 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30" />
             </div>
             <div className="mb-3">
@@ -2729,14 +2729,20 @@ function SpendingAlertsCard({ userId }: { userId: string }) {
                 ))}
               </div>
               <input type="number" min="1" step="0.01" placeholder="Custom budget…" value={!['25','50','100','250'].includes(prefs.budget) ? prefs.budget : ''}
-                onChange={e => save({ ...prefs, budget: e.target.value })}
+                onChange={e => setPrefs({ ...prefs, budget: e.target.value })}
                 className="w-full h-10 px-3 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30" />
             </div>
-            <button onClick={runCheck} disabled={checking}
-              className="w-full py-2.5 border border-amber-500/30 text-amber-600 rounded-xl font-semibold text-sm hover:bg-amber-500/5 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
-              {checking ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
-              {checking ? 'Checking…' : 'Check Alerts Now'}
-            </button>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => save(prefs)} disabled={loadingPrefs}
+                className="py-2.5 bg-primary text-primary-foreground rounded-xl font-semibold text-sm hover:opacity-90 disabled:opacity-50">
+                Save Settings
+              </button>
+              <button onClick={runCheck} disabled={checking}
+                className="py-2.5 border border-amber-500/30 text-amber-600 rounded-xl font-semibold text-sm hover:bg-amber-500/5 disabled:opacity-50 flex items-center justify-center gap-2 transition-colors">
+                {checking ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
+                {checking ? 'Checking…' : 'Check Now'}
+              </button>
+            </div>
           </>
         ) : (
           <p className="text-xs text-muted-foreground mt-1">Get inbox notifications when a withdrawal exceeds a set amount, or your daily spending hits 80% of your budget. Settings are saved to your wallet.</p>
