@@ -85,7 +85,7 @@ const POSTS_TOPICS = [
     a: [
       'Tap the green + FAB button on the Home screen to open the Compose sheet.',
       'Tap the video camera icon or "Attach Video" to select a video from your gallery.',
-      'Images and videos are limited to 20 MiB per file. Posts can include up to 4 images; threads can include up to 6 inline images plus one cover image or video.',
+      'Images and videos are limited to 20 MiB per file. Posts can include up to 4 images; threads can include up to 6 inline images plus one cover image or video. Supported formats include JPEG, PNG, GIF, WebP, AVIF, MP4, WebM, MOV, and MKV.',
       'Add a caption, hashtags (#), and mentions (@) before posting.',
       'If monetization is available to your account, use the Monetize controls shown in the creator tools. Earnings and eligibility are governed by the current monetization terms.',
     ],
@@ -157,10 +157,10 @@ const PAYMENTS_TOPICS = [
     q: 'Creator earnings',
     a: [
       'Creator earnings can come from eligible advertising, tips, subscriptions, and other monetization features. Rates, eligibility, revenue shares, and payout thresholds can change and are shown in the applicable creator terms and wallet screens.',
-      'Your CPM tier upgrades automatically as your video views grow.',
+      'Eligibility and monetization status are determined by the current creator program rules shown in the app.',
       'View your full earnings breakdown in Creator Studio → Earnings tab.',
-      'Earnings are distributed daily by our automated system.',
-      'Request a payout from Creator Studio → Earnings → Request Payout (minimum $5).',
+      'Earnings are recorded and paid according to the applicable creator payout schedule and verification requirements.',
+      'Request a payout from the applicable Creator Studio or Wallet payout flow when your account meets the currently displayed eligibility and threshold requirements.',
     ],
   },
   {
@@ -176,9 +176,9 @@ const PAYMENTS_TOPICS = [
   {
     q: 'Refund policy',
     a: [
-      'Digital purchases (boosts, premium, verification) are generally non-refundable once delivered.',
-      'If a technical error prevented your boost from running, contact support within 7 days.',
-      'M-Pesa deposits that fail but deduct your balance are refunded within 24 hours automatically.',
+      'Refund eligibility depends on the purchase type, delivery status, applicable payment-provider rules, and applicable law. Review the refund terms shown before purchase.',
+      'If a technical issue affected a paid feature, contact support with the transaction reference and relevant error details.',
+      'If a payment is debited by a provider but the corresponding Testagram transaction fails, contact support with the provider transaction reference so the transaction can be reconciled.',
       'For all other refund requests email support@tsocial.com with your transaction reference.',
     ],
   },
