@@ -51,16 +51,22 @@ interface LeaderEntry {
   credits: number;
 }
 
+interface ReferralChartPoint {
+  date: string;
+  referrals: number;
+  credits: number;
+}
+
 export default function ReferralPage() {
   useSEO({ noindex: true, title: 'Referrals', url: '/referrals' });
   const { user } = useAuth();
-  const [referrals, setReferrals] = useState([]);  // esbuild guard: no explicit generic
+  const [referrals, setReferrals] = useState<ReferralRecord[]>([]);
   const [totalCredits, setTotalCredits] = useState(0);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
-  const [chartData, setChartData] = useState([]);  // esbuild guard: no explicit generic
+  const [chartData, setChartData] = useState<ReferralChartPoint[]>([]);
   // Leaderboard
-  const [leaderboard, setLeaderboard] = useState([]);  // esbuild guard: no explicit generic
+  const [leaderboard, setLeaderboard] = useState<LeaderEntry[]>([]);
   const [leaderLoading, setLeaderLoading] = useState(true);
   const [referralCode, setReferralCode] = useState<string | null>(null);
 
@@ -73,6 +79,30 @@ export default function ReferralPage() {
     loadReferrals();
     loadLeaderboard();
   }, [user]);
+
+  const buildChart = (rows: ReferralRecord[]) => {
+    const today = startOfDay(new Date());
+    const points = Array.from({ length: 30 }, (_, index) => {
+      const day = subDays(today, 29 - index);
+      return {
+        date: format(day, 'MMM d'),
+        referrals: 0,
+        credits: 0,
+        dayKey: format(day, 'yyyy-MM-dd'),
+      };
+    });
+
+    const byDay = new Map(points.map((point) => [point.dayKey, point]));
+    rows.forEach((row) => {
+      const dayKey = format(startOfDay(new Date(row.created_at)), 'yyyy-MM-dd');
+      const point = byDay.get(dayKey);
+      if (!point) return;
+      point.referrals += 1;
+      point.credits += Number(row.credits_awarded ?? 0);
+    });
+
+    setChartData(points.map(({ dayKey: _dayKey, ...point }) => point));
+  };
 
   const loadReferrals = async () => {
     if (!user) return;
