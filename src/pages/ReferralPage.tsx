@@ -62,9 +62,10 @@ export default function ReferralPage() {
   // Leaderboard
   const [leaderboard, setLeaderboard] = useState([]);  // esbuild guard: no explicit generic
   const [leaderLoading, setLeaderLoading] = useState(true);
+  const [referralCode, setReferralCode] = useState<string | null>(null);
 
-  const referralLink = user
-    ? `${window.location.origin}/auth?ref=${user.id}`
+  const referralLink = user && referralCode
+    ? `${window.location.origin}/auth?ref=${encodeURIComponent(referralCode)}`
     : '';
 
   useEffect(() => {
@@ -74,84 +75,25 @@ export default function ReferralPage() {
   }, [user]);
 
   const loadReferrals = async () => {
-    const { data } = await supabase
-      .from('referrals')
-      .select(`
-        id,
-        invited_user,
-        credits_awarded,
-        created_at,
-        profile:user_profiles!referrals_invited_user_fkey(username, avatar_url, verified)
-      `)
-      .eq('invited_by', user!.id)
-      .order('created_at', { ascending: false });
-
-    if (data) {
-      const list = data as any[];
-      setReferrals(list);
-      setTotalCredits(list.reduce((s, r) => s + (r.credits_awarded ?? 0), 0));
-      buildChart(list);
-    }
+    if (!user) return;
+    const [{ data: statusData, error: statusError }, { data: listData, error: listError }] = await Promise.all([
+      supabase.rpc('get_referral_status'),
+      supabase.rpc('list_referrals'),
+    ]);
+    if (!statusError && statusData?.code) setReferralCode(String(statusData.code));
+    const list = !listError && Array.isArray(listData?.items) ? listData.items as ReferralRecord[] : [];
+    setReferrals(list);
+    setTotalCredits(Number(statusData?.earned_credits ?? list.reduce((sum, row) => sum + Number(row.credits_awarded ?? 0), 0)));
+    buildChart(list);
     setLoading(false);
   };
 
   const loadLeaderboard = async () => {
     setLeaderLoading(true);
-    // Aggregate top referrers by count
-    const { data } = await supabase
-      .from('referrals')
-      .select('invited_by, credits_awarded, user_profiles!referrals_invited_by_fkey(id, username, avatar_url, verified)');
-    if (!data) { setLeaderLoading(false); return; }
-    // Build parallel arrays for aggregation
-    const ids: string[] = [];
-    const counts: number[] = [];
-    const credits: number[] = [];
-    const usernames: string[] = [];
-    const avatars: (string | null)[] = [];
-    const verifieds: boolean[] = [];
-    for (const row of data) {
-      const p = (row as any).user_profiles;
-      const uid = row.invited_by;
-      if (!uid || !p) continue;
-      const idx = ids.indexOf(uid);
-      if (idx >= 0) {
-        counts[idx] += 1;
-        credits[idx] += row.credits_awarded ?? 100;
-      } else {
-        ids.push(uid);
-        counts.push(1);
-        credits.push(row.credits_awarded ?? 100);
-        usernames.push(p.username ?? 'user');
-        avatars.push(p.avatar_url ?? null);
-        verifieds.push(!!p.verified);
-      }
-    }
-    // Sort by count desc, take top 10
-    const idxArr = ids.map((_, i) => i);
-    idxArr.sort((a, b) => counts[b] - counts[a]);
-    // esbuild guard: no inline object in .map() — use for-loop push instead
-    const top: any[] = [];
-    for (let j = 0; j < Math.min(idxArr.length, 10); j++) {
-      const ii = idxArr[j];
-      const entry = { userId: ids[ii], username: usernames[ii], avatar: avatars[ii], verified: verifieds[ii], count: counts[ii], credits: credits[ii] };
-      top.push(entry);
-    }
-    setLeaderboard(top);
+    const { data, error } = await supabase.rpc('referral_leaderboard');
+    if (!error && Array.isArray(data?.items)) setLeaderboard(data.items);
+    else setLeaderboard([]);
     setLeaderLoading(false);
-  };
-
-  const buildChart = (list: ReferralRecord[]) => {
-    // Build 30-day referral timeline
-    const days = Array.from({ length: 30 }, (_, i) => {
-      const d = subDays(new Date(), 29 - i);
-      return { date: format(d, 'MM/dd'), key: format(startOfDay(d), 'yyyy-MM-dd'), referrals: 0, credits: 0 };
-    });
-    list.forEach(r => {
-      const dayKey = format(startOfDay(new Date(r.created_at)), 'yyyy-MM-dd');
-      const entry = days.find(d => d.key === dayKey);
-      if (entry) { entry.referrals += 1; entry.credits += r.credits_awarded ?? 100; }
-    });
-    setChartData(days);
   };
 
   const copyLink = async () => {
