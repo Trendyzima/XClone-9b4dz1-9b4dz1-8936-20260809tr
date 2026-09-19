@@ -2759,7 +2759,11 @@ function WalletNotificationsHub({ userId }: { userId: string }) {
   const [marking, setMarking] = useState(false);
   const [open,    setOpen]    = useState(false);
 
-  useEffect(() => { load(); }, [userId]);
+  useEffect(() => {
+    load();
+    const id = window.setInterval(load, 30000);
+    return () => window.clearInterval(id);
+  }, [userId]);
 
   const load = async () => {
     setLoading(true);
