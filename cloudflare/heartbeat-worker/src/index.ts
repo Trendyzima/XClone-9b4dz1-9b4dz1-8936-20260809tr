@@ -1,5 +1,6 @@
 interface Env {
-  SUPABASE_HEARTBEAT_URL: string;
+  SUPABASE_HEARTBEAT_RPC_URL: string;
+  SUPABASE_PUBLISHABLE_KEY: string;
 }
 
 const SUPPRESSION_SECONDS = 14 * 60 + 55;
@@ -54,12 +55,13 @@ export default {
       return json({ ok: true, suppressed: true }, 200, request, { "x-testagram-heartbeat-cache": "HIT" });
     }
 
-    const upstream = await fetch(env.SUPABASE_HEARTBEAT_URL, {
+    const upstream = await fetch(env.SUPABASE_HEARTBEAT_RPC_URL, {
       method: "POST",
       headers: {
         authorization,
         "content-type": "application/json",
-        "x-client-info": "testagram-cloudflare-heartbeat",
+        "apikey": env.SUPABASE_PUBLISHABLE_KEY,
+        "x-client-info": "testagram-cloudflare-heartbeat-rpc",
       },
       body: JSON.stringify({
         client_version: request.headers.get("x-client-version")?.slice(0, 40) ?? null,
