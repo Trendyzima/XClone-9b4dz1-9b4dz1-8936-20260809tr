@@ -76,7 +76,20 @@ jobs:
           grep -Fq 'SUPABASE_PUBLISHABLE_KEY' "cloudflare/heartbeat-worker/wrangler.toml"
           grep -Fq 'Authentication required' "$worker"
           grep -Fq 'cache-control' "$worker"
-          echo "Heartbeat Worker source contains the authenticated boundary, production origins, and cache controls."
+          client="src/services/heartbeatClient.ts"
+          migration="supabase/migrations/20260919143000_economical_heartbeat.sql"
+          grep -Fq 'ACTIVE_WINDOW_MS' "$client"
+          grep -Fq 'HEARTBEAT_INTERVAL_MS = 15 * 60_000' "$client"
+          grep -Fq 'onAuthStateChange' "$client"
+          grep -Fq 'pointerdown' "$client"
+          grep -Fq 'scroll' "$client"
+          grep -Fq '30 minutes' "$migration"
+          grep -Fq '20 minutes' "$migration"
+          if grep -Fq 'setInterval' "$client"; then
+            echo "::error::Heartbeat client must not use a fixed background interval."
+            exit 1
+          fi
+          echo "Heartbeat Worker and client contain the authenticated boundary, direct Supabase RPC path, activity gating, and economical scheduling."
 
       - name: Validate live Worker authentication boundary
         shell: bash
