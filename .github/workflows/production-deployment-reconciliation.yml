@@ -21,7 +21,7 @@ env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
   MAX_DEPLOY_ATTEMPTS: "3"
-  APP_ORIGIN: ${{ vars.APP_ORIGIN || 'https://testagram.site' }}
+  APP_ORIGIN: "https://testagram.site"
 
 jobs:
   reconcile-production:
@@ -221,9 +221,19 @@ jobs:
               sleep 10
               continue
             }
-            node -e 'const fs=require("node:fs"); const body=fs.readFileSync("health.txt","utf8").trim(); let payload; try { payload=JSON.parse(body); } catch (error) { console.error("Health endpoint did not return valid JSON:", error instanceof Error ? error.message : error); console.error(body); process.exit(1); } if (payload?.ok !== true || payload?.database !== "reachable") { console.error("Health contract failed:", JSON.stringify(payload)); process.exit(1); } console.log("Health contract passed:", JSON.stringify(payload));'
+            node -e 'const fs=require("node:fs"); const body=fs.readFileSync("health.txt","utf8").trim(); let payload; try { payload=JSON.parse(body); } catch (error) { console.error("Liveness endpoint did not return valid JSON:", error instanceof Error ? error.message : error); console.error(body); process.exit(1); } const expected=process.env.TARGET_SHA; if (payload?.ok !== true || payload?.service !== "testagram" || payload?.edge !== "reachable" || payload?.commit !== expected) { console.error("Liveness contract failed:", JSON.stringify({expected_commit:expected,payload})); process.exit(1); } console.log("Liveness contract passed:", JSON.stringify(payload));'
 
-            echo "Exact SHA, production READY state, and public production health passed."
+            # /api/health is intentionally liveness-only. Database traffic stays on
+            # /api/ready so the 2,000-request capacity test does not amplify DB load.
+            curl --fail --silent --show-error --location --retry 3 --retry-delay 2               "https://testagram.site/api/ready" > ready.txt || {
+              echo "::warning::Public production readiness probe failed on attempt $attempt"
+              cat ready.txt || true
+              sleep 10
+              continue
+            }
+            node -e 'const fs=require("node:fs"); const body=fs.readFileSync("ready.txt","utf8").trim(); let payload; try { payload=JSON.parse(body); } catch (error) { console.error("Readiness endpoint did not return valid JSON:", error instanceof Error ? error.message : error); console.error(body); process.exit(1); } if (payload?.ok !== true || payload?.database !== "reachable") { console.error("Readiness contract failed:", JSON.stringify(payload)); process.exit(1); } console.log("Readiness contract passed:", JSON.stringify(payload));'
+
+            echo "Exact SHA, production READY state, liveness, and separate database readiness passed."
             exit 0
           done
           echo "::error::Production deployment reconciliation exhausted its 3-attempt circuit breaker."
@@ -237,6 +247,6 @@ jobs:
           {
             echo "target_sha=$TARGET_SHA"
             echo "deployment_url=${{ steps.deploy.outputs.deployment_url }}"
-            echo "gate=build-typecheck-lint-deploy-sha-ready-health"
+            echo "gate=build-typecheck-lint-deploy-sha-liveness-readiness"
             echo "status=passed"
           } >> "$GITHUB_STEP_SUMMARY"
