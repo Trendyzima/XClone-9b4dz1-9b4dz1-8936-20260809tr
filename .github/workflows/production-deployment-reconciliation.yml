@@ -67,24 +67,7 @@ jobs:
       - name: Production build
         run: npm run build
 
-      - name: Deploy and gate Fediverse gateway functions
-        shell: bash
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
-        run: |
-          set -euo pipefail
-          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required for the Fediverse gateway deployment gate."; exit 1; }
-          PROJECT_REF="$SUPABASE_PROJECT_REF"
-          if [[ -z "$PROJECT_REF" ]]; then
-            PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
-          fi
-          [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref."; exit 1; }
-          export SUPABASE_ACCESS_TOKEN
-          echo "Resolved Supabase project ref: $PROJECT_REF"
-
-      - name: Install pinned Supabase CLI
+      - name: Install Supabase CLI
         uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
         with:
           version: latest
@@ -97,6 +80,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
         run: |
           set -euo pipefail
+          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required for the Fediverse gateway deployment gate."; exit 1; }
           PROJECT_REF="$SUPABASE_PROJECT_REF"
           if [[ -z "$PROJECT_REF" ]]; then
             PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
