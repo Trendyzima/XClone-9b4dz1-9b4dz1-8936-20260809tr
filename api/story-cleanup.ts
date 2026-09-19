@@ -85,12 +85,49 @@ export default async function handler(req: any, res: any) {
         .is('deleted_at', null);
     }
 
+    // Remove abandoned direct uploads so users who select files and close the
+    // composer do not accumulate permanent R2 objects or media rows.
+    const orphanCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { data: orphanAssets } = await db
+      .from('media_assets')
+      .select('id, storage_key, bucket, status')
+      .is('post_id', null)
+      .lt('created_at', orphanCutoff)
+      .in('status', ['pending', 'uploaded'])
+      .limit(500);
+
+    let deletedOrphans = 0;
+    for (const asset of orphanAssets ?? []) {
+      const { count: storyRefs } = await db
+        .from('stories')
+        .select('id', { count: 'exact', head: true })
+        .eq('media_asset_id', asset.id)
+        .is('deleted_at', null);
+      if ((storyRefs ?? 0) > 0) continue;
+
+      try {
+        if (asset.storage_key) {
+          await r2.send(new DeleteObjectCommand({
+            Bucket: asset.bucket || cfg.r2Bucket,
+            Key: asset.storage_key,
+          }));
+        }
+        await db.from('media_assets')
+          .update({ status: 'deleted', updated_at: new Date().toISOString() })
+          .eq('id', asset.id);
+        deletedOrphans += 1;
+      } catch (orphanError) {
+        console.error('R2 orphan cleanup failed', asset.id, orphanError);
+      }
+    }
+
     return res.status(200).json({
       ok: true,
       scanned: rows?.length ?? 0,
       deleted_objects: deletedObjects,
       cleaned_stories: cleanedStories,
       cleaned_batches: batchIds.size,
+      deleted_orphans: deletedOrphans,
     });
   } catch (error) {
     console.error('story-cleanup error', error);
