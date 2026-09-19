@@ -2,7 +2,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const url = Deno.env.get("SUPABASE_URL") ?? "";
-const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? "";
+const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? (() => {\n  const raw = Deno.env.get("SUPABASE_PUBLISHABLE_KEYS");\n  if (!raw) return "";\n  try { const parsed = JSON.parse(raw); return typeof parsed === "string" ? parsed : Object.values(parsed ?? {})[0] ?? ""; } catch { return ""; }\n})();
 if (!url || !anonKey) throw new Error("SUPABASE_URL and SUPABASE_ANON_KEY are required");
 
 const json = (body: unknown, status = 200, requestId = crypto.randomUUID(), cacheControl = "no-store") =>
