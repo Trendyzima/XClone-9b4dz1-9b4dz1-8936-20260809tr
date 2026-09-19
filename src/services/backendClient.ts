@@ -1,5 +1,5 @@
 import { FunctionsHttpError, type SupabaseClient } from '@supabase/supabase-js';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
 import { TestagramCapabilityClient } from '@/services/testagramCapabilityClient';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 
@@ -53,7 +53,7 @@ export async function invokeBackendFunction<TResponse = unknown, TBody extends R
 }
 
 export function createBackendCapabilityClient(
-  endpoint: string = `${import.meta.env.VITE_SUPABASE_URL ?? 'https://placeholder.supabase.co'}/functions/v1/capability-gateway`,
+  endpoint: string = `${supabaseUrl}/functions/v1/capability-gateway`,
   client: SupabaseClient = supabase,
 ): TestagramCapabilityClient {
   return new TestagramCapabilityClient({ endpoint, getAccessToken: () => requireAccessToken(client), clientName: 'testagram-web', clientVersion: '4' });
