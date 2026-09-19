@@ -10,8 +10,8 @@ const HEARTBEAT_URL = "https://heartbeat.testagram.site";
  * background tabs and abandoned sessions from consuming Worker/Supabase
  * capacity.
  */
-const HEARTBEAT_INTERVAL_MS = 15 * 60_000;
-const ACTIVE_WINDOW_MS = 10 * 60_000;
+const HEARTBEAT_INTERVAL_MS = 30 * 60_000;
+const ACTIVE_WINDOW_MS = 20 * 60_000;
 const ACTIVITY_DEBOUNCE_MS = 1_000;
 
 let cleanup: (() => void) | undefined;
