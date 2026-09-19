@@ -3,7 +3,7 @@ interface Env {
   SUPABASE_PUBLISHABLE_KEY: string;
 }
 
-const SUPPRESSION_SECONDS = 14 * 60 + 55;
+const SUPPRESSION_SECONDS = 29 * 60 + 55;
 
 const ALLOWED_ORIGINS = new Set([
   "https://testagram.site",
