@@ -1,59 +1,42 @@
 import { useState, useEffect } from 'react';
 import { Moon, Sun, Monitor } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { applyAppearance, getStoredAppearance, type ThemeChoice } from '@/theme/themes';
 
-export type ThemeChoice = 'light' | 'dark' | 'system';
+export type { ThemeChoice } from '@/theme/themes';
 
-/** Detect actual OS preference */
-function getSystemTheme(): 'light' | 'dark' {
-  if (typeof window === 'undefined') return 'dark';
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-}
-
-/** Reads the stored user choice (may be 'system') */
 export function getStoredThemeChoice(): ThemeChoice {
-  if (typeof window === 'undefined') return 'system';
-  const stored = localStorage.getItem('theme') as ThemeChoice | null;
-  if (stored === 'light' || stored === 'dark' || stored === 'system') return stored;
-  return 'system'; // default to system
+  return getStoredAppearance().mode;
 }
 
-/** Applies the effective theme class to <html> */
 export function applyTheme(choice: ThemeChoice) {
-  const actual = choice === 'system' ? getSystemTheme() : choice;
-  const root = document.documentElement;
-  root.classList.remove('light', 'dark');
-  root.classList.add(actual);
-  root.style.colorScheme = actual;
-  localStorage.setItem('theme', choice);
+  applyAppearance({ ...getStoredAppearance(), mode: choice });
 }
 
 export function ThemeToggle() {
   const [choice, setChoice] = useState<ThemeChoice>('system');
-  // Hydrate from localStorage in effect to avoid esbuild lazy-initializer non-determinism
-  useEffect(() => {
-    setChoice(getStoredThemeChoice());
-  }, []);
 
-  // Apply on mount and listen for system changes when in 'system' mode
   useEffect(() => {
-    applyTheme(choice);
-    if (choice !== 'system') return;
+    const appearance = getStoredAppearance();
+    setChoice(appearance.mode);
+    applyAppearance(appearance);
+    if (appearance.mode !== 'system') return;
     const mq = window.matchMedia('(prefers-color-scheme: dark)');
-    const handler = () => applyTheme('system');
+    const handler = () => applyAppearance(getStoredAppearance());
     mq.addEventListener('change', handler);
     return () => mq.removeEventListener('change', handler);
-  }, [choice]);
+  }, []);
 
-  // Module-level theme cycle — no typed array in function body (esbuild guard)
   const toggle = () => {
-    const next: ThemeChoice =
-      choice === 'light' ? 'dark' : choice === 'dark' ? 'system' : 'light';
+    const next: ThemeChoice = choice === 'light' ? 'dark' : choice === 'dark' ? 'system' : 'light';
+    const appearance = { ...getStoredAppearance(), mode: next };
     setChoice(next);
-    applyTheme(next);
+    applyAppearance(appearance);
   };
 
-  const effectiveTheme = choice === 'system' ? getSystemTheme() : choice;
+  const effectiveTheme = choice === 'system'
+    ? (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    : choice;
 
   return (
     <Button
