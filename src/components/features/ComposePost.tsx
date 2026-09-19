@@ -17,6 +17,7 @@ import { GifPicker } from './GifPicker';
 import { toast as sonnerToast } from 'sonner';
 import * as federation from '@/api/federation';
 import { detectEmbed, ComposeEmbedPreview, OGLinkCard } from './EmbedRenderer';
+import { uploadTestagramMedia } from '@/services/mediaClient';
 
 interface ComposePostProps {
   onSuccess?: () => void;
@@ -329,30 +330,34 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
       let videoUrl = null;
 
       if (images.length > 0) {
-        sonnerToast.loading(`Uploading ${images.length} image(s)...`);
+        sonnerToast.loading(`Uploading ${images.length} image(s) to secure media storage...`);
         for (let i = 0; i < images.length; i++) {
-          const image = images[i];
-          const fileExt = image.name.split('.').pop();
-          const fileName = `${user!.id}/${Date.now()}_${i}.${fileExt}`;
-          const { error: uploadError } = await supabase.storage.from('posts').upload(fileName, image, { cacheControl: '3600', upsert: false });
-          if (uploadError) { sonnerToast.error(`Failed to upload image ${i + 1}`); continue; }
-          const { data: { publicUrl } } = supabase.storage.from('posts').getPublicUrl(fileName);
-          imageUrls.push(publicUrl);
+          try {
+            const media = await uploadTestagramMedia(images[i]);
+            if (media.public_url) imageUrls.push(media.public_url);
+            else throw new Error('Media read URL was not returned');
+          } catch (uploadError: any) {
+            sonnerToast.error(`Failed to upload image ${i + 1}: ${uploadError?.message ?? 'unknown error'}`);
+          }
         }
         sonnerToast.dismiss();
-        if (imageUrls.length > 0) sonnerToast.success(`${imageUrls.length} image(s) uploaded!`);
+        if (imageUrls.length > 0) sonnerToast.success(`${imageUrls.length} image(s) uploaded securely!`);
       }
 
       if (video) {
-        sonnerToast.loading('Uploading video...');
-        const fileExt = video.name.split('.').pop();
-        const fileName = `videos/${user!.id}/${Date.now()}.${fileExt}`;
-        const { data: uploadData, error: uploadError } = await supabase.storage.from('posts').upload(fileName, video, { cacheControl: '3600', upsert: false });
-        if (uploadError) { sonnerToast.dismiss(); sonnerToast.error(`Upload failed: ${uploadError.message}`); setLoading(false); return; }
-        const { data: { publicUrl } } = supabase.storage.from('posts').getPublicUrl(fileName);
-        videoUrl = publicUrl;
-        sonnerToast.dismiss();
-        sonnerToast.success('Video uploaded!');
+        sonnerToast.loading('Uploading video to secure media storage...');
+        try {
+          const media = await uploadTestagramMedia(video);
+          if (!media.public_url) throw new Error('Media read URL was not returned');
+          videoUrl = media.public_url;
+          sonnerToast.dismiss();
+          sonnerToast.success('Video uploaded securely!');
+        } catch (uploadError: any) {
+          sonnerToast.dismiss();
+          sonnerToast.error(`Upload failed: ${uploadError?.message ?? 'unknown error'}`);
+          setLoading(false);
+          return;
+        }
       }
 
       if (scheduledDate) {
