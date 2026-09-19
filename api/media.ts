@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { DeleteObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 const MAX_BYTES = 20 * 1024 * 1024;
@@ -126,6 +126,35 @@ export default async function handler(req: any, res: any) {
         media_id: data.id, object_key: data.storage_key, upload_url: uploadUrl,
         public_url: data.media_url, expires_in: 900,
       });
+    }
+
+    if (action === 'list') {
+      const prefix = `users/${user.id}/`;
+      const listed = await r2.send(new ListObjectsV2Command({
+        Bucket: cfg.r2Bucket,
+        Prefix: prefix,
+        MaxKeys: 100,
+      }));
+      const assets = await Promise.all((listed.Contents ?? [])
+        .filter((object) => object.Key && object.Size && object.Size > 0)
+        .map(async (object) => {
+          const key = String(object.Key);
+          const ext = key.split('.').pop()?.toLowerCase() ?? '';
+          const mime = ext === 'mp4' || ext === 'mov' || ext === 'webm' || ext === 'm4v' || ext === 'ogg' ? 'video' : 'image';
+          const url = await getSignedUrl(r2, new GetObjectCommand({
+            Bucket: cfg.r2Bucket, Key: key,
+          }), { expiresIn: 3600 });
+          return {
+            id: key,
+            name: key.split('/').pop() ?? key,
+            path: key,
+            url,
+            type: mime,
+            size: object.Size,
+            updatedAt: object.LastModified?.toISOString(),
+          };
+        }));
+      return json(res, 200, { items: assets });
     }
 
     if (action === 'complete') {
