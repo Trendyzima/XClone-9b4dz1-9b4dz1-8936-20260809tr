@@ -105,17 +105,23 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
     }
   };
 
-  const onAuthStateChange = (_event: string, session: { access_token?: string } | null) => {
-    if (session?.access_token) {
-      authenticated = true;
-      lastActivityAt = Date.now();
-      lastSentAt = 0;
-      void maybeSend();
-    } else {
+  const onAuthStateChange = (event: string, session: { access_token?: string } | null) => {
+    if (!session?.access_token) {
       authenticated = false;
       lastActivityAt = 0;
       lastSentAt = 0;
       clearTimer();
+      return;
+    }
+
+    authenticated = true;
+
+    // Token refreshes keep the session valid but do not prove user activity.
+    // Only a newly established session gets an immediate activity heartbeat.
+    if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+      lastActivityAt = Date.now();
+      lastSentAt = 0;
+      void maybeSend();
     }
   };
 
