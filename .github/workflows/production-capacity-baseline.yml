@@ -26,7 +26,7 @@ jobs:
       LOAD_CONCURRENCY: "100"
       DEPLOY_WAIT_SECONDS: "300"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 1
           ref: ${{ github.event.workflow_run.head_sha || github.sha }}
@@ -40,7 +40,7 @@ jobs:
           test "$actual" = "$expected"
           echo "Verified source SHA: $actual"
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: "22"
 
@@ -48,4 +48,4 @@ jobs:
         run: node scripts/production-capacity-baseline.mjs --wait-for-deployment
 
       - name: Run production capacity baseline
-        run: node scripts/production-capacity-baseline.mjs
+        run: node scripts/production-capacity-baseline.mjs --skip-deployment-wait
