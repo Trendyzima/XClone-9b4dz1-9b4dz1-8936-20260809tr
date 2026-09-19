@@ -14,7 +14,7 @@ import {
   Copy, AtSign, Globe, UserX, BadgeCheck, Crown,
 } from 'lucide-react';
 import { useNotificationSound } from '@/hooks/useNotificationSound';
-import { applyAppearance, getStoredAppearance, THEME_PRESETS, type AppearanceSettings, type ThemeChoice, type ThemePresetId } from '@/theme/themes';
+import { applyAppearance, applyTheme, getStoredAppearance, THEME_PRESETS, type AppearanceSettings, type ThemeChoice, type ThemePresetId } from '@/theme/themes';
 import { authService } from '@/lib/auth';
 import { toast } from 'sonner';
 
@@ -43,6 +43,7 @@ function isDarkScheduleActive(): boolean {
 const THEME_IDS: ThemeChoice[] = ['light', 'dark', 'system'];
 const THEME_LABELS = ['Light', 'Dark', 'System'];
 const THEME_CLS = ['text-yellow-500', 'text-slate-400', 'text-blue-400'];
+const RADIUS_OPTIONS: NonNullable<AppearanceSettings['radius']>[] = ['compact', 'rounded', 'pill'];
 
 // esbuild guard: no explicit complex union type annotation on module-level array
 const SOUND_PREVIEW_ITEMS = [
@@ -226,19 +227,12 @@ export default function SettingsPage() {
     if (!darkScheduleEnabled) return;
     const applySchedule = () => {
       const shouldBeDark = isDarkScheduleActive();
-      const html = document.documentElement;
-      if (shouldBeDark) {
-        html.classList.add('dark');
-        html.classList.remove('light');
-      } else {
-        html.classList.remove('dark');
-        html.classList.add('light');
-      }
+      applyAppearance({ ...appearance, mode: shouldBeDark ? 'dark' : 'light' });
     };
     applySchedule();
     const iv = setInterval(applySchedule, 60_000);
     return () => clearInterval(iv);
-  }, [darkScheduleEnabled]);
+  }, [darkScheduleEnabled, appearance]);
 
   if (!user) {
     navigate('/auth');
