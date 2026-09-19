@@ -1,6 +1,5 @@
 interface Env {
   SUPABASE_HEARTBEAT_URL: string;
-  SUPABASE_PUBLISHABLE_KEY: string;
 }
 
 const SUPPRESSION_SECONDS = 4 * 60 + 55;
@@ -52,7 +51,6 @@ export default {
       method: "POST",
       headers: {
         authorization,
-        apikey: env.SUPABASE_PUBLISHABLE_KEY,
         "content-type": "application/json",
         "x-client-info": "testagram-cloudflare-heartbeat",
       },
