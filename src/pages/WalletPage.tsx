@@ -1043,32 +1043,63 @@ function ReferralEarningsTab({ userId }: { userId: string }) {
 // ── M-Pesa Secrets Guide ──────────────────────────────────────────────────
 function MpesaSecretsGuide() {
   const [open, setOpen] = useState(false);
+  const [status, setStatus] = useState<{ configured: number; total: number; ready: boolean; keys: Array<{ key: string; configured: boolean }> } | null>(null);
+  const [loadingStatus, setLoadingStatus] = useState(true);
+
+  const loadStatus = async () => {
+    setLoadingStatus(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('mpesa-config-status');
+      if (error) throw error;
+      setStatus(data ?? null);
+    } catch {
+      setStatus(null);
+    } finally {
+      setLoadingStatus(false);
+    }
+  };
+
+  useEffect(() => { loadStatus(); }, []);
+
   return (
     <div className="rounded-2xl border border-border overflow-hidden">
-      <button onClick={() => setOpen(v => !v)} className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-muted/40 transition-colors text-left">
+      <button onClick={() => { setOpen(v => !v); if (!open) loadStatus(); }} className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-muted/40 transition-colors text-left">
         <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0">
           <Key className="w-4 h-4 text-amber-600" />
         </div>
         <div className="flex-1">
-          <p className="font-bold text-sm">M-Pesa Setup Guide</p>
-          <p className="text-xs text-muted-foreground">Configure secrets in Cloud → Secrets</p>
+          <p className="font-bold text-sm">M-Pesa Setup</p>
+          <p className="text-xs text-muted-foreground">
+            {loadingStatus ? 'Checking configuration…' : status ? `${status.configured}/${status.total} secrets configured` : 'Configuration status unavailable'}
+          </p>
         </div>
+        {status && <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${status.ready ? 'bg-green-500/10 text-green-600' : 'bg-amber-500/10 text-amber-600'}`}>{status.ready ? 'Ready' : 'Needs setup'}</span>}
         <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <div className="border-t border-border px-4 pb-4 pt-3 space-y-3">
-          <p className="text-xs text-muted-foreground">Add each secret in <strong className="text-foreground">OnSpace Cloud → Secrets</strong>. Use sandbox values for testing.</p>
+          <p className="text-xs text-muted-foreground">Secrets are checked server-side. Values are never returned to the browser.</p>
           <div className="space-y-2">
-            {MPESA_SECRETS.map(s => (
-              <div key={s.key} className="p-3 bg-background border border-border rounded-xl">
-                <code className="text-[11px] font-mono font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded block mb-1">{s.key}</code>
-                <p className="text-xs text-foreground mb-0.5">{s.desc}</p>
-                <p className="text-[10px] text-muted-foreground flex items-start gap-1">
-                  <ExternalLink className="w-2.5 h-2.5 shrink-0 mt-0.5" />{s.where}
-                </p>
-              </div>
-            ))}
+            {MPESA_SECRETS.map(s => {
+              const configured = status?.keys.find(k => k.key === s.key)?.configured;
+              return (
+                <div key={s.key} className="p-3 bg-background border border-border rounded-xl">
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <code className="text-[11px] font-mono font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">{s.key}</code>
+                    <span className={`text-[10px] font-bold ${configured ? 'text-green-600' : 'text-muted-foreground'}`}>{configured ? 'Configured' : 'Missing'}</span>
+                  </div>
+                  <p className="text-xs text-foreground mb-0.5">{s.desc}</p>
+                  <p className="text-[10px] text-muted-foreground flex items-start gap-1">
+                    <ExternalLink className="w-2.5 h-2.5 shrink-0 mt-0.5" />{s.where}
+                  </p>
+                </div>
+              );
+            })}
           </div>
+          <button onClick={loadStatus} disabled={loadingStatus}
+            className="w-full py-2.5 border border-border rounded-xl font-semibold text-xs hover:bg-muted disabled:opacity-50">
+            {loadingStatus ? 'Checking…' : 'Refresh configuration'}
+          </button>
           <a href="https://developer.safaricom.co.ke" target="_blank" rel="noopener noreferrer"
             className="flex items-center justify-center gap-2 w-full py-2.5 border border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400 rounded-xl font-semibold text-xs hover:bg-amber-500/10 transition-colors">
             <ExternalLink className="w-3.5 h-3.5" /> Open Safaricom Developer Portal
@@ -2578,60 +2609,85 @@ function ActivityHeatmap({ userId }: { userId: string }) {
 function SpendingAlertsCard({ userId }: { userId: string }) {
   const [prefs, setPrefs] = useState({ enabled: false, threshold: '10', budget: '50' } as { enabled: boolean; threshold: string; budget: string });
   const [checking, setChecking] = useState(false);
+  const [loadingPrefs, setLoadingPrefs] = useState(true);
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(`ts-alerts-${userId}`);
-      if (raw) setPrefs(JSON.parse(raw));
-    } catch { /* use defaults */ }
-  }, [userId]);
+  const loadPrefs = async () => {
+    setLoadingPrefs(true);
+    const { data } = await supabase.from('wallet_alert_preferences')
+      .select('enabled,withdrawal_threshold_usd,daily_budget_usd')
+      .eq('user_id', userId).maybeSingle();
+    if (data) setPrefs({
+      enabled: Boolean(data.enabled),
+      threshold: String(data.withdrawal_threshold_usd),
+      budget: String(data.daily_budget_usd),
+    });
+    setLoadingPrefs(false);
+  };
 
-  const save = (next: { enabled: boolean; threshold: string; budget: string }) => {
+  useEffect(() => { loadPrefs(); }, [userId]);
+
+  const save = async (next: { enabled: boolean; threshold: string; budget: string }) => {
     setPrefs(next);
-    localStorage.setItem(`ts-alerts-${userId}`, JSON.stringify(next));
+    const { error } = await supabase.from('wallet_alert_preferences').upsert({
+      user_id: userId,
+      enabled: next.enabled,
+      withdrawal_threshold_usd: Number(next.threshold) || 10,
+      daily_budget_usd: Number(next.budget) || 50,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'user_id' });
+    if (error) toast.error('Could not save spending alerts');
   };
 
   const runCheck = async () => {
     if (!prefs.enabled) return;
     setChecking(true);
-    const since = new Date(); since.setHours(0, 0, 0, 0);
-    const { data } = await supabase.from('wallet_transactions')
-      .select('amount,type,created_at,id').eq('user_id', userId).gte('created_at', since.toISOString());
-    const withdrawals = (data ?? []).filter((t: any) => t.type === 'withdrawal');
-    const todayTotal  = withdrawals.reduce((s: number, t: any) => s + Number(t.amount), 0);
-    const budget      = parseFloat(prefs.budget    || '0');
-    const threshold   = parseFloat(prefs.threshold || '0');
-    const todayKey    = since.toISOString().split('T')[0];
-    const alertKey    = `ts-alerted-${userId}`;
-    const alerted: any = (() => { try { return JSON.parse(localStorage.getItem(alertKey) ?? '{}'); } catch { return {}; } })();
+    try {
+      const since = new Date(); since.setHours(0, 0, 0, 0);
+      const { data } = await supabase.from('wallet_transactions')
+        .select('amount,type,created_at,id').eq('user_id', userId).gte('created_at', since.toISOString());
+      const withdrawals = (data ?? []).filter((t: any) => t.type === 'withdrawal');
+      const todayTotal = withdrawals.reduce((s: number, t: any) => s + Number(t.amount), 0);
+      const budget = parseFloat(prefs.budget || '0');
+      const threshold = parseFloat(prefs.threshold || '0');
+      const todayKey = since.toISOString().split('T')[0];
+      const alertKey = `ts-alerted-${userId}`;
+      const alerted: any = (() => { try { return JSON.parse(localStorage.getItem(alertKey) ?? '{}'); } catch { return {}; } })();
 
-    if (budget > 0 && todayTotal >= budget * 0.8 && !alerted[`budget-${todayKey}`]) {
-      await supabase.from('platform_inbox').insert({
-        user_id: userId, subject: 'Spending Alert: 80% of daily budget used',
-        body: `You have spent $${todayTotal.toFixed(2)} today — 80% of your $${budget.toFixed(2)} daily budget.`,
-        type: 'warning', icon_emoji: '⚠️', cta_label: 'Review Limit', cta_url: '/wallet',
-      });
-      alerted[`budget-${todayKey}`] = true;
-      localStorage.setItem(alertKey, JSON.stringify(alerted));
-      toast.warning('Alert sent: 80% of daily budget reached!');
-    }
-    if (threshold > 0) {
-      for (const t of withdrawals.filter((t: any) => Number(t.amount) >= threshold)) {
-        const k = `txn-${t.id}`;
-        if (!alerted[k]) {
-          await supabase.from('platform_inbox').insert({
-            user_id: userId, subject: `Large withdrawal alert: $${Number(t.amount).toFixed(2)}`,
-            body: `A withdrawal of $${Number(t.amount).toFixed(2)} was recorded — above your $${threshold.toFixed(2)} threshold.`,
-            type: 'warning', icon_emoji: '💸', cta_label: 'View History', cta_url: '/wallet?tab=history',
-          });
-          alerted[k] = true;
-        }
+      if (budget > 0 && todayTotal >= budget * 0.8 && !alerted[`budget-${todayKey}`]) {
+        await supabase.from('platform_inbox').insert({
+          user_id: userId, subject: 'Spending Alert: 80% of daily budget used',
+          body: `You have spent $${todayTotal.toFixed(2)} today — 80% of your $${budget.toFixed(2)} daily budget.`,
+          type: 'warning', icon_emoji: '⚠️', cta_label: 'Review Limit', cta_url: '/wallet',
+        });
+        alerted[`budget-${todayKey}`] = true;
+        localStorage.setItem(alertKey, JSON.stringify(alerted));
+        toast.warning('Alert sent: 80% of daily budget reached!');
       }
-      localStorage.setItem(alertKey, JSON.stringify(alerted));
+      if (threshold > 0) {
+        for (const t of withdrawals.filter((t: any) => Number(t.amount) >= threshold)) {
+          const k = `txn-${t.id}`;
+          if (!alerted[k]) {
+            await supabase.from('platform_inbox').insert({
+              user_id: userId, subject: `Large withdrawal alert: $${Number(t.amount).toFixed(2)}`,
+              body: `A withdrawal of $${Number(t.amount).toFixed(2)} was recorded — above your $${threshold.toFixed(2)} threshold.`,
+              type: 'warning', icon_emoji: '💸', cta_label: 'View History', cta_url: '/wallet?tab=history',
+            });
+            alerted[k] = true;
+          }
+        }
+        localStorage.setItem(alertKey, JSON.stringify(alerted));
+      }
+    } finally {
+      setChecking(false);
     }
-    setChecking(false);
-    toast.success('Alert check complete');
   };
+
+  useEffect(() => {
+    if (!prefs.enabled || loadingPrefs) return;
+    runCheck();
+    const id = window.setInterval(runCheck, 60000);
+    return () => window.clearInterval(id);
+  }, [prefs.enabled, prefs.threshold, prefs.budget, loadingPrefs]);
 
   return (
     <div className="rounded-2xl border border-border overflow-hidden">
@@ -2642,36 +2698,37 @@ function SpendingAlertsCard({ userId }: { userId: string }) {
             <h3 className="font-bold text-sm">Spending Alerts</h3>
             {prefs.enabled && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-600 font-bold border border-amber-500/20">On</span>}
           </div>
-          <button onClick={() => save({ ...prefs, enabled: !prefs.enabled })}
+          <button onClick={() => save({ ...prefs, enabled: !prefs.enabled })} disabled={loadingPrefs}
             className={`relative w-11 h-6 rounded-full transition-colors ${prefs.enabled ? 'bg-primary' : 'bg-muted'}`}>
             <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${prefs.enabled ? 'translate-x-5' : 'translate-x-0'}`} />
           </button>
         </div>
-        {prefs.enabled ? (
-          <div className="space-y-4 mt-3">
-            <div>
-              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 block">Large withdrawal alert (USD)</label>
+        {loadingPrefs ? (
+          <div className="flex items-center gap-2 py-3 text-xs text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin" /> Loading saved alert settings…</div>
+        ) : prefs.enabled ? (
+          <>
+            <p className="text-xs text-muted-foreground mb-3">Testagram checks your wallet every minute and sends an inbox notification when a withdrawal crosses your threshold or daily spending reaches 80%.</p>
+            <div className="mb-3">
+              <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 block">Large withdrawal threshold (USD)</label>
               <div className="grid grid-cols-4 gap-2 mb-2">
                 {['5','10','25','50'].map(v => (
                   <button key={v} onClick={() => save({ ...prefs, threshold: v })}
-                    className={`py-2 rounded-xl font-bold text-xs border-2 transition-all ${prefs.threshold === v ? 'border-amber-500 bg-amber-500/10 text-amber-600' : 'border-border hover:border-amber-500/30'}`}>${v}</button>
+                    className={`py-2 rounded-xl font-bold text-xs border-2 transition-all ${prefs.threshold === v ? 'border-amber-500 bg-amber-500/10 text-amber-600' : 'border-border hover:border-amber-500/30'}`}>$${v}</button>
                 ))}
               </div>
-              <input type="number" min="1" step="0.01" placeholder="Custom threshold…"
-                value={!['5','10','25','50'].includes(prefs.threshold) ? prefs.threshold : ''}
+              <input type="number" min="1" step="0.01" placeholder="Custom threshold…" value={!['5','10','25','50'].includes(prefs.threshold) ? prefs.threshold : ''}
                 onChange={e => save({ ...prefs, threshold: e.target.value })}
                 className="w-full h-10 px-3 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30" />
             </div>
-            <div>
+            <div className="mb-3">
               <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1.5 block">Daily budget alert at 80% (USD)</label>
               <div className="grid grid-cols-4 gap-2 mb-2">
                 {['25','50','100','250'].map(v => (
                   <button key={v} onClick={() => save({ ...prefs, budget: v })}
-                    className={`py-2 rounded-xl font-bold text-xs border-2 transition-all ${prefs.budget === v ? 'border-amber-500 bg-amber-500/10 text-amber-600' : 'border-border hover:border-amber-500/30'}`}>${v}</button>
+                    className={`py-2 rounded-xl font-bold text-xs border-2 transition-all ${prefs.budget === v ? 'border-amber-500 bg-amber-500/10 text-amber-600' : 'border-border hover:border-amber-500/30'}`}>$${v}</button>
                 ))}
               </div>
-              <input type="number" min="1" step="0.01" placeholder="Custom budget…"
-                value={!['25','50','100','250'].includes(prefs.budget) ? prefs.budget : ''}
+              <input type="number" min="1" step="0.01" placeholder="Custom budget…" value={!['25','50','100','250'].includes(prefs.budget) ? prefs.budget : ''}
                 onChange={e => save({ ...prefs, budget: e.target.value })}
                 className="w-full h-10 px-3 rounded-xl border border-border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/30" />
             </div>
@@ -2680,9 +2737,9 @@ function SpendingAlertsCard({ userId }: { userId: string }) {
               {checking ? <Loader2 className="w-4 h-4 animate-spin" /> : <AlertTriangle className="w-4 h-4" />}
               {checking ? 'Checking…' : 'Check Alerts Now'}
             </button>
-          </div>
+          </>
         ) : (
-          <p className="text-xs text-muted-foreground mt-1">Get inbox notifications when a withdrawal exceeds a set amount, or your daily spending hits 80% of your budget.</p>
+          <p className="text-xs text-muted-foreground mt-1">Get inbox notifications when a withdrawal exceeds a set amount, or your daily spending hits 80% of your budget. Settings are saved to your wallet.</p>
         )}
       </div>
     </div>
@@ -4317,11 +4374,21 @@ export default function WalletPage() {
             </div>
             <BellOff className="w-4 h-4 text-muted-foreground/50 shrink-0" />
           </div>
-          <div className="flex items-start gap-3 p-4 bg-muted/20 border border-border rounded-2xl">
-            <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0 mt-0.5"><Globe className="w-4 h-4 text-blue-500" /></div>
-            <div>
-              <p className="font-semibold text-sm">Multi-Currency Display</p>
-              <p className="text-xs text-muted-foreground mt-0.5">Toggle between USD, KES, and EUR. Your preference is saved automatically.</p>
+          <div className="p-4 bg-muted/20 border border-border rounded-2xl">
+            <div className="flex items-start gap-3">
+              <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0"><Globe className="w-4 h-4 text-blue-500" /></div>
+              <div className="flex-1">
+                <p className="font-semibold text-sm">Multi-Currency Display</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Choose how your wallet amounts are displayed. The preference is saved to your wallet.</p>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2 mt-3">
+              {CURRENCIES.map(c => (
+                <button key={c.code} onClick={() => handleCurrencyChange(c.code)}
+                  className={`py-2.5 rounded-xl border-2 text-xs font-bold transition-all ${currency === c.code ? 'border-primary bg-primary/10 text-primary' : 'border-border hover:border-primary/30'}`}>
+                  {c.code}
+                </button>
+              ))}
             </div>
           </div>
           {user && <SpendingAlertsCard userId={user.id} />}
