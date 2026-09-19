@@ -47,8 +47,8 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
-function isSameDay(a: Date, b: Date) {
-  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+function isSameUtcDay(a: Date, b: Date) {
+  return a.getUTCFullYear() === b.getUTCFullYear() && a.getUTCMonth() === b.getUTCMonth() && a.getUTCDate() === b.getUTCDate();
 }
 
 function updateMidnightCountdown(setValue: (value: string) => void) {
@@ -91,7 +91,7 @@ export default function DailyRewardsPage() {
 
     if (!currentReward?.last_claimed_at) {
       setCanClaim(true);
-    } else if (isSameDay(new Date(currentReward.last_claimed_at), new Date())) {
+    } else if (isSameUtcDay(new Date(currentReward.last_claimed_at), new Date())) {
       setCanClaim(false);
       updateMidnightCountdown(setNextClaimIn);
     } else {
@@ -131,7 +131,8 @@ export default function DailyRewardsPage() {
       toast.success(`+${result.credits_earned} credits earned! Day ${result.streak_day} streak!`);
       await fetchData();
     } catch (error) {
-      toast.error(getErrorMessage(error, 'Failed to claim reward'));
+      const message = getErrorMessage(error, 'Failed to claim reward');
+      toast.error(message.includes('DAILY_REWARD_ALREADY_CLAIMED') ? 'Already claimed today. Come back after the UTC day resets.' : message);
     } finally {
       setClaiming(false);
     }
