@@ -148,7 +148,6 @@ async function worker() {
         sampleFailure(response, body, "health_contract_mismatch");
       }
 
-      await response.body?.cancel();
     } catch (error) {
       latencies.push(performance.now() - started);
       failed++;
