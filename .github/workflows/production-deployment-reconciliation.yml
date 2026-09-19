@@ -139,6 +139,7 @@ jobs:
           put_r2_secret "R2_SECRET_ACCESS_KEY" "$R2_SECRET_ACCESS_KEY"
           put_r2_secret "R2_MEDIA_BUCKET" "$R2_MEDIA_BUCKET"
           if [[ -n "$R2_PUBLIC_BASE_URL" ]]; then put_r2_secret "R2_PUBLIC_BASE_URL" "$R2_PUBLIC_BASE_URL"; fi
+          printf "%s" "$APP_ORIGIN" | vercel env add "APP_ORIGIN" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           echo "R2 production environment synchronized without printing secret values."
 
       - name: Pull production Vercel configuration
