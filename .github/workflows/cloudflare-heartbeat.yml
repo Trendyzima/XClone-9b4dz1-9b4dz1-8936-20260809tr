@@ -48,7 +48,7 @@ jobs:
           echo "Cloudflare deployment credentials are present (values masked)."
 
       - name: Deploy and validate Cloudflare Worker
-        uses: cloudflare/wrangler-action@v3
+        uses: cloudflare/wrangler-action@f7bb83b93af9ff4bcc3151f5d0ce8f757facc4c0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           workingDirectory: cloudflare/heartbeat-worker
