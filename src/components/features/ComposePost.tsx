@@ -539,15 +539,28 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
               onClick={async () => {
                 const validParts = threadParts.filter(p => p.trim());
                 if (validParts.length < 2) { sonnerToast.error('Add at least 2 parts to post a thread'); return; }
-                setLoading(true);
-                for (let idx = 0; idx < validParts.length; idx++) {
-                  const part = validParts[idx];
-                  const label = validParts.length > 1 ? ` \ud83e\uddf5 ${idx + 1}/${validParts.length}\n\n` : '';
-                  await backendCapabilities.createPost({ content: label + part.trim(), communityId });
+                if (creationQuota.remaining < validParts.length) {
+                  sonnerToast.error(`You have ${creationQuota.remaining} creation${creationQuota.remaining === 1 ? '' : 's'} remaining today; this thread needs ${validParts.length}.`);
+                  return;
                 }
-                setLoading(false); setShowThreadMode(false); setThreadParts(['', '']);
-                sonnerToast.success(`Thread posted (${validParts.length} parts)!`);
-                onSuccess?.();
+                setLoading(true);
+                try {
+                  for (let idx = 0; idx < validParts.length; idx++) {
+                    const part = validParts[idx];
+                    const label = validParts.length > 1 ? ` 🧵 ${idx + 1}/${validParts.length}\n\n` : '';
+                    await backendCapabilities.createPost({ content: label + part.trim(), communityId });
+                  }
+                  setShowThreadMode(false);
+                  setThreadParts(['', '']);
+                  void loadCreationQuota();
+                  sonnerToast.success(`Thread posted (${validParts.length} parts)!`);
+                  onSuccess?.();
+                } catch (error: any) {
+                  void loadCreationQuota();
+                  sonnerToast.error(error?.message || 'Thread could not be completed. Any posts already created remain published.');
+                } finally {
+                  setLoading(false);
+                }
               }}
               className="ml-auto flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-full font-bold text-sm disabled:opacity-50 hover:opacity-90">
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : null} Post Thread
