@@ -137,7 +137,17 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
     form.append('kind', kind);
     form.append('file', optimized, optimized.name);
     const { data, error } = await supabase.functions.invoke('profile-media-upload', { body: form });
-    if (error) throw new Error(error.message || 'Profile media upload failed');
+    if (error) {
+      let detail = error.message || 'Profile media upload failed';
+      try {
+        const response = (error as { context?: Response }).context;
+        if (response) {
+          const payload = await response.clone().json().catch(() => null);
+          if (payload?.error) detail = payload.missing?.length ? `${payload.error} [missing: ${payload.missing.join(', ')}]` : payload.error;
+        }
+      } catch { /* keep the provider error */ }
+      throw new Error(detail);
+    }
     if (!data?.ok || !data.delivery_url) throw new Error('Profile media upload was not completed');
     return data.delivery_url as string;
   };
