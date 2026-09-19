@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { Plus, X, Loader2, Send, MessageCircle, Music, Search as SearchIcon, Play, Pause, Compass, Gift, Star } from 'lucide-react';
 import { toast } from 'sonner';
 import { StoryAdSlide } from './StoryAdSlide';
+import { uploadStoryMedia, type StoryUploadItem } from '@/services/storyMediaUpload';
 
 interface Story {
   id: string;
@@ -73,8 +74,11 @@ export function StoriesStrip() {
 
   // Caption input
   const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [pendingCaption, setPendingCaption] = useState('');
   const [pendingPreviewUrl, setPendingPreviewUrl] = useState<string | null>(null);
+  const [uploadItems, setUploadItems] = useState<StoryUploadItem[]>([]);
+  const [uploadedAssets, setUploadedAssets] = useState<any[]>([]);
   // Swipe tracking
   const touchStartX = useRef<number | null>(null);
   const isSwiping = useRef(false);
@@ -616,47 +620,47 @@ export function StoriesStrip() {
   };
 
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user) return;
-    if (file.size > 20 * 1024 * 1024) { toast.error('File must be under 20MB'); return; }
+    const files = Array.from(e.target.files ?? []);
+    if (!user || files.length === 0) return;
+    const invalid = files.find(file => !file.type.startsWith('image/') && !file.type.startsWith('video/'));
+    if (invalid) { toast.error(`Unsupported media type: ${invalid.name}`); e.target.value = ''; return; }
+    const tooLarge = files.find(file => file.size > 500 * 1024 * 1024);
+    if (tooLarge) { toast.error(`${tooLarge.name} is larger than 500 MiB`); e.target.value = ''; return; }
+
     if (pendingPreviewUrl) URL.revokeObjectURL(pendingPreviewUrl);
-    setPendingFile(file);
+    setPendingFiles(files);
+    setPendingFile(files[0]);
     setPendingCaption('');
-    setPendingPreviewUrl(URL.createObjectURL(file));
+    setPendingPreviewUrl(URL.createObjectURL(files[0]));
+    setUploadItems(files.map((file, index) => ({
+      id: `${file.name}-${file.size}-${file.lastModified}-${index}`,
+      file,
+      progress: 0,
+      status: 'queued',
+      attempts: 0,
+    })));
+    setUploadedAssets([]);
     e.target.value = '';
   };
 
   const cancelPending = () => {
     if (pendingPreviewUrl) URL.revokeObjectURL(pendingPreviewUrl);
     setPendingFile(null);
+    setPendingFiles([]);
     setPendingCaption('');
     setPendingPreviewUrl(null);
+    setUploadItems([]);
+    setUploadedAssets([]);
   };
 
-  const doUpload = async () => {
-    if (!pendingFile || !user) return;
-    setUploading(true);
-    // Grant +5 credits for story creation (once per day)
-    grantStoryCreationReward(user.id).catch(() => {});
-    const ext = pendingFile.name.split('.').pop();
-    const path = `stories/${user.id}/${Date.now()}.${ext}`;
-    const { error: upErr } = await supabase.storage.from('posts').upload(path, pendingFile);
-    if (upErr) { toast.error('Upload failed'); setUploading(false); return; }
-    const { data: { publicUrl } } = supabase.storage.from('posts').getPublicUrl(path);
-    const stickerMeta = { ...(stickers.length > 0 ? { stickers } : {}), ...(textOverlays.length > 0 ? { textOverlays } : {}), ...(selectedMusic ? { music: { id: selectedMusic.id, title: selectedMusic.title, artist: selectedMusic.artist, cover_url: selectedMusic.cover_url } } : {}), ...(countdownStickers.length > 0 ? { countdownStickers } : {}), ...(pollAdded && pollQuestion.trim() ? { poll: { question: pollQuestion.trim(), options: pollOptions } } : {}) };
-    const { error: insErr } = await supabase.from('stories').insert({
-      user_id: user.id,
-      media_url: publicUrl,
-      media_type: pendingFile.type.startsWith('video') ? 'video' : 'image',
-      caption: pendingCaption.trim() || null,
-      metadata: stickerMeta,
-    });
-    if (insErr) toast.error('Failed to post story');
-    else { toast.success('Story posted!'); await fetchStories(); }
+  const resetStoryComposer = () => {
     if (pendingPreviewUrl) URL.revokeObjectURL(pendingPreviewUrl);
     setPendingFile(null);
+    setPendingFiles([]);
     setPendingCaption('');
     setPendingPreviewUrl(null);
+    setUploadItems([]);
+    setUploadedAssets([]);
     setStickers([]);
     setTextOverlays([]);
     setCountdownStickers([]);
@@ -669,7 +673,70 @@ export function StoriesStrip() {
     setLocalMusicFile(null);
     setShowMusicPicker(false);
     if (musicPreviewRef.current) { musicPreviewRef.current.pause(); musicPreviewRef.current.currentTime = 0; }
-    setUploading(false);
+  };
+
+  const doUpload = async () => {
+    if (pendingFiles.length === 0 || !user) return;
+    setUploading(true);
+    grantStoryCreationReward(user.id).catch(() => {});
+
+    try {
+      const nextAssets = [...uploadedAssets];
+      const indexes = pendingFiles.map((_, i) => i).filter(i => !nextAssets[i]);
+      const filesToUpload = indexes.map(i => pendingFiles[i]);
+
+      if (filesToUpload.length > 0) {
+        const result = await uploadStoryMedia(filesToUpload, (localIndex, patch) => {
+          const originalIndex = indexes[localIndex];
+          setUploadItems(prev => prev.map((item, i) => i === originalIndex ? { ...item, ...patch } : item));
+        });
+
+        result.assets.forEach((asset, localIndex) => {
+          const originalIndex = indexes[localIndex];
+          if (asset) nextAssets[originalIndex] = asset;
+        });
+        setUploadedAssets(nextAssets);
+
+        if (result.failed.length > 0) {
+          toast.error(`${result.failed.length} media upload${result.failed.length === 1 ? '' : 's'} failed after retries. Tap Share Story to retry only failed files.`);
+          return;
+        }
+      }
+
+      if (nextAssets.length !== pendingFiles.length || nextAssets.some(asset => !asset?.id)) {
+        toast.error('Some media is not ready yet. Retry the failed items.');
+        return;
+      }
+
+      const stickerMeta = {
+        ...(stickers.length > 0 ? { stickers } : {}),
+        ...(textOverlays.length > 0 ? { textOverlays } : {}),
+        ...(selectedMusic ? { music: { id: selectedMusic.id, title: selectedMusic.title, artist: selectedMusic.artist, cover_url: selectedMusic.cover_url } } : {}),
+        ...(countdownStickers.length > 0 ? { countdownStickers } : {}),
+        ...(pollAdded && pollQuestion.trim() ? { poll: { question: pollQuestion.trim(), options: pollOptions } } : {}),
+      };
+
+      const mediaPayload = nextAssets.map(asset => ({
+        media_id: asset.id,
+        metadata: stickerMeta,
+      }));
+
+      const { data, error } = await supabase.rpc('testagram_story_publish', {
+        p_media: mediaPayload,
+        p_caption: pendingCaption.trim() || null,
+        p_visibility: 'public',
+      });
+
+      if (error) throw error;
+      toast.success(`Story posted with ${data?.count ?? pendingFiles.length} media items · expires in 24h`);
+      resetStoryComposer();
+      await fetchStories();
+    } catch (error) {
+      console.error('Story publish failed', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to publish story');
+    } finally {
+      setUploading(false);
+    }
   };
 
   const sendReaction = async (emoji: string) => {
@@ -944,7 +1011,7 @@ export function StoriesStrip() {
             </span>
           </button>
         )}
-        <input ref={fileInputRef} type="file" accept="image/*,video/*" className="hidden" onChange={handleFileSelected} />
+        <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleFileSelected} />
         {/* Explore Stories button */}
         <button
           onClick={() => { setShowExplore(true); fetchExploreStories(); }}
@@ -972,7 +1039,7 @@ export function StoriesStrip() {
       </div>
 
       {/* ── Caption Input Modal ─────────────────────────── */}
-      {pendingFile && pendingPreviewUrl && (
+      {pendingFiles.length > 0 && pendingFile && pendingPreviewUrl && (
         <div className="fixed inset-0 z-[210] bg-black/85 flex flex-col items-center justify-center p-4 gap-3 overflow-y-auto">
           <div
             ref={storyPreviewRef}
@@ -1004,6 +1071,29 @@ export function StoriesStrip() {
               >{s.emoji}</div>
             ))}
           </div>
+
+          {pendingFiles.length > 1 && (
+            <div className="w-full max-w-sm bg-black/70 backdrop-blur-md rounded-2xl border border-white/20 p-3 flex-shrink-0">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-white text-xs font-bold">{pendingFiles.length} media selected</p>
+                <p className="text-white/50 text-[10px]">4 uploads at a time · auto-retry ×3</p>
+              </div>
+              <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                {uploadItems.map((item, i) => (
+                  <div key={item.id} className="flex items-center gap-2">
+                    <span className="text-white/70 text-[10px] w-5 text-right">{i + 1}</span>
+                    <span className="text-white text-[10px] truncate flex-1">{item.file.name}</span>
+                    <span className={`text-[9px] font-semibold ${item.status === 'failed' ? 'text-red-300' : item.status === 'uploaded' ? 'text-emerald-300' : 'text-white/50'}`}>
+                      {item.status === 'retrying' ? `Retry ${item.attempts}/3` : item.status === 'uploaded' ? '✓' : `${item.progress}%`}
+                    </span>
+                    <div className="w-14 h-1 rounded-full bg-white/15 overflow-hidden">
+                      <div className="h-full bg-primary transition-all" style={{ width: `${item.progress}%` }} />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {showStickerPicker && (
             <div className="w-full max-w-sm bg-white/10 backdrop-blur-md rounded-2xl p-3 border border-white/20 flex-shrink-0">
@@ -1185,7 +1275,7 @@ export function StoriesStrip() {
               <button onClick={cancelPending} disabled={uploading} className="flex-1 py-3 bg-white/10 hover:bg-white/20 text-white rounded-xl font-medium transition-colors disabled:opacity-50">Cancel</button>
               <button onClick={doUpload} disabled={uploading} className="flex-1 py-3 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-medium transition-colors disabled:opacity-50 flex items-center justify-center gap-2">
                 {uploading && <Loader2 className="w-4 h-4 animate-spin" />}
-                {uploading ? 'Posting…' : 'Share Story'}
+                {uploading ? (uploadItems.some(i => i.status === 'uploading' || i.status === 'retrying') ? 'Uploading…' : 'Publishing…') : (pendingFiles.length > 1 ? `Share ${pendingFiles.length} Stories` : 'Share Story')}
               </button>
             </div>
           </div>
