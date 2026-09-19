@@ -204,7 +204,7 @@ export default function ContentPolicyPage() {
           </p>
           <div className="flex justify-center gap-2 mt-4 flex-wrap">
             <span className="text-[10px] bg-green-500/10 text-green-600 font-bold px-2.5 py-1 rounded-full border border-green-500/20">AI-Powered Enforcement</span>
-            <span className="text-[10px] bg-primary/10 text-primary font-bold px-2.5 py-1 rounded-full border border-primary/20">Human Regulator Review</span>
+            <span className="text-[10px] bg-primary/10 text-primary font-bold px-2.5 py-1 rounded-full border border-primary/20">Human Review</span>
             <span className="text-[10px] bg-orange-500/10 text-orange-600 font-bold px-2.5 py-1 rounded-full border border-orange-500/20">Appeals Process</span>
           </div>
         </div>
@@ -332,7 +332,7 @@ export default function ContentPolicyPage() {
 
         {/* Enforcement */}
         <div className="space-y-4">
-          <h2 className="font-black text-lg">Enforcement & Strikes</h2>
+          <h2 className="font-black text-lg">Enforcement & Appeals</h2>
           <div className="space-y-3">
             {ENFORCEMENT_STEPS.map(step => (
               <div key={step.step} className="flex items-start gap-4 p-4 bg-card border border-border rounded-2xl">
@@ -385,7 +385,7 @@ export default function ContentPolicyPage() {
         <div className="text-center pb-4">
           <p className="text-xs text-muted-foreground">
             Questions about this policy? Contact the platform at{' '}
-            <a href="mailto:support@tsocial.com" className="text-primary hover:underline font-semibold">contact@onspace.ai</a>
+            <a href="mailto:support@tsocial.com" className="text-primary hover:underline font-semibold">support@tsocial.com</a>
           </p>
           <p className="text-[10px] text-muted-foreground mt-2 opacity-60">Last updated: September 2026 · Testagram Safety & Policy Team</p>
         </div>
