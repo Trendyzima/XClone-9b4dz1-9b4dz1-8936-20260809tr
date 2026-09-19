@@ -3,3 +3,9 @@ verify_jwt = false
 
 [functions.community-admin-runtime]
 verify_jwt = false
+
+[functions.gateway-relay]
+verify_jwt = false
+
+[functions.federated-feed]
+verify_jwt = true
