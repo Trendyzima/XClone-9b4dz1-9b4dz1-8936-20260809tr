@@ -72,6 +72,15 @@ const ACCOUNT_TOPICS = [
 
 const POSTS_TOPICS = [
   {
+    q: 'Daily posting limit',
+    a: [
+      'Each user can create up to 10 posts and threads combined per UTC calendar day.',
+      'Replies, comments, likes, reposts, and bookmarks do not use this daily creation allowance.',
+      'The remaining allowance is shown in the post and thread creation screens.',
+      'Deleting a post or thread does not restore that day\'s allowance; the allowance resets at the next UTC day.',
+    ],
+  },
+  {
     q: 'How to post videos',
     a: [
       'Tap the green + FAB button on the Home screen to open the Compose sheet.',
@@ -86,7 +95,7 @@ const POSTS_TOPICS = [
     a: [
       'In the Compose sheet, tap the Poll icon (bar chart icon) in the toolbar.',
       'Enter your question and up to 4 answer options.',
-      'Set the poll duration: 1 day, 3 days, or 7 days.',
+      'Set the poll duration using the options currently offered by the composer.',
       'Post normally — followers can tap an option to vote.',
       'Results are visible to everyone once you\'ve voted or after the poll expires.',
     ],
@@ -107,7 +116,7 @@ const POSTS_TOPICS = [
       'Type # followed by a keyword in your post (e.g. #Nairobi #TechKenya).',
       'Use 3–7 relevant hashtags for best reach — too many can look spammy.',
       'Follow hashtags from the Explore page to see all posts under that tag in your feed.',
-      'Create hashtag challenges from the Explore → Challenges section (verified users only).',
+      'Use hashtags and other discovery features according to the current product rules and eligibility shown in the app.',
       'Trending hashtags appear on the Explore tab — using them boosts discoverability.',
     ],
   },
@@ -357,11 +366,11 @@ function formatTicketDate(d: string): string {
 
 // ── Article last-updated dates (module-level, esbuild guard: no Record<string,string> annotation) ──
 const ARTICLE_LAST_UPDATED = {
-  'how-to-change-username': 'Aug 2026',
-  'update-profile-information': 'Aug 2026',
-  'verify-your-account': 'Aug 2026',
-  'delete-your-account': 'Jul 2026',
-  'privacy-settings': 'Aug 2026',
+  'how-to-change-username': 'Sep 2026',
+  'update-profile-information': 'Sep 2026',
+  'verify-your-account': 'Sep 2026',
+  'delete-your-account': 'Sep 2026',
+  'privacy-settings': 'Sep 2026',
   'how-to-post-videos': 'Sep 2026',
   'create-polls': 'Sep 2026',
   'schedule-posts': 'Sep 2026',
