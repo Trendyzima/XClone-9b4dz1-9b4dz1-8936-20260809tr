@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { VerifiedTick } from '@/components/ui/VerifiedTick';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -9,7 +10,7 @@ import { EditProfileDialog } from '@/components/features/EditProfileDialog';
 import { RevenueAnalyticsWidget } from '@/components/features/RevenueAnalyticsWidget';
 import { StoryHighlights } from '@/components/features/StoryHighlights';
 import CreatorMonetizationHub, { SubscriptionTiersDisplay, TipGoalWidget, SubscriberBadge } from '@/components/features/CreatorMonetizationHub';
-import { Calendar, MapPin, Link as LinkIcon, BadgeCheck, Loader2, Twitter, Instagram, Linkedin, MessageCircle, Globe, ShieldCheck, X, Trophy, Flame, DollarSign, Gift, Check, Share2, Copy, Plus, Star, Eye, Crown, Sparkles, MoreHorizontal, Ban, VolumeX, Volume2, Flag, Send, Rss, Play, Heart, BookOpen, ChevronRight, Headphones, Clock, Users, Pencil, ExternalLink } from 'lucide-react';
+import { Calendar, MapPin, Link as LinkIcon, Loader2, Twitter, Instagram, Linkedin, MessageCircle, Globe, ShieldCheck, X, Trophy, Flame, DollarSign, Gift, Check, Share2, Copy, Plus, Star, Eye, Crown, Sparkles, MoreHorizontal, Ban, VolumeX, Volume2, Flag, Send, Rss, Play, Heart, BookOpen, ChevronRight, Headphones, Clock, Users, Pencil, ExternalLink } from 'lucide-react';
 import { sendActivityNotification } from '@/components/layout/AuthProvider';
 import { toast } from 'sonner';
 import { useSEO, buildProfileLD, buildOgImageUrl } from '@/hooks/useSEO';
@@ -1044,7 +1045,7 @@ export default function ProfilePage() {
           <div className="mb-3">
             <div className="flex items-center gap-2 mb-1">
               <h2 className="text-xl font-bold">{profile.username}</h2>
-              {profile.verified && <BadgeCheck className="w-5 h-5 text-primary" fill="currentColor" />}
+              {profile.verified && <VerifiedTick className="w-5 h-5 text-primary" />}
               {isRegulator && isOwnProfile && (
                 <button onClick={() => navigate('/regulator')} className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-gradient-to-r from-violet-600/15 to-primary/10 border border-violet-500/30 text-[10px] font-black text-violet-600 dark:text-violet-400 hover:opacity-90 transition-opacity">
                   👑 Regulator
@@ -1821,7 +1822,7 @@ export default function ProfilePage() {
                     <div>
                       <div className="flex items-center gap-1">
                         <span className="font-bold">{follower.username}</span>
-                        {follower.verified && <BadgeCheck className="w-4 h-4 text-primary" fill="currentColor" />}
+                        {follower.verified && <VerifiedTick className="w-4 h-4 text-primary" />}
                       </div>
                       <p className="text-sm text-muted-foreground line-clamp-1">{follower.bio || `@${follower.username}`}</p>
                     </div>
@@ -2014,7 +2015,7 @@ export default function ProfilePage() {
                     <div>
                       <div className="flex items-center gap-1">
                         <span className="font-bold">{followedUser.username}</span>
-                        {followedUser.verified && <BadgeCheck className="w-4 h-4 text-primary" fill="currentColor" />}
+                        {followedUser.verified && <VerifiedTick className="w-4 h-4 text-primary" />}
                       </div>
                       <p className="text-sm text-muted-foreground line-clamp-1">{followedUser.bio || `@${followedUser.username}`}</p>
                     </div>
