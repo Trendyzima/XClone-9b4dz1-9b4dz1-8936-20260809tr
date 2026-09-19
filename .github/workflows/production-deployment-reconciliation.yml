@@ -94,6 +94,29 @@ jobs:
           curl --fail --silent --show-error --location --retry 3 --retry-delay 2 "$GATEWAY_URL" > fediverse-gateway-health.json
           node -e 'const fs=require("node:fs"); const body=fs.readFileSync("fediverse-gateway-health.json","utf8").trim(); let p; try { p=JSON.parse(body); } catch { console.error("Fediverse gateway returned invalid JSON:", body); process.exit(1); } if (p?.ok !== true || p?.service !== "gateway-relay" || p?.backend !== "supabase") { console.error("Fediverse gateway contract failed:", JSON.stringify(p)); process.exit(1); } console.log("Fediverse gateway gate passed:", JSON.stringify(p));'
 
+      - name: Deploy Testagram Ads Edge Functions
+        shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+        run: |
+          set -euo pipefail
+          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required for the Testagram Ads deployment gate."; exit 1; }
+          PROJECT_REF="$SUPABASE_PROJECT_REF"
+          if [[ -z "$PROJECT_REF" ]]; then
+            PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
+          fi
+          [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref."; exit 1; }
+          for fn in testagram-ad-campaign testagram-ads zenad-decision zenad-event testagram-ad-asset-upload zenad-campaign zenad-ad-asset-upload mpesa-ad-payment; do
+            if [[ "$fn" == "zenad-event" || "$fn" == "mpesa-ad-payment" ]]; then
+              supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt
+            else
+              supabase functions deploy "$fn" --project-ref "$PROJECT_REF"
+            fi
+          done
+          node -e 'const fs=require("node:fs"); const p="supabase/migrations/20260919193000_testagram_ads_runtime_schema_repair.sql"; if(!fs.existsSync(p)){console.error("Canonical Testagram Ads runtime migration is missing:",p); process.exit(1)} console.log("Testagram Ads schema source present:",p);'
+
       - name: Install pinned Vercel CLI
         run: npm install --global vercel@48.4.0
 
