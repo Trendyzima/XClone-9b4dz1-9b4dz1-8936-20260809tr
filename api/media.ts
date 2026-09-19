@@ -2,7 +2,9 @@ import { createClient } from '@supabase/supabase-js';
 import { DeleteObjectCommand, GetObjectCommand, HeadObjectCommand, ListObjectsV2Command, PutObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
-// Hard application-wide media ceiling: 20 MiB (20,971,520 bytes).\n// Keep this as the server-side source of truth; clients are only UX validation.\nconst MAX_BYTES = 20 * 1024 * 1024;
+// Hard application-wide media ceiling: 20 MiB (20,971,520 bytes).
+// Keep this as the server-side source of truth; clients are only UX validation.
+const MAX_BYTES = 20 * 1024 * 1024;
 const ALLOWED = new Set([
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif',
   'video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska',
