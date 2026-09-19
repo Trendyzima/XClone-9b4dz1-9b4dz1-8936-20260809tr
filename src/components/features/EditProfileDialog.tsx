@@ -32,6 +32,28 @@ type MediaKind = 'avatar' | 'cover';
 const textValue = (value: unknown): string => (typeof value === 'string' ? value : '');
 const nullableTextValue = (value: unknown): string | null => (typeof value === 'string' ? value : null);
 
+async function optimizeProfileImage(file: File, kind: MediaKind): Promise<File> {
+  // Keep animated GIFs untouched. Other images are resized and encoded as WebP in-browser
+  // so mobile uploads send dramatically fewer bytes over the network.
+  if (file.type === 'image/gif') return file;
+  const maxDimension = kind === 'avatar' ? 512 : 1600;
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+  const width = Math.max(1, Math.round(bitmap.width * scale));
+  const height = Math.max(1, Math.round(bitmap.height * scale));
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) { bitmap.close(); return file; }
+  ctx.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
+  const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/webp', kind === 'avatar' ? 0.84 : 0.86));
+  if (!blob) return file;
+  // Never make optimization larger than the source.
+  return blob.size < file.size ? new File([blob], file.name.replace(/\.[^.]+$/, '.webp'), { type: 'image/webp', lastModified: Date.now() }) : file;
+}
+
 export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: profileProp }: EditProfileDialogProps) {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -110,11 +132,12 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
 
   const uploadProfileMedia = async (file: File, kind: MediaKind) => {
     if (!user) throw new Error('Not authenticated');
+    const optimized = await optimizeProfileImage(file, kind);
     const form = new FormData();
     form.append('kind', kind);
-    form.append('file', file, file.name);
+    form.append('file', optimized, optimized.name);
     const { data, error } = await supabase.functions.invoke('profile-media-upload', { body: form });
-    if (error) throw error;
+    if (error) throw new Error(error.message || 'Profile media upload failed');
     if (!data?.ok || !data.delivery_url) throw new Error('Profile media upload was not completed');
     return data.delivery_url as string;
   };
@@ -131,8 +154,13 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
     try {
       let avatarUrl = avatarPreview;
       let coverUrl = coverPreview;
-      if (avatar) avatarUrl = await uploadProfileMedia(avatar, 'avatar');
-      if (coverImage) coverUrl = await uploadProfileMedia(coverImage, 'cover');
+      // Upload both assets concurrently so a cover + avatar save is not needlessly serialized.
+      const [uploadedAvatar, uploadedCover] = await Promise.all([
+        avatar ? uploadProfileMedia(avatar, 'avatar') : Promise.resolve(avatarUrl),
+        coverImage ? uploadProfileMedia(coverImage, 'cover') : Promise.resolve(coverUrl),
+      ]);
+      avatarUrl = uploadedAvatar;
+      coverUrl = uploadedCover;
 
       const social_links: SocialLinks = {
         twitter: twitterHandle.trim().replace(/^@/, '') || null,
