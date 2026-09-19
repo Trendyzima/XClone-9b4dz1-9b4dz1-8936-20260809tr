@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { requireAccessToken } from '@/services/backendClient';
 import { useAuth } from '@/hooks/useAuth';
 import { Image as ImageIcon, Loader2, PlaySquare, RefreshCw, Search, Send, Video, Clapperboard } from 'lucide-react';
 
@@ -35,22 +36,16 @@ export function CreatorMediaStudio({ onUseInComposer, onUseInReelStudio }: Props
     setRefreshing(true);
     setError(null);
     try {
-      const prefixes = [user.id, `videos/${user.id}`];
-      const results = await Promise.all(prefixes.map(prefix => supabase.storage.from('posts').list(prefix, { limit: 100, sortBy: { column: 'updated_at', order: 'desc' } })));
-      const found: CreatorMediaAsset[] = [];
-      results.forEach(({ data, error: listError }, index) => {
-        if (listError) throw listError;
-        const prefix = prefixes[index];
-        (data ?? []).forEach(file => {
-          if (!file.name || !file.id) return;
-          const type = isVideo(file.name) ? 'video' : isImage(file.name) ? 'image' : null;
-          if (!type) return;
-          const path = `${prefix}/${file.name}`;
-          const { data: publicData } = supabase.storage.from('posts').getPublicUrl(path);
-          found.push({ id: `${type}:${path}`, name: file.name, path, url: publicData.publicUrl, type, size: file.metadata?.size, updatedAt: file.updated_at ?? undefined });
-        });
+      const token = await requireAccessToken();
+      const response = await fetch('/api/media', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'list' }),
       });
-      setAssets(Array.from(new Map(found.map(asset => [asset.id, asset])).values()).sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? '')));
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload?.error || 'Could not load your media library.');
+      const found = (payload.items ?? []) as CreatorMediaAsset[];
+      setAssets(found.sort((a, b) => (b.updatedAt ?? '').localeCompare(a.updatedAt ?? '')));
     } catch (err: any) {
       setError(err?.message ?? 'Could not load your media library.');
     } finally {
