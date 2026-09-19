@@ -284,6 +284,68 @@ jobs:
 
           echo "SMS production environment synchronized without printing secret values."
 
+      - name: Synchronize Cloudflare R2 secrets into Supabase Edge Functions
+        shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+          R2_MEDIA_BUCKET: ${{ secrets.R2_MEDIA_BUCKET || vars.R2_MEDIA_BUCKET }}
+          R2_PUBLIC_BASE_URL: ${{ secrets.R2_PUBLIC_BASE_URL || vars.R2_PUBLIC_BASE_URL }}
+        run: |
+          set -euo pipefail
+          PROJECT_REF="$SUPABASE_PROJECT_REF"
+          if [[ -z "$PROJECT_REF" ]]; then
+            PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
+          fi
+          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required for R2 secret synchronization."; exit 1; }
+          [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref for R2 secret synchronization."; exit 1; }
+
+          missing=()
+          [[ -n "$R2_ACCOUNT_ID" ]] || missing+=(R2_ACCOUNT_ID)
+          [[ -n "$R2_ACCESS_KEY_ID" ]] || missing+=(R2_ACCESS_KEY_ID)
+          [[ -n "$R2_SECRET_ACCESS_KEY" ]] || missing+=(R2_SECRET_ACCESS_KEY)
+          [[ -n "$R2_MEDIA_BUCKET" ]] || missing+=(R2_MEDIA_BUCKET)
+          [[ -n "$R2_PUBLIC_BASE_URL" ]] || missing+=(R2_PUBLIC_BASE_URL)
+          if (( ${#missing[@]} > 0 )); then
+            echo "::error::R2 configuration is incomplete; profile media cannot be enabled safely."
+            echo "::error::Missing GitHub production configuration names: ${missing[*]}"
+            echo "::error::Do not paste R2 credentials into source control or chat. Configure the GitHub production secrets first."
+            exit 1
+          fi
+
+          umask 077
+          TMP_ENV="$(mktemp)"
+          trap 'rm -f "$TMP_ENV"' EXIT
+          {
+            printf 'CLOUDFLARE_ACCOUNT_ID=%s\n' "$R2_ACCOUNT_ID"
+            printf 'CLOUDFLARE_R2_ACCESS_KEY_ID=%s\n' "$R2_ACCESS_KEY_ID"
+            printf 'CLOUDFLARE_R2_SECRET_ACCESS_KEY=%s\n' "$R2_SECRET_ACCESS_KEY"
+            printf 'CLOUDFLARE_R2_BUCKET=%s\n' "$R2_MEDIA_BUCKET"
+            printf 'R2_PUBLIC_BASE_URL=%s\n' "$R2_PUBLIC_BASE_URL"
+          } > "$TMP_ENV"
+          supabase secrets set --project-ref "$PROJECT_REF" --env-file "$TMP_ENV"
+          echo "Cloudflare R2 secrets synchronized to Supabase Edge Functions without printing values."
+
+      - name: Deploy profile media Edge Function
+        shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+        run: |
+          set -euo pipefail
+          PROJECT_REF="$SUPABASE_PROJECT_REF"
+          if [[ -z "$PROJECT_REF" ]]; then
+            PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
+          fi
+          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required for profile media deployment."; exit 1; }
+          [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref for profile media deployment."; exit 1; }
+          supabase functions deploy profile-media-upload --project-ref "$PROJECT_REF" --no-verify-jwt
+          echo "Profile media Edge Function deployed with in-function bearer authentication."
       - name: Synchronize Cloudflare R2 secrets into Vercel production
         shell: bash
         env:
