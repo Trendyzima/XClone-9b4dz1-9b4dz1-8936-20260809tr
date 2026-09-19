@@ -84,8 +84,8 @@ jobs:
           SMS_RATE_LIMIT_SECRET: ${{ secrets.SMS_RATE_LIMIT_SECRET }}
           SMS_GATEWAY_URL: ${{ secrets.SMS_GATEWAY_URL || secrets.AFRICASTALKING_SMS_URL || vars.SMS_GATEWAY_URL }}
           SMS_GATEWAY_API_KEY: ${{ secrets.SMS_GATEWAY_API_KEY || secrets.AFRICASTALKING_API_KEY }}
-          SMS_GATEWAY_USERNAME: ${{ secrets.SMS_GATEWAY_USERNAME || secrets.AFRICASTALKING_USERNAME }}
-          SMS_SENDER_NAME: ${{ secrets.SMS_SENDER_NAME || secrets.AFRICASTALKING_SENDER_ID || vars.SMS_SENDER_NAME }}
+          SMS_GATEWAY_USERNAME: ${{ secrets.SMS_GATEWAY_USERNAME || secrets.AFRICASTALKING_USERNAME || secrets.AFRICA_TALKING_USERNAME || secrets.AFRICAS_TALKING_USERNAME || secrets.AT_USERNAME || vars.SMS_GATEWAY_USERNAME || vars.AFRICASTALKING_USERNAME }}
+          SMS_SENDER_NAME: ${{ secrets.SMS_SENDER_NAME || secrets.AFRICASTALKING_SENDER_ID || vars.SMS_SENDER_NAME || 'Testagram' }}
         run: |
           set -euo pipefail
 
@@ -113,7 +113,11 @@ jobs:
           put_production_secret "SMS_GATEWAY_URL" "$SMS_GATEWAY_URL"
           put_production_secret "SMS_GATEWAY_API_KEY" "$SMS_GATEWAY_API_KEY"
           put_production_secret "SMS_GATEWAY_USERNAME" "$SMS_GATEWAY_USERNAME"
-          put_production_secret "SMS_SENDER_NAME" "$SMS_SENDER_NAME"
+          if [[ -n "$SMS_SENDER_NAME" ]]; then
+            put_production_secret "SMS_SENDER_NAME" "$SMS_SENDER_NAME"
+          else
+            echo "SMS_SENDER_NAME not supplied; preserving provider/default sender configuration."
+          fi
 
           echo "SMS production environment synchronized without printing secret values."
 
