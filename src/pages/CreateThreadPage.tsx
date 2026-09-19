@@ -132,7 +132,7 @@ export default function CreateThreadPage() {
   const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 50 * 1024 * 1024) { sonnerToast.error('Video must be < 50MB'); return; }
+    if (file.size > 20 * 1024 * 1024) { sonnerToast.error('Video must be 20 MiB or smaller'); return; }
     if (coverVideoPreview) URL.revokeObjectURL(coverVideoPreview);
     setCoverVideo(file);
     setCoverVideoPreview(URL.createObjectURL(file));
@@ -329,7 +329,7 @@ Requirements:
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files?.[0]) {
       const file = e.target.files[0];
-      if (file.size > 10 * 1024 * 1024) { sonnerToast.error('Image must be less than 10MB'); return; }
+      if (file.size > 20 * 1024 * 1024) { sonnerToast.error('Image must be 20 MiB or smaller'); return; }
       setCoverImage(file);
       setCoverPreview(URL.createObjectURL(file));
     }
