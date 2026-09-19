@@ -27,6 +27,7 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
   let sending = false;
   let authenticated = false;
   let accessToken: string | null = null;
+  let backoffUntil = 0;
 
   const clearTimer = () => {
     if (timer !== undefined) {
@@ -44,7 +45,10 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
     clearTimer();
     if (stopped || !authenticated || !isVisible() || !hasRecentActivity()) return;
 
-    const remaining = Math.max(1_000, HEARTBEAT_INTERVAL_MS - (Date.now() - lastSentAt));
+    const now = Date.now();
+    const remaining = backoffUntil > now
+      ? backoffUntil - now
+      : Math.max(1_000, HEARTBEAT_INTERVAL_MS - (now - lastSentAt));
     timer = window.setTimeout(() => {
       timer = undefined;
       void maybeSend();
@@ -55,6 +59,10 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
     if (stopped || !authenticated || sending || !isVisible() || !hasRecentActivity()) return;
 
     const now = Date.now();
+    if (backoffUntil > now) {
+      schedule();
+      return;
+    }
     if (lastSentAt > 0 && now - lastSentAt < HEARTBEAT_INTERVAL_MS) {
       schedule();
       return;
@@ -76,8 +84,18 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
         keepalive: true,
       });
 
-      if (response.ok) lastSentAt = Date.now();
+      if (response.ok) {
+        lastSentAt = Date.now();
+        backoffUntil = 0;
+      } else if (response.status === 429) {
+        // Platform quota/rate-limit response: stop retrying this tab for 6h.
+        backoffUntil = Date.now() + 6 * 60 * 60_000;
+      } else if (response.status >= 500) {
+        // Transient backend failure: retry at most once per 30 minutes.
+        backoffUntil = Date.now() + HEARTBEAT_INTERVAL_MS;
+      }
     } catch {
+      backoffUntil = Date.now() + HEARTBEAT_INTERVAL_MS;
       // Heartbeat is advisory; application functionality must not depend on it.
     } finally {
       sending = false;
@@ -111,6 +129,7 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
       authenticated = false;
       lastActivityAt = 0;
       lastSentAt = 0;
+      backoffUntil = 0;
       clearTimer();
       return;
     }
@@ -123,6 +142,7 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
     if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
       lastActivityAt = Date.now();
       lastSentAt = 0;
+      backoffUntil = 0;
       void maybeSend();
     }
   };
@@ -154,6 +174,7 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
     stopped = true;
     authenticated = false;
     accessToken = null;
+    backoffUntil = 0;
     clearTimer();
     for (const event of activityEvents) {
       window.removeEventListener(event, markActivity);
