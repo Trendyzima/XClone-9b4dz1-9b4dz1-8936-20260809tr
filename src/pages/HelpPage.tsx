@@ -54,7 +54,7 @@ const ACCOUNT_TOPICS = [
       'You will be asked to confirm by typing your username.',
       'All your posts, followers, and earnings data will be permanently removed within 30 days.',
       'Wallet balances should be withdrawn before deletion — they cannot be recovered after.',
-      'If you change your mind, contact support@tsocial.com within 7 days of deletion.',
+      'If you change your mind, contact testagramreels@gmail.com within 7 days of deletion.',
     ],
   },
   {
@@ -179,7 +179,7 @@ const PAYMENTS_TOPICS = [
       'Refund eligibility depends on the purchase type, delivery status, applicable payment-provider rules, and applicable law. Review the refund terms shown before purchase.',
       'If a technical issue affected a paid feature, contact support with the transaction reference and relevant error details.',
       'If a payment is debited by a provider but the corresponding Testagram transaction fails, contact support with the provider transaction reference so the transaction can be reconciled.',
-      'For all other refund requests email support@tsocial.com with your transaction reference.',
+      'For all other refund requests email testagramreels@gmail.com with your transaction reference.',
     ],
   },
 ];
@@ -201,7 +201,7 @@ const SAFETY_TOPICS = [
       'Tap the ··· menu on a post or user profile and select Report.',
       'For urgent safety concerns (threats, CSAM) use the Priority Report option.',
       'Reports are routed for moderation review. Review time can vary with severity, volume, and whether additional investigation is required.',
-      'You can also email abuse@tsocial.com for sensitive or urgent matters.',
+      'You can also email testagramreels@gmail.com for sensitive or urgent matters.',
       'Moderation may result in warnings, content removal, temporary restrictions, or account suspension under the Community Guidelines and applicable enforcement procedures.',
     ],
   },
@@ -221,7 +221,7 @@ const SAFETY_TOPICS = [
       "If you notice logins you don't recognise, go to Settings → Security → Active Sessions and sign out all devices.",
       'Change your password immediately and enable 2FA.',
       'Check your Wallet → History for any unauthorised transactions.',
-      'Report compromised accounts to support@tsocial.com with "ACCOUNT COMPROMISED" in the subject.',
+      'Report compromised accounts to testagramreels@gmail.com with "ACCOUNT COMPROMISED" in the subject.',
       'We may temporarily lock your account during investigation to protect your funds.',
     ],
   },
@@ -1308,7 +1308,7 @@ export default function HelpPage() {
               </button>
               <p className="text-[10px] text-muted-foreground text-center">
                 Or email us directly at{' '}
-                <a href="mailto:support@tsocial.com" className="text-primary hover:underline">support@tsocial.com</a>
+                <a href="mailto:testagramreels@gmail.com" className="text-primary hover:underline">testagramreels@gmail.com</a>
               </p>
             </div>
           )}
