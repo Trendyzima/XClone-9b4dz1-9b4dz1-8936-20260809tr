@@ -1,12 +1,10 @@
 name = "testagram-heartbeat"
 main = "src/index.ts"
 compatibility_date = "2026-09-19"
+workers_dev = false
 
 [vars]
 SUPABASE_HEARTBEAT_URL = "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/heartbeat"
-
-[secrets]
-required = ["SUPABASE_PUBLISHABLE_KEY"]
 
 [observability]
 enabled = true
@@ -14,6 +12,3 @@ enabled = true
 [[routes]]
 pattern = "heartbeat.testagram.site"
 custom_domain = true
-
-[cache]
-enabled = true
