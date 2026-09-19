@@ -29,13 +29,13 @@ jobs:
   deploy:
     name: Build and deploy exact main revision
     environment: production
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
       VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
       - name: Checkout exact revision
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 1
           ref: ${{ github.sha }}
@@ -50,7 +50,7 @@ jobs:
           echo "Verified source SHA: $actual"
 
       - name: Setup Node 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -114,7 +114,15 @@ jobs:
           put_production_secret "SMS_RATE_LIMIT_SECRET" "$SMS_RATE_LIMIT_SECRET"
           put_production_secret "SMS_GATEWAY_URL" "$SMS_GATEWAY_URL"
           put_production_secret "SMS_GATEWAY_API_KEY" "$SMS_GATEWAY_API_KEY"
-          put_production_secret "SMS_GATEWAY_USERNAME" "$SMS_GATEWAY_USERNAME"
+          if [[ -n "$SMS_GATEWAY_USERNAME" ]]; then
+            put_production_secret "SMS_GATEWAY_USERNAME" "$SMS_GATEWAY_USERNAME"
+          else
+            echo "::warning::GitHub SMS_GATEWAY_USERNAME is not configured; preserving any existing Vercel production value."
+            if ! vercel env ls production --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" | grep -Eq '^SMS_GATEWAY_USERNAME([[:space:]]|$)'; then
+              echo "::error::SMS_GATEWAY_USERNAME is missing from both GitHub and Vercel production. Configure it before SMS OTP can be used."
+              exit 1
+            fi
+          fi
           if [[ -n "$SMS_SENDER_NAME" ]]; then
             put_production_secret "SMS_SENDER_NAME" "$SMS_SENDER_NAME"
           else
