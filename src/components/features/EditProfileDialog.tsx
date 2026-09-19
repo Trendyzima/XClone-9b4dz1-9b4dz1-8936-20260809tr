@@ -140,17 +140,20 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
         linkedin: linkedinUrl.trim() || null,
       };
 
-      const { error: updateError } = await supabase.from('profiles').update({
-        username: cleanUsername,
-        bio: bio.trim() || null,
-        website: website.trim() || null,
-        location: location.trim() || null,
-        birth_date: birthDate || null,
-        social_links,
-        avatar_url: avatarUrl || null,
-        cover_url: coverUrl || null,
-      }).eq('id', user.id);
+      const { data: profileUpdate, error: updateError } = await supabase.rpc('profile_update', {
+        p_input: {
+          username: cleanUsername,
+          bio: bio.trim() || null,
+          website: website.trim() || null,
+          location: location.trim() || null,
+          birth_date: birthDate || null,
+          social_links,
+          avatar_url: avatarUrl || null,
+          cover_url: coverUrl || null,
+        },
+      });
       if (updateError) throw updateError;
+      if (!profileUpdate?.updated) throw new Error('Profile update was not confirmed by the server');
 
       await supabase.auth.updateUser({ data: { username: cleanUsername } });
       toast({ title: 'Success', description: 'Profile updated successfully' });
