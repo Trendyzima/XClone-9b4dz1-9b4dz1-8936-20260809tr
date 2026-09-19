@@ -80,12 +80,12 @@ jobs:
           client="src/services/heartbeatClient.ts"
           migration="supabase/migrations/20260919143000_economical_heartbeat.sql"
           grep -Fq 'ACTIVE_WINDOW_MS' "$client"
-          grep -Fq 'HEARTBEAT_INTERVAL_MS = 15 * 60_000' "$client"
+          grep -Fq 'HEARTBEAT_INTERVAL_MS = 30 * 60_000' "$client"
           grep -Fq 'onAuthStateChange' "$client"
           grep -Fq 'pointerdown' "$client"
           grep -Fq 'scroll' "$client"
+          grep -Fq '45 minutes' "$migration"
           grep -Fq '30 minutes' "$migration"
-          grep -Fq '20 minutes' "$migration"
           if grep -Fq 'setInterval' "$client"; then
             echo "::error::Heartbeat client must not use a fixed background interval."
             exit 1
