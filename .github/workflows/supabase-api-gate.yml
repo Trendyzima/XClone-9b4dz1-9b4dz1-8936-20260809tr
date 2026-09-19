@@ -36,10 +36,10 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Install Supabase CLI
+      - name: Install deterministic Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.40.7
 
       - name: Verify Management API authentication
         shell: bash
@@ -75,7 +75,10 @@ jobs:
             exit 1
           fi
           printf '::add-mask::%s\n' "${SUPABASE_ANON_KEY}"
-          status="$(curl --silent --show-error --output /tmp/supabase-health.json --write-out '%{http_code}'             -H "apikey: ${SUPABASE_ANON_KEY}"             -H "Authorization: Bearer ${SUPABASE_ANON_KEY}"             "${SUPABASE_URL}/rest/v1/profiles?select=id&limit=1")"
+          status="$(curl --silent --show-error --output /tmp/supabase-health.json --write-out '%{http_code}' \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "${SUPABASE_URL}/rest/v1/profiles?select=id&limit=1")"
           case "${status}" in
             200|206) echo "Supabase Data API: OK" ;;
             *) echo "::error::Supabase Data API health check failed with HTTP ${status}."; exit 1 ;;
