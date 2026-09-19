@@ -24,6 +24,7 @@ jobs:
     name: Deploy heartbeat edge
     environment: production
     runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
 
@@ -32,9 +33,27 @@ jobs:
         with:
           node-version: 22
 
-      - name: Install Wrangler
+      - name: Install pinned Wrangler
         working-directory: cloudflare/heartbeat-worker
-        run: npm install --no-save wrangler@latest
+        run: npm install --no-save wrangler@4.135.0
+
+      - name: Validate Cloudflare deployment credentials
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${CLOUDFLARE_API_TOKEN:-}" ]]; then
+            echo "::error::Missing GitHub Actions production secret CLOUDFLARE_API_TOKEN. Wrangler cannot authenticate without a Cloudflare API token."
+            exit 1
+          fi
+          if [[ -z "${CLOUDFLARE_ACCOUNT_ID:-}" ]]; then
+            echo "::error::Missing GitHub Actions production secret CLOUDFLARE_ACCOUNT_ID."
+            exit 1
+          fi
+          printf "::add-mask::%s\\n" "$CLOUDFLARE_API_TOKEN"
+          echo "Cloudflare deployment credentials are present (values masked)."
 
       - name: Validate Worker configuration
         working-directory: cloudflare/heartbeat-worker
@@ -50,6 +69,6 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: npx wrangler deploy
 
-      - name: Validate required Worker secret presence
+      - name: Emit non-secret deployment receipt
         if: ${{ success() }}
         run: echo "Cloudflare heartbeat Worker deployed; secret values were never printed."
