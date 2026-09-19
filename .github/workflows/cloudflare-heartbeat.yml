@@ -8,6 +8,7 @@ on:
       - "cloudflare/heartbeat-worker/**"
       - "supabase/functions/heartbeat/**"
       - "supabase/migrations/20260919093000_user_heartbeat_lease.sql"
+      - "supabase/migrations/20260919093500_user_heartbeat_lease_window.sql"
       - "src/services/heartbeatClient.ts"
       - ".github/workflows/cloudflare-heartbeat.yml"
 
