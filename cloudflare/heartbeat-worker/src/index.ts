@@ -3,7 +3,7 @@ interface Env {
   SUPABASE_PUBLISHABLE_KEY: string;
 }
 
-const SUPPRESSION_SECONDS = 55;
+const SUPPRESSION_SECONDS = 4 * 60 + 55;
 
 function json(body: unknown, status = 200, extra: Record<string, string> = {}) {
   return new Response(JSON.stringify(body), {
