@@ -53,7 +53,7 @@ export async function invokeBackendFunction<TResponse = unknown, TBody extends R
 }
 
 export function createBackendCapabilityClient(
-  endpoint: string = `${supabaseUrl}/functions/v1/capability-gateway`,
+  endpoint: string = "/api/capability",
   client: SupabaseClient = supabase,
 ): TestagramCapabilityClient {
   return new TestagramCapabilityClient({ endpoint, getAccessToken: () => requireAccessToken(client), clientName: 'testagram-web', clientVersion: '4', apiKey: supabasePublishableKey });
