@@ -96,3 +96,57 @@ drop trigger if exists enforce_daily_thread_limit on public.threads;
 create trigger enforce_daily_thread_limit
 before insert on public.threads
 for each row execute function private.enforce_daily_content_creation_limit();
+
+
+create or replace function public.get_daily_content_creation_status()
+returns table (
+  used integer,
+  remaining integer,
+  daily_limit integer,
+  quota_date date,
+  resets_at timestamptz
+)
+language plpgsql
+security definer
+set search_path = pg_catalog, public, private
+as $$
+declare
+  actor_id uuid := auth.uid();
+  today date := (now() at time zone 'utc')::date;
+  counted integer;
+begin
+  if actor_id is null then
+    raise exception 'AUTHENTICATION_REQUIRED' using errcode = '42501';
+  end if;
+
+  select count(*)::integer
+    into counted
+    from (
+      select p.id
+        from public.posts p
+       where p.user_id = actor_id
+         and (p.created_at at time zone 'utc')::date = today
+      union all
+      select t.id
+        from public.threads t
+       where t.owner_id = actor_id
+         and (t.created_at at time zone 'utc')::date = today
+    ) content_created;
+
+  return query
+  select least(counted, 10),
+         greatest(10 - counted, 0),
+         10,
+         today,
+         ((today + 1)::timestamp at time zone 'UTC');
+end;
+$$;
+
+revoke all on function public.get_daily_content_creation_status() from public, anon;
+grant execute on function public.get_daily_content_creation_status() to authenticated;
+
+create index if not exists idx_posts_daily_creation
+  on public.posts (user_id, created_at);
+
+create index if not exists idx_threads_daily_creation
+  on public.threads (owner_id, created_at);
