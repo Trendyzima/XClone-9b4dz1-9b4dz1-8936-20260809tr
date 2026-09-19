@@ -72,6 +72,99 @@ jobs:
         with:
           version: 2.40.7
 
+      - name: Synchronize M-Pesa production secrets into Supabase Edge Functions
+        shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+          MPESA_ENV: ${{ secrets.MPESA_ENV }}
+          MPESA_CONSUMER_KEY: ${{ secrets.MPESA_CONSUMER_KEY }}
+          MPESA_CONSUMER_SECRET: ${{ secrets.MPESA_CONSUMER_SECRET }}
+          MPESA_SHORTCODE: ${{ secrets.MPESA_SHORTCODE }}
+          MPESA_PASSKEY: ${{ secrets.MPESA_PASSKEY }}
+          MPESA_USD_KES_RATE: ${{ secrets.MPESA_USD_KES_RATE }}
+          MPESA_B2C_SHORTCODE: ${{ secrets.MPESA_B2C_SHORTCODE }}
+          MPESA_INITIATOR_NAME: ${{ secrets.MPESA_INITIATOR_NAME }}
+          MPESA_SECURITY_CRED: ${{ secrets.MPESA_SECURITY_CRED }}
+        run: |
+          set -euo pipefail
+
+          PROJECT_REF="$SUPABASE_PROJECT_REF"
+          if [[ -z "$PROJECT_REF" ]]; then
+            PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
+          fi
+
+          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required for M-Pesa secret synchronization."; exit 1; }
+          [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref for M-Pesa secret synchronization."; exit 1; }
+
+          require_secret() {
+            local name="$1"
+            local value="$2"
+            if [[ -z "$value" ]]; then
+              echo "::error::Required M-Pesa production secret/configuration is missing: $name"
+              exit 1
+            fi
+          }
+
+          require_secret "MPESA_ENV" "$MPESA_ENV"
+          require_secret "MPESA_CONSUMER_KEY" "$MPESA_CONSUMER_KEY"
+          require_secret "MPESA_CONSUMER_SECRET" "$MPESA_CONSUMER_SECRET"
+          require_secret "MPESA_SHORTCODE" "$MPESA_SHORTCODE"
+          require_secret "MPESA_PASSKEY" "$MPESA_PASSKEY"
+          require_secret "MPESA_USD_KES_RATE" "$MPESA_USD_KES_RATE"
+          require_secret "MPESA_B2C_SHORTCODE" "$MPESA_B2C_SHORTCODE"
+          require_secret "MPESA_INITIATOR_NAME" "$MPESA_INITIATOR_NAME"
+          require_secret "MPESA_SECURITY_CRED" "$MPESA_SECURITY_CRED"
+
+          case "$MPESA_ENV" in
+            sandbox|live) ;;
+            *) echo "::error::MPESA_ENV must be exactly 'sandbox' or 'live'."; exit 1 ;;
+          esac
+
+          if ! [[ "$MPESA_USD_KES_RATE" =~ ^[0-9]+([.][0-9]+)?$ ]] || ! awk "BEGIN { exit !($MPESA_USD_KES_RATE > 0) }"; then
+            echo "::error::MPESA_USD_KES_RATE must be a positive numeric value."
+            exit 1
+          fi
+
+          umask 077
+          TMP_ENV="$(mktemp)"
+          trap 'rm -f "$TMP_ENV"' EXIT
+          {
+            printf 'MPESA_ENV=%s\n' "$MPESA_ENV"
+            printf 'MPESA_CONSUMER_KEY=%s\n' "$MPESA_CONSUMER_KEY"
+            printf 'MPESA_CONSUMER_SECRET=%s\n' "$MPESA_CONSUMER_SECRET"
+            printf 'MPESA_SHORTCODE=%s\n' "$MPESA_SHORTCODE"
+            printf 'MPESA_PASSKEY=%s\n' "$MPESA_PASSKEY"
+            printf 'MPESA_USD_KES_RATE=%s\n' "$MPESA_USD_KES_RATE"
+            printf 'MPESA_B2C_SHORTCODE=%s\n' "$MPESA_B2C_SHORTCODE"
+            printf 'MPESA_INITIATOR_NAME=%s\n' "$MPESA_INITIATOR_NAME"
+            printf 'MPESA_SECURITY_CRED=%s\n' "$MPESA_SECURITY_CRED"
+          } > "$TMP_ENV"
+
+          supabase secrets set --project-ref "$PROJECT_REF" --env-file "$TMP_ENV"
+          echo "M-Pesa production secrets synchronized to Supabase without printing secret values."
+
+      - name: Deploy M-Pesa Edge Functions
+        shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+        run: |
+          set -euo pipefail
+          PROJECT_REF="$SUPABASE_PROJECT_REF"
+          if [[ -z "$PROJECT_REF" ]]; then
+            PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
+          fi
+          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required for M-Pesa Edge Function deployment."; exit 1; }
+          [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref for M-Pesa deployment."; exit 1; }
+
+          supabase functions deploy mpesa-stk-push --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase functions deploy mpesa-stk-status --project-ref "$PROJECT_REF"
+          supabase functions deploy mpesa-config-status --project-ref "$PROJECT_REF"
+          echo "M-Pesa Edge Functions deployed with callback-compatible JWT configuration."
+
       - name: Deploy Fediverse Edge Functions
         shell: bash
         env:
