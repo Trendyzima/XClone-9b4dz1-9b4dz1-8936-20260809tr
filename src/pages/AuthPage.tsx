@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { authService, finalizeAuthenticatedSession } from '@/lib/auth';
+import { supabase } from '@/lib/supabase';
 import { useSEO } from '@/hooks/useSEO';
 import { useAuthStore } from '@/stores/authStore';
 
@@ -56,9 +57,25 @@ export default function AuthPage() {
   const authUser = useAuthStore((state) => state.user);
   const login = useAuthStore((state) => state.login);
 
+  const applyPendingReferral = async () => {
+    const code = window.localStorage.getItem('testagram-referral-code');
+    if (!code) return;
+    try {
+      const { error: applyError } = await supabase.rpc('apply_referral_code', { p_code: code });
+      if (applyError && !applyError.message.includes('REFERRAL_ALREADY_APPLIED')) throw applyError;
+      const { error: completeError } = await supabase.rpc('complete_referral');
+      if (completeError && !completeError.message.includes('NO_PENDING_REFERRAL')) throw completeError;
+      window.localStorage.removeItem('testagram-referral-code');
+    } catch {
+      // Referral processing must never block account creation or sign-in.
+    }
+  };
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('reset') === '1' && mode !== 'reset') setMode('reset');
+    const ref = params.get('ref')?.trim();
+    if (ref) window.localStorage.setItem('testagram-referral-code', ref);
   }, [mode]);
 
   useEffect(() => {
@@ -157,6 +174,7 @@ export default function AuthPage() {
       if (result.session) {
         const user = await finalizeAuthenticatedSession(result.session.user);
         login(user);
+        await applyPendingReferral();
         navigate('/', { replace: true });
         return;
       }
