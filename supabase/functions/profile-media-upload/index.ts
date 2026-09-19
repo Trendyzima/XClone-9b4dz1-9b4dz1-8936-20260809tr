@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
     if (detectedMime && detectedMime !== mime) return json({ error: "Profile image content does not match its declared type", code: "IMAGE_TYPE_MISMATCH" }, 415);
 
     // Stable object keys prevent unbounded storage growth when a user replaces a profile image.
-    const key = `profiles/${user.id}/${kind}.${extension(mime)}`;
+    const key = `profiles/${user.id}/${kind}`;
     const bytes = new Uint8Array(await file.arrayBuffer());
 
     // Do not perform a second HEAD request or a database write here. The client receives
