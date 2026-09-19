@@ -68,6 +68,49 @@ jobs:
       - name: Install pinned Vercel CLI
         run: npm install --global vercel@48.4.0
 
+      - name: Synchronize SMS secrets into Vercel production
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          SEND_SMS_HOOK_SECRETS: ${{ secrets.SEND_SMS_HOOK_SECRETS || secrets.SEND_SMS_HOOK_SECRET }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SECRET_KEY }}
+          SMS_RATE_LIMIT_SECRET: ${{ secrets.SMS_RATE_LIMIT_SECRET }}
+          SMS_GATEWAY_URL: ${{ secrets.SMS_GATEWAY_URL || secrets.AFRICASTALKING_SMS_URL || vars.SMS_GATEWAY_URL }}
+          SMS_GATEWAY_API_KEY: ${{ secrets.SMS_GATEWAY_API_KEY || secrets.AFRICASTALKING_API_KEY }}
+          SMS_GATEWAY_USERNAME: ${{ secrets.SMS_GATEWAY_USERNAME || secrets.AFRICASTALKING_USERNAME }}
+          SMS_SENDER_NAME: ${{ secrets.SMS_SENDER_NAME || secrets.AFRICASTALKING_SENDER_ID || vars.SMS_SENDER_NAME }}
+        run: |
+          set -euo pipefail
+
+          require_secret() {
+            local name="$1"
+            local value="$2"
+            if [[ -z "$value" ]]; then
+              echo "::error::Required GitHub secret/configuration is missing: $name"
+              exit 1
+            fi
+            printf '::add-mask::%s\n' "$value"
+          }
+
+          put_production_secret() {
+            local name="$1"
+            local value="$2"
+            require_secret "$name" "$value"
+            printf '%s' "$value" | vercel env add "$name" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          }
+
+          put_production_secret "SEND_SMS_HOOK_SECRETS" "$SEND_SMS_HOOK_SECRETS"
+          put_production_secret "SUPABASE_URL" "$SUPABASE_URL"
+          put_production_secret "SUPABASE_SERVICE_ROLE_KEY" "$SUPABASE_SERVICE_ROLE_KEY"
+          put_production_secret "SMS_RATE_LIMIT_SECRET" "$SMS_RATE_LIMIT_SECRET"
+          put_production_secret "SMS_GATEWAY_URL" "$SMS_GATEWAY_URL"
+          put_production_secret "SMS_GATEWAY_API_KEY" "$SMS_GATEWAY_API_KEY"
+          put_production_secret "SMS_GATEWAY_USERNAME" "$SMS_GATEWAY_USERNAME"
+          put_production_secret "SMS_SENDER_NAME" "$SMS_SENDER_NAME"
+
+          echo "SMS production environment synchronized without printing secret values."
+
       - name: Pull production Vercel configuration
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
