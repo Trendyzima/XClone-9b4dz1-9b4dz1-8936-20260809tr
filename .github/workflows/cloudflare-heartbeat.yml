@@ -61,7 +61,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           workingDirectory: cloudflare/heartbeat-worker
           wranglerVersion: "4.135.0"
-          command: deployments status --json
+          command: deployments status
 
       - name: Validate Worker source security invariants
         shell: bash
