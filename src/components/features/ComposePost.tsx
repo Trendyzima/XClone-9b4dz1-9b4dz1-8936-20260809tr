@@ -419,6 +419,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
       }
 
       setContent(''); setImages([]); setVideo(null); setPollData(null); setGifUrl(null); setScheduledDate(null); setTaggedProducts([]); setPostToFediverse(false);
+      void loadCreationQuota();
       // Clear draft on successful post
       localStorage.removeItem(DRAFT_KEY);
       setHasDraft(false);
@@ -730,72 +731,38 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
             </div>
           )}
 
-          {/* Toolbar */}
-          <div className="mt-3 pt-3 border-t border-border space-y-2.5">
-            <div className="flex flex-wrap items-center gap-1.5 min-w-0">
-              <label className="cursor-pointer p-2 hover:bg-primary/10 rounded-full text-primary transition-colors flex-shrink-0">
-                <Image className="w-5 h-5" />
+          {/* Creation tools — responsive grid keeps every action reachable without crowding. */}
+          <div className="mt-3 pt-3 border-t border-border space-y-3">
+            <div className="grid grid-cols-4 sm:grid-cols-8 lg:grid-cols-11 gap-1" role="toolbar" aria-label="Post creation tools">
+              <label className="flex h-10 w-full items-center justify-center cursor-pointer hover:bg-primary/10 rounded-xl text-primary transition-colors" title="Add images">
+                <Image className="w-5 h-5" aria-hidden="true" /><span className="sr-only">Add images</span>
                 <input type="file" accept="image/*" multiple className="hidden" onChange={handleImageChange} disabled={loading || !!video || !!gifUrl || images.length >= 4} />
               </label>
-              <label className="cursor-pointer p-2 hover:bg-primary/10 rounded-full text-primary transition-colors flex-shrink-0">
-                <Video className="w-5 h-5" />
+              <label className="flex h-10 w-full items-center justify-center cursor-pointer hover:bg-primary/10 rounded-xl text-primary transition-colors" title="Add video">
+                <Video className="w-5 h-5" aria-hidden="true" /><span className="sr-only">Add video</span>
                 <input type="file" accept="video/*" className="hidden" onChange={handleVideoChange} disabled={loading || images.length > 0 || !!gifUrl} />
               </label>
-              <button onClick={() => setShowGifDialog(true)} disabled={loading || images.length > 0 || !!video} className="cursor-pointer p-2 hover:bg-primary/10 rounded-full text-primary transition-colors disabled:opacity-50 flex-shrink-0" title="Add GIF">
-                <Smile className="w-5 h-5" />
-              </button>
-              <button onClick={() => setShowPollDialog(true)} disabled={loading || !!pollData} className="cursor-pointer p-2 hover:bg-primary/10 rounded-full text-primary transition-colors disabled:opacity-50 flex-shrink-0" title="Add poll">
-                <BarChart3 className="w-5 h-5" />
-              </button>
-              <button onClick={() => setShowScheduleDialog(true)} disabled={loading || !!scheduledDate} className="cursor-pointer p-2 hover:bg-primary/10 rounded-full text-primary transition-colors disabled:opacity-50 flex-shrink-0" title="Schedule post">
-                <Calendar className="w-5 h-5" />
-              </button>
-              <button onClick={() => setShowProductDialog(true)} disabled={loading} className="cursor-pointer p-2 hover:bg-primary/10 rounded-full text-primary transition-colors disabled:opacity-50 flex-shrink-0" title="Tag products">
-                <ShoppingBag className="w-5 h-5" />
-              </button>
-              <button onClick={() => setShowThreadMode(v => !v)} disabled={loading}
-                className={`cursor-pointer p-2 rounded-full transition-colors disabled:opacity-50 flex-shrink-0 ${showThreadMode ? 'bg-primary/20 text-primary' : 'hover:bg-primary/10 text-muted-foreground'}`}
-                title="Thread composer">
-                <Hash className="w-5 h-5" />
-              </button>
-              <button onClick={() => setShowCaptionGen(v => !v)} disabled={loading}
-                className={`cursor-pointer p-2 rounded-full transition-colors disabled:opacity-50 flex-shrink-0 ${showCaptionGen ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400' : 'hover:bg-primary/10 text-muted-foreground'}`}
-                title="AI Caption Generator">
-                <Sparkles className="w-5 h-5" />
-              </button>
-              <button onClick={() => setShowAiWriter(v => !v)} disabled={loading}
-                className={`cursor-pointer p-2 rounded-full transition-colors disabled:opacity-50 flex-shrink-0 ${showAiWriter ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400' : 'hover:bg-primary/10 text-muted-foreground'}`}
-                title="AI Post Writer">
-                <Wand2 className="w-5 h-5" />
-              </button>
-              <button onClick={() => setPostToFediverse(v => !v)} disabled={loading}
-                className={`cursor-pointer p-2 rounded-full transition-colors disabled:opacity-50 flex-shrink-0 ${postToFediverse ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400' : 'hover:bg-primary/10 text-muted-foreground'}`}
-                title={postToFediverse ? 'Will post to Fediverse' : 'Also post to Fediverse'}>
-                <Globe className="w-5 h-5" />
-              </button>
-              <button onClick={() => setShowEmbedDialog(v => !v)} disabled={loading}
-                className={`cursor-pointer p-2 rounded-full transition-colors disabled:opacity-50 flex-shrink-0 ${showEmbedDialog ? 'bg-blue-500/20 text-blue-600' : 'hover:bg-primary/10 text-muted-foreground'}`}
-                title="Embed media (YouTube, Spotify, CodePen…)">
-                <Link2 className="w-5 h-5" />
-              </button>
+              <button type="button" onClick={() => setShowGifDialog(true)} disabled={loading || images.length > 0 || !!video} className="flex h-10 w-full items-center justify-center rounded-xl text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Add GIF" aria-label="Add GIF"><Smile className="w-5 h-5" /></button>
+              <button type="button" onClick={() => setShowPollDialog(true)} disabled={loading || !!pollData} className="flex h-10 w-full items-center justify-center rounded-xl text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Add poll" aria-label="Add poll"><BarChart3 className="w-5 h-5" /></button>
+              <button type="button" onClick={() => setShowScheduleDialog(true)} disabled={loading || !!scheduledDate} className="flex h-10 w-full items-center justify-center rounded-xl text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Schedule post" aria-label="Schedule post"><Calendar className="w-5 h-5" /></button>
+              <button type="button" onClick={() => setShowProductDialog(true)} disabled={loading} className="flex h-10 w-full items-center justify-center rounded-xl text-primary hover:bg-primary/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed" title="Tag products" aria-label="Tag products"><ShoppingBag className="w-5 h-5" /></button>
+              <button type="button" onClick={() => setShowThreadMode(v => !v)} disabled={loading || creationQuota.remaining <= 0} className={`flex h-10 w-full items-center justify-center rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${showThreadMode ? 'bg-primary/20 text-primary' : 'hover:bg-primary/10 text-muted-foreground'}`} title="Thread composer" aria-label="Thread composer"><Hash className="w-5 h-5" /></button>
+              <button type="button" onClick={() => setShowCaptionGen(v => !v)} disabled={loading} className={`flex h-10 w-full items-center justify-center rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${showCaptionGen ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400' : 'hover:bg-primary/10 text-muted-foreground'}`} title="AI Caption Generator" aria-label="AI Caption Generator"><Sparkles className="w-5 h-5" /></button>
+              <button type="button" onClick={() => setShowAiWriter(v => !v)} disabled={loading} className={`flex h-10 w-full items-center justify-center rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${showAiWriter ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400' : 'hover:bg-primary/10 text-muted-foreground'}`} title="AI Post Writer" aria-label="AI Post Writer"><Wand2 className="w-5 h-5" /></button>
+              <button type="button" onClick={() => setPostToFediverse(v => !v)} disabled={loading} className={`flex h-10 w-full items-center justify-center rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${postToFediverse ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400' : 'hover:bg-primary/10 text-muted-foreground'}`} title={postToFediverse ? 'Will post to Fediverse' : 'Also post to Fediverse'} aria-label="Post to Fediverse"><Globe className="w-5 h-5" /></button>
+              <button type="button" onClick={() => setShowEmbedDialog(v => !v)} disabled={loading} className={`flex h-10 w-full items-center justify-center rounded-xl transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${showEmbedDialog ? 'bg-blue-500/20 text-blue-600' : 'hover:bg-primary/10 text-muted-foreground'}`} title="Embed media" aria-label="Embed media"><Link2 className="w-5 h-5" /></button>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
-              <div className="flex items-center gap-2 min-w-0 px-2.5 py-1.5 rounded-full bg-muted/60 border border-border text-xs whitespace-nowrap" title="Posts and threads share this daily limit">
-              <span className={creationQuota.remaining === 0 ? 'text-destructive font-bold' : 'text-muted-foreground'}>
-                {creationQuota.used}/{creationQuota.limit} today
-              </span>
-              <span className={creationQuota.remaining === 0 ? 'text-destructive font-semibold' : 'text-primary font-semibold'}>
-                {creationQuota.remaining} remaining
-              </span>
+            <div className="grid grid-cols-1 sm:grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
+              <div className="inline-flex w-fit max-w-full items-center gap-2 px-2.5 py-1.5 rounded-full bg-muted/60 border border-border text-xs whitespace-nowrap" title="Posts and threads share this daily limit">
+                <span className={creationQuota.remaining === 0 ? 'text-destructive font-bold' : 'text-muted-foreground'}>{creationQuota.used}/{creationQuota.limit} today</span>
+                <span className={creationQuota.remaining === 0 ? 'text-destructive font-semibold' : 'text-primary font-semibold'}>{creationQuota.remaining} remaining</span>
               </div>
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-2 min-w-0 sm:ml-auto">
-              {images.length > 0 && <span className="text-sm text-muted-foreground">{images.length}/4 images</span>}
-              {content.length > 0 && <span className={`text-sm ${content.length > 680 ? 'text-destructive' : 'text-muted-foreground'}`}>{content.length}/700</span>}
-              {postToFediverse && <span className="flex items-center gap-1 text-xs text-purple-500 font-medium"><Globe className="w-3 h-3" />+Fediverse</span>}
-              <Button onClick={handlePost} disabled={loading || creationQuota.remaining <= 0 || (!content.trim() && images.length === 0 && !video && !gifUrl && !pollData) || content.length > 700} className="rounded-full px-6 font-semibold">
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Post'}
-              </Button>
+              <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground sm:justify-end">
+                {images.length > 0 && <span className="whitespace-nowrap">{images.length}/4 images</span>}
+                {content.length > 0 && <span className={`whitespace-nowrap ${content.length > 680 ? 'text-destructive' : ''}`}>{content.length}/700</span>}
+                {postToFediverse && <span className="flex items-center gap-1 whitespace-nowrap text-xs text-purple-500 font-medium"><Globe className="w-3 h-3" />+Fediverse</span>}
               </div>
+              <Button type="button" onClick={handlePost} disabled={loading || creationQuota.remaining <= 0 || (!content.trim() && images.length === 0 && !video && !gifUrl && !pollData) || content.length > 700} className="w-full sm:w-auto rounded-full px-6 font-semibold">{loading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Post'}</Button>
             </div>
           </div>
 
