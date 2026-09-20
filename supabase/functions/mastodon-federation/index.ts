@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-const ROOT=Deno.env.get('FEDERATION_PUBLIC_ORIGIN')||'https://federation.testagram.site';
+const ROOT='https://testagram.site';
 const SUPABASE_URL=Deno.env.get('SUPABASE_URL')!;const SERVICE=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||Deno.env.get('SUPABASE_SECRET_KEY')||'';
 const db=createClient(SUPABASE_URL,SERVICE,{auth:{persistSession:false,autoRefreshToken:false}});
 const AP='https://www.w3.org/ns/activitystreams',SEC='https://w3id.org/security/v1',TOOT='http://joinmastodon.org/ns#';
