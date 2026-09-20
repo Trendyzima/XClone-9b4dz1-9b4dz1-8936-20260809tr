@@ -595,16 +595,26 @@ export default function CommunityPage() {
     if (!community) return;
     try {
       if (isMember) {
-        if (userRole === 'owner') { toast({ title: 'Error', description: 'Owners cannot leave.', variant: 'destructive' }); return; }
-        await supabase.from('community_members').delete().match({ community_id: community.id, user_id: user.id });
-        setIsMember(false); toast({ title: 'Left community' });
+        if (userRole === 'owner') {
+          toast({ title: 'Error', description: 'Owners cannot leave.', variant: 'destructive' });
+          return;
+        }
+        const { error } = await supabase.rpc('leave_community', { p_community_id: community.id });
+        if (error) throw error;
+        setIsMember(false);
+        toast({ title: 'Left community' });
       } else {
-        await supabase.from('community_members').insert({ community_id: community.id, user_id: user.id });
-        setIsMember(true); toast({ title: '✅ Joined community!' });
+        const { error } = await supabase.rpc('join_community', { p_community_id: community.id });
+        if (error) throw error;
+        setIsMember(true);
+        toast({ title: '✅ Joined community!' });
       }
       fetchCommunity();
-    } catch (error: any) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); }
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    }
   };
+
 
   const handlePromoteRole = async (memberId: string, _userId: string, newRole: 'member' | 'moderator') => {
     if (!community || !isOwner) return;
