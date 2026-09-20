@@ -247,25 +247,27 @@ export default function FediversePage() {
 
   const cacheFederatedPosts = async (posts: any[]) => {
     const rows = posts.filter((p: any) => p.uri ?? p.url ?? p.id).map((p: any) => ({
-      object_url: p.uri ?? p.url ?? p.id ?? '',
-      actor_url: p.actor?.id ?? p.actor?.url ?? p.account?.url ?? p.actor_url ?? '',
+      uri: p.uri ?? p.url ?? p.id ?? '',
+      object_type: p.object_type ?? 'Note',
+      actor_uri: p.actor_uri ?? p.actor?.id ?? p.actor?.url ?? p.account?.url ?? p.actor_url ?? '',
+      url: p.url ?? p.uri ?? p.id ?? '',
       content: p.content ?? p.text ?? '',
       summary: p.spoiler_text ?? p.summary ?? null,
-      media_urls: p.media_attachments ?? p.media_urls ?? [],
-      likes_count: p.favourites_count ?? p.likes_count ?? 0,
-      replies_count: p.replies_count ?? 0,
-      boosts_count: p.reblogs_count ?? p.boosts_count ?? 0,
+      attachments: p.media_attachments ?? p.attachments ?? [],
+      tags: p.tags ?? [],
+      like_count: p.favourites_count ?? p.likes_count ?? 0,
+      reply_count: p.replies_count ?? 0,
+      announce_count: p.reblogs_count ?? p.boosts_count ?? 0,
       published_at: p.created_at ?? p.published ?? new Date().toISOString(),
       raw_object: p,
-    })).filter((r: any) => r.object_url);
+    })).filter((r: any) => r.uri);
     if (!rows.length) return;
-    await supabase.from('remote_posts').upsert(rows, { onConflict: 'object_url', ignoreDuplicates: false })
+    await supabase.from('federated_objects').upsert(rows, { onConflict: 'uri', ignoreDuplicates: false })
       .then(() => setCachedAt(new Date())).catch(() => {});
   };
-
   const fetchFederatedFeed = async () => {
     const { data: cached } = await supabase
-      .from('remote_posts')
+      .from('federated_objects')
       .select('*, remote_accounts(username, domain, display_name, avatar_url)')
       .order('published_at', { ascending: false })
       .limit(30);
@@ -410,7 +412,7 @@ export default function FediversePage() {
       });
       setActivityTypePie(Object.entries(typeCounts).map(([name, value]) => ({ name, value })));
 
-      const { data: accounts } = await supabase.from('remote_accounts').select('domain');
+      const { data: accounts } = await supabase.from('federated_actors').select('domain');
       const domainCounts: Record<string, number> = {};
       (accounts ?? []).forEach((r: any) => {
         domainCounts[r.domain] = (domainCounts[r.domain] ?? 0) + 1;
@@ -430,8 +432,8 @@ export default function FediversePage() {
     if (!q.trim()) { setMultiResults({ posts: [], actors: [] }); return; }
     setSearchingMulti(true);
     const [postsRes, actorsRes] = await Promise.all([
-      supabase.from('remote_posts').select('*').ilike('content', `%${q}%`).order('published_at', { ascending: false }).limit(10),
-      supabase.from('remote_accounts').select('*').or(`username.ilike.%${q}%,display_name.ilike.%${q}%,domain.ilike.%${q}%`).limit(8),
+      supabase.from('federated_objects').select('*').ilike('content', `%${q}%`).order('published_at', { ascending: false }).limit(10),
+      supabase.from('federated_actors').select('*').or(`username.ilike.%${q}%,display_name.ilike.%${q}%,domain.ilike.%${q}%`).limit(8),
     ]);
     setMultiResults({ posts: postsRes.data ?? [], actors: actorsRes.data ?? [] });
     setSearchingMulti(false);
@@ -449,15 +451,22 @@ export default function FediversePage() {
     if (!handle.includes('@')) { toast.error('Use full format: user@mastodon.social'); return; }
     setSearching(true); setSearchResult(null);
     try {
-      const actor = await federation.getUser(handle);
-      if (actor) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      const lookupRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/activitypub-federation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ action: 'lookup_actor', handle }),
+      });
+      const lookup = await lookupRes.json();
+      const actor = lookup?.actor;
+      if (lookupRes.ok && actor) {
         setSearchResult({
-          actor_url: actor.id, username: actor.preferredUsername ?? handle.split('@')[0],
-          domain: handle.split('@')[1] ?? '', display_name: actor.name ?? actor.preferredUsername,
-          bio: actor.summary, avatar_url: actor.icon?.url ?? null,
-          followers_url: actor.followers, inbox_url: actor.inbox,
+          actor_url: actor.actor_uri, username: actor.username ?? handle.split('@')[0],
+          domain: actor.domain ?? handle.split('@')[1] ?? '', display_name: actor.display_name ?? actor.username,
+          bio: actor.bio, avatar_url: actor.avatar_url, followers_url: actor.followers_url, inbox_url: actor.inbox_url,
         });
-      } else { toast.error(`Could not find @${handle}`); }
+      } else { throw new Error(lookup?.error ?? 'Actor not found'); }
     } catch (err: any) { toast.error(`Lookup failed: ${err.message ?? 'unknown error'}`); }
     setSearching(false);
   };
@@ -574,7 +583,7 @@ export default function FediversePage() {
       if (posts.length === 0 && !res.ok) throw new Error(data?.error ?? 'No results');
       setKeywordResults(posts);
     } catch {
-      const { data: cached } = await supabase.from('remote_posts').select('*').ilike('content', `%${q}%`).order('published_at', { ascending: false }).limit(20);
+      const { data: cached } = await supabase.from('federated_objects').select('*').ilike('content', `%${q}%`).order('published_at', { ascending: false }).limit(20);
       setKeywordResults(cached ?? []);
       if ((cached ?? []).length === 0) toast.error(`No results for "${q}"`);
     } finally { setSearchingKeyword(false); }
@@ -616,7 +625,7 @@ export default function FediversePage() {
 
   // ─── Render helpers ────────────────────────────────────────────────────────
   function RemotePostRow({ p, compact = false }: { p: any; compact?: boolean }) {
-    const actor = p.remote_accounts ?? p.actor ?? p.account ?? {};
+    const actor = p.remote_account ?? p.remote_accounts ?? p.actor ?? p.account ?? {};
     const username = actor.preferredUsername ?? actor.username ?? actor.acct?.split('@')[0] ?? 'unknown';
     const domain = actor.domain ?? (() => { try { return new URL(p.actor_url ?? '').hostname; } catch { return ''; } })();
     const avatarUrl = actor.avatar_url ?? actor.icon?.url ?? actor.avatar;
