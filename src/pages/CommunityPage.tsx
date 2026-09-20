@@ -161,10 +161,22 @@ export default function CommunityPage() {
   const handleSupportCommunity = useCallback(async () => {
     if (!user || !community || !supportAmount) return;
     setSendingSupport(true);
-    const { error: deductErr } = await supabase.rpc('deduct_from_wallet', { p_user_id: user.id, p_amount: supportAmount });
-    if (deductErr) { sonnerToast.error('Insufficient wallet balance'); setSendingSupport(false); return; }
-    await supabase.rpc('add_to_wallet', { p_user_id: community.created_by, p_amount: supportAmount }).catch(() => {});
-    await supabase.from('tips').insert({ from_user_id: user.id, to_user_id: community.created_by, amount: supportAmount, message: `Support for c/${community.name}` }).catch(() => {});
+    const { error: transferErr } = await supabase.rpc('p2p_wallet_transfer', {
+      p_from_user_id: user.id,
+      p_to_user_id: community.created_by,
+      p_amount: supportAmount,
+      p_note: `Support for c/${community.name}`,
+    });
+    if (transferErr) {
+      const message = transferErr.message?.includes('INSUFFICIENT_FUNDS') ? 'Insufficient wallet balance' : transferErr.message || 'Unable to send support';
+      sonnerToast.error(message);
+      setSendingSupport(false);
+      return;
+    }
+    const { error: tipErr } = await supabase.from('tips').insert({ from_user_id: user.id, to_user_id: community.created_by, amount: Math.round(supportAmount) });
+    if (tipErr) {
+      sonnerToast.error('Support transfer completed, but the receipt could not be recorded.');
+    }
     await supabase.from('platform_inbox').insert({ user_id: community.created_by, subject: `💰 Your community received a $${supportAmount} support tip!`, body: `@${user.username ?? 'A member'} sent $${supportAmount} to support c/${community.name}.`, type: 'update', icon_emoji: '💰' }).catch(() => {});
     sonnerToast.success(`$${supportAmount} support sent!`);
     setSupportSent(true); setShowSupportDialog(false); setSupportAmount(null); setSendingSupport(false);
