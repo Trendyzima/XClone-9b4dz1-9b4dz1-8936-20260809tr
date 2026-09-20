@@ -8,7 +8,19 @@ const H={'Content-Type':'application/activity+json; charset=utf-8','Access-Contr
 const json=(v:unknown,s=200,extra:Record<string,string>={})=>new Response(JSON.stringify(v),{status:s,headers:{...H,...extra}});
 const str=(v:unknown)=>typeof v==='string'?v:'';const uri=(v:unknown)=>typeof v==='string'?v:v&&typeof v==='object'?str((v as any).id):'';
 const context=[AP,SEC,{toot:TOOT,discoverable:'toot:discoverable',indexable:'toot:indexable',featured:'toot:featured'}];
-async function actor(username:string){const r=await db.from('federated_actors').select('*').or(`username.eq.${username},preferred_username.eq.${username}`).maybeSingle();if(r.error)throw r.error;return r.data;}
+async function actor(username:string){
+  const r=await db.from('federated_actors').select('*').eq('username',username).maybeSingle();
+  if(r.error)throw r.error;
+  if(r.data)return r.data;
+  const p=await db.from('profiles').select('id,username,display_name,bio,avatar_url').eq('username',username).maybeSingle();
+  if(p.error)throw p.error;
+  if(!p.data)return null;
+  const k=await db.from('activitypub_keys').select('public_key_pem,key_id').eq('user_id',p.data.id).maybeSingle();
+  const id=`${ROOT}/users/${encodeURIComponent(username)}`;
+  const row={user_id:p.data.id,actor_uri:id,username:p.data.username,domain:new URL(ROOT).hostname,display_name:p.data.display_name,bio:p.data.bio,avatar_url:p.data.avatar_url,inbox_url:`${id}/inbox`,outbox_url:`${id}/outbox`,followers_url:`${id}/followers`,following_url:`${id}/following`,public_key_pem:k.data?.public_key_pem||null,public_key_id:k.data?.key_id||`${id}#main-key`,fetched_at:new Date().toISOString(),updated_at:new Date().toISOString(),raw_actor:{}};
+  const up=await db.from('federated_actors').upsert(row,{onConflict:'actor_uri'}).select('*').single();
+  return up.data;
+}
 function actorJson(a:any){const id=str(a?.actor_url||a?.uri)||`${ROOT}/users/${encodeURIComponent(a.username||a.preferred_username)}`,u=str(a?.username||a?.preferred_username),inbox=str(a?.inbox_url)||`${id}/inbox`;return {'@context':context,id,type:str(a?.actor_type)||'Person',preferredUsername:u,name:str(a?.display_name)||u,summary:str(a?.summary),url:id,inbox,outbox:str(a?.outbox_url)||`${id}/outbox`,followers:str(a?.followers_url)||`${id}/followers`,following:str(a?.following_url)||`${id}/following`,endpoints:{sharedInbox:`${ROOT}/inbox`},discoverable:a?.discoverable!==false,indexable:true,manuallyApprovesFollowers:a?.locked===true,publicKey:{id:str(a?.public_key_id)||`${id}#main-key`,owner:id,publicKeyPem:str(a?.public_key_pem)},...(a?.avatar_url?{icon:{type:'Image',mediaType:'image/*',url:a.avatar_url}}:{}),...(a?.header_url?{image:{type:'Image',mediaType:'image/*',url:a.header_url}}:{})};}
 function noteActivity(row:any){const id=str(row.uri),published=str(row.published_at)||new Date().toISOString(),actor=str(row.actor_uri);const object={'@context':AP,id,type:str(row.object_type)||'Note',attributedTo:actor,content:str(row.content),summary:str(row.summary)||undefined,published,updated:str(row.updated_at)||published,url:str(row.url)||id,to:[`${AP}#Public`],cc:actor?[`${actor}/followers`]:[],sensitive:!!row.sensitive,...(row.in_reply_to_uri?{inReplyTo:row.in_reply_to_uri}:{}),...(Array.isArray(row.attachments)&&row.attachments.length?{attachment:row.attachments}:{}),...(Array.isArray(row.tags)&&row.tags.length?{tag:row.tags}:{})};return {'@context':AP,id:`${id}/activity`,type:'Create',actor,published,to:object.to,cc:object.cc,object};}
 function decodeCursor(v:string|null){if(!v)return null;try{return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(v),c=>c.charCodeAt(0))))}catch{return null}}
