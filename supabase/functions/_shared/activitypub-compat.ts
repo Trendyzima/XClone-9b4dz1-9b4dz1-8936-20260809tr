@@ -18,7 +18,14 @@ async function object(db:SupabaseClient,value:unknown,actor:string){
   const o=obj(value),id=uri(value); if(!id.startsWith('https://')) return;
   const r=await db.from('federated_objects').upsert({uri:id,object_type:s(o.type)||'Object',actor_uri:actor,url:uri(o.url)||id,content:s(o.content)||null,summary:s(o.summary)||null,published_at:s(o.published)||null,updated_at:s(o.updated)||null,sensitive:Boolean(o.sensitive),in_reply_to_uri:uri(o.inReplyTo)||null,quote_uri:uri(o.quote)||null,language_code:s(o.language)||null,attachments:Array.isArray(o.attachment)?o.attachment:[],tags:Array.isArray(o.tag)?o.tag:[],raw_object:o},{onConflict:'uri'}); if(r.error) throw r.error;
 }
-async function localActor(db:SupabaseClient,actor:string){const r=await db.from('federation_actors').select('user_id,actor_url').eq('actor_url',actor).maybeSingle();if(r.error)throw r.error;return r.data;}
+async function localActor(db:SupabaseClient,actor:string){
+  const r=await db.from('activitypub_actors').select('user_id,actor_id').eq('actor_id',actor).maybeSingle();
+  if(r.error)throw r.error;
+  if(r.data)return {user_id:r.data.user_id,actor_url:r.data.actor_id};
+  const p=await db.from('profiles').select('id,username').eq('id',actor.replace(/^https:\/\/testagram\.site\/users\//,'')).maybeSingle();
+  if(p.data)return {user_id:p.data.id,actor_url:actor};
+  return null;
+}
 async function rel(db:SupabaseClient,user:string,remote:string,kind:string,state:string){const r=await db.from('federated_relationships').upsert({local_user_id:user,remote_actor_uri:remote,relationship:kind,state,updated_at:new Date().toISOString()},{onConflict:'local_user_id,remote_actor_uri,relationship'});if(r.error)throw r.error;}
 async function notify(db:SupabaseClient,user:string,actor:string,kind:string){const a=await db.from('federated_actors').select('id').eq('uri',actor).maybeSingle();if(a.error)throw a.error;if(!a.data)return;const r=await db.from('notifications').insert({recipient_id:user,actor_id:a.data.id,kind});if(r.error&&!/column|relation|does not exist/i.test(r.error.message))throw r.error;}
 async function remoteInbox(db:SupabaseClient,actor:string){const r=await db.from('federation_remote_actors').select('inbox_url,shared_inbox_url').eq('actor_url',actor).maybeSingle();if(r.error)throw r.error;return r.data?.shared_inbox_url||r.data?.inbox_url||null;}
