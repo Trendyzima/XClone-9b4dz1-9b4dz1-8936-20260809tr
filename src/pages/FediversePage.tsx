@@ -955,12 +955,18 @@ export default function FediversePage() {
                             ))}
                           </div>
                         )}
-                        <div className="flex items-center gap-3 mt-2">
-                          <span className="flex items-center gap-1 text-xs text-muted-foreground"><Heart className="w-3 h-3" />{likes}</span>
-                          <span className="flex items-center gap-1 text-xs text-muted-foreground"><Repeat2 className="w-3 h-3" />{boosts}</span>
-                          <span className="flex items-center gap-1 text-xs text-muted-foreground"><MessageCircle className="w-3 h-3" />{replies}</span>
+                        <div className="flex items-center gap-2 mt-2">
+                          <button onClick={() => handleFedLike({ ...toot, object_url: toot.uri ?? url })} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium hover:bg-pink-500/10 hover:text-pink-600 transition-colors"><Heart className="w-3 h-3" />{likes + (postStates[toot.uri ?? url]?.liked ? 1 : 0)}</button>
+                          <button onClick={() => handleFedBoost({ ...toot, object_url: toot.uri ?? url })} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium hover:bg-green-500/10 hover:text-green-600 transition-colors"><Repeat2 className="w-3 h-3" />{boosts + (postStates[toot.uri ?? url]?.boosted ? 1 : 0)}</button>
+                          <button onClick={() => setPostStates(prev => ({...prev,[toot.uri ?? url]:{...prev[toot.uri ?? url],replyOpen:!prev[toot.uri ?? url]?.replyOpen}}))} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium hover:bg-primary/10 hover:text-primary transition-colors"><MessageCircle className="w-3 h-3" />{replies}</button>
                           {url && <a href={url} target="_blank" rel="noopener noreferrer" className="ml-auto flex items-center gap-0.5 text-xs text-[#6364FF] hover:underline"><ExternalLink className="w-3 h-3" />View</a>}
                         </div>
+                        {user && postStates[toot.uri ?? url]?.replyOpen && (
+                          <div className="mt-2 flex gap-2">
+                            <input value={postStates[toot.uri ?? url]?.replyText ?? ''} onChange={e => setPostStates(prev=>({...prev,[toot.uri ?? url]:{...prev[toot.uri ?? url],replyText:e.target.value}}))} placeholder="Reply to this toot…" className="flex-1 px-3 py-2 rounded-xl border border-border bg-background text-xs" />
+                            <button onClick={() => handleFedReply({...toot,object_url:toot.uri ?? url})} disabled={!postStates[toot.uri ?? url]?.replyText?.trim()} className="px-3 py-2 bg-[#6364FF] text-white rounded-xl text-xs font-semibold disabled:opacity-50"><Send className="w-3 h-3" /></button>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
