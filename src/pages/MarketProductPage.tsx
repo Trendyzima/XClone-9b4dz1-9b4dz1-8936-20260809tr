@@ -119,14 +119,14 @@ export default function MarketProductPage() {
     return () => { cancelled = true; };
   }, [productId, refCode, source, medium, campaign, sessionId]);
 
-  const shareUrl = product ? `https://testagram.market/p/${product.id}?ref=${encodeURIComponent(user?.user_metadata?.username || product.username || product.seller_id)}&utm_source=share&utm_medium=product&utm_campaign=market` : '';
+  const shareUrl = product ? `https://testagram.market/p/${product.id}?ref=${encodeURIComponent(user?.username || product.username || product.seller_id)}&utm_source=share&utm_medium=product&utm_campaign=market` : '';
 
   const share = async () => {
     if (!product) return;
     await supabase.rpc('record_marketplace_event', {
       p_product_id: product.id,
       p_event_type: 'share_click',
-      p_ref_code: user?.user_metadata?.username || product.username || null,
+      p_ref_code: user?.username || product.username || null,
       p_source: 'share',
       p_medium: 'product',
       p_campaign: 'market',
