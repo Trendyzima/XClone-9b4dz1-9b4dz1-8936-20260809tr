@@ -657,7 +657,7 @@ export default function OrdersPage() {
     setLoadingP(true);
     const { data, error } = await supabase
       .from('orders')
-      .select('*, products(id, name, image_url, price, external_link), seller:seller_id(id, username, avatar_url, verified)')
+      .select('*, products(id, name, image_url, price, external_link), seller:profiles!orders_seller_id_profiles_fkey(id, username, avatar_url, verified)')
       .eq('buyer_id', user.id)
       .order('created_at', { ascending: false });
     if (error) { toast.error('Failed to load purchases'); setLoadingP(false); return; }
@@ -670,7 +670,7 @@ export default function OrdersPage() {
     setLoadingS(true);
     const { data, error } = await supabase
       .from('orders')
-      .select('*, products(id, name, image_url, price), buyer:buyer_id(id, username, avatar_url, verified)')
+      .select('*, products(id, name, image_url, price), buyer:profiles!orders_buyer_id_profiles_fkey(id, username, avatar_url, verified)')
       .eq('seller_id', user.id)
       .order('created_at', { ascending: false });
     if (error) { toast.error('Failed to load sales'); setLoadingS(false); return; }
