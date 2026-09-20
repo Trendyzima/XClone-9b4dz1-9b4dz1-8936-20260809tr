@@ -7,7 +7,7 @@ import {
   Search, ShoppingBag, ShoppingCart, Heart, Home, Store, Package, Loader2,
   ArrowRight, ChevronRight, Zap, Truck, ShieldCheck, Headphones, MapPin,
   Plus, Minus, SlidersHorizontal, X, Star, BadgeCheck, Wallet, CheckCircle2,
-  UserRound, LockKeyhole, RefreshCw
+  LockKeyhole, RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
 
