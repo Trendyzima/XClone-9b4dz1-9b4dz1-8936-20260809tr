@@ -110,6 +110,37 @@ Deno.serve(async(req)=>{
     const {data:reaction,error}=await admin.from("federated_reactions").upsert({user_id:user.id,object_id:obj.id,object_uri:objectUri,reaction_type:action,content:input.content||null,remote_activity_id:activityId,delivered:true,delivery_error:null,updated_at:new Date().toISOString()},{onConflict:"user_id,object_uri,reaction_type"}).select("*").single();
     if(error)throw error; return json({ok:true,reaction});
   }
+  if(action==="follow" || action==="unfollow"){
+    const target=String(input.target||input.actor_url||"").trim();
+    if(!target) throw new Error("TARGET_REQUIRED");
+    const targetUrl=safeRemote(target);
+    const actorUrl=targetUrl.toString();
+    let remote=await admin.from("federated_actors").select("actor_uri,inbox_url,raw_actor").eq("actor_uri",actorUrl).maybeSingle();
+    if(!remote.data) {
+      const parsed=new URL(actorUrl);
+      const wf=await fetch(parsed.origin+"/.well-known/webfinger?resource="+encodeURIComponent("acct:"+parsed.pathname.split("/").filter(Boolean).pop()+"@"+parsed.hostname),{headers:{Accept:"application/jrd+json, application/json"}});
+      if(wf.ok){ const wd=await wf.json(); const link=Array.isArray(wd.links)?wd.links.find((x:any)=>x.rel==="self"&&String(x.type||"").includes("activity")):null; if(link?.href) { const ar=await fetch(String(link.href),{headers:{Accept:"application/activity+json, application/ld+json"}}); if(ar.ok){ const a=await ar.json(); remote={data:{actor_uri:String(a.id||link.href),inbox_url:String(a.inbox||""),raw_actor:a}} as any; await admin.from("federated_actors").upsert({actor_uri:remote.data.actor_uri,username:a.preferredUsername||"",domain:parsed.hostname,display_name:a.name||a.preferredUsername||"",bio:a.summary||"",avatar_url:a.icon?.url||null,inbox_url:a.inbox||null,outbox_url:a.outbox||null,followers_url:a.followers||null,following_url:a.following||null,public_key_pem:a.publicKey?.publicKeyPem||null,raw_actor:a,fetched_at:new Date().toISOString(),updated_at:new Date().toISOString()},{onConflict:"actor_uri"}); }}}}
+    if(!remote.data?.inbox_url) throw new Error("REMOTE_INBOX_MISSING");
+    const {data:local}=await admin.from("activitypub_actors").select("actor_id").eq("user_id",user.id).single();
+    const {data:key}=await admin.from("activitypub_keys").select("key_id,private_key_pem").eq("user_id",user.id).single();
+    if(!local||!key) throw new Error("LOCAL_ACTIVITYPUB_IDENTITY_NOT_READY");
+    const existing=await admin.from("federated_relationships").select("*").eq("local_user_id",user.id).eq("remote_actor_uri",remote.data.actor_uri).eq("relationship","following").maybeSingle();
+    if(action==="unfollow"){
+      if(existing.data?.activity_id){
+        const undoId=local.actor_id+"/activities/"+crypto.randomUUID();
+        const undo={"@context":"https://www.w3.org/ns/activitystreams","id":undoId,"type":"Undo","actor":local.actor_id,"object":{"id":existing.data.activity_id,"type":"Follow","actor":local.actor_id,"object":remote.data.actor_uri}};
+        await signedPost(remote.data.inbox_url,undo,key.private_key_pem,key.key_id);
+      }
+      await admin.from("federated_relationships").delete().eq("local_user_id",user.id).eq("remote_actor_uri",remote.data.actor_uri).eq("relationship","following");
+      return json({ok:true,following:false,actor_uri:remote.data.actor_uri});
+    }
+    const activityId=local.actor_id+"/activities/"+crypto.randomUUID();
+    const follow={"@context":"https://www.w3.org/ns/activitystreams","id":activityId,"type":"Follow","actor":local.actor_id,"object":remote.data.actor_uri};
+    await signedPost(remote.data.inbox_url,follow,key.private_key_pem,key.key_id);
+    const up=await admin.from("federated_relationships").upsert({local_user_id:user.id,remote_actor_uri:remote.data.actor_uri,relationship:"following",state:"pending",activity_id:activityId,remote_inbox_url:remote.data.inbox_url,remote_actor:remote.data.raw_actor||{},error:null,updated_at:new Date().toISOString()},{onConflict:"local_user_id,remote_actor_uri,relationship"}).select("*").single();
+    if(up.error) throw up.error;
+    return json({ok:true,following:true,state:"pending",actor_uri:remote.data.actor_uri,activity_id:activityId});
+  }
   if(action==="publish"){
     const content=String(input.content||"").trim(); if(!content||content.length>5000)throw new Error("CONTENT_INVALID");
     const {data:actor}=await admin.from("activitypub_actors").select("actor_id").eq("user_id",user.id).single();
