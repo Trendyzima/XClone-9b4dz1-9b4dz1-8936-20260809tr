@@ -8,7 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import {
-  Loader2, Sparkles, Globe, Users, Rss, RefreshCw,
+  Loader2, Sparkles, Globe, Users, Rss, RefreshCw, BarChart3,
   MessageCircle, Repeat2, Heart, Languages, ChevronUp,
   TrendingUp, Hash, BookOpen, Flame, Eye, Play, ShoppingBag,
   SlidersHorizontal, X as XIcon, Star, BadgeCheck,
@@ -998,6 +998,16 @@ export default function HomePage() {
   return (
     <div className="min-h-screen bg-background pb-16 lg:pb-0">
       <TopBar title="Home" />
+      <div className="px-3 py-2 border-b border-border bg-background/95">
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={() => navigate('/shop')} className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold hover:bg-muted transition-colors">
+            <ShoppingBag className="w-4 h-4 text-primary" /> Shopping Mall
+          </button>
+          <button onClick={() => navigate('/polls')} className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold hover:bg-muted transition-colors">
+            <BarChart3 className="w-4 h-4 text-primary" /> Community Polls
+          </button>
+        </div>
+      </div>
 
       {/* Bluesky-style Tabs */}
       <div className="sticky top-14 z-30 bg-background/95 backdrop-blur-sm border-b border-border">
