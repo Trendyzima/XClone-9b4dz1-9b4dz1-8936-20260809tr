@@ -7,7 +7,7 @@ import {
   Search, ShoppingBag, ShoppingCart, Heart, Home, Store, Package, Loader2,
   ArrowRight, ChevronRight, Zap, Truck, ShieldCheck, Headphones, MapPin,
   Plus, Minus, SlidersHorizontal, X, Star, BadgeCheck, Wallet, CheckCircle2,
-  LockKeyhole, RefreshCw
+  LockKeyhole, RefreshCw, Share2
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -248,6 +248,29 @@ export default function ShoppingMallPage() {
     if (orderId) navigate('/orders');
   };
 
+  const shareProduct = async (p: Product) => {
+    const ref = user?.user_metadata?.username || user?.email?.split('@')[0] || p.username || p.seller_id;
+    const url = `https://testagram.market/p/${p.id}?ref=${encodeURIComponent(ref)}&utm_source=share&utm_medium=product&utm_campaign=market`;
+    await supabase.rpc('record_marketplace_event', {
+      p_product_id: p.id,
+      p_event_type: 'share_click',
+      p_ref_code: ref,
+      p_source: 'share',
+      p_medium: 'product',
+      p_campaign: 'market',
+      p_session_id: null,
+    });
+    if (navigator.share) {
+      try { await navigator.share({ title: p.name, text: `Shop ${p.name} on Testagram Market`, url }); return; } catch {}
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success('Product link copied');
+    } catch {
+      toast.error('Could not copy product link');
+    }
+  };
+
   const toggleWishlist = (id: string) => {
     setWishlist(current => current.includes(id)
       ? current.filter(x => x !== id)
@@ -390,7 +413,7 @@ export default function ShoppingMallPage() {
                   const wished = wishlist.includes(p.id);
                   return (
                     <article key={p.id} className="bg-background group min-w-0">
-                      <button onClick={() => openCheckout(p)} className="block w-full text-left">
+                      <div onClick={() => navigate(`/p/${p.id}`)} role="link" tabIndex={0} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") navigate(`/p/${p.id}`); }} className="block w-full text-left cursor-pointer">
                         <div className="relative aspect-square bg-muted overflow-hidden">
                           {p.image
                             ? <img src={p.image} alt={p.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
@@ -416,10 +439,10 @@ export default function ShoppingMallPage() {
                           <p className="text-sm font-black text-primary mt-1">{money(p.price_minor, p.currency)}</p>
                           {p.region && <p className="text-[9px] text-muted-foreground flex items-center gap-1 mt-1"><MapPin className="w-2.5 h-2.5" />{p.region}</p>}
                         </div>
-                      </button>
+                      </div>
                       <div className="px-2.5 pb-2.5 flex gap-1.5">
                         <button onClick={() => changeQty(p, 1)} disabled={p.inventory_count < 1} className="flex-1 py-2 rounded-lg border border-border text-[10px] font-bold hover:bg-muted disabled:opacity-40">Add to cart</button>
-                        <button onClick={() => openCheckout(p)} disabled={p.inventory_count < 1} className="px-2.5 py-2 rounded-lg bg-primary text-primary-foreground disabled:opacity-40" aria-label={`Buy ${p.name}`}>
+                        <button onClick={e => { e.stopPropagation(); void shareProduct(p); }} className="px-2.5 py-2 rounded-lg border border-border bg-background" aria-label={`Share ${p.name}`}><Share2 className="w-3.5 h-3.5" /></button><button onClick={() => openCheckout(p)} disabled={p.inventory_count < 1} className="px-2.5 py-2 rounded-lg bg-primary text-primary-foreground disabled:opacity-40" aria-label={`Buy ${p.name}`}>
                           <ArrowRight className="w-3.5 h-3.5" />
                         </button>
                       </div>
