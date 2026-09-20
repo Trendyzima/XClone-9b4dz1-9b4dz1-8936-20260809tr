@@ -12,6 +12,7 @@ create table if not exists public.activitypub_keys (
   public_key_pem text not null, private_key_pem text not null, algorithm text not null default 'RSASSA-PKCS1-v1_5',
   key_size integer not null default 2048, created_at timestamptz not null default now(), rotated_at timestamptz
 );
+create index if not exists activitypub_keys_actor_id_idx on public.activitypub_keys(actor_id);
 create table if not exists public.activitypub_inbox (
   id uuid primary key default gen_random_uuid(), local_user_id uuid not null references auth.users(id) on delete cascade,
   activity_type text not null, actor_url text, object_url text, payload jsonb not null default '{}'::jsonb,
