@@ -50,12 +50,12 @@ export default function WishlistPage() {
     setLoading(true);
     const { data } = await supabase
       .from('products')
-      .select('*, user_profiles!products_user_id_fkey(id, username, avatar_url, verified)')
+      .select('*, profiles!products_user_id_fkey(id, username, avatar_url, verified)')
       .in('id', ids)
       .eq('is_active', true);
     const enriched = (data ?? []).map((p: any) => ({
       ...p,
-      seller: p.user_profiles,
+      seller: p.profiles,
     }));
     // Preserve wishlist order
     const ordered = ids
