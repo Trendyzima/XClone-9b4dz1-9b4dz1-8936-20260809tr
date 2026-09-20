@@ -27,20 +27,14 @@ const CATEGORIES = [
   { id: 'angry',    label: '😡 Angry',   q: 'angry' },
 ];
 
-// Reliable fallback GIFs (direct Tenor CDN links, always work)
+// Last-resort direct GIFs. These are only used when the proxy is unavailable.
 const FALLBACK_GIFS: GifItem[] = [
-  { id: 'f1',  url: 'https://media.tenor.com/MqkIkDR0sTMAAAAC/cat-cute.gif',          preview: 'https://media.tenor.com/MqkIkDR0sTMAAAAe/cat-cute.gif' },
-  { id: 'f2',  url: 'https://media.tenor.com/Yr2p5CDPAasAAAAC/thumbs-up-approve.gif',  preview: 'https://media.tenor.com/Yr2p5CDPAasAAAAe/thumbs-up-approve.gif' },
-  { id: 'f3',  url: 'https://media.tenor.com/7aFIRs8WFcMAAAAC/dance-happy.gif',        preview: 'https://media.tenor.com/7aFIRs8WFcMAAAAe/dance-happy.gif' },
-  { id: 'f4',  url: 'https://media.tenor.com/mLQS1NZ_-lUAAAAC/love-heart.gif',        preview: 'https://media.tenor.com/mLQS1NZ_-lUAAAAe/love-heart.gif' },
-  { id: 'f5',  url: 'https://media.tenor.com/U4wh3M_pIOgAAAAC/laughing-laugh.gif',     preview: 'https://media.tenor.com/U4wh3M_pIOgAAAAe/laughing-laugh.gif' },
-  { id: 'f6',  url: 'https://media.tenor.com/P9PEJNtZ0dYAAAAC/clapping-good-job.gif',  preview: 'https://media.tenor.com/P9PEJNtZ0dYAAAAe/clapping-good-job.gif' },
-  { id: 'f7',  url: 'https://media.tenor.com/nf0R6hjhZsYAAAAC/this-is-fine-fire.gif',  preview: 'https://media.tenor.com/nf0R6hjhZsYAAAAe/this-is-fine-fire.gif' },
-  { id: 'f8',  url: 'https://media.tenor.com/S-Rth-WlT5YAAAAC/sad-crying.gif',         preview: 'https://media.tenor.com/S-Rth-WlT5YAAAAe/sad-crying.gif' },
-  { id: 'f9',  url: 'https://media.tenor.com/v3Kd5ZLw1FQAAAAC/wow-surprised.gif',      preview: 'https://media.tenor.com/v3Kd5ZLw1FQAAAAe/wow-surprised.gif' },
-  { id: 'f10', url: 'https://media.tenor.com/rQIOJgBKuNIAAAAC/dog-puppy.gif',           preview: 'https://media.tenor.com/rQIOJgBKuNIAAAAe/dog-puppy.gif' },
-  { id: 'f11', url: 'https://media.tenor.com/1rYcMj5VTswAAAAC/hello-wave.gif',          preview: 'https://media.tenor.com/1rYcMj5VTswAAAAe/hello-wave.gif' },
-  { id: 'f12', url: 'https://media.tenor.com/b5UqCTwDHkkAAAAC/nope-no.gif',             preview: 'https://media.tenor.com/b5UqCTwDHkkAAAAe/nope-no.gif' },
+  { id: 'f1', url: 'https://media.tenor.com/7Ypq9_9najcAAAAS/thumbs-up-double-thumbs-up.gif', preview: 'https://media.tenor.com/7Ypq9_9najcAAAAS/thumbs-up-double-thumbs-up.gif' },
+  { id: 'f2', url: 'https://media.tenor.com/Lbrr3HR3CnkAAAAM/snoop-dogg-rap.gif', preview: 'https://media.tenor.com/Lbrr3HR3CnkAAAAM/snoop-dogg-rap.gif' },
+  { id: 'f3', url: 'https://media.tenor.com/aJrxpMCv6hEAAAAC/dance-dancing.gif', preview: 'https://media.tenor.com/aJrxpMCv6hEAAAAC/dance-dancing.gif' },
+  { id: 'f4', url: 'https://media.tenor.com/GOK_e8x2buQAAAAM/cat-dance-cat.gif', preview: 'https://media.tenor.com/GOK_e8x2buQAAAAM/cat-dance-cat.gif' },
+  { id: 'f5', url: 'https://media.tenor.com/uRlxzRNgp2MAAAAi/anime-girl.gif', preview: 'https://media.tenor.com/uRlxzRNgp2MAAAAi/anime-girl.gif' },
+  { id: 'f6', url: 'https://media.tenor.com/gVPazpEOQ3kAAAAi/chika.gif', preview: 'https://media.tenor.com/gVPazpEOQ3kAAAAi/chika.gif' },
 ];
 
 function parseTenorResponse(data: any): GifItem[] {
@@ -166,7 +160,7 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
                 <p className="text-xs text-center text-muted-foreground mb-2">Showing popular GIFs</p>
               )}
               <div className="columns-2 md:columns-3 gap-2 space-y-2">
-                {gifs.map(gif => (
+                {gifs.filter(gif => !failedGifs.has(gif.id)).map(gif => (
                   <button
                     key={gif.id}
                     onClick={() => { onSelect(gif.url); onClose(); }}
@@ -177,10 +171,12 @@ export function GifPicker({ onSelect, onClose }: GifPickerProps) {
                       alt="GIF"
                       className="w-full object-cover"
                       loading="lazy"
-                      onError={e => {
-                        const img = e.currentTarget;
-                        if (img.src !== gif.url) { img.src = gif.url; }
-                        else { img.style.display = 'none'; }
+                      onError={() => {
+                        setFailedGifs(prev => {
+                          const next = new Set(prev);
+                          next.add(gif.id);
+                          return next;
+                        });
                       }}
                     />
                   </button>
