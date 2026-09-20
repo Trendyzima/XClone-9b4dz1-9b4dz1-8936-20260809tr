@@ -10,7 +10,7 @@ import {
   Search, MapPin, Tag, Star, Heart, ExternalLink, Loader2,
   ShoppingBag, Filter, X, ChevronRight, BadgeCheck, SlidersHorizontal,
   Package, TrendingUp, Sparkles, Grid3x3, LayoutList, MessageSquare,
-  HelpCircle, DollarSign, ArrowUpDown, ShoppingCart, Check
+  HelpCircle, DollarSign, ArrowUpDown, ShoppingCart, Check, Wallet, Truck
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -18,128 +18,18 @@ function MktAdBanner() { return <PageAdBanner />; }
 
 // ── Purchase Dialog ─────────────────────────────────────────────────────────────────
 function PurchaseDialog({ product, onClose }: { product: any; onClose: () => void }) {
-  const { user } = useAuth();
-  const [qty, setQty] = useState(1);
-  const [note, setNote] = useState('');
-  const [submitting, setSubmitting] = useState(false);
-  const [done, setDone] = useState(false);
-
-  const total = Number(product.price) * qty;
-
-  const handlePurchase = async () => {
-    if (!user) { toast.error('Sign in to purchase'); return; }
-    if (user.id === product.user_id) { toast.error("You can't buy your own product"); return; }
-    setSubmitting(true);
-    const { error } = await supabase.from('orders').insert({
-      buyer_id: user.id,
-      seller_id: product.user_id,
-      product_id: product.id,
-      quantity: qty,
-      unit_price: Number(product.price),
-      total_amount: total,
-      status: 'confirmed',
-      note: note.trim() || null,
-    });
-    if (error) { toast.error(error.message); setSubmitting(false); return; }
-    // Update sales_count
-    await supabase.from('products').update({ sales_count: (product.sales_count ?? 0) + qty }).eq('id', product.id);
-    // Notify seller
-    await supabase.from('notifications').insert({ recipient_id: product.user_id, kind: 'payment_sent', actor_id: user.id,
-     }).catch(() => {});
-    // Record creator earning
-    await supabase.from('creator_earnings').insert({
-      user_id: product.user_id,
-      source: 'marketplace',
-      amount: total,
-      status: 'pending',
-    }).catch(() => {});
-    setDone(true);
-    setSubmitting(false);
-  };
-
-  return (
-    <div className="fixed inset-0 z-[400] bg-black/60 flex items-end sm:items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-background w-full max-w-sm rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
-        {done ? (
-          <div className="text-center py-10 px-6 space-y-3">
-            <div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto">
-              <Check className="w-8 h-8 text-green-500" />
-            </div>
-            <h3 className="font-black text-xl">Order Placed!</h3>
-            <p className="text-sm text-muted-foreground">
-              Your order for <strong>{product.name}</strong> has been recorded. The seller will be notified to fulfil your order.
-            </p>
-            <p className="text-xs text-muted-foreground">Check your profile for order history.</p>
-            <button onClick={onClose} className="mt-2 w-full py-3 bg-primary text-primary-foreground rounded-2xl font-bold">Done</button>
-          </div>
-        ) : (
-          <>
-            <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-              <div>
-                <h3 className="font-bold text-base">Place Order</h3>
-                <p className="text-xs text-muted-foreground line-clamp-1">{product.name}</p>
-              </div>
-              <button onClick={onClose} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center"><X className="w-4 h-4" /></button>
-            </div>
-            <div className="p-5 space-y-4">
-              {/* Product preview */}
-              <div className="flex items-center gap-3 p-3 rounded-2xl bg-muted/40 border border-border">
-                {product.image_url ? (
-                  <img src={product.image_url} alt={product.name} className="w-14 h-14 rounded-xl object-cover shrink-0" />
-                ) : (
-                  <div className="w-14 h-14 rounded-xl bg-muted flex items-center justify-center shrink-0"><ShoppingBag className="w-6 h-6 text-muted-foreground" /></div>
-                )}
-                <div className="flex-1 min-w-0">
-                  <p className="font-bold text-sm truncate">{product.name}</p>
-                  <p className="text-lg font-black text-primary">${Number(product.price).toFixed(2)} each</p>
-                  {product.stock > 0 && <p className="text-[10px] text-muted-foreground">{product.stock} in stock</p>}
-                </div>
-              </div>
-
-              {/* Quantity */}
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Quantity</p>
-                <div className="flex items-center gap-3">
-                  <button onClick={() => setQty(q => Math.max(1, q - 1))}
-                    className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-lg font-bold hover:bg-muted transition-colors">−</button>
-                  <span className="text-xl font-black w-8 text-center">{qty}</span>
-                  <button onClick={() => setQty(q => q + 1)}
-                    className="w-10 h-10 rounded-full border border-border flex items-center justify-center text-lg font-bold hover:bg-muted transition-colors">+</button>
-                </div>
-              </div>
-
-              {/* Note */}
-              <div>
-                <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Note to Seller (optional)</p>
-                <textarea value={note} onChange={e => setNote(e.target.value)} rows={2} maxLength={200}
-                  placeholder="Any special requests, size, colour…"
-                  className="w-full px-3 py-2 rounded-xl border border-border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30" />
-              </div>
-
-              {/* Total */}
-              <div className="flex items-center justify-between px-3 py-2.5 bg-primary/5 border border-primary/20 rounded-xl">
-                <span className="text-sm font-semibold">Total</span>
-                <span className="text-xl font-black text-primary">${total.toFixed(2)}</span>
-              </div>
-
-              <p className="text-[10px] text-muted-foreground text-center">
-                The seller will contact you to arrange payment and delivery. No charge is made now.
-              </p>
-
-              <button onClick={handlePurchase} disabled={submitting}
-                className="w-full py-3.5 bg-primary text-primary-foreground rounded-2xl font-bold text-base disabled:opacity-50 flex items-center justify-center gap-2 hover:opacity-90 transition-opacity">
-                {submitting ? <Loader2 className="w-5 h-5 animate-spin" /> : <ShoppingCart className="w-5 h-5" />}
-                {submitting ? 'Placing Order…' : `Order · $${total.toFixed(2)}`}
-              </button>
-            </div>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ── Module-level category config (esbuild-safe: no inline objects in render) ──
+  const { user } = useAuth(); const [qty,setQty]=useState(1); const [note,setNote]=useState(''); const [address,setAddress]=useState(''); const [delivery,setDelivery]=useState(product.local_delivery?'local_delivery':'seller_delivery'); const [submitting,setSubmitting]=useState(false); const [done,setDone]=useState(false);
+  const deliveryFee=delivery==='local_delivery'?Number(product.delivery_fee_minor||0)/100:0; const subtotal=Number(product.price)*qty; const total=subtotal+deliveryFee;
+  const handlePurchase=async()=>{ if(!user){toast.error('Sign in to purchase');return} if(delivery!=='pickup'&&!address.trim()){toast.error('Add a delivery address');return} setSubmitting(true); const {error}=await supabase.rpc('place_marketplace_order',{p_product_id:product.id,p_quantity:qty,p_idempotency_key:crypto.randomUUID(),p_delivery_mode:delivery,p_delivery_address:address.trim()||null,p_delivery_note:note.trim()||null}); if(error){toast.error(error.message.replaceAll('_',' ').toLowerCase());setSubmitting(false);return} setDone(true);setSubmitting(false); };
+  return <div className="fixed inset-0 z-[400] bg-black/60 flex items-end sm:items-center justify-center p-4" onClick={onClose}><div className="bg-background w-full max-w-sm rounded-t-3xl sm:rounded-2xl shadow-2xl overflow-hidden" onClick={e=>e.stopPropagation()}>
+  {done?<div className="text-center py-10 px-6 space-y-3"><div className="w-16 h-16 rounded-full bg-green-500/10 flex items-center justify-center mx-auto"><Check className="w-8 h-8 text-green-500"/></div><h3 className="font-black text-xl">Paid & Order Confirmed</h3><p className="text-sm text-muted-foreground">Your wallet was charged atomically and the seller received the product payment.</p><button onClick={onClose} className="mt-2 w-full py-3 bg-primary text-primary-foreground rounded-2xl font-bold">Done</button></div>:<><div className="flex items-center justify-between px-5 py-4 border-b border-border"><div><h3 className="font-bold text-base">Secure checkout</h3><p className="text-xs text-muted-foreground">{product.name}</p></div><button onClick={onClose} className="w-8 h-8 rounded-full bg-muted flex items-center justify-center"><X className="w-4 h-4"/></button></div>
+  <div className="p-5 space-y-4"><div className="flex items-center gap-3 p-3 rounded-2xl bg-muted/40 border border-border">{product.image_url?<img src={product.image_url} alt="" className="w-14 h-14 rounded-xl object-cover"/>:<ShoppingBag className="w-8 h-8"/>}<div><p className="font-bold text-sm">{product.name}</p><p className="text-lg font-black text-primary">${Number(product.price).toFixed(2)} each</p></div></div>
+  <div><p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Quantity</p><div className="flex items-center gap-3"><button onClick={()=>setQty(q=>Math.max(1,q-1))} className="w-10 h-10 rounded-full border font-bold">−</button><span className="text-xl font-black w-8 text-center">{qty}</span><button onClick={()=>setQty(q=>Math.min(Number(product.stock||100),q+1))} className="w-10 h-10 rounded-full border font-bold">+</button></div></div>
+  <div><p className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-2">Delivery</p><div className="grid grid-cols-3 gap-2">{[['pickup','Pickup'],['seller_delivery','Seller-set'],['local_delivery','Local']].filter(x=>x[0]!=='local_delivery'||product.local_delivery).map(([v,l])=><button key={v} onClick={()=>setDelivery(v)} className={'p-2 rounded-xl border text-xs font-bold '+(delivery===v?'border-primary bg-primary/10 text-primary':'border-border')}><Truck className="w-4 h-4 mx-auto mb-1"/>{l}</button>)}</div></div>
+  {delivery!=='pickup'&&<textarea value={address} onChange={e=>setAddress(e.target.value)} rows={2} placeholder="Delivery address / pickup instructions" className="w-full px-3 py-2 rounded-xl border bg-background text-sm resize-none"/>}<textarea value={note} onChange={e=>setNote(e.target.value)} rows={2} maxLength={200} placeholder="Note to seller (optional)" className="w-full px-3 py-2 rounded-xl border bg-background text-sm resize-none"/>
+  <div className="space-y-1 p-3 bg-primary/5 border border-primary/20 rounded-xl"><div className="flex justify-between text-sm"><span>Subtotal</span><span>${subtotal.toFixed(2)}</span></div>{deliveryFee>0&&<div className="flex justify-between text-sm"><span>Local delivery</span><span>${deliveryFee.toFixed(2)}</span></div>}<div className="flex justify-between font-black text-lg pt-1 border-t"><span>Total</span><span className="text-primary">${total.toFixed(2)}</span></div></div>
+  <div className="flex items-center justify-center gap-2 text-xs font-semibold text-muted-foreground"><Wallet className="w-4 h-4"/>Wallet checkout · atomic payment · trusted seller profile</div><button onClick={handlePurchase} disabled={submitting} className="w-full py-3.5 bg-primary text-primary-foreground rounded-2xl font-bold flex items-center justify-center gap-2 disabled:opacity-50">{submitting?<Loader2 className="w-5 h-5 animate-spin"/>:<Wallet className="w-5 h-5"/>}{submitting?'Processing securely…':'Pay from Wallet · $'+total.toFixed(2)}</button></div></>}</div></div>;
+}// ── Module-level category config (esbuild-safe: no inline objects in render) ──
 const CATEGORIES = [
   { id: 'all',         label: 'All',          emoji: '🛍️' },
   { id: 'digital',     label: 'Digital',      emoji: '💻' },
