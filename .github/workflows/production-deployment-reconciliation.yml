@@ -543,3 +543,5 @@ NODE
 # Final story backend reconciliation trigger.
 
 # Final story schema/UI reconciliation trigger v2.
+
+# Live reconciliation trigger: verify the repaired production gate on the next main push.
