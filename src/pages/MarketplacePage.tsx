@@ -628,7 +628,7 @@ export default function MarketplacePage() {
   };
 
   const resetFilters = () => {
-    setCategory('all'); setRegion('all'); setPriceRange('all'); setSort('popular'); setSearch('');
+    setCategory('all'); setRegion('all'); setPriceRange('all'); setSort('popular'); setSearch(''); setDeliveryFilter('all');
   };
 
   // Derived filtered + sorted list
