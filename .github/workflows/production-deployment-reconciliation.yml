@@ -463,24 +463,24 @@ jobs:
             else
               echo "::warning::Custom domain DNS verification is not valid yet."
               node - <<'NODE'
-const fs = require('node:fs');
-try {
-  const raw = fs.readFileSync('domain-verify.json','utf8').trim();
-  const p = JSON.parse(raw);
-  console.log(JSON.stringify({
-    status:p.status,
-    ok:p.ok,
-    reason:p.reason,
-    message:p.message,
-    recommended:p.recommended,
-    conflicts:p.conflicts,
-    next:p.next
-  }, null, 2));
-} catch {
-  console.log('Vercel DNS verification returned non-JSON output:');
-  console.log(fs.readFileSync('domain-verify.json','utf8'));
-}
-NODE
+              const fs = require('node:fs');
+              try {
+              const raw = fs.readFileSync('domain-verify.json','utf8').trim();
+              const p = JSON.parse(raw);
+              console.log(JSON.stringify({
+              status:p.status,
+              ok:p.ok,
+              reason:p.reason,
+              message:p.message,
+              recommended:p.recommended,
+              conflicts:p.conflicts,
+              next:p.next
+              }, null, 2));
+              } catch {
+              console.log('Vercel DNS verification returned non-JSON output:');
+              console.log(fs.readFileSync('domain-verify.json','utf8'));
+              }
+              NODE
             fi
 
             # Probe the public production alias. Do NOT create another Vercel deployment
