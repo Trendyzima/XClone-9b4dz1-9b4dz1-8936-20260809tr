@@ -52,17 +52,17 @@ export default function SpaceDetailPage() {
   const handleSuperChat = async () => {
     if (!user || !space || !superChatAmt || !superChatMsg.trim()) return;
     setSendingSuperChat(true);
-    const { error: deductErr } = await supabase.rpc('deduct_from_wallet', { p_user_id: user.id, p_amount: superChatAmt });
-    if (deductErr) { toast.error('Insufficient wallet balance'); setSendingSuperChat(false); return; }
-    const pinnedUntil = new Date(Date.now() + 60000);
-    await supabase.from('space_superchats').insert({
-      space_id: space.id,
-      user_id: user.id,
-      message: superChatMsg.trim(),
-      amount: superChatAmt,
-      color: 'gold',
-      pinned_until: pinnedUntil.toISOString(),
+    const { error: superChatError } = await supabase.rpc('send_space_superchat', {
+      p_space_id: space.id,
+      p_amount: superChatAmt,
+      p_message: superChatMsg.trim(),
     });
+    if (superChatError) {
+      const message = superChatError.message?.includes('INSUFFICIENT_FUNDS') ? 'Insufficient wallet balance' : superChatError.message || 'Unable to send Super Chat';
+      toast.error(message);
+      setSendingSuperChat(false);
+      return;
+    }
     toast.success(`💬 SuperChat $${superChatAmt} sent!`);
     setSuperChatMsg('');
     setSuperChatAmt(null);
