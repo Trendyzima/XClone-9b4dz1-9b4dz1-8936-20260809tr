@@ -439,6 +439,11 @@ jobs:
 
             vercel inspect "$DEPLOY_URL" --wait --token="$VERCEL_TOKEN" > deployment-inspect.txt
 
+            # Source-triggered Vercel deployments can race this explicit production deploy.
+            # Pin both custom-domain aliases to the exact deployment before liveness checks.
+            vercel alias set "$DEPLOY_URL" testagram.site --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+            vercel alias set "$DEPLOY_URL" www.testagram.site --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+
             curl --fail --silent --show-error --location --retry 3 --retry-delay 2 \
               -H "Authorization: Bearer $VERCEL_TOKEN" \
               "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&limit=20" \
