@@ -213,7 +213,7 @@ jobs:
           node -e 'const fs=require("node:fs"); const p="supabase/migrations/20260919193000_testagram_ads_runtime_schema_repair.sql"; if(!fs.existsSync(p)){console.error("Canonical Testagram Ads runtime migration is missing:",p); process.exit(1)} console.log("Testagram Ads schema source present:",p);'
 
       - name: Install pinned Vercel CLI
-        run: npm install --global vercel@48.4.0
+        run: npm install --global vercel@54.15.1
 
       - name: Synchronize SMS secrets into Vercel production
         shell: bash
