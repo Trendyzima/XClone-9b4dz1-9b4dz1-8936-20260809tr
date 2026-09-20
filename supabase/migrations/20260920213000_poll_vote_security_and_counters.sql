@@ -69,3 +69,5 @@ $function$;
 
 grant execute on function public.poll_results(uuid) to anon, authenticated;
 grant execute on function public.cast_poll_vote(uuid,uuid[]) to authenticated;
+
+-- Deployment reconciliation marker: poll feed contract is complete.
