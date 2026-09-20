@@ -161,10 +161,22 @@ export default function SpacesPage() {
   const handleEpTip = useCallback(async () => {
     if (!user || !tipEpHostId || !tipEpAmount || !tipEpId) return;
     setSendingEpTip(true);
-    const { error: deductErr } = await supabase.rpc('deduct_from_wallet', { p_user_id: user.id, p_amount: tipEpAmount });
-    if (deductErr) { toast.error('Insufficient wallet balance'); setSendingEpTip(false); return; }
-    await supabase.rpc('add_to_wallet', { p_user_id: tipEpHostId, p_amount: tipEpAmount }).then(() => {}).catch(() => {});
-    await supabase.from('tips').insert({ from_user_id: user.id, to_user_id: tipEpHostId, amount: tipEpAmount }).then(() => {}).catch(() => {});
+    const { error: transferErr } = await supabase.rpc('p2p_wallet_transfer', {
+      p_from_user_id: user.id,
+      p_to_user_id: tipEpHostId,
+      p_amount: tipEpAmount,
+      p_note: `Tip for Space recording ${tipEpId}`,
+    });
+    if (transferErr) {
+      const message = transferErr.message?.includes('INSUFFICIENT_FUNDS') ? 'Insufficient wallet balance' : transferErr.message || 'Unable to send tip';
+      toast.error(message);
+      setSendingEpTip(false);
+      return;
+    }
+    const { error: tipErr } = await supabase.from('tips').insert({ from_user_id: user.id, to_user_id: tipEpHostId, amount: Math.round(tipEpAmount) });
+    if (tipErr) {
+      toast.error('Tip transfer completed, but the tip receipt could not be recorded.');
+    }
     toast.success(`$${tipEpAmount} tip sent to @${tipEpHostName}!`);
     setTippedEpIds(prev => new Set([...prev, tipEpId!]));
     setTipEpId(null);
