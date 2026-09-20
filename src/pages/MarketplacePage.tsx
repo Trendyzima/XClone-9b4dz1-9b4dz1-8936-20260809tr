@@ -869,9 +869,12 @@ export default function MarketplacePage() {
         />
       )}
 
+      {activeFeature && <MarketplaceFeatureSheet feature={activeFeature} onClose={()=>setActiveFeature(null)} onNavigate={navigate} onBrowse={()=>{setDeliveryFilter(activeFeature.id==='local'?'local':activeFeature.id==='trusted'?'trusted':'all'); setActiveFeature(null); window.scrollTo({top:520,behavior:'smooth'});}} />}
+
       {/* ── Product Detail Sheet ── */}
       {selectedProduct && (
-      {activeFeature && <MarketplaceFeatureSheet feature={activeFeature} onClose={()=>setActiveFeature(null)} onNavigate={navigate} onBrowse={()=>{setDeliveryFilter(activeFeature.id==='local'?'local':activeFeature.id==='trusted'?'trusted':'all'); setActiveFeature(null); window.scrollTo({top:520,behavior:'smooth'});}} />}\n\n      <ProductDetailSheet\n          product={selectedProduct}
+        <ProductDetailSheet
+          product={selectedProduct}
           wishlisted={isWishlisted(selectedProduct.id)}
           onWishlist={() => toggleWishlist(selectedProduct.id)}
           onClose={() => setSelectedProduct(null)}
