@@ -596,7 +596,8 @@ export default function FediversePage() {
     } catch (err: any) { toast.error('Keygen error: ' + err.message); }
   };
 
-  const canBackfillKeys = user?.app_metadata?.role === 'admin' || user?.app_metadata?.role === 'super_admin' || user?.app_metadata?.role === 'owner';
+  const appMetadata = (user as any)?.app_metadata ?? {};
+  const canBackfillKeys = appMetadata.role === 'admin' || appMetadata.role === 'super_admin' || appMetadata.role === 'owner';
 
   const backfillAllKeys = async () => {
     try {
