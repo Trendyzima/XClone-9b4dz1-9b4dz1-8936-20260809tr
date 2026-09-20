@@ -207,7 +207,13 @@ export default function FediversePage() {
     if (!q.trim()) { setMastodonSearchResults([]); return; }
     setSearchingMastodon(true);
     try {
-      const res = await fetch(`https://${mastodonInstance}/api/v2/search?q=${encodeURIComponent(q)}&type=statuses&limit=20`);
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/gateway-relay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({ action: 'search', instance: mastodonInstance, q, type: 'statuses', limit: 20 }),
+      });
       if (!res.ok) throw new Error();
       const data = await res.json();
       setMastodonSearchResults(data.statuses ?? []);
