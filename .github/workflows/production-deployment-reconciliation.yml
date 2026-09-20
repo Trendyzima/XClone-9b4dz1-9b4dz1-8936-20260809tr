@@ -439,13 +439,46 @@ jobs:
               > deployment-list.json
             node scripts/verify-vercel-deployment.mjs
 
-            # Probe the public production alias. Deployment-specific *.vercel.app URLs can redirect to
-            # Vercel authentication pages in CI, so the public alias is the authoritative external smoke path.
+            # Diagnose custom-domain DNS before probing the public alias. A READY Vercel
+            # deployment can still be unreachable when the registrar/Cloudflare DNS zone
+            # has not propagated. Keep DNS failure distinct from build/deployment failure.
+            if command -v dig >/dev/null 2>&1; then
+              echo "DNS diagnostics for testagram.site:"
+              dig +short testagram.site A @1.1.1.1 || true
+              echo "DNS diagnostics for www.testagram.site:"
+              dig +short www.testagram.site CNAME @1.1.1.1 || true
+            fi
+
+            # Vercel CLI 54.15+ provides an authoritative DNS diagnosis.
+            if vercel domains verify testagram.site --project "$VERCEL_PROJECT_ID" --format json --non-interactive > domain-verify.json 2>/dev/null; then
+              echo "Custom domain DNS verification passed."
+            else
+              echo "::warning::Custom domain DNS verification is not yet valid."
+              node - <<'NODE'
+const fs = require('node:fs');
+try {
+  const p = JSON.parse(fs.readFileSync('domain-verify.json','utf8').trim());
+  console.log(JSON.stringify({
+    status:p.status,
+    reason:p.reason,
+    message:p.message,
+    recommended:p.recommended,
+    conflicts:p.conflicts
+  }, null, 2));
+} catch {
+  console.log('Vercel DNS verification returned no parseable JSON.');
+}
+NODE
+            fi
+
+            # Probe the public production alias. Retry long enough for normal DNS
+            # propagation, while keeping the deployment-specific URL available for diagnosis.
             curl --fail --silent --show-error --location --retry 3 --retry-delay 2 \
               "https://testagram.site/api/health" > health.txt || {
               echo "::warning::Public production health probe failed on attempt $attempt"
               cat health.txt || true
-              sleep 10
+              echo "The Vercel deployment is READY; this failure is limited to the public custom-domain path."
+              sleep 20
               continue
             }
             node -e 'const fs=require("node:fs"); const body=fs.readFileSync("health.txt","utf8").trim(); let payload; try { payload=JSON.parse(body); } catch (error) { console.error("Liveness endpoint did not return valid JSON:", error instanceof Error ? error.message : error); console.error(body); process.exit(1); } const expected=process.env.TARGET_SHA; if (payload?.ok !== true || payload?.service !== "testagram" || payload?.edge !== "reachable" || payload?.commit !== expected) { console.error("Liveness contract failed:", JSON.stringify({expected_commit:expected,payload})); process.exit(1); } console.log("Liveness contract passed:", JSON.stringify(payload));'
