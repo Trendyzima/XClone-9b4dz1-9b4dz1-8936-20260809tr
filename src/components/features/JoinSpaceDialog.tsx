@@ -66,50 +66,16 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
 
   const handleJoin = async () => {
     if (!user || !spaceId) return;
-
     setLoading(true);
     try {
-      // Check if already a participant
-      const { data: existing } = await supabase
-        .from('space_participants')
-        .select('id')
-        .eq('space_id', spaceId)
-        .eq('user_id', user.id)
-        .single();
-
-      if (!existing) {
-        // Add as participant
-        const { error: participantError } = await supabase
-          .from('space_participants')
-          .insert({
-            space_id: spaceId,
-            user_id: user.id,
-            role: role,
-          });
-
-        if (participantError) throw participantError;
-
-        // Increment listener count
-        const { error: updateError } = await supabase
-          .from('spaces')
-          .update({ listener_count: (space?.listener_count || 0) + 1 })
-          .eq('id', spaceId);
-
-        if (updateError) throw updateError;
-      }
-
+      const { error } = await supabase.rpc('join_audio_space', { p_space_id: spaceId });
+      if (error) throw error;
       setJoined(true);
-      toast({
-        title: 'Joined Space',
-        description: `You're now ${role === 'listener' ? 'listening to' : 'speaking in'} this Space`,
-      });
+      toast({ title: 'Joined Space', description: `You're now ${role === 'listener' ? 'listening to' : 'speaking in'} this Space` });
+      await fetchSpace();
     } catch (error: any) {
       console.error('Error joining space:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to join space',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: error.message || 'Failed to join space', variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -117,38 +83,15 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
 
   const handleLeave = async () => {
     if (!user || !spaceId) return;
-
     try {
-      // Remove participant
-      const { error: deleteError } = await supabase
-        .from('space_participants')
-        .delete()
-        .eq('space_id', spaceId)
-        .eq('user_id', user.id);
-
-      if (deleteError) throw deleteError;
-
-      // Decrement listener count
-      const { error: updateError } = await supabase
-        .from('spaces')
-        .update({ listener_count: Math.max(0, (space?.listener_count || 1) - 1) })
-        .eq('id', spaceId);
-
-      if (updateError) throw updateError;
-
+      const { error } = await supabase.rpc('leave_audio_space', { p_space_id: spaceId });
+      if (error) throw error;
       setJoined(false);
       onOpenChange(false);
-      toast({
-        title: 'Left Space',
-        description: 'You have left the audio space',
-      });
+      toast({ title: 'Left Space', description: 'You have left the audio space' });
     } catch (error: any) {
       console.error('Error leaving space:', error);
-      toast({
-        title: 'Error',
-        description: error.message || 'Failed to leave space',
-        variant: 'destructive',
-      });
+      toast({ title: 'Error', description: error.message || 'Failed to leave space', variant: 'destructive' });
     }
   };
 
