@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, BadgeCheck, CheckCircle2, Copy, Heart, Loader2, MapPin, Share2, ShoppingBag, ShieldCheck, Star, Store, Wallet } from 'lucide-react';
+import { ArrowLeft, BadgeCheck, CheckCircle2, Copy, Loader2, MapPin, Share2, ShoppingBag, ShieldCheck, Store, Wallet } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
