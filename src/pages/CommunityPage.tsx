@@ -161,8 +161,7 @@ export default function CommunityPage() {
   const handleSupportCommunity = useCallback(async () => {
     if (!user || !community || !supportAmount) return;
     setSendingSupport(true);
-    const { error: transferErr } = await supabase.rpc('p2p_wallet_transfer', {
-      p_from_user_id: user.id,
+    const { error: transferErr } = await supabase.rpc('send_wallet_tip', {
       p_to_user_id: community.created_by,
       p_amount: supportAmount,
       p_note: `Support for c/${community.name}`,
@@ -172,10 +171,6 @@ export default function CommunityPage() {
       sonnerToast.error(message);
       setSendingSupport(false);
       return;
-    }
-    const { error: tipErr } = await supabase.from('tips').insert({ from_user_id: user.id, to_user_id: community.created_by, amount: Math.round(supportAmount) });
-    if (tipErr) {
-      sonnerToast.error('Support transfer completed, but the receipt could not be recorded.');
     }
     await supabase.from('platform_inbox').insert({ user_id: community.created_by, subject: `💰 Your community received a $${supportAmount} support tip!`, body: `@${user.username ?? 'A member'} sent $${supportAmount} to support c/${community.name}.`, type: 'update', icon_emoji: '💰' }).catch(() => {});
     sonnerToast.success(`$${supportAmount} support sent!`);
