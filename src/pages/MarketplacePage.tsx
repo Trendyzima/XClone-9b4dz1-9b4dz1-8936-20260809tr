@@ -649,6 +649,22 @@ export default function MarketplacePage() {
     <div className="min-h-screen bg-background pb-20 md:pb-0">
       <TopBar title="Marketplace" />
       <MktAdBanner />
+      <div className="px-4 py-3 border-b border-border bg-card/60">
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
+          {[
+            ['Local delivery','Nearby sellers can offer delivery','🚚',null],
+            ['Seller-set delivery','Choose seller delivery or pickup','📦',null],
+            ['Wallet checkout','Pay directly from your Testagram wallet','💳',null],
+            ['Atomic payment','Payment, stock and order commit together','🔐',null],
+            ['Trusted sellers','Verified community profiles','✓',null],
+            ['Community profiles','Open the seller’s Testagram profile','👤','/products'],
+            ['Help & support','Get assistance with marketplace orders','💬','/help'],
+          ].map(([title,desc,emoji,path])=><button key={title} onClick={()=>path&&navigate(path)} className="min-w-[190px] text-left p-3 rounded-2xl border border-border bg-background hover:border-primary/40 transition-colors">
+            <div className="flex items-center gap-2"><span className="text-lg">{emoji}</span><span className="font-bold text-xs">{title}</span></div><p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">{desc}</p>
+          </button>)}
+          <button onClick={()=>navigate('/orders')} className="min-w-[150px] text-left p-3 rounded-2xl border border-primary/20 bg-primary/5"><div className="font-bold text-xs">My orders</div><p className="text-[10px] text-muted-foreground mt-1">Track purchases and sales</p></button>
+        </div>
+      </div>
 
       {/* ── Sticky Search + Filter bar ── */}
       <div className="sticky top-14 z-30 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 space-y-3">
