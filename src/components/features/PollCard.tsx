@@ -1,93 +1,182 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { BarChart3, Check, ChevronDown, ChevronUp, Clock, Loader2, MessageCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { Loader2, BarChart3, ChevronDown, ChevronUp, Clock } from 'lucide-react';
 
-interface PollOption { id: string; option_text: string; votes: number; }
-interface Poll { id: string; question: string; expires_at: string; total_votes: number; options: PollOption[]; }
-interface PollCardProps { poll?: Poll; postId: string; }
+type PollOption = { id: string; label: string; position: number; votes: number };
+type PollData = {
+  id: string;
+  question: string;
+  description?: string | null;
+  status: string;
+  ends_at?: string | null;
+  total_votes: number;
+  options: PollOption[];
+};
 
-export function PollCard({ poll, postId }: PollCardProps) {
+interface PollCardProps {
+  poll?: PollData;
+  postId: string;
+  repliesCount?: number;
+}
+
+export function PollCard({ poll, postId, repliesCount = 0 }: PollCardProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [voted, setVoted] = useState(false);
+  const [pollData, setPollData] = useState<PollData | null>(poll ?? null);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
-  const [pollData, setPollData] = useState<Poll | null>(poll ?? null);
+  const [voted, setVoted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+
+  const loadResults = async (pollId: string) => {
+    const { data, error } = await supabase.rpc('poll_results', { p_poll_id: pollId });
+    if (error) throw error;
+    const result = data as PollData;
+    setPollData(result);
+    if (user) {
+      const { data: vote } = await supabase
+        .from('poll_votes')
+        .select('option_id')
+        .eq('poll_id', pollId)
+        .eq('voter_id', user.id)
+        .maybeSingle();
+      if (vote?.option_id) {
+        setSelectedOption(vote.option_id);
+        setVoted(true);
+      }
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      if (poll) { setPollData(poll); return; }
-      const { data } = await supabase.from('polls').select('*, options:poll_options(*)').eq('post_id', postId).maybeSingle();
-      if (!cancelled && data) setPollData(data as Poll);
+      try {
+        if (poll?.id) {
+          await loadResults(poll.id);
+        } else {
+          const { data, error } = await supabase
+            .from('polls')
+            .select('id')
+            .eq('post_id', postId)
+            .maybeSingle();
+          if (error) throw error;
+          if (data?.id) await loadResults(data.id);
+        }
+      } catch (error) {
+        if (!cancelled) console.warn('[poll] load failed', error);
+      }
     };
     void load();
     return () => { cancelled = true; };
-  }, [poll, postId]);
+  }, [poll?.id, postId, user?.id]);
 
-  useEffect(() => {
-    if (!user || !pollData) return;
-    const checkIfVoted = async () => {
-      const { data } = await supabase.from('poll_votes').select('option_id').eq('poll_id', pollData.id).eq('user_id', user.id).maybeSingle();
-      if (data) { setVoted(true); setSelectedOption(data.option_id); }
-    };
-    void checkIfVoted();
-  }, [pollData, user?.id]);
+  const isExpired = useMemo(() => {
+    if (!pollData) return false;
+    return pollData.status !== 'open' || Boolean(pollData.ends_at && new Date(pollData.ends_at) <= new Date());
+  }, [pollData]);
+
+  const showResults = voted || isExpired;
 
   const handleVote = async (optionId: string) => {
     if (!user) { navigate('/auth'); return; }
-    if (!pollData) return;
-    if (voted) { toast.error('You already voted'); return; }
-    if (new Date() > new Date(pollData.expires_at)) { toast.error('Poll has ended'); return; }
+    if (!pollData || isExpired || voted) return;
     setLoading(true);
-    const { error } = await supabase.from('poll_votes').insert({ poll_id: pollData.id, option_id: optionId, user_id: user.id });
-    if (error) { toast.error(error.message); setLoading(false); return; }
-    await supabase.rpc('increment', { table_name: 'poll_options', row_id: optionId, column_name: 'votes' });
-    await supabase.rpc('increment', { table_name: 'polls', row_id: pollData.id, column_name: 'total_votes' });
-    const { data: updated } = await supabase.from('polls').select('*, options:poll_options(*)').eq('id', pollData.id).single();
-    if (updated) setPollData(updated as Poll);
-    setVoted(true);
-    setSelectedOption(optionId);
-    toast.success('Vote recorded!');
-    setLoading(false);
+    try {
+      const { error } = await supabase.rpc('cast_poll_vote', {
+        p_poll_id: pollData.id,
+        p_option_ids: [optionId],
+      });
+      if (error) throw error;
+      setSelectedOption(optionId);
+      setVoted(true);
+      await loadResults(pollData.id);
+      toast.success('Vote recorded');
+    } catch (error: any) {
+      toast.error(error?.message ?? 'Unable to record vote');
+    } finally {
+      setLoading(false);
+    }
   };
 
   if (!pollData) return null;
-  const pct = (votes: number) => pollData.total_votes === 0 ? 0 : Math.round((votes / pollData.total_votes) * 100);
-  const isExpired = new Date() > new Date(pollData.expires_at);
-  const timeLeft = Math.max(0, new Date(pollData.expires_at).getTime() - Date.now());
-  const hoursLeft = Math.floor(timeLeft / 3_600_000);
-  const daysLeft = Math.floor(hoursLeft / 24);
-  const minsLeft = Math.floor((timeLeft % 3_600_000) / 60_000);
-  const showResults = voted || isExpired;
-  const leader = showResults && pollData.options.length > 0 ? pollData.options.reduce((a, b) => (a.votes >= b.votes ? a : b)) : null;
+
+  const total = Number(pollData.total_votes ?? 0);
+  const pct = (votes: number) => total > 0 ? Math.round((Number(votes) / total) * 100) : 0;
+  const leader = showResults
+    ? pollData.options.reduce<PollOption | null>((best, option) => !best || option.votes > best.votes ? option : best, null)
+    : null;
+
+  const timeLabel = !pollData.ends_at
+    ? 'Open voting'
+    : isExpired
+      ? 'Voting ended'
+      : `${Math.max(1, Math.ceil((new Date(pollData.ends_at).getTime() - Date.now()) / 86_400_000))}d left`;
 
   return (
-    <div className="mt-3 rounded-2xl border border-border bg-card overflow-hidden" onClick={e => e.stopPropagation()}>
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
-        <div className="flex items-center gap-2"><BarChart3 className="w-4 h-4 text-primary" /><p className="font-bold text-sm line-clamp-1">{pollData.question}</p></div>
-        <button onClick={() => setCollapsed(v => !v)} className="text-muted-foreground hover:text-foreground transition-colors shrink-0 p-1">{collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}</button>
-      </div>
-      {!collapsed && <>
-        <div className="p-3 space-y-2">
-          {pollData.options.map(option => {
-            const p = pct(option.votes); const isSelected = selectedOption === option.id; const isLeader = leader?.id === option.id && p > 0;
-            return <button key={option.id} onClick={() => !showResults && !loading && handleVote(option.id)} disabled={showResults || loading}
-              className={`w-full text-left rounded-xl border-2 overflow-hidden transition-all ${showResults ? 'cursor-default' : 'cursor-pointer hover:border-primary/50 active:scale-[0.99]'} ${isSelected ? 'border-primary' : isLeader && showResults ? 'border-primary/40' : 'border-border'}`}>
-              <div className="relative">{showResults && <div className={`absolute inset-0 transition-all duration-700 ease-out rounded-xl ${isSelected ? 'bg-primary/15' : isLeader ? 'bg-primary/8' : 'bg-muted/40'}`} style={{ width: `${p}%` }} />}
-                <div className="relative flex items-center justify-between px-3 py-2.5"><div className="flex items-center gap-2 min-w-0"><div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${isSelected ? 'border-primary bg-primary' : 'border-border'}`}>{isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}</div><span className={`text-sm font-medium truncate ${isSelected ? 'text-primary font-semibold' : ''}`}>{option.option_text}</span>{isLeader && showResults && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-primary/15 text-primary shrink-0">Leading</span>}</div>
-                  {showResults && <div className="flex items-center gap-1.5 shrink-0 ml-2"><span className="text-xs text-muted-foreground">{option.votes} vote{option.votes !== 1 ? 's' : ''}</span><span className={`text-sm font-black tabular-nums ${isSelected ? 'text-primary' : isLeader ? 'text-foreground' : 'text-muted-foreground'}`}>{p}%</span></div>}
-                </div>
-              </div>
-            </button>;
-          })}
+    <div className="mt-3 rounded-2xl border border-primary/15 bg-card overflow-hidden" onClick={e => e.stopPropagation()}>
+      <div className="flex items-center justify-between gap-3 px-4 py-3 border-b border-border bg-primary/[0.04]">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-8 h-8 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <BarChart3 className="w-4 h-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Poll</p>
+            <p className="font-bold text-sm truncate">{pollData.question}</p>
+          </div>
         </div>
-        <div className="flex items-center justify-between px-4 pb-3 text-xs text-muted-foreground"><div className="flex items-center gap-1"><BarChart3 className="w-3 h-3" /><span><strong className="text-foreground">{pollData.total_votes}</strong> vote{pollData.total_votes !== 1 ? 's' : ''}</span></div><div className="flex items-center gap-1"><Clock className="w-3 h-3" />{isExpired ? <span className="font-semibold text-red-500">Ended</span> : daysLeft > 0 ? <span>{daysLeft}d left</span> : hoursLeft > 0 ? <span>{hoursLeft}h left</span> : <span>{minsLeft}m left</span>}</div>{!showResults && !loading && user && <span className="text-[10px] text-primary font-semibold">Tap to vote</span>}{loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />}{!user && !showResults && <button onClick={() => navigate('/auth')} className="text-[10px] text-primary font-semibold hover:underline">Sign in to vote</button>}</div>
-      </>}
+        <button onClick={() => setCollapsed(v => !v)} className="p-1.5 rounded-lg hover:bg-muted text-muted-foreground shrink-0">
+          {collapsed ? <ChevronDown className="w-4 h-4" /> : <ChevronUp className="w-4 h-4" />}
+        </button>
+      </div>
+
+      {!collapsed && (
+        <>
+          {pollData.description && <p className="px-4 pt-3 text-sm text-muted-foreground">{pollData.description}</p>}
+          <div className="p-3 space-y-2">
+            {pollData.options.map(option => {
+              const percent = pct(option.votes);
+              const selected = selectedOption === option.id;
+              const leading = leader?.id === option.id && percent > 0;
+              return (
+                <button
+                  key={option.id}
+                  disabled={loading || showResults}
+                  onClick={() => handleVote(option.id)}
+                  className={`w-full text-left rounded-xl border-2 overflow-hidden relative transition-all ${selected ? 'border-primary' : 'border-border'} ${!showResults ? 'hover:border-primary/50 active:scale-[0.99]' : ''}`}
+                >
+                  {showResults && <div className="absolute inset-y-0 left-0 bg-primary/10" style={{ width: `${percent}%` }} />}
+                  <span className="relative flex items-center justify-between gap-3 px-3.5 py-3">
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 ${selected ? 'border-primary bg-primary text-primary-foreground' : 'border-border'}`}>
+                        {selected && <Check className="w-2.5 h-2.5" />}
+                      </span>
+                      <span className={`text-sm font-medium truncate ${selected ? 'text-primary font-semibold' : ''}`}>{option.label}</span>
+                    </span>
+                    {showResults && <span className="text-xs font-semibold tabular-nums shrink-0">{percent}% · {option.votes}</span>}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="px-4 pb-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
+            <span className="flex items-center gap-1"><BarChart3 className="w-3.5 h-3.5" />{total} vote{total === 1 ? '' : 's'}</span>
+            <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{timeLabel}</span>
+            {loading && <Loader2 className="w-3.5 h-3.5 animate-spin text-primary" />}
+          </div>
+
+          <div className="px-4 pb-4 flex items-center justify-between">
+            {!user && !isExpired && <button onClick={() => navigate('/auth')} className="text-xs font-semibold text-primary">Sign in to vote</button>}
+            {user && !showResults && <span className="text-xs font-semibold text-primary">Choose an answer</span>}
+            <button onClick={() => navigate(`/thread/${postId}`)} className="ml-auto inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-primary">
+              <MessageCircle className="w-3.5 h-3.5" /> {repliesCount} repl{repliesCount === 1 ? 'y' : 'ies'}
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
