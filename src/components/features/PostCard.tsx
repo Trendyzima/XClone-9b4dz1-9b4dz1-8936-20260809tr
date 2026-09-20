@@ -812,7 +812,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
             </div>
           )}
 
-          {poll && <PollCard poll={poll} postId={post.id} />}
+          {poll && <PollCard poll={poll} postId={post.id} repliesCount={post.replies_count ?? 0} />}
 
           {/* Embeds — YouTube, Spotify, SoundCloud, etc. */}
           {!post.is_video && <EmbedRenderer content={post.content} />}
