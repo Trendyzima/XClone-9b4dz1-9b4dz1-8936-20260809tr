@@ -25,7 +25,24 @@ export function ProfileCreatorTools({ userId }: { userId: string }) {
         </div>
       </div>
       <div className="grid grid-cols-2 sm:grid-cols-5 divide-x divide-border">
-        <button onClick={() => navigate('/shop')} className="p-3 text-left hover:bg-muted/60 transition-colors group">\n          <ShoppingBag className="w-4 h-4 mb-2 text-primary" />\n          <span className="block text-xs font-semibold">Mall</span>\n          <span className="text-[10px] text-muted-foreground">Shop products</span>\n          <ChevronRight className="w-3.5 h-3.5 mt-1 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />\n        </button>\n        <button onClick={() => navigate('/products')} className="p-3 text-left hover:bg-muted/60 transition-colors group">
+        <button onClick={() => navigate('/shop')} className="p-3 text-left hover:bg-muted/60 transition-colors group">
+          <ShoppingBag className="w-4 h-4 mb-2 text-primary" />
+          <span className="block text-xs font-semibold">Mall</span>
+          <span className="text-[10px] text-muted-foreground">Shop products</span>
+          <ChevronRight className="w-3.5 h-3.5 mt-1 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+        </button>
+        <button onClick={() => navigate('/products')} className="p-3 text-left hover:bg-muted/60 transition-colors group">
+          <PackagePlus className="w-4 h-4 mb-2 text-primary" />
+          <span className="block text-xs font-semibold">Sell</span>
+          <span className="text-[10px] text-muted-foreground">Post products</span>
+          <ChevronRight className="w-3.5 h-3.5 mt-1 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+        </button>
+        <button onClick={() => navigate('/creator-studio')} className="p-3 text-left hover:bg-muted/60 transition-colors group">
+          <BarChart3 className="w-4 h-4 mb-2 text-primary" />
+          <span className="block text-xs font-semibold">Studio</span>
+          <span className="text-[10px] text-muted-foreground">Create & insights</span>
+          <ChevronRight className="w-3.5 h-3.5 mt-1 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
+        </button>
           <BarChart3 className="w-4 h-4 mb-2 text-primary" />
           <span className="block text-xs font-semibold">Studio</span>
           <span className="text-[10px] text-muted-foreground">Create & insights</span>
