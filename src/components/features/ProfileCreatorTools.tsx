@@ -3,7 +3,6 @@ import { BarChart3, Megaphone, Wallet, ChevronRight, ShoppingBag, PackagePlus } 
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 
-/** A deliberately compact bridge from a user's profile into Testagram's creator business surfaces. */
 export function ProfileCreatorTools({ userId }: { userId: string }) {
   const navigate = useNavigate();
   const [balance, setBalance] = useState<number | null>(null);
@@ -40,12 +39,7 @@ export function ProfileCreatorTools({ userId }: { userId: string }) {
         <button onClick={() => navigate('/creator-studio')} className="p-3 text-left hover:bg-muted/60 transition-colors group">
           <BarChart3 className="w-4 h-4 mb-2 text-primary" />
           <span className="block text-xs font-semibold">Studio</span>
-          <span className="text-[10px] text-muted-foreground">Create & insights</span>
-          <ChevronRight className="w-3.5 h-3.5 mt-1 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
-        </button>
-          <BarChart3 className="w-4 h-4 mb-2 text-primary" />
-          <span className="block text-xs font-semibold">Studio</span>
-          <span className="text-[10px] text-muted-foreground">Create & insights</span>
+          <span className="text-[10px] text-muted-foreground">Create &amp; insights</span>
           <ChevronRight className="w-3.5 h-3.5 mt-1 text-muted-foreground group-hover:translate-x-0.5 transition-transform" />
         </button>
         <button onClick={() => navigate('/create-ad')} className="p-3 text-left hover:bg-muted/60 transition-colors group">
