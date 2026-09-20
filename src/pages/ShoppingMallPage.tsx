@@ -152,7 +152,7 @@ export default function ShoppingMallPage(){
 
           {loading?<div className="py-16 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-primary"/></div>:
           shown.length?<div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-px bg-border">{shown.map(p=><article key={p.id} className="bg-background group min-w-0">
-            <button onClick={()=>navigate(`/product/${p.id}`)} className="block w-full text-left">
+            <button onClick={()=>{}} className="block w-full text-left">
               <div className="relative aspect-square bg-muted overflow-hidden">{p.image?<img src={p.image} alt={p.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"/>:<div className="w-full h-full flex items-center justify-center"><ShoppingBag className="w-10 h-10 text-muted-foreground/30"/></div>}
                 {p.is_featured&&<span className="absolute top-2 left-2 px-1.5 py-1 rounded-md bg-primary text-primary-foreground text-[9px] font-black">HOT</span>}
                 {p.inventory_count>0&&p.inventory_count<=5&&<span className="absolute bottom-2 left-2 px-1.5 py-1 rounded-md bg-background/90 text-[9px] font-bold">Only {p.inventory_count} left</span>}
