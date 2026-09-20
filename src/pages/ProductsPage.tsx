@@ -47,14 +47,16 @@ function TipProductModal({ seller, onClose }: { seller: any; onClose: () => void
     const amt = tipAmount || Number(custom);
     if (!amt || amt <= 0) { toast.error('Enter a tip amount'); return; }
     setSending(true);
-    const { data: wallet } = await supabase.from('user_wallets').select('balance').eq('user_id', user.id).maybeSingle();
-    if (!wallet || Number(wallet.balance) < amt) { toast.error('Insufficient wallet balance'); setSending(false); return; }
-    const { error: deductErr } = await supabase.rpc('deduct_from_wallet', { p_user_id: user.id, p_amount: amt });
-    if (deductErr) { toast.error('Failed to deduct from wallet'); setSending(false); return; }
-    await supabase.rpc('add_to_wallet', { p_user_id: seller.id, p_amount: amt });
-    await supabase.from('tips').insert({ from_user_id: user.id, to_user_id: seller.id, amount: amt, message: 'Marketplace tip' });
-    await supabase.from('creator_earnings').insert({ user_id: seller.id, source: 'tips', amount: amt, status: 'paid' });
-    await supabase.from('notifications').insert({ recipient_id: seller.id, kind: 'tip', actor_id: user.id  });
+    const { error } = await supabase.rpc('send_wallet_tip', {
+      p_to_user_id: seller.id,
+      p_amount: amt,
+      p_note: 'Marketplace tip',
+    });
+    if (error) {
+      toast.error(error.message.includes('INSUFFICIENT_FUNDS') ? 'Insufficient wallet balance' : error.message);
+      setSending(false);
+      return;
+    }
     toast.success(`$${amt.toFixed(2)} tip sent to @${seller.username}!`);
     setSent(true);
     setSending(false);
