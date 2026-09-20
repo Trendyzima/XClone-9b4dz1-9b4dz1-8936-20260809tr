@@ -118,7 +118,9 @@ export default function ShoppingMallPage() {
         ? await supabase.from('media_assets').select('id,media_url').in('id', mediaIds)
         : { data: [] as Array<{ id: string; media_url: string | null }> };
 
-      const mm = new Map((media ?? []).map(x => [x.id, x.media_url]));
+      type MediaRow = { id: string; media_url: string | null };
+      const mediaRows = (media ?? []) as unknown as MediaRow[];
+      const mm = new Map<string, string | null>(mediaRows.map(x => [x.id, x.media_url]));
       setProducts(rows.map(x => ({
         id: x.id,
         seller_id: x.seller_id,
