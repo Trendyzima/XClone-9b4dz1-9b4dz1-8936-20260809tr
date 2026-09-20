@@ -512,6 +512,36 @@ function FilterSheet({
   );
 }
 
+const MARKET_FEATURES = [
+  { id:'local', title:'Local delivery', desc:'Nearby sellers can offer delivery', icon:'🚚' },
+  { id:'seller', title:'Seller-set delivery', desc:'Choose seller delivery or pickup', icon:'📦' },
+  { id:'wallet', title:'Wallet checkout', desc:'Pay directly from your Testagram wallet', icon:'💳' },
+  { id:'atomic', title:'Atomic payment', desc:'Payment, stock and order commit together', icon:'🔐' },
+  { id:'trusted', title:'Trusted sellers', desc:'Verified community profiles', icon:'✓' },
+  { id:'profiles', title:'Community profiles', desc:'Open the seller’s Testagram profile', icon:'👤' },
+  { id:'support', title:'Help & support', desc:'Get assistance with marketplace orders', icon:'💬' },
+] as const;
+
+function MarketplaceFeatureSheet({ feature, onClose, onBrowse, onNavigate }: { feature: typeof MARKET_FEATURES[number]; onClose:()=>void; onBrowse:()=>void; onNavigate:(path:string)=>void }) {
+  const copy: Record<string,{title:string;body:string;cta:string;secondary?:string}> = {
+    local:{title:'Local delivery',body:'Browse products from sellers who have enabled local delivery. Their delivery fee and ETA are shown during checkout.',cta:'Show local delivery'},
+    seller:{title:'Seller-set delivery',body:'At checkout you can choose seller delivery or pickup. The order records your chosen method with the purchase.',cta:'Browse products'},
+    wallet:{title:'Wallet checkout',body:'Pay from your Testagram wallet. The checkout validates your balance before the order is committed.',cta:'Open wallet',secondary:'Browse products'},
+    atomic:{title:'Atomic payment',body:'Payment, inventory and the marketplace order are committed together by the database transaction, preventing a paid order without the matching stock update.',cta:'Start checkout'},
+    trusted:{title:'Trusted sellers',body:'See marketplace sellers with verified community profiles. Open a product and tap the seller identity to view their profile.',cta:'Show trusted sellers'},
+    profiles:{title:'Community profiles',body:'Every marketplace seller is tied to their Testagram community identity. Open a product and tap the seller card to visit the real profile.',cta:'Browse sellers'},
+    support:{title:'Help & support',body:'Get help with marketplace orders, payments, delivery and seller issues from Testagram support.',cta:'Get assistance'},
+  };
+  const x=copy[feature.id];
+  const primary=()=>{ if(feature.id==='local') onBrowse(); else if(feature.id==='seller'||feature.id==='atomic'||feature.id==='profiles') onBrowse(); else if(feature.id==='wallet') onNavigate('/wallet'); else if(feature.id==='trusted') onBrowse(); else onNavigate('/help'); onClose(); };
+  return <div className="fixed inset-0 z-[350] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-4" onClick={onClose}>
+    <div className="bg-background w-full max-w-md rounded-3xl border border-border shadow-2xl overflow-hidden" onClick={e=>e.stopPropagation()}>
+      <div className="p-5 border-b border-border flex items-start gap-3"><div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-2xl">{feature.icon}</div><div className="flex-1"><h3 className="font-black text-lg">{x.title}</h3><p className="text-xs text-muted-foreground mt-0.5">{feature.desc}</p></div><button onClick={onClose} className="w-9 h-9 rounded-full bg-muted flex items-center justify-center"><X className="w-4 h-4"/></button></div>
+      <div className="p-5 space-y-4"><p className="text-sm leading-6 text-muted-foreground">{x.body}</p><div className="flex gap-2"><button onClick={primary} className="flex-1 py-3 rounded-2xl bg-primary text-primary-foreground font-bold">{x.cta}</button>{x.secondary&&<button onClick={()=>{onBrowse();onClose()}} className="px-4 py-3 rounded-2xl border border-border font-bold text-sm">{x.secondary}</button>}</div></div>
+    </div>
+  </div>;
+}
+
 // ── Main Marketplace Page ───────────────────────────────────────────────────
 export default function MarketplacePage() {
   const { user } = useAuth();
@@ -528,6 +558,8 @@ export default function MarketplacePage() {
   const [region,     setRegion]     = useState('all');
   const [priceRange, setPriceRange] = useState('all');
   const [sort,       setSort]       = useState('popular');
+  const [deliveryFilter, setDeliveryFilter] = useState<'all'|'local'|'seller'|'trusted'>('all');
+  const [activeFeature, setActiveFeature] = useState<typeof MARKET_FEATURES[number] | null>(null);
   const [gridMode,   setGridMode]   = useState('grid' as 'grid' | 'list');
 
   // UI state
@@ -631,6 +663,10 @@ export default function MarketplacePage() {
       });
     }
 
+    if (deliveryFilter === 'local') list = list.filter(p => p.local_delivery === true);
+    if (deliveryFilter === 'trusted') list = list.filter(p => Boolean(p.profiles?.verified_tier));
+    if (deliveryFilter === 'seller') list = list.filter(p => p.local_delivery === true || p.delivery_fee_minor !== undefined);
+
     // Sort
     if (sort === 'newest')     list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     if (sort === 'price_asc')  list.sort((a, b) => Number(a.price) - Number(b.price));
@@ -639,7 +675,7 @@ export default function MarketplacePage() {
     if (sort === 'popular')    list.sort((a, b) => Number(b.views_count ?? 0) - Number(a.views_count ?? 0));
 
     return list;
-  }, [products, search, category, region, priceRange, sort]);
+  }, [products, search, category, region, priceRange, sort, deliveryFilter]);
 
   const activeFilterCount = [
     category !== 'all', region !== 'all', priceRange !== 'all', sort !== 'popular',
@@ -651,19 +687,12 @@ export default function MarketplacePage() {
       <MktAdBanner />
       <div className="px-4 py-3 border-b border-border bg-card/60">
         <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-          {[
-            ['Local delivery','Nearby sellers can offer delivery','🚚',null],
-            ['Seller-set delivery','Choose seller delivery or pickup','📦',null],
-            ['Wallet checkout','Pay directly from your Testagram wallet','💳',null],
-            ['Atomic payment','Payment, stock and order commit together','🔐',null],
-            ['Trusted sellers','Verified community profiles','✓',null],
-            ['Community profiles','Open the seller’s Testagram profile','👤','/products'],
-            ['Help & support','Get assistance with marketplace orders','💬','/help'],
-          ].map(([title,desc,emoji,path])=><button key={title} onClick={()=>path&&navigate(path)} className="min-w-[190px] text-left p-3 rounded-2xl border border-border bg-background hover:border-primary/40 transition-colors">
-            <div className="flex items-center gap-2"><span className="text-lg">{emoji}</span><span className="font-bold text-xs">{title}</span></div><p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">{desc}</p>
+          {MARKET_FEATURES.map(feature=><button key={feature.id} onClick={()=>setActiveFeature(feature)} className="min-w-[190px] text-left p-3 rounded-2xl border border-border bg-background hover:border-primary/50 hover:bg-primary/5 active:scale-[.98] transition-all">
+            <div className="flex items-center gap-2"><span className="text-lg">{feature.icon}</span><span className="font-bold text-xs">{feature.title}</span></div><p className="text-[10px] text-muted-foreground mt-1 leading-relaxed">{feature.desc}</p>
           </button>)}
-          <button onClick={()=>navigate('/orders')} className="min-w-[150px] text-left p-3 rounded-2xl border border-primary/20 bg-primary/5"><div className="font-bold text-xs">My orders</div><p className="text-[10px] text-muted-foreground mt-1">Track purchases and sales</p></button>
+          <button onClick={()=>navigate('/orders')} className="min-w-[150px] text-left p-3 rounded-2xl border border-primary/20 bg-primary/5 hover:bg-primary/10 active:scale-[.98] transition-all"><div className="font-bold text-xs">My orders</div><p className="text-[10px] text-muted-foreground mt-1">Track purchases and sales</p></button>
         </div>
+        {deliveryFilter !== 'all' && <div className="mt-2 flex items-center justify-between rounded-xl bg-primary/5 border border-primary/20 px-3 py-2"><span className="text-xs font-semibold text-primary">Showing {deliveryFilter === 'local' ? 'local delivery' : deliveryFilter === 'trusted' ? 'trusted sellers' : 'seller delivery'} products</span><button onClick={()=>setDeliveryFilter('all')} className="text-xs font-bold text-primary">Clear</button></div>}
       </div>
 
       {/* ── Sticky Search + Filter bar ── */}
@@ -842,8 +871,7 @@ export default function MarketplacePage() {
 
       {/* ── Product Detail Sheet ── */}
       {selectedProduct && (
-        <ProductDetailSheet
-          product={selectedProduct}
+      {activeFeature && <MarketplaceFeatureSheet feature={activeFeature} onClose={()=>setActiveFeature(null)} onNavigate={navigate} onBrowse={()=>{setDeliveryFilter(activeFeature.id==='local'?'local':activeFeature.id==='trusted'?'trusted':'all'); setActiveFeature(null); window.scrollTo({top:520,behavior:'smooth'});}} />}\n\n      <ProductDetailSheet\n          product={selectedProduct}
           wishlisted={isWishlisted(selectedProduct.id)}
           onWishlist={() => toggleWishlist(selectedProduct.id)}
           onClose={() => setSelectedProduct(null)}
