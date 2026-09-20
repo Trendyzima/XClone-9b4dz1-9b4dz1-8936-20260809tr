@@ -304,8 +304,8 @@ export default function FediversePage() {
   const fetchFederationStats = async () => {
     if (!user) return;
     const [fwingRes, fwersRes] = await Promise.all([
-      supabase.from('federated_following').select('*').eq('local_user_id', user.id),
-      supabase.from('federated_followers').select('*').eq('local_user_id', user.id),
+      supabase.from('federated_relationships').select('*').eq('local_user_id', user.id).eq('relationship','following'),
+      supabase.from('federated_relationships').select('*').eq('local_user_id', user.id).eq('relationship','follower'),
     ]);
     setFederatedFollowing(fwingRes.data ?? []);
     setFederatedFollowers(fwersRes.data ?? []);
@@ -479,9 +479,20 @@ export default function FediversePage() {
 
   const handleUnfollowFederated = async (remoteActorUrl: string) => {
     if (!user) { navigate('/auth'); return; }
-    await supabase.from('federated_following').delete().eq('local_user_id', user.id).eq('remote_actor_url', remoteActorUrl);
-    toast.success('Unfollowed');
-    fetchFederationStats();
+    try {
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/activitypub-federation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'unfollow', target: remoteActorUrl }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error ?? 'Unfollow failed');
+      toast.success('Unfollowed');
+      fetchFederationStats();
+      setSearchResult((prev: any) => prev ? { ...prev, following: false } : prev);
+    } catch (err: any) { toast.error(`Unfollow failed: ${err.message ?? ''}`); }
   };
 
   const handleFedLike = async (post: any) => {
@@ -543,10 +554,19 @@ export default function FediversePage() {
     if (!user) { navigate('/auth'); return; }
     setFollowing(true);
     try {
-      const target = account.actor_url ?? `${account.username}@${account.domain}`;
-      await federation.follow(target);
-      toast.success('Follow request sent!');
+      const target = account.actor_url ?? `https://${account.domain}/users/${account.username}`;
+      const { data: session } = await supabase.auth.getSession();
+      const token = session.session?.access_token;
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/activitypub-federation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ action: 'follow', target }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error ?? 'Follow failed');
+      toast.success('Follow request sent to the remote instance');
       fetchFederationStats();
+      setSearchResult((prev: any) => prev ? { ...prev, following: true, actor_url: data.actor_uri ?? prev.actor_url } : prev);
     } catch (err: any) { toast.error(`Follow failed: ${err.message ?? ''}`); }
     setFollowing(false);
   };
