@@ -10,6 +10,7 @@ const DEPLOYED_COMMIT =
   process.env.GITHUB_SHA ||
   'unknown';
 
+// Liveness stays cheap. This endpoint is also the immutable deployment identity gate.
 // Liveness stays cheap: capacity probes must not turn every synthetic request into
 // a database request. Database readiness is checked by /api/ready.
 export default async function handler(_request: Request) {
