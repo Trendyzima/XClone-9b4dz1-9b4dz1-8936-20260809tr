@@ -268,7 +268,7 @@ export default function FediversePage() {
   const fetchFederatedFeed = async () => {
     const { data: cached } = await supabase
       .from('federated_objects')
-      .select('*, remote_accounts(username, domain, display_name, avatar_url)')
+      .select('*')
       .order('published_at', { ascending: false })
       .limit(30);
     if (cached && cached.length > 0) {
