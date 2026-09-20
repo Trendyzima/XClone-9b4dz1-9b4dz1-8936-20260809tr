@@ -104,6 +104,7 @@ export default async function handler(req: any, res: any) {
       if (activeStories.length > 0) continue;
 
       const asset = rawAsset;
+      try {
         if (asset.storage_key) {
           await r2.send(new DeleteObjectCommand({
             Bucket: asset.bucket || cfg.r2Bucket,
