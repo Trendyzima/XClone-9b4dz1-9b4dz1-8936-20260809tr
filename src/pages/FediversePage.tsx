@@ -242,6 +242,7 @@ export default function FediversePage() {
     setMyActor(actor);
     const { data: keys } = await supabase.from('activitypub_keys').select('id').eq('user_id', user.id).maybeSingle();
     setKeysReady(!!keys);
+    if (!keys) void generateKeys();
   };
 
   const cacheFederatedPosts = async (posts: any[]) => {
@@ -594,6 +595,8 @@ export default function FediversePage() {
       else toast.error(data.error ?? 'Keygen failed');
     } catch (err: any) { toast.error('Keygen error: ' + err.message); }
   };
+
+  const canBackfillKeys = user?.app_metadata?.role === 'admin' || user?.app_metadata?.role === 'super_admin' || user?.app_metadata?.role === 'owner';
 
   const backfillAllKeys = async () => {
     try {
@@ -1413,13 +1416,15 @@ export default function FediversePage() {
                   </button>
                 </div>
               </div>
-              <div className="border border-amber-500/20 rounded-xl p-4 bg-amber-500/5">
-                <h3 className="font-semibold text-sm mb-1 text-amber-700 dark:text-amber-400">Backfill RSA Keys</h3>
-                <p className="text-xs text-muted-foreground mb-3">Generate ActivityPub RSA-2048 key pairs for all existing users.</p>
-                <button onClick={backfillAllKeys} className="w-full py-2 bg-amber-600 text-white rounded-full text-sm font-medium hover:bg-amber-700 transition-colors">
-                  Backfill All Missing Keys
-                </button>
-              </div>
+              {canBackfillKeys && (
+                <div className="border border-amber-500/20 rounded-xl p-4 bg-amber-500/5">
+                  <h3 className="font-semibold text-sm mb-1 text-amber-700 dark:text-amber-400">Backfill RSA Keys</h3>
+                  <p className="text-xs text-muted-foreground mb-3">Generate ActivityPub RSA-2048 key pairs for all existing users.</p>
+                  <button onClick={backfillAllKeys} className="w-full py-2 bg-amber-600 text-white rounded-full text-sm font-medium hover:bg-amber-700 transition-colors">
+                    Backfill All Missing Keys
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
