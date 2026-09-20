@@ -441,7 +441,7 @@ jobs:
 
             # Diagnose custom-domain DNS before probing the public alias. A READY Vercel
             # deployment can still be unreachable when the registrar/Cloudflare DNS zone
-            # has not propagated. Keep DNS failure distinct from build/deployment failure.
+            # is not resolving. Keep DNS failure distinct from build/deployment failure.
             if command -v dig >/dev/null 2>&1; then
               echo "DNS diagnostics for testagram.site:"
               dig +short testagram.site A @1.1.1.1 || true
@@ -449,38 +449,65 @@ jobs:
               dig +short www.testagram.site CNAME @1.1.1.1 || true
             fi
 
-            # Vercel CLI 54.15+ provides an authoritative DNS diagnosis.
-            if vercel domains verify testagram.site --project "$VERCEL_PROJECT_ID" --format json --non-interactive > domain-verify.json 2>/dev/null; then
+            # Vercel CLI 54.15+ provides an authoritative DNS diagnosis. Preserve the
+            # JSON even when the command exits non-zero so the exact required record(s)
+            # are visible in the failed run.
+            domain_verify_ok=0
+            if vercel domains verify testagram.site --project "$VERCEL_PROJECT_ID" --format json --non-interactive > domain-verify.json 2>&1; then
+              domain_verify_ok=1
               echo "Custom domain DNS verification passed."
             else
-              echo "::warning::Custom domain DNS verification is not yet valid."
+              echo "::warning::Custom domain DNS verification is not valid yet."
               node - <<'NODE'
 const fs = require('node:fs');
 try {
-  const p = JSON.parse(fs.readFileSync('domain-verify.json','utf8').trim());
+  const raw = fs.readFileSync('domain-verify.json','utf8').trim();
+  const p = JSON.parse(raw);
   console.log(JSON.stringify({
     status:p.status,
+    ok:p.ok,
     reason:p.reason,
     message:p.message,
     recommended:p.recommended,
-    conflicts:p.conflicts
+    conflicts:p.conflicts,
+    next:p.next
   }, null, 2));
 } catch {
-  console.log('Vercel DNS verification returned no parseable JSON.');
+  console.log('Vercel DNS verification returned non-JSON output:');
+  console.log(fs.readFileSync('domain-verify.json','utf8'));
 }
 NODE
             fi
 
-            # Probe the public production alias. Retry long enough for normal DNS
-            # propagation, while keeping the deployment-specific URL available for diagnosis.
-            curl --fail --silent --show-error --location --retry 3 --retry-delay 2 \
-              "https://testagram.site/api/health" > health.txt || {
-              echo "::warning::Public production health probe failed on attempt $attempt"
+            # Probe the public production alias. Do NOT create another Vercel deployment
+            # when this fails: repeated deployments cannot repair external DNS and waste
+            # build time/credits. The exact READY deployment above remains the artifact
+            # under test, while this loop only retries the external DNS path.
+            health_ok=0
+            for dns_attempt in $(seq 1 12); do
+              if curl --fail --silent --show-error --location --retry 2 --retry-delay 2 \
+                "https://testagram.site/api/health" > health.txt; then
+                health_ok=1
+                break
+              fi
+              echo "::warning::Public production health probe failed ($dns_attempt/12) for deployment $DEPLOY_URL"
+              if [[ "$domain_verify_ok" -ne 1 ]]; then
+                echo "Custom-domain DNS is the remaining gate; waiting 15s before rechecking without redeploying."
+              else
+                echo "DNS verification passed but the public health path is not responding; waiting 15s before rechecking."
+              fi
+              sleep 15
+            done
+            if [[ "$health_ok" -ne 1 ]]; then
+              echo "::error::Public production health remained unreachable after 12 DNS/health checks."
               cat health.txt || true
-              echo "The Vercel deployment is READY; this failure is limited to the public custom-domain path."
-              sleep 20
-              continue
-            }
+              echo "The Vercel deployment is READY; no additional deployment was created because redeploying cannot repair external DNS."
+              if [[ -f domain-verify.json ]]; then
+                echo "Vercel domain verification evidence:"
+                cat domain-verify.json
+              fi
+              exit 1
+            fi
             node -e 'const fs=require("node:fs"); const body=fs.readFileSync("health.txt","utf8").trim(); let payload; try { payload=JSON.parse(body); } catch (error) { console.error("Liveness endpoint did not return valid JSON:", error instanceof Error ? error.message : error); console.error(body); process.exit(1); } const expected=process.env.TARGET_SHA; if (payload?.ok !== true || payload?.service !== "testagram" || payload?.edge !== "reachable" || payload?.commit !== expected) { console.error("Liveness contract failed:", JSON.stringify({expected_commit:expected,payload})); process.exit(1); } console.log("Liveness contract passed:", JSON.stringify(payload));'
 
             # /api/health is intentionally liveness-only. Database traffic stays on
