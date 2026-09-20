@@ -311,10 +311,21 @@ jobs:
           [[ -n "$R2_MEDIA_BUCKET" ]] || missing+=(R2_MEDIA_BUCKET)
           [[ -n "$R2_PUBLIC_BASE_URL" ]] || missing+=(R2_PUBLIC_BASE_URL)
           if (( ${#missing[@]} > 0 )); then
-            echo "::error::R2 configuration is incomplete; profile media cannot be enabled safely."
-            echo "::error::Missing GitHub production configuration names: ${missing[*]}"
-            echo "::error::Do not paste R2 credentials into source control or chat. Configure the GitHub production secrets first."
-            exit 1
+            echo "::warning::GitHub R2 configuration is incomplete: ${missing[*]}. Checking whether the required R2 secrets are already present in Supabase."
+            existing="$(supabase secrets list --project-ref "$PROJECT_REF" 2>/dev/null || true)"
+            required=(CLOUDFLARE_ACCOUNT_ID CLOUDFLARE_R2_ACCESS_KEY_ID CLOUDFLARE_R2_SECRET_ACCESS_KEY CLOUDFLARE_R2_BUCKET R2_PUBLIC_BASE_URL)
+            missing_remote=()
+            for name in "${required[@]}"; do
+              grep -Eq "(^|[[:space:]])${name}([[:space:]]|$)" <<<"$existing" || missing_remote+=("$name")
+            done
+            if (( ${#missing_remote[@]} > 0 )); then
+              echo "::error::R2 configuration is incomplete in both GitHub and Supabase."
+              echo "::error::Missing Supabase Edge Function secret names: ${missing_remote[*]}"
+              echo "::error::Configure the R2 production secrets before enabling profile media."
+              exit 1
+            fi
+            echo "Required R2 secrets already exist in Supabase; redundant synchronization from GitHub is not required."
+            exit 0
           fi
 
           umask 077
