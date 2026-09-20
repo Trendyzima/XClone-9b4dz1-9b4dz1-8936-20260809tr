@@ -161,8 +161,7 @@ export default function SpacesPage() {
   const handleEpTip = useCallback(async () => {
     if (!user || !tipEpHostId || !tipEpAmount || !tipEpId) return;
     setSendingEpTip(true);
-    const { error: transferErr } = await supabase.rpc('p2p_wallet_transfer', {
-      p_from_user_id: user.id,
+    const { error: transferErr } = await supabase.rpc('send_wallet_tip', {
       p_to_user_id: tipEpHostId,
       p_amount: tipEpAmount,
       p_note: `Tip for Space recording ${tipEpId}`,
@@ -172,10 +171,6 @@ export default function SpacesPage() {
       toast.error(message);
       setSendingEpTip(false);
       return;
-    }
-    const { error: tipErr } = await supabase.from('tips').insert({ from_user_id: user.id, to_user_id: tipEpHostId, amount: Math.round(tipEpAmount) });
-    if (tipErr) {
-      toast.error('Tip transfer completed, but the tip receipt could not be recorded.');
     }
     toast.success(`$${tipEpAmount} tip sent to @${tipEpHostName}!`);
     setTippedEpIds(prev => new Set([...prev, tipEpId!]));
