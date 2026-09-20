@@ -14,7 +14,7 @@ interface TopBarProps {
   showSettings?: boolean;
 }
 
-const CROSS_SURFACE_PATHS = ['/', '/explore', '/search', '/hashtags', '/hashtag/', '/discover', '/communities', '/c/', '/spaces', '/space-recording/', '/trending/', '/challenge/', '/threads', '/thread/', '/videos', '/shorts', '/marketplace', '/podcasts/search'];
+const CROSS_SURFACE_PATHS = ['/', '/explore', '/search', '/hashtags', '/hashtag/', '/discover', '/communities', '/c/', '/spaces', '/space-recording/', '/trending/', '/challenge/', '/threads', '/thread/', '/videos', '/shorts', '/marketplace', '/shop', '/polls', '/podcasts/search'];
 
 function shouldShowCrossSurfaceNav(pathname: string) {
   return CROSS_SURFACE_PATHS.some(root =>
