@@ -22,7 +22,8 @@ async function localActor(db:SupabaseClient,actor:string){
   const r=await db.from('activitypub_actors').select('user_id,actor_id').eq('actor_id',actor).maybeSingle();
   if(r.error)throw r.error;
   if(r.data)return {user_id:r.data.user_id,actor_url:r.data.actor_id};
-  const p=await db.from('profiles').select('id,username').eq('id',actor.replace(/^https:\/\/testagram\.site\/users\//,'')).maybeSingle();
+  const username=decodeURIComponent(actor.split('/').filter(Boolean).pop()||'');
+  const p=await db.from('profiles').select('id,username').eq('username',username).maybeSingle();
   if(p.data)return {user_id:p.data.id,actor_url:actor};
   return null;
 }
