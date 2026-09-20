@@ -249,7 +249,7 @@ export default function ShoppingMallPage() {
   };
 
   const shareProduct = async (p: Product) => {
-    const ref = user?.user_metadata?.username || user?.email?.split('@')[0] || p.username || p.seller_id;
+    const ref = user?.username || user?.email?.split('@')[0] || p.username || p.seller_id;
     const url = `https://testagram.market/p/${p.id}?ref=${encodeURIComponent(ref)}&utm_source=share&utm_medium=product&utm_campaign=market`;
     await supabase.rpc('record_marketplace_event', {
       p_product_id: p.id,
