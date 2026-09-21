@@ -38,14 +38,14 @@ export default function FediverseProfilePage() {
         if (cancelled) return;
         setProfile(result);
 
-        const resolvedActorUri = result?.actor_uri ?? result?.actor_url ?? result?.uri ?? actorUrl || '';
+        const resolvedActorUri = (result?.actor_uri ?? result?.actor_url ?? result?.uri ?? actorUrl) || '';
         if (user && resolvedActorUri) {
           // federation-transport persists remote follows in the canonical
           // federated_follow_relationships table. Read that same source on every
           // profile visit so Following survives navigation/reload.
           const { data: relationship, error: relationshipError } = await supabase
             .from('federated_follow_relationships')
-            .select('state, remote_actor_uri')
+            .select('state, delivery_state, remote_actor_uri')
             .eq('local_user_id', user.id)
             .eq('remote_actor_uri', resolvedActorUri)
             .eq('direction', 'following')
