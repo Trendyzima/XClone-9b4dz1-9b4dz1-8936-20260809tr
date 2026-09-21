@@ -19,6 +19,11 @@ export default function FediverseProfilePage() {
   const [following, setFollowing] = useState(false);
   const [followState, setFollowState] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
+  const [activeTab, setActiveTab] = useState('Posts');
+
+  const profileTabs = ['Posts', 'Threads', 'Replies', 'Media', 'Videos', 'Podcasts', 'Series', 'Likes', 'Tips', 'Gifts', 'Followers', 'Following', 'Analytics'];
+  const mediaPosts = posts.filter((post: any) => Array.isArray(post.attachments) && post.attachments.length > 0);
+  const videoPosts = posts.filter((post: any) => post.type === 'Video' || (Array.isArray(post.attachments) && post.attachments.some((a: any) => String(a?.mediaType || a?.media_type || '').startsWith('video/'))));
 
   const handle = useMemo(() => {
     if (suppliedHandle) return suppliedHandle.replace(/^@/, '');
@@ -261,19 +266,33 @@ export default function FediverseProfilePage() {
             </section>
 
             <section>
-              <div className="px-4 py-4 border-b border-border flex items-center gap-2 font-bold"><Rss className="w-4 h-4" />Posts on Testagram</div>
-              {posts.length === 0 ? (
-                <div className="py-12 text-center text-sm text-muted-foreground">No cached posts from this account yet.</div>
-              ) : (
+              <nav aria-label="Profile sections" className="sticky top-14 z-10 border-b border-border bg-background/95 backdrop-blur-xl overflow-x-auto scrollbar-hide">
+                <div className="flex min-w-max">
+                  {profileTabs.map(tab => (
+                    <button key={tab} onClick={() => setActiveTab(tab)} className={`relative px-4 py-4 text-sm font-semibold transition-colors whitespace-nowrap ${activeTab === tab ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'}`}>
+                      {tab}
+                      {activeTab === tab && <span className="absolute inset-x-3 bottom-0 h-1 rounded-full bg-primary" />}
+                    </button>
+                  ))}
+                </div>
+              </nav>
+
+              {['Posts', 'Threads', 'Replies'].includes(activeTab) && (
                 <div className="divide-y divide-border">
-                  {posts.map((post: any) => (
+                  {activeTab === 'Posts' && posts.length > 0 ? posts.map((post: any) => (
                     <article key={post.id ?? post.uri} className="p-4">
                       <div className="text-sm leading-6" dangerouslySetInnerHTML={{ __html: post.content ?? '' }} />
                       <p className="mt-2 text-xs text-muted-foreground">{post.published_at ? new Date(post.published_at).toLocaleString() : ''}</p>
                     </article>
-                  ))}
+                  )) : <div className="py-14 px-5 text-center text-sm text-muted-foreground">No {activeTab.toLowerCase()} yet.</div>}
                 </div>
               )}
+
+              {activeTab === 'Media' && (mediaPosts.length === 0 ? <div className="py-14 text-center text-sm text-muted-foreground">No media yet</div> : <div className="grid grid-cols-3 gap-1 p-1">{mediaPosts.map((post: any) => <article key={post.id ?? post.uri} className="aspect-square bg-muted overflow-hidden">{post.attachments?.[0]?.url && <img src={post.attachments[0].url} alt="" className="w-full h-full object-cover" />}</article>)}</div>)}
+
+              {activeTab === 'Videos' && (videoPosts.length === 0 ? <div className="py-14 text-center text-sm text-muted-foreground">No videos yet</div> : <div className="divide-y divide-border">{videoPosts.map((post: any) => <article key={post.id ?? post.uri} className="p-4"><div className="text-sm leading-6" dangerouslySetInnerHTML={{ __html: post.content ?? '' }} /></article>)}</div>)}
+
+              {['Podcasts', 'Series', 'Likes', 'Tips', 'Gifts', 'Followers', 'Following', 'Analytics'].includes(activeTab) && <div className="py-14 px-5 text-center text-sm text-muted-foreground">No {activeTab.toLowerCase()} yet.</div>}
             </section>
           </>
         )}
