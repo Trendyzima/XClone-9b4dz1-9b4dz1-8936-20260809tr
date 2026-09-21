@@ -1568,83 +1568,38 @@ function FederatedPostCard({ post }: { post: any }) {
     }
   };
 
+  const openProfile = () => {
+    const actorUri = post.actor_uri ?? actor.uri ?? actor.id ?? '';
+    const acct = String(actor.acct ?? username ?? '').replace(/^@/, '');
+    const profileHandle = acct.includes('@') ? acct : (acct && domain ? `${acct}@${domain}` : acct);
+    const query = new URLSearchParams();
+    if (actorUri) query.set('actor', actorUri);
+    if (profileHandle) query.set('handle', profileHandle);
+    navigate(`/fediverse/profile?${query.toString()}`);
+  };
+
   return (
     <div className="border-b border-border p-4 hover:bg-muted/5 transition-colors">
       <div className="flex gap-3">
-        <div className="w-10 h-10 rounded-full bg-muted overflow-hidden flex-shrink-0">
-          {avatarUrl ? (
-            <img src={avatarUrl} alt={username} className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center font-bold text-sm">
-              {username[0]?.toUpperCase()}
-            </div>
-          )}
-        </div>
+        <button type="button" onClick={openProfile} className="w-10 h-10 rounded-full bg-muted overflow-hidden flex-shrink-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary" aria-label={`Open ${displayName} profile`}>
+          {avatarUrl ? <img src={avatarUrl} alt={username} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center font-bold text-sm">{username[0]?.toUpperCase()}</div>}
+        </button>
         <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+          <button type="button" onClick={openProfile} className="text-left flex items-center gap-2 mb-0.5 flex-wrap cursor-pointer hover:underline">
             <span className="font-semibold text-sm">{displayName}</span>
-            <span className="flex items-center gap-1 text-xs text-purple-500">
-              <Globe className="w-3 h-3" />
-              {domain}
-            </span>
-            {createdAt && (
-              <span className="text-muted-foreground text-xs">
-                · {formatDistanceToNow(new Date(createdAt), { addSuffix: true })}
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground mb-1.5">
-            @{username}@{domain}
-          </p>
-          <div
-            className="text-sm leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: post.content ?? post.text ?? '' }}
-          />
-
-          {showTranslation && translation && (
-            <div className="mt-2 p-3 bg-blue-500/5 border border-blue-500/15 rounded-xl">
-              <p className="text-xs font-semibold text-blue-500 mb-1 flex items-center gap-1">
-                <Languages className="w-3 h-3" /> Translated to English
-              </p>
-              <p className="text-sm leading-relaxed text-foreground">{translation}</p>
-            </div>
-          )}
-
-          {Array.isArray(post.media_attachments) && post.media_attachments.length > 0 && (
-            <div className="mt-2 grid grid-cols-2 gap-1 rounded-xl overflow-hidden">
-              {post.media_attachments.slice(0, 4).map((m: any, i: number) =>
-                m.type === 'image' ? (
-                  <img key={i} src={m.url ?? m.preview_url} alt={m.description ?? ''} className="w-full h-32 object-cover" loading="lazy" />
-                ) : null
-              )}
-            </div>
-          )}
-
+            <span className="flex items-center gap-1 text-xs text-purple-500"><Globe className="w-3 h-3" />{domain}</span>
+            {createdAt && <span className="text-muted-foreground text-xs">· {formatDistanceToNow(new Date(createdAt), { addSuffix: true })}</span>}
+          </button>
+          <button type="button" onClick={openProfile} className="text-xs text-muted-foreground mb-1.5 hover:underline cursor-pointer">@{username}{domain ? `@${domain}` : ''}</button>
+          <div className="text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: post.content ?? post.text ?? '' }} />
+          {showTranslation && translation && <div className="mt-2 p-3 bg-blue-500/5 border border-blue-500/15 rounded-xl"><p className="text-xs font-semibold text-blue-500 mb-1 flex items-center gap-1"><Languages className="w-3 h-3" /> Translated to English</p><p className="text-sm leading-relaxed text-foreground">{translation}</p></div>}
+          {Array.isArray(post.media_attachments) && post.media_attachments.length > 0 && <div className="mt-2 grid grid-cols-2 gap-1 rounded-xl overflow-hidden">{post.media_attachments.slice(0, 4).map((m: any, i: number) => m.type === 'image' ? <img key={i} src={m.url ?? m.preview_url} alt={m.description ?? ''} className="w-full h-32 object-cover" loading="lazy" /> : null)}</div>}
           <div className="flex items-center gap-4 mt-2.5 text-muted-foreground text-xs">
-            <span className="flex items-center gap-1">
-              <MessageCircle className="w-3.5 h-3.5" />
-              {formatNumber(post.replies_count ?? 0)}
-            </span>
-            <span className="flex items-center gap-1">
-              <Repeat2 className="w-3.5 h-3.5" />
-              {formatNumber(post.reblogs_count ?? post.boosts_count ?? 0)}
-            </span>
-            <span className="flex items-center gap-1">
-              <Heart className="w-3.5 h-3.5" />
-              {formatNumber(post.favourites_count ?? post.likes_count ?? 0)}
-            </span>
-            <button
-              onClick={handleTranslate}
-              disabled={translating}
-              className="ml-auto flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 transition-colors disabled:opacity-50"
-            >
-              {translating ? (
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-              ) : showTranslation ? (
-                <ChevronUp className="w-3.5 h-3.5" />
-              ) : (
-                <Languages className="w-3.5 h-3.5" />
-              )}
+            <span className="flex items-center gap-1"><MessageCircle className="w-3.5 h-3.5" />{formatNumber(post.replies_count ?? 0)}</span>
+            <span className="flex items-center gap-1"><Repeat2 className="w-3.5 h-3.5" />{formatNumber(post.reblogs_count ?? post.boosts_count ?? 0)}</span>
+            <span className="flex items-center gap-1"><Heart className="w-3.5 h-3.5" />{formatNumber(post.favourites_count ?? post.likes_count ?? 0)}</span>
+            <button onClick={e => { e.stopPropagation(); handleTranslate(); }} disabled={translating} className="ml-auto flex items-center gap-1 text-xs text-blue-500 hover:text-blue-700 transition-colors disabled:opacity-50">
+              {translating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : showTranslation ? <ChevronUp className="w-3.5 h-3.5" /> : <Languages className="w-3.5 h-3.5" />}
               {translating ? 'Translating…' : showTranslation ? 'Hide' : 'Translate'}
             </button>
           </div>
