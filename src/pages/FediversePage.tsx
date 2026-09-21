@@ -273,29 +273,32 @@ export default function FediversePage() {
       .then(() => setCachedAt(new Date())).catch(() => {});
   };
   const fetchFederatedFeed = async () => {
-    const { data: cached } = await supabase
-      .from('federated_objects')
-      .select('*')
-      .order('published_at', { ascending: false })
-      .limit(30);
-    if (cached && cached.length > 0) {
-      setRemotePosts(cached);
-      setCachedAt(new Date());
-      setLoadingFeed(false);
-      setIsStale(true);
-    } else {
-      setLoadingFeed(true);
-    }
+    setLoadingFeed(true);
     try {
-      const res: any = await federation.getFederatedTimeline({ limit: 30 });
-      const fresh = Array.isArray(res) ? res : res?.posts ?? res?.data ?? [];
+      const page = await federation.getFederatedTimelinePage({ limit: 30 });
+      const fresh = Array.isArray(page?.items) ? page.items : [];
       if (fresh.length > 0) {
         setRemotePosts(fresh);
         cacheFederatedPosts(fresh).catch(() => {});
         setCachedAt(new Date());
+      } else {
+        const { data: cached } = await supabase
+          .from('federated_objects')
+          .select('*')
+          .order('published_at', { ascending: false })
+          .limit(30);
+        setRemotePosts(cached ?? []);
+        if ((cached ?? []).length > 0) setCachedAt(new Date());
       }
     } catch {
-      console.log('[FediversePage] Gateway unreachable, serving from cache');
+      const { data: cached } = await supabase
+        .from('federated_objects')
+        .select('*')
+        .order('published_at', { ascending: false })
+        .limit(30);
+      setRemotePosts(cached ?? []);
+      if ((cached ?? []).length > 0) setCachedAt(new Date());
+      console.log('[FediversePage] Personalized feed unavailable, serving from cache');
     } finally {
       setLoadingFeed(false);
       setIsStale(false);
