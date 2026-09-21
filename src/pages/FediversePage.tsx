@@ -767,15 +767,18 @@ export default function FediversePage() {
     const rawActorUri = typeof rawActor === 'string' ? rawActor : rawActor?.id ?? '';
     const actor = p.remote_account ?? p.remote_accounts ?? p.actor ?? p.account ?? {};
     const actorUri = actor.url ?? actor.actor_uri ?? p.actor_uri ?? p.actor_url ?? rawActorUri ?? '';
-    const fallbackUsername = (() => {
+    const identitySource = actorUri || p.uri || p.url || '';
+    const fallbackIdentity = (() => {
       try {
-        const path = new URL(actorUri).pathname.replace(/\/$/, '');
-        const segment = path.split('/').filter(Boolean).pop();
-        return segment || '';
-      } catch { return ''; }
+        const parsed = new URL(identitySource);
+        const parts = parsed.pathname.split('/').filter(Boolean);
+        const markerIndex = parts.findIndex((part) => ['statuses', 'objects', 'notes'].includes(part));
+        const handle = markerIndex > 0 ? parts[markerIndex - 1] : (parts.at(-1) || '');
+        return { username: ['ap', 'users', 'actors', 'person'].includes(handle) ? '' : handle, domain: parsed.hostname };
+      } catch { return { username: '', domain: '' }; }
     })();
-    const username = actor.preferredUsername ?? actor.username ?? actor.acct?.split('@')[0] ?? fallbackUsername ?? 'unknown';
-    const domain = actor.domain ?? (() => { try { return new URL(actorUri).hostname; } catch { return ''; } })();
+    const username = actor.preferredUsername ?? actor.username ?? actor.acct?.split('@')[0] ?? fallbackIdentity.username ?? 'unknown';
+    const domain = actor.domain ?? fallbackIdentity.domain;
     const avatarUrl = actor.avatar_url ?? actor.icon?.url ?? actor.avatar;
     const content = p.content ?? p.text ?? '';
     const created = p.published_at ?? p.created_at ?? p.published ?? '';
