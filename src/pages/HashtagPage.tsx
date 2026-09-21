@@ -144,7 +144,7 @@ export default function HashtagPage() {
         .from('federated_objects')
         .select('id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,remote_account,object_type,url')
         .is('deleted_at', null)
-        .or(`content.ilike.%#${normalizedTag}%,tags.cs.[{"name":"#${normalizedTag}"}]`)
+         .ilike('content', `%#${normalizedTag}%`)
         .order('published_at', { ascending: false })
         .limit(50);
       setFederatedPosts((remoteRows ?? []).map((p: any) => ({
