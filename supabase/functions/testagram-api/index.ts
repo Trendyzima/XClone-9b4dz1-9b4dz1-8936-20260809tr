@@ -8,6 +8,21 @@ async function localProfile(username:string){const r=await admin.from("profiles"
 async function localActor(username:string){const p=await localProfile(username);if(!p)return null;const a=await admin.from("activitypub_actors").select("*").eq("user_id",p.id).maybeSingle();if(!a.data)return null;const k=await admin.from("activitypub_keys").select("public_key_pem,key_id").eq("user_id",p.id).maybeSingle();if(!k.data)return null;const id=a.data.actor_id;return {"@context":["https://www.w3.org/ns/activitystreams","https://w3id.org/security/v1"],id,type:"Person",preferredUsername:p.username,name:p.display_name||p.username,summary:p.bio||"",url:`https://www.testagram.site/profile/${encodeURIComponent(p.username)}`,icon:p.avatar_url?{type:"Image",url:p.avatar_url}:undefined,image:p.cover_url?{type:"Image",url:p.cover_url}:undefined,inbox:a.data.inbox_url,outbox:`${id}/outbox`,followers:`${id}/followers`,following:`${id}/following`,manuallyApprovesFollowers:Boolean(p.protected_account),publicKey:{id:`${id}#main-key`,owner:id,publicKeyPem:k.data.public_key_pem||""}}}
 async function localTarget(value:string){const v=String(value||"").trim().replace(/^@/,"");if(/^https?:\/\//i.test(v))return null;if(v.includes("@"))return null;return localProfile(v)}
 async function localPost(id:string){return (await admin.from("posts").select("*,author:profiles!posts_author_id_fkey(*)").eq("id",id).is("deleted_at",null).maybeSingle()).data}
+async function replyOp(body:any,auth:string|null){
+  const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
+  const target=String(body.post_id||body.postId||"").trim();
+  const content=String(body.content||"").trim();
+  if(!target||!content)return json({error:"post_id and content required"},400);
+  if(!/^https:\/\//i.test(target)){
+    const r=await admin.rpc("create_reply",{p_post_id:target,p_content:content});
+    if(r.error)return json({error:r.error.message},400);
+    return json(r.data||{created:true});
+  }
+  const activity={type:"Create",object:{type:"Note",content,inReplyTo:target}};
+  const r=await transport({user_id:u.id,operation:"deliver",target,activity});
+  const data=r.data(); return json(data,r.status);
+}
+
 async function interaction(path:string,body:any,auth:string|null){const u=await user(auth);if(!u)return json({error:"Authentication required"},401);const target=String(body.target||body.object_url||body.objectUrl||"").trim();if(/^https:\/\//i.test(target)||target.includes("@")){const r=await transport({user_id:u.id,operation:path,target});const data=r.data();return json(data,r.status)}return null}
 async function followOp(enabled:boolean,body:any,auth:string|null){const u=await user(auth);if(!u)return json({error:"Authentication required"},401);const target=String(body.target||"").trim();if(!target)return json({error:"target required"},400);const remote=await interaction(enabled?"follow":"unfollow",{target},auth);if(remote)return remote;const p=await localTarget(target);if(!p)return json({error:"User not found"},404);if(p.id===u.id)return json({error:"Cannot follow yourself"},400);const r=await admin.rpc("set_follow_state",{p_following_id:p.id,p_follow:enabled});if(r.error)return json({error:r.error.message},400);return json(r.data||{ok:true,following:enabled});}
 async function react(kind:string,enabled:boolean,body:any,auth:string|null){const u=await user(auth);if(!u)return json({error:"Authentication required"},401);const target=String(body.post_id||body.postId||body.object_url||"").trim();if(!target)return json({error:"post_id required"},400);if(/^https:\/\//i.test(target)){const activity=enabled?(kind==="favorite"?{type:"Like",object:target}:{type:"Announce",object:target}):{type:"Undo",object:target,object_type:kind==="favorite"?"Like":"Announce"};const r=await transport({user_id:u.id,operation:"deliver",target,activity});const data=r.data();return json(data,r.status)}const post=await localPost(target);if(!post)return json({error:"Post not found"},404);const r=await admin.rpc(kind==="favorite"?"toggle_post_like":"toggle_post_repost",{p_post_id:target});if(r.error)return json({error:r.error.message},400);return json(r.data||{ok:true});}
