@@ -54,3 +54,15 @@ export async function createFederatedReply(postId: string, content: string) {
   if (!isRemoteStatus(postId)) return backendCapabilities.createReply(postId, content);
   return remoteAction('reply', { post_id: postId, content });
 }
+
+export async function getFederatedInteractionState(postId: string): Promise<{ is_liked: boolean; is_reposted: boolean }> {
+  if (!isRemoteStatus(postId)) return { is_liked: false, is_reposted: false };
+  const { data, error } = await supabase.functions.invoke('testagram-api', {
+    body: { path: 'federated-interaction-state', method: 'GET', params: { object_uri: postId } },
+  });
+  if (error) {
+    console.warn('[federation] interaction state unavailable', error);
+    return { is_liked: false, is_reposted: false };
+  }
+  return { is_liked: Boolean(data?.like), is_reposted: Boolean(data?.repost) };
+}
