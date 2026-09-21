@@ -1260,6 +1260,11 @@ export default function HomePage() {
           ) : (
             hashtagFeedItems.map((item, idx) => (
               <div key={`ht-${(item.data as any)?.id ?? idx}`}>
+                <div className="px-4 pt-2">
+                  <span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold ${(item.data as any)?._source_label === 'Fediverse' ? 'border-sky-500/20 bg-sky-500/5 text-sky-600 dark:text-sky-400' : 'border-primary/20 bg-primary/5 text-primary'}`}>
+                    {(item.data as any)?._source_label ?? 'Testagram'}
+                  </span>
+                </div>
                 {/* Tag badges above card */}
                 {(item.data as any)?._hashtag_tags?.length > 0 && (
                   <div className="flex items-center gap-1.5 px-4 pt-2 pb-0 flex-wrap">
