@@ -77,6 +77,22 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
+      - name: Synchronize Supabase public configuration into Vercel production
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co' }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || vars.SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya' }}
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_URL" || { echo "::error::Supabase public URL is missing"; exit 1; }
+          test -n "$SUPABASE_PUBLISHABLE_KEY" || { echo "::error::Supabase publishable key is missing"; exit 1; }
+          printf '%s' "$SUPABASE_URL" | vercel env add "SUPABASE_URL" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          printf '%s' "$SUPABASE_PUBLISHABLE_KEY" | vercel env add "SUPABASE_PUBLISHABLE_KEY" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          printf '%s' "$SUPABASE_URL" | vercel env add "VITE_SUPABASE_URL" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          printf '%s' "$SUPABASE_PUBLISHABLE_KEY" | vercel env add "VITE_SUPABASE_PUBLISHABLE_KEY" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          echo "Supabase public configuration synchronized without printing key values."
+
       - name: Synchronize SMS secrets into Vercel production
         shell: bash
         env:
