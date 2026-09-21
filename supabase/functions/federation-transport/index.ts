@@ -496,7 +496,24 @@ async function handle(request: Request) {
     const target = String(body.target || "");
     const activity = body.activity;
     if (!target || !activity?.type) return json({ error: "target and activity.type required" }, 400);
-    const remote = await resolve(local, target);
+    // Interaction targets are remote ActivityPub objects (status URIs), not actors.
+    // Resolve the target object first, then deliver to the actor's inbox/sharedInbox.
+    let remote;
+    if (/^https?:\/\//i.test(target)) {
+      const objectResponse = await signedFetch(local, target, "GET");
+      const objectText = await objectResponse.text();
+      if (!objectResponse.ok) throw Error("Remote object " + objectResponse.status + ": " + objectText.slice(0, 1200));
+      let remoteObject:any;
+      try { remoteObject = JSON.parse(objectText); } catch { throw Error("Remote ActivityPub object is not valid JSON"); }
+      const attributedTo = typeof remoteObject?.attributedTo === "string"
+        ? remoteObject.attributedTo
+        : idOf(remoteObject?.attributedTo);
+      const actorTarget = attributedTo || (typeof remoteObject?.actor === "string" ? remoteObject.actor : idOf(remoteObject?.actor));
+      if (!actorTarget) throw Error("Remote ActivityPub object has no attributedTo/actor");
+      remote = await resolve(local, actorTarget);
+    } else {
+      remote = await resolve(local, target);
+    }
     const { object_type: interactionObjectType, ...activityPayload } = activity;
     let activityWithId = { "@context": activityPayload["@context"] || CTX, id: activityPayload.id || `${local.actor_url}#activities/${crypto.randomUUID()}`, ...activityPayload, actor: activityPayload.actor || local.actor_url };
     if (activityWithId.type === "Like" || activityWithId.type === "Announce") {
