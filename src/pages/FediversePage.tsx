@@ -22,6 +22,7 @@ import { formatNumber } from '@/lib/utils';
 import { useSEO, buildOgImageUrl } from '@/hooks/useSEO';
 
 import { PageAdBanner } from '@/components/features/AdSenseAd';
+import { PostCard } from '@/components/features/PostCard';
 function FediverseAdBanner() { return <PageAdBanner />; }
 
 type Tab = 'feed' | 'inbox' | 'relay' | 'analytics' | 'discover' | 'identity' | 'mastodon';
@@ -76,6 +77,9 @@ export default function FediversePage() {
   const [keywordSearched, setKeywordSearched] = useState(false);
   const [fedTrendingTags, setFedTrendingTags] = useState<any[]>([]);
   const [loadingFedTags, setLoadingFedTags] = useState(false);
+  const [testagramSuggestions, setTestagramSuggestions] = useState<any[]>([]);
+  const [loadingTestagramSuggestions, setLoadingTestagramSuggestions] = useState(false);
+  const [followingActorUrls, setFollowingActorUrls] = useState<string[]>([]);
 
   // ── Mastodon tab state ───────────────────────────────────────────────────
   const [mastodonInstance, setMastodonInstance] = useState('mastodon.social');
@@ -132,6 +136,7 @@ export default function FediversePage() {
       fetchFederationStats();
       fetchMyActor();
     }
+    fetchTestagramSuggestions();
   }, [user]);
 
   // Load Mastodon timeline when switching to mastodon tab
@@ -312,6 +317,7 @@ export default function FediversePage() {
       supabase.from('federated_relationships').select('*').eq('local_user_id', user.id).eq('relationship','follower'),
     ]);
     setFederatedFollowing(fwingRes.data ?? []);
+    setFollowingActorUrls((fwingRes.data ?? []).map((r: any) => r.remote_actor_url).filter(Boolean));
     setFederatedFollowers(fwersRes.data ?? []);
   };
 
@@ -483,6 +489,14 @@ export default function FediversePage() {
 
   const handleUnfollowFederated = async (remoteActorUrl: string) => {
     if (!user) { navigate('/auth'); return; }
+    const previous = federatedFollowing;
+    const previousUrls = followingActorUrls;
+    setFollowingActorUrls(prev => prev.filter(url => url !== remoteActorUrl));
+    setFederatedFollowing(prev => prev.filter((row: any) => row.remote_actor_url !== remoteActorUrl));
+    setFollowing(false);
+    setSearchResult((prev: any) => prev ? { ...prev, following: false } : prev);
+    setActiveRemoteProfile((prev: any) => prev ? { ...prev, following: false } : prev);
+    toast.success('Unfollowed');
     try {
       const { data: session } = await supabase.auth.getSession();
       const token = session.session?.access_token;
@@ -493,10 +507,12 @@ export default function FediversePage() {
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error ?? 'Unfollow failed');
-      toast.success('Unfollowed');
-      fetchFederationStats();
-      setSearchResult((prev: any) => prev ? { ...prev, following: false } : prev);
-    } catch (err: any) { toast.error(`Unfollow failed: ${err.message ?? ''}`); }
+    } catch (err: any) {
+      setFederatedFollowing(previous);
+      setFollowingActorUrls(previousUrls);
+      setFollowing(true);
+      toast.error(`Unfollow failed: ${err.message ?? ''}`);
+    }
   };
 
   const handleFedLike = async (post: any) => {
@@ -556,23 +572,61 @@ export default function FediversePage() {
 
   const handleFollow = async (account: any) => {
     if (!user) { navigate('/auth'); return; }
+    const target = account.actor_url ?? account.actor_uri ?? `https://${account.domain}/users/${account.username}`;
+    const alreadyFollowing = followingActorUrls.includes(target) || !!account.following;
+    if (alreadyFollowing) { await handleUnfollowFederated(target); return; }
+    const previous = federatedFollowing;
+    const previousUrls = followingActorUrls;
+    const optimisticRow = { id: `optimistic-${target}`, local_user_id: user.id, relationship: 'following', remote_actor_url: target, remote_actor_uri: target, remote_username: account.username, remote_domain: account.domain, state: 'active' };
+    setFollowingActorUrls(prev => prev.includes(target) ? prev : [...prev, target]);
+    setFederatedFollowing(prev => [optimisticRow, ...prev.filter((row: any) => row.remote_actor_url !== target)]);
     setFollowing(true);
+    setSearchResult((prev: any) => prev ? { ...prev, following: true, actor_url: target } : prev);
+    setActiveRemoteProfile((prev: any) => prev ? { ...prev, following: true, actor_url: target } : prev);
+    toast.success('Following');
     try {
-      const target = account.actor_url ?? `https://${account.domain}/users/${account.username}`;
       const { data: session } = await supabase.auth.getSession();
       const token = session.session?.access_token;
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/activitypub-federation`, {
+      void fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/activitypub-federation`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ action: 'follow', target }),
+      }).then(async res => {
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) throw new Error(data.error ?? 'Follow delivery failed');
+      }).catch((err: any) => {
+        setFederatedFollowing(prev => prev.filter((row: any) => row.remote_actor_url !== target));
+        setFollowingActorUrls(prev => prev.filter(url => url !== target));
+        setFollowing(false);
+        setSearchResult((prev: any) => prev ? { ...prev, following: false } : prev);
+        setActiveRemoteProfile((prev: any) => prev ? { ...prev, following: false } : prev);
+        toast.error(`Follow failed: ${err.message ?? 'remote delivery failed'}`);
       });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error ?? 'Follow failed');
-      toast.success('Follow request sent to the remote instance');
-      fetchFederationStats();
-      setSearchResult((prev: any) => prev ? { ...prev, following: true, actor_url: data.actor_uri ?? prev.actor_url } : prev);
-    } catch (err: any) { toast.error(`Follow failed: ${err.message ?? ''}`); }
-    setFollowing(false);
+    } catch (err: any) {
+      setFederatedFollowing(previous); setFollowingActorUrls(previousUrls); setFollowing(false);
+      toast.error(`Follow failed: ${err.message ?? ''}`);
+    }
+  };
+
+  const fetchTestagramSuggestions = async () => {
+    setLoadingTestagramSuggestions(true);
+    try {
+      if (user) {
+        void supabase.rpc('generate_content_recommendations', { p_user_id: user.id }).catch(() => {});
+        const { data: recs } = await supabase.from('content_recommendations').select('recommended_post_id, score, reason').eq('user_id', user.id).order('score', { ascending: false }).limit(8);
+        if (recs?.length) {
+          const ids = recs.map((r: any) => r.recommended_post_id);
+          const { data: posts } = await supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)').in('id', ids).is('community_id', null);
+          if (posts?.length) {
+            const byId = new Map(posts.map((p: any) => [p.id, p]));
+            setTestagramSuggestions(recs.map((r: any) => ({ ...byId.get(r.recommended_post_id), _reason: r.reason })).filter((p: any) => p?.id));
+            return;
+          }
+        }
+      }
+      const { data: popular } = await supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)').is('community_id', null).order('likes_count', { ascending: false }).order('created_at', { ascending: false }).limit(8);
+      setTestagramSuggestions(popular ?? []);
+    } catch { setTestagramSuggestions([]); } finally { setLoadingTestagramSuggestions(false); }
   };
 
   const fetchFedTrendingTags = async () => {
@@ -822,6 +876,15 @@ export default function FediversePage() {
                 </div>
               )}
             </div>
+          )}
+          {(loadingTestagramSuggestions || testagramSuggestions.length > 0) && (
+            <section className="border-y border-border bg-muted/10">
+              <div className="px-4 py-3 flex items-center justify-between">
+                <div><p className="text-sm font-bold flex items-center gap-2"><Sparkles className="w-4 h-4 text-primary" />Suggested from Testagram</p><p className="text-[11px] text-muted-foreground">Native Testagram posts recommended alongside your federated timeline.</p></div>
+                <button onClick={fetchTestagramSuggestions} className="p-1.5 rounded-full hover:bg-muted" aria-label="Refresh Testagram suggestions"><RefreshCw className="w-3.5 h-3.5" /></button>
+              </div>
+              {loadingTestagramSuggestions ? <div className="px-4 pb-4 space-y-2">{[0,1,2].map(i => <div key={i} className="h-24 rounded-xl bg-muted animate-pulse" />)}</div> : <div className="divide-y divide-border">{testagramSuggestions.slice(0, 6).map((post: any) => <PostCard key={post.id} post={post} />)}</div>}
+            </section>
           )}
           {loadingFeed ? (
             <div className="flex items-center justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
@@ -1334,9 +1397,9 @@ export default function FediversePage() {
                             <p className="text-[10px] text-muted-foreground">@{a.username}@{a.domain}</p>
                           </div>
                           <div className="flex gap-1">
-                            <button onClick={() => handleFollow(a)} disabled={following}
-                              className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full text-xs font-semibold disabled:opacity-50 hover:opacity-90">
-                              <UserPlus className="w-3 h-3" />Follow
+                            <button onClick={() => handleFollow(a)}
+                              className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full text-xs font-semibold hover:opacity-90">
+                              {followingActorUrls.includes(a.actor_url ?? `https://${a.domain}/users/${a.username}`) ? <CheckCircle className="w-3 h-3" /> : <UserPlus className="w-3 h-3" />}{followingActorUrls.includes(a.actor_url ?? `https://${a.domain}/users/${a.username}`) ? 'Following' : 'Follow'}
                             </button>
                             <button onClick={() => setActiveRemoteProfile({ ...a, actor_url: a.actor_url ?? `https://${a.domain}/users/${a.username}` })}
                               className="px-2.5 py-1.5 border border-border rounded-full text-xs font-semibold hover:bg-muted transition-colors">
@@ -1389,10 +1452,10 @@ export default function FediversePage() {
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => handleFollow(searchResult)} disabled={following}
-                    className="flex-1 py-2 bg-primary text-primary-foreground rounded-full text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-50">
-                    {following ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
-                    {following ? 'Sending…' : 'Follow'}
+                  <button onClick={() => handleFollow(searchResult)}
+                    className="flex-1 py-2 bg-primary text-primary-foreground rounded-full text-sm font-semibold flex items-center justify-center gap-2">
+                    {followingActorUrls.includes(searchResult.actor_url) ? <CheckCircle className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
+                    {followingActorUrls.includes(searchResult.actor_url) ? 'Following' : 'Follow'}
                   </button>
                   <button onClick={() => setActiveRemoteProfile(searchResult)}
                     className="px-4 py-2 border border-border rounded-full text-sm font-semibold hover:bg-muted transition-colors">
@@ -1534,9 +1597,8 @@ export default function FediversePage() {
                   <span className="ml-auto">Federated via Testagram</span>
                 </div>
                 <button onClick={() => handleFollow(activeRemoteProfile)}
-                  disabled={following}
-                  className="w-full mt-5 py-2.5 rounded-full bg-[#6364FF] text-white font-semibold disabled:opacity-50">
-                  {following ? 'Sending…' : 'Follow on Fediverse'}
+                  className="w-full mt-5 py-2.5 rounded-full bg-[#6364FF] text-white font-semibold">
+                  {followingActorUrls.includes(activeRemoteProfile.actor_url) ? 'Following' : 'Follow'}
                 </button>
               </div>
             </div>
