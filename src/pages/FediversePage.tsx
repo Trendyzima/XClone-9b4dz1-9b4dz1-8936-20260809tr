@@ -744,7 +744,6 @@ export default function FediversePage() {
   ];
 
   return (
-    <>
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <TopBar title="Fediverse · testagram.site" showBack />
       <FediverseAdBanner />
@@ -1506,8 +1505,6 @@ export default function FediversePage() {
           )}
         </div>
       )}
-    </div>
-
 
       {activeRemoteProfile && (
         <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
@@ -1544,7 +1541,6 @@ export default function FediversePage() {
         </div>
       )}
     </div>
-  </>
   );
 }
 
