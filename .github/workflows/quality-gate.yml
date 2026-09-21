@@ -80,10 +80,14 @@ jobs:
           test -f src/services/postInteractionService.ts
           grep -q "togglePostLike" src/components/features/PostCard.tsx
           grep -q "togglePostRepost" src/components/features/PostCard.tsx
-          grep -q "backendCapabilities.getLikeState" src/components/features/PostCard.tsx
-          grep -q "backendCapabilities.getRepostState" src/components/features/PostCard.tsx
-          grep -q "backendCapabilities.listReplies" src/components/features/PostCard.tsx
-          grep -q "backendCapabilities.createReply" src/components/features/PostCard.tsx
+          grep -q "createFederatedReply" src/components/features/PostCard.tsx
+          grep -q "remoteStatusUri" src/components/features/PostCard.tsx
+          grep -q "isFederatedPost" src/components/features/PostCard.tsx
+          grep -q "favorite" src/services/postInteractionService.ts
+          grep -q "unfavorite" src/services/postInteractionService.ts
+          grep -q "boost" src/services/postInteractionService.ts
+          grep -q "unboost" src/services/postInteractionService.ts
+          grep -q "reply" src/services/postInteractionService.ts
           if grep -q "supabase.from('post_likes')" src/components/features/PostCard.tsx; then exit 1; fi
           if grep -q "supabase.from('post_reposts')" src/components/features/PostCard.tsx; then exit 1; fi
           if grep -q "supabase.from('replies')" src/components/features/PostCard.tsx; then exit 1; fi
