@@ -48,10 +48,9 @@ Deno.serve(async (request) => {
     let followedActorUris: string[] = [];
     if (userId) {
       const { data: relationships } = await admin
-        .from("federated_relationships")
+        .from("federated_follow_relationships")
         .select("remote_actor_uri")
         .eq("local_user_id", userId)
-        .eq("relationship", "following")
         .in("state", ["pending", "accepted", "active"]);
 
       followedActorUris = [...new Set((relationships || [])
@@ -77,18 +76,38 @@ Deno.serve(async (request) => {
         const outboxUrl = typeof actor.outbox === "string" ? actor.outbox : actor.outbox?.id;
         if (!outboxUrl) return;
 
-        const outboxRes = await fetch(outboxUrl, {
-          headers: { Accept: "application/activity+json, application/ld+json" },
-        });
-        if (!outboxRes.ok) return;
-        const outbox = await outboxRes.json();
-        const entries = Array.isArray(outbox.orderedItems)
+        const fetchCollectionPage = async (collectionUrl: string) => {
+          const response = await fetch(collectionUrl, {
+            headers: { Accept: "application/activity+json, application/ld+json" },
+          });
+          if (!response.ok) return null;
+          return await response.json();
+        };
+
+        const outbox = await fetchCollectionPage(outboxUrl);
+        if (!outbox) return;
+
+        let entries = Array.isArray(outbox.orderedItems)
           ? outbox.orderedItems
           : Array.isArray(outbox.items)
             ? outbox.items
-            : Array.isArray(outbox.orderedItems?.items)
-              ? outbox.orderedItems.items
-              : [];
+            : [];
+
+        // Mastodon/Fediverse servers commonly expose an OrderedCollection whose
+        // posts live on the first page rather than directly on the collection.
+        if (!entries.length) {
+          const firstPage = typeof outbox.first === "string"
+            ? outbox.first
+            : outbox.first?.id;
+          if (firstPage) {
+            const page = await fetchCollectionPage(firstPage);
+            entries = Array.isArray(page?.orderedItems)
+              ? page.orderedItems
+              : Array.isArray(page?.items)
+                ? page.items
+                : [];
+          }
+        }
         const objects = entries
           .map((entry: any) => entry?.object ?? entry)
           .filter((object: any) => object && typeof object === "object" && object.type !== "Delete")
@@ -99,7 +118,11 @@ Deno.serve(async (request) => {
         const rows = objects.map((object: any) => ({
           uri: String(object.id ?? object.url ?? ""),
           object_type: String(object.type ?? "Note"),
-          actor_uri: String(object.attributedTo ?? actor.id ?? actorUri),
+          actor_uri: String(
+            typeof object.attributedTo === "string"
+              ? object.attributedTo
+              : object.attributedTo?.id ?? actor.id ?? actorUri
+          ),
           url: typeof object.url === "string" ? object.url : (object.url?.href ?? object.id ?? null),
           content: String(object.content ?? object.name ?? ""),
           summary: object.summary ?? null,
