@@ -26,7 +26,7 @@ function hashtagTags(row:any){
   const existing=Array.isArray(row.tags)?row.tags.filter((x:any)=>x&&typeof x==='object'):[];
   const seen=new Set(existing.map((x:any)=>String(x.name??'').toLowerCase()));
   const text=str(row.content);
-  const matches=[...text.matchAll(/(^|[^\\w])#([A-Za-z0-9_]{1,64})/g)];
+  const matches=[...text.matchAll(/(^|[^\w])#([A-Za-z0-9_]{1,64})/g)];
   for(const match of matches){
     const tag=String(match[2]||'').toLowerCase();
     if(!tag||seen.has('#'+tag)) continue;
