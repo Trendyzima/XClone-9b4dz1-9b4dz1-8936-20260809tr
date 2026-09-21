@@ -238,63 +238,49 @@ async function queue(local: any, userId: string, inbox: string, activity: any) {
   if (activityActor !== local.actor_url) throw Error("Outbound activity actor does not match the authenticated local actor");
 
   const now = new Date().toISOString();
-  const activityResponse = await db("federated_activities?on_conflict=uri", {
+  const outboxResponse = await db("activitypub_outbox", {
     method: "POST",
-    headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+    headers: { Prefer: "return=representation" },
     body: JSON.stringify({
-      uri: activityUri,
-      activity_type: typeOf(activity),
-      actor_uri: activityActor,
-      object_uri: typeof activity.object === "string" ? activity.object : (activity.object?.id || null),
-      target_uri: typeof activity.target === "string" ? activity.target : (activity.target?.id || null),
-      raw_activity: activity,
-      received_at: now,
-      processed_at: now,
-      processing_state: "processed",
-      processing_attempts: 0,
-      direction: "outbound",
       local_user_id: userId,
-    }),
-  });
-  const activityRows = await activityResponse.json() as any[];
-  const activityId = activityRows[0]?.id;
-  if (!activityId) throw Error("Failed to persist federation activity");
-
-  const deliveryResponse = await db("federation_deliveries?on_conflict=activity_id,target_inbox", {
-    method: "POST",
-    headers: { Prefer: "resolution=merge-duplicates,return=representation" },
-    body: JSON.stringify({
-      activity_id: activityId,
-      target_inbox: inbox,
-      instance_domain: new URL(inbox).hostname,
-      status: "pending",
-      attempt_count: 0,
-      next_attempt_at: now,
-      activity_payload: activity,
-    }),
-  });
-  const deliveryRows = await deliveryResponse.json() as any[];
-  const deliveryId = deliveryRows[0]?.id || null;
-
-  await db("federation_outbox", {
-    method: "POST",
-    headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({
-      user_id: userId,
-      activity_id: activityUri,
       activity_type: typeOf(activity),
-      actor_url: local.actor_url,
-      inbox_url: inbox,
+      activity_id: activityUri,
       payload: activity,
-      status: "pending",
-      attempts: 0,
-      next_attempt_at: now,
-      last_error: null,
+      delivered: false,
+      created_at: now,
     }),
   });
-  return { status: "queued", activityId: activityUri, deliveryId };
-}
+  const outboxRows = await outboxResponse.json() as any[];
+  const outboxId = outboxRows[0]?.id;
+  if (!outboxId) throw Error("Failed to persist ActivityPub outbox activity");
 
+  const body = JSON.stringify(activity);
+  let response: Response;
+  try {
+    response = await signedFetch(local, inbox, "POST", body);
+  } catch (error) {
+    throw Error(`Federation delivery failed: ${error instanceof Error ? error.message : "network error"}`);
+  }
+
+  const responseText = await response.text();
+  if (!response.ok) {
+    throw Error(`Remote inbox ${response.status}: ${responseText.slice(0, 1200)}`);
+  }
+
+  const patchResponse = await db(`activitypub_outbox?id=eq.${enc(outboxId)}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ delivered: true }),
+  });
+  if (!patchResponse.ok) throw Error("ActivityPub delivery succeeded but outbox acknowledgement failed");
+
+  return {
+    status: "delivered",
+    activityId: activityUri,
+    outboxId,
+    remoteStatus: response.status,
+  };
+}
 async function relationship(userId: string, actorUrl: string) {
   const response = await db(`federated_follow_relationships?local_user_id=eq.${enc(userId)}&remote_actor_uri=eq.${enc(actorUrl)}&select=*`);
   const rows = await response.json() as any[];
