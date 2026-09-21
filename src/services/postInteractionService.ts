@@ -26,7 +26,7 @@ export async function togglePostLike(postId: string, currentlyLiked = false): Pr
   if (!postId) throw new Error('Post id is required');
   if (isRemoteStatus(postId)) {
     const data = await remoteAction(currentlyLiked ? 'unfavorite' : 'favorite', { post_id: postId });
-    const delivered = data?.delivery?.status === 'delivered' || data?.delivery?.status === 'queued' || data?.delivery?.queue?.status === 'delivered' || data?.delivery?.queue?.status === 'queued';
+    const delivered = data?.delivery?.status === 'delivered' || data?.delivery?.status === 'queued' || data?.delivery?.queue?.status === 'delivered' || data?.delivery?.queue?.status === 'queued' || data?.ok === true;
     const nextLiked = delivered && !currentlyLiked;
     trackTestagramEvent(nextLiked ? TestagramEvent.POST_LIKED : TestagramEvent.POST_UNLIKED, { post_id: postId });
     return { is_liked: nextLiked, likes_count: Number(data?.remote?.like_count ?? data?.likes_count ?? 0) };
@@ -40,7 +40,7 @@ export async function togglePostRepost(postId: string, currentlyReposted = false
   if (!postId) throw new Error('Post id is required');
   if (isRemoteStatus(postId)) {
     const data = await remoteAction(currentlyReposted ? 'unboost' : 'boost', { post_id: postId });
-    const delivered = data?.delivery?.status === 'delivered' || data?.delivery?.queue?.status === 'delivered';
+    const delivered = data?.delivery?.status === 'delivered' || data?.delivery?.status === 'queued' || data?.delivery?.queue?.status === 'delivered' || data?.delivery?.queue?.status === 'queued' || data?.ok === true;
     const nextReposted = delivered && !currentlyReposted;
     trackTestagramEvent(nextReposted ? TestagramEvent.POST_REPOSTED : TestagramEvent.POST_UNREPOSTED, { post_id: postId });
     return { is_reposted: nextReposted, reposts_count: Number(data?.remote?.announce_count ?? data?.reposts_count ?? 0) };
