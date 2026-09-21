@@ -111,3 +111,7 @@ export async function flagStatus(postId: string, category: string): Promise<any>
   if (!/^https:\/\//i.test(postId)) throw new Error('Flag target is not a remote ActivityPub object');
   return api('/flag', 'POST', { post_id: postId, category });
 }
+
+export async function bookmarkRemote(postId: string): Promise<any> { if (!/^https:\/\//i.test(postId)) throw new Error('Bookmark target must be a remote ActivityPub object'); return api('/bookmark','POST',{post_id:postId}); }
+export async function unbookmarkRemote(postId: string): Promise<any> { if (!/^https:\/\//i.test(postId)) throw new Error('Bookmark target must be a remote ActivityPub object'); return api('/unbookmark','POST',{post_id:postId}); }
+export async function remoteBookmarkState(postId: string): Promise<boolean> { if (!/^https:\/\//i.test(postId)) return false; const r=await api<{bookmarked:boolean}>('/bookmark-state','GET',undefined,{post_id:postId}); return Boolean(r?.bookmarked); }
