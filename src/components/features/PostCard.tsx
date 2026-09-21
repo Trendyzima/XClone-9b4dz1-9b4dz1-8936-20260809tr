@@ -348,10 +348,21 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     else setInlineReplyText('');
     setInlinePosting(true);
     try {
-      await createFederatedReply(interactionPostId, text);
-      if (!isFederatedPost) await fetchInlineReplies();
+      const result = await createFederatedReply(interactionPostId, text);
+      if (isFederatedPost) {
+        if (result?.ok === true) {
+          toast({ title: 'Reply sent', description: 'Your reply was delivered to the remote server.' });
+        } else {
+          toast({ title: 'Reply not delivered', description: 'The remote server did not accept the reply.', variant: 'destructive' });
+        }
+      } else {
+        await fetchInlineReplies();
+      }
     } catch (error) {
-      toast({ title: 'Reply failed', description: error instanceof Error ? error.message : 'Failed to reply', variant: 'destructive' });
+      console.warn('[federation] reply unavailable', error);
+      if (!isFederatedPost) {
+        toast({ title: 'Reply failed', description: error instanceof Error ? error.message : 'Failed to reply', variant: 'destructive' });
+      }
     }
     setInlinePosting(false);
   };
