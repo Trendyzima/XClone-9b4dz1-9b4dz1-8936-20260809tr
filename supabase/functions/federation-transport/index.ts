@@ -287,13 +287,13 @@ async function queue(local: any, userId: string, inbox: string, activity: any) {
   };
 }
 async function relationship(userId: string, actorUrl: string) {
-  const response = await db(`federated_follow_relationships?local_user_id=eq.${enc(userId)}&remote_actor_uri=eq.${enc(actorUrl)}&select=*`);
+  const response = await db(`federated_follow_relationships?local_user_id=eq.${enc(userId)}&remote_actor_uri=eq.${enc(actorUrl)}&direction=eq.following&select=*`);
   const rows = await response.json() as any[];
   return rows[0] || null;
 }
 
 async function upsertRelationship(values: Record<string, unknown>) {
-  await db("federated_follow_relationships?on_conflict=local_user_id,remote_actor_uri", {
+  await db("federated_follow_relationships?on_conflict=local_user_id,remote_actor_uri,direction", {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
     body: JSON.stringify(values),
@@ -310,7 +310,7 @@ async function follow(userId: string, local: any, target: string) {
   const remote = await resolve(local, target);
   const existing = await relationship(userId, remote.actorUrl);
   const activityId = existing?.follow_activity_uri || await stableActivityId(local.actor_url, remote.actorUrl, "follow");
-  if (existing?.state === "pending" || existing?.state === "accepted") {
+  if (existing?.state === "active" && existing?.delivery_state === "delivered") {
     return { ok: true, idempotent: true, state: existing.state, actorUrl: remote.actorUrl, inbox: existing.remote_inbox_uri || remote.inbox, followActivityUri: activityId, deliveryState: existing.delivery_state || null };
   }
   const activity = { "@context": CTX, id: activityId, type: "Follow", actor: local.actor_url, object: remote.actorUrl };
@@ -319,6 +319,7 @@ async function follow(userId: string, local: any, target: string) {
   await upsertRelationship({
     local_user_id: userId,
     remote_actor_uri: remote.actorUrl,
+    direction: "following",
     state: "active",
     follow_activity_uri: activityId,
     remote_inbox_uri: remote.inbox,
@@ -340,7 +341,7 @@ async function unfollow(userId: string, local: any, target: string) {
   const queued = await queue(local, userId, remote.inbox, activity);
   // A local unfollow is a durable removal immediately; remote delivery is
   // asynchronous and must not make the UI resurrect the relationship.
-  await upsertRelationship({ local_user_id: userId, remote_actor_uri: remote.actorUrl, state: "removed", undo_activity_uri: activityId, remote_inbox_uri: remote.inbox, delivery_state: "queued", updated_at: new Date().toISOString() });
+  await upsertRelationship({ local_user_id: userId, remote_actor_uri: remote.actorUrl, direction: "following", state: "removed", undo_activity_uri: activityId, remote_inbox_uri: remote.inbox, delivery_state: "queued", updated_at: new Date().toISOString() });
   return { ok: true, state: "removed", actorUrl: remote.actorUrl, undoActivityUri: activityId, deliveryState: "queued", queue: queued };
 }
 
