@@ -55,7 +55,7 @@ async function replyOp(body:any,auth:string|null){
   }
 }
 
-async function interaction(path:string,body:any,auth:string|null){const u=await user(auth);if(!u)return json({error:"Authentication required"},401);const target=String(body.target||body.object_url||body.objectUrl||"").trim();if(/^https:\/\//i.test(target)||target.includes("@")){const r=await transport({user_id:u.id,operation:path,target});const data=r.data();return json(data,r.status)}return null}
+async function interaction(path:string,body:any,auth:string|null){const u=await user(auth);if(!u)return json({error:"Authentication required"},401);const target=String(body.target||body.post_id||body.postId||body.object_url||body.objectUrl||"").trim();if(/^https:\/\//i.test(target)||target.includes("@")){const r=await transport({user_id:u.id,operation:path,target});const data=r.data();return json(data,r.status)}return null}
 async function followOp(enabled:boolean,body:any,auth:string|null){const u=await user(auth);if(!u)return json({error:"Authentication required"},401);const target=String(body.target||"").trim();if(!target)return json({error:"target required"},400);const remote=await interaction(enabled?"follow":"unfollow",{target},auth);if(remote)return remote;const p=await localTarget(target);if(!p)return json({error:"User not found"},404);if(p.id===u.id)return json({error:"Cannot follow yourself"},400);const r=await admin.rpc("set_follow_state",{p_following_id:p.id,p_follow:enabled});if(r.error)return json({error:r.error.message},400);return json(r.data||{ok:true,following:enabled});}
 async function react(kind:string,enabled:boolean,body:any,auth:string|null){
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
