@@ -72,7 +72,7 @@ async function signAccept(local:any,key:any,inbox:string,activity:any){
   const body=key.private_key_pem.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g,"");
   const binary=atob(body),bytes=new Uint8Array(binary.length);for(let i=0;i<binary.length;i++)bytes[i]=binary.charCodeAt(i);
   const cryptoKey=await crypto.subtle.importKey("pkcs8",bytes.buffer,{name:"RSASSA-PKCS1-v1_5",hash:"SHA-256"},false,["sign"]);
-  const sig=b64(await crypto.subtle.sign("RSASSA-PKCS1-v1_5",cryptoKey,new TextEncoder().encode(lines.join("\n")));
+  const sig=b64(await crypto.subtle.sign("RSASSA-PKCS1-v1_5",cryptoKey,new TextEncoder().encode(lines.join("\n")))));
   return fetch(inbox,{method:"POST",headers:{
     Accept:'application/activity+json, application/ld+json;q=0.9',
     "Content-Type":'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',
