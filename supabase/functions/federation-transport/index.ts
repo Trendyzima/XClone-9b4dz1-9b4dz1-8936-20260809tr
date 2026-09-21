@@ -372,6 +372,9 @@ async function queue(local: any, userId: string, inbox: string, activity: any) {
       activity_id: activityUri,
       payload: activity,
       delivered: false,
+      attempts: 1,
+      next_attempt_at: now,
+      expires_at: new Date(Date.now()+14*86400000).toISOString(),
       created_at: now,
     }),
   });
@@ -395,7 +398,7 @@ async function queue(local: any, userId: string, inbox: string, activity: any) {
   const patchResponse = await db(`activitypub_outbox?id=eq.${enc(outboxId)}`, {
     method: "PATCH",
     headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ delivered: true }),
+    body: JSON.stringify({ delivered: true, next_attempt_at: null, expires_at: new Date(Date.now()+86400000).toISOString(), payload: {} }),
   });
   if (!patchResponse.ok) throw Error("ActivityPub delivery succeeded but outbox acknowledgement failed");
 
