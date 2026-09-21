@@ -45,6 +45,19 @@ async function react(kind:string,enabled:boolean,body:any,auth:string|null){cons
   try {
     const r=await transport({user_id:u.id,operation:"deliver",target,activity});
     const data=r.data();
+    if (data?.ok === true) {
+      const interactionType = kind === "favorite" ? "like" : "repost";
+      await admin.from("federated_interactions").upsert({
+        user_id: u.id,
+        object_uri: target,
+        interaction_type: interactionType,
+        active: enabled,
+        activity_uri: data?.activity?.id ?? null,
+        remote_actor_uri: data?.remote?.actorUrl ?? null,
+        delivery_state: data?.delivery?.status ?? data?.delivery?.queue?.status ?? "delivered",
+        updated_at: new Date().toISOString()
+      }, { onConflict: "user_id,object_uri,interaction_type" });
+    }
     return json(data,200);
   } catch (error) {
     console.warn(`federated ${kind} unavailable`, error);
@@ -68,6 +81,16 @@ if(path==="/unbookmark"&&method==="POST"){
   const r=await admin.from("federated_bookmarks").delete().eq("user_id",u.id).eq("object_uri",target);
   if(r.error)return json({error:r.error.message},400);
   return json({ok:true,removed:true});
+}
+if(path==="/federated-interaction-state"&&method==="GET"){
+  const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
+  const target=String(params.object_uri||params.objectUri||"").trim();
+  if(!/^https:\/\//i.test(target))return json({error:"object_uri must be a remote ActivityPub object"},400);
+  const r=await admin.from("federated_interactions").select("interaction_type,active,activity_uri,remote_actor_uri,delivery_state,updated_at").eq("user_id",u.id).eq("object_uri",target);
+  if(r.error)return json({error:r.error.message},400);
+  const state:any={like:false,repost:false};
+  for(const row of r.data||[]){ if(row.interaction_type==="like")state.like=Boolean(row.active); if(row.interaction_type==="repost")state.repost=Boolean(row.active); }
+  return json(state);
 }
 if(path==="/bookmark-state"&&method==="GET"){
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
