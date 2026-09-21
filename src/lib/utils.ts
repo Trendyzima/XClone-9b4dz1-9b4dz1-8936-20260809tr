@@ -15,6 +15,20 @@ export function formatNumber(num: number): string {
   return num.toString();
 }
 
+export function localizeSocialLinks(content: string): string {
+  // Remote ActivityPub HTML commonly points hashtags/mentions at the source instance.
+  // Testagram UI must keep these social primitives on local routes.
+  return content.replace(/<a\\b([^>]*?)href=(['\"])https?:\\/\\/[^'\"]+\\2([^>]*)>(\\s*[@#][^<]*?)<\\/a>/gi, (_m, _before, _q, _after, label) => {
+    const text = String(label).trim();
+    const token = text.match(/^([@#])([^\\s<]+)/);
+    if (!token) return _m;
+    const kind = token[1];
+    const value = token[2].replace(/^@/, '').split('@')[0].replace(/^#/, '').toLowerCase();
+    if (!value) return text;
+    const href = kind === '#' ? '/hashtag/' + encodeURIComponent(value) : '/profile/' + encodeURIComponent(value);
+    return '<a href="' + href + '" class="text-primary hover:underline">' + text + '</a>';
+  });
+}
 export function parseContent(content: string): string {
   const processInline = (text: string) =>
     text
@@ -74,6 +88,9 @@ export function parseContent(content: string): string {
   flushParagraph();
 
   let parsed = htmlParts.join('');
+
+  // Normalize any pre-existing remote hashtag/mention anchors before creating local links.
+  parsed = localizeSocialLinks(parsed);
 
   // Linkify hashtags — skip occurrences already inside HTML attributes (href/id/class)
   // Two-step: protect attributes, then replace bare #word tokens in text
