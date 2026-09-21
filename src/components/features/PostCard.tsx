@@ -604,11 +604,25 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     }
   };
 
+  const federatedProfilePath = () => {
+    const actor = (post as any).actor_uri || (post as any).remote_account?.actor_uri || (post.user_profiles as any)?.actor_uri || '';
+    const profile = (post as any).remote_account || (post as any).user_profiles || {};
+    const username = String(profile.preferredUsername || profile.username || profile.acct || '').replace(/^@/, '');
+    let domain = String(profile.domain || '');
+    if (!domain && actor) {
+      try { domain = new URL(actor).hostname; } catch {}
+    }
+    const handle = username && domain ? `${username}@${domain}` : username;
+    return actor
+      ? `/fediverse/profile?actor=${encodeURIComponent(actor)}&handle=${encodeURIComponent(handle)}`
+      : handle
+        ? `/fediverse/profile?handle=${encodeURIComponent(handle)}`
+        : '/fediverse';
+  };
+
   const handlePostClick = () => {
     if (isFederatedPost) {
-      const actor = (post as any).actor_uri || (post as any).remote_account?.actor_uri || (post as any).user_profiles?.actor_uri;
-      if (actor) navigate(`/fediverse/profile?actor=${encodeURIComponent(actor)}&handle=${encodeURIComponent(((post as any).remote_account?.username || post.user_profiles?.username || '').replace(/^@/, ''))}`);
-      else window.open(remoteStatusUri, '_blank', 'noopener,noreferrer');
+      navigate(federatedProfilePath());
       return;
     }
     navigate(`/post/${post.id}`);
@@ -642,7 +656,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       <div className="flex space-x-3">
         <div
           className="w-10 h-10 rounded-full bg-muted flex-shrink-0 overflow-hidden cursor-pointer"
-          onClick={(e) => { e.stopPropagation(); navigate(isFederatedPost ? `/fediverse/profile?actor=${encodeURIComponent(remoteStatusUri ? ((post as any).actor_uri || (post as any).remote_account?.actor_uri || (post.user_profiles as any)?.actor_uri || '') : '')}&handle=${encodeURIComponent((post.user_profiles?.username || '').replace(/^@/, ''))}` : `/profile/${post.user_profiles?.username}`); }}
+          onClick={(e) => { e.stopPropagation(); navigate(isFederatedPost ? federatedProfilePath() : `/profile/${post.user_profiles?.username}`); }}
         >
           {post.user_profiles?.avatar_url ? (
             <img src={post.user_profiles.avatar_url} alt={post.user_profiles.username} className="w-full h-full object-cover" />
@@ -657,7 +671,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
           <div className="flex items-center justify-between">
             <div
               className="flex items-center space-x-1 min-w-0 cursor-pointer"
-              onClick={(e) => { e.stopPropagation(); navigate(`/profile/${post.user_profiles?.username}`); }}
+              onClick={(e) => { e.stopPropagation(); navigate(isFederatedPost ? federatedProfilePath() : `/profile/${post.user_profiles?.username}`); }}
             >
               <span className="font-bold text-foreground truncate">{post.user_profiles?.username}</span>
               {post.user_profiles?.verified && (
