@@ -1040,7 +1040,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
               )}
             </div>
 
-            {user && user.id !== post.user_id && (
+            {user && !isFederatedPost && user.id !== post.user_id && (
               <button
                 className="flex items-center space-x-2 text-muted-foreground hover:text-amber-500 transition-colors group"
                 onClick={(e) => { e.stopPropagation(); setShowTipDialog(true); }}
