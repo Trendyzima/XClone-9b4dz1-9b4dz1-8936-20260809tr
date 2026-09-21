@@ -191,6 +191,8 @@ jobs:
           # The production UI's Follow/Unfollow path is testagram-api -> federation-transport.
           # Keep both gateway functions reconciled with the same exact source revision.
           supabase functions deploy testagram-api --project-ref "$PROJECT_REF" --no-verify-jwt
+          # Testagram's public ActivityPub actor URLs are canonical on testagram.site.
+          export FEDERATION_PUBLIC_ORIGIN="https://testagram.site"
           supabase functions deploy federation-transport --project-ref "$PROJECT_REF" --no-verify-jwt
           # activitypub-federation was the retired duplicate client gateway. Remove the
           # live Edge Function as part of reconciliation so production has one canonical
