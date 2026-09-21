@@ -33,8 +33,14 @@ async function replyOp(body:any,auth:string|null){
     const data=r.data();
     return json(data, r.status>=200 && r.status<300 ? 200 : 200);
   } catch (error) {
-    console.warn("federated reply unavailable", error);
-    return json({ok:false,supported:false,status:"unavailable",queued:false,error:error instanceof Error?error.message:"Remote server rejected reply"},200);
+    console.warn("federated reply delivery pending", error);
+    // The outbox row has already been created by federation-transport. Treat
+    // this as a pending ActivityPub delivery rather than deleting the user's
+    // reply from the local UI.
+    return json({
+      ok:true, accepted:false, supported:true, status:"pending", queued:true,
+      error:error instanceof Error?error.message:"Remote delivery pending"
+    },200);
   }
 }
 
