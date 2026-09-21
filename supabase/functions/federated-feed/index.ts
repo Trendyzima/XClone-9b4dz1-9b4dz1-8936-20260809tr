@@ -64,6 +64,9 @@ Deno.serve(async (request) => {
     // instance has already delivered posts to our inbox. Hydrate followed actors
     // directly from their ActivityPub outbox so a newly-followed account can
     // contribute content to the personalized feed immediately.
+    const hydratedActorAliases = new Set<string>(followedActorUris);
+    const hydratedActorProfiles = new Map<string, any>();
+
     const hydrateActor = async (actorUri: string) => {
       try {
         const actorUrl = new URL(actorUri);
@@ -73,6 +76,24 @@ Deno.serve(async (request) => {
         });
         if (!actorRes.ok) return;
         const actor = await actorRes.json();
+        const actorId = String(actor.id ?? actorUri);
+        hydratedActorAliases.add(actorId);
+        hydratedActorAliases.add(actorUri);
+        const actorHost = (() => { try { return new URL(actorId).hostname; } catch { return actorUrl.hostname; } })();
+        const remoteAccount = {
+          id: actorId,
+          actor_uri: actorId,
+          url: typeof actor.url === "string" ? actor.url : actorId,
+          username: String(actor.preferredUsername ?? actor.username ?? actorId.split("/").pop() ?? "unknown"),
+          preferredUsername: String(actor.preferredUsername ?? actor.username ?? actorId.split("/").pop() ?? "unknown"),
+          display_name: String(actor.name ?? actor.preferredUsername ?? actor.username ?? "unknown"),
+          domain: actorHost,
+          avatar_url: typeof actor.icon === "string" ? actor.icon : actor.icon?.url ?? actor.icon?.href ?? null,
+          followers_count: Number(actor.followers?.totalItems ?? 0),
+          following_count: Number(actor.following?.totalItems ?? 0),
+        };
+        hydratedActorProfiles.set(actorId, remoteAccount);
+        hydratedActorProfiles.set(actorUri, remoteAccount);
         const outboxUrl = typeof actor.outbox === "string" ? actor.outbox : actor.outbox?.id;
         if (!outboxUrl) return;
 
@@ -118,11 +139,11 @@ Deno.serve(async (request) => {
         const rows = objects.map((object: any) => ({
           uri: String(object.id ?? object.url ?? ""),
           object_type: String(object.type ?? "Note"),
-          actor_uri: String(
-            typeof object.attributedTo === "string"
-              ? object.attributedTo
-              : object.attributedTo?.id ?? actor.id ?? actorUri
-          ),
+          // Always store the fetched actor's canonical ID. The follow relationship
+          // may contain an alias/alternate actor URL, while Mastodon Notes commonly
+          // point at the actor ID. Keeping one canonical actor_uri prevents the
+          // personalized query from dropping otherwise valid posts.
+          actor_uri: actorId,
           url: typeof object.url === "string" ? object.url : (object.url?.href ?? object.id ?? null),
           content: String(object.content ?? object.name ?? ""),
           summary: object.summary ?? null,
@@ -133,6 +154,7 @@ Deno.serve(async (request) => {
           reply_count: Number(object.replies?.totalItems ?? 0),
           published_at: object.published ?? object.updated ?? new Date().toISOString(),
           raw_object: object,
+          remote_account: remoteAccount,
         })).filter((row: any) => row.uri);
 
         if (rows.length) {
@@ -169,7 +191,7 @@ Deno.serve(async (request) => {
         .is("deleted_at", null)
         .eq("tombstone", false)
         .in("object_type", ["Note", "Article", "Question", "Video", "Image"])
-        .in("actor_uri", followedActorUris)
+.in("actor_uri", [...hydratedActorAliases])
         .order("published_at", { ascending: false, nullsFirst: false })
         .order("id", { ascending: false })
         .limit(limit);
@@ -177,7 +199,11 @@ Deno.serve(async (request) => {
       if (before) followedQuery = followedQuery.lt("published_at", new Date(before).toISOString());
       const { data, error } = await followedQuery;
       if (error) throw error;
-      followedItems = (data || []).map((item: any) => ({ ...item, feed_source: "following" }));
+      followedItems = (data || []).map((item: any) => ({
+        ...item,
+        feed_source: "following",
+        remote_account: item.remote_account ?? hydratedActorProfiles.get(String(item.actor_uri)) ?? null,
+      }));
     }
 
     const suggestedNeeded = Math.max(0, limit - followedItems.length);
@@ -187,11 +213,15 @@ Deno.serve(async (request) => {
       const suggestedQuery = buildQuery();
       const { data, error } = await suggestedQuery;
       if (error) throw error;
-      const followedSet = new Set(followedActorUris);
+      const followedSet = new Set(hydratedActorAliases);
       suggestedItems = (data || [])
         .filter((item: any) => !followedSet.has(String(item.actor_uri || "")))
         .slice(0, suggestedNeeded)
-        .map((item: any) => ({ ...item, feed_source: "suggested" }));
+        .map((item: any) => ({
+          ...item,
+          feed_source: "suggested",
+          remote_account: item.remote_account ?? hydratedActorProfiles.get(String(item.actor_uri)) ?? null,
+        }));
     }
 
     const items = [...followedItems, ...suggestedItems]
