@@ -68,8 +68,8 @@ export async function getUser(acct: string): Promise<any> {
       emojis: Array.isArray(account.emojis) ? account.emojis : [],
       url: account.url,
       // `uri` is Mastodon's ActivityPub actor identifier; `url` is only the web profile.
-      actor_url: account.uri ?? account.url,
-      actor_uri: account.uri ?? account.url,
+      actor_url: account.uri ?? null,
+      actor_uri: account.uri ?? null,
     };
   }
   return api(`/webfinger/${encodeURIComponent(acct)}`);
