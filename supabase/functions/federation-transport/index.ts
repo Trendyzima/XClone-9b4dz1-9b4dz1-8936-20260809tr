@@ -313,8 +313,10 @@ async function unfollow(userId: string, local: any, target: string) {
   const activityId = await stableActivityId(local.actor_url, remote.actorUrl, "undo");
   const activity = { "@context": CTX, id: activityId, type: "Undo", actor: local.actor_url, object: { id: existing.follow_activity_uri, type: "Follow", actor: local.actor_url, object: remote.actorUrl } };
   const queued = await queue(local, userId, remote.inbox, activity);
-  await upsertRelationship({ local_user_id: userId, remote_actor_uri: remote.actorUrl, state: "pending", undo_activity_uri: activityId, remote_inbox_uri: remote.inbox, delivery_state: "queued", updated_at: new Date().toISOString() });
-  return { ok: true, state: "pending", actorUrl: remote.actorUrl, undoActivityUri: activityId, deliveryState: "queued", queue: queued };
+  // A local unfollow is a durable removal immediately; remote delivery is
+  // asynchronous and must not make the UI resurrect the relationship.
+  await upsertRelationship({ local_user_id: userId, remote_actor_uri: remote.actorUrl, state: "removed", undo_activity_uri: activityId, remote_inbox_uri: remote.inbox, delivery_state: "queued", updated_at: new Date().toISOString() });
+  return { ok: true, state: "removed", actorUrl: remote.actorUrl, undoActivityUri: activityId, deliveryState: "queued", queue: queued };
 }
 
 async function handle(request: Request) {
