@@ -628,9 +628,13 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     const optimisticIsLiked = !previousIsLiked;
     setIsLiked(optimisticIsLiked);
     try {
-      const state = await togglePostLike(interactionPostId, isLiked);
+      const state = await togglePostLike(interactionPostId, previousIsLiked);
       setIsLiked(state.is_liked);
-      setLikesCount(state.likes_count);
+      if (!isFederatedPost) {
+        setLikesCount(state.likes_count);
+      } else {
+        getFederatedInteractionCounts(interactionPostId).then(counts => setLikesCount(counts.likes)).catch(() => {});
+      }
       if (state.is_liked) {
         updateInterestSignal(user.id, post.id, 'like').catch(() => {});
       }
@@ -653,7 +657,11 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     try {
       const state = await togglePostRepost(interactionPostId, previousIsReposted);
       setIsReposted(state.is_reposted);
-      setRepostsCount(state.reposts_count);
+      if (!isFederatedPost) {
+        setRepostsCount(state.reposts_count);
+      } else {
+        getFederatedInteractionCounts(interactionPostId).then(counts => setRepostsCount(counts.reposts)).catch(() => {});
+      }
       if (state.is_reposted) {
         if (!isFederatedPost) toast({ title: 'Reposted successfully' });
         updateInterestSignal(user.id, post.id, 'repost').catch(() => {});
