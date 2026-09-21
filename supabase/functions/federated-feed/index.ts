@@ -80,7 +80,7 @@ Deno.serve(async (request) => {
         if (["ap", "users", "actors", "person"].includes(username)) username = "";
       } catch {}
       username = username || String(fallbackObject?.preferredUsername || fallbackObject?.username || "").trim() || "unknown";
-      return { id: source, actor_uri: source, url: source, username, preferredUsername: username, display_name: String(fallbackObject?.name || username), domain, avatar_url: null, followers_count: 0, following_count: 0 };
+      return { id: source, actor_uri: source, url: source, profile_url: source, username, preferredUsername: username, display_name: String(fallbackObject?.name || username), domain, bio: typeof fallbackObject?.summary === "string" ? fallbackObject.summary : null, avatar_url: null, header_url: null, followers_url: null, following_url: null, inbox_url: null, outbox_url: null, published_at: null, fields: [], emojis: [], followers_count: 0, following_count: 0 };
     };
     const hydrateActor = async (actorUri: string) => {
       try {
@@ -103,7 +103,17 @@ Deno.serve(async (request) => {
           preferredUsername: String(actor.preferredUsername ?? actor.username ?? actorId.split("/").pop() ?? "unknown"),
           display_name: String(actor.name ?? actor.preferredUsername ?? actor.username ?? "unknown"),
           domain: actorHost,
+          bio: typeof actor.summary === "string" ? actor.summary : null,
           avatar_url: typeof actor.icon === "string" ? actor.icon : actor.icon?.url ?? actor.icon?.href ?? null,
+          header_url: typeof actor.image === "string" ? actor.image : actor.image?.url ?? actor.image?.href ?? null,
+          followers_url: typeof actor.followers === "string" ? actor.followers : actor.followers?.id ?? null,
+          following_url: typeof actor.following === "string" ? actor.following : actor.following?.id ?? null,
+          inbox_url: typeof actor.inbox === "string" ? actor.inbox : actor.inbox?.id ?? null,
+          outbox_url: typeof actor.outbox === "string" ? actor.outbox : actor.outbox?.id ?? null,
+          published_at: actor.published ?? null,
+          profile_url: typeof actor.url === "string" ? actor.url : actor.url?.href ?? actorId,
+          fields: Array.isArray(actor.attachment) ? actor.attachment.filter((x: any) => x?.type === "PropertyValue").map((x: any) => ({ name: String(x.name ?? ""), value: String(x.value ?? "") })) : [],
+          emojis: Array.isArray(actor.tag) ? actor.tag : [],
           followers_count: Number(actor.followers?.totalItems ?? 0),
           following_count: Number(actor.following?.totalItems ?? 0),
         };
