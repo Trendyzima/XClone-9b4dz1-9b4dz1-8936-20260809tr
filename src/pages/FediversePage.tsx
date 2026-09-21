@@ -484,22 +484,15 @@ export default function FediversePage() {
     if (!handle.includes('@')) { toast.error('Use full format: user@mastodon.social'); return; }
     setSearching(true); setSearchResult(null);
     try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData.session?.access_token;
-      const lookupRes = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/activitypub-federation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-        body: JSON.stringify({ action: 'lookup_actor', handle }),
+      const accounts = await federation.search(handle, 'users');
+      const actor = accounts?.[0];
+      if (!actor) throw new Error('Actor not found');
+      setSearchResult({
+        actor_url: actor.url ?? actor.actor_uri, username: actor.username ?? handle.split('@')[0],
+        domain: actor.domain ?? handle.split('@')[1] ?? '', display_name: actor.display_name ?? actor.username,
+        bio: actor.bio ?? actor.note, avatar_url: actor.avatar_url ?? actor.avatar, followers_url: actor.followers_url,
+        inbox_url: actor.inbox_url,
       });
-      const lookup = await lookupRes.json();
-      const actor = lookup?.actor;
-      if (lookupRes.ok && actor) {
-        setSearchResult({
-          actor_url: actor.actor_uri, username: actor.username ?? handle.split('@')[0],
-          domain: actor.domain ?? handle.split('@')[1] ?? '', display_name: actor.display_name ?? actor.username,
-          bio: actor.bio, avatar_url: actor.avatar_url, followers_url: actor.followers_url, inbox_url: actor.inbox_url,
-        });
-      } else { throw new Error(lookup?.error ?? 'Actor not found'); }
     } catch (err: any) { toast.error(`Lookup failed: ${err.message ?? 'unknown error'}`); }
     setSearching(false);
   };
@@ -513,72 +506,36 @@ export default function FediversePage() {
     setFollowing(false);
     setSearchResult((prev: any) => prev ? { ...prev, following: false } : prev);
     setActiveRemoteProfile((prev: any) => prev ? { ...prev, following: false } : prev);
-    toast.success('Unfollowed');
     try {
-      const { data: session } = await supabase.auth.getSession();
-      const token = session.session?.access_token;
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/activitypub-federation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ action: 'unfollow', target: remoteActorUrl }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error ?? 'Unfollow failed');
+      await federation.unfollow(remoteActorUrl);
+      toast.success('Unfollowed');
     } catch (err: any) {
-      setFederatedFollowing(previous);
-      setFollowingActorUrls(previousUrls);
-      setFollowing(true);
+      setFederatedFollowing(previous); setFollowingActorUrls(previousUrls); setFollowing(true);
       toast.error(`Unfollow failed: ${err.message ?? ''}`);
     }
   };
 
   const handleFedLike = async (post: any) => {
     if (!user) { navigate('/auth'); return; }
-    const key = post.object_url ?? post.id;
-    if (!key) return;
+    const key = post.object_url ?? post.id; if (!key) return;
     setPostStates(prev => ({ ...prev, [key]: { ...prev[key], liked: !prev[key]?.liked } }));
-    try {
-      const { data: session } = await supabase.auth.getSession();
-      const token = session.session?.access_token;
-      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/activitypub-federation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ action: 'like', object_url: key, user_id: user.id }),
-      });
-    } catch {}
+    try { await federation.favorite(key); } catch { setPostStates(prev => ({ ...prev, [key]: { ...prev[key], liked: !prev[key]?.liked } })); }
   };
 
   const handleFedBoost = async (post: any) => {
     if (!user) { navigate('/auth'); return; }
-    const key = post.object_url ?? post.id;
-    if (!key) return;
+    const key = post.object_url ?? post.id; if (!key) return;
     setPostStates(prev => ({ ...prev, [key]: { ...prev[key], boosted: !prev[key]?.boosted } }));
-    try {
-      const { data: session } = await supabase.auth.getSession();
-      const token = session.session?.access_token;
-      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/activitypub-federation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ action: 'boost', object_url: key, user_id: user.id }),
-      });
-    } catch {}
+    try { await federation.boost(key); } catch { setPostStates(prev => ({ ...prev, [key]: { ...prev[key], boosted: !prev[key]?.boosted } })); }
   };
 
   const handleFedReply = async (post: any) => {
     if (!user) { navigate('/auth'); return; }
-    const key = post.object_url ?? post.id;
-    if (!key) return;
-    const text = postStates[key]?.replyText?.trim();
-    if (!text) return;
+    const key = post.object_url ?? post.id; if (!key) return;
+    const text = postStates[key]?.replyText?.trim(); if (!text) return;
     setPostStates(prev => ({ ...prev, [key]: { ...prev[key], sending: true } }));
     try {
-      const { data: session } = await supabase.auth.getSession();
-      const token = session.session?.access_token;
-      await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/activitypub-federation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ action: 'reply', object_url: key, content: text, user_id: user.id }),
-      });
+      await federation.reply({ postId: key, content: text });
       toast.success('Reply sent to the Fediverse!');
       setPostStates(prev => ({ ...prev, [key]: { ...prev[key], replyText: '', replyOpen: false, sending: false } }));
     } catch (err: any) {
@@ -589,39 +546,23 @@ export default function FediversePage() {
 
   const handleFollow = async (account: any) => {
     if (!user) { navigate('/auth'); return; }
-    const target = account.actor_url ?? account.actor_uri ?? `https://${account.domain}/users/${account.username}`;
+    const target = account.actor_url ?? account.actor_uri ?? account.url ?? `https://${account.domain}/users/${account.username}`;
     const alreadyFollowing = followingActorUrls.includes(target) || !!account.following;
     if (alreadyFollowing) { await handleUnfollowFederated(target); return; }
     const previous = federatedFollowing;
     const previousUrls = followingActorUrls;
-    const optimisticRow = { id: `optimistic-${target}`, local_user_id: user.id, relationship: 'following', remote_actor_url: target, remote_actor_uri: target, remote_username: account.username, remote_domain: account.domain, state: 'active' };
+    const optimisticRow = { id: `optimistic-${target}`, local_user_id: user.id, relationship: 'following', remote_actor_url: target, remote_actor_uri: target, remote_username: account.username, remote_domain: account.domain, state: 'pending' };
     setFollowingActorUrls(prev => prev.includes(target) ? prev : [...prev, target]);
     setFederatedFollowing(prev => [optimisticRow, ...prev.filter((row: any) => row.remote_actor_url !== target)]);
     setFollowing(true);
-    setSearchResult((prev: any) => prev ? { ...prev, following: true, actor_url: target } : prev);
-    setActiveRemoteProfile((prev: any) => prev ? { ...prev, following: true, actor_url: target } : prev);
-    toast.success('Following');
     try {
-      const { data: session } = await supabase.auth.getSession();
-      const token = session.session?.access_token;
-      void fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/activitypub-federation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ action: 'follow', target }),
-      }).then(async res => {
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.ok) throw new Error(data.error ?? 'Follow delivery failed');
-      }).catch((err: any) => {
-        setFederatedFollowing(prev => prev.filter((row: any) => row.remote_actor_url !== target));
-        setFollowingActorUrls(prev => prev.filter(url => url !== target));
-        setFollowing(false);
-        setSearchResult((prev: any) => prev ? { ...prev, following: false } : prev);
-        setActiveRemoteProfile((prev: any) => prev ? { ...prev, following: false } : prev);
-        toast.error(`Follow failed: ${err.message ?? 'remote delivery failed'}`);
-      });
+      await federation.follow(target);
+      toast.success('Following');
     } catch (err: any) {
       setFederatedFollowing(previous); setFollowingActorUrls(previousUrls); setFollowing(false);
-      toast.error(`Follow failed: ${err.message ?? ''}`);
+      setSearchResult((prev: any) => prev ? { ...prev, following: false } : prev);
+      setActiveRemoteProfile((prev: any) => prev ? { ...prev, following: false } : prev);
+      toast.error(`Follow failed: ${err.message ?? 'remote delivery failed'}`);
     }
   };
 
