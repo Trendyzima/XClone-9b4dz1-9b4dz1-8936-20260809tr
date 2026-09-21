@@ -192,6 +192,10 @@ jobs:
           # Keep both gateway functions reconciled with the same exact source revision.
           supabase functions deploy testagram-api --project-ref "$PROJECT_REF"
           supabase functions deploy federation-transport --project-ref "$PROJECT_REF"
+          # activitypub-federation was the retired duplicate client gateway. Remove the
+          # live Edge Function as part of reconciliation so production has one canonical
+          # outbound path: testagram-api -> federation-transport.
+          supabase functions delete activitypub-federation --project-ref "$PROJECT_REF" --yes || true
 
           GATEWAY_URL="https://${PROJECT_REF}.supabase.co/functions/v1/gateway-relay?action=health"
           curl --fail --silent --show-error --location --retry 3 --retry-delay 2 "$GATEWAY_URL" > fediverse-gateway-health.json
