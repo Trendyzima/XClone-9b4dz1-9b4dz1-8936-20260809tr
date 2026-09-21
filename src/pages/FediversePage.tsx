@@ -544,9 +544,8 @@ export default function FediversePage() {
   const handleFollow = async (account: any) => {
     if (!user) { navigate('/auth'); return; }
     const target = account.actor_uri ?? account.actor_url ?? account.uri ?? account.acct;
-    const alreadyFollowing = followingActorUrls.includes(target) || !!account.following;
+    const alreadyFollowing = followingActorUrls.includes(target);
     if (alreadyFollowing) { await handleUnfollowFederated(target); return; }
-    setFollowing(true);
     try {
       const result = await federation.follow(target);
       const confirmed = result?.state === 'active' || result?.deliveryState === 'delivered' || result?.ok === true;
