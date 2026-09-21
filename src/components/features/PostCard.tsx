@@ -642,7 +642,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       <div className="flex space-x-3">
         <div
           className="w-10 h-10 rounded-full bg-muted flex-shrink-0 overflow-hidden cursor-pointer"
-          onClick={(e) => { e.stopPropagation(); navigate(isFederatedPost ? `/fediverse/profile?actor=${encodeURIComponent(remoteStatusUri ? ((post as any).actor_uri || (post as any).remote_account?.actor_uri || post.user_profiles?.actor_uri || '') : '')}&handle=${encodeURIComponent((post.user_profiles?.username || '').replace(/^@/, ''))}` : `/profile/${post.user_profiles?.username}`); }}
+          onClick={(e) => { e.stopPropagation(); navigate(isFederatedPost ? `/fediverse/profile?actor=${encodeURIComponent(remoteStatusUri ? ((post as any).actor_uri || (post as any).remote_account?.actor_uri || (post.user_profiles as any)?.actor_uri || '') : '')}&handle=${encodeURIComponent((post.user_profiles?.username || '').replace(/^@/, ''))}` : `/profile/${post.user_profiles?.username}`); }}
         >
           {post.user_profiles?.avatar_url ? (
             <img src={post.user_profiles.avatar_url} alt={post.user_profiles.username} className="w-full h-full object-cover" />
