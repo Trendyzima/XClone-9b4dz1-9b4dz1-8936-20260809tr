@@ -40,30 +40,49 @@ async function replyOp(body:any,auth:string|null){
 
 async function interaction(path:string,body:any,auth:string|null){const u=await user(auth);if(!u)return json({error:"Authentication required"},401);const target=String(body.target||body.object_url||body.objectUrl||"").trim();if(/^https:\/\//i.test(target)||target.includes("@")){const r=await transport({user_id:u.id,operation:path,target});const data=r.data();return json(data,r.status)}return null}
 async function followOp(enabled:boolean,body:any,auth:string|null){const u=await user(auth);if(!u)return json({error:"Authentication required"},401);const target=String(body.target||"").trim();if(!target)return json({error:"target required"},400);const remote=await interaction(enabled?"follow":"unfollow",{target},auth);if(remote)return remote;const p=await localTarget(target);if(!p)return json({error:"User not found"},404);if(p.id===u.id)return json({error:"Cannot follow yourself"},400);const r=await admin.rpc("set_follow_state",{p_following_id:p.id,p_follow:enabled});if(r.error)return json({error:r.error.message},400);return json(r.data||{ok:true,following:enabled});}
-async function react(kind:string,enabled:boolean,body:any,auth:string|null){const u=await user(auth);if(!u)return json({error:"Authentication required"},401);const target=String(body.post_id||body.postId||body.object_url||"").trim();if(!target)return json({error:"post_id required"},400);if(/^https:\/\//i.test(target)){
-  const activity=enabled?(kind==="favorite"?{type:"Like",object:target}:{type:"Announce",object:target}):{type:"Undo",object:target,object_type:kind==="favorite"?"Like":"Announce"};
-  try {
-    const r=await transport({user_id:u.id,operation:"deliver",target,activity});
-    const data=r.data();
-    if (data?.ok === true) {
-      const interactionType = kind === "favorite" ? "like" : "repost";
-      await admin.from("federated_interactions").upsert({
-        user_id: u.id,
-        object_uri: target,
-        interaction_type: interactionType,
-        active: enabled,
-        activity_uri: data?.activity?.id ?? null,
-        remote_actor_uri: data?.remote?.actorUrl ?? null,
-        delivery_state: data?.delivery?.status ?? data?.delivery?.queue?.status ?? "delivered",
-        updated_at: new Date().toISOString()
-      }, { onConflict: "user_id,object_uri,interaction_type" });
+async function react(kind:string,enabled:boolean,body:any,auth:string|null){
+  const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
+  const target=String(body.post_id||body.postId||body.object_url||"").trim();
+  if(!target)return json({error:"post_id required"},400);
+  if(/^https:\/\//i.test(target)){
+    const interactionType = kind === "favorite" ? "like" : "repost";
+    // Record the user's intent before network delivery. This mirrors Mastodon's
+    // local state model: the button changes immediately while federation is
+    // transport/remote-server work.
+    const pending = await admin.from("federated_interactions").upsert({
+      user_id:u.id, object_uri:target, interaction_type:interactionType,
+      active:enabled, delivery_state:"pending", updated_at:new Date().toISOString()
+    }, {onConflict:"user_id,object_uri,interaction_type"});
+    if(pending.error) console.warn("federated interaction local state", pending.error);
+
+    const activity=enabled
+      ? (kind==="favorite"
+        ? {type:"Like",object:target}
+        : {type:"Announce",object:target})
+      : {type:"Undo",object:target,object_type:kind==="favorite"?"Like":"Announce"};
+    try {
+      const r=await transport({user_id:u.id,operation:"deliver",target,activity});
+      const data=r.data();
+      const delivered=data?.ok===true && (data?.delivery?.status==="delivered" || data?.delivery?.status==="queued" || data?.delivery?.queue?.status==="delivered" || data?.delivery?.queue?.status==="queued");
+      await admin.from("federated_interactions").update({
+        active:enabled, delivery_state:delivered ? "delivered" : "failed",
+        activity_uri:data?.activity?.id ?? null, remote_actor_uri:data?.remote?.actorUrl ?? null,
+        updated_at:new Date().toISOString()
+      }).eq("user_id",u.id).eq("object_uri",target).eq("interaction_type",interactionType);
+      return json({...data, ok:true, accepted:delivered, status:delivered?"delivered":"failed"},200);
+    } catch (error) {
+      await admin.from("federated_interactions").update({
+        active:enabled, delivery_state:"pending", updated_at:new Date().toISOString()
+      }).eq("user_id",u.id).eq("object_uri",target).eq("interaction_type",interactionType);
+      console.warn(`federated ${kind} delivery pending`, error);
+      return json({ok:true,accepted:false,status:"pending",queued:true,error:error instanceof Error?error.message:`Remote server rejected ${kind}`},200);
     }
-    return json(data,200);
-  } catch (error) {
-    console.warn(`federated ${kind} unavailable`, error);
-    return json({ok:false,supported:false,status:"unavailable",queued:false,error:error instanceof Error?error.message:`Remote server rejected ${kind}`},200);
   }
-}const post=await localPost(target);if(!post)return json({error:"Post not found"},404);const r=await admin.rpc(kind==="favorite"?"toggle_post_like":"toggle_post_repost",{p_post_id:target});if(r.error)return json({error:r.error.message},400);return json(r.data||{ok:true});}
+  const post=await localPost(target);if(!post)return json({error:"Post not found"},404);
+  const r=await admin.rpc(kind==="favorite"?"toggle_post_like":"toggle_post_repost",{p_post_id:target});
+  if(r.error)return json({error:r.error.message},400);
+  return json(r.data||{ok:true});
+}
 async function search(q:string,type:string,auth:string|null){const term=q.trim();if(!term)return json([]);if(type==="hashtags"){const r=await admin.from("hashtags").select("*").ilike("tag",`%${term.replace(/^#/,'')}%`).limit(50);return json(r.data||[])}if(type==="posts"){const r=await admin.from("posts").select("*,author:profiles!posts_author_id_fkey(*)").is("deleted_at",null).eq("visibility","public").ilike("content",`%${term}%`).order("created_at",{ascending:false}).limit(50);return json(r.data||[])}if(type==="instances"){const r=await admin.from("federated_instances").select("*").ilike("domain",`%${term}%`).limit(50);return json(r.data||[])}const r=await admin.from("profiles").select("*").or(`username.ilike.%${term}%,display_name.ilike.%${term}%`).limit(50);if(auth){const u=await user(auth);if(u)await admin.from("search_queries").insert({user_id:u.id,query:q,filters:{type}})}return json(r.data||[])}
 async function collection(username:string,kind:string){const p=await localProfile(username);if(!p)return json({error:"User not found"},404);if(kind==="followers"){const r=await admin.from("follows").select("follower_id,profiles!follows_follower_id_fkey(*)").eq("following_id",p.id).eq("status","accepted").limit(100);return json(r.data||[])}const r=await admin.from("follows").select("following_id,profiles!follows_following_id_fkey(*)").eq("follower_id",p.id).eq("status","accepted").limit(100);return json(r.data||[])}
 Deno.serve(async req=>{if(req.method==="OPTIONS")return new Response(null,{status:204,headers:CORS});try{const auth=req.headers.get("Authorization");const url=new URL(req.url);let e:any={};if(!["GET","HEAD"].includes(req.method)){const t=await req.text();if(t)try{e=JSON.parse(t)}catch{e={}}}const path=String(e.path||url.pathname.replace(/^\/functions\/v1\/testagram-api/,"").replace(/^\/testagram-api/,"")||"/health");const method=String(e.method||req.method).toUpperCase();const body=e.body||{};const params={...Object.fromEntries(url.searchParams.entries()),...(e.params||{})};if(path==="/"||path==="/health")return json({ok:true,service:"testagram-api",backend:"supabase",onspaceDependency:false,federation:true,apiVersion:"4"});if(path==="/timeline/home")return fn(FEED,"POST",{mode:"home",limit:params.limit||20,before:params.before||undefined},auth);if(path==="/timeline/global")return fn(FEED,"POST",{mode:"explore",limit:params.limit||20,before:params.before||undefined},auth);if(path==="/timeline/local")return json((await admin.from("posts").select("*,author:profiles!posts_author_id_fkey(*)").is("deleted_at",null).eq("visibility","public").order("created_at",{ascending:false}).limit(Math.min(100,Number(params.limit||50)))).data||[]);if(path==="/timeline/federated")return fn(`${SUPABASE_URL}/functions/v1/federation-appview`,`GET`,{},auth,params);if(path==="/posts"&&method==="POST")return fn(POST_CREATE,"POST",body,auth);if(path.match(/^\/posts\/[^/]+$/)&&method==="DELETE"){const u=await user(auth);if(!u)return json({error:"Authentication required"},401);const id=decodeURIComponent(path.split("/").pop()!);const r=await admin.from("posts").update({deleted_at:new Date().toISOString()}).eq("id",id).eq("author_id",u.id);if(r.error)return json({error:r.error.message},400);return json({ok:true});}if(path==="/follow"&&method==="POST")return followOp(true,body,auth);if(path==="/unfollow"&&method==="POST")return followOp(false,body,auth);if(path==="/favorite"&&method==="POST")return react("favorite",true,body,auth);if(path==="/unfavorite"&&method==="POST")return react("favorite",false,body,auth);if(path==="/boost"&&method==="POST")return react("boost",true,body,auth);if(path==="/unboost"&&method==="POST")return react("boost",false,body,auth);if(path==="/bookmark"&&method==="POST"){
