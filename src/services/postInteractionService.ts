@@ -18,7 +18,7 @@ export async function togglePostLike(postId: string, currentlyLiked = false): Pr
   if (!postId) throw new Error('Post id is required');
   if (isRemoteStatus(postId)) {
     const data = await remoteAction(currentlyLiked ? 'unfavorite' : 'favorite', { post_id: postId });
-    const delivered = data?.delivery?.status === 'delivered' || data?.delivery?.queue?.status === 'delivered';
+    const delivered = data?.delivery?.status === 'delivered' || data?.delivery?.status === 'queued' || data?.delivery?.queue?.status === 'delivered' || data?.delivery?.queue?.status === 'queued';
     const nextLiked = delivered && !currentlyLiked;
     trackTestagramEvent(nextLiked ? TestagramEvent.POST_LIKED : TestagramEvent.POST_UNLIKED, { post_id: postId });
     return { is_liked: nextLiked, likes_count: Number(data?.remote?.like_count ?? data?.likes_count ?? 0) };
