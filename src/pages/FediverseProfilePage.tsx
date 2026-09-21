@@ -38,7 +38,7 @@ export default function FediverseProfilePage() {
         if (cancelled) return;
         setProfile(result);
 
-        const resolvedActorUri = actorUrl || result?.url || '';
+        const resolvedActorUri = result?.actor_uri ?? result?.actor_url ?? result?.uri ?? actorUrl || '';
         if (user && resolvedActorUri) {
           // federation-transport persists remote follows in the canonical
           // federated_follow_relationships table. Read that same source on every
@@ -48,24 +48,17 @@ export default function FediverseProfilePage() {
             .select('state, remote_actor_uri')
             .eq('local_user_id', user.id)
             .eq('remote_actor_uri', resolvedActorUri)
+            .eq('direction', 'following')
             .maybeSingle();
           if (!cancelled) {
             if (!relationshipError && relationship) {
               const state = relationship.state ?? null;
-              setFollowState(state);
-              setFollowing(state === 'pending' || state === 'accepted' || state === 'active');
+              const confirmed = state === 'active' || (state === 'accepted' && relationship.delivery_state === 'delivered');
+              setFollowState(confirmed ? state : null);
+              setFollowing(confirmed);
             } else {
-              // Backward compatibility for relationships created by older builds.
-              const { data: legacy } = await supabase
-                .from('federated_relationships')
-                .select('state')
-                .eq('local_user_id', user.id)
-                .eq('remote_actor_uri', resolvedActorUri)
-                .eq('relationship', 'following')
-                .maybeSingle();
-              const state = legacy?.state ?? null;
-              setFollowState(state);
-              setFollowing(state === 'pending' || state === 'accepted' || state === 'active');
+              setFollowState(null);
+              setFollowing(false);
             }
           }
         }
@@ -145,25 +138,22 @@ export default function FediverseProfilePage() {
 
   const doFollow = async () => {
     if (!user) { navigate('/auth'); return; }
-    const target = actorUrl || profile?.url;
+    const target = profile?.actor_uri ?? profile?.actor_url ?? profile?.uri ?? actorUrl;
     if (!target || working) return;
 
-    // Local-first: the UI and personalized feed react immediately. The
-    // ActivityPub delivery continues in the background and failures roll back.
-    const previousFollowing = following;
-    const previousState = followState;
-    setFollowing(true);
-    setFollowState('active');
     setWorking(true);
-    toast.success('Following — this account will appear first in your Fediverse feed');
-
     try {
       const result = await federation.follow(target);
-      const remoteState = result?.state;
-      setFollowState(remoteState === 'pending' ? 'active' : (remoteState ?? 'active'));
+      const confirmed = result?.state === 'active' ||
+        (result?.state === 'accepted' && result?.deliveryState === 'delivered') ||
+        result?.deliveryState === 'delivered';
+      if (!confirmed) throw new Error('Follow was not confirmed by federation delivery');
+      setFollowing(true);
+      setFollowState(result?.state ?? 'active');
+      toast.success('Following — remote delivery confirmed');
     } catch (error: any) {
-      setFollowing(previousFollowing);
-      setFollowState(previousState);
+      setFollowing(false);
+      setFollowState(null);
       toast.error(error?.message ?? 'Could not complete the follow. Your follow was not saved.');
     } finally {
       setWorking(false);
@@ -171,7 +161,7 @@ export default function FediverseProfilePage() {
   };
 
   const doUnfollow = async () => {
-    const target = actorUrl || profile?.url;
+    const target = profile?.actor_uri ?? profile?.actor_url ?? profile?.uri ?? actorUrl;
     if (!target || working) return;
 
     // Local-first: remove it from the personalized feed immediately. If the
