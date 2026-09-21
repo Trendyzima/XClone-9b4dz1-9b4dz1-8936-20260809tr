@@ -67,6 +67,23 @@ Deno.serve(async (request) => {
     const hydratedActorAliases = new Set<string>(followedActorUris);
     const hydratedActorProfiles = new Map<string, any>();
 
+    const actorFallbackProfile = (actorUri: string, fallbackObject: any = null) => {
+      const source = String(actorUri || fallbackObject?.attributedTo || fallbackObject?.actor || fallbackObject?.url || "").trim();
+      let username = "";
+      let domain = "";
+      try {
+        const parsed = new URL(source);
+        domain = parsed.hostname;
+        const parts = parsed.pathname.split("/").filter(Boolean);
+        const markerIndex = parts.findIndex((part) => ["statuses", "objects", "notes"].includes(part));
+        username = markerIndex > 0 ? parts[markerIndex - 1] : (parts.at(-1) || "");
+        if (["ap", "users", "actors", "person"].includes(username)) username = "";
+      } catch {}
+      username = username || String(fallbackObject?.preferredUsername || fallbackObject?.username || "").trim() || "unknown";
+      return { id: source, actor_uri: source, url: source, username, preferredUsername: username, display_name: String(fallbackObject?.name || username), domain, avatar_url: null, followers_count: 0, following_count: 0 };
+    };
+    const hydratedActorProfiles = new Map<string, any>();
+
     const hydrateActor = async (actorUri: string) => {
       try {
         const actorUrl = new URL(actorUri);
@@ -161,13 +178,33 @@ Deno.serve(async (request) => {
           await admin.from("federated_objects").upsert(rows, { onConflict: "uri", ignoreDuplicates: false });
         }
       } catch (error) {
-        console.warn("[federated-feed] actor hydration failed", actorUri, error);
+        const fallback = actorFallbackProfile(actorUri);
+        hydratedActorProfiles.set(actorUri, fallback);
+        hydratedActorAliases.add(actorUri);
+        console.warn("[federated-feed] actor hydration failed; using URI fallback", actorUri, error);
       }
     };
 
     if (followedActorUris.length) {
       await Promise.all(followedActorUris.slice(0, 10).map(hydrateActor));
     }
+
+    const enrichRemoteAccounts = async (items: any[]) => {
+      const actorUris = [...new Set(items.flatMap((item: any) => {
+        const raw = item.raw_object?.attributedTo;
+        const rawUri = typeof raw === "string" ? raw : raw?.id;
+        return [item.actor_uri, rawUri].filter(Boolean).map(String);
+      }))];
+      await Promise.all(actorUris.slice(0, 30).map(async (uri) => {
+        if (!hydratedActorProfiles.has(uri)) await hydrateActor(uri);
+      }));
+      return items.map((item: any) => {
+        const raw = item.raw_object?.attributedTo;
+        const rawUri = typeof raw === "string" ? raw : raw?.id;
+        const profile = hydratedActorProfiles.get(String(item.actor_uri || "")) ?? hydratedActorProfiles.get(String(rawUri || "")) ?? actorFallbackProfile(String(item.actor_uri || rawUri || item.uri || ""), raw);
+        return { ...item, remote_account: profile, actor_uri: item.actor_uri || rawUri || profile.actor_uri };
+      });
+    };
 
     const buildQuery = () => {
       let query = admin
@@ -224,7 +261,8 @@ Deno.serve(async (request) => {
         }));
     }
 
-    const items = [...followedItems, ...suggestedItems]
+    const enrichedItems = await enrichRemoteAccounts([...followedItems, ...suggestedItems]);
+    const items = enrichedItems
       .sort((a, b) => {
         const aFollowing = a.feed_source === "following" ? 1 : 0;
         const bFollowing = b.feed_source === "following" ? 1 : 0;
