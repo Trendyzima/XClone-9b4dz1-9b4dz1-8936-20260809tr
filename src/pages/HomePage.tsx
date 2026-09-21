@@ -544,6 +544,11 @@ export default function HomePage() {
       content: p.content ?? p.text ?? '',
       created_at: p.created_at ?? p.published_at ?? p.published ?? new Date().toISOString(),
       actor: { ...actor, actor_uri: actorUri, domain },
+      user_profiles: actor,
+      remote_status_uri: typeof p.uri === 'string' && /^https:\/\//i.test(p.uri) ? p.uri : undefined,
+      likes_count: p.likes_count ?? p.like_count ?? 0,
+      reposts_count: p.reposts_count ?? p.announce_count ?? 0,
+      replies_count: p.replies_count ?? p.reply_count ?? 0,
     };
   });
   const fetchFederatedPage = async (before?: string | null): Promise<{ posts: any[]; nextCursor: string | null; hasMore: boolean }> => {
