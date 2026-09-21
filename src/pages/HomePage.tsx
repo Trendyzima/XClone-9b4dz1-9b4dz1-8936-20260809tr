@@ -1363,7 +1363,7 @@ export default function HomePage() {
               {item.type === 'post' ? (
                 <PostCard post={item.data} onUpdate={fetchInitialFeed} />
               ) : item.type === 'fedpost' ? (
-                <FederatedPostCard post={item.data} />
+                <PostCard post={item.data} onUpdate={fetchInitialFeed} />
               ) : item.type === 'sponsored' ? (
                 <SponsoredPostCard post={item.data} />
               ) : item.type === 'user-ad' ? (
