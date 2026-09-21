@@ -20,9 +20,9 @@ export function localizeSocialLinks(content: string): string {
   // Those URLs must never become browser-level navigation targets in Testagram.
   // Mentions stay inside Testagram and retain the canonical actor URL as a query
   // parameter so the Fediverse profile page can resolve the exact remote actor.
-  return content.replace(/<a\\b([^>]*)\\bhref=(['"])(https?:\\/\\/[^'"]+)\\2([^>]*)>([\\s\\S]*?)<\\/a>/gi, (match, before, quote, href, after, label) => {
+  return content.replace(/<a\b([^>]*)\bhref=(['"])(https?:\/\/[^'"]+)\2([^>]*)>([\s\S]*?)<\/a>/gi, (match, before, quote, href, after, label) => {
     const text = String(label).replace(/<[^>]*>/g, '').trim();
-    const token = text.match(/^([@#])([^\\s<]+)/);
+    const token = text.match(/^([@#])([^\s<]+)/);
     if (!token) return match;
 
     const kind = token[1];
