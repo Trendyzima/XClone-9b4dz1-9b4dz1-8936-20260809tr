@@ -423,6 +423,12 @@ async function upsertRelationship(values: Record<string, unknown>) {
   });
 }
 
+async function stableInteractionId(localActor: string, remoteStatus: string, type: "Like" | "Announce") {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`interaction|${type}|${localActor}|${remoteStatus}`));
+  const hex = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  return `${localActor}#activities/${type.toLowerCase()}-${hex.slice(0, 48)}`;
+}
+
 async function stableActivityId(localActor: string, remoteActor: string, kind: "follow" | "undo") {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${kind}|${localActor}|${remoteActor}`));
   const hex = Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -491,7 +497,22 @@ async function handle(request: Request) {
     const activity = body.activity;
     if (!target || !activity?.type) return json({ error: "target and activity.type required" }, 400);
     const remote = await resolve(local, target);
-    const activityWithId = { "@context": activity["@context"] || CTX, id: activity.id || `${local.actor_url}#activities/${crypto.randomUUID()}`, ...activity, actor: activity.actor || local.actor_url };
+    let activityWithId = { "@context": activity["@context"] || CTX, id: activity.id || `${local.actor_url}#activities/${crypto.randomUUID()}`, ...activity, actor: activity.actor || local.actor_url };
+    if (activityWithId.type === "Like" || activityWithId.type === "Announce") {
+      const statusUri = typeof activityWithId.object === "string" ? activityWithId.object : idOf(activityWithId.object);
+      if (!statusUri) throw Error("Interaction activity requires a remote status URI");
+      activityWithId = { ...activityWithId, id: await stableInteractionId(local.actor_url, statusUri, activityWithId.type) };
+    }
+    if (activityWithId.type === "Undo" && typeof activityWithId.object === "string") {
+      const statusUri = activityWithId.object;
+      const undoneType = activity.path === "boost" || activity.object_type === "Announce" ? "Announce" : "Like";
+      const interactionId = await stableInteractionId(local.actor_url, statusUri, undoneType);
+      activityWithId = { ...activityWithId, id: `${local.actor_url}#activities/undo-${interactionId.split("/").pop()}`, object: { id: interactionId, type: undoneType, actor: local.actor_url, object: statusUri } };
+    }
+    if (activityWithId.type === "Create" && activityWithId.object && typeof activityWithId.object === "object") {
+      const note = activityWithId.object as Record<string, unknown>;
+      activityWithId = { ...activityWithId, object: { ...note, attributedTo: note.attributedTo || local.actor_url, inReplyTo: note.inReplyTo || target } };
+    }
     const queued = await queue(local, userId, remote.inbox, activityWithId);
     return json({ ok: true, activity: activityWithId, remote: { actorUrl: remote.actorUrl, inbox: remote.inbox }, delivery: { status: "queued", queue: queued } }, 202);
   }
