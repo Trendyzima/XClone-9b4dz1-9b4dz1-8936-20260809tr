@@ -23,6 +23,7 @@ export default function HashtagPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [posts, setPosts] = useState<Post[]>([]);
+  const [federatedPosts, setFederatedPosts] = useState<any[]>([]);
   const [hashtag, setHashtag] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [sortMode, setSortMode] = useState<'recent' | 'top'>('recent');
@@ -135,6 +136,29 @@ export default function HashtagPage() {
       if (postsError) throw postsError;
       const formattedPosts = (postsData || []).map((item: any) => item.posts).filter(Boolean);
       setPosts(formattedPosts);
+      // Mix cached ActivityPub objects that advertise the same hashtag. The
+      // cache is populated by inbound federation and followed-actor hydration,
+      // so the hashtag page can surface remote and local conversations together.
+      const normalizedTag = String(tag ?? '').replace(/^#/, '').trim().toLowerCase();
+      const { data: remoteRows } = await supabase
+        .from('federated_objects')
+        .select('id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,remote_account,object_type,url')
+        .is('deleted_at', null)
+        .or(`content.ilike.%#${normalizedTag}%,tags.cs.[{"name":"#${normalizedTag}"}]`)
+        .order('published_at', { ascending: false })
+        .limit(50);
+      setFederatedPosts((remoteRows ?? []).map((p: any) => ({
+        ...p,
+        id: p.id ?? p.uri,
+        uri: p.uri,
+        user_id: p.actor_uri,
+        author_id: p.actor_uri,
+        created_at: p.published_at ?? p.updated_at,
+        content: p.content ?? p.summary ?? '',
+        remote_status_uri: p.uri,
+        user_profiles: p.remote_account ?? { actor_uri: p.actor_uri, username: 'unknown', display_name: 'Fediverse account', avatar_url: null },
+        is_federated: true,
+      })));
       fetchTopPosts(hashtagData.id);
     } catch (error) {
       console.error('Error fetching hashtag data:', error);
@@ -304,14 +328,17 @@ export default function HashtagPage() {
 
       {/* Posts */}
       <div>
-        {(sortMode === 'recent' ? posts : topPosts).length === 0 ? (
+        {(sortMode === 'recent' ? [...posts, ...federatedPosts] : [...topPosts, ...federatedPosts]).length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <Flame className="w-12 h-12 mx-auto mb-3 opacity-20" />
             <p>No posts found with this hashtag</p>
           </div>
         ) : (
-          (sortMode === 'recent' ? posts : topPosts).map(post => (
-            <PostCard key={post.id} post={post} onUpdate={fetchHashtagAndPosts} />
+          (sortMode === 'recent' ? [...posts, ...federatedPosts] : [...topPosts, ...federatedPosts]).sort((a:any,b:any) => new Date(b.created_at ?? b.published_at ?? 0).getTime() - new Date(a.created_at ?? a.published_at ?? 0).getTime()).map((post:any) => (
+            <div key={post.id ?? post.uri}>
+              <div className="px-4 pt-2"><span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold ${post.is_federated ? 'border-sky-500/20 bg-sky-500/5 text-sky-600 dark:text-sky-400' : 'border-primary/20 bg-primary/5 text-primary'}`}>{post.is_federated ? 'Fediverse' : 'Testagram'}</span></div>
+              <PostCard post={post} onUpdate={fetchHashtagAndPosts} />
+            </div>
           ))
         )}
       </div>
