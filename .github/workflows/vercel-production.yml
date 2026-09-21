@@ -1,4 +1,5 @@
 name: Vercel Production Deploy
+# Pending-state federation compatibility is part of the production reconciliation.
 # Federated interaction compatibility is deployed with the exact main revision.
 
 on:
