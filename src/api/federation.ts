@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { supabase, supabasePublishableKey } from '@/lib/supabase';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { megalodonGatewayService } from '@/services/megalodonGateway';
 
