@@ -231,7 +231,8 @@ export default function FediversePage() {
     }
     if (tab === 'relay') { fetchRelayConfig(); fetchOutboxLog(); }
     if (tab === 'analytics') fetchAnalytics();
-    return () => { if (inboxPollRef.current) clearInterval(inboxPollRef.current); };
+    return (<>
+) => { if (inboxPollRef.current) clearInterval(inboxPollRef.current); };
   }, [tab, user]);
 
   const checkGateway = async () => {
@@ -1543,6 +1544,7 @@ export default function FediversePage() {
         </div>
       )}
     </div>
+  </>
   );
 }
 
