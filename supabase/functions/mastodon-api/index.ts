@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const ROOT = "https://federation.testagram.site";
+const ROOT = "https://testagram.site";
 const URL = Deno.env.get("SUPABASE_URL")!;
 const SECRET = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || "";
 const db = createClient(URL, SECRET, { auth: { persistSession:false, autoRefreshToken:false } });
