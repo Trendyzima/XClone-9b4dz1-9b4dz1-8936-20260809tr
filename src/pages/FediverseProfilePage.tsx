@@ -16,6 +16,7 @@ export default function FediverseProfilePage() {
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [following, setFollowing] = useState(false);
+  const [followState, setFollowState] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
 
   const handle = useMemo(() => {
@@ -34,13 +35,30 @@ export default function FediverseProfilePage() {
       setLoading(true);
       try {
         const result = handle ? await federation.getUser(handle) : null;
-        if (!cancelled) setProfile(result);
-        const actorUri = actorUrl || result?.url || '';
-        if (actorUri) {
+        if (cancelled) return;
+        setProfile(result);
+
+        const resolvedActorUri = actorUrl || result?.url || '';
+        if (user && resolvedActorUri) {
+          const { data: relationship } = await supabase
+            .from('federated_relationships')
+            .select('state')
+            .eq('local_user_id', user.id)
+            .eq('remote_actor_uri', resolvedActorUri)
+            .eq('relationship', 'following')
+            .maybeSingle();
+          if (!cancelled) {
+            const state = relationship?.state ?? null;
+            setFollowState(state);
+            setFollowing(state === 'pending' || state === 'accepted' || state === 'active');
+          }
+        }
+
+        if (resolvedActorUri) {
           const { data } = await supabase
             .from('federated_objects')
             .select('*')
-            .eq('actor_uri', actorUri)
+            .eq('actor_uri', resolvedActorUri)
             .is('deleted_at', null)
             .order('published_at', { ascending: false })
             .limit(20);
@@ -54,7 +72,7 @@ export default function FediverseProfilePage() {
     };
     void load();
     return () => { cancelled = true; };
-  }, [actorUrl, handle]);
+  }, [actorUrl, handle, user]);
 
   const doFollow = async () => {
     if (!user) { navigate('/auth'); return; }
@@ -62,9 +80,10 @@ export default function FediverseProfilePage() {
     if (!target) return;
     setWorking(true);
     try {
-      await federation.follow(target);
+      const result = await federation.follow(target);
       setFollowing(true);
-      toast.success('Follow request sent');
+      setFollowState(result?.state ?? 'pending');
+      toast.success('Follow request sent — their posts will be prioritized in your Fediverse feed');
     } catch (error: any) {
       toast.error(error?.message ?? 'Follow failed');
     } finally { setWorking(false); }
@@ -77,7 +96,8 @@ export default function FediverseProfilePage() {
     try {
       await federation.unfollow(target);
       setFollowing(false);
-      toast.success('Unfollowed');
+      setFollowState(null);
+      toast.success('Unfollowed — this account is removed from your personalized Fediverse feed');
     } catch (error: any) {
       toast.error(error?.message ?? 'Unfollow failed');
     } finally { setWorking(false); }
@@ -123,7 +143,7 @@ export default function FediverseProfilePage() {
                     className="px-4 py-2 rounded-full bg-foreground text-background font-bold text-sm disabled:opacity-50 flex items-center gap-2"
                   >
                     {working ? <Loader2 className="w-4 h-4 animate-spin" /> : following ? <UserMinus className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
-                    {following ? 'Following' : 'Follow'}
+                    {following ? (followState === 'pending' ? 'Requested' : 'Following') : 'Follow'}
                   </button>
                 </div>
                 <h2 className="mt-3 text-xl font-black">{profile.name || profile.display_name || profile.preferredUsername || profile.username}</h2>
@@ -133,6 +153,13 @@ export default function FediverseProfilePage() {
                   <span className="flex items-center gap-1"><Users className="w-4 h-4" />{profile.followers ?? 0} followers</span>
                   <span className="flex items-center gap-1"><Globe className="w-4 h-4" />Remote account</span>
                 </div>
+                {following && (
+                  <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary">
+                    {followState === 'pending'
+                      ? 'Follow request is pending. Once accepted, new posts from this account will continue to appear in your personalized Fediverse feed.'
+                      : 'You follow this account. Its cached posts are prioritized in your personalized Fediverse feed.'}
+                  </div>
+                )}
               </div>
             </section>
 
