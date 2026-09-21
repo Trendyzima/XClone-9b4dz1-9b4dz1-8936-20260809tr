@@ -213,3 +213,5 @@ jobs:
 # Final interaction visibility reconciliation trigger.
 
 # Federated reaction persistence target normalization trigger.
+
+# Supabase auth persistence hardening trigger.
