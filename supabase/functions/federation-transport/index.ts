@@ -308,11 +308,21 @@ async function follow(userId: string, local: any, target: string) {
   if (existing?.state === "pending" || existing?.state === "accepted") {
     return { ok: true, idempotent: true, state: existing.state, actorUrl: remote.actorUrl, inbox: existing.remote_inbox_uri || remote.inbox, followActivityUri: activityId, deliveryState: existing.delivery_state || null };
   }
-  const now = new Date().toISOString();
-  await upsertRelationship({ local_user_id: userId, remote_actor_uri: remote.actorUrl, state: "active", follow_activity_uri: activityId, remote_inbox_uri: remote.inbox, delivery_state: "queued", delivery_attempts: 0, last_error: null, updated_at: now });
   const activity = { "@context": CTX, id: activityId, type: "Follow", actor: local.actor_url, object: remote.actorUrl };
   const queued = await queue(local, userId, remote.inbox, activity);
-  return { ok: true, state: "active", actorUrl: remote.actorUrl, inbox: remote.inbox, followActivityUri: activityId, deliveryState: "queued", queue: queued };
+  const now = new Date().toISOString();
+  await upsertRelationship({
+    local_user_id: userId,
+    remote_actor_uri: remote.actorUrl,
+    state: "active",
+    follow_activity_uri: activityId,
+    remote_inbox_uri: remote.inbox,
+    delivery_state: queued.status,
+    delivery_attempts: 1,
+    last_error: null,
+    updated_at: now,
+  });
+  return { ok: true, state: "active", actorUrl: remote.actorUrl, inbox: remote.inbox, followActivityUri: activityId, deliveryState: queued.status, queue: queued };
 }
 
 async function unfollow(userId: string, local: any, target: string) {
