@@ -20,6 +20,10 @@ async function replyOp(body:any,auth:string|null){
     if(count.data) await admin.from("posts").update({replies_count:Number(count.data.replies_count||0)+1,updated_at:new Date().toISOString()}).eq("id",target);
     return json({reply_id:r.data?.id,created:true,replies_count:Number(count.data?.replies_count||0)+1},200);
   }
+  const localReply=await admin.from("federated_replies").insert({
+    user_id:u.id, object_uri:target, parent_uri:target, content, delivery_state:"pending"
+  }).select("id,object_uri,parent_uri,content,created_at,delivery_state").single();
+  if(localReply.error)return json({error:localReply.error.message},400);
   const activity:any={
     "@context":["https://www.w3.org/ns/activitystreams"],
     type:"Create",
@@ -33,14 +37,19 @@ async function replyOp(body:any,auth:string|null){
   try {
     const r=await transport({user_id:u.id,operation:"deliver",target,activity});
     const data=r.data();
-    return json(data, r.status>=200 && r.status<300 ? 200 : 200);
+    const activityId=data?.activity?.id ?? data?.activity?.object?.id ?? null;
+    await admin.from("federated_replies").update({
+      activity_uri:activityId,
+      delivery_state:(data?.delivery?.status==="delivered"||data?.delivery?.status==="queued")?"delivered":"pending",
+      updated_at:new Date().toISOString()
+    }).eq("id",localReply.data.id);
+    return json({...data,ok:true,accepted:data?.accepted===true||data?.delivery?.status==="delivered"||data?.delivery?.status==="queued",status:data?.status||"pending",reply_id:localReply.data.id,reply:localReply.data},200);
   } catch (error) {
     console.warn("federated reply delivery pending", error);
-    // The outbox row has already been created by federation-transport. Treat
-    // this as a pending ActivityPub delivery rather than deleting the user's
-    // reply from the local UI.
+    await admin.from("federated_replies").update({delivery_state:"pending",updated_at:new Date().toISOString()}).eq("id",localReply.data.id);
     return json({
       ok:true, accepted:false, supported:true, status:"pending", queued:true,
+      reply_id:localReply.data.id, reply:localReply.data,
       error:error instanceof Error?error.message:"Remote delivery pending"
     },200);
   }
@@ -167,6 +176,14 @@ if(path==="/bookmark-state"&&method==="GET"){
   const r=await admin.from("federated_bookmarks").select("id").eq("user_id",u.id).eq("object_uri",target).maybeSingle();
   if(r.error)return json({error:r.error.message},400);
   return json({bookmarked:Boolean(r.data)});
+}
+if(path==="/federated-replies"&&method==="GET"){
+  const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
+  const target=String(params.object_uri||params.objectUri||"").trim();
+  if(!/^https:\/\//i.test(target))return json({error:"object_uri must be a remote ActivityPub object"},400);
+  const r=await admin.from("federated_replies").select("id,object_uri,parent_uri,content,activity_uri,delivery_state,created_at,updated_at").eq("user_id",u.id).eq("object_uri",target).order("created_at",{ascending:false}).limit(100);
+  if(r.error)return json({error:r.error.message},400);
+  return json({items:r.data||[]},200);
 }
 if(path==="/reply"&&method==="POST")return replyOp(body,auth);
 if(path==="/quote"&&method==="POST"){
