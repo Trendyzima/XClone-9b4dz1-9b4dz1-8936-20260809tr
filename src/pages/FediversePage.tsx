@@ -261,7 +261,7 @@ export default function FediversePage() {
     const rows = posts.filter((p: any) => p.uri ?? p.url ?? p.id).map((p: any) => ({
       uri: p.uri ?? p.url ?? p.id ?? '',
       object_type: p.object_type ?? 'Note',
-      actor_uri: p.actor_uri ?? p.actor?.id ?? p.actor?.url ?? p.account?.url ?? p.actor_url ?? '',
+      actor_uri: p.actor_uri ?? p.actor?.id ?? p.account?.uri ?? p.actor_url ?? '',
       url: p.url ?? p.uri ?? p.id ?? '',
       content: p.content ?? p.text ?? '',
       summary: p.spoiler_text ?? p.summary ?? null,
@@ -716,7 +716,7 @@ export default function FediversePage() {
     const rawActor = p.raw_object?.attributedTo;
     const rawActorUri = typeof rawActor === 'string' ? rawActor : rawActor?.id ?? '';
     const actor = p.remote_account ?? p.remote_accounts ?? p.actor ?? p.account ?? {};
-    const actorUri = actor.url ?? actor.actor_uri ?? p.actor_uri ?? p.actor_url ?? rawActorUri ?? '';
+    const actorUri = actor.actor_uri ?? actor.id ?? p.actor_uri ?? p.actor_url ?? rawActorUri ?? '';
     const identitySource = actorUri || p.uri || p.url || '';
     const fallbackIdentity = (() => {
       try {
@@ -1072,7 +1072,7 @@ export default function FediversePage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                           <button type="button" onClick={() => setActiveRemoteProfile({
-                            actor_url: `https://${mastodonInstance}/users/${(account.username ?? username).split('@')[0]}`,
+                            actor_url: account.uri ?? account.actor_uri ?? account.actor_url,
                             username: (account.username ?? username).split('@')[0],
                             domain: mastodonInstance,
                             display_name: displayName,
@@ -1416,9 +1416,9 @@ export default function FediversePage() {
                           <div className="flex gap-1">
                             <button onClick={() => handleFollow(a)}
                               className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full text-xs font-semibold hover:opacity-90">
-                              {followingActorUrls.includes(a.actor_url ?? `https://${a.domain}/users/${a.username}`) ? <CheckCircle className="w-3 h-3" /> : <UserPlus className="w-3 h-3" />}{followingActorUrls.includes(a.actor_url ?? `https://${a.domain}/users/${a.username}`) ? 'Following' : 'Follow'}
+                              {followingActorUrls.includes(a.actor_uri ?? a.actor_url ?? a.uri ?? a.acct) ? <CheckCircle className="w-3 h-3" /> : <UserPlus className="w-3 h-3" />}{followingActorUrls.includes(a.actor_url ?? `https://${a.domain}/users/${a.username}`) ? 'Following' : 'Follow'}
                             </button>
-                            <button onClick={() => setActiveRemoteProfile({ ...a, actor_url: a.actor_url ?? `https://${a.domain}/users/${a.username}` })}
+                            <button onClick={() => setActiveRemoteProfile({ ...a, actor_url: a.actor_uri ?? a.actor_url ?? a.uri ?? a.acct })}
                               className="px-2.5 py-1.5 border border-border rounded-full text-xs font-semibold hover:bg-muted transition-colors">
                               Profile
                             </button>
