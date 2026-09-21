@@ -31,19 +31,25 @@ export default async function handler(request: Request) {
     // Remote Fediverse bookmarks use ActivityPub object URIs, not local UUIDs.
     if (capability === "testagram.bookmarks.add" || capability === "testagram.bookmarks.remove" || capability === "testagram.bookmarks.list") {
       const postId = typeof (input as { post_id?: unknown }).post_id === "string" ? (input as { post_id: string }).post_id.trim() : "";
+      if (capability === "testagram.bookmarks.list") {
+        const headers = { apikey: anonKey, Authorization: authorization || `Bearer ${anonKey}`, Accept: "application/json" };
+        const [localResponse, remoteResponse] = await Promise.all([
+          fetch(`${supabaseUrl.replace(/\/$/, "")}/rest/v1/bookmarks?select=id,post_id,created_at&order=created_at.desc&limit=100`, { headers }),
+          fetch(`${supabaseUrl.replace(/\/$/, "")}/rest/v1/federated_bookmarks?select=id,object_uri,created_at&order=created_at.desc&limit=100`, { headers }),
+        ]);
+        if (!localResponse.ok || !remoteResponse.ok) return response({ ok: false, error: { code: "BOOKMARK_LIST_FAILED", message: "Bookmark list request failed" }, request_id: requestId }, 502);
+        const localItems = await localResponse.json();
+        const remoteItems = await remoteResponse.json();
+        const items = [...(Array.isArray(localItems) ? localItems : []), ...(Array.isArray(remoteItems) ? remoteItems : [])].sort((a,b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0,100);
+        return response({ ok: true, data: { items }, error: null, request_id: requestId });
+      }
       const isRemote = /^https:\/\//i.test(postId);
       const rpc = capability === "testagram.bookmarks.add"
         ? (isRemote ? "testagram_federated_bookmark_add" : "testagram_bookmark_add")
-        : capability === "testagram.bookmarks.remove"
-          ? (isRemote ? "testagram_federated_bookmark_remove" : "testagram_bookmark_remove")
-          : "testagram_federated_bookmark_list";
-      const rpcBody = capability === "testagram.bookmarks.list"
-        ? { p_limit: Number((input as { limit?: unknown }).limit ?? 100) }
-        : { [isRemote ? "p_object_uri" : "p_post_id"]: postId };
+        : (isRemote ? "testagram_federated_bookmark_remove" : "testagram_bookmark_remove");
+      const rpcBody = { [isRemote ? "p_object_uri" : "p_post_id"]: postId };
       const bookmarkResponse = await fetch(`${supabaseUrl.replace(/\/$/, "")}/rest/v1/rpc/${rpc}`, {
-        method: "POST",
-        headers: { apikey: anonKey, Authorization: authorization || `Bearer ${anonKey}`, "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify(rpcBody),
+        method: "POST", headers: { apikey: anonKey, Authorization: authorization || `Bearer ${anonKey}`, "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify(rpcBody),
       });
       const raw = await bookmarkResponse.text();
       let data: unknown = null; try { data = raw ? JSON.parse(raw) : null; } catch { data = null; }
