@@ -36,4 +36,9 @@ begin
  return jsonb_build_object('inbox_deleted',i,'outbox_deleted',o,'cache_deleted',c);
 end $$;
 
-select cron.schedule('cleanup-federation-storage','15 3 * * *','select public.cleanup_federation_storage();');
+do $
+begin
+  if not exists (select 1 from cron.job where jobname='cleanup-federation-storage') then
+    perform cron.schedule('cleanup-federation-storage','15 3 * * *','select public.cleanup_federation_storage();');
+  end if;
+end $;
