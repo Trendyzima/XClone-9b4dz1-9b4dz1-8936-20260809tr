@@ -402,6 +402,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
         }
       } else {
         await fetchInlineReplies();
+        setRepliesCount(prev => prev + 1);
       }
     } catch (error) {
       console.warn('[federation] reply unavailable', error);
@@ -633,7 +634,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       if (!isFederatedPost) {
         setLikesCount(state.likes_count);
       } else {
-        getFederatedInteractionCounts(interactionPostId).then(counts => setLikesCount(counts.likes)).catch(() => {});
+        window.setTimeout(() => getFederatedInteractionCounts(interactionPostId).then(counts => setLikesCount(counts.likes)).catch(() => {}), 4000);
       }
       if (state.is_liked) {
         updateInterestSignal(user.id, post.id, 'like').catch(() => {});
@@ -660,7 +661,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       if (!isFederatedPost) {
         setRepostsCount(state.reposts_count);
       } else {
-        getFederatedInteractionCounts(interactionPostId).then(counts => setRepostsCount(counts.reposts)).catch(() => {});
+        window.setTimeout(() => getFederatedInteractionCounts(interactionPostId).then(counts => setRepostsCount(counts.reposts)).catch(() => {}), 4000);
       }
       if (state.is_reposted) {
         if (!isFederatedPost) toast({ title: 'Reposted successfully' });
