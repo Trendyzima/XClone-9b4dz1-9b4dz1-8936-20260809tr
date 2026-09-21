@@ -82,8 +82,6 @@ Deno.serve(async (request) => {
       username = username || String(fallbackObject?.preferredUsername || fallbackObject?.username || "").trim() || "unknown";
       return { id: source, actor_uri: source, url: source, username, preferredUsername: username, display_name: String(fallbackObject?.name || username), domain, avatar_url: null, followers_count: 0, following_count: 0 };
     };
-    const hydratedActorProfiles = new Map<string, any>();
-
     const hydrateActor = async (actorUri: string) => {
       try {
         const actorUrl = new URL(actorUri);
