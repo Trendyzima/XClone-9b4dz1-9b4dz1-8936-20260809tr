@@ -141,26 +141,29 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const handleReact = async (emoji: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user) { navigate('/auth'); return; }
+    setShowReactionPicker(false);
+
+    // Federated posts have one ActivityPub-native favorite. Update the UI
+    // immediately; the transport/database reconciliation happens in parallel.
     if (isFederatedPost) {
-      // ActivityPub/Mastodon exposes a single standard favorite interaction.
-      // Keep the federated control identical to Mastodon's favorite toggle;
-      // custom local emoji reactions never leave Testagram.
-      setShowReactionPicker(false);
       if (emoji !== '❤️') return;
+      const wasLiked = isLiked;
+      setIsLiked(!wasLiked);
+      setLikesCount(prev => Math.max(0, prev + (wasLiked ? -1 : 1)));
       try {
-        const state = await togglePostLike(interactionPostId, isLiked);
-        setIsLiked(state.is_liked);
-        setLikesCount(state.likes_count);
+        await togglePostLike(interactionPostId, wasLiked);
         onUpdate?.();
+        getFederatedInteractionCounts(interactionPostId).then(counts => {
+          setLikesCount(counts.likes);
+        }).catch(() => {});
       } catch (error) {
         console.warn('[federation] favorite unavailable', error);
       }
       return;
     }
-    setShowReactionPicker(false);
-    const prevReaction = userReaction;
 
-    if (prevReaction === emoji) {
+    const previousReaction = userReaction;
+    if (previousReaction === emoji) {
       setUserReaction(null);
       setReactionEmojis(prev => {
         const idx = prev.indexOf(emoji);
@@ -172,43 +175,61 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
         setReactionNums(nextNums);
         return next;
       });
-      await supabase.from('post_reactions').delete().eq('post_id', post.id).eq('user_id', user.id);
+      const { error } = await supabase.from('post_reactions').delete().eq('post_id', post.id).eq('user_id', user.id);
+      if (error) console.warn('[reaction] remove failed', error);
       if (emoji === '❤️' && isLiked) {
-        const state = await togglePostLike(interactionPostId);
+        const state = await togglePostLike(post.id, true);
         setIsLiked(state.is_liked);
         setLikesCount(state.likes_count);
       }
+      onUpdate?.();
+      return;
+    }
+
+    // Switching away from an existing reaction removes it first.
+    if (previousReaction) {
+      await supabase.from('post_reactions').delete().eq('post_id', post.id).eq('user_id', user.id);
+      setReactionEmojis(prev => {
+        const next = [...prev];
+        const nextNums = [...reactionNums];
+        const idx = next.indexOf(previousReaction);
+        if (idx >= 0) {
+          nextNums[idx] = Math.max(0, (nextNums[idx] ?? 1) - 1);
+          if (nextNums[idx] === 0) { next.splice(idx, 1); nextNums.splice(idx, 1); }
+        }
+        setReactionNums(nextNums);
+        return next;
+      });
+    }
+
+    if (emoji === '❤️') {
+      // Let the canonical like capability own the ❤️ row. Do not upsert it
+      // first, otherwise the toggle would immediately undo the new like.
+      const state = await togglePostLike(post.id, false);
+      setIsLiked(state.is_liked);
+      setLikesCount(state.likes_count);
+      setUserReaction('❤️');
+      setReactionEmojis(prev => prev.includes('❤️') ? prev : [...prev, '❤️']);
+      setReactionNums(prev => {
+        const idx = reactionEmojis.indexOf('❤️');
+        if (idx >= 0) return prev;
+        return [...prev, 1];
+      });
     } else {
       setUserReaction(emoji);
-      setReactionEmojis(prev => {
-        const nextEmojis = [...prev];
-        const nextNums = [...reactionNums];
-        if (prevReaction) {
-          const pi = nextEmojis.indexOf(prevReaction);
-          if (pi >= 0) {
-            nextNums[pi] = Math.max(0, (nextNums[pi] ?? 1) - 1);
-            if (nextNums[pi] === 0) { nextEmojis.splice(pi, 1); nextNums.splice(pi, 1); }
-          }
-        }
-        const ei = nextEmojis.indexOf(emoji);
-        if (ei >= 0) nextNums[ei]++;
-        else { nextEmojis.push(emoji); nextNums.push(1); }
-        setReactionNums(nextNums);
-        return nextEmojis;
-      });
-      await supabase.from('post_reactions').upsert(
+      const { error } = await supabase.from('post_reactions').upsert(
         { post_id: post.id, user_id: user.id, emoji },
         { onConflict: 'post_id,user_id' }
       );
-      if (emoji === '❤️' && !isLiked) {
-        const state = await togglePostLike(interactionPostId, isLiked);
-        setIsLiked(state.is_liked);
-        setLikesCount(state.likes_count);
-        if (state.is_liked && post.user_id !== user.id) {
-
-        }
-      } else if (prevReaction === '❤️' && emoji !== '❤️' && isLiked) {
-        const state = await togglePostLike(interactionPostId, isLiked);
+      if (error) {
+        console.warn('[reaction] save failed', error);
+        toast({ title: 'Reaction failed', description: error.message, variant: 'destructive' });
+        return;
+      }
+      setReactionEmojis(prev => [...prev.filter(x => x !== emoji), emoji]);
+      setReactionNums(prev => [...prev.filter((_,i) => reactionEmojis[i] !== emoji), 1]);
+      if (previousReaction === '❤️' && isLiked) {
+        const state = await togglePostLike(post.id, true);
         setIsLiked(state.is_liked);
         setLikesCount(state.likes_count);
       }
