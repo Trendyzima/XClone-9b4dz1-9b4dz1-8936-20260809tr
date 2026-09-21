@@ -527,9 +527,29 @@ async function handle(request: Request) {
       const interactionId = await stableInteractionId(local.actor_url, statusUri, undoneType);
       activityWithId = { ...activityWithId, id: `${local.actor_url}#activities/undo-${interactionId.split("/").pop()}`, object: { id: interactionId, type: undoneType, actor: local.actor_url, object: statusUri } };
     }
+    if (activityWithId.type === "Like" || activityWithId.type === "Announce") {
+      const recipient = remote.actorUrl;
+      activityWithId = {
+        ...activityWithId,
+        to: Array.from(new Set([...(Array.isArray(activityWithId.to) ? activityWithId.to : []), recipient,
+          ...(activityWithId.type === "Announce" ? ["https://www.w3.org/ns/activitystreams#Public"] : [])]))
+      };
+    }
     if (activityWithId.type === "Create" && activityWithId.object && typeof activityWithId.object === "object") {
       const note = activityWithId.object as Record<string, unknown>;
-      activityWithId = { ...activityWithId, object: { ...note, attributedTo: note.attributedTo || local.actor_url, inReplyTo: note.inReplyTo || target } };
+      const noteId = typeof note.id === "string" ? note.id : `${local.actor_url}#activities/reply-${crypto.randomUUID()}`;
+      const recipient = remote.actorUrl;
+      activityWithId = {
+        ...activityWithId,
+        to: Array.from(new Set([...(Array.isArray(activityWithId.to) ? activityWithId.to : []), recipient, "https://www.w3.org/ns/activitystreams#Public"])),
+        object: {
+          ...note,
+          id: noteId,
+          attributedTo: note.attributedTo || local.actor_url,
+          inReplyTo: note.inReplyTo || target,
+          to: Array.from(new Set([...(Array.isArray(note.to) ? note.to : []), recipient, "https://www.w3.org/ns/activitystreams#Public"]))
+        }
+      };
     }
     const queued = await queue(local, userId, remote.inbox, activityWithId);
     return json({ ok: true, activity: activityWithId, remote: { actorUrl: remote.actorUrl, inbox: remote.inbox }, delivery: { status: "queued", queue: queued } }, 202);
