@@ -312,13 +312,30 @@ export default function FediversePage() {
 
   const fetchFederationStats = async () => {
     if (!user) return;
-    const [fwingRes, fwersRes] = await Promise.all([
-      supabase.from('federated_relationships').select('*').eq('local_user_id', user.id).eq('relationship','following'),
+    const [followingRes, followerRes] = await Promise.all([
+      supabase.from('federated_follow_relationships').select('*').eq('local_user_id', user.id),
       supabase.from('federated_relationships').select('*').eq('local_user_id', user.id).eq('relationship','follower'),
     ]);
-    setFederatedFollowing(fwingRes.data ?? []);
-    setFollowingActorUrls((fwingRes.data ?? []).map((r: any) => r.remote_actor_url).filter(Boolean));
-    setFederatedFollowers(fwersRes.data ?? []);
+    // federation-transport writes follows to federated_follow_relationships.
+    // Normalize it to the UI shape used by this page and keep a legacy fallback
+    // for older relationships created before the canonical table was introduced.
+    let followingRows: any[] = [];
+    if (!followingRes.error) {
+      followingRows = (followingRes.data ?? [])
+        .filter((r: any) => ['pending', 'accepted', 'active'].includes(r.state))
+        .map((r: any) => ({
+          ...r,
+          relationship: 'following',
+          remote_actor_url: r.remote_actor_uri,
+          remote_actor_uri: r.remote_actor_uri,
+        }));
+    } else {
+      const legacy = await supabase.from('federated_relationships').select('*').eq('local_user_id', user.id).eq('relationship','following');
+      followingRows = legacy.data ?? [];
+    }
+    setFederatedFollowing(followingRows);
+    setFollowingActorUrls(followingRows.map((r: any) => r.remote_actor_url ?? r.remote_actor_uri).filter(Boolean));
+    setFederatedFollowers(followerRes.data ?? []);
   };
 
   // ── Inbox ────────────────────────────────────────────────────────────────
