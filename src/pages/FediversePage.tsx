@@ -322,7 +322,7 @@ export default function FediversePage() {
     let followingRows: any[] = [];
     if (!followingRes.error) {
       followingRows = (followingRes.data ?? [])
-        .filter((r: any) => ['pending', 'accepted', 'active'].includes(r.state))
+        .filter((r: any) => r.state === 'active' || (r.state === 'accepted' && r.delivery_state === 'delivered'))
         .map((r: any) => ({
           ...r,
           relationship: 'following',
