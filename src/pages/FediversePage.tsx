@@ -488,7 +488,7 @@ export default function FediversePage() {
       const actor = accounts?.[0];
       if (!actor) throw new Error('Actor not found');
       setSearchResult({
-        actor_url: actor.url ?? actor.actor_uri, username: actor.username ?? handle.split('@')[0],
+        actor_url: actor.actor_uri ?? actor.url, username: actor.username ?? handle.split('@')[0],
         domain: actor.domain ?? handle.split('@')[1] ?? '', display_name: actor.display_name ?? actor.username,
         bio: actor.bio ?? actor.note, avatar_url: actor.avatar_url ?? actor.avatar, followers_url: actor.followers_url,
         inbox_url: actor.inbox_url,
@@ -1061,7 +1061,7 @@ export default function FediversePage() {
                   <div key={toot.id ?? i} className="p-4 hover:bg-muted/5 transition-colors">
                     <div className="flex gap-3">
                       <button type="button" onClick={() => setActiveRemoteProfile({
-                          actor_url: `https://${mastodonInstance}/users/${(account.username ?? username).split('@')[0]}`,
+                          actor_url: account.uri ?? account.actor_url ?? account.actor_uri ?? account.url,
                           username: (account.username ?? username).split('@')[0],
                           domain: mastodonInstance,
                           display_name: displayName,
