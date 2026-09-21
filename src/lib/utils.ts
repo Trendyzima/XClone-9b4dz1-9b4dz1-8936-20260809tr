@@ -115,7 +115,7 @@ export function parseContent(content: string): string {
 
   // Linkify remote @user@instance mentions before local @user mentions.
   // Remote mentions must remain inside Testagram while preserving their actor identity.
-  parsed = parsed.replace(/(<[^>]+>)|@(\\w+)@([A-Za-z0-9.-]+)(?=\\s|$|[.,!?;:])/g, (m, tag, username, domain) => {
+  parsed = parsed.replace(/(<[^>]+>)|@(\w+)@([A-Za-z0-9.-]+)(?=\s|$|[.,!?;:])/g, (m, tag, username, domain) => {
     if (tag) return tag;
     const actor = 'https://' + domain + '/@' + username;
     const handle = username + '@' + domain;
@@ -124,7 +124,7 @@ export function parseContent(content: string): string {
   });
 
   // Linkify local @mentions — same protection pattern.
-  parsed = parsed.replace(/(<[^>]+>)|@(\\w+)/g, (m, tag, mention) => {
+  parsed = parsed.replace(/(<[^>]+>)|@(\w+)/g, (m, tag, mention) => {
     if (tag) return tag;
     return `<a href="/profile/${mention}" class="text-primary hover:underline">@${mention}</a>`;
   });
