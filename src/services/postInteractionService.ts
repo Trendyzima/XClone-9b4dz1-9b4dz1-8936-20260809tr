@@ -94,3 +94,5 @@ export async function getFederatedInteractionState(postId: string): Promise<{ is
   }
   return { is_liked: Boolean(data?.like), is_reposted: Boolean(data?.repost) };
 }
+
+// Persistence reconciliation: remote reaction writes are keyed by the canonical ActivityPub object URI.
