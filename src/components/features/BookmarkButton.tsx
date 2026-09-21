@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { updateInterestSignal } from '@/services/recommendations';
 import { backendCapabilities } from '@/services/backendClient';
+import { bookmarkRemote, unbookmarkRemote, remoteBookmarkState } from '@/api/federation';
 
 interface BookmarkButtonProps {
   postId: string;
@@ -20,6 +21,10 @@ export function BookmarkButton({ postId }: BookmarkButtonProps) {
       return;
     }
     let cancelled = false;
+    if (/^https:\/\//i.test(postId)) {
+      remoteBookmarkState(postId).then(state => { if (!cancelled) setIsBookmarked(state); }).catch(() => { if (!cancelled) setIsBookmarked(false); });
+      return () => { cancelled = true; };
+    }
     backendCapabilities.listBookmarks(100).then(({ items }) => {
       if (!cancelled) setIsBookmarked(items.some((item: any) => String(item.post_id ?? item.object_uri ?? item.id) === postId));
     }).catch(() => {
@@ -40,10 +45,12 @@ export function BookmarkButton({ postId }: BookmarkButtonProps) {
 
     try {
       if (previous) {
-        await backendCapabilities.removeBookmark(postId);
+        if (/^https:\/\//i.test(postId)) await unbookmarkRemote(postId);
+        else await backendCapabilities.removeBookmark(postId);
         toast.success('Removed from bookmarks');
       } else {
-        await backendCapabilities.bookmarkPost(postId);
+        if (/^https:\/\//i.test(postId)) await bookmarkRemote(postId);
+        else await backendCapabilities.bookmarkPost(postId);
         toast.success('Added to bookmarks');
         updateInterestSignal(user.id, postId, 'bookmark').catch(() => {});
       }
