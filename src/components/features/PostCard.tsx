@@ -25,7 +25,7 @@ import {
 import { VideoMonetizationAd } from './VideoMonetizationAd';
 import { EmbedRenderer, PostContentEmbeds } from './EmbedRenderer';
 import { updateInterestSignal } from '@/services/recommendations';
-import { togglePostLike, togglePostRepost, createFederatedReply } from '@/services/postInteractionService';
+import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState } from '@/services/postInteractionService';
 import { backendCapabilities } from '@/services/backendClient';
 import * as federation from '@/api/federation';
 // Canonical social interaction reads/writes stay behind backend capabilities.
@@ -537,22 +537,28 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     if (!user || isFederatedPost) return;
     const checkUserInteractions = async () => {
       try {
-        const [likeResult, repostResult] = isFederatedPost
-          ? [{ state: { is_liked: false, likes_count: post.likes_count ?? 0 } }, { state: { is_reposted: false, reposts_count: post.reposts_count ?? 0 } }]
-          : await Promise.all([
-              backendCapabilities.getLikeState(post.id),
-              backendCapabilities.getRepostState(post.id),
-            ]);
-        setIsLiked(likeResult.state.is_liked);
-        setIsReposted(repostResult.state.is_reposted);
-        setLikesCount(likeResult.state.likes_count);
-        setRepostsCount(repostResult.state.reposts_count);
+        if (isFederatedPost) {
+          const state = await getFederatedInteractionState(interactionPostId);
+          setIsLiked(state.is_liked);
+          setIsReposted(state.is_reposted);
+          setLikesCount(post.likes_count ?? 0);
+          setRepostsCount(post.reposts_count ?? 0);
+        } else {
+          const [likeResult, repostResult] = await Promise.all([
+            backendCapabilities.getLikeState(post.id),
+            backendCapabilities.getRepostState(post.id),
+          ]);
+          setIsLiked(likeResult.state.is_liked);
+          setIsReposted(repostResult.state.is_reposted);
+          setLikesCount(likeResult.state.likes_count);
+          setRepostsCount(repostResult.state.reposts_count);
+        }
       } catch (error) {
         console.error('Error checking user interactions:', error);
       }
     };
     checkUserInteractions();
-  }, [user, post.id, isFederatedPost]);
+  }, [user, post.id, interactionPostId, isFederatedPost]);
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
