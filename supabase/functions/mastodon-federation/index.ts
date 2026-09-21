@@ -22,6 +22,19 @@ async function actor(username:string){
   return up.data;
 }
 function actorJson(a:any){const id=str(a?.actor_url||a?.uri)||`${ROOT}/users/${encodeURIComponent(a.username||a.preferred_username)}`,u=str(a?.username||a?.preferred_username),inbox=str(a?.inbox_url)||`${id}/inbox`;return {'@context':context,id,type:str(a?.actor_type)||'Person',preferredUsername:u,name:str(a?.display_name)||u,summary:str(a?.summary),url:id,inbox,outbox:str(a?.outbox_url)||`${id}/outbox`,followers:str(a?.followers_url)||`${id}/followers`,following:str(a?.following_url)||`${id}/following`,endpoints:{sharedInbox:`${ROOT}/inbox`},discoverable:a?.discoverable!==false,indexable:true,manuallyApprovesFollowers:a?.locked===true,publicKey:{id:str(a?.public_key_id)||`${id}#main-key`,owner:id,publicKeyPem:str(a?.public_key_pem)},...(a?.avatar_url?{icon:{type:'Image',mediaType:'image/*',url:a.avatar_url}}:{}),...(a?.header_url?{image:{type:'Image',mediaType:'image/*',url:a.header_url}}:{})};}
+function hashtagTags(row:any){
+  const existing=Array.isArray(row.tags)?row.tags.filter((x:any)=>x&&typeof x==='object'):[];
+  const seen=new Set(existing.map((x:any)=>String(x.name??'').toLowerCase()));
+  const text=str(row.content);
+  const matches=[...text.matchAll(/(^|[^\\w])#([A-Za-z0-9_]{1,64})/g)];
+  for(const match of matches){
+    const tag=String(match[2]||'').toLowerCase();
+    if(!tag||seen.has('#'+tag)) continue;
+    seen.add('#'+tag);
+    existing.push({type:'Hashtag',name:'#'+tag,href:ROOT+'/hashtag/'+encodeURIComponent(tag)});
+  }
+  return existing;
+}
 function noteActivity(row:any){const id=str(row.uri),published=str(row.published_at)||new Date().toISOString(),actor=str(row.actor_uri);const object={'@context':AP,id,type:str(row.object_type)||'Note',attributedTo:actor,content:str(row.content),summary:str(row.summary)||undefined,published,updated:str(row.updated_at)||published,url:str(row.url)||id,to:[`${AP}#Public`],cc:actor?[`${actor}/followers`]:[],sensitive:!!row.sensitive,...(row.in_reply_to_uri?{inReplyTo:row.in_reply_to_uri}:{}),...(Array.isArray(row.attachments)&&row.attachments.length?{attachment:row.attachments}:{}),...(Array.isArray(row.tags)&&row.tags.length?{tag:row.tags}:{})};return {'@context':AP,id:`${id}/activity`,type:'Create',actor,published,to:object.to,cc:object.cc,object};}
 function decodeCursor(v:string|null){if(!v)return null;try{return JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(v),c=>c.charCodeAt(0))))}catch{return null}}
 function encodeCursor(v:any){return btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(v))));}
