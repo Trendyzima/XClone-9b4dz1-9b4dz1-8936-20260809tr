@@ -209,3 +209,4 @@ jobs:
 # Exact-SHA deployment proof trigger.
 
 # Count synchronization trigger: deploy the current federation count implementation.
+# Interaction durability trigger: validate like, repost, reply persistence and instant UI counts.
