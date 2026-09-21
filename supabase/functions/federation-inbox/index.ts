@@ -155,9 +155,11 @@ Deno.serve(async req=>{
     const target=uri(activity.object)||uri(activity.target)||actor;
     const local=await localActorForTarget(target);
     if(!local.data?.user_id&&activity.type!=="Create"&&activity.type!=="Update"&&activity.type!=="Delete")return json({error:"Activity target is not a local Testagram actor"},404);
-    await db.from("activitypub_inbox").insert({local_user_id:local.data?.user_id,activity_type:str(activity.type),actor_url:actor,object_url:uri(activity.object)||null,payload:activity,processed:false});
+    if(local.data?.user_id){
+      await db.from("activitypub_inbox").insert({local_user_id:local.data.user_id,activity_type:str(activity.type),actor_url:actor,object_url:uri(activity.object)||null,payload:activity,processed:false});
+    }
     await processActivity(activity,actor);
-    await db.from("activitypub_inbox").update({processed:true}).eq("payload->>id",id);
+    if(local.data?.user_id) await db.from("activitypub_inbox").update({processed:true}).eq("payload->>id",id);
     return new Response(null,{status:202,headers:CORS});
   }catch(e){console.error("[federation-inbox]",e);return json({error:e instanceof Error?e.message:"Malformed ActivityPub request"},401);}
 });
