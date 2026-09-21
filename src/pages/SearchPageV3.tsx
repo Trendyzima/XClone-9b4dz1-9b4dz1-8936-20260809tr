@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-   const { data: remoteRows } = await supabase.from('federated_objects').select('id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,remote_account,object_type,url').is('deleted_at', null).or(`content.ilike.%${clean.replace(/[%_]/g,' ')}%,summary.ilike.%${clean.replace(/[%_]/g,' ')}%`).order('published_at', { ascending: false }).limit(40);
-   const cachedFedPosts=(remoteRows??[]).map((p:any)=>({...p,id:p.id??p.uri,uri:p.uri,user_id:p.actor_uri,author_id:p.actor_uri,created_at:p.published_at??p.updated_at,content:p.content??p.summary??'',remote_status_uri:p.uri,user_profiles:p.remote_account??{actor_uri:p.actor_uri,username:'unknown',display_name:'Fediverse account',avatar_url:null},is_federated:true}));import { VerifiedTick } from '@/components/ui/VerifiedTick';
+import { VerifiedTick } from '@/components/ui/VerifiedTick';
 import { Search, X, Clock3, Hash, AtSign, Sparkles, Users, Image as ImageIcon, ListFilter, Loader2, TrendingUp, Globe2, ChevronDown, Lock } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
@@ -37,6 +36,8 @@ export default function SearchPageV3(){
   try{const r=await api.searchDiscovery(endpoint('search-discovery'),clean,'search',50,append?data.next_cursor??undefined:undefined);
    // Search the complete Testagram graph as well: people, hashtags, communities, live Spaces and trends.
    const { data: global } = await supabase.rpc('search_everything',{p_query:clean,p_limit:50,p_cursor:append?data.next_cursor??null:null});
+   const { data: remoteRows } = await supabase.from('federated_objects').select('id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,remote_account,object_type,url').is('deleted_at', null).or(`content.ilike.%${clean.replace(/[%_]/g,' ')}%,summary.ilike.%${clean.replace(/[%_]/g,' ')}%`).order('published_at', { ascending: false }).limit(40);
+   const cachedFedPosts=(remoteRows??[]).map((p:any)=>({...p,id:p.id??p.uri,uri:p.uri,user_id:p.actor_uri,author_id:p.actor_uri,created_at:p.published_at??p.updated_at,content:p.content??p.summary??'',remote_status_uri:p.uri,user_profiles:p.remote_account??{actor_uri:p.actor_uri,username:'unknown',display_name:'Fediverse account',avatar_url:null},is_federated:true}));
    if(global) setData(prev=>({
      users: global.users ?? prev.users, hashtags: global.hashtags ?? prev.hashtags,
      posts: append ? [...prev.posts,...(global.posts??[])] : (global.posts??prev.posts),
