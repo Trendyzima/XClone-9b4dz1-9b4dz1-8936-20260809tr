@@ -16,7 +16,7 @@ function remoteInstanceFromHandle(acct: string): string | null {
 async function api<T = any>(path: string, method = 'GET', body?: unknown, params?: Record<string, string | number | boolean | undefined>): Promise<T> {
   const token = await getToken();
   const cleanParams = params ? Object.fromEntries(Object.entries(params).filter(([, v]) => v !== undefined && v !== null).map(([k, v]) => [k, String(v)])) : undefined;
-  const { data, error } = await supabase.functions.invoke('testagram-api', { body: { path, method, body, params: cleanParams }, headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  const { data, error } = await supabase.functions.invoke('testagram-api', { body: { path, method, body, params: cleanParams }, headers: { apikey: supabasePublishableKey, ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
   if (error) {
     let msg = error.message;
     if (error instanceof FunctionsHttpError) { try { const status = error.context?.status ?? 500; const text = await error.context?.text(); msg = `[${status}] ${text || error.message || 'Testagram API error'}`; } catch { msg = error.message ?? 'Testagram API error'; } }
