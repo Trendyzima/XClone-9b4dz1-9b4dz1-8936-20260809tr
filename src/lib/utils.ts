@@ -18,9 +18,9 @@ export function formatNumber(num: number): string {
 export function localizeSocialLinks(content: string): string {
   // Remote ActivityPub HTML commonly points hashtags/mentions at the source instance.
   // Testagram UI must keep these social primitives on local routes.
-  return content.replace(/<a\\b([^>]*?)href=(['\"])https?:\\/\\/[^'\"]+\\2([^>]*)>(\\s*[@#][^<]*?)<\\/a>/gi, (_m, _before, _q, _after, label) => {
+  return content.replace(/<a\b([^>]*?)href=(['"])https?:\/\/[^'"]+\2([^>]*)>(\s*[@#][^<]*?)<\/a>/gi, (_m, _before, _q, _after, label) => {
     const text = String(label).trim();
-    const token = text.match(/^([@#])([^\\s<]+)/);
+    const token = text.match(/^([@#])([^\s<]+)/);
     if (!token) return _m;
     const kind = token[1];
     const value = token[2].replace(/^@/, '').split('@')[0].replace(/^#/, '').toLowerCase();
