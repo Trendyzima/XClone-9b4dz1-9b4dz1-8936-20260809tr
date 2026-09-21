@@ -25,7 +25,7 @@ import {
 import { VideoMonetizationAd } from './VideoMonetizationAd';
 import { EmbedRenderer, PostContentEmbeds } from './EmbedRenderer';
 import { updateInterestSignal } from '@/services/recommendations';
-import { togglePostLike, togglePostRepost } from '@/services/postInteractionService';
+import { togglePostLike, togglePostRepost, createFederatedReply } from '@/services/postInteractionService';
 import { backendCapabilities } from '@/services/backendClient';
 // Canonical social interaction reads/writes stay behind backend capabilities.
 
@@ -51,6 +51,9 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const remoteStatusUri = (post as any).remote_status_uri || ((post as any).uri?.startsWith?.('https://') ? (post as any).uri : '');
+  const interactionPostId = remoteStatusUri || post.id;
+  const isFederatedPost = Boolean(remoteStatusUri);
   const [isAuthorPremium, setIsAuthorPremium] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [isReposted, setIsReposted] = useState(false);
@@ -153,7 +156,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       });
       await supabase.from('post_reactions').delete().eq('post_id', post.id).eq('user_id', user.id);
       if (emoji === '❤️' && isLiked) {
-        const state = await togglePostLike(post.id);
+        const state = await togglePostLike(interactionPostId);
         setIsLiked(state.is_liked);
         setLikesCount(state.likes_count);
       }
@@ -317,7 +320,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
 
   const toggleComments = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!showComments) fetchInlineReplies();
+    if (!showComments && !isFederatedPost) fetchInlineReplies();
     setShowComments(v => !v);
   };
 
@@ -328,8 +331,8 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     else setInlineReplyText('');
     setInlinePosting(true);
     try {
-      await backendCapabilities.createReply(post.id, text);
-      await fetchInlineReplies();
+      await createFederatedReply(interactionPostId, text);
+      if (!isFederatedPost) await fetchInlineReplies();
     } catch (error) {
       toast({ title: 'Reply failed', description: error instanceof Error ? error.message : 'Failed to reply', variant: 'destructive' });
     }
@@ -504,7 +507,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   }, [post.id]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || isFederatedPost) return;
     const checkUserInteractions = async () => {
       try {
         const [likeResult, repostResult] = await Promise.all([
@@ -520,7 +523,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       }
     };
     checkUserInteractions();
-  }, [user, post.id]);
+  }, [user, post.id, isFederatedPost]);
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -553,7 +556,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     const optimisticIsReposted = !previousIsReposted;
     setIsReposted(optimisticIsReposted);
     try {
-      const state = await togglePostRepost(post.id);
+      const state = await togglePostRepost(interactionPostId);
       setIsReposted(state.is_reposted);
       setRepostsCount(state.reposts_count);
       if (state.is_reposted) {
@@ -600,7 +603,15 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     }
   };
 
-  const handlePostClick = () => { navigate(`/post/${post.id}`); };
+  const handlePostClick = () => {
+    if (isFederatedPost) {
+      const actor = (post as any).actor_uri || (post as any).remote_account?.actor_uri || (post as any).user_profiles?.actor_uri;
+      if (actor) navigate(`/fediverse/profile?actor=${encodeURIComponent(actor)}&handle=${encodeURIComponent(((post as any).remote_account?.username || post.user_profiles?.username || '').replace(/^@/, ''))}`);
+      else window.open(remoteStatusUri, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    navigate(`/post/${post.id}`);
+  };
 
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to delete this post? This action cannot be undone.')) return;
@@ -630,7 +641,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       <div className="flex space-x-3">
         <div
           className="w-10 h-10 rounded-full bg-muted flex-shrink-0 overflow-hidden cursor-pointer"
-          onClick={(e) => { e.stopPropagation(); navigate(`/profile/${post.user_profiles?.username}`); }}
+          onClick={(e) => { e.stopPropagation(); navigate(isFederatedPost ? `/fediverse/profile?actor=${encodeURIComponent(remoteStatusUri ? ((post as any).actor_uri || (post as any).remote_account?.actor_uri || post.user_profiles?.actor_uri || '') : '')}&handle=${encodeURIComponent((post.user_profiles?.username || '').replace(/^@/, ''))}` : `/profile/${post.user_profiles?.username}`); }}
         >
           {post.user_profiles?.avatar_url ? (
             <img src={post.user_profiles.avatar_url} alt={post.user_profiles.username} className="w-full h-full object-cover" />
