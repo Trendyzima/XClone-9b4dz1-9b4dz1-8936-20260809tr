@@ -368,9 +368,14 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
             federated_pending: false,
           }, ...prev]);
           setShowComments(true);
-          toast({ title: 'Reply sent', description: 'Your reply was delivered to the remote server.' });
+          toast({
+            title: result?.accepted === false ? 'Reply pending' : 'Reply sent',
+            description: result?.accepted === false
+              ? 'Your reply is saved and will be delivered to the remote server.'
+              : 'Your reply was delivered to the remote server.'
+          });
         } else {
-          toast({ title: 'Reply not delivered', description: 'The remote server did not accept the reply.', variant: 'destructive' });
+          toast({ title: 'Reply pending', description: 'Your reply is saved locally and federation delivery is pending.' });
         }
       } else {
         await fetchInlineReplies();
