@@ -504,8 +504,23 @@ async function handle(request: Request) {
       const objectResponse = await signedFetch(local, target, "GET");
       const objectText = await objectResponse.text();
       if (!objectResponse.ok) throw Error("Remote object " + objectResponse.status + ": " + objectText.slice(0, 1200));
-      let remoteObject:any;
-      try { remoteObject = JSON.parse(objectText); } catch { throw Error("Remote ActivityPub object is not valid JSON"); }
+      const contentType = objectResponse.headers.get("content-type") || "";
+      if (!contentType.includes("json")) {
+        const link = objectResponse.headers.get("link") || "";
+        const match = link.match(/<([^>]+)>;[^,]*rel="?alternate"?[^,]*type="?application\/activity\+json"?/i)
+          || link.match(/<([^>]+)>;[^,]*type="?application\/activity\+json"?[^,]*rel="?alternate"?/i);
+        if (match?.[1]) {
+          const alt = await signedFetch(local, new URL(match[1], target).toString(), "GET");
+          const altText = await alt.text();
+          if (alt.ok) {
+            try { remoteObject = JSON.parse(altText); } catch { throw Error("Remote ActivityPub alternate is not valid JSON"); }
+          } else throw Error("Remote ActivityPub alternate " + alt.status + ": " + altText.slice(0, 1200));
+        } else {
+          throw Error("Remote status URL did not return ActivityPub JSON");
+        }
+      } else {
+        try { remoteObject = JSON.parse(objectText); } catch { throw Error("Remote ActivityPub object is not valid JSON"); }
+      }
       const attributedTo = typeof remoteObject?.attributedTo === "string"
         ? remoteObject.attributedTo
         : idOf(remoteObject?.attributedTo);
