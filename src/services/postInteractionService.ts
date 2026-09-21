@@ -9,8 +9,16 @@ async function remoteAction(path: string, body: Record<string, unknown>) {
   const { data, error } = await supabase.functions.invoke('testagram-api', {
     body: { path, method: 'POST', body },
   });
-  if (error) throw error;
-  if (data?.error) throw new Error(String(data.error));
+  // Federated interactions are best-effort: a remote server can reject an
+  // otherwise valid ActivityPub interaction without making the local UI fail.
+  if (error) {
+    console.warn('[federation] interaction unavailable', path, error);
+    return { ok: false, supported: false, status: 'unavailable', queued: false };
+  }
+  if (data?.error) {
+    console.warn('[federation] interaction rejected', path, data.error);
+    return { ok: false, supported: false, status: 'unavailable', queued: false, error: data.error };
+  }
   return data;
 }
 
