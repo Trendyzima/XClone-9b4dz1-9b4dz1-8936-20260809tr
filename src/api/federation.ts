@@ -102,3 +102,12 @@ export async function getHealth(): Promise<any> { return megalodonGatewayService
 export async function pollFediverseInbox(userId: string): Promise<any[]> { try { const res = await getNotifications({ limit: 50 }); return Array.isArray(res) ? res : []; } catch { try { const { data } = await supabase.from('activitypub_inbox').select('*').eq('local_user_id', userId).order('created_at', { ascending: false }).limit(50); return data ?? []; } catch { return []; } } }
 /** @deprecated Use the named exports above. */
 export async function gwRelay<T = any>(path: string, method = 'GET', body?: any, params?: Record<string, any>): Promise<T> { return api<T>(path, method, body, params); }
+
+export async function quoteStatus(postId: string, content: string): Promise<any> {
+  if (!/^https:\/\//i.test(postId)) throw new Error('Quote target is not a remote ActivityPub object');
+  return api('/quote', 'POST', { post_id: postId, content });
+}
+export async function flagStatus(postId: string, category: string): Promise<any> {
+  if (!/^https:\/\//i.test(postId)) throw new Error('Flag target is not a remote ActivityPub object');
+  return api('/flag', 'POST', { post_id: postId, category });
+}
