@@ -141,18 +141,18 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     e.stopPropagation();
     if (!user) { navigate('/auth'); return; }
     if (isFederatedPost) {
+      // ActivityPub/Mastodon exposes a single standard favorite interaction.
+      // Keep the federated control identical to Mastodon's favorite toggle;
+      // custom local emoji reactions never leave Testagram.
       setShowReactionPicker(false);
-      if (emoji !== '❤️') {
-        toast({ title: 'Federated reaction unavailable', description: 'Only Like is supported across ActivityPub instances.' });
-        return;
-      }
+      if (emoji !== '❤️') return;
       try {
         const state = await togglePostLike(interactionPostId, isLiked);
         setIsLiked(state.is_liked);
         setLikesCount(state.likes_count);
         onUpdate?.();
       } catch (error) {
-        toast({ title: 'Like failed', description: error instanceof Error ? error.message : 'Failed to like remote post', variant: 'destructive' });
+        console.warn('[federation] favorite unavailable', error);
       }
       return;
     }
@@ -585,13 +585,13 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     const optimisticIsReposted = !previousIsReposted;
     setIsReposted(optimisticIsReposted);
     try {
-      const state = await togglePostRepost(interactionPostId);
+      const state = await togglePostRepost(interactionPostId, previousIsReposted);
       setIsReposted(state.is_reposted);
       setRepostsCount(state.reposts_count);
       if (state.is_reposted) {
-        toast({ title: 'Reposted successfully' });
+        if (!isFederatedPost) toast({ title: 'Reposted successfully' });
         updateInterestSignal(user.id, post.id, 'repost').catch(() => {});
-      } else {
+      } else if (!isFederatedPost) {
         toast({ title: 'Repost removed' });
       }
       onUpdate?.();
@@ -974,9 +974,9 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
             {/* Reaction button + picker */}
             <div className="relative">
               <button
-                onClick={(e) => { e.stopPropagation(); setShowReactionPicker(p => !p); }}
-                onMouseEnter={() => setShowReactionPicker(true)}
-                onMouseLeave={() => setShowReactionPicker(false)}
+                onClick={(e) => { e.stopPropagation(); isFederatedPost ? handleReact('❤️', e) : setShowReactionPicker(p => !p); }}
+                onMouseEnter={() => { if (!isFederatedPost) setShowReactionPicker(true); }}
+                onMouseLeave={() => { if (!isFederatedPost) setShowReactionPicker(false); }}
                 className={cn('flex items-center space-x-1.5 transition-colors group', userReaction ? 'text-pink-600' : 'text-muted-foreground hover:text-pink-600')}
               >
                 <div className="p-2 rounded-full group-hover:bg-pink-600/10 transition-colors">
@@ -984,7 +984,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
                 </div>
                 <span className="text-sm">{formatNumber(likesCount)}</span>
               </button>
-              {showReactionPicker && (
+              {showReactionPicker && !isFederatedPost && (
                 <div
                   className="absolute bottom-full mb-1 left-0 flex gap-0.5 bg-background border border-border rounded-full px-2 py-1.5 shadow-xl z-50"
                   onMouseEnter={() => setShowReactionPicker(true)}
