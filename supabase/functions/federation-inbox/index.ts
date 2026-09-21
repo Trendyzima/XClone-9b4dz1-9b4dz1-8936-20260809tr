@@ -1,6 +1,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 const MAX_RESPONSE_BYTES=1500000,TIMEOUT_MS=12000;
+const INBOX_RETENTION_DAYS=7;
+
 function private4(ip:string){const p=ip.split(".").map(Number);if(p.length!==4||p.some(n=>!Number.isInteger(n)||n<0||n>255))return true;const[a,b]=p;return a===0||a===10||a===127||(a===100&&b>=64&&b<=127)||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&(b===0||b===168))||(a===198&&(b===18||b===19))||a>=224;}
 function private6(ip:string){const x=ip.toLowerCase().split("%")[0];if(x==="::"||x==="::1"||x.startsWith("fc")||x.startsWith("fd")||x.startsWith("fe8")||x.startsWith("fe9")||x.startsWith("fea")||x.startsWith("feb")||x.startsWith("ff"))return true;const m=x.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);return !!m&&private4(m[1]);}
 async function publicDns(host:string){if(host==="localhost"||host.endsWith(".localhost")||host.endsWith(".local")||host.endsWith(".internal"))throw Error("private federation hostname");if(/^\d+\.\d+\.\d+\.\d+$/.test(host)&&private4(host))throw Error("private federation address");const ips=[...(await Deno.resolveDns(host,"A").catch(()=>[] as string[])),...(await Deno.resolveDns(host,"AAAA").catch(()=>[] as string[]))];if(!ips.length)throw Error("federation DNS did not resolve");for(const ip of ips)if(ip.includes(":")?private6(ip):private4(ip))throw Error("federation DNS resolves to private address");}
@@ -156,7 +158,7 @@ Deno.serve(async req=>{
     const local=await localActorForTarget(target);
     if(!local.data?.user_id&&activity.type!=="Create"&&activity.type!=="Update"&&activity.type!=="Delete")return json({error:"Activity target is not a local Testagram actor"},404);
     if(local.data?.user_id){
-      await db.from("activitypub_inbox").insert({local_user_id:local.data.user_id,activity_type:str(activity.type),actor_url:actor,object_url:uri(activity.object)||null,payload:activity,processed:false});
+      await db.from("activitypub_inbox").upsert({local_user_id:local.data.user_id,activity_type:str(activity.type),activity_key:id,actor_url:actor,object_url:uri(activity.object)||null,payload:activity,processed:false,payload_bytes:raw.length,expires_at:new Date(Date.now()+INBOX_RETENTION_DAYS*86400000).toISOString()},{onConflict:"activity_key",ignoreDuplicates:true});
     }
     await processActivity(activity,actor);
     if(local.data?.user_id) await db.from("activitypub_inbox").update({processed:true}).eq("payload->>id",id);
