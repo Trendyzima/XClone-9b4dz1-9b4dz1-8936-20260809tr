@@ -25,7 +25,7 @@ import {
 import { VideoMonetizationAd } from './VideoMonetizationAd';
 import { EmbedRenderer, PostContentEmbeds } from './EmbedRenderer';
 import { updateInterestSignal } from '@/services/recommendations';
-import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts } from '@/services/postInteractionService';
+import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts, getFederatedReplies } from '@/services/postInteractionService';
 import { backendCapabilities } from '@/services/backendClient';
 import * as federation from '@/api/federation';
 // Canonical social interaction reads/writes stay behind backend capabilities.
