@@ -12,6 +12,7 @@ export default function FediverseProfilePage() {
   const { user } = useAuth();
   const actorUrl = params.get('actor') ?? '';
   const suppliedHandle = params.get('handle') ?? '';
+  const suppliedUsername = params.get('username') ?? '';
   const [profile, setProfile] = useState<any>(null);
   const [posts, setPosts] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,6 +22,10 @@ export default function FediverseProfilePage() {
 
   const handle = useMemo(() => {
     if (suppliedHandle) return suppliedHandle.replace(/^@/, '');
+    if (suppliedUsername) {
+      const domain = (() => { try { return new URL(actorUrl).hostname; } catch { return ''; } })();
+      return domain ? suppliedUsername.replace(/^@/, '') + '@' + domain : suppliedUsername.replace(/^@/, '');
+    }
     try {
       const u = new URL(actorUrl);
       const name = u.pathname.split('/').filter(Boolean).pop() ?? '';
@@ -31,10 +36,10 @@ export default function FediverseProfilePage() {
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
-      if (!actorUrl && !handle) { setLoading(false); return; }
+      if (!actorUrl && !handle && !suppliedUsername) { setLoading(false); return; }
       setLoading(true);
       try {
-        const result = handle ? await federation.getUser(handle) : null;
+        const result = handle ? await federation.getUser(handle) : (actorUrl ? await federation.getActor(actorUrl) : null);
         if (cancelled) return;
         setProfile(result);
 
