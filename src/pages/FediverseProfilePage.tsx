@@ -40,17 +40,33 @@ export default function FediverseProfilePage() {
 
         const resolvedActorUri = actorUrl || result?.url || '';
         if (user && resolvedActorUri) {
-          const { data: relationship } = await supabase
-            .from('federated_relationships')
-            .select('state')
+          // federation-transport persists remote follows in the canonical
+          // federated_follow_relationships table. Read that same source on every
+          // profile visit so Following survives navigation/reload.
+          const { data: relationship, error: relationshipError } = await supabase
+            .from('federated_follow_relationships')
+            .select('state, remote_actor_uri')
             .eq('local_user_id', user.id)
             .eq('remote_actor_uri', resolvedActorUri)
-            .eq('relationship', 'following')
             .maybeSingle();
           if (!cancelled) {
-            const state = relationship?.state ?? null;
-            setFollowState(state);
-            setFollowing(state === 'pending' || state === 'accepted' || state === 'active');
+            if (!relationshipError && relationship) {
+              const state = relationship.state ?? null;
+              setFollowState(state);
+              setFollowing(state === 'pending' || state === 'accepted' || state === 'active');
+            } else {
+              // Backward compatibility for relationships created by older builds.
+              const { data: legacy } = await supabase
+                .from('federated_relationships')
+                .select('state')
+                .eq('local_user_id', user.id)
+                .eq('remote_actor_uri', resolvedActorUri)
+                .eq('relationship', 'following')
+                .maybeSingle();
+              const state = legacy?.state ?? null;
+              setFollowState(state);
+              setFollowing(state === 'pending' || state === 'accepted' || state === 'active');
+            }
           }
         }
 
