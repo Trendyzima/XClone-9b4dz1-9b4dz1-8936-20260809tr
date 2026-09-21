@@ -21,7 +21,7 @@
     },
     {
       "source": "/.well-known/nodeinfo",
-      "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/.well-known/nodeinfo"
+      "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-federation/.well-known/nodeinfo"
     },
     {
       "source": "/.well-known/oauth-authorization-server",
@@ -29,7 +29,7 @@
     },
     {
       "source": "/nodeinfo/2.0",
-      "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/nodeinfo/2.0"
+      "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-federation/nodeinfo/2.0"
     },
     {
       "source": "/users/:username",
