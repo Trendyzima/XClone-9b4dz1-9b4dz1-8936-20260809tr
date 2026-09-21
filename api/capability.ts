@@ -28,6 +28,29 @@ export default async function handler(request: Request) {
   const anonKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || CANONICAL_SUPABASE_PUBLISHABLE_KEY;
   if (!anonKey) return response({ ok: false, error: { code: "SUPABASE_CONFIG_MISSING", message: "Supabase public configuration is missing" }, request_id: requestId }, 500);
   try {
+    // Remote Fediverse bookmarks use ActivityPub object URIs, not local UUIDs.
+    if (capability === "testagram.bookmarks.add" || capability === "testagram.bookmarks.remove" || capability === "testagram.bookmarks.list") {
+      const postId = typeof (input as { post_id?: unknown }).post_id === "string" ? (input as { post_id: string }).post_id.trim() : "";
+      const isRemote = /^https:\/\//i.test(postId);
+      const rpc = capability === "testagram.bookmarks.add"
+        ? (isRemote ? "testagram_federated_bookmark_add" : "testagram_bookmark_add")
+        : capability === "testagram.bookmarks.remove"
+          ? (isRemote ? "testagram_federated_bookmark_remove" : "testagram_bookmark_remove")
+          : "testagram_federated_bookmark_list";
+      const rpcBody = capability === "testagram.bookmarks.list"
+        ? { p_limit: Number((input as { limit?: unknown }).limit ?? 100) }
+        : { [isRemote ? "p_object_uri" : "p_post_id"]: postId };
+      const bookmarkResponse = await fetch(`${supabaseUrl.replace(/\/$/, "")}/rest/v1/rpc/${rpc}`, {
+        method: "POST",
+        headers: { apikey: anonKey, Authorization: authorization || `Bearer ${anonKey}`, "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify(rpcBody),
+      });
+      const raw = await bookmarkResponse.text();
+      let data: unknown = null; try { data = raw ? JSON.parse(raw) : null; } catch { data = null; }
+      if (!bookmarkResponse.ok) return response({ ok: false, error: { code: "BOOKMARK_FAILED", message: typeof data === "object" && data && "message" in data ? String((data as {message?: unknown}).message) : "Bookmark request failed" }, request_id: requestId }, bookmarkResponse.status >= 500 ? 502 : bookmarkResponse.status);
+      return response({ ok: true, data, error: null, request_id: requestId });
+    }
+
     const upstream = await fetch(`${supabaseUrl.replace(/\/$/, "")}/rest/v1/rpc/capability_dispatch`, {
       method: "POST",
       headers: { apikey: anonKey, Authorization: authorization || `Bearer ${anonKey}`, "Content-Type": "application/json", Accept: "application/json" },
