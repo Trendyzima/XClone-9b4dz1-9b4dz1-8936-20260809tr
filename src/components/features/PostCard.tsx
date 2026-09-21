@@ -665,11 +665,8 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     try {
       const state = await togglePostLike(interactionPostId, previousIsLiked);
       setIsLiked(state.is_liked);
-      if (!isFederatedPost) {
-        setLikesCount(state.likes_count);
-      } else {
-        window.setTimeout(() => getFederatedInteractionCounts(interactionPostId).then(counts => setLikesCount(counts.likes)).catch(() => {}), 4000);
-      }
+      if (!isFederatedPost) setLikesCount(state.likes_count);
+      else setLikesCount(prev => Math.max(0, prev + (state.is_liked === previousIsLiked ? 0 : (state.is_liked ? 1 : -1))));
       if (state.is_liked) {
         updateInterestSignal(user.id, post.id, 'like').catch(() => {});
       }
