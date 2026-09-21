@@ -1057,7 +1057,7 @@ export default function FediversePage() {
                   <div key={toot.id ?? i} className="p-4 hover:bg-muted/5 transition-colors">
                     <div className="flex gap-3">
                       <button type="button" onClick={() => setActiveRemoteProfile({
-                          actor_url: account.uri ?? account.actor_url ?? account.actor_uri ?? account.url,
+                          actor_url: account.uri ?? account.actor_uri ?? account.actor_url,
                           username: (account.username ?? username).split('@')[0],
                           domain: mastodonInstance,
                           display_name: displayName,
