@@ -537,10 +537,12 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     if (!user || isFederatedPost) return;
     const checkUserInteractions = async () => {
       try {
-        const [likeResult, repostResult] = await Promise.all([
-          backendCapabilities.getLikeState(post.id),
-          backendCapabilities.getRepostState(post.id),
-        ]);
+        const [likeResult, repostResult] = isFederatedPost
+          ? [{ state: { is_liked: false, likes_count: post.likes_count ?? 0 } }, { state: { is_reposted: false, reposts_count: post.reposts_count ?? 0 } }]
+          : await Promise.all([
+              backendCapabilities.getLikeState(post.id),
+              backendCapabilities.getRepostState(post.id),
+            ]);
         setIsLiked(likeResult.state.is_liked);
         setIsReposted(repostResult.state.is_reposted);
         setLikesCount(likeResult.state.likes_count);
@@ -1028,7 +1030,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
             </button>
 
             <div onClick={(e) => e.stopPropagation()}>
-              <BookmarkButton postId={post.id} />
+              <BookmarkButton postId={interactionPostId} />
               {user && !isFederatedPost && post.user_id !== user.id && (post as any).user_id && (
                 <TipButton
                   postId={post.id}
