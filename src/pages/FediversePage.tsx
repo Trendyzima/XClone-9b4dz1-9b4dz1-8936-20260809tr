@@ -313,8 +313,8 @@ export default function FediversePage() {
   const fetchFederationStats = async () => {
     if (!user) return;
     const [followingRes, followerRes] = await Promise.all([
-      supabase.from('federated_follow_relationships').select('*').eq('local_user_id', user.id),
-      supabase.from('federated_relationships').select('*').eq('local_user_id', user.id).eq('relationship','follower'),
+      supabase.from('federated_follow_relationships').select('*').eq('local_user_id', user.id).eq('direction','following'),
+      supabase.from('federated_follow_relationships').select('*').eq('local_user_id', user.id).eq('direction','follower'),
     ]);
     // federation-transport writes follows to federated_follow_relationships.
     // Normalize it to the UI shape used by this page and keep a legacy fallback
@@ -329,9 +329,6 @@ export default function FediversePage() {
           remote_actor_url: r.remote_actor_uri,
           remote_actor_uri: r.remote_actor_uri,
         }));
-    } else {
-      const legacy = await supabase.from('federated_relationships').select('*').eq('local_user_id', user.id).eq('relationship','following');
-      followingRows = legacy.data ?? [];
     }
     setFederatedFollowing(followingRows);
     setFollowingActorUrls(followingRows.map((r: any) => r.remote_actor_url ?? r.remote_actor_uri).filter(Boolean));
