@@ -77,30 +77,52 @@ export default function FediverseProfilePage() {
   const doFollow = async () => {
     if (!user) { navigate('/auth'); return; }
     const target = actorUrl || profile?.url;
-    if (!target) return;
+    if (!target || working) return;
+
+    // Local-first: the UI and personalized feed react immediately. The
+    // ActivityPub delivery continues in the background and failures roll back.
+    const previousFollowing = following;
+    const previousState = followState;
+    setFollowing(true);
+    setFollowState('active');
     setWorking(true);
+    toast.success('Following — this account will appear first in your Fediverse feed');
+
     try {
       const result = await federation.follow(target);
-      setFollowing(true);
-      setFollowState(result?.state ?? 'pending');
-      toast.success('Follow request sent — their posts will be prioritized in your Fediverse feed');
+      const remoteState = result?.state;
+      setFollowState(remoteState === 'pending' ? 'active' : (remoteState ?? 'active'));
     } catch (error: any) {
-      toast.error(error?.message ?? 'Follow failed');
-    } finally { setWorking(false); }
+      setFollowing(previousFollowing);
+      setFollowState(previousState);
+      toast.error(error?.message ?? 'Could not complete the follow. Your follow was not saved.');
+    } finally {
+      setWorking(false);
+    }
   };
 
   const doUnfollow = async () => {
     const target = actorUrl || profile?.url;
-    if (!target) return;
+    if (!target || working) return;
+
+    // Local-first: remove it from the personalized feed immediately. If the
+    // remote Undo fails, restore the previous local state.
+    const previousFollowing = following;
+    const previousState = followState;
+    setFollowing(false);
+    setFollowState(null);
     setWorking(true);
+    toast.success('Unfollowed — this account was removed from your personalized Fediverse feed');
+
     try {
       await federation.unfollow(target);
-      setFollowing(false);
-      setFollowState(null);
-      toast.success('Unfollowed — this account is removed from your personalized Fediverse feed');
     } catch (error: any) {
-      toast.error(error?.message ?? 'Unfollow failed');
-    } finally { setWorking(false); }
+      setFollowing(previousFollowing);
+      setFollowState(previousState);
+      toast.error(error?.message ?? 'Could not complete the unfollow. Your follow was restored.');
+    } finally {
+      setWorking(false);
+    }
   };
 
   return (
@@ -143,7 +165,7 @@ export default function FediverseProfilePage() {
                     className="px-4 py-2 rounded-full bg-foreground text-background font-bold text-sm disabled:opacity-50 flex items-center gap-2"
                   >
                     {working ? <Loader2 className="w-4 h-4 animate-spin" /> : following ? <UserMinus className="w-4 h-4" /> : <UserPlus className="w-4 h-4" />}
-                    {following ? (followState === 'pending' ? 'Requested' : 'Following') : 'Follow'}
+                    {following ? 'Following' : 'Follow'}
                   </button>
                 </div>
                 <h2 className="mt-3 text-xl font-black">{profile.name || profile.display_name || profile.preferredUsername || profile.username}</h2>
@@ -155,9 +177,7 @@ export default function FediverseProfilePage() {
                 </div>
                 {following && (
                   <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary">
-                    {followState === 'pending'
-                      ? 'Follow request is pending. Once accepted, new posts from this account will continue to appear in your personalized Fediverse feed.'
-                      : 'You follow this account. Its cached posts are prioritized in your personalized Fediverse feed.'}
+                    This account is followed in Testagram. Its posts are prioritized in your personalized Fediverse feed.
                   </div>
                 )}
               </div>
