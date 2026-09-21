@@ -345,9 +345,9 @@ jobs:
             has_any CLOUDFLARE_R2_SECRET_ACCESS_KEY R2_SECRET_ACCESS_KEY || missing_remote+=(CLOUDFLARE_R2_SECRET_ACCESS_KEY)
             has_any CLOUDFLARE_R2_BUCKET R2_MEDIA_BUCKET || missing_remote+=(CLOUDFLARE_R2_BUCKET)
             has_any R2_PUBLIC_BASE_URL || missing_remote+=(R2_PUBLIC_BASE_URL)
-            if (( \${#missing_remote[@]} > 0 )); then
+            if (( ${#missing_remote[@]} > 0 )); then
               echo "::error::R2 configuration is incomplete in both GitHub and Supabase."
-              echo "::error::Missing Supabase Edge Function secret names: \${missing_remote[*]}"
+              echo "::error::Missing Supabase Edge Function secret names: ${missing_remote[*]}"
               echo "::error::Configure the R2 production secrets before enabling profile media."
               exit 1
             fi
