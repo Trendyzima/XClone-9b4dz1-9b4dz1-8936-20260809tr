@@ -546,7 +546,7 @@ export default function FediversePage() {
 
   const handleFollow = async (account: any) => {
     if (!user) { navigate('/auth'); return; }
-    const target = account.actor_url ?? account.actor_uri ?? (account.acct ? account.acct : account.domain && account.username ? `${account.username}@${account.domain}` : account.url) ?? `https://${account.domain}/users/${account.username}`;
+    const target = account.actor_uri ?? account.actor_url ?? account.uri ?? account.acct;
     const alreadyFollowing = followingActorUrls.includes(target) || !!account.following;
     if (alreadyFollowing) { await handleUnfollowFederated(target); return; }
     setFollowing(true);
