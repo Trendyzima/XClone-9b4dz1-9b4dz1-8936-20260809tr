@@ -763,9 +763,19 @@ export default function FediversePage() {
 
   // ─── Render helpers ────────────────────────────────────────────────────────
   function RemotePostRow({ p, compact = false }: { p: any; compact?: boolean }) {
+    const rawActor = p.raw_object?.attributedTo;
+    const rawActorUri = typeof rawActor === 'string' ? rawActor : rawActor?.id ?? '';
     const actor = p.remote_account ?? p.remote_accounts ?? p.actor ?? p.account ?? {};
-    const username = actor.preferredUsername ?? actor.username ?? actor.acct?.split('@')[0] ?? 'unknown';
-    const domain = actor.domain ?? (() => { try { return new URL(p.actor_url ?? '').hostname; } catch { return ''; } })();
+    const actorUri = actor.url ?? actor.actor_uri ?? p.actor_uri ?? p.actor_url ?? rawActorUri ?? '';
+    const fallbackUsername = (() => {
+      try {
+        const path = new URL(actorUri).pathname.replace(/\/$/, '');
+        const segment = path.split('/').filter(Boolean).pop();
+        return segment || '';
+      } catch { return ''; }
+    })();
+    const username = actor.preferredUsername ?? actor.username ?? actor.acct?.split('@')[0] ?? fallbackUsername ?? 'unknown';
+    const domain = actor.domain ?? (() => { try { return new URL(actorUri).hostname; } catch { return ''; } })();
     const avatarUrl = actor.avatar_url ?? actor.icon?.url ?? actor.avatar;
     const content = p.content ?? p.text ?? '';
     const created = p.published_at ?? p.created_at ?? p.published ?? '';
@@ -777,7 +787,7 @@ export default function FediversePage() {
         <div className="flex gap-3">
           <button
             type="button"
-            onClick={() => navigate(`/fediverse/profile?actor=${encodeURIComponent(actor.url ?? actor.actor_uri ?? p.actor_url ?? '')}&handle=${encodeURIComponent('@' + username + (domain ? '@' + domain : ''))}`)}
+            onClick={() => navigate(`/fediverse/profile?actor=${encodeURIComponent(actor.url ?? actor.actor_uri ?? p.actor_uri ?? p.actor_url ?? rawActorUri ?? '')}&handle=${encodeURIComponent('@' + username + (domain ? '@' + domain : ''))}`)}
             className="shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-primary/30"
             aria-label={`Open @${username}`}
           >
