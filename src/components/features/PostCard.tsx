@@ -348,9 +348,26 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     else setInlineReplyText('');
     setInlinePosting(true);
     try {
-      const result = await createFederatedReply(interactionPostId, text);
+      const replyTarget = isFederatedPost && parentId
+        ? (inlineReplies.find((r: any) => r.id === parentId)?.id || interactionPostId)
+        : interactionPostId;
+      const result = await createFederatedReply(replyTarget, text);
       if (isFederatedPost) {
         if (result?.ok === true) {
+          const remoteReply = result?.activity?.object;
+          const profile = {
+            username: user.username ?? 'you',
+            avatar_url: (user as any)?.user_metadata?.avatar_url ?? null,
+          };
+          setInlineReplies(prev => [{
+            id: remoteReply?.id || result?.activity?.id || crypto.randomUUID(),
+            content: text,
+            created_at: new Date().toISOString(),
+            user_profiles: profile,
+            profile,
+            federated_pending: false,
+          }, ...prev]);
+          setShowComments(true);
           toast({ title: 'Reply sent', description: 'Your reply was delivered to the remote server.' });
         } else {
           toast({ title: 'Reply not delivered', description: 'The remote server did not accept the reply.', variant: 'destructive' });
