@@ -1532,6 +1532,9 @@ function ProductSpotlightRail({ products, onNavigate }: { products: any[]; onNav
 
 // ── Federated Post Card ───────────────────────────────────────────────────────
 function FederatedPostCard({ post }: { post: any }) {
+  // This card is rendered outside HomePage, so it must own its router hook.
+  // Without this, author clicks throw at runtime because `navigate` is undefined.
+  const navigate = useNavigate();
   const actor = post.actor ?? post.account ?? {};
   const username =
     actor.preferredUsername ?? actor.username ?? actor.acct ?? 'unknown';
@@ -1569,8 +1572,8 @@ function FederatedPostCard({ post }: { post: any }) {
   };
 
   const openProfile = () => {
-    const actorUri = post.actor_uri ?? actor.uri ?? actor.id ?? '';
-    const acct = String(actor.acct ?? username ?? '').replace(/^@/, '');
+    const actorUri = post.actor_uri ?? actor.actor_uri ?? actor.uri ?? actor.id ?? '';
+    const acct = String(actor.acct ?? actor.preferredUsername ?? actor.username ?? username ?? '').replace(/^@/, '');
     const profileHandle = acct.includes('@') ? acct : (acct && domain ? `${acct}@${domain}` : acct);
     const query = new URLSearchParams();
     if (actorUri) query.set('actor', actorUri);
