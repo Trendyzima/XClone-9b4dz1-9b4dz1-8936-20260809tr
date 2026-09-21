@@ -138,6 +138,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
 
   const handleReact = async (emoji: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (isFederatedPost) return;
     if (!user) { navigate('/auth'); return; }
     setShowReactionPicker(false);
     const prevReaction = userReaction;
@@ -183,14 +184,14 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
         { onConflict: 'post_id,user_id' }
       );
       if (emoji === '❤️' && !isLiked) {
-        const state = await togglePostLike(post.id);
+        const state = await togglePostLike(interactionPostId, isLiked);
         setIsLiked(state.is_liked);
         setLikesCount(state.likes_count);
         if (state.is_liked && post.user_id !== user.id) {
 
         }
       } else if (prevReaction === '❤️' && emoji !== '❤️' && isLiked) {
-        const state = await togglePostLike(post.id);
+        const state = await togglePostLike(interactionPostId, isLiked);
         setIsLiked(state.is_liked);
         setLikesCount(state.likes_count);
       }
@@ -533,7 +534,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     const optimisticIsLiked = !previousIsLiked;
     setIsLiked(optimisticIsLiked);
     try {
-      const state = await togglePostLike(post.id);
+      const state = await togglePostLike(interactionPostId, isLiked);
       setIsLiked(state.is_liked);
       setLikesCount(state.likes_count);
       if (state.is_liked) {
