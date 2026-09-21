@@ -210,17 +210,22 @@ async function resolve(local: any, target: string) {
   const inbox = String(actor.endpoints?.sharedInbox || actor.inbox || "");
   assertSafeRemoteUrl(canonical);
   assertSafeRemoteUrl(inbox);
-  await db("federation_remote_actors?on_conflict=actor_url", {
+  await db("federated_actors?on_conflict=actor_uri", {
     method: "POST",
     headers: { Prefer: "resolution=merge-duplicates,return=minimal" },
     body: JSON.stringify({
-      actor_url: canonical,
-      acct: actor.preferredUsername ? `${actor.preferredUsername}@${new URL(canonical).hostname}` : null,
+      actor_uri: canonical,
       username: actor.preferredUsername || null,
       domain: new URL(canonical).hostname,
+      display_name: actor.name || actor.preferredUsername || null,
+      bio: actor.summary || null,
+      avatar_url: actor.icon?.url || null,
       inbox_url: actor.inbox || null,
-      shared_inbox_url: actor.endpoints?.sharedInbox || null,
-      actor,
+      outbox_url: actor.outbox || null,
+      followers_url: actor.followers || null,
+      following_url: actor.following || null,
+      public_key_pem: actor.publicKey?.publicKeyPem || null,
+      raw_actor: actor,
       fetched_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     }),
