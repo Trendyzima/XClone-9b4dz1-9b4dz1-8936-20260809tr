@@ -549,17 +549,29 @@ export default function FediversePage() {
     const target = account.actor_url ?? account.actor_uri ?? account.url ?? `https://${account.domain}/users/${account.username}`;
     const alreadyFollowing = followingActorUrls.includes(target) || !!account.following;
     if (alreadyFollowing) { await handleUnfollowFederated(target); return; }
-    const previous = federatedFollowing;
-    const previousUrls = followingActorUrls;
-    const optimisticRow = { id: `optimistic-${target}`, local_user_id: user.id, relationship: 'following', remote_actor_url: target, remote_actor_uri: target, remote_username: account.username, remote_domain: account.domain, state: 'pending' };
-    setFollowingActorUrls(prev => prev.includes(target) ? prev : [...prev, target]);
-    setFederatedFollowing(prev => [optimisticRow, ...prev.filter((row: any) => row.remote_actor_url !== target)]);
     setFollowing(true);
     try {
-      await federation.follow(target);
+      const result = await federation.follow(target);
+      const confirmed = result?.state === 'active' || result?.deliveryState === 'delivered' || result?.ok === true;
+      if (!confirmed) throw new Error('Follow was not confirmed by the federation transport');
+      const row = {
+        id: result?.id ?? `remote-${target}`,
+        local_user_id: user.id,
+        relationship: 'following',
+        remote_actor_url: target,
+        remote_actor_uri: target,
+        remote_username: account.username,
+        remote_domain: account.domain,
+        state: result?.state ?? 'active',
+        delivery_state: result?.deliveryState ?? 'delivered',
+      };
+      setFederatedFollowing(prev => [row, ...prev.filter((item: any) => item.remote_actor_url !== target && item.remote_actor_uri !== target)]);
+      setFollowingActorUrls(prev => prev.includes(target) ? prev : [...prev, target]);
+      setSearchResult((prev: any) => prev ? { ...prev, following: true } : prev);
+      setActiveRemoteProfile((prev: any) => prev ? { ...prev, following: true } : prev);
       toast.success('Following');
     } catch (err: any) {
-      setFederatedFollowing(previous); setFollowingActorUrls(previousUrls); setFollowing(false);
+      setFollowing(false);
       setSearchResult((prev: any) => prev ? { ...prev, following: false } : prev);
       setActiveRemoteProfile((prev: any) => prev ? { ...prev, following: false } : prev);
       toast.error(`Follow failed: ${err.message ?? 'remote delivery failed'}`);
