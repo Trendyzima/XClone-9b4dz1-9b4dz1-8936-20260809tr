@@ -207,3 +207,5 @@ jobs:
 
 # Deployment trigger: run against the latest main revision.
 # Exact-SHA deployment proof trigger.
+
+# Count synchronization trigger: deploy the current federation count implementation.
