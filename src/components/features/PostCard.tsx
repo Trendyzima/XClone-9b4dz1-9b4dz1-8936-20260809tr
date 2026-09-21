@@ -149,13 +149,11 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       if (emoji !== '❤️') return;
       const wasLiked = isLiked;
       setIsLiked(!wasLiked);
+      setUserReaction(!wasLiked ? '❤️' : null);
       setLikesCount(prev => Math.max(0, prev + (wasLiked ? -1 : 1)));
       try {
         await togglePostLike(interactionPostId, wasLiked);
-        onUpdate?.();
-        getFederatedInteractionCounts(interactionPostId).then(counts => {
-          setLikesCount(counts.likes);
-        }).catch(() => {});
+        // Keep the optimistic local count visible; remote collection totals may lag delivery.
       } catch (error) {
         console.warn('[federation] favorite unavailable', error);
       }
@@ -398,7 +396,23 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
               : 'Your reply was delivered to the remote server.'
           });
         } else {
-          toast({ title: 'Reply pending', description: 'Your reply is saved locally and federation delivery is pending.' });
+          // The API records pending replies locally even when the remote inbox has
+          // not accepted them yet. Render the same local pending reply immediately.
+          const profile = {
+            username: user.username ?? 'you',
+            avatar_url: (user as any)?.user_metadata?.avatar_url ?? null,
+          };
+          setInlineReplies(prev => [{
+            id: result?.reply_id || result?.activity?.object?.id || crypto.randomUUID(),
+            content: text,
+            created_at: new Date().toISOString(),
+            user_profiles: profile,
+            profile,
+            federated_pending: true,
+          }, ...prev]);
+          setShowComments(true);
+          setRepliesCount(prev => prev + 1);
+          toast({ title: 'Reply pending', description: 'Your reply is visible here while federation delivery is pending.' });
         }
       } else {
         await fetchInlineReplies();
@@ -639,7 +653,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       if (state.is_liked) {
         updateInterestSignal(user.id, post.id, 'like').catch(() => {});
       }
-      onUpdate?.();
+      if (!isFederatedPost) onUpdate?.();
     } catch (error) {
       console.error('Like error:', error);
       setIsLiked(previousIsLiked);
@@ -658,18 +672,15 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     try {
       const state = await togglePostRepost(interactionPostId, previousIsReposted);
       setIsReposted(state.is_reposted);
-      if (!isFederatedPost) {
-        setRepostsCount(state.reposts_count);
-      } else {
-        window.setTimeout(() => getFederatedInteractionCounts(interactionPostId).then(counts => setRepostsCount(counts.reposts)).catch(() => {}), 4000);
-      }
+      if (!isFederatedPost) setRepostsCount(state.reposts_count);
+      else setRepostsCount(prev => Math.max(0, prev + (state.is_reposted === previousIsReposted ? 0 : (state.is_reposted ? 1 : -1))));
       if (state.is_reposted) {
         if (!isFederatedPost) toast({ title: 'Reposted successfully' });
         updateInterestSignal(user.id, post.id, 'repost').catch(() => {});
       } else if (!isFederatedPost) {
         toast({ title: 'Repost removed' });
       }
-      onUpdate?.();
+      if (!isFederatedPost) onUpdate?.();
     } catch (error) {
       console.error('Repost error:', error);
       setIsReposted(previousIsReposted);
