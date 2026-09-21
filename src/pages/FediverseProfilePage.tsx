@@ -220,7 +220,9 @@ export default function FediverseProfilePage() {
         ) : (
           <>
             <section className="border-b border-border">
-              <div className="h-32 bg-gradient-to-br from-purple-500/20 via-primary/10 to-background" />
+              <div className="h-32 bg-gradient-to-br from-purple-500/20 via-primary/10 to-background overflow-hidden">
+                {(profile.header_url || profile.header) && <img src={profile.header_url || profile.header} alt="" className="w-full h-full object-cover" />}
+              </div>
               <div className="px-4 pb-5">
                 <div className="flex items-end justify-between -mt-10">
                   <img
@@ -240,9 +242,20 @@ export default function FediverseProfilePage() {
                 <h2 className="mt-3 text-xl font-black">{profile.name || profile.display_name || profile.preferredUsername || profile.username}</h2>
                 <p className="text-sm text-muted-foreground">@{profile.preferredUsername || profile.username}{profile.url ? (() => { try { return '@' + new URL(profile.url).hostname; } catch { return ''; } })() : ''}</p>
                 {profile.summary && <div className="mt-3 text-sm leading-6" dangerouslySetInnerHTML={{ __html: profile.summary }} />}
+                {Array.isArray(profile.fields) && profile.fields.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    {profile.fields.slice(0, 8).map((field: any, i: number) => (
+                      <div key={i} className="grid grid-cols-[auto_1fr] gap-3 rounded-xl bg-muted/50 px-3 py-2 text-xs">
+                        <span className="font-semibold">{field.name}</span>
+                        <span className="text-muted-foreground break-words" dangerouslySetInnerHTML={{ __html: field.value }} />
+                      </div>
+                    ))}
+                  </div>
+                )}
                 <div className="mt-4 flex items-center gap-4 text-sm text-muted-foreground">
                   <span className="flex items-center gap-1"><Users className="w-4 h-4" />{profile.followers ?? 0} followers</span>
                   <span className="flex items-center gap-1"><Globe className="w-4 h-4" />Remote account</span>
+                  {profile.created_at && <span>Joined {new Date(profile.created_at).toLocaleDateString()}</span>}
                 </div>
                 {following && (
                   <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-primary">
