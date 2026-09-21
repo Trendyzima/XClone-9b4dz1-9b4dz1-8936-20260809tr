@@ -611,22 +611,59 @@ export default function FediversePage() {
   const fetchTestagramSuggestions = async () => {
     setLoadingTestagramSuggestions(true);
     try {
+      // Generate recommendations first, then read them. The previous fire-and-forget
+      // call could race the SELECT and leave this rail empty on a fresh account.
       if (user) {
-        void supabase.rpc('generate_content_recommendations', { p_user_id: user.id }).catch(() => {});
-        const { data: recs } = await supabase.from('content_recommendations').select('recommended_post_id, score, reason').eq('user_id', user.id).order('score', { ascending: false }).limit(8);
+        await supabase.rpc('generate_content_recommendations', { p_user_id: user.id }).catch(() => null);
+        const { data: recs } = await supabase
+          .from('content_recommendations')
+          .select('recommended_post_id, score, reason')
+          .eq('user_id', user.id)
+          .order('score', { ascending: false })
+          .limit(8);
+
         if (recs?.length) {
           const ids = recs.map((r: any) => r.recommended_post_id);
-          const { data: posts } = await supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)').in('id', ids).is('community_id', null);
+          const { data: posts } = await supabase
+            .from('posts')
+            .select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
+            .in('id', ids)
+            .is('community_id', null);
+
           if (posts?.length) {
             const byId = new Map(posts.map((p: any) => [p.id, p]));
-            setTestagramSuggestions(recs.map((r: any) => { const post = byId.get(r.recommended_post_id); return post && typeof post === 'object' ? { ...post, _reason: r.reason } : null; }).filter((p: any) => p?.id));
-            return;
+            const ranked = recs
+              .map((r: any) => {
+                const post = byId.get(r.recommended_post_id);
+                return post && typeof post === 'object' ? { ...post, _reason: r.reason } : null;
+              })
+              .filter((p: any) => p?.id);
+            if (ranked.length) {
+              setTestagramSuggestions(ranked);
+              return;
+            }
           }
         }
       }
-      const { data: popular } = await supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)').is('community_id', null).order('likes_count', { ascending: false }).order('created_at', { ascending: false }).limit(8);
+
+      // Always provide a native Testagram fallback so the Fediverse page is useful
+      // even before a user has enough interaction history for personalized ranking.
+      const { data: popular, error: popularError } = await supabase
+        .from('posts')
+        .select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
+        .is('community_id', null)
+        .order('likes_count', { ascending: false })
+        .order('created_at', { ascending: false })
+        .limit(8);
+
+      if (popularError) throw popularError;
       setTestagramSuggestions(popular ?? []);
-    } catch { setTestagramSuggestions([]); } finally { setLoadingTestagramSuggestions(false); }
+    } catch (err) {
+      console.warn('[fediverse] Testagram suggestions unavailable', err);
+      setTestagramSuggestions([]);
+    } finally {
+      setLoadingTestagramSuggestions(false);
+    }
   };
 
   const fetchFedTrendingTags = async () => {
