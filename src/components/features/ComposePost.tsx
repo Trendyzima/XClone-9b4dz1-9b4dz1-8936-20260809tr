@@ -395,6 +395,21 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
       }
 
       const mediaUrls = imageUrls.length > 0 ? imageUrls : (gifUrl ? [gifUrl] : []);
+
+      // A remote Fediverse quote target is an ActivityPub URI, not a local post UUID.
+      // Deliver it through federation instead of sending the URI into the local posts FK.
+      if (quotedPostId && /^https:\/\//i.test(quotedPostId)) {
+        if (mediaUrls.length > 0 || videoUrl || pollData || taggedProducts.length > 0) {
+          throw new Error('Remote Fediverse quotes currently support text only.');
+        }
+        await federation.quoteStatus(quotedPostId, content.trim());
+        setContent(''); setImages([]); setVideo(null); setPollData(null); setGifUrl(null); setScheduledDate(null); setTaggedProducts([]);
+        sonnerToast.success('Quote posted to the remote Fediverse post.');
+        onSuccess?.();
+        setLoading(false);
+        return;
+      }
+
       const postResult = await backendCapabilities.createPost({
         content: content.trim() || '',
         communityId,
