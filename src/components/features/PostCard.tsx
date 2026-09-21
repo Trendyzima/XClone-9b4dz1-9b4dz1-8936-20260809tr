@@ -25,7 +25,7 @@ import {
 import { VideoMonetizationAd } from './VideoMonetizationAd';
 import { EmbedRenderer, PostContentEmbeds } from './EmbedRenderer';
 import { updateInterestSignal } from '@/services/recommendations';
-import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState } from '@/services/postInteractionService';
+import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts } from '@/services/postInteractionService';
 import { backendCapabilities } from '@/services/backendClient';
 import * as federation from '@/api/federation';
 // Canonical social interaction reads/writes stay behind backend capabilities.
@@ -57,6 +57,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const isFederatedPost = Boolean(remoteStatusUri);
   const [isAuthorPremium, setIsAuthorPremium] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
+  const [repliesCount, setRepliesCount] = useState(post.replies_count ?? 0);
   const [isReposted, setIsReposted] = useState(false);
   const [likesCount, setLikesCount] = useState(post.likes_count);
   const [repostsCount, setRepostsCount] = useState(post.reposts_count);
@@ -368,6 +369,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
             federated_pending: false,
           }, ...prev]);
           setShowComments(true);
+          setRepliesCount(prev => prev + 1);
           toast({
             title: result?.accepted === false ? 'Reply pending' : 'Reply sent',
             description: result?.accepted === false
@@ -567,15 +569,19 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   }, [post.id]);
 
   useEffect(() => {
-    if (!user || isFederatedPost) return;
+    if (!user) return;
     const checkUserInteractions = async () => {
       try {
         if (isFederatedPost) {
-          const state = await getFederatedInteractionState(interactionPostId);
+          const [state, counts] = await Promise.all([
+            getFederatedInteractionState(interactionPostId),
+            getFederatedInteractionCounts(interactionPostId),
+          ]);
           setIsLiked(state.is_liked);
           setIsReposted(state.is_reposted);
-          setLikesCount(post.likes_count ?? 0);
-          setRepostsCount(post.reposts_count ?? 0);
+          setLikesCount(counts.likes);
+          setRepostsCount(counts.reposts);
+          setRepliesCount(counts.replies);
         } else {
           const [likeResult, repostResult] = await Promise.all([
             backendCapabilities.getLikeState(post.id),
@@ -591,7 +597,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       }
     };
     checkUserInteractions();
-  }, [user, post.id, interactionPostId, isFederatedPost]);
+  }, [user, post.id, interactionPostId, isFederatedPost, post.likes_count, post.reposts_count, post.replies_count]);
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -996,7 +1002,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
               <div className="p-2 rounded-full group-hover:bg-primary/10 transition-colors">
                 <MessageCircle className="w-5 h-5" />
               </div>
-              <span className="text-sm">{formatNumber(post.replies_count)}</span>
+              <span className="text-sm">{formatNumber(repliesCount)}</span>
               {showComments ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3 opacity-50" />}
             </button>
 
