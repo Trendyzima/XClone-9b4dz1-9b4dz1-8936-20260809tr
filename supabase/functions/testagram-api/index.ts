@@ -20,7 +20,11 @@ if(path==="/quote"&&method==="POST"){
   const target=String(body.post_id||body.postId||"").trim(), content=String(body.content||"").trim();
   if(!target||!content)return json({error:"post_id and content required"},400);
   if(!/^https:\/\//i.test(target))return json({error:"Quote target must be a remote ActivityPub object"},400);
-  const r=await transport({user_id:u.id,operation:"deliver",target,activity:{type:"Create",object:{type:"Note",content:content,quote:target}});
+  const activity:any = { type: "Create" };
+  activity.object = { type: "Note" };
+  activity.object.content = content;
+  activity.object.quote = target;
+  const r = await transport({ user_id: u.id, operation: "deliver", target: target, activity: activity });
   const data=r.data(); return json(data,r.status);
 }
 if(path==="/flag"&&method==="POST"){
