@@ -497,7 +497,8 @@ async function handle(request: Request) {
     const activity = body.activity;
     if (!target || !activity?.type) return json({ error: "target and activity.type required" }, 400);
     const remote = await resolve(local, target);
-    let activityWithId = { "@context": activity["@context"] || CTX, id: activity.id || `${local.actor_url}#activities/${crypto.randomUUID()}`, ...activity, actor: activity.actor || local.actor_url };
+    const { object_type: interactionObjectType, ...activityPayload } = activity;
+    let activityWithId = { "@context": activityPayload["@context"] || CTX, id: activityPayload.id || `${local.actor_url}#activities/${crypto.randomUUID()}`, ...activityPayload, actor: activityPayload.actor || local.actor_url };
     if (activityWithId.type === "Like" || activityWithId.type === "Announce") {
       const statusUri = typeof activityWithId.object === "string" ? activityWithId.object : idOf(activityWithId.object);
       if (!statusUri) throw Error("Interaction activity requires a remote status URI");
@@ -505,7 +506,7 @@ async function handle(request: Request) {
     }
     if (activityWithId.type === "Undo" && typeof activityWithId.object === "string") {
       const statusUri = activityWithId.object;
-      const undoneType = activity.path === "boost" || activity.object_type === "Announce" ? "Announce" : "Like";
+      const undoneType = interactionObjectType === "Announce" ? "Announce" : "Like";
       const interactionId = await stableInteractionId(local.actor_url, statusUri, undoneType);
       activityWithId = { ...activityWithId, id: `${local.actor_url}#activities/undo-${interactionId.split("/").pop()}`, object: { id: interactionId, type: undoneType, actor: local.actor_url, object: statusUri } };
     }
