@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import * as federation from '@/api/federation';
 import { FediverseBadge } from '@/components/features/FediverseBadge';
 import {
-  Globe, Search, Users, Rss, ExternalLink, UserPlus, UserMinus,
+  Globe, Search, Users, Rss, UserPlus, UserMinus,
   Loader2, AlertCircle, Copy, CheckCircle, Heart, Repeat2,
   MessageCircle, Send, X, Inbox, Radio, BarChart3, Plus, Trash2,
   RefreshCw, CheckCheck, Activity, Server
@@ -58,6 +58,7 @@ export default function FediversePage() {
   const [searchHandle, setSearchHandle] = useState('');
   const [searchResult, setSearchResult] = useState<any | null>(null);
   const [searching, setSearching] = useState(false);
+  const [activeRemoteProfile, setActiveRemoteProfile] = useState<any | null>(null);
   const [following, setFollowing] = useState(false);
   const [remotePosts, setRemotePosts] = useState<any[]>([]);
   const [loadingFeed, setLoadingFeed] = useState(false);
@@ -959,12 +960,30 @@ export default function FediversePage() {
                 return (
                   <div key={toot.id ?? i} className="p-4 hover:bg-muted/5 transition-colors">
                     <div className="flex gap-3">
-                      <div className="w-10 h-10 rounded-full bg-muted overflow-hidden shrink-0">
+                      <button type="button" onClick={() => setActiveRemoteProfile({
+                          actor_url: `https://${mastodonInstance}/users/${(account.username ?? username).split('@')[0]}`,
+                          username: (account.username ?? username).split('@')[0],
+                          domain: mastodonInstance,
+                          display_name: displayName,
+                          bio: account.note ?? '',
+                          avatar_url: avatarUrl,
+                          followers_count: account.followers_count,
+                          following_count: account.following_count,
+                        })} className="w-10 h-10 rounded-full bg-muted overflow-hidden shrink-0 hover:ring-2 hover:ring-[#6364FF] transition-all">
                         {avatarUrl ? <img src={avatarUrl} alt={username} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center font-bold text-sm">{displayName[0]?.toUpperCase()}</div>}
-                      </div>
+                      </button>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-                          <span className="font-semibold text-sm">{displayName}</span>
+                          <button type="button" onClick={() => setActiveRemoteProfile({
+                            actor_url: `https://${mastodonInstance}/users/${(account.username ?? username).split('@')[0]}`,
+                            username: (account.username ?? username).split('@')[0],
+                            domain: mastodonInstance,
+                            display_name: displayName,
+                            bio: account.note ?? '',
+                            avatar_url: avatarUrl,
+                            followers_count: account.followers_count,
+                            following_count: account.following_count,
+                          })} className="font-semibold text-sm hover:text-[#6364FF] hover:underline text-left">{displayName}</button>
                           <span className="text-xs text-[#6364FF] flex items-center gap-0.5">
                             <span className="w-3 h-3 rounded-full bg-[#6364FF] inline-flex items-center justify-center"><span className="text-white text-[7px] font-black">M</span></span>
                             @{username.includes('@') ? username : `${username}@${mastodonInstance}`}
@@ -985,7 +1004,8 @@ export default function FediversePage() {
                           <button onClick={() => handleFedLike({ ...toot, object_url: toot.uri ?? url })} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium hover:bg-pink-500/10 hover:text-pink-600 transition-colors"><Heart className="w-3 h-3" />{likes + (postStates[toot.uri ?? url]?.liked ? 1 : 0)}</button>
                           <button onClick={() => handleFedBoost({ ...toot, object_url: toot.uri ?? url })} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium hover:bg-green-500/10 hover:text-green-600 transition-colors"><Repeat2 className="w-3 h-3" />{boosts + (postStates[toot.uri ?? url]?.boosted ? 1 : 0)}</button>
                           <button onClick={() => setPostStates(prev => ({...prev,[toot.uri ?? url]:{...prev[toot.uri ?? url],replyOpen:!prev[toot.uri ?? url]?.replyOpen}}))} className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium hover:bg-primary/10 hover:text-primary transition-colors"><MessageCircle className="w-3 h-3" />{replies}</button>
-                          {url && <a href={url} target="_blank" rel="noopener noreferrer" className="ml-auto flex items-center gap-0.5 text-xs text-[#6364FF] hover:underline"><ExternalLink className="w-3 h-3" />View</a>}
+                          <button type="button" onClick={() => setPostStates(prev => ({...prev,[toot.uri ?? url]:{...prev[toot.uri ?? url],open:true}}))}
+                            className="ml-auto text-xs text-[#6364FF] hover:underline">Open in Testagram</button>
                         </div>
                         {user && postStates[toot.uri ?? url]?.replyOpen && (
                           <div className="mt-2 flex gap-2">
@@ -1301,10 +1321,10 @@ export default function FediversePage() {
                               className="flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground rounded-full text-xs font-semibold disabled:opacity-50 hover:opacity-90">
                               <UserPlus className="w-3 h-3" />Follow
                             </button>
-                            {a.actor_url && <a href={a.actor_url} target="_blank" rel="noopener noreferrer"
-                              className="p-1.5 border border-border rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition-colors">
-                              <ExternalLink className="w-3 h-3" />
-                            </a>}
+                            <button onClick={() => setActiveRemoteProfile({ ...a, actor_url: a.actor_url ?? `https://${a.domain}/users/${a.username}` })}
+                              className="px-2.5 py-1.5 border border-border rounded-full text-xs font-semibold hover:bg-muted transition-colors">
+                              Profile
+                            </button>
                           </div>
                         </div>
                       ))}
@@ -1357,10 +1377,10 @@ export default function FediversePage() {
                     {following ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
                     {following ? 'Sending…' : 'Follow'}
                   </button>
-                  <a href={searchResult.actor_url} target="_blank" rel="noopener noreferrer"
-                    className="px-4 py-2 border border-border rounded-full text-sm flex items-center gap-1.5">
-                    <ExternalLink className="w-3.5 h-3.5" />View profile
-                  </a>
+                  <button onClick={() => setActiveRemoteProfile(searchResult)}
+                    className="px-4 py-2 border border-border rounded-full text-sm font-semibold hover:bg-muted transition-colors">
+                    Open in Testagram
+                  </button>
                 </div>
               </div>
             )}
@@ -1472,6 +1492,41 @@ export default function FediversePage() {
         </div>
       )}
     </div>
+
+      {activeRemoteProfile && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onClick={() => setActiveRemoteProfile(null)}>
+          <div className="w-full sm:max-w-md bg-background border border-border rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden"
+            onClick={e => e.stopPropagation()}>
+            <div className="h-20 bg-gradient-to-r from-[#6364FF]/20 via-purple-500/15 to-cyan-500/20" />
+            <div className="px-5 pb-5 -mt-10">
+              <div className="flex items-end justify-between">
+                <div className="w-20 h-20 rounded-full bg-muted border-4 border-background overflow-hidden">
+                  {activeRemoteProfile.avatar_url
+                    ? <img src={activeRemoteProfile.avatar_url} alt="" className="w-full h-full object-cover" />
+                    : <div className="w-full h-full flex items-center justify-center text-2xl font-bold">{activeRemoteProfile.username?.[0]?.toUpperCase()}</div>}
+                </div>
+                <button onClick={() => setActiveRemoteProfile(null)} className="p-2 rounded-full bg-muted hover:bg-muted/80"><X className="w-5 h-5" /></button>
+              </div>
+              <div className="mt-3">
+                <h2 className="text-lg font-bold">{activeRemoteProfile.display_name ?? activeRemoteProfile.username}</h2>
+                <p className="text-sm text-[#6364FF]">@{activeRemoteProfile.username}@{activeRemoteProfile.domain}</p>
+                {activeRemoteProfile.bio && <div className="mt-3 text-sm text-muted-foreground prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{__html: activeRemoteProfile.bio}} />}
+                <div className="flex gap-4 mt-4 text-xs text-muted-foreground">
+                  {activeRemoteProfile.followers_count != null && <span><b className="text-foreground">{formatNumber(activeRemoteProfile.followers_count)}</b> followers</span>}
+                  {activeRemoteProfile.following_count != null && <span><b className="text-foreground">{formatNumber(activeRemoteProfile.following_count)}</b> following</span>}
+                  <span className="ml-auto">Federated via Testagram</span>
+                </div>
+                <button onClick={() => handleFollow(activeRemoteProfile)}
+                  disabled={following}
+                  className="w-full mt-5 py-2.5 rounded-full bg-[#6364FF] text-white font-semibold disabled:opacity-50">
+                  {following ? 'Sending…' : 'Follow on Fediverse'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
   );
 }
 
