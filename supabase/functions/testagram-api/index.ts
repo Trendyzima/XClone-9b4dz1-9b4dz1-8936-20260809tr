@@ -14,9 +14,11 @@ async function replyOp(body:any,auth:string|null){
   const content=String(body.content||"").trim();
   if(!target||!content)return json({error:"post_id and content required"},400);
   if(!/^https:\/\//i.test(target)){
-    const r=await admin.rpc("create_reply",{p_post_id:target,p_content:content});
+    const r=await admin.from("replies").insert({post_id:target,user_id:u.id,content}).select("id,post_id,user_id,content,created_at,updated_at").single();
     if(r.error)return json({error:r.error.message},400);
-    return json(r.data||{created:true});
+    const count=await admin.from("posts").select("replies_count").eq("id",target).single();
+    if(count.data) await admin.from("posts").update({replies_count:Number(count.data.replies_count||0)+1,updated_at:new Date().toISOString()}).eq("id",target);
+    return json({reply_id:r.data?.id,created:true,replies_count:Number(count.data?.replies_count||0)+1},200);
   }
   const activity:any={
     "@context":["https://www.w3.org/ns/activitystreams"],
@@ -85,9 +87,36 @@ async function react(kind:string,enabled:boolean,body:any,auth:string|null){
     }
   }
   const post=await localPost(target);if(!post)return json({error:"Post not found"},404);
-  const r=await admin.rpc(kind==="favorite"?"toggle_post_like":"toggle_post_repost",{p_post_id:target});
-  if(r.error)return json({error:r.error.message},400);
-  return json(r.data||{ok:true});
+  if(kind==="favorite"){
+    const existing=await admin.from("post_reactions").select("id").eq("post_id",target).eq("user_id",u.id).eq("emoji","❤️").maybeSingle();
+    if(existing.error)return json({error:existing.error.message},400);
+    if(existing.data){
+      const d=await admin.from("post_reactions").delete().eq("post_id",target).eq("user_id",u.id);
+      if(d.error)return json({error:d.error.message},400);
+    } else {
+      const d=await admin.from("post_reactions").delete().eq("post_id",target).eq("user_id",u.id);
+      if(d.error)return json({error:d.error.message},400);
+      const i=await admin.from("post_reactions").insert({post_id:target,user_id:u.id,emoji:"❤️"});
+      if(i.error)return json({error:i.error.message},400);
+    }
+    const count=await admin.from("post_reactions").select("id",{count:"exact",head:true}).eq("post_id",target).eq("emoji","❤️");
+    const likes=Number(count.count||0);
+    const p=await admin.from("posts").update({likes_count:likes,updated_at:new Date().toISOString()}).eq("id",target);
+    if(p.error)return json({error:p.error.message},400);
+    return json({ok:true,state:{is_liked:Boolean(!existing.data),likes_count:likes}},200);
+  }
+  const existing=await admin.from("reposts").select("id").eq("post_id",target).eq("user_id",u.id).maybeSingle();
+  if(existing.error)return json({error:existing.error.message},400);
+  if(existing.data){
+    const d=await admin.from("reposts").delete().eq("id",existing.data.id); if(d.error)return json({error:d.error.message},400);
+  } else {
+    const i=await admin.from("reposts").insert({post_id:target,user_id:u.id}); if(i.error)return json({error:i.error.message},400);
+  }
+  const count=await admin.from("reposts").select("id",{count:"exact",head:true}).eq("post_id",target);
+  const reposts=Number(count.count||0);
+  const p=await admin.from("posts").update({reposts_count:reposts,updated_at:new Date().toISOString()}).eq("id",target);
+  if(p.error)return json({error:p.error.message},400);
+  return json({ok:true,state:{is_reposted:Boolean(!existing.data),reposts_count:reposts}},200);
 }
 async function search(q:string,type:string,auth:string|null){const term=q.trim();if(!term)return json([]);if(type==="hashtags"){const r=await admin.from("hashtags").select("*").ilike("tag",`%${term.replace(/^#/,'')}%`).limit(50);return json(r.data||[])}if(type==="posts"){const r=await admin.from("posts").select("*,author:profiles!posts_author_id_fkey(*)").is("deleted_at",null).eq("visibility","public").ilike("content",`%${term}%`).order("created_at",{ascending:false}).limit(50);return json(r.data||[])}if(type==="instances"){const r=await admin.from("federated_instances").select("*").ilike("domain",`%${term}%`).limit(50);return json(r.data||[])}const r=await admin.from("profiles").select("*").or(`username.ilike.%${term}%,display_name.ilike.%${term}%`).limit(50);if(auth){const u=await user(auth);if(u)await admin.from("search_queries").insert({user_id:u.id,query:q,filters:{type}})}return json(r.data||[])}
 async function collection(username:string,kind:string){const p=await localProfile(username);if(!p)return json({error:"User not found"},404);if(kind==="followers"){const r=await admin.from("follows").select("follower_id,profiles!follows_follower_id_fkey(*)").eq("following_id",p.id).eq("status","accepted").limit(100);return json(r.data||[])}const r=await admin.from("follows").select("following_id,profiles!follows_following_id_fkey(*)").eq("follower_id",p.id).eq("status","accepted").limit(100);return json(r.data||[])}
