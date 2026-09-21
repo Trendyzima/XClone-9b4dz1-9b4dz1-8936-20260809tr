@@ -117,6 +117,20 @@ if(path==="/federated-interaction-state"&&method==="GET"){
   for(const row of r.data||[]){ if(row.interaction_type==="like")state.like=Boolean(row.active); if(row.interaction_type==="repost")state.repost=Boolean(row.active); }
   return json(state);
 }
+if(path==="/federated-interaction-counts"&&method==="GET"){
+  const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
+  const target=String(params.object_uri||params.objectUri||"").trim();
+  if(!/^https:\/\//i.test(target))return json({error:"object_uri must be a remote ActivityPub object"},400);
+  try {
+    const r=await transport({user_id:u.id,operation:"inspect",target});
+    const data=r.data();
+    if(!data?.ok)return json({likes:0,reposts:0,replies:0,error:data?.error||"Remote count unavailable"},200);
+    return json({likes:Number(data.counts?.likes||0),reposts:Number(data.counts?.reposts||0),replies:Number(data.counts?.replies||0)},200);
+  } catch(error) {
+    console.warn("federated interaction counts unavailable",error);
+    return json({likes:0,reposts:0,replies:0},200);
+  }
+}
 if(path==="/bookmark-state"&&method==="GET"){
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
   const target=String(params.post_id||"").trim();
