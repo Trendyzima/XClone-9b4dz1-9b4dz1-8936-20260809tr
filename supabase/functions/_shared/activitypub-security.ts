@@ -1,7 +1,7 @@
 const PRIVATE_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1"]);
 
 export function canonicalOrigin(): string {
-  const configured = Deno.env.get("FEDERATION_PUBLIC_ORIGIN") || "https://federation.testagram.site";
+  const configured = Deno.env.get("FEDERATION_PUBLIC_ORIGIN") || "https://testagram.site";
   return new URL(configured).origin;
 }
 
