@@ -71,14 +71,67 @@ export default function FediverseProfilePage() {
         }
 
         if (resolvedActorUri) {
-          const { data } = await supabase
-            .from('federated_objects')
-            .select('*')
-            .eq('actor_uri', resolvedActorUri)
-            .is('deleted_at', null)
-            .order('published_at', { ascending: false })
-            .limit(20);
-          if (!cancelled) setPosts(data ?? []);
+          // A remote profile is more than the locally cached feed. Fetch the
+          // actor's ActivityPub document and its outbox so a profile visit
+          // shows the account itself plus its current posts, even before inbox
+          // delivery has populated federated_objects.
+          let remotePosts: any[] = [];
+          try {
+            const actorRes = await fetch(resolvedActorUri, {
+              headers: { Accept: 'application/activity+json, application/ld+json' },
+            });
+            if (actorRes.ok) {
+              const actorDoc = await actorRes.json();
+              const outboxUrl = typeof actorDoc.outbox === 'string' ? actorDoc.outbox : actorDoc.outbox?.id;
+              if (outboxUrl) {
+                const outboxRes = await fetch(outboxUrl, {
+                  headers: { Accept: 'application/activity+json, application/ld+json' },
+                });
+                if (outboxRes.ok) {
+                  const outbox = await outboxRes.json();
+                  let entries = Array.isArray(outbox.orderedItems) ? outbox.orderedItems : Array.isArray(outbox.items) ? outbox.items : [];
+                  const firstPage = typeof outbox.first === 'string' ? outbox.first : outbox.first?.id;
+                  if (!entries.length && firstPage) {
+                    const firstRes = await fetch(firstPage, {
+                      headers: { Accept: 'application/activity+json, application/ld+json' },
+                    });
+                    if (firstRes.ok) {
+                      const page = await firstRes.json();
+                      entries = Array.isArray(page.orderedItems) ? page.orderedItems : Array.isArray(page.items) ? page.items : [];
+                    }
+                  }
+                  remotePosts = entries
+                    .map((entry: any) => entry?.object ?? entry)
+                    .filter((post: any) => post && typeof post === 'object' && post.type !== 'Delete')
+                    .filter((post: any) => ['Note', 'Article', 'Question', 'Video', 'Image'].includes(post.type))
+                    .slice(0, 30)
+                    .map((post: any) => ({
+                      ...post,
+                      uri: post.id ?? post.url,
+                      actor_uri: resolvedActorUri,
+                      content: post.content ?? post.name ?? '',
+                      published_at: post.published ?? post.updated ?? null,
+                      attachments: Array.isArray(post.attachment) ? post.attachment : [],
+                    }));
+                }
+              }
+            }
+          } catch {
+            // Fall back to Testagram's cache below when the remote server
+            // blocks browser ActivityPub requests.
+          }
+
+          if (!remotePosts.length) {
+            const { data } = await supabase
+              .from('federated_objects')
+              .select('*')
+              .in('actor_uri', [resolvedActorUri, result?.id ?? resolvedActorUri])
+              .is('deleted_at', null)
+              .order('published_at', { ascending: false })
+              .limit(30);
+            remotePosts = data ?? [];
+          }
+          if (!cancelled) setPosts(remotePosts);
         }
       } catch {
         if (!cancelled) toast.error('Could not load this Fediverse profile');
