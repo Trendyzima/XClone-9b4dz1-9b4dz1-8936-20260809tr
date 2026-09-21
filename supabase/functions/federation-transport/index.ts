@@ -47,16 +47,29 @@ function internal(request: Request) {
 }
 
 async function actorForUser(userId: string) {
-  const response = await db(`federation_actors?user_id=eq.${enc(userId)}&select=*`);
-  const rows = await response.json() as any[];
-  if (!rows[0]) throw Error("Local federation actor not found");
-  return rows[0];
+  const actorResponse = await db(`activitypub_actors?user_id=eq.${enc(userId)}&select=*`);
+  const actors = await actorResponse.json() as any[];
+  const actor = actors[0];
+  if (!actor) throw Error("Local ActivityPub actor not found");
+
+  const keyResponse = await db(`activitypub_keys?user_id=eq.${enc(userId)}&select=*`);
+  const keys = await keyResponse.json() as any[];
+  const key = keys[0];
+  if (!key?.private_key_pem) throw Error("Local ActivityPub signing key not found");
+
+  return {
+    ...actor,
+    actor_url: actor.actor_id,
+    private_key_pem: key.private_key_pem,
+    public_key_pem: key.public_key_pem,
+    key_id: key.key_id,
+  };
 }
 
 function assertLocalActor(actor: any) {
   const actorUrl = String(actor?.actor_url || "");
   assertCanonicalPublicUrl(actorUrl);
-  if (!actor?.private_key_jwk) throw Error("Local federation actor has no private signing key");
+  if (!actor?.private_key_pem) throw Error("Local ActivityPub actor has no private signing key");
   return actorUrl;
 }
 
@@ -68,10 +81,21 @@ async function sha256Base64(value: string) {
   return base64(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
 }
 
+function pemToArrayBuffer(pem: string) {
+  const base64Body = pem
+    .replace(/-----BEGIN PRIVATE KEY-----/g, "")
+    .replace(/-----END PRIVATE KEY-----/g, "")
+    .replace(/\\s+/g, "");
+  const binary = atob(base64Body);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes.buffer;
+}
+
 async function rsaSign(local: any, value: string) {
   const key = await crypto.subtle.importKey(
-    "jwk",
-    local.private_key_jwk,
+    "pkcs8",
+    pemToArrayBuffer(local.private_key_pem),
     { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
     ["sign"],
