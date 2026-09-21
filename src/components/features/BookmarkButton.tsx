@@ -21,7 +21,7 @@ export function BookmarkButton({ postId }: BookmarkButtonProps) {
     }
     let cancelled = false;
     backendCapabilities.listBookmarks(100).then(({ items }) => {
-      if (!cancelled) setIsBookmarked(items.some((item: any) => String(item.post_id ?? item.id) === postId));
+      if (!cancelled) setIsBookmarked(items.some((item: any) => String(item.post_id ?? item.object_uri ?? item.id) === postId));
     }).catch(() => {
       if (!cancelled) setIsBookmarked(false);
     });
