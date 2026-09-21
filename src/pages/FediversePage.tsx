@@ -9,7 +9,7 @@ import {
   Globe, Search, Users, Rss, UserPlus, UserMinus,
   Loader2, AlertCircle, Copy, CheckCircle, Heart, Repeat2,
   MessageCircle, Send, X, Inbox, Radio, BarChart3, Plus, Trash2,
-  RefreshCw, CheckCheck, Activity, Server
+  RefreshCw, CheckCheck, Activity, Server, Sparkles
 } from 'lucide-react';
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -619,7 +619,7 @@ export default function FediversePage() {
           const { data: posts } = await supabase.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)').in('id', ids).is('community_id', null);
           if (posts?.length) {
             const byId = new Map(posts.map((p: any) => [p.id, p]));
-            setTestagramSuggestions(recs.map((r: any) => ({ ...byId.get(r.recommended_post_id), _reason: r.reason })).filter((p: any) => p?.id));
+            setTestagramSuggestions(recs.map((r: any) => { const post = byId.get(r.recommended_post_id); return post && typeof post === 'object' ? { ...post, _reason: r.reason } : null; }).filter((p: any) => p?.id));
             return;
           }
         }
