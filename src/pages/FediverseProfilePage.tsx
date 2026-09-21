@@ -31,7 +31,7 @@ export default function FediverseProfilePage() {
       const name = u.pathname.split('/').filter(Boolean).pop() ?? '';
       return name ? name + '@' + u.hostname : '';
     } catch { return ''; }
-  }, [actorUrl, suppliedHandle]);
+  }, [actorUrl, suppliedHandle, suppliedUsername]);
 
   useEffect(() => {
     let cancelled = false;
