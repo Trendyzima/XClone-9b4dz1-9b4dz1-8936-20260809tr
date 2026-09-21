@@ -664,14 +664,29 @@ export default function FediversePage() {
     return (
       <div className={`${compact ? 'p-3' : 'p-4'} hover:bg-muted/5 transition-colors`}>
         <div className="flex gap-3">
-          <div className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-full bg-muted overflow-hidden shrink-0`}>
-            {avatarUrl ? <img src={avatarUrl} alt={username} className="w-full h-full object-cover" /> :
-              <div className="w-full h-full flex items-center justify-center font-bold text-xs">{username[0]?.toUpperCase()}</div>}
-          </div>
+          <button
+            type="button"
+            onClick={() => navigate(`/fediverse/profile?actor=${encodeURIComponent(actor.url ?? actor.actor_uri ?? p.actor_url ?? '')}&handle=${encodeURIComponent('@' + username + (domain ? '@' + domain : ''))}`)}
+            className="shrink-0 rounded-full focus:outline-none focus:ring-2 focus:ring-primary/30"
+            aria-label={`Open @${username}`}
+          >
+            <div className={`${compact ? 'w-8 h-8' : 'w-10 h-10'} rounded-full bg-muted overflow-hidden`}>
+              {avatarUrl ? <img src={avatarUrl} alt={username} className="w-full h-full object-cover" /> :
+                <div className="w-full h-full flex items-center justify-center font-bold text-xs">{username[0]?.toUpperCase()}</div>}
+            </div>
+          </button>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-0.5 flex-wrap">
-              <span className={`font-semibold ${compact ? 'text-xs' : 'text-sm'}`}>{actor.display_name ?? username}</span>
-              <span className="text-xs text-purple-500 flex items-center gap-0.5"><Globe className="w-3 h-3" />{domain}</span>
+              <button
+                type="button"
+                onClick={() => navigate(`/fediverse/profile?actor=${encodeURIComponent(actor.url ?? actor.actor_uri ?? p.actor_url ?? '')}&handle=${encodeURIComponent('@' + username + (domain ? '@' + domain : ''))}`)}
+                className={`font-semibold text-left hover:underline ${compact ? 'text-xs' : 'text-sm'}`}
+              >{actor.display_name ?? username}</button>
+              <button
+                type="button"
+                onClick={() => navigate(`/fediverse/profile?actor=${encodeURIComponent(actor.url ?? actor.actor_uri ?? p.actor_url ?? '')}&handle=${encodeURIComponent('@' + username + (domain ? '@' + domain : ''))}`)}
+                className="text-xs text-purple-500 flex items-center gap-0.5 hover:underline"
+              ><Globe className="w-3 h-3" />{domain}</button>
               {created && <span className="text-xs text-muted-foreground">· {formatDistanceToNow(new Date(created), { addSuffix: true })}</span>}
             </div>
             <div className={`${compact ? 'text-xs' : 'text-sm'} leading-relaxed line-clamp-3`} dangerouslySetInnerHTML={{ __html: content }} />
@@ -692,12 +707,11 @@ export default function FediversePage() {
                   <MessageCircle className="w-3 h-3" />{p.replies_count ?? 0}
                 </button>
               )}
-              {(p.object_url ?? p.uri ?? p.url) && (
-                <a href={p.object_url ?? p.uri ?? p.url} target="_blank" rel="noopener noreferrer"
-                  className="ml-auto flex items-center gap-0.5 text-xs text-muted-foreground hover:text-primary px-2 py-1 rounded-full hover:bg-muted transition-colors">
-                  <ExternalLink className="w-2.5 h-2.5" />{domain}
-                </a>
-              )}
+              <button
+                type="button"
+                onClick={() => navigate(`/fediverse/profile?actor=${encodeURIComponent(actor.url ?? actor.actor_uri ?? p.actor_url ?? '')}&handle=${encodeURIComponent('@' + username + (domain ? '@' + domain : ''))}`)}
+                className="ml-auto text-xs text-muted-foreground hover:text-primary px-2 py-1 rounded-full hover:bg-muted transition-colors"
+              >View on Testagram</button>
             </div>
             {user && ps.replyOpen && (
               <div className="mt-1.5 flex items-start gap-1.5">
