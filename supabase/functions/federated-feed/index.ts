@@ -61,6 +61,69 @@ Deno.serve(async (request) => {
 
     const baseSelect = "id,uri,object_type,actor_uri,instance_id,url,content,summary,published_at,updated_at,sensitive,in_reply_to_uri,quote_uri,language_code,attachments,tags,like_count,announce_count,reply_count,quote_count,view_count,content_warning,raw_object";
 
+    // A Follow only creates the relationship; it does not guarantee that a remote
+    // instance has already delivered posts to our inbox. Hydrate followed actors
+    // directly from their ActivityPub outbox so a newly-followed account can
+    // contribute content to the personalized feed immediately.
+    const hydrateActor = async (actorUri: string) => {
+      try {
+        const actorUrl = new URL(actorUri);
+        if (!["http:", "https:"].includes(actorUrl.protocol)) return;
+        const actorRes = await fetch(actorUrl.toString(), {
+          headers: { Accept: "application/activity+json, application/ld+json" },
+        });
+        if (!actorRes.ok) return;
+        const actor = await actorRes.json();
+        const outboxUrl = typeof actor.outbox === "string" ? actor.outbox : actor.outbox?.id;
+        if (!outboxUrl) return;
+
+        const outboxRes = await fetch(outboxUrl, {
+          headers: { Accept: "application/activity+json, application/ld+json" },
+        });
+        if (!outboxRes.ok) return;
+        const outbox = await outboxRes.json();
+        const entries = Array.isArray(outbox.orderedItems)
+          ? outbox.orderedItems
+          : Array.isArray(outbox.items)
+            ? outbox.items
+            : Array.isArray(outbox.orderedItems?.items)
+              ? outbox.orderedItems.items
+              : [];
+        const objects = entries
+          .map((entry: any) => entry?.object ?? entry)
+          .filter((object: any) => object && typeof object === "object" && object.type !== "Delete")
+          .filter((object: any) => ["Note", "Article", "Question", "Video", "Image"].includes(object.type))
+          .slice(0, 20);
+
+        if (!objects.length) return;
+        const rows = objects.map((object: any) => ({
+          uri: String(object.id ?? object.url ?? ""),
+          object_type: String(object.type ?? "Note"),
+          actor_uri: String(object.attributedTo ?? actor.id ?? actorUri),
+          url: typeof object.url === "string" ? object.url : (object.url?.href ?? object.id ?? null),
+          content: String(object.content ?? object.name ?? ""),
+          summary: object.summary ?? null,
+          attachments: Array.isArray(object.attachment) ? object.attachment : [],
+          tags: Array.isArray(object.tag) ? object.tag : [],
+          like_count: Number(object.likes?.totalItems ?? 0),
+          announce_count: Number(object.shares?.totalItems ?? 0),
+          reply_count: Number(object.replies?.totalItems ?? 0),
+          published_at: object.published ?? object.updated ?? new Date().toISOString(),
+          raw_object: object,
+        })).filter((row: any) => row.uri);
+
+        if (rows.length) {
+          await admin.from("federated_objects").upsert(rows, { onConflict: "uri", ignoreDuplicates: false });
+        }
+      } catch (error) {
+        console.warn("[federated-feed] actor hydration failed", actorUri, error);
+      }
+    };
+
+    if (followedActorUris.length) {
+      await Promise.all(followedActorUris.slice(0, 10).map(hydrateActor));
+    }
+
     const buildQuery = () => {
       let query = admin
         .from("federated_objects")
