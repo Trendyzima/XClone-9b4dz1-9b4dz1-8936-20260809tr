@@ -869,14 +869,21 @@ export default function HomePage() {
         .eq('user_id', user.id)
         .limit(30);
       const tagIds = (follows ?? []).map((f: any) => f.hashtag_id).filter(Boolean);
-      if (tagIds.length === 0) { setHashtagFeedItems([]); setHashtagFeedLoading(false); return; }
+      const tagNames = (follows ?? []).map((f: any) => String(f.hashtags?.tag ?? '').toLowerCase().replace(/[^a-z0-9_]/g, '')).filter(Boolean);
+      if (tagIds.length === 0 && tagNames.length === 0) { setHashtagFeedItems([]); setHashtagFeedLoading(false); return; }
       const { data: phs } = await supabase
         .from('post_hashtags')
         .select('post_id, hashtag_id, hashtags(tag)')
         .in('hashtag_id', tagIds)
         .limit(200);
       const postIds = [...new Set((phs ?? []).map((ph: any) => ph.post_id))] as string[];
-      if (postIds.length === 0) { setHashtagFeedItems([]); setHashtagFeedLoading(false); return; }
+      const remoteFilter = tagNames.map((tag: string) => `content.ilike.%#${tag}%`).join(',');
+      const { data: remoteRows } = remoteFilter
+        ? await supabase.from('federated_objects')
+            .select('id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,remote_account,object_type,url')
+            .is('deleted_at', null).or(remoteFilter).order('published_at', { ascending: false }).limit(50)
+        : { data: [] as any[] };
+      if (postIds.length === 0 && !(remoteRows ?? []).length) { setHashtagFeedItems([]); setHashtagFeedLoading(false); return; }
       const { data: posts } = await supabase
         .from('posts')
         .select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
@@ -895,10 +902,30 @@ export default function HomePage() {
       const getPostTags = (pid: string): string[] => {
         const i = tagPostIds.indexOf(pid); return i >= 0 ? tagPostTags[i] : [];
       };
-      setHashtagFeedItems((posts ?? []).map((p: any) => ({
+      const localItems = (posts ?? []).map((p: any) => ({
         type: 'post' as const,
-        data: { ...p, _hashtag_tags: getPostTags(p.id) },
-      })));
+        data: { ...p, _hashtag_tags: getPostTags(p.id), _source_label: 'Testagram' },
+      }));
+      const remoteItems = (remoteRows ?? []).map((p: any) => ({
+        type: 'fedpost' as const,
+        data: {
+          ...p,
+          id: p.id ?? p.uri,
+          uri: p.uri,
+          user_id: p.actor_uri,
+          author_id: p.actor_uri,
+          created_at: p.published_at ?? p.updated_at,
+          content: p.content ?? p.summary ?? '',
+          remote_status_uri: p.uri,
+          user_profiles: p.remote_account ?? { actor_uri: p.actor_uri, username: 'unknown', display_name: 'Fediverse account', avatar_url: null },
+          is_federated: true,
+          _source_label: 'Fediverse',
+          _hashtag_tags: tagNames.filter((tag: string) => String(p.content ?? '').toLowerCase().includes('#' + tag)),
+        },
+      }));
+      setHashtagFeedItems([...localItems, ...remoteItems].sort((a: any, b: any) =>
+        new Date(b.data.created_at ?? b.data.published_at ?? 0).getTime() - new Date(a.data.created_at ?? a.data.published_at ?? 0).getTime()
+      ));
     } catch (err) {
       console.warn('[hashtagFeed]', err);
     } finally {
