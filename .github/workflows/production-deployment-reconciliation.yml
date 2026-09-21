@@ -113,7 +113,7 @@ jobs:
           [[ -n "$MPESA_PASSKEY" ]] || missing+=(MPESA_PASSKEY)
           [[ -n "$MPESA_USD_KES_RATE" ]] || missing+=(MPESA_USD_KES_RATE)
 
-          if (( ${#missing[@]} > 0 )); then
+          if [ "${#missing[@]}" -gt 0 ]; then
             echo "::warning::M-Pesa sandbox secrets are not fully provisioned; skipping secret synchronization."
             echo "::warning::Missing sandbox configuration names: ${missing[*]}"
             echo "M-Pesa functions will still be deployed; STK readiness remains false until real sandbox credentials are added."
