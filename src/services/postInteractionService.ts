@@ -71,6 +71,18 @@ export async function getFederatedInteractionCounts(postId: string): Promise<{ l
   };
 }
 
+export async function getFederatedReplies(postId: string): Promise<any[]> {
+  if (!isRemoteStatus(postId)) return [];
+  const { data, error } = await supabase.functions.invoke('testagram-api', {
+    body: { path: 'federated-replies', method: 'GET', params: { object_uri: postId } },
+  });
+  if (error) {
+    console.warn('[federation] replies unavailable', error);
+    return [];
+  }
+  return Array.isArray(data?.items) ? data.items : [];
+}
+
 export async function getFederatedInteractionState(postId: string): Promise<{ is_liked: boolean; is_reposted: boolean }> {
   if (!isRemoteStatus(postId)) return { is_liked: false, is_reposted: false };
   const { data, error } = await supabase.functions.invoke('testagram-api', {
