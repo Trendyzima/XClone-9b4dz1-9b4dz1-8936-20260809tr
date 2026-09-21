@@ -16,7 +16,7 @@ import {
 import { TrendingVideosSection } from '@/components/features/TrendingVideosSection';
 import { CommunitySpotlightStrip } from '@/components/features/CommunitySpotlightStrip';
 import { formatDistanceToNow } from 'date-fns';
-import { formatNumber } from '@/lib/utils';
+import { formatNumber, localizeSocialLinks } from '@/lib/utils';
 import { DynamicAd } from '@/components/features/DynamicAd';
 import { NativeAdCard } from '@/components/features/NativeAdCard';
 import { useSEO } from '@/hooks/useSEO';
@@ -1626,7 +1626,7 @@ function FederatedPostCard({ post }: { post: any }) {
             {createdAt && <span className="text-muted-foreground text-xs">· {formatDistanceToNow(new Date(createdAt), { addSuffix: true })}</span>}
           </button>
           <button type="button" onClick={openProfile} className="text-xs text-muted-foreground mb-1.5 hover:underline cursor-pointer">@{username}{domain ? `@${domain}` : ''}</button>
-          <div className="text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: post.content ?? post.text ?? '' }} />
+          <div className="text-sm leading-relaxed" dangerouslySetInnerHTML={{ __html: localizeSocialLinks(post.content ?? post.text ?? '') }} />
           {showTranslation && translation && <div className="mt-2 p-3 bg-blue-500/5 border border-blue-500/15 rounded-xl"><p className="text-xs font-semibold text-blue-500 mb-1 flex items-center gap-1"><Languages className="w-3 h-3" /> Translated to English</p><p className="text-sm leading-relaxed text-foreground">{translation}</p></div>}
           {Array.isArray(post.media_attachments) && post.media_attachments.length > 0 && <div className="mt-2 grid grid-cols-2 gap-1 rounded-xl overflow-hidden">{post.media_attachments.slice(0, 4).map((m: any, i: number) => m.type === 'image' ? <img key={i} src={m.url ?? m.preview_url} alt={m.description ?? ''} className="w-full h-32 object-cover" loading="lazy" /> : null)}</div>}
           <div className="flex items-center gap-4 mt-2.5 text-muted-foreground text-xs">
