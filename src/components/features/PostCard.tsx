@@ -27,6 +27,7 @@ import { EmbedRenderer, PostContentEmbeds } from './EmbedRenderer';
 import { updateInterestSignal } from '@/services/recommendations';
 import { togglePostLike, togglePostRepost, createFederatedReply } from '@/services/postInteractionService';
 import { backendCapabilities } from '@/services/backendClient';
+import * as federation from '@/api/federation';
 // Canonical social interaction reads/writes stay behind backend capabilities.
 
 // esbuild guard: no 'as const' on module-level objects/arrays used in .map() render
@@ -138,8 +139,23 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
 
   const handleReact = async (emoji: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isFederatedPost) return;
     if (!user) { navigate('/auth'); return; }
+    if (isFederatedPost) {
+      setShowReactionPicker(false);
+      if (emoji !== '❤️') {
+        toast({ title: 'Federated reaction unavailable', description: 'Only Like is supported across ActivityPub instances.' });
+        return;
+      }
+      try {
+        const state = await togglePostLike(interactionPostId, isLiked);
+        setIsLiked(state.is_liked);
+        setLikesCount(state.likes_count);
+        onUpdate?.();
+      } catch (error) {
+        toast({ title: 'Like failed', description: error instanceof Error ? error.message : 'Failed to like remote post', variant: 'destructive' });
+      }
+      return;
+    }
     setShowReactionPicker(false);
     const prevReaction = userReaction;
 
@@ -457,14 +473,24 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const handleSubmitReport = async () => {
     if (!user || !reportCategory) return;
     setReportSubmitting(true);
-    await supabase.from('post_reports').upsert(
-      { post_id: post.id, reporter_id: user.id, category: reportCategory },
-      { onConflict: 'post_id,reporter_id' }
-    ).catch(() => {});
-    toast({ title: 'Report submitted', description: 'Thanks for helping keep the community safe.' });
-    setShowReportDialog(false);
-    setReportCategory('');
-    setReportSubmitting(false);
+    try {
+      if (isFederatedPost) {
+        await federation.flagStatus(interactionPostId, reportCategory);
+      } else {
+        const { error } = await supabase.from('post_reports').upsert(
+          { post_id: post.id, reporter_id: user.id, category: reportCategory },
+          { onConflict: 'post_id,reporter_id' }
+        );
+        if (error) throw error;
+      }
+      toast({ title: 'Report submitted', description: 'Thanks for helping keep the community safe.' });
+      setShowReportDialog(false);
+      setReportCategory('');
+    } catch (error) {
+      toast({ title: 'Report failed', description: error instanceof Error ? error.message : 'Could not submit report', variant: 'destructive' });
+    } finally {
+      setReportSubmitting(false);
+    }
   };
 
   // Video monetization pre-roll
@@ -582,7 +608,8 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     const trackShare = () => {
       setShareCount(c => c + 1);
       supabase.from('post_analytics').select('id, shares').eq('post_id', post.id).maybeSingle().then(({ data }) => {
-        if (data?.id) supabase.from('post_analytics').update({ shares: (data.shares || 0) + 1 }).eq('id', data.id).catch(() => {});
+        if (isFederatedPost) return;
+      if (data?.id) supabase.from('post_analytics').update({ shares: (data.shares || 0) + 1 }).eq('id', data.id).catch(() => {});
         else supabase.from('post_analytics').insert({ post_id: post.id, shares: 1 }).catch(() => {});
       });
     };
@@ -983,7 +1010,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
             <button
               title="Quote Tweet"
               className="flex items-center space-x-2 text-muted-foreground hover:text-blue-500 transition-colors group"
-              onClick={e => { e.stopPropagation(); navigate(`/?quote_post_id=${post.id}&quote_preview=${encodeURIComponent(post.content.slice(0, 100))}`); }}
+              onClick={e => { e.stopPropagation(); navigate(`/?quote_post_id=${encodeURIComponent(interactionPostId)}&quote_preview=${encodeURIComponent(post.content.slice(0, 100))}`); }}
             >
               <div className="p-2 rounded-full group-hover:bg-blue-500/10 transition-colors">
                 <Quote className="w-4 h-4" />
@@ -1002,7 +1029,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
 
             <div onClick={(e) => e.stopPropagation()}>
               <BookmarkButton postId={post.id} />
-              {user && post.user_id !== user.id && (post as any).user_id && (
+              {user && !isFederatedPost && post.user_id !== user.id && (post as any).user_id && (
                 <TipButton
                   postId={post.id}
                   creatorId={(post as any).user_id}
