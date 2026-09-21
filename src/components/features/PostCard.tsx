@@ -355,9 +355,29 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     setInlineLoading(false);
   };
 
-  const toggleComments = (e: React.MouseEvent) => {
+  const toggleComments = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (!showComments && !isFederatedPost) fetchInlineReplies();
+    if (!showComments) {
+      if (isFederatedPost) {
+        const items = await getFederatedReplies(interactionPostId);
+        if (items.length) {
+          const mapped = items.map((reply: any) => ({
+            id: reply.id,
+            content: reply.content,
+            created_at: reply.created_at,
+            federated_pending: reply.delivery_state !== 'delivered',
+            user_profiles: { username: user?.username ?? 'you', avatar_url: (user as any)?.user_metadata?.avatar_url ?? null },
+            profile: { username: user?.username ?? 'you', avatar_url: (user as any)?.user_metadata?.avatar_url ?? null },
+          }));
+          setInlineReplies(prev => {
+            const existing = new Set(prev.map((x: any) => x.id));
+            return [...mapped.filter((x: any) => !existing.has(x.id)), ...prev];
+          });
+        }
+      } else {
+        fetchInlineReplies();
+      }
+    }
     setShowComments(v => !v);
   };
 
@@ -408,7 +428,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
             created_at: new Date().toISOString(),
             user_profiles: profile,
             profile,
-            federated_pending: true,
+            federated_pending: result?.accepted !== true,
           }, ...prev]);
           setShowComments(true);
           setRepliesCount(prev => prev + 1);
