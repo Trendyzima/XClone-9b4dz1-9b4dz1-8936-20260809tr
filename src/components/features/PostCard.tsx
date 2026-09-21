@@ -606,7 +606,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
 
   const federatedProfilePath = () => {
     const actor = (post as any).actor_uri || (post as any).remote_account?.actor_uri || (post.user_profiles as any)?.actor_uri || '';
-    const profile = (post as any).remote_account || (post as any).user_profiles || {};
+    // Merge cached/local identity with the remote account so partial remote data never erases fields already present on the post.\n    const profile = { ...((post.user_profiles as any) || {}), ...((post as any).remote_account || {}) };
     const username = String(profile.preferredUsername || profile.username || profile.acct || '').replace(/^@/, '');
     let domain = String(profile.domain || '');
     if (!domain && actor) {
