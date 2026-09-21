@@ -1,7 +1,22 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 const SUPABASE_URL=Deno.env.get("SUPABASE_URL")!;const SERVICE=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||Deno.env.get("SUPABASE_SECRET_KEY")||"";const ANON=Deno.env.get("SUPABASE_ANON_KEY")||Deno.env.get("SUPABASE_PUBLISHABLE_KEY")||"";const FEED=`${SUPABASE_URL}/functions/v1/feed-fast`;const POST_CREATE=`${SUPABASE_URL}/functions/v1/post-create`;const TRANSPORT=`${SUPABASE_URL}/functions/v1/federation-transport`;const CORS={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, content-type, x-client-info, x-supabase-api-version","Access-Control-Allow-Methods":"GET,POST,DELETE,OPTIONS"};const admin=createClient(SUPABASE_URL,SERVICE,{auth:{persistSession:false,autoRefreshToken:false}});const json=(v:unknown,s=200)=>new Response(JSON.stringify(v),{status:s,headers:{...CORS,"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
-async function user(auth:string|null){if(!auth||!ANON)return null;const r=await fetch(`${SUPABASE_URL}/auth/v1/user`,{headers:{apikey:ANON,Authorization:auth}});if(!r.ok)return null;const u=await r.json();return u?.id?u:null}
+async function user(auth:string|null){
+  if(!auth)return null;
+  const token=auth.replace(/^Bearer\\s+/i,"").trim();
+  if(!token)return null;
+  try {
+    const r=await admin.auth.getUser(token);
+    if(r.data?.user?.id)return r.data.user;
+  } catch(e) { console.warn("service auth lookup failed",e); }
+  if(!ANON)return null;
+  try {
+    const r=await fetch(`${SUPABASE_URL}/auth/v1/user`,{headers:{apikey:ANON,Authorization:auth}});
+    if(!r.ok)return null;
+    const u=await r.json();
+    return u?.id?u:null;
+  } catch { return null; }
+}
 async function fn(target:string,method:string,body:unknown,auth:string|null,params:Record<string,string>={}){const u=new URL(target);for(const[k,v]of Object.entries(params))u.searchParams.set(k,v);const r=await fetch(u,{method,headers:{"Content-Type":"application/json",...(auth?{Authorization:auth}:{})},body:["GET","HEAD"].includes(method)?undefined:JSON.stringify(body??{})});const t=await r.text();return new Response(t,{status:r.status,headers:{...CORS,"Content-Type":r.headers.get("Content-Type")||"application/json; charset=utf-8","Cache-Control":"no-store"}})}
 async function transport(body:any){const r=await fetch(TRANSPORT,{method:"POST",headers:{"Content-Type":"application/json","x-federation-internal":SERVICE},body:JSON.stringify(body)});const t=await r.text();return{status:r.status,data:()=>{try{return JSON.parse(t)}catch{return{error:t}}}}}
 async function localProfile(username:string){const r=await admin.from("profiles").select("*").eq("username",username).maybeSingle();return r.data}
@@ -23,7 +38,7 @@ async function replyOp(body:any,auth:string|null){
   const localReply=await admin.from("federated_replies").insert({
     user_id:u.id, object_uri:target, parent_uri:target, content, delivery_state:"pending"
   }).select("id,object_uri,parent_uri,content,created_at,delivery_state").single();
-  if(localReply.error)return json({error:localReply.error.message},400);
+  if(localReply.error)return json({error:"Failed to persist federated reply",details:localReply.error.message},500);
   const activity:any={
     "@context":["https://www.w3.org/ns/activitystreams"],
     type:"Create",
@@ -70,7 +85,7 @@ async function react(kind:string,enabled:boolean,body:any,auth:string|null){
       user_id:u.id, object_uri:target, interaction_type:interactionType,
       active:enabled, delivery_state:"pending", updated_at:new Date().toISOString()
     }, {onConflict:"user_id,object_uri,interaction_type"});
-    if(pending.error) console.warn("federated interaction local state", pending.error);
+    if(pending.error)return json({ok:false,error:"Failed to persist federated interaction",details:pending.error.message},500);
 
     const activity=enabled
       ? (kind==="favorite"
