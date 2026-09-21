@@ -529,14 +529,23 @@ export default function HomePage() {
   };
 
   // ── Federated timeline via Gateway ──────────────────────────────────────────
-  const normalizeFederatedPosts = (posts: any[]): any[] => posts.map((p: any) => ({
-    ...p,
-    id: p.id ?? p.uri ?? p.url ?? `fed-${p.created_at ?? ''}-${p.content?.slice(0, 8) ?? ''}`,
-    content: p.content ?? p.text ?? '',
-    created_at: p.created_at ?? p.published ?? new Date().toISOString(),
-    actor: p.actor ?? p.account ?? {},
-  }));
-
+  const normalizeFederatedPosts = (posts: any[]): any[] => posts.map((p: any) => {
+    // federated-feed resolves ActivityPub actors into remote_account; preserve
+    // that canonical profile so homepage cards match the Fediverse page.
+    const actor = p.remote_account ?? p.actor ?? p.account ?? {};
+    const actorUri = actor.actor_uri ?? actor.id ?? p.actor_uri ?? '';
+    let domain = actor.domain ?? '';
+    if (!domain && actorUri) {
+      try { domain = new URL(actorUri).hostname; } catch {}
+    }
+    return {
+      ...p,
+      id: p.id ?? p.uri ?? p.url ?? ('fed-' + (p.created_at ?? p.published_at ?? '') + '-' + (p.content?.slice(0, 8) ?? '')),
+      content: p.content ?? p.text ?? '',
+      created_at: p.created_at ?? p.published_at ?? p.published ?? new Date().toISOString(),
+      actor: { ...actor, actor_uri: actorUri, domain },
+    };
+  });
   const fetchFederatedPage = async (before?: string | null): Promise<{ posts: any[]; nextCursor: string | null; hasMore: boolean }> => {
     try {
       const page = await federation.getFederatedTimelinePage({ limit: 12, before: before ?? undefined });
