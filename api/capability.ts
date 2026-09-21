@@ -1,6 +1,9 @@
 export const config = { runtime: "edge" };
 
 const CANONICAL_SUPABASE_URL = "https://ffrhglgkukgsuhxenena.supabase.co";
+// Publishable keys are safe for browser/public API use. Keep this canonical fallback
+// so the capability route cannot fail merely because Vercel omitted a public env var.
+const CANONICAL_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya";
 const PUBLIC_CAPABILITIES = new Set(["testagram.capabilities.list", "testagram.health.read"]);
 const PUBLIC_CACHE = "public, max-age=0, s-maxage=60, stale-while-revalidate=300";
 
@@ -22,7 +25,7 @@ export default async function handler(request: Request) {
   const isPublic = PUBLIC_CAPABILITIES.has(capability);
   if (!isPublic && !authorization?.startsWith("Bearer ")) return response({ ok: false, error: { code: "AUTH_REQUIRED", message: "Authentication required" }, request_id: requestId }, 401);
   const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || CANONICAL_SUPABASE_URL;
-  const anonKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY;
+  const anonKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || CANONICAL_SUPABASE_PUBLISHABLE_KEY;
   if (!anonKey) return response({ ok: false, error: { code: "SUPABASE_CONFIG_MISSING", message: "Supabase public configuration is missing" }, request_id: requestId }, 500);
   try {
     const upstream = await fetch(`${supabaseUrl.replace(/\/$/, "")}/rest/v1/rpc/capability_dispatch`, {
