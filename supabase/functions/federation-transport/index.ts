@@ -499,6 +499,7 @@ async function handle(request: Request) {
     // Interaction targets are remote ActivityPub objects (status URIs), not actors.
     // Resolve the target object first, then deliver to the actor's inbox/sharedInbox.
     let remote;
+    let remoteObject:any = null;
     if (/^https?:\/\//i.test(target)) {
       const objectResponse = await signedFetch(local, target, "GET");
       const objectText = await objectResponse.text();
@@ -537,17 +538,24 @@ async function handle(request: Request) {
     }
     if (activityWithId.type === "Create" && activityWithId.object && typeof activityWithId.object === "object") {
       const note = activityWithId.object as Record<string, unknown>;
-      const noteId = typeof note.id === "string" ? note.id : `${local.actor_url}#activities/reply-${crypto.randomUUID()}`;
+      const noteId = typeof note.id === "string" ? note.id : String(local.actor_url) + "#activities/reply-" + crypto.randomUUID();
       const recipient = remote.actorUrl;
+      // Match Mastodon's addressing model: address the original author and preserve the original audience.
+      const originalTo = Array.isArray(remoteObject?.to) ? remoteObject.to : (remoteObject?.to ? [remoteObject.to] : []);
+      const originalCc = Array.isArray(remoteObject?.cc) ? remoteObject.cc : (remoteObject?.cc ? [remoteObject.cc] : []);
+      const replyTo = Array.from(new Set([...(Array.isArray(note.to) ? note.to : []), ...originalTo, recipient]));
+      const replyCc = Array.from(new Set([...(Array.isArray(note.cc) ? note.cc : []), ...originalCc]));
       activityWithId = {
         ...activityWithId,
-        to: Array.from(new Set([...(Array.isArray(activityWithId.to) ? activityWithId.to : []), recipient, "https://www.w3.org/ns/activitystreams#Public"])),
+        to: replyTo,
+        cc: replyCc.length ? replyCc : undefined,
         object: {
           ...note,
           id: noteId,
           attributedTo: note.attributedTo || local.actor_url,
           inReplyTo: note.inReplyTo || target,
-          to: Array.from(new Set([...(Array.isArray(note.to) ? note.to : []), recipient, "https://www.w3.org/ns/activitystreams#Public"]))
+          to: replyTo,
+          cc: replyCc.length ? replyCc : undefined
         }
       };
     }
