@@ -46,16 +46,137 @@ export default function ThreadDetailPage(){
  const quote=async()=>{if(!requireAuth()||!thread||!quoteText.trim())return;setSending(true);const {error}=await supabase.from('thread_quotes').insert({thread_id:thread.id,user_id:user!.id,content:quoteText.trim()});if(error)toast.error('Quote failed');else{setQuoteText('');setQuoting(false);setThread(t=>t?{...t,quotes_count:t.quotes_count+1}:t);toast.success('Quote posted')}setSending(false)};
  const remove=async()=>{if(!thread||!user||thread.owner_id!==user.id)return;if(!window.confirm('Delete this thread?'))return;const {error}=await supabase.from('threads').update({deleted_at:new Date().toISOString()}).eq('id',thread.id).eq('owner_id',user.id);if(error)toast.error('Could not delete thread');else{toast.success('Thread deleted');navigate('/threads')}};
  if(loading)return <div className="min-h-screen bg-background"><TopBar title="Thread" showBack/><div className="flex justify-center py-24"><Loader2 className="h-7 w-7 animate-spin text-primary"/></div></div>;
- if(!thread)return null; const profile=thread.profiles;
- return <div className="min-h-screen bg-background pb-20 md:pb-0"><TopBar title="Thread" showBack/><main>
-  <article className="px-4 py-5"><div className="flex gap-3"><button onClick={()=>navigate('/profile/'+(profile?.username||''))}><Avatar profile={profile}/></button><div className="min-w-0 flex-1">
-   <div className="flex items-start gap-2"><div><p className="font-bold">{profile?.display_name||profile?.username||'Testagram user'} {profile?.verified&&<Check className="inline h-4 w-4 rounded-full bg-primary p-0.5 text-primary-foreground"/>}</p><p className="text-xs text-muted-foreground">@{profile?.username||'user'} · {formatDistanceToNow(new Date(thread.created_at),{addSuffix:true})}</p></div><button className="ml-auto rounded-full p-2 hover:bg-muted"><MoreHorizontal className="h-4 w-4"/></button></div>
-   {thread.title&&<h1 className="mt-4 text-xl font-bold">{thread.title}</h1>}<p className="mt-3 whitespace-pre-wrap break-words text-[16px] leading-7">{thread.body}</p>
-   {thread.media_urls.length>0&&<div className={'mt-4 grid gap-2 overflow-hidden rounded-2xl border border-border '+(thread.media_urls.length>1?'grid-cols-2':'grid-cols-1')}>{thread.media_urls.slice(0,4).map(url=><img key={url} src={url} alt="" className="max-h-[560px] w-full object-cover"/>)}</div>}
-   <div className="mt-5 flex items-center justify-between border-b border-border pb-4 text-muted-foreground"><button onClick={()=>setReplyText(v=>v?'':' ')} className="flex items-center gap-1.5 rounded-full p-2 hover:text-primary"><MessageCircle className="h-5 w-5"/>{thread.replies_count>0&&<span className="text-xs">{formatNumber(thread.replies_count)}</span>}</button><button onClick={repost} className={'flex items-center gap-1.5 rounded-full p-2 '+(reposted?'text-green-600':'hover:text-green-600')}><Repeat2 className="h-5 w-5"/>{thread.reposts_count>0&&<span className="text-xs">{formatNumber(thread.reposts_count)}</span>}</button><button onClick={like} className={'flex items-center gap-1.5 rounded-full p-2 '+(liked?'text-pink-600':'hover:text-pink-600')}><Heart className={'h-5 w-5 '+(liked?'fill-current':'')}/>{thread.likes_count>0&&<span className="text-xs">{formatNumber(thread.likes_count)}</span>}</button><button onClick={()=>setQuoting(v=>!v)} className="flex items-center gap-1.5 rounded-full p-2 hover:text-primary"><Quote className="h-5 w-5"/>{thread.quotes_count>0&&<span className="text-xs">{formatNumber(thread.quotes_count)}</span>}</button><button onClick={bookmark} className={'rounded-full p-2 '+(bookmarked?'text-primary':'hover:text-primary')}><Bookmark className={'h-5 w-5 '+(bookmarked?'fill-current':'')}/></button><button onClick={()=>navigator.share?.({title:'Testagram thread',text:thread.body,url:window.location.href})} className="rounded-full p-2 hover:text-primary"><Share2 className="h-5 w-5"/></button>{user?.id===thread.owner_id&&<button onClick={()=>void remove()} className="rounded-full p-2 hover:text-destructive"><Trash2 className="h-5 w-5"/></button>}</div>
-   <p className="pt-3 text-xs text-muted-foreground">{formatNumber(thread.views_count)} views</p>
-  </div></div></article>
-  {replyText!==''&&<div className="border-y border-border bg-muted/20 p-4"><div className="flex gap-3"><Avatar profile={{id:user?.id||'',username:'you',avatar_url:null,verified:false}}/><div className="flex-1"><Textarea autoFocus value={replyText.trim()} onChange={e=>setReplyText(e.target.value)} placeholder="Reply to this thread…" className="min-h-24 resize-none"/><div className="mt-3 flex justify-end gap-2"><Button variant="ghost" onClick={()=>setReplyText('')}>Cancel</Button><Button onClick={()=>void reply()} disabled={sending||!replyText.trim()} className="rounded-full">{sending?<Loader2 className="h-4 w-4 animate-spin"/>:'Reply'}</Button></div></div></div></div>}
-  {quoting&&<div className="border-b border-border bg-muted/20 p-4"><div className="flex gap-3"><Avatar profile={{id:user?.id||'',username:'you',avatar_url:null,verified:false}}/><div className="flex-1"><div className="rounded-2xl border border-border bg-background p-3 text-sm text-muted-foreground">“{thread.body.slice(0,220)}{thread.body.length>220?'…':''}”</div><Textarea autoFocus value={quoteText} onChange={e=>setQuoteText(e.target.value.slice(0,500))} placeholder="Add your thought…" className="mt-3 min-h-20 resize-none"/><div className="mt-2 flex justify-end gap-2"><Button variant="ghost" onClick={()=>setQuoting(false)}>Cancel</Button><Button onClick={()=>void quote()} disabled={sending||!quoteText.trim()} className="rounded-full">Quote</Button></div></div></div></div>}
-  <section className="divide-y divide-border"><div className="px-4 py-3 text-sm font-bold">Replies</div>{replies.length===0?<div className="px-6 py-12 text-center text-sm text-muted-foreground">No replies yet. Start the conversation.</div>:replies.map(r=><article key={r.id} className="px-4 py-4"><div className="flex gap-3"><Avatar profile={r.profiles}/><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><span className="font-semibold text-sm">{r.profiles?.display_name||r.profiles?.username||'User'}</span>{r.profiles?.verified&&<Check className="h-3.5 w-3.5 rounded-full bg-primary p-0.5 text-primary-foreground"/>}<span className="text-xs text-muted-foreground">· {formatDistanceToNow(new Date(r.created_at),{addSuffix:true})}</span></div><p className="mt-1 whitespace-pre-wrap text-sm leading-6">{r.content}</p></div></div></article>)}</section>
- </main></div>;
+ if (!thread) return null;
+ const profile = thread.profiles;
+
+ return (
+  <div className="min-h-screen bg-background pb-20 md:pb-0">
+   <TopBar title="Thread" showBack />
+   <main>
+    <article className="px-4 py-5">
+     <div className="flex gap-3">
+      <button onClick={() => navigate('/profile/' + (profile?.username || ''))}>
+       <Avatar profile={profile} />
+      </button>
+      <div className="min-w-0 flex-1">
+       <div className="flex items-start gap-2">
+        <div>
+         <p className="font-bold">
+          {profile?.display_name || profile?.username || 'Testagram user'}
+          {profile?.verified && <Check className="inline h-4 w-4 rounded-full bg-primary p-0.5 text-primary-foreground" />}
+         </p>
+         <p className="text-xs text-muted-foreground">
+          @{profile?.username || 'user'} · {formatDistanceToNow(new Date(thread.created_at), { addSuffix: true })}
+         </p>
+        </div>
+        <button className="ml-auto rounded-full p-2 hover:bg-muted" aria-label="More options">
+         <MoreHorizontal className="h-4 w-4" />
+        </button>
+       </div>
+
+       {thread.title && <h1 className="mt-4 text-xl font-bold">{thread.title}</h1>}
+       <p className="mt-3 whitespace-pre-wrap break-words text-[16px] leading-7">{thread.body}</p>
+
+       {thread.media_urls.length > 0 && (
+        <div className={'mt-4 grid gap-2 overflow-hidden rounded-2xl border border-border ' + (thread.media_urls.length > 1 ? 'grid-cols-2' : 'grid-cols-1')}>
+         {thread.media_urls.slice(0, 4).map((url) => (
+          <img key={url} src={url} alt="" className="max-h-[560px] w-full object-cover" />
+         ))}
+        </div>
+       )}
+
+       <div className="mt-5 flex items-center justify-between border-b border-border pb-4 text-muted-foreground">
+        <button onClick={() => setReplyText((value) => value ? '' : ' ')} className="flex items-center gap-1.5 rounded-full p-2 hover:text-primary" aria-label="Reply">
+         <MessageCircle className="h-5 w-5" />
+         {thread.replies_count > 0 && <span className="text-xs">{formatNumber(thread.replies_count)}</span>}
+        </button>
+        <button onClick={repost} className={'flex items-center gap-1.5 rounded-full p-2 ' + (reposted ? 'text-green-600' : 'hover:text-green-600')} aria-label="Repost">
+         <Repeat2 className="h-5 w-5" />
+         {thread.reposts_count > 0 && <span className="text-xs">{formatNumber(thread.reposts_count)}</span>}
+        </button>
+        <button onClick={like} className={'flex items-center gap-1.5 rounded-full p-2 ' + (liked ? 'text-pink-600' : 'hover:text-pink-600')} aria-label="Like">
+         <Heart className={'h-5 w-5 ' + (liked ? 'fill-current' : '')} />
+         {thread.likes_count > 0 && <span className="text-xs">{formatNumber(thread.likes_count)}</span>}
+        </button>
+        <button onClick={() => setQuoting((value) => !value)} className="flex items-center gap-1.5 rounded-full p-2 hover:text-primary" aria-label="Quote">
+         <Quote className="h-5 w-5" />
+         {thread.quotes_count > 0 && <span className="text-xs">{formatNumber(thread.quotes_count)}</span>}
+        </button>
+        <button onClick={bookmark} className={'rounded-full p-2 ' + (bookmarked ? 'text-primary' : 'hover:text-primary')} aria-label="Bookmark">
+         <Bookmark className={'h-5 w-5 ' + (bookmarked ? 'fill-current' : '')} />
+        </button>
+        <button onClick={() => navigator.share?.({ title: 'Testagram thread', text: thread.body, url: window.location.href })} className="rounded-full p-2 hover:text-primary" aria-label="Share">
+         <Share2 className="h-5 w-5" />
+        </button>
+        {user?.id === thread.owner_id && (
+         <button onClick={() => void remove()} className="rounded-full p-2 hover:text-destructive" aria-label="Delete">
+          <Trash2 className="h-5 w-5" />
+         </button>
+        )}
+       </div>
+       <p className="pt-3 text-xs text-muted-foreground">{formatNumber(thread.views_count)} views</p>
+      </div>
+     </div>
+    </article>
+
+    {replyText !== '' && (
+     <div className="border-y border-border bg-muted/20 p-4">
+      <div className="flex gap-3">
+       <Avatar profile={{ id: user?.id || '', username: 'you', avatar_url: null, verified: false }} />
+       <div className="flex-1">
+        <Textarea autoFocus value={replyText.trim()} onChange={(event) => setReplyText(event.target.value)} placeholder="Reply to this thread…" className="min-h-24 resize-none" />
+        <div className="mt-3 flex justify-end gap-2">
+         <Button variant="ghost" onClick={() => setReplyText('')}>Cancel</Button>
+         <Button onClick={() => void reply()} disabled={sending || !replyText.trim()} className="rounded-full">
+          {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Reply'}
+         </Button>
+        </div>
+       </div>
+      </div>
+     </div>
+    )}
+
+    {quoting && (
+     <div className="border-b border-border bg-muted/20 p-4">
+      <div className="flex gap-3">
+       <Avatar profile={{ id: user?.id || '', username: 'you', avatar_url: null, verified: false }} />
+       <div className="flex-1">
+        <div className="rounded-2xl border border-border bg-background p-3 text-sm text-muted-foreground">
+         “{thread.body.slice(0, 220)}{thread.body.length > 220 ? '…' : ''}”
+        </div>
+        <Textarea autoFocus value={quoteText} onChange={(event) => setQuoteText(event.target.value.slice(0, 500))} placeholder="Add your thought…" className="mt-3 min-h-20 resize-none" />
+        <div className="mt-2 flex justify-end gap-2">
+         <Button variant="ghost" onClick={() => setQuoting(false)}>Cancel</Button>
+         <Button onClick={() => void quote()} disabled={sending || !quoteText.trim()} className="rounded-full">Quote</Button>
+        </div>
+       </div>
+      </div>
+     </div>
+    )}
+
+    <section className="divide-y divide-border">
+     <div className="px-4 py-3 text-sm font-bold">Replies</div>
+     {replies.length === 0 ? (
+      <div className="px-6 py-12 text-center text-sm text-muted-foreground">No replies yet. Start the conversation.</div>
+     ) : (
+      replies.map((replyItem) => (
+       <article key={replyItem.id} className="px-4 py-4">
+        <div className="flex gap-3">
+         <Avatar profile={replyItem.profiles} />
+         <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+           <span className="font-semibold text-sm">{replyItem.profiles?.display_name || replyItem.profiles?.username || 'User'}</span>
+           {replyItem.profiles?.verified && <Check className="h-3.5 w-3.5 rounded-full bg-primary p-0.5 text-primary-foreground" />}
+           <span className="text-xs text-muted-foreground">· {formatDistanceToNow(new Date(replyItem.created_at), { addSuffix: true })}</span>
+          </div>
+          <p className="mt-1 whitespace-pre-wrap text-sm leading-6">{replyItem.content}</p>
+         </div>
+        </div>
+       </article>
+      ))
+     )}
+    </section>
+   </main>
+  </div>
+ );
+}
