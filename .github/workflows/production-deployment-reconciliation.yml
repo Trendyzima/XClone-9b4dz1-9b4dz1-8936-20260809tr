@@ -23,7 +23,10 @@ permissions:
 env:
   VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
   VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-  MAX_DEPLOY_ATTEMPTS: "3"
+  # Never repeat a Vercel deployment inside one reconciliation. The exact-SHA lookup
+  # below already reuses READY deployments, and repeated deploy attempts can
+  # consume Vercel Hobby deployment-rate limits without changing production.
+  MAX_DEPLOY_ATTEMPTS: "1"
   APP_ORIGIN: "https://testagram.site"
 
 jobs:
