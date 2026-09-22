@@ -226,6 +226,27 @@ export default async function handler(req: any, res: any) {
         .select('id,storage_key,post_id,media_url,media_type,mime_type,byte_size,status,etag')
         .single();
       if (error) return json(res, 500, { error: 'Unable to attach media to post' });
+
+      // Keep the normalized join table in sync with the canonical media asset.
+      // This makes feeds, galleries and deletion paths see the same attachment.
+      const { data: existingJoin } = await admin.from('post_media')
+        .select('id').eq('post_id', postId).eq('media_asset_id', mediaId).maybeSingle();
+      if (!existingJoin) {
+        const { data: last } = await admin.from('post_media')
+          .select('sort_order').eq('post_id', postId).order('sort_order', { ascending: false }).limit(1).maybeSingle();
+        const join = await admin.from('post_media').insert({
+          post_id: postId,
+          owner_id: user.id,
+          media_url: updated.media_url,
+          media_type: updated.media_type,
+          mime_type: updated.mime_type,
+          byte_size: updated.byte_size,
+          media_asset_id: mediaId,
+          sort_order: Number(last?.sort_order ?? -1) + 1,
+        });
+        if (join.error) return json(res, 500, { error: 'Media uploaded but could not be linked to the post' });
+      }
+
       return json(res, 200, {
         ...updated, object_key: updated.storage_key, public_url: updated.media_url, size_bytes: updated.byte_size,
       });
