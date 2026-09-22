@@ -3,9 +3,8 @@ name: Vercel Production Deploy
 # Federated interaction compatibility is deployed with the exact main revision.
 
 on:
-  workflow_dispatch:
   # Automatic production deployment is owned by production-deployment-reconciliation.yml.
-  # Keep this workflow manual so one push cannot consume two Vercel deployments.
+  # This workflow remains manual for controlled exact-revision deployments.
   workflow_dispatch:
     inputs:
       deploy:
@@ -13,19 +12,6 @@ on:
         required: false
         default: false
         type: boolean
-    paths:
-      - 'src/**'
-      - 'api/**'
-      - 'public/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'vercel.json'
-      - 'vite.config.*'
-      - '_build.cjs'
-      - '_patch-vite.cjs'
-      - 'index.html'
-      - '.github/workflows/vercel-production.yml'
-      - 'scripts/verify-r2.mjs'
 
 permissions:
   contents: read
