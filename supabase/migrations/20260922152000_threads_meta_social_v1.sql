@@ -89,7 +89,7 @@ create policy "threads_owner_delete" on public.threads for delete to authenticat
 drop policy if exists "thread_replies_public_read" on public.thread_replies;
 create policy "thread_replies_public_read" on public.thread_replies for select to anon, authenticated using (exists(select 1 from public.threads t where t.id=thread_id and t.deleted_at is null and t.visibility='public'));
 drop policy if exists "thread_replies_owner_insert" on public.thread_replies;
-create policy "thread_replies_owner_insert" on public.thread_replies for insert to authenticated with check (user_id=(select auth.uid()));
+create policy "thread_replies_owner_insert" on public.thread_replies for insert to authenticated with check (user_id=(select auth.uid()) and exists(select 1 from public.threads t where t.id=thread_id and t.deleted_at is null and t.visibility='public'));
 drop policy if exists "thread_replies_owner_update" on public.thread_replies;
 create policy "thread_replies_owner_update" on public.thread_replies for update to authenticated using (user_id=(select auth.uid())) with check (user_id=(select auth.uid()));
 drop policy if exists "thread_replies_owner_delete" on public.thread_replies;
@@ -98,21 +98,21 @@ create policy "thread_replies_owner_delete" on public.thread_replies for delete 
 drop policy if exists "thread_likes_public_read" on public.thread_likes;
 create policy "thread_likes_public_read" on public.thread_likes for select to anon, authenticated using (true);
 drop policy if exists "thread_likes_owner_insert" on public.thread_likes;
-create policy "thread_likes_owner_insert" on public.thread_likes for insert to authenticated with check (user_id=(select auth.uid()));
+create policy "thread_likes_owner_insert" on public.thread_likes for insert to authenticated with check (user_id=(select auth.uid()) and exists(select 1 from public.threads t where t.id=thread_id and t.deleted_at is null and t.visibility='public'));
 drop policy if exists "thread_likes_owner_delete" on public.thread_likes;
 create policy "thread_likes_owner_delete" on public.thread_likes for delete to authenticated using (user_id=(select auth.uid()));
 
 drop policy if exists "thread_reposts_public_read" on public.thread_reposts;
 create policy "thread_reposts_public_read" on public.thread_reposts for select to anon, authenticated using (true);
 drop policy if exists "thread_reposts_owner_insert" on public.thread_reposts;
-create policy "thread_reposts_owner_insert" on public.thread_reposts for insert to authenticated with check (user_id=(select auth.uid()));
+create policy "thread_reposts_owner_insert" on public.thread_reposts for insert to authenticated with check (user_id=(select auth.uid()) and exists(select 1 from public.threads t where t.id=thread_id and t.deleted_at is null and t.visibility='public'));
 drop policy if exists "thread_reposts_owner_delete" on public.thread_reposts;
 create policy "thread_reposts_owner_delete" on public.thread_reposts for delete to authenticated using (user_id=(select auth.uid()));
 
 drop policy if exists "thread_quotes_public_read" on public.thread_quotes;
 create policy "thread_quotes_public_read" on public.thread_quotes for select to anon, authenticated using (true);
 drop policy if exists "thread_quotes_owner_insert" on public.thread_quotes;
-create policy "thread_quotes_owner_insert" on public.thread_quotes for insert to authenticated with check (user_id=(select auth.uid()));
+create policy "thread_quotes_owner_insert" on public.thread_quotes for insert to authenticated with check (user_id=(select auth.uid()) and exists(select 1 from public.threads t where t.id=thread_id and t.deleted_at is null and t.visibility='public'));
 drop policy if exists "thread_quotes_owner_update" on public.thread_quotes;
 create policy "thread_quotes_owner_update" on public.thread_quotes for update to authenticated using (user_id=(select auth.uid())) with check (user_id=(select auth.uid()));
 drop policy if exists "thread_quotes_owner_delete" on public.thread_quotes;
