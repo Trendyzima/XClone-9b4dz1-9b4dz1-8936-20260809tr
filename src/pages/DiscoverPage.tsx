@@ -3,11 +3,12 @@ import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { Link } from 'react-router-dom';
-import { Sparkles, TrendingUp, Users, CheckCircle2, RefreshCw, Search } from 'lucide-react';
+import { Sparkles, TrendingUp, Users, CheckCircle2, RefreshCw, Search, Globe2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { cn } from '@/lib/utils';
 import { useSEO } from '@/hooks/useSEO';
+import * as federation from '@/api/federation';
 import { TopBar } from '@/components/layout/TopBar';
 
 interface SuggestedUser {
@@ -19,9 +20,13 @@ interface SuggestedUser {
   verified: boolean;
   score?: number;
   reason?: string;
+  origin?: 'local' | 'fediverse';
+  actor_uri?: string | null;
+  acct?: string | null;
+  domain?: string | null;
 }
 
-type Tab = 'suggested' | 'popular';
+type Tab = 'suggested' | 'popular' | 'fediverse';
 
 const REASON_LABELS: Record<string, string> = {
   mutual_follows: 'Mutual connection',
@@ -96,6 +101,37 @@ export default function DiscoverPage() {
     setLoading(false);
   }, [user]);
 
+  const loadFediverse = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [remoteA, remoteB] = await Promise.all([
+        supabase.from('federation_remote_actors').select('id,username,acct,domain,actor_url,actor,updated_at').order('updated_at', { ascending: false }).limit(40),
+        supabase.from('federated_actors').select('id,preferred_username,display_name,summary,uri,created_at,discoverable,suspended').eq('discoverable', true).eq('suspended', false).order('created_at', { ascending: false }).limit(40),
+      ]);
+      const merged: SuggestedUser[] = [];
+      const seen = new Set<string>();
+      for (const row of remoteA.data ?? []) {
+        const actor = (row as any).actor ?? {};
+        const key = String((row as any).actor_url ?? (row as any).id);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push({ id: 'fed:' + key, username: String((row as any).username ?? actor.preferredUsername ?? 'user'), avatar_url: actor.icon?.url ?? actor.icon?.href ?? null, bio: actor.summary ?? actor.bio ?? null, follower_count: Number(actor.followersCount ?? 0), verified: Boolean(actor.verified), origin: 'fediverse', actor_uri: (row as any).actor_url ?? null, acct: (row as any).acct ?? null, domain: (row as any).domain ?? null });
+      }
+      for (const row of remoteB.data ?? []) {
+        const key = String((row as any).uri ?? (row as any).id);
+        if (seen.has(key)) continue;
+        seen.add(key);
+        merged.push({ id: 'fed:' + key, username: String((row as any).preferred_username ?? 'user'), avatar_url: null, bio: (row as any).summary ?? null, follower_count: 0, verified: false, origin: 'fediverse', actor_uri: (row as any).uri ?? null, acct: (row as any).preferred_username ?? null });
+      }
+      setUsers(merged);
+    } catch (error) {
+      console.warn('[discover] fediverse discovery failed', error);
+      setUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   const loadSuggested = useCallback(async () => {
     if (!user) { await loadPopular(); return; }
     const { data } = await supabase
@@ -126,24 +162,34 @@ export default function DiscoverPage() {
     setLoading(true);
     loadFollowing();
     if (tab === 'suggested') loadSuggested();
+    else if (tab === 'fediverse') loadFediverse();
     else loadPopular();
-  }, [tab, user, loadFollowing, loadSuggested, loadPopular]);
+  }, [tab, user, loadFollowing, loadSuggested, loadPopular, loadFediverse]);
 
   const handleFollow = async (targetId: string) => {
     if (!user) { toast.error('Please log in to follow users'); return; }
     setFollowLoading((prev) => new Set(prev).add(targetId));
-    const isFollowing = following.has(targetId);
-    if (isFollowing) {
-      const { error } = await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', targetId);
-      if (!error) {
-        setFollowing((prev) => { const n = new Set(prev); n.delete(targetId); return n; });
-        toast.success('Unfollowed');
-      }
+    const target = users.find((u) => u.id === targetId);
+    if (target?.origin === 'fediverse' && target.actor_uri) {
+      try {
+        if (following.has(targetId)) {
+          await federation.unfollow(target.actor_uri);
+          setFollowing((prev) => { const n = new Set(prev); n.delete(targetId); return n; });
+          toast.success('Unfollowed Fediverse account');
+        } else {
+          await federation.follow(target.actor_uri);
+          setFollowing((prev) => new Set(prev).add(targetId));
+          toast.success('Following Fediverse account');
+        }
+      } catch (error: any) { toast.error(error?.message ?? 'Fediverse follow failed'); }
     } else {
-      const { error } = await supabase.from('follows').insert({ follower_id: user.id, following_id: targetId });
-      if (!error) {
-        setFollowing((prev) => new Set(prev).add(targetId));
-        toast.success('Following!');
+      const isFollowing = following.has(targetId);
+      if (isFollowing) {
+        const { error } = await supabase.from('follows').delete().eq('follower_id', user.id).eq('following_id', targetId);
+        if (!error) { setFollowing((prev) => { const n = new Set(prev); n.delete(targetId); return n; }); toast.success('Unfollowed'); }
+      } else {
+        const { error } = await supabase.from('follows').insert({ follower_id: user.id, following_id: targetId });
+        if (!error) { setFollowing((prev) => new Set(prev).add(targetId)); toast.success('Following!'); }
       }
     }
     setFollowLoading((prev) => { const n = new Set(prev); n.delete(targetId); return n; });
@@ -162,7 +208,7 @@ export default function DiscoverPage() {
             <h1 className="text-xl font-bold">Discover People</h1>
             <p className="text-xs text-muted-foreground">Find new voices to follow</p>
           </div>
-          <button onClick={() => { setLoading(true); tab === 'suggested' ? loadSuggested() : loadPopular(); loadFollowing(); }} className="p-2 rounded-full hover:bg-muted transition-colors" title="Refresh" aria-label="Refresh suggestions">
+          <button onClick={() => { setLoading(true); tab === 'suggested' ? loadSuggested() : tab === 'fediverse' ? loadFediverse() : loadPopular(); loadFollowing(); }} className="p-2 rounded-full hover:bg-muted transition-colors" title="Refresh" aria-label="Refresh suggestions">
             <RefreshCw className="w-4 h-4 text-muted-foreground" />
           </button>
         </div>
@@ -177,6 +223,7 @@ export default function DiscoverPage() {
         {([
           { key: 'suggested', icon: Sparkles, label: 'Suggested' },
           { key: 'popular', icon: TrendingUp, label: 'Popular' },
+          { key: 'fediverse', icon: Globe2, label: 'Fediverse' },
         ] as const).map(({ key, icon: Icon, label }) => (
           <button key={key} onClick={() => setTab(key)} className={cn('flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold border-b-2 transition-colors', tab === key ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground')}>
             <Icon className="w-4 h-4" />
@@ -214,13 +261,13 @@ export default function DiscoverPage() {
             const isSelf = u.id === user?.id;
             return (
               <div key={u.id} className="flex items-start gap-3 px-4 py-4 hover:bg-muted/30 transition-colors">
-                <Link to={`/profile/${u.username}`} className="flex-shrink-0">
+                <Link to={u.origin === 'fediverse' && u.actor_uri ? `/fediverse/profile?actor=${encodeURIComponent(u.actor_uri)}&handle=${encodeURIComponent(u.acct || u.username)}` : `/profile/${u.username}`} className="flex-shrink-0">
                   <div className="w-12 h-12 rounded-full bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center overflow-hidden ring-2 ring-transparent hover:ring-primary/30 transition-all">
                     {u.avatar_url ? <img src={u.avatar_url} alt={u.username} className="w-full h-full object-cover" loading="lazy" /> : <span className="text-lg font-bold text-primary">{(u.username ?? 'U')[0].toUpperCase()}</span>}
                   </div>
                 </Link>
                 <div className="flex-1 min-w-0">
-                  <Link to={`/profile/${u.username}`} className="block">
+                  <Link to={u.origin === 'fediverse' && u.actor_uri ? `/fediverse/profile?actor=${encodeURIComponent(u.actor_uri)}&handle=${encodeURIComponent(u.acct || u.username)}` : `/profile/${u.username}`} className="block">
                     <div className="flex items-center gap-1">
                       <span className="font-bold hover:underline truncate">{u.username}</span>
                       {u.verified && <CheckCircle2 className="w-4 h-4 text-primary flex-shrink-0" />}
@@ -229,6 +276,7 @@ export default function DiscoverPage() {
                   </Link>
                   <div className="flex items-center flex-wrap gap-2 mt-1.5">
                     <span className="text-xs text-muted-foreground">{(u.follower_count ?? 0).toLocaleString()} followers</span>
+                    {u.origin === 'fediverse' && <span className="text-xs bg-sky-500/10 text-sky-600 dark:text-sky-400 px-2 py-0.5 rounded-full font-medium">Fediverse</span>}
                     {reasonLabel && <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full font-medium">{reasonLabel}</span>}
                     {typeof u.score === 'number' && u.score > 8 && <span className="text-xs bg-amber-500/10 text-amber-600 dark:text-amber-400 px-2 py-0.5 rounded-full font-medium">High match</span>}
                   </div>
