@@ -114,7 +114,7 @@ export default async function handler(req: any, res: any) {
         if (!thread || thread.deleted_at) return json(res, 404, { error: 'Thread not found' });
       }
 
-      const mediaType = mime.startsWith('image/') ? 'image' : 'video';
+      const mediaType = mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : mime.startsWith('audio/') ? 'audio' : 'file';
       const storageKey = 'users/' + user.id + '/' + crypto.randomUUID() + '.' + extension(name, mime);
       const uploadUrl = await getSignedUrl(r2, new PutObjectCommand({
         Bucket: cfg.r2Bucket, Key: storageKey, ContentType: mime,
