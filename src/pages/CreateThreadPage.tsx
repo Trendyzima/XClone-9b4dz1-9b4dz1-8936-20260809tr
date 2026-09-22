@@ -24,7 +24,7 @@ export default function CreateThreadPage(){
     const room=MAX_FILES-files.length;
     const valid=incoming.filter(f=>f.size>0&&f.size<=MAX_FILE_BYTES).slice(0,room);
     if(incoming.some(f=>f.size>MAX_FILE_BYTES))toast.error('Each attachment must be 20 MiB or smaller');
-    if(incoming.length>room)toast.error('You can attach up to 8 files to one thread post');
+    if(incoming.length>room)toast.error(`You can attach up to ${MAX_FILES} files to one thread post`);
     setFiles(p=>[...p,...valid]);
     setPreviews(p=>[...p,...valid.map(f=>URL.createObjectURL(f))]);
   };
