@@ -589,13 +589,13 @@ export default function MarketplacePage() {
         if (!prev.includes(id)) {
           // Adding — upsert with current price
           const product = (products as any[]).find((p: any) => p.id === id);
-          supabase.from('product_wishlists').upsert(
+          supabase.from('wishlists').upsert(
             { user_id: user.id, product_id: id, last_price: product?.price ?? null },
             { onConflict: 'user_id,product_id' }
           ).catch(() => {});
         } else {
           // Removing
-          supabase.from('product_wishlists').delete()
+          supabase.from('wishlists').delete()
             .eq('user_id', user.id).eq('product_id', id).catch(() => {});
         }
       }
