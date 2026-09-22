@@ -13,7 +13,7 @@ const R2_SECRET_ACCESS_KEY = Deno.env.get("R2_SECRET_ACCESS_KEY") ?? "";
 const R2_BUCKET = Deno.env.get("R2_MEDIA_BUCKET") ?? "";
 const R2_PUBLIC_BASE_URL = (Deno.env.get("R2_PUBLIC_BASE_URL") ?? "").replace(/\/$/, "");
 
-const MAX_BYTES = 500 * 1024 * 1024;
+const MAX_BYTES = 20 * 1024 * 1024;
 const BLOCKED = new Set([
   "application/x-msdownload", "application/x-msdos-program", "application/x-dosexec",
 ]);
@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
       const postId = body.post_id ? String(body.post_id) : null;
       if (!name || name.length > 255) return json({ error: "Invalid file name" }, 400);
       if (!isAllowedMime(mime)) return json({ error: "Unsupported media type" }, 415);
-      if (!Number.isInteger(size) || size <= 0 || size > MAX_BYTES) return json({ error: "Media must be 500 MiB or smaller" }, 413);
+      if (!Number.isInteger(size) || size <= 0 || size > MAX_BYTES) return json({ error: "Media must be 20 MiB or smaller" }, 413);
       if (postId && !(await ownedPost(postId, user.id))) return json({ error: "Post not found or not owned by user" }, 404);
 
       const mediaType = mime.startsWith("image/") ? "image" : mime.startsWith("video/") ? "video" : mime.startsWith("audio/") ? "audio" : "file";
