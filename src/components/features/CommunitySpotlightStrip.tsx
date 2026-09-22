@@ -18,32 +18,25 @@ interface Community {
   is_private: boolean;
 }
 
-export function CommunitySpotlightStrip() {
+export function CommunitySpotlightStrip({ initialCommunities }: { initialCommunities?: Community[] }) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [communities, setCommunities] = useState<Community[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [communities, setCommunities] = useState<Community[]>(initialCommunities ?? []);
+  const [loading, setLoading] = useState(initialCommunities === undefined);
   const [joinedIds, setJoinedIds] = useState<Set<string>>(new Set());
   const [joiningId, setJoiningId] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
-      const [comRes, joinRes] = await Promise.all([
-        supabase
-          .from('communities')
-          .select('id, name, display_name, description, icon_url, banner_url, member_count, post_count, is_private')
-          .eq('is_private', false)
-          .order('member_count', { ascending: false })
-          .limit(8),
-        user
-          ? supabase.from('community_members').select('community_id').eq('user_id', user.id)
-          : Promise.resolve({ data: [] as any[] }),
-      ]);
-      setCommunities(comRes.data || []);
+      const joinRes = user ? await supabase.from('community_members').select('community_id').eq('user_id', user.id) : { data: [] as any[] };
+      if (initialCommunities === undefined) {
+        const { data } = await supabase.from('communities').select('id, name, display_name, description, icon_url, banner_url, member_count, post_count, is_private').eq('is_private', false).order('member_count', { ascending: false }).limit(8);
+        setCommunities(data || []);
+      } else setCommunities(initialCommunities);
       setJoinedIds(new Set((joinRes.data || []).map((r: any) => r.community_id)));
       setLoading(false);
     })();
-  }, [user?.id]);
+  }, [user?.id, initialCommunities]);
 
   const handleJoin = async (e: React.MouseEvent, community: Community) => {
     e.stopPropagation();
