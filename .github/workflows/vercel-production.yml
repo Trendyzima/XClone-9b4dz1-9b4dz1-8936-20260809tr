@@ -4,8 +4,15 @@ name: Vercel Production Deploy
 
 on:
   workflow_dispatch:
-  push:
-    branches: [main]
+  # Automatic production deployment is owned by production-deployment-reconciliation.yml.
+  # Keep this workflow manual so one push cannot consume two Vercel deployments.
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: 'Deploy this exact revision to Vercel'
+        required: false
+        default: false
+        type: boolean
     paths:
       - 'src/**'
       - 'api/**'
@@ -201,6 +208,7 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy exact build to Vercel production
+        if: ${{ inputs.deploy == true }}
         run: vercel deploy --prebuilt --prod --token="$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
