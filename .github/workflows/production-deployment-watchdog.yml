@@ -18,11 +18,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      VERCEL_ORG_ID: \${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: \${{ secrets.VERCEL_PROJECT_ID }}
-      VERCEL_TOKEN: \${{ secrets.VERCEL_TOKEN }}
-      GH_TOKEN: \${{ github.token }}
-      REPO: \${{ github.repository }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
       RECONCILIATION_WORKFLOW: production-deployment-reconciliation.yml
     steps:
       - name: Compare main with exact READY production revision
@@ -65,7 +65,7 @@ jobs:
           echo "target_sha=$main_sha" >> "$GITHUB_OUTPUT"
 
       - name: Avoid duplicate recovery attempts
-        if: \${{ steps.compare.outputs.needs_reconciliation == 'true' }}
+        if: ${{ steps.compare.outputs.needs_reconciliation == 'true' }}
         id: cooldown
         shell: bash
         run: |
@@ -96,12 +96,12 @@ jobs:
           fi
 
       - name: Dispatch exact-SHA production reconciliation
-        if: \${{ steps.compare.outputs.needs_reconciliation == 'true' && steps.cooldown.outputs.dispatch == 'true' }}
+        if: ${{ steps.compare.outputs.needs_reconciliation == 'true' && steps.cooldown.outputs.dispatch == 'true' }}
         shell: bash
         run: |
           set -euo pipefail
 
-          target_sha="\${{ steps.compare.outputs.target_sha }}"
+          target_sha="${{ steps.compare.outputs.target_sha }}"
           echo "Dispatching production reconciliation for exact SHA $target_sha"
 
           curl --fail --silent --show-error --location \
