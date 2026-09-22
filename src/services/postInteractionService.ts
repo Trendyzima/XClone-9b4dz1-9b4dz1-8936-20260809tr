@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 import type { LikeState, RepostState } from '@/services/testagramCapabilityClient';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 
+// Federation and local interaction identities are deliberately disjoint: ActivityPub URIs never enter local UUID tables.
 const isRemoteStatus = (postId: string) => /^https:\/\//i.test(postId);
 
 async function remoteAction(path: string, body: Record<string, unknown>) {
