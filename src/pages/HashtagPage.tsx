@@ -142,7 +142,7 @@ export default function HashtagPage() {
       const normalizedTag = String(tag ?? '').replace(/^#/, '').trim().toLowerCase();
       const { data: remoteMentions } = await supabase
         .from('federated_hashtag_mentions')
-        .select('created_at, hashtags!inner(id,tag), federated_objects!inner(id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,remote_account,object_type,url,deleted_at,tombstone)')
+        .select('created_at, hashtags!inner(id,tag), federated_objects!inner(id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,object_type,url,deleted_at,tombstone)')
         .eq('hashtags.tag', normalizedTag)
         .is('federated_objects.deleted_at', null)
         .eq('federated_objects.tombstone', false)
@@ -158,7 +158,7 @@ export default function HashtagPage() {
         created_at: p.published_at ?? p.updated_at,
         content: p.content ?? p.summary ?? '',
         remote_status_uri: p.uri,
-        user_profiles: p.remote_account ?? { actor_uri: p.actor_uri, username: 'unknown', display_name: 'Fediverse account', avatar_url: null },
+        user_profiles: { actor_uri: p.actor_uri, username: p.actor_uri?.split('/').pop() ?? 'unknown', display_name: 'Fediverse account', avatar_url: null },
         is_federated: true,
       })));
       fetchTopPosts(hashtagData.id);
