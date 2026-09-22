@@ -147,7 +147,8 @@ jobs:
           # The shared Supavisor Session endpoint is IPv4-only. Force libpq to
           # use the resolved IPv4 address so a dual-stack DNS answer cannot
           # select an unreachable IPv6 path.
-          export PGHOSTADDR="$(printf '%s\n' "${ipv4_addresses}" | head -n1)"
+          PGHOSTADDR="$(printf '%s\n' "${ipv4_addresses}" | head -n1)"
+          export PGHOSTADDR
 
           for delay in 5 15 30; do
             echo "IPv4 Supavisor PostgreSQL readiness probe; retry window ${delay}s"
@@ -173,7 +174,7 @@ jobs:
           # pg_isready proves socket/server readiness, but not authentication.
           # Execute a real read-only SQL query before declaring the DB boundary green.
           export PGSSLMODE=require
-          psql "${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -Atqc <<'SQL' >/tmp/db-identity.txt
+          psql "${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -Atq <<'SQL' >/tmp/db-identity.txt
           select
             current_database(),
             coalesce(inet_server_addr()::text, 'unknown'),
