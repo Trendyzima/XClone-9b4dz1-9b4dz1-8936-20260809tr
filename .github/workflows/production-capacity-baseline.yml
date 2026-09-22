@@ -25,6 +25,7 @@ jobs:
       LOAD_REQUESTS: "2000"
       LOAD_CONCURRENCY: "100"
       DEPLOY_WAIT_SECONDS: "300"
+      GITHUB_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v5
         with:
