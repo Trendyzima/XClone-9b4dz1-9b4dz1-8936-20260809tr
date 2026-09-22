@@ -195,11 +195,11 @@ module.exports = defineConfig({
       ],
       output: {
         interop: 'auto',
-        // Production evidence shows the eager Auth/Home shell works while
-        // multiple React.lazy routes (Profile, Messages, Notifications and
-        // Daily Rewards) fail together. Inline dynamic imports removes the
-        // fragile runtime asset-fetch boundary for the SPA's single entry.
-        inlineDynamicImports: true,
+        // Keep the SPA code-split in production. The previous monolithic build
+        // hid stale-chunk failures by shipping the entire application as one
+        // JavaScript payload, which made the homepage unnecessarily huge.
+        // Vite's dynamic-import preload handling plus vite:preloadError recovery
+        // below keeps route chunks resilient without sacrificing performance.
       },
       onwarn(warning, warn) {
         if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return;
