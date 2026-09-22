@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 
 const MAX_CHARS=500;
 const MAX_FILES=8;
-const MAX_FILE_BYTES=25*1024*1024;
+const MAX_FILE_BYTES=20*1024*1024;
 
 type MediaAsset={url:string;name:string;type:string;size:number};
 
@@ -22,8 +22,8 @@ export default function CreateThreadPage(){
 
   const addFiles=(incoming:File[])=>{
     const room=MAX_FILES-files.length;
-    const valid=incoming.filter(f=>f.size<=MAX_FILE_BYTES).slice(0,room);
-    if(incoming.some(f=>f.size>MAX_FILE_BYTES))toast.error('Each attachment must be 25 MiB or smaller');
+    const valid=incoming.filter(f=>f.size>0&&f.size<=MAX_FILE_BYTES).slice(0,room);
+    if(incoming.some(f=>f.size>MAX_FILE_BYTES))toast.error('Each attachment must be 20 MiB or smaller');
     if(incoming.length>room)toast.error('You can attach up to 8 files to one thread post');
     setFiles(p=>[...p,...valid]);
     setPreviews(p=>[...p,...valid.map(f=>URL.createObjectURL(f))]);
@@ -70,7 +70,7 @@ export default function CreateThreadPage(){
         <div className="min-w-0 flex-1">
           <p className="text-sm font-semibold">{user.username}</p>
           <textarea autoFocus value={body} maxLength={MAX_CHARS} onChange={e=>setBody(e.target.value)} placeholder="What's new?" rows={7} className="mt-2 w-full resize-none bg-transparent text-lg leading-7 outline-none placeholder:text-muted-foreground/60"/>
-          {previews.length>0&&<div className="grid gap-2">{previews.map((url,i)=><div key={url} className="relative overflow-hidden rounded-2xl border border-border bg-muted/20 p-2"><p className="truncate pr-8 text-xs text-muted-foreground">{files[i]?.name}</p>{files[i]?.type.startsWith('image/')?<img src={url} alt="" className="mt-2 max-h-72 w-full rounded-xl object-contain"/>:files[i]?.type.startsWith('video/')?<video src={url} controls className="mt-2 max-h-72 w-full rounded-xl"/>:files[i]?.type.startsWith('audio/')?<audio src={url} controls className="mt-2 w-full"/>:<a href={url} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 rounded-xl bg-background p-3 text-sm text-primary"><FilePlus2 className="h-5 w-5"/>{files[i]?.name}</a>}<button onClick={()=>removeFile(i)} className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-white" aria-label="Remove attachment"><X className="h-4 w-4"/></button></div>)}</div>}
+          {previews.length>0&&<div className="flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none]">{previews.map((url,i)=><div key={url} className="relative min-w-[82%] snap-center overflow-hidden rounded-2xl border border-border bg-muted/20 p-2 sm:min-w-[62%]"><p className="truncate pr-8 text-xs text-muted-foreground">{files[i]?.name}</p>{files[i]?.type.startsWith('image/')?<img src={url} alt="" className="mt-2 max-h-72 w-full rounded-xl object-contain"/>:files[i]?.type.startsWith('video/')?<video src={url} controls className="mt-2 max-h-72 w-full rounded-xl"/>:files[i]?.type.startsWith('audio/')?<audio src={url} controls className="mt-2 w-full"/>:<a href={url} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 rounded-xl bg-background p-3 text-sm text-primary"><FilePlus2 className="h-5 w-5"/>{files[i]?.name}</a>}<button onClick={()=>removeFile(i)} className="absolute right-2 top-2 rounded-full bg-black/70 p-1 text-white" aria-label="Remove attachment"><X className="h-4 w-4"/></button></div>)}</div>}
           <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
             <button onClick={()=>fileRef.current?.click()} disabled={files.length>=MAX_FILES} className="rounded-full p-2 text-primary hover:bg-primary/10 disabled:opacity-40" aria-label="Attach media"><FilePlus2 className="h-5 w-5"/></button>
             <input ref={fileRef} type="file" accept="*/*" multiple hidden onChange={e=>{addFiles(Array.from(e.target.files??[]));e.currentTarget.value='';}}/>
