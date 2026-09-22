@@ -130,7 +130,7 @@ grant insert, update, delete on public.threads, public.thread_replies to authent
 grant insert, delete on public.thread_likes, public.thread_reposts to authenticated;
 grant insert, update, delete on public.thread_quotes to authenticated;
 grant select, insert, update, delete on public.thread_bookmarks to authenticated;
-grant select, insert on public.thread_views to authenticated;
+revoke all on table public.thread_bookmarks, public.thread_views from anon;\ngrant select, insert on public.thread_views to authenticated;
 
 create or replace function public.testagram_record_thread_view(p_thread_id uuid)
 returns integer language plpgsql security definer set search_path=public as $
