@@ -45,6 +45,31 @@ function setCachedFeed(tab: string, items: FeedItem[]) {
   feedCache.push({ tab, items, ts: Date.now() });
 }
 
+const WARM_FEED_TTL_MS = 10 * 60 * 1000;
+const WARM_FEED_LIMIT = 12;
+function getWarmFeed(tab: string, userId?: string): FeedItem[] | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const key = `ts-warm-feed:${userId ?? 'guest'}:${tab}`;
+    const raw = sessionStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { ts?: number; items?: FeedItem[] };
+    if (!parsed.ts || Date.now() - parsed.ts > WARM_FEED_TTL_MS || !Array.isArray(parsed.items) || parsed.items.length === 0) return null;
+    return parsed.items.slice(0, WARM_FEED_LIMIT);
+  } catch {
+    return null;
+  }
+}
+function setWarmFeed(tab: string, userId: string | undefined, items: FeedItem[]) {
+  if (typeof window === 'undefined' || items.length === 0) return;
+  try {
+    const key = `ts-warm-feed:${userId ?? 'guest'}:${tab}`;
+    sessionStorage.setItem(key, JSON.stringify({ ts: Date.now(), items: items.slice(0, WARM_FEED_LIMIT) }));
+  } catch {
+    // Session storage is an optimization only; the network feed remains authoritative.
+  }
+}
+
 // esbuild guard: rank badge colors for Trending Now rail — must be module-level (not inside .map())
 const TRENDING_NOW_RANK_COLORS = ['text-yellow-400','text-slate-300','text-amber-600','text-white/70','text-white/70'];
 
@@ -788,7 +813,16 @@ export default function HomePage() {
   };
 
   const fetchInitialFeed = async (skipCache = false) => {
-    // ── Serve from prefetch cache when available (tab switch) ──────────────
+    // ── Warm-start: paint the last known first viewport immediately, then revalidate.
+    // This avoids an empty Home screen on repeat visits while keeping network data authoritative.
+    const warmItems = !skipCache ? getWarmFeed(activeTab, user?.id) : null;
+    const hasWarmStart = Boolean(warmItems?.length);
+    if (warmItems?.length) {
+      setFeedItems(warmItems);
+      setLoading(false);
+    }
+
+    // ── Serve from in-memory prefetch cache when available (tab switch) ────
     if (!skipCache && activeTab !== 'federated' && activeTab !== 'foryou') {
       const cached = getCachedFeed(activeTab);
       if (cached && cached.length > 0) {
@@ -813,8 +847,10 @@ export default function HomePage() {
     }
     abortRef.current?.abort();
     abortRef.current = new AbortController();
-    setLoading(true);
-    setFeedItems([]);
+    if (!hasWarmStart) {
+      setLoading(true);
+      setFeedItems([]);
+    }
     setPage(0);
     setFeedCursor(null);
     setFeedHasMore(true);
@@ -823,7 +859,9 @@ export default function HomePage() {
 
     if (activeTab === 'federated') {
       const fedPosts = await fetchFederatedPosts();
-      setFeedItems(fedPosts.map(p => ({ type: 'fedpost' as const, data: p })));
+      const warmFederated = fedPosts.map(p => ({ type: 'fedpost' as const, data: p }));
+      setFeedItems(warmFederated);
+      setWarmFeed(activeTab, user?.id, warmFederated);
     } else if (activeTab === 'following' && user) {
       // ── Twitter-style Following Feed: 80% following + 20% 2nd-degree viral ──
       const { data: followingData } = await supabase
@@ -871,14 +909,20 @@ export default function HomePage() {
       setFederatedCursor(federatedPage.nextCursor);
       setFederatedHasMore(federatedPage.hasMore);
       setFeedHasMore(localPosts.length >= PAGE_SIZE || federatedPage.hasMore || federatedPage.posts.length > 0);
-      if (mixed.length > 0) setCachedFeed(activeTab, mixed);
+      if (mixed.length > 0) {
+        setCachedFeed(activeTab, mixed);
+        setWarmFeed(activeTab, user?.id, mixed);
+      }
     } else {
       const items = await fetchFeed(0);
       setFeedItems(items);
       const lastPost = items.filter((i: any) => i.type === 'post').slice(-1)[0];
       if (lastPost) setFeedCursor((lastPost.data as any).created_at ?? null);
       setFeedHasMore(items.filter((i: any) => i.type === 'post').length >= PAGE_SIZE);
-      if (items.length > 0) setCachedFeed(activeTab, items);
+      if (items.length > 0) {
+        setCachedFeed(activeTab, items);
+        setWarmFeed(activeTab, user?.id, items);
+      }
     }
     setLoading(false);
   };
