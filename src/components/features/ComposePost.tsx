@@ -17,7 +17,7 @@ import { GifPicker } from './GifPicker';
 import { toast as sonnerToast } from 'sonner';
 import * as federation from '@/api/federation';
 import { detectEmbed, ComposeEmbedPreview, OGLinkCard } from './EmbedRenderer';
-import { uploadTestagramMedia } from '@/services/mediaClient';
+import { uploadTestagramMedia, attachTestagramMedia, deleteTestagramMedia } from '@/services/mediaClient';
 
 interface ComposePostProps {
   onSuccess?: () => void;
@@ -405,6 +405,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
     setLoading(true);
     try {
       let imageUrls: string[] = [];
+      let uploadedMediaIds: string[] = [];
       let videoUrl = null;
 
       if (images.length > 0) {
@@ -412,10 +413,14 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
         for (let i = 0; i < images.length; i++) {
           try {
             const media = await uploadTestagramMedia(images[i]);
-            if (media.public_url) imageUrls.push(media.public_url);
-            else throw new Error('Media read URL was not returned');
+            if (!media.public_url) throw new Error('The media service did not return a usable file URL.');
+            imageUrls.push(media.public_url);
+            uploadedMediaIds.push(media.media_id);
           } catch (uploadError: any) {
-            sonnerToast.error(`Failed to upload image ${i + 1}: ${uploadError?.message ?? 'unknown error'}`);
+            sonnerToast.dismiss();
+            sonnerToast.error(uploadError?.message ?? 'Could not upload the image. Please try again.');
+            setLoading(false);
+            return;
           }
         }
         sonnerToast.dismiss();
@@ -426,8 +431,9 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
         sonnerToast.loading('Uploading video to secure media storage...');
         try {
           const media = await uploadTestagramMedia(video);
-          if (!media.public_url) throw new Error('Media read URL was not returned');
+          if (!media.public_url) throw new Error('The media service did not return a usable file URL.');
           videoUrl = media.public_url;
+          uploadedMediaIds.push(media.media_id);
           sonnerToast.dismiss();
           sonnerToast.success('Video uploaded securely!');
         } catch (uploadError: any) {
@@ -484,6 +490,18 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
         } : undefined,
       });
       const postData = { id: postResult.post_id };
+
+      // Bind uploaded media assets to the newly-created post. The binary upload
+      // happens before post creation so the R2 transfer is never coupled to a DB
+      // insert; this second step makes the relationship authoritative.
+      if (uploadedMediaIds.length > 0) {
+        try {
+          await Promise.all(uploadedMediaIds.map((mediaId, index) => attachTestagramMedia(mediaId, postResult.post_id)));
+        } catch (mediaAttachError: any) {
+          await Promise.allSettled(uploadedMediaIds.map(deleteTestagramMedia));
+          throw new Error(mediaAttachError?.message ?? 'Post media could not be linked to the post.');
+        }
+      }
 
       // Persist local quote linkage separately from post creation so quote
       // metadata cannot be silently dropped by an older create-post path.
