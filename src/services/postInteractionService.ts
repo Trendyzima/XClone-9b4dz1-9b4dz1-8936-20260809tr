@@ -56,6 +56,29 @@ export async function createFederatedReply(postId: string, content: string) {
   return remoteAction('reply', { post_id: postId, content });
 }
 
+export async function setFederatedReaction(postId: string, emoji: string, active: boolean) {
+  if (!isRemoteStatus(postId)) throw new Error('Federated reaction requires a remote object URI');
+  return remoteAction('federated-reaction', { post_id: postId, emoji, enabled: active });
+}
+
+export async function getFederatedReactionState(postId: string): Promise<{ emoji: string | null; active: boolean }> {
+  if (!isRemoteStatus(postId)) return { emoji: null, active: false };
+  const { data, error } = await supabase.functions.invoke('testagram-api', {
+    body: { path: '/federated-reaction-state', method: 'GET', params: { object_uri: postId } },
+  });
+  if (error) return { emoji: null, active: false };
+  return { emoji: typeof data?.emoji === 'string' ? data.emoji : null, active: Boolean(data?.active) };
+}
+
+export async function getFederatedReactionCounts(postId: string): Promise<Record<string, number>> {
+  if (!isRemoteStatus(postId)) return {};
+  const { data, error } = await supabase.functions.invoke('testagram-api', {
+    body: { path: '/federated-reaction-counts', method: 'GET', params: { object_uri: postId } },
+  });
+  if (error || !data?.counts) return {};
+  return data.counts as Record<string, number>;
+}
+
 export async function getFederatedInteractionCounts(postId: string): Promise<{ likes: number; reposts: number; replies: number }> {
   if (!isRemoteStatus(postId)) return { likes: 0, reposts: 0, replies: 0 };
   const { data, error } = await supabase.functions.invoke('testagram-api', {
