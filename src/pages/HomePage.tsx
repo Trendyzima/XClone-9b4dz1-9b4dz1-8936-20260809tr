@@ -1073,7 +1073,7 @@ export default function HomePage() {
       if (idleId !== null && win.cancelIdleCallback) win.cancelIdleCallback(idleId);
       if (timerId !== null) clearTimeout(timerId);
     };
-  }, [activeTab, user?.id]);
+  }, [activeTab, user?.id, fetchHomeDiscovery]);
 
   // ── Realtime new-post subscription (For You tab only) ─────────────────────
   useEffect(() => {
