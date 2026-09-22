@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { S3Client, PutObjectCommand } from "npm:@aws-sdk/client-s3@3";
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+
 
 const SUPABASE_URL=Deno.env.get("SUPABASE_URL")??"";
 const SUPABASE_ANON_KEY=Deno.env.get("SUPABASE_ANON_KEY")??Deno.env.get("SUPABASE_PUBLISHABLE_KEY")??"";
@@ -14,7 +14,13 @@ const MAX_BYTES=20*1024*1024;
 const BLOCKED=new Set(["application/x-msdownload","application/x-msdos-program","application/x-dosexec"]);
 const configured=Boolean(SUPABASE_URL&&SUPABASE_ANON_KEY&&ACCOUNT_ID&&ACCESS_KEY&&SECRET_KEY&&BUCKET&&PUBLIC_BASE);
 const r2=configured?new S3Client({region:"auto",endpoint:"https://"+ACCOUNT_ID+".r2.cloudflarestorage.com",credentials:{accessKeyId:ACCESS_KEY,secretAccessKey:SECRET_KEY}}):null;
-const cors={...corsHeaders(),"Access-Control-Allow-Methods":"POST,OPTIONS"};
+const cors={
+  "Access-Control-Allow-Origin":"*",
+  "Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods":"POST,OPTIONS",
+  "Access-Control-Max-Age":"86400",
+  "Vary":"Origin",
+};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{...cors,"Content-Type":"application/json","Cache-Control":"no-store"}});
 function ext(name:string,mime:string){return name.toLowerCase().match(/\.([a-z0-9]{1,8})$/)?.[1]??mime.split("/")[1]?.replace("jpeg","jpg").replace("quicktime","mov")??"bin";}
 async function auth(req:Request){
