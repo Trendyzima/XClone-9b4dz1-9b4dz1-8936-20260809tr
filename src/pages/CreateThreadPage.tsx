@@ -49,10 +49,10 @@ export default function CreateThreadPage(){
       const { data: tokenUser, error: tokenUserError } = await supabase.auth.getUser(accessToken);
       if (tokenUserError || !tokenUser.user) throw new Error('Authentication required');
       if (tokenUser.user.id !== user.id) throw new Error('Authentication session changed. Please retry.');
-      const threadResponse = await fetch(`${supabaseUrl.replace(/\\/$/, '')}/rest/v1/threads?select=id`, {
+      const threadResponse = await fetch(`${supabaseUrl.replace(/\/$/, '')}/rest/v1/threads?select=id`, {
         method: 'POST',
         headers: {
-          apikey: (await import('@/lib/supabase')).supabasePublishableKey,
+          apikey: supabasePublishableKey,
           Authorization: `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
           Accept: 'application/json',
