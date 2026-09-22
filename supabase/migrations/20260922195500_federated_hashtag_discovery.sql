@@ -1,5 +1,9 @@
 -- Global hashtag discovery for federated content.
 -- Public ActivityPub tags are indexed independently of local hashtag follows.
+-- Keep the canonical hashtag shape aligned with the discovery/search contracts.
+alter table public.hashtags add column if not exists post_count bigint not null default 0;
+alter table public.hashtags add column if not exists follower_count bigint not null default 0;
+alter table public.hashtags add column if not exists last_used_at timestamptz not null default now();
 alter table public.hashtags
   add column if not exists federated_post_count bigint not null default 0;
 
