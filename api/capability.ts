@@ -24,9 +24,14 @@ export default async function handler(request: Request) {
   const authorization = request.headers.get("authorization");
   const isPublic = PUBLIC_CAPABILITIES.has(capability);
   if (!isPublic && !authorization?.startsWith("Bearer ")) return response({ ok: false, error: { code: "AUTH_REQUIRED", message: "Authentication required" }, request_id: requestId }, 401);
-  const supabaseUrl = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || CANONICAL_SUPABASE_URL;
-  const anonKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || CANONICAL_SUPABASE_PUBLISHABLE_KEY;
-  if (!anonKey) return response({ ok: false, error: { code: "SUPABASE_CONFIG_MISSING", message: "Supabase public configuration is missing" }, request_id: requestId }, 500);
+  // The browser authenticates against the canonical rebuilt project. Older Vercel
+  // environments can still contain SUPABASE_URL/VITE_SUPABASE_URL from the retired
+  // project; allowing those variables to override this route creates the exact
+  // production symptom: media upload succeeds against canonical Auth, while post
+  // creation reaches a different Auth project and returns "Authentication required".
+  // Pin the capability plane to the same canonical project as the browser.
+  const supabaseUrl = CANONICAL_SUPABASE_URL;
+  const anonKey = CANONICAL_SUPABASE_PUBLISHABLE_KEY;
   try {
     // Remote Fediverse bookmarks use ActivityPub object URIs, not local UUIDs.
     if (capability === "testagram.bookmarks.add" || capability === "testagram.bookmarks.remove" || capability === "testagram.bookmarks.list") {
