@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, FilePlus2, Loader2, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { uploadTestagramMedia } from '@/services/mediaClient';
 import { toast } from 'sonner';
 
 const MAX_CHARS=500;
@@ -33,17 +34,22 @@ export default function CreateThreadPage(){
     if(!user||(!body.trim()&&!files.length))return;
     setPosting(true);
     try{
-      const mediaUrls:MediaAsset[]=[];
-      for(const [i,file] of files.entries()){
-        const safeName=file.name.replace(/[^a-zA-Z0-9._-]/g,'-').slice(-100)||'attachment';
-        const path=`threads/${user.id}/${crypto.randomUUID()}-${i}-${safeName}`;
-        const {error}=await supabase.storage.from('posts').upload(path,file,{contentType:file.type||'application/octet-stream',upsert:false,cacheControl:'31536000'});
-        if(error)throw error;
-        const publicUrl=supabase.storage.from('posts').getPublicUrl(path).data.publicUrl;
-        mediaUrls.push({url:publicUrl,name:file.name,type:file.type||'application/octet-stream',size:file.size});
-      }
-      const {data,error}=await supabase.from('threads').insert({owner_id:user.id,body:body.trim(),visibility:'public',media_urls:mediaUrls}).select('id').single();
+      const {data,error}=await supabase.from('threads').insert({owner_id:user.id,body:body.trim(),visibility:'public',media_urls:[]}).select('id').single();
       if(error)throw error;
+      const mediaUrls:MediaAsset[]=[];
+      try {
+        for(const file of files) {
+          const uploaded=await uploadTestagramMedia(file,null,data.id);
+          mediaUrls.push({url:uploaded.public_url||'',name:file.name,type:file.type||'application/octet-stream',size:file.size});
+        }
+        if(mediaUrls.length) {
+          const {error:updateError}=await supabase.from('threads').update({media_urls:mediaUrls}).eq('id',data.id).eq('owner_id',user.id);
+          if(updateError)throw updateError;
+        }
+      } catch(uploadError) {
+        await supabase.from('threads').update({deleted_at:new Date().toISOString()}).eq('id',data.id).eq('owner_id',user.id);
+        throw uploadError;
+      }
       toast.success('Thread posted');
       navigate(`/thread/${data.id}`);
     }catch(error:any){console.error(error);toast.error(error?.message||'Could not post thread');}
