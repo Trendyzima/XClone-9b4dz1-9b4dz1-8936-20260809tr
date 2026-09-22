@@ -4,6 +4,7 @@ import { ArrowLeft, FilePlus2, Loader2, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
 import { uploadTestagramMedia } from '@/services/mediaClient';
+import { requireAccessToken } from '@/services/backendClient';
 import { toast } from 'sonner';
 
 const MAX_CHARS=500;
@@ -34,35 +35,17 @@ export default function CreateThreadPage(){
     if(!user||(!body.trim()&&!files.length))return;
     setPosting(true);
     try{
-      // Do not trust the Zustand user object as the write credential. Resolve the
-      // current Supabase session first, then send that JWT explicitly to PostgREST.
-      // This closes the same Auth-hydration race that affected the main composer.
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) throw sessionError;
-      let accessToken = sessionData.session?.access_token ?? null;
-      if (!accessToken) {
-        const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError) throw refreshError;
-        accessToken = refreshed.session?.access_token ?? null;
-      }
-      if (!accessToken) throw new Error('Authentication required');
+      const accessToken = await requireAccessToken();
       const { data: tokenUser, error: tokenUserError } = await supabase.auth.getUser(accessToken);
-      if (tokenUserError || !tokenUser.user) throw new Error('Authentication required');
-      if (tokenUser.user.id !== user.id) throw new Error('Authentication session changed. Please retry.');
-      const threadResponse = await fetch(`${supabaseUrl.replace(/\/$/, '')}/rest/v1/threads?select=id`, {
+      if (tokenUserError || !tokenUser.user || tokenUser.user.id !== user.id) throw new Error('Authentication session changed. Please retry.');
+
+      const threadResponse = await fetch(supabaseUrl.replace(/\/$/, '') + '/rest/v1/threads?select=id', {
         method: 'POST',
-        headers: {
-          apikey: supabasePublishableKey,
-          Authorization: `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          Accept: 'application/json',
-          Prefer: 'return=representation',
-        },
+        headers: { apikey: supabasePublishableKey, Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', Accept: 'application/json', Prefer: 'return=representation' },
         body: JSON.stringify({owner_id:user.id,body:body.trim(),visibility:'public',media_urls:[]}),
       });
       const threadRaw = await threadResponse.text();
-      let threadRows:any = null;
-      try { threadRows = threadRaw ? JSON.parse(threadRaw) : null; } catch { threadRows = null; }
+      let threadRows:any = null; try { threadRows = threadRaw ? JSON.parse(threadRaw) : null; } catch { threadRows = null; }
       if (!threadResponse.ok) {
         const message = Array.isArray(threadRows) ? threadRows[0]?.message : threadRows?.message;
         throw new Error(message || (threadResponse.status === 401 || threadResponse.status === 403 ? 'Authentication required' : 'Could not create thread'));
@@ -76,8 +59,8 @@ export default function CreateThreadPage(){
           mediaUrls.push({url:uploaded.public_url||'',name:file.name,type:file.type||'application/octet-stream',size:file.size});
         }
         if(mediaUrls.length) {
-          const {error:updateError}=await supabase.from('threads').update({media_urls:mediaUrls}).eq('id',data.id).eq('owner_id',user.id);
-          if(updateError)throw updateError;
+          const updateResponse=await fetch(supabaseUrl.replace(/\/$/,'') + '/rest/v1/threads?id=eq.' + data.id + '&owner_id=eq.' + user.id,{method:'PATCH',headers:{apikey:supabasePublishableKey,Authorization:'Bearer '+accessToken,'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify({media_urls:mediaUrls})});
+          if(!updateResponse.ok){const raw=await updateResponse.text().catch(()=> '');throw new Error(raw||('Thread media update failed ('+updateResponse.status+')'));}
         }
       } catch(uploadError) {
         await supabase.from('threads').update({deleted_at:new Date().toISOString()}).eq('id',data.id).eq('owner_id',user.id);
