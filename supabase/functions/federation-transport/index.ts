@@ -363,24 +363,70 @@ async function queue(local: any, userId: string, inbox: string, activity: any) {
   if (activityActor !== local.actor_url) throw Error("Outbound activity actor does not match the authenticated local actor");
 
   const now = new Date().toISOString();
+  const payload = {
+    local_user_id: userId,
+    activity_type: typeOf(activity),
+    activity_id: activityUri,
+    payload: activity,
+    delivered: false,
+    attempts: 1,
+    next_attempt_at: now,
+    expires_at: new Date(Date.now()+14*86400000).toISOString(),
+    created_at: now,
+  };
+
+  // activity_id is the federation idempotency key. Two UI requests can arrive
+  // concurrently (double tap, React retry, network retry), so the second
+  // request must not surface PostgreSQL 23505 to the client.
   const outboxResponse = await db("activitypub_outbox", {
     method: "POST",
-    headers: { Prefer: "return=representation" },
-    body: JSON.stringify({
-      local_user_id: userId,
-      activity_type: typeOf(activity),
-      activity_id: activityUri,
-      payload: activity,
-      delivered: false,
-      attempts: 1,
-      next_attempt_at: now,
-      expires_at: new Date(Date.now()+14*86400000).toISOString(),
-      created_at: now,
-    }),
+    headers: { Prefer: "resolution=ignore-duplicates,return=representation" },
+    body: JSON.stringify(payload),
   });
-  const outboxRows = await outboxResponse.json() as any[];
-  const outboxId = outboxRows[0]?.id;
-  if (!outboxId) throw Error("Failed to persist ActivityPub outbox activity");
+
+  let outboxRows: any[] = [];
+  try { outboxRows = await outboxResponse.json() as any[]; } catch {}
+
+  let outbox = outboxRows[0] || null;
+  if (!outboxResponse.ok && outboxResponse.status !== 409) {
+    const detail = outboxRows?.[0]?.message || JSON.stringify(outboxRows);
+    throw Error(`Failed to persist ActivityPub outbox activity: ${detail.slice(0, 1200)}`);
+  }
+
+  // If another request won the unique activity_id race, reuse its durable
+  // outbox row instead of inserting the same ActivityPub activity again.
+  if (!outbox) {
+    const existingResponse = await db(`activitypub_outbox?activity_id=eq.${enc(activityUri)}&select=id,delivered,activity_id&limit=1`);
+    if (!existingResponse.ok) throw Error("Failed to read existing ActivityPub outbox activity");
+    const existingRows = await existingResponse.json() as any[];
+    outbox = existingRows[0] || null;
+  }
+  if (!outbox?.id) throw Error("Failed to persist ActivityPub outbox activity");
+
+  // If this exact activity has already been delivered, this request is a
+  // successful idempotent replay; never send it to the remote inbox again.
+  if (outbox.delivered === true) {
+    return {
+      status: "delivered",
+      activityId: activityUri,
+      outboxId: outbox.id,
+      idempotent: true,
+      remoteStatus: null,
+    };
+  }
+
+  // A concurrent request may have created this row. Only the request that
+  // inserted the row should perform the immediate delivery; the other request
+  // returns a queued success and lets the durable outbox worker retry it.
+  if (outboxRows.length === 0) {
+    return {
+      status: "queued",
+      activityId: activityUri,
+      outboxId: outbox.id,
+      idempotent: true,
+      remoteStatus: null,
+    };
+  }
 
   const body = JSON.stringify(activity);
   let response: Response;
@@ -395,7 +441,7 @@ async function queue(local: any, userId: string, inbox: string, activity: any) {
     throw Error(`Remote inbox ${response.status}: ${responseText.slice(0, 1200)}`);
   }
 
-  const patchResponse = await db(`activitypub_outbox?id=eq.${enc(outboxId)}`, {
+  const patchResponse = await db(`activitypub_outbox?id=eq.${enc(outbox.id)}`, {
     method: "PATCH",
     headers: { Prefer: "return=minimal" },
     body: JSON.stringify({ delivered: true, next_attempt_at: null, expires_at: new Date(Date.now()+86400000).toISOString(), payload: {} }),
@@ -405,7 +451,7 @@ async function queue(local: any, userId: string, inbox: string, activity: any) {
   return {
     status: "delivered",
     activityId: activityUri,
-    outboxId,
+    outboxId: outbox.id,
     remoteStatus: response.status,
   };
 }
