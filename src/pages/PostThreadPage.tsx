@@ -15,6 +15,8 @@ import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { useSEO, buildOgImageUrl } from '@/hooks/useSEO';
+import * as federation from '@/api/federation';
+import { getFederatedReplies } from '@/services/postInteractionService';
 
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { EmbedRenderer, PostContentEmbeds } from '@/components/features/EmbedRenderer';
@@ -155,6 +157,79 @@ export default function PostThreadPage() {
     if (!postId) return;
     setLoading(true);
     try {
+      // Federated posts are ActivityPub object URIs, not local UUIDs. Never send
+      // them through the local posts table/detail resolver.
+      if (/^https:\/\//i.test(postId)) {
+        const remote = await federation.getFederatedObject(postId);
+        const object = remote?.object ?? remote;
+        if (!object?.id) throw new Error('Remote ActivityPub object not found');
+
+        const actor = typeof object.attributedTo === 'string'
+          ? object.attributedTo
+          : object.attributedTo?.id ?? object.attributedTo?.url ?? '';
+        const actorPath = actor ? actor.replace(/\/$/, '').split('/').pop() || 'Fediverse user' : 'Fediverse user';
+        const published = object.published ?? object.created ?? new Date().toISOString();
+        const attachments = Array.isArray(object.attachment) ? object.attachment : [];
+        const mediaUrls = attachments
+          .map((a: any) => a?.url ?? a?.href)
+          .filter((v: any): v is string => typeof v === 'string');
+
+        const remotePost: any = {
+          id: object.id,
+          content: object.content ?? object.name ?? object.summary ?? '',
+          created_at: published,
+          updated_at: object.updated ?? published,
+          user_id: actor,
+          author_id: actor,
+          user_profiles: {
+            id: actor,
+            username: actorPath.replace(/^@/, ''),
+            display_name: object.attributedTo?.name ?? actorPath.replace(/^@/, ''),
+            avatar_url: object.attributedTo?.icon?.url ?? object.attributedTo?.icon ?? undefined,
+            verified: false,
+          },
+          likes_count: Number(object.likes?.totalItems ?? 0),
+          reposts_count: Number(object.shares?.totalItems ?? 0),
+          replies_count: Number(object.replies?.totalItems ?? 0),
+          views_count: 0,
+          media_urls: mediaUrls,
+          image_url: mediaUrls.find((u: string) => /image|\.png$|\.jpe?g$|\.webp$/i.test(u)) ?? null,
+          video_url: mediaUrls.find((u: string) => /video|\.mp4$|\.webm$/i.test(u)) ?? null,
+          is_video: mediaUrls.some((u: string) => /video|\.mp4$|\.webm$/i.test(u)),
+          is_federated: true,
+          federation_id: object.id,
+        };
+        setPost(remotePost);
+
+        const [counts, remoteReplies] = await Promise.all([
+          federation.getFederatedObject(postId).then((r: any) => ({
+            likes: Number(r?.object?.likes?.totalItems ?? r?.likes?.totalItems ?? remotePost.likes_count),
+            reposts: Number(r?.object?.shares?.totalItems ?? r?.shares?.totalItems ?? remotePost.reposts_count),
+            replies: Number(r?.object?.replies?.totalItems ?? r?.replies?.totalItems ?? remotePost.replies_count),
+          })).catch(() => null),
+          getFederatedReplies(postId),
+        ]);
+        if (counts) {
+          setPost(prev => prev ? ({ ...prev, likes_count: counts.likes, reposts_count: counts.reposts, replies_count: counts.replies }) : prev);
+        }
+        const mappedReplies: any[] = (remoteReplies || []).map((r: any) => ({
+          id: r.id,
+          post_id: postId,
+          user_id: r.user_id,
+          content: r.content,
+          created_at: r.created_at,
+          updated_at: r.updated_at,
+          user_profiles: {
+            id: r.user_id,
+            username: r.user_id,
+            display_name: r.user_id,
+            verified: false,
+          },
+        }));
+        setReplies(mappedReplies);
+        return;
+      }
+
       const { data: postData, error: postError } = await supabase
         .from('posts')
         .select('*, profiles (*)')
@@ -163,10 +238,6 @@ export default function PostThreadPage() {
       if (postError) throw postError;
       setPost(postData);
 
-      // OG tags are now managed by useSEO hook via buildOgImageUrl({ post: id })
-
-
-      // Increment view count
       supabase
         .from('posts')
         .update({ views_count: (postData.views_count || 0) + 1 })
