@@ -22,6 +22,19 @@ function Avatar({profile}:{profile?:Profile}) {
   return <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-muted flex items-center justify-center text-sm font-bold">{profile?.avatar_url?<img src={profile.avatar_url} alt="" className="h-full w-full object-cover"/>:initial}</div>;
 }
 
+function ThreadMedia({items}:{items:any[]}) {
+  return <div className="mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none]">
+    {items.map((item:any,i:number)=>{
+      const url=mediaUrl(item); const type=item?.type||'';
+      return <div key={url+i} className="min-w-[88%] snap-center overflow-hidden rounded-2xl border border-border bg-muted/20 sm:min-w-[72%]">
+        {type.startsWith('video/')?<video src={url} controls preload="metadata" className="max-h-[420px] w-full"/>:
+         type.startsWith('audio/')?<audio src={url} controls className="w-full p-3"/>:
+         <img src={url} alt="" loading="lazy" className="max-h-[420px] w-full object-contain"/>}
+      </div>;
+    })}
+  </div>;
+}
+
 function ThreadCard({thread,liked,reposted,bookmarked,onLike,onRepost,onBookmark}:{thread:Thread;liked:boolean;reposted:boolean;bookmarked:boolean;onLike:()=>void;onRepost:()=>void;onBookmark:()=>void}) {
   const navigate=useNavigate(); const profile=thread.profiles; const open=()=>navigate(`/thread/${thread.id}`);
   return <article className="px-4 py-4 transition-colors hover:bg-muted/20">
@@ -38,7 +51,7 @@ function ThreadCard({thread,liked,reposted,bookmarked,onLike,onRepost,onBookmark
         </div>
         <button onClick={open} className="mt-2 block w-full text-left">
           <p className="whitespace-pre-wrap break-words text-[15px] leading-6">{thread.body}</p>
-          {thread.media_urls?.length>0&&<div className="mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none]">{thread.media_urls.map((item:any,i)=><div key={mediaUrl(item)+i} className="min-w-[88%] snap-center overflow-hidden rounded-2xl border border-border bg-muted/20 sm:min-w-[72%]">{(item?.type||'').startsWith('video/')?<video src={mediaUrl(item)} controls preload="metadata" className="max-h-[420px] w-full"/>:(item?.type||'').startsWith('audio/')?<audio src={mediaUrl(item)} controls className="w-full p-3"/>:<img src={mediaUrl(item)} alt="" loading="lazy" className="max-h-[420px] w-full object-contain"/></div>)}</div>}
+          {thread.media_urls?.length>0&&<ThreadMedia items={thread.media_urls}/>}
         </button>
         <div className="mt-3 flex max-w-[520px] items-center justify-between text-muted-foreground">
           <button onClick={open} className="flex items-center gap-1.5 rounded-full p-1.5 hover:text-primary"><MessageCircle className="h-[18px] w-[18px]"/>{thread.replies_count>0&&<span className="text-xs">{formatNumber(thread.replies_count)}</span>}</button>
