@@ -7,7 +7,7 @@ import { uploadTestagramMedia } from '@/services/mediaClient';
 import { toast } from 'sonner';
 
 const MAX_CHARS=500;
-const MAX_FILES=8;
+const MAX_FILES=20;
 const MAX_FILE_BYTES=20*1024*1024;
 
 type MediaAsset={url:string;name:string;type:string;size:number};
