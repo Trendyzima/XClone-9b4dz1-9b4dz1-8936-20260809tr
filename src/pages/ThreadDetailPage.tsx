@@ -62,7 +62,7 @@ function ThreadNode({thread,depth,onReply,onQuote,onLike,onRepost,onBookmark,lik
 export default function ThreadDetailPage(){
  const {id}=useParams(); const {user}=useAuth(); const navigate=useNavigate(); const fileRef=useRef<HTMLInputElement>(null);
  const [root,setRoot]=useState<Thread|null>(null); const [nodes,setNodes]=useState<Thread[]>([]); const [quotes,setQuotes]=useState<QuoteItem[]>([]);
- const [loading,setLoading]=useState(true); const [replyTarget,setReplyTarget]=useState<string|null>(null); const [quoteTarget,setQuoteTarget]=useState<string|null>(null); const [replyText,setReplyText]=useState(''); const [replyFiles,setReplyFiles]=useState<File[]>([]); const [replyPreviews,setReplyPreviews]=useState<string[]>([]); const [sending,setSending]=useState(false);
+ const [loading,setLoading]=useState(true); const [loadingMore,setLoadingMore]=useState(false); const [childrenCursor,setChildrenCursor]=useState<string|null>(null); const [childrenHasMore,setChildrenHasMore]=useState(true); const loadMoreRef=useRef<HTMLDivElement|null>(null); const [replyTarget,setReplyTarget]=useState<string|null>(null); const [quoteTarget,setQuoteTarget]=useState<string|null>(null); const [replyText,setReplyText]=useState(''); const [replyFiles,setReplyFiles]=useState<File[]>([]); const [replyPreviews,setReplyPreviews]=useState<string[]>([]); const [sending,setSending]=useState(false);
  const [liked,setLiked]=useState<Set<string>>(new Set()); const [reposted,setReposted]=useState<Set<string>>(new Set()); const [bookmarked,setBookmarked]=useState<Set<string>>(new Set());
 
  useSEO({title:root?.body?.slice(0,60)||'Thread',description:'Infinite conversation on Testagram',url:id?'/thread/'+id:undefined,type:'article'});
@@ -75,7 +75,7 @@ export default function ThreadDetailPage(){
    const r={...(data as Thread),media_urls:normalizeMedia(data.media_urls),reply_to_id:data.reply_to_id??null,root_thread_id:data.root_thread_id??null};
    const allIds=r.root_thread_id?([r.root_thread_id,id]):[id];
    const rootId=r.root_thread_id||id;
-   const {data:children}=await supabase.from('threads').select('id,owner_id,body,visibility,created_at,likes_count,reposts_count,quotes_count,replies_count,views_count,media_urls,reply_to_id,root_thread_id').eq('root_thread_id',rootId).is('deleted_at',null).order('created_at',{ascending:true}).limit(1000);
+   const {data:children}=await supabase.from('threads').select('id,owner_id,body,visibility,created_at,likes_count,reposts_count,quotes_count,replies_count,views_count,media_urls,reply_to_id,root_thread_id').eq('root_thread_id',rootId).is('deleted_at',null).order('created_at',{ascending:true}).limit(30);
    const rows=[r,...((children??[]) as any[]).filter(x=>x.id!==r.id).map(x=>({...x,media_urls:normalizeMedia(x.media_urls)}))] as Thread[];
    const ids=[...new Set(rows.map(x=>x.owner_id))]; const profileRows:Profile[]=ids.length?(((await supabase.from('profiles').select('id,username,avatar_url,verified,display_name').in('id',ids)).data ?? []) as Profile[]):[]; const pm=new Map<string,Profile>(profileRows.map((p)=>[p.id,p])); rows.forEach(x=>x.profiles=pm.get(x.owner_id));
    setRoot(r); setNodes(rows.filter(x=>x.id!==r.id));
