@@ -160,6 +160,39 @@ if(path==="/unbookmark"&&method==="POST"){
   if(r.error)return json({error:r.error.message},400);
   return json({ok:true,removed:true});
 }
+if(path==="/federated-reaction"&&method==="POST"){
+  const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
+  const target=String(body.post_id||body.postId||"").trim();
+  const emoji=String(body.emoji||"").trim();
+  const enabled=body.enabled!==false;
+  if(!/^https:\/\//i.test(target)||!emoji)return json({error:"Remote reaction requires object URI and emoji"},400);
+  if(enabled){
+    const r=await admin.from("federated_reactions").upsert({
+      user_id:u.id,object_uri:target,reaction_type:"reaction",content:emoji,delivered:false,updated_at:new Date().toISOString()
+    },{onConflict:"user_id,object_uri,reaction_type"}).select("id,object_uri,reaction_type,content,delivered,created_at,updated_at").single();
+    if(r.error)return json({error:"Failed to persist federated reaction",details:r.error.message},500);
+    return json({ok:true,active:true,reaction:r.data},200);
+  }
+  const r=await admin.from("federated_reactions").delete().eq("user_id",u.id).eq("object_uri",target).eq("reaction_type","reaction");
+  if(r.error)return json({error:"Failed to remove federated reaction",details:r.error.message},500);
+  return json({ok:true,active:false},200);
+}
+if(path==="/federated-reaction-state"&&method==="GET"){
+  const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
+  const target=String(params.object_uri||params.objectUri||"").trim();
+  if(!/^https:\/\//i.test(target))return json({error:"object_uri must be a remote ActivityPub object"},400);
+  const r=await admin.from("federated_reactions").select("content,delivered,updated_at").eq("user_id",u.id).eq("object_uri",target).eq("reaction_type","reaction").maybeSingle();
+  if(r.error)return json({error:r.error.message},400);
+  return json({emoji:r.data?.content||null,active:Boolean(r.data)},200);
+}
+if(path==="/federated-reaction-counts"&&method==="GET"){
+  const target=String(params.object_uri||params.objectUri||"").trim();
+  if(!/^https:\/\//i.test(target))return json({error:"object_uri must be a remote ActivityPub object"},400);
+  const r=await admin.from("federated_reactions").select("content").eq("object_uri",target).eq("reaction_type","reaction");
+  if(r.error)return json({error:r.error.message},400);
+  const counts:any={}; for(const row of r.data||[]){const k=String(row.content||""); if(k)counts[k]=(counts[k]||0)+1;}
+  return json({counts},200);
+}
 if(path==="/federated-interaction-state"&&method==="GET"){
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
   const target=String(params.object_uri||params.objectUri||"").trim();
@@ -206,12 +239,18 @@ if(path==="/quote"&&method==="POST"){
   const target=String(body.post_id||body.postId||"").trim(), content=String(body.content||"").trim();
   if(!target||!content)return json({error:"post_id and content required"},400);
   if(!/^https:\/\//i.test(target))return json({error:"Quote target must be a remote ActivityPub object"},400);
-  const activity:any = { type: "Create" };
-  activity.object = { type: "Note" };
-  activity.object.content = content;
-  activity.object.quote = target;
-  const r = await transport({ user_id: u.id, operation: "deliver", target: target, activity: activity });
-  const data=r.data(); return json(data,r.status);
+  const local=await admin.from("federated_quotes").insert({user_id:u.id,object_uri:target,content,delivery_state:"pending"}).select("id,object_uri,content,delivery_state,created_at").single();
+  if(local.error)return json({error:"Failed to persist federated quote",details:local.error.message},500);
+  const activity:any={type:"Create",object:{type:"Note",content,quote:target}};
+  try{
+    const r=await transport({user_id:u.id,operation:"deliver",target,activity});
+    const data=r.data(); const delivered=data?.delivery?.status==="delivered"||data?.delivery?.status==="queued"||data?.accepted===true;
+    await admin.from("federated_quotes").update({activity_uri:data?.activity?.id??data?.activity?.object?.id??null,delivery_state:delivered?"delivered":"pending",delivery_error:delivered?null:String(data?.error||"")||null,updated_at:new Date().toISOString()}).eq("id",local.data.id);
+    return json({...data,ok:true,accepted:delivered,quote_id:local.data.id},200);
+  }catch(error){
+    await admin.from("federated_quotes").update({delivery_state:"pending",delivery_error:error instanceof Error?error.message:"Remote quote delivery pending",updated_at:new Date().toISOString()}).eq("id",local.data.id);
+    return json({ok:true,accepted:false,status:"pending",queued:true,quote_id:local.data.id,error:error instanceof Error?error.message:"Remote quote delivery pending"},200);
+  }
 }
 if(path==="/flag"&&method==="POST"){
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
