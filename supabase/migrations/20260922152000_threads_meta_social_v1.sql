@@ -133,7 +133,7 @@ grant select, insert, update, delete on public.thread_bookmarks to authenticated
 grant select, insert on public.thread_views to authenticated;
 
 create or replace function public.testagram_record_thread_view(p_thread_id uuid)
-returns integer language plpgsql security invoker set search_path=public as $$
+returns integer language plpgsql security definer set search_path=public as $
 declare v_count integer;
 begin
  if auth.uid() is null then raise exception 'Authentication required'; end if;
@@ -145,7 +145,7 @@ begin
  select views_count into v_count from public.threads where id=p_thread_id;
  return coalesce(v_count,0);
 end; $$;
-grant execute on function public.testagram_record_thread_view(uuid) to authenticated;
+revoke execute on function public.testagram_record_thread_view(uuid) from public, anon;\ngrant execute on function public.testagram_record_thread_view(uuid) to authenticated;
 
 create schema if not exists private;
 create or replace function private.thread_like_counter() returns trigger language plpgsql security definer set search_path='' as $$
