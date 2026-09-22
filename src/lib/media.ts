@@ -17,7 +17,7 @@ export type MediaUploadResult = {
   public_url: string | null;
   size_bytes: number;
   mime_type: string;
-  media_type?: 'image' | 'video';
+  media_type?: 'image' | 'video' | 'audio' | 'file';
   status: 'uploaded';
   etag?: string | null;
   post_id?: string | null;
