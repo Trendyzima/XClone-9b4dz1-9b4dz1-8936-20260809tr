@@ -37,7 +37,38 @@ export class TestagramCapabilityClient{
  private endpoint:string;private token:()=>Promise<string|null>;private name:string;private version:string;private timeout:number;private apiKey:string;
  constructor(o:TestagramCapabilityClientOptions){if(!o.endpoint?.trim())throw new Error("Capability endpoint is required");this.endpoint=o.endpoint.replace(/\/$/,"");this.token=o.getAccessToken;this.name=o.clientName??"testagram-client";this.version=o.clientVersion??"2";this.timeout=Math.min(30000,Math.max(1000,Math.floor(o.timeoutMs??15000)));this.apiKey=o.apiKey??"";}
  private async request<T>(capability:string,input:Record<string,unknown>,token:string|null,id:string,ctl:AbortController){const requestUrl=typeof window!=="undefined"?`${window.location.origin}${EDGE_CAPABILITY_PATH}`:this.endpoint;const r=await fetch(requestUrl,{method:"POST",headers:{...(token?{Authorization:`Bearer ${token}`}:{ }),"Content-Type":"application/json",Accept:"application/json","X-Request-Id":id,"X-Testagram-Client":this.name,"X-Testagram-Client-Version":this.version},body:JSON.stringify({capability,input}),signal:ctl.signal});let p:CapabilityResponse<T>;try{p=await r.json()}catch{throw new CapabilityClientError("Gateway returned invalid JSON",{code:"INVALID_GATEWAY_RESPONSE",requestId:id,status:r.status})}return {r,p};}
- async call<T>(capability:string,input:Record<string,unknown>={}):Promise<T>{if(!capability.trim())throw new CapabilityClientError("Capability name is required",{code:"CAPABILITY_REQUIRED"});const isPublic=PUBLIC_CAPABILITIES.has(capability);const token=await this.token();if(!token&&!isPublic)throw new CapabilityClientError("Authentication required",{code:"AUTH_REQUIRED"});const id=rid(),ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),this.timeout),startedAt=Date.now();try{let attempt=0;while(true){const {r,p}=await this.request<T>(capability,input,token,id,ctl);if(r.ok&&p.ok){const event=capabilityEvent(capability);trackTestagramEvent(TestagramEvent.CAPABILITY_SUCCEEDED,{capability,duration_ms:Date.now()-startedAt});if(event)trackTestagramEvent(event,{capability});return p.data as T}catch(e){trackTestagramEvent(TestagramEvent.CAPABILITY_FAILED,{capability,duration_ms:Date.now()-startedAt,error_type:e instanceof Error?e.name:"unknown",error_code:e instanceof CapabilityClientError?e.code:undefined});if(e instanceof CapabilityClientError)throw e;if(e instanceof DOMException&&e.name==="AbortError")throw new CapabilityClientError("Capability request timed out",{code:"TIMEOUT",requestId:id});throw new CapabilityClientError(e instanceof Error?e.message:"Capability request failed",{code:"NETWORK_ERROR",requestId:id})}finally{clearTimeout(timer)}}
+ async call<T>(capability:string,input:Record<string,unknown>={}):Promise<T>{
+  if(!capability.trim())throw new CapabilityClientError("Capability name is required",{code:"CAPABILITY_REQUIRED"});
+  const isPublic=PUBLIC_CAPABILITIES.has(capability);
+  let token=await this.token();
+  if(!token&&!isPublic)throw new CapabilityClientError("Authentication required",{code:"AUTH_REQUIRED",status:401});
+  const id=rid(),ctl=new AbortController(),timer=setTimeout(()=>ctl.abort(),this.timeout),startedAt=Date.now();
+  try{
+    let attempt=0;
+    while(true){
+      const {r,p}=await this.request<T>(capability,input,token,id,ctl);
+      if(r.ok&&p.ok){
+        const event=capabilityEvent(capability);
+        trackTestagramEvent(TestagramEvent.CAPABILITY_SUCCEEDED,{capability,duration_ms:Date.now()-startedAt});
+        if(event)trackTestagramEvent(event,{capability});
+        return p.data as T;
+      }
+      const authFailure=!isPublic&&(r.status===401||r.status===403)&&p.error?.code==="AUTH_REQUIRED";
+      if(authFailure&&attempt===0){
+        attempt++;
+        const refreshed=await supabase.auth.refreshSession();
+        token=refreshed.data.session?.access_token??null;
+        if(token)continue;
+      }
+      throw new CapabilityClientError(p.error?.message??`Capability request failed (${r.status})`,{code:p.error?.code??"CAPABILITY_REQUEST_FAILED",requestId:p.request_id??id,status:r.status});
+    }
+  }catch(e){
+    trackTestagramEvent(TestagramEvent.CAPABILITY_FAILED,{capability,duration_ms:Date.now()-startedAt,error_type:e instanceof Error?e.name:"unknown",error_code:e instanceof CapabilityClientError?e.code:undefined});
+    if(e instanceof CapabilityClientError)throw e;
+    if(e instanceof DOMException&&e.name==="AbortError")throw new CapabilityClientError("Capability request timed out",{code:"TIMEOUT",requestId:id});
+    throw new CapabilityClientError(e instanceof Error?e.message:"Capability request failed",{code:"NETWORK_ERROR",requestId:id});
+  }finally{clearTimeout(timer)}
+}
  listCapabilities(){return this.call<{capabilities:unknown[]}>("testagram.capabilities.list")} health(){return this.call<{services:unknown[]}>("testagram.health.read")}
  listPosts(n=20,c?:string){return this.call<CapabilityPage<unknown>>("testagram.posts.list",{limit:limit(n),...cursor(c)})}
  searchPosts(q:string,n=20,c?:string,options:{mediaOnly?:boolean;verifiedOnly?:boolean}={}){return this.call<CapabilityPage<any>>("testagram.search.posts",{q,limit:limit(n),...options.mediaOnly?{media_only:true}:{},...options.verifiedOnly?{verified_only:true}:{},...cursor(c)})}
