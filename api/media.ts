@@ -113,7 +113,7 @@ export default async function handler(req: any, res: any) {
       }
       if (threadId) {
         const { data: thread } = await admin.from('threads').select('id,owner_id,deleted_at').eq('id', threadId).maybeSingle();
-        if (!thread || thread.owner_id !== user.id || thread.deleted_at) return json(res, 404, { error: 'Thread not found or not owned by user' });
+        if (!thread || thread.deleted_at) return json(res, 404, { error: 'Thread not found' });
       }
 
       const mediaType = mime.startsWith('image/') ? 'image' : 'video';
