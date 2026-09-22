@@ -37,19 +37,52 @@ export class TestagramCapabilityClient{
  private endpoint:string;private token:()=>Promise<string|null>;private name:string;private version:string;private timeout:number;private apiKey:string;
  constructor(o:TestagramCapabilityClientOptions){if(!o.endpoint?.trim())throw new Error("Capability endpoint is required");this.endpoint=o.endpoint.replace(/\/$/,"");this.token=o.getAccessToken;this.name=o.clientName??"testagram-client";this.version=o.clientVersion??"2";this.timeout=Math.min(30000,Math.max(1000,Math.floor(o.timeoutMs??15000)));this.apiKey=o.apiKey??"";}
  private async request<T>(capability:string,input:Record<string,unknown>,token:string|null,id:string,ctl:AbortController){
-  // Use the canonical Supabase client for the capability RPC. This keeps the
-  // browser session/JWT path identical to uploads and avoids a second auth
-  // boundary where a valid session can be lost at the Vercel proxy.
-  void token; void ctl;
-  const { data, error } = await supabase.rpc('capability_dispatch', {
-    p_capability: capability,
-    p_input: input,
-  });
-  if (error) {
-    const status = /jwt|token|auth|permission|not authenticated/i.test(error.message || '') ? 401 : 400;
-    return { r: { ok: false, status } as Response, p: { ok: false, data: null, error: { code: status === 401 ? 'AUTH_REQUIRED' : 'CAPABILITY_DISPATCH_FAILED', message: error.message || 'Capability request failed' }, request_id: id } as CapabilityResponse<T> };
+  // Send the session JWT explicitly to PostgREST. The previous implementation
+  // called supabase.rpc(), which relies on the client's mutable auth header. A
+  // valid useAuth() user can therefore race Auth hydration and reach the RPC as
+  // anon. Explicit Authorization makes the browser identity deterministic.
+  const headers: Record<string,string> = {
+    apikey: supabasePublishableKey,
+    Authorization: token ? `Bearer ${token}` : `Bearer ${supabasePublishableKey}`,
+    'Content-Type': 'application/json',
+    Accept: 'application/json',
+    'X-Client-Info': `testagram-web/${this.version}`,
+  };
+  try {
+    const response = await fetch(`${supabaseUrl.replace(/\\/$/, '')}/rest/v1/rpc/capability_dispatch`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ p_capability: capability, p_input: input }),
+      signal: ctl.signal,
+    });
+    const raw = await response.text();
+    let data: unknown = null;
+    try { data = raw ? JSON.parse(raw) : null; } catch { data = null; }
+    if (!response.ok) {
+      const message = typeof data === 'object' && data && 'message' in data
+        ? String((data as { message?: unknown }).message)
+        : response.status === 401 || response.status === 403
+          ? 'Authentication required'
+          : 'Capability database request failed';
+      const auth = response.status === 401 || response.status === 403 || /authentication required|jwt|token/i.test(message);
+      return {
+        r: response,
+        p: {
+          ok: false,
+          data: null,
+          error: { code: auth ? 'AUTH_REQUIRED' : 'CAPABILITY_DISPATCH_FAILED', message },
+          request_id: id,
+        },
+      };
+    }
+    return {
+      r: response,
+      p: { ok: true, data: data as T, error: null, request_id: id },
+    };
+  } catch (error) {
+    if (error instanceof DOMException && error.name === 'AbortError') throw error;
+    throw error;
   }
-  return { r: { ok: true, status: 200 } as Response, p: { ok: true, data: data as T, error: null, request_id: id } as CapabilityResponse<T> };
  }
  async call<T>(capability:string,input:Record<string,unknown>={}):Promise<T>{
   if(!capability.trim())throw new CapabilityClientError("Capability name is required",{code:"CAPABILITY_REQUIRED"});
