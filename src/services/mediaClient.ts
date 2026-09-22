@@ -14,7 +14,7 @@ type MediaCompleted = {
   post_id: string | null;
   byte_size: number;
   mime_type: string;
-  media_type: 'image' | 'video';
+  media_type: 'image' | 'video' | 'audio' | 'file';
   status: string;
   media_url: string | null;
   etag?: string | null;
