@@ -111,18 +111,63 @@ jobs:
           console.log("DB_PROJECT_REF_CHECK=PASSED");
           NODE
 
-          for delay in 5 15 30 60 120; do
-            echo "IPv4 Supavisor reachability probe; retry window ${delay}s"
-            if pg_isready "${SUPABASE_DB_URL}" >/dev/null 2>&1; then
+          # Diagnose DNS and TCP before retrying PostgreSQL. pg_isready alone hides
+          # whether the failure is DNS, TCP, TLS, or PostgreSQL authentication.
+          db_host="$(node -e 'const u=new URL(process.env.SUPABASE_DB_URL); process.stdout.write(u.hostname)')"
+          db_port="$(node -e 'const u=new URL(process.env.SUPABASE_DB_URL); process.stdout.write(u.port || "5432")')"
+
+          echo "SUPABASE_DB_HOST=${db_host}"
+          echo "SUPABASE_DB_PORT=${db_port}"
+          echo "SUPABASE_DB_IPV4_ADDRESSES:"
+          getent ahostsv4 "${db_host}" | awk '{print $1}' | sort -u | sed 's/^/  /' || true
+
+          ipv4_addresses="$(getent ahostsv4 "${db_host}" | awk '{print $1}' | sort -u)"
+          if [ -z "${ipv4_addresses}" ]; then
+            echo "::error::Supavisor hostname has no IPv4 DNS answer from the GitHub runner."
+            exit 1
+          fi
+
+          tcp_ok=false
+          while IFS= read -r ip; do
+            [ -n "${ip}" ] || continue
+            echo "IPv4 TCP probe: ${ip}:${db_port}"
+            if timeout 10 bash -c ">/dev/tcp/${ip}/${db_port}" 2>/dev/null; then
+              echo "SUPABASE_DB_TCP_IPV4_REACHABLE=true"
+              tcp_ok=true
+              break
+            fi
+          done <<< "${ipv4_addresses}"
+
+          if [ "${tcp_ok}" != "true" ]; then
+            echo "::error::Supavisor has IPv4 DNS, but TCP port ${db_port} is unreachable from the GitHub-hosted runner."
+            echo "::error::This is a network-path failure, not a database-password failure."
+            exit 1
+          fi
+
+          # The shared Supavisor Session endpoint is IPv4-only. Force libpq to
+          # use the resolved IPv4 address so a dual-stack DNS answer cannot
+          # select an unreachable IPv6 path.
+          export PGHOSTADDR="$(printf '%s\n' "${ipv4_addresses}" | head -n1)"
+
+          for delay in 5 15 30; do
+            echo "IPv4 Supavisor PostgreSQL readiness probe; retry window ${delay}s"
+            if PGHOSTADDR="${PGHOSTADDR}" pg_isready "${SUPABASE_DB_URL}" >/dev/null 2>&1; then
               echo "SUPABASE_DB_REACHABLE=true"
               break
             fi
             sleep "${delay}"
           done
 
-          if ! pg_isready "${SUPABASE_DB_URL}" >/dev/null 2>&1; then
-            echo "::error::Supavisor Session endpoint remains unreachable after bounded retries."
-            exit 1
+          if ! PGHOSTADDR="${PGHOSTADDR}" pg_isready "${SUPABASE_DB_URL}" >/dev/null 2>&1; then
+            echo "::error::IPv4 TCP is reachable, but PostgreSQL/Supavisor readiness did not succeed."
+            echo "::error::The next probe will run a real authenticated SSL connection to distinguish pooler/authentication failure."
+            if PGHOSTADDR="${PGHOSTADDR}" psql "${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -Atqc "select 1" >/tmp/db-connect-error.txt 2>&1; then
+              echo "SUPABASE_DB_AUTHENTICATED=true"
+            else
+              echo "::error::Authenticated PostgreSQL probe failed; inspect the sanitized connection-stage diagnostics below."
+              sed -E 's/(postgresql?:\\/\\/[^:]+:)[^@]+(@)/\\1***\\2/g' /tmp/db-connect-error.txt | tail -n 12
+              exit 1
+            fi
           fi
 
           # pg_isready proves socket/server readiness, but not authentication.
