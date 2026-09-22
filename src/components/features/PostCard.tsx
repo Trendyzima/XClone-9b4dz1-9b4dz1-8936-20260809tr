@@ -25,7 +25,7 @@ import {
 import { VideoMonetizationAd } from './VideoMonetizationAd';
 import { EmbedRenderer, PostContentEmbeds } from './EmbedRenderer';
 import { updateInterestSignal } from '@/services/recommendations';
-import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts, getFederatedReplies } from '@/services/postInteractionService';
+import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts, getFederatedReplies, setFederatedReaction, getFederatedReactionState, getFederatedReactionCounts } from '@/services/postInteractionService';
 import { backendCapabilities } from '@/services/backendClient';
 import * as federation from '@/api/federation';
 // Canonical social interaction reads/writes stay behind backend capabilities.
@@ -135,19 +135,26 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     if (!user) { navigate('/auth'); return; }
     setShowReactionPicker(false);
 
-    // Federated posts have one ActivityPub-native favorite. Update the UI
-    // immediately; the transport/database reconciliation happens in parallel.
+    // Fediverse uses ActivityPub Like for ❤️. Other UI reactions are stored
+    // in the separate federated reaction ledger so they survive refresh without
+    // pretending that remote servers support arbitrary emoji reactions.
     if (isFederatedPost) {
-      if (emoji !== '❤️') return;
-      const wasLiked = isLiked;
-      setIsLiked(!wasLiked);
-      setUserReaction(!wasLiked ? '❤️' : null);
-      setLikesCount(prev => Math.max(0, prev + (wasLiked ? -1 : 1)));
+      const wasReaction = userReaction === emoji;
+      const nextActive = !wasReaction;
       try {
-        await togglePostLike(interactionPostId, wasLiked);
-        // Keep the optimistic local count visible; remote collection totals may lag delivery.
+        if (emoji === '❤️') {
+          const wasLiked = isLiked;
+          setIsLiked(!wasLiked);
+          setUserReaction(nextActive ? emoji : null);
+          setLikesCount(prev => Math.max(0, prev + (wasLiked ? -1 : 1)));
+          await togglePostLike(interactionPostId, wasLiked);
+        } else {
+          await setFederatedReaction(interactionPostId, emoji, nextActive);
+          setUserReaction(nextActive ? emoji : null);
+        }
       } catch (error) {
-        console.warn('[federation] favorite unavailable', error);
+        console.warn('[federation] reaction unavailable', error);
+        toast({ title: 'Reaction failed', description: error instanceof Error ? error.message : 'Could not save reaction', variant: 'destructive' });
       }
       return;
     }
@@ -618,12 +625,14 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     const checkUserInteractions = async () => {
       try {
         if (isFederatedPost) {
-          const [state, counts] = await Promise.all([
+          const [state, counts, reaction] = await Promise.all([
             getFederatedInteractionState(interactionPostId),
             getFederatedInteractionCounts(interactionPostId),
+            getFederatedReactionState(interactionPostId),
           ]);
           setIsLiked(state.is_liked);
           setIsReposted(state.is_reposted);
+          setUserReaction(reaction.active ? reaction.emoji : null);
           setLikesCount(counts.likes);
           setRepostsCount(counts.reposts);
           setRepliesCount(counts.replies);
