@@ -49,7 +49,7 @@ export class TestagramCapabilityClient{
     'X-Client-Info': `testagram-web/${this.version}`,
   };
   try {
-    const response = await fetch(`${supabaseUrl.replace(/\\/$/, '')}/rest/v1/rpc/capability_dispatch`, {
+    const response = await fetch(`${supabaseUrl.replace(/\/$/, '')}/rest/v1/rpc/capability_dispatch`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ p_capability: capability, p_input: input }),
