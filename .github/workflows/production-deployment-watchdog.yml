@@ -1,0 +1,115 @@
+name: Production Deployment Watchdog
+
+on:
+  schedule:
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: production-deployment-watchdog
+  cancel-in-progress: true
+
+jobs:
+  verify-production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      VERCEL_ORG_ID: \${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: \${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: \${{ secrets.VERCEL_TOKEN }}
+      GH_TOKEN: \${{ github.token }}
+      REPO: \${{ github.repository }}
+      RECONCILIATION_WORKFLOW: production-deployment-reconciliation.yml
+    steps:
+      - name: Compare main with exact READY production revision
+        id: compare
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          main_sha="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/commits/main" |
+            node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).sha))')"
+
+          deployments="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&limit=20")"
+
+          production_sha="$(printf '%s' "$deployments" | node -e '
+            let s="";
+            process.stdin.on("data",d=>s+=d).on("end",()=>{
+              const p=JSON.parse(s);
+              const ds=(p.deployments||[])
+                .filter(d=>d.target==="production" && d.state==="READY")
+                .sort((a,b)=>(b.created||0)-(a.created||0));
+              process.stdout.write(ds[0]?.meta?.githubCommitSha || "");
+            })')"
+
+          echo "main_sha=$main_sha"
+          echo "latest_ready_production_sha=$production_sha"
+
+          if [[ "$main_sha" == "$production_sha" ]]; then
+            echo "Production already matches main."
+            echo "needs_reconciliation=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Production is behind main; checking recent reconciliation activity."
+          echo "needs_reconciliation=true" >> "$GITHUB_OUTPUT"
+          echo "target_sha=$main_sha" >> "$GITHUB_OUTPUT"
+
+      - name: Avoid duplicate recovery attempts
+        if: \${{ steps.compare.outputs.needs_reconciliation == 'true' }}
+        id: cooldown
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          runs="$(curl --fail --silent --show-error \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$REPO/actions/workflows/$RECONCILIATION_WORKFLOW/runs?branch=main&per_page=1")"
+
+          result="$(printf '%s' "$runs" | node -e '
+            let s="";
+            process.stdin.on("data",d=>s+=d).on("end",()=>{
+              const p=JSON.parse(s);
+              const r=p.workflow_runs?.[0];
+              if (!r) { console.log("dispatch"); return; }
+              const age=Date.now()-Date.parse(r.updated_at || r.created_at);
+              console.log(r.status !== "completed" || age < 2*60*60*1000 ? "skip" : "dispatch");
+            })')"
+
+          echo "watchdog_decision=$result"
+
+          if [[ "$result" == "skip" ]]; then
+            echo "A reconciliation run is active or was attempted within the last two hours; no duplicate deployment request will be created."
+            echo "dispatch=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "dispatch=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Dispatch exact-SHA production reconciliation
+        if: \${{ steps.compare.outputs.needs_reconciliation == 'true' && steps.cooldown.outputs.dispatch == 'true' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          target_sha="\${{ steps.compare.outputs.target_sha }}"
+          echo "Dispatching production reconciliation for exact SHA $target_sha"
+
+          curl --fail --silent --show-error --location \
+            -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2026-03-10" \
+            "https://api.github.com/repos/$REPO/actions/workflows/$RECONCILIATION_WORKFLOW/dispatches" \
+            -d "$(node -e 'console.log(JSON.stringify({ref:"main",inputs:{target_sha:process.argv[1]}}))' "$target_sha")"
+
+          echo "Production reconciliation dispatched successfully."
