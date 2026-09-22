@@ -1,1 +1,2 @@
 Threads build verification trigger — source is already repaired; CI should validate the exact main revision.
+Merged-PR verification trigger.
