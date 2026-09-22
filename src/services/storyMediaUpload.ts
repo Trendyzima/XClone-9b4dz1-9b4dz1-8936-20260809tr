@@ -91,17 +91,13 @@ async function uploadOne(
   for (let attempt = 1; attempt <= MAX_RETRIES; attempt += 1) {
     update({ status: attempt === 1 ? 'uploading' : 'retrying', attempts: attempt, error: undefined });
     try {
-      const ticket = await init(item.file);
-      update({ mediaId: ticket.media_id });
-
-      await xhrPut(ticket.upload_url, item.file, progress => update({ progress }));
-      const finalized = await complete(ticket.media_id);
+      const finalized = await uploadCanonical(item.file, progress => update({ progress }));
 
       update({
         status: 'uploaded',
         progress: 100,
         mediaId: finalized.id,
-        publicUrl: finalized.public_url ?? finalized.media_url ?? ticket.public_url ?? undefined,
+        publicUrl: finalized.public_url ?? finalized.media_url ?? undefined,
       });
       return finalized;
     } catch (error) {
