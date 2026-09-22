@@ -2,6 +2,18 @@ import { Component, createElement } from 'react';
 
 import { createRoot } from 'react-dom/client';
 import './index.css';
+// Recover cleanly when a deployment replaces a stale dynamic-import chunk.
+// Vite emits this event for failed async chunk loads; preventing the default
+// error and reloading fetches the current deployment's module graph.
+window.addEventListener('vite:preloadError', (event) => {
+  event.preventDefault();
+  const key = 'testagram-preload-recovery';
+  const last = Number(sessionStorage.getItem(key) ?? '0');
+  if (Date.now() - last < 15000) return;
+  sessionStorage.setItem(key, String(Date.now()));
+  window.location.reload();
+});
+
 import { supabase } from './lib/supabase';
 import { analytics } from './lib/posthog';
 import { TestagramEvent, trackTestagramEvent } from './lib/testagram-analytics';
