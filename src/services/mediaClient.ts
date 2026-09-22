@@ -46,7 +46,7 @@ export async function uploadTestagramMedia(file: File, postId?: string | null, t
   const init = await mediaRequest<MediaInit>({
     action: 'init',
     name: file.name,
-    mime_type: file.type,
+    mime_type: file.type || 'application/octet-stream',
     size_bytes: file.size,
     ...(postId ? { post_id: postId } : {}),
     ...(threadId ? { thread_id: threadId } : {}),
@@ -54,7 +54,7 @@ export async function uploadTestagramMedia(file: File, postId?: string | null, t
 
   const upload = await fetch(init.upload_url, {
     method: 'PUT',
-    headers: { 'Content-Type': file.type },
+    headers: { 'Content-Type': file.type || 'application/octet-stream' },
     body: file,
   });
   if (!upload.ok) throw new Error(`R2 upload failed (${upload.status})`);
