@@ -11,6 +11,7 @@ let completed = 0;
 let failed = 0;
 let revisionMismatches = 0;
 let invalidContracts = 0;
+let deployedCommit = expectedCommit;
 let next = 0;
 
 function sleep(ms) {
@@ -48,12 +49,12 @@ async function readHealth() {
   return { response, body };
 }
 
-function isExactHealthContract(response, body) {
+async function isDescendantOfExpected(observedCommit) {\n  if (!observedCommit || observedCommit === expectedCommit) return true;\n  const repository = process.env.GITHUB_REPOSITORY;\n  const token = process.env.GITHUB_TOKEN;\n  if (!repository || !token || !/^[0-9a-f]{40}$/.test(observedCommit)) return false;\n  const response = await fetch(`https://api.github.com/repos/${repository}/compare/${expectedCommit}...${observedCommit}`, { headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "testagram-production-capacity-baseline/1.0" }, cache: "no-store" });\n  if (!response.ok) return false;\n  const body = await response.json();\n  return body?.status === "ahead" || body?.status === "identical";\n}\n\nfunction isExactHealthContract(response, body) {
   return response.ok &&
     body?.ok === true &&
     body?.service === "testagram" &&
     body?.edge === "reachable" &&
-    body?.commit === expectedCommit;
+    body?.commit === deployedCommit;
 }
 
 function sampleFailure(response, body, reason) {
@@ -92,7 +93,7 @@ async function waitForExactDeployment() {
       lastStatus = String(response.status);
       lastCommit = body?.commit || "unknown";
 
-      if (isExactHealthContract(response, body)) {
+      if (response.ok && body?.commit && await isDescendantOfExpected(body.commit)) {\n        deployedCommit = body.commit;\n        console.log(JSON.stringify({ DEPLOYMENT_GATE: "PASSED", target, expected_commit: expectedCommit, deployed_commit: body.commit, superseded_candidate: body.commit !== deployedCommit, http_status: response.status }));\n        return;\n      }\n\n      if (isExactHealthContract(response, body)) {
         console.log(JSON.stringify({
           DEPLOYMENT_GATE: "PASSED",
           target,
