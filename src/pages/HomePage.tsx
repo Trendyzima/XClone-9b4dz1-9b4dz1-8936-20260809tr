@@ -205,7 +205,7 @@ export default function HomePage() {
         prefetchedTabs.current = prefetchedTabs.current.filter(t => t !== tabId);
       }
     }, 50);
-  }, [activeTab, user?.id, fetchHomeDiscovery]);
+  }, [activeTab, user?.id]);
 
   const handleTabHoverEnd = useCallback(() => {
     if (prefetchHoverRef.current) clearTimeout(prefetchHoverRef.current);
