@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bookmark, Check, Eye, Heart, Image as ImageIcon, Loader2, MessageCircle, MoreHorizontal, Plus, Repeat2, Search, Quote, Sparkles, UserPlus, X } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -77,100 +77,88 @@ export default function ThreadsPage() {
   const {user}=useAuth(); const navigate=useNavigate();
   const [tab,setTab]=useState<Tab>('For you'); const [threads,setThreads]=useState<Thread[]>([]); const [mixedItems,setMixedItems]=useState<MixedItem[]>([]);
   const [liked,setLiked]=useState<Set<string>>(new Set()); const [reposted,setReposted]=useState<Set<string>>(new Set()); const [bookmarked,setBookmarked]=useState<Set<string>>(new Set());
-  const [loading,setLoading]=useState(true); const [refreshing,setRefreshing]=useState(false); const [search,setSearch]=useState('');
+  const [loading,setLoading]=useState(true); const [refreshing,setRefreshing]=useState(false); const [loadingMore,setLoadingMore]=useState(false); const [hasMore,setHasMore]=useState(true); const [cursor,setCursor]=useState<string|null>(null); const [search,setSearch]=useState(''); const loadMoreRef=useRef<HTMLDivElement|null>(null);
 
   useSEO({title:'Threads — Testagram',description:'Join conversations on Testagram. Share thoughts, reply, repost and discover people you follow.',url:'/threads',type:'website',keywords:'threads, conversations, social, Testagram'});
 
-  const loadThreads=useCallback(async()=>{
-    setRefreshing(true);
+  const loadThreads=useCallback(async(reset=true)=>{
+    if(reset){setRefreshing(true);setCursor(null);setHasMore(true);} else {if(loadingMore||!hasMore)return;setLoadingMore(true);}
     try{
       let ids:string[]|null=null;
       if(tab==='Following'){
-        if(!user){setThreads([]);return;}
+        if(!user){setThreads([]);setMixedItems([]);return;}
         const {data}=await supabase.from('follows').select('following_id').eq('follower_id',user.id).limit(500);
-        ids=(data??[]).map((r:any)=>r.following_id).filter(Boolean); if(!ids.length){setThreads([]);return;}
+        ids=(data??[]).map((r:any)=>r.following_id).filter(Boolean);
+        if(!ids.length){setThreads([]);setMixedItems([]);setHasMore(false);return;}
       }
       if(tab==='Saved'){
-        if(!user){setThreads([]);return;}
+        if(!user){setThreads([]);setMixedItems([]);setHasMore(false);return;}
         const {data}=await supabase.from('thread_bookmarks').select('thread_id').eq('user_id',user.id).order('created_at',{ascending:false}).limit(100);
-        ids=(data??[]).map((r:any)=>r.thread_id).filter(Boolean); if(!ids.length){setThreads([]);return;}
+        ids=(data??[]).map((r:any)=>r.thread_id).filter(Boolean);
+        if(!ids.length){setThreads([]);setMixedItems([]);setHasMore(false);return;}
       }
-      let query=supabase.from('threads').select('id, owner_id, body, visibility, created_at, likes_count, reposts_count, quotes_count, replies_count, views_count, media_urls').eq('visibility','public').is('deleted_at',null).order('created_at',{ascending:false}).limit(60);
+
+      const pageSize=20;
+      let query=supabase.from('threads').select('id, owner_id, body, visibility, created_at, likes_count, reposts_count, quotes_count, replies_count, views_count, media_urls')
+        .eq('visibility','public').is('deleted_at',null).order('created_at',{ascending:false}).limit(pageSize);
+      if(cursor&&!reset) query=query.lt('created_at',cursor);
       if(tab==='Following'&&ids)query=query.in('owner_id',ids);
       if(tab==='Saved'&&ids)query=query.in('id',ids);
       const {data,error}=await query; if(error)throw error;
-      const rows=(data??[]) as Thread[]; const ownerIds=[...new Set(rows.map(r=>r.owner_id))];
+      const rows=(data??[]) as Thread[];
+      const ownerIds=[...new Set(rows.map(r=>r.owner_id))];
       const profiles:Profile[]=ownerIds.length?(((await supabase.from('profiles').select('id, username, avatar_url, verified, display_name').in('id',ownerIds)).data ?? []) as Profile[]):[];
       const byId=new Map(profiles.map((p:any)=>[p.id,p]));
       const normalizedThreads=rows.map(r=>({...r,media_urls:Array.isArray(r.media_urls)?r.media_urls:[],profiles:byId.get(r.owner_id)}));
-      setThreads(normalizedThreads);
 
-      // Threads is a conversation surface, but it should still feel like one
-      // Testagram network: native posts and federated posts are organically
-      // interleaved rather than hidden on separate islands.
-      const postQueryBase=supabase
-        .from('posts')
+      const postQueryBase=supabase.from('posts')
         .select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
-        .is('community_id',null)
-        .order('created_at',{ascending:false})
-        .limit(18);
-      const postQuery=tab==='Following'&&ids
-        ? postQueryBase.in('user_id',ids)
-        : postQueryBase;
+        .is('community_id',null).order('created_at',{ascending:false}).limit(8);
+      const postQuery=tab==='Following'&&ids?postQueryBase.in('user_id',ids):postQueryBase;
       const shouldMixNetwork=tab!=='Saved';
       const [postRes,fedRes]=await Promise.all([
         postQuery,
-        shouldMixNetwork ? federation.getFederatedTimelinePage({limit:12}).catch(()=>({items:[],pagination:{nextCursor:null,hasMore:false}})) : Promise.resolve({items:[],pagination:{nextCursor:null,hasMore:false}})
+        shouldMixNetwork ? federation.getFederatedTimelinePage({limit:8,before:reset?undefined:cursor??undefined}).catch(()=>({items:[],pagination:{nextCursor:null,hasMore:false}})) : Promise.resolve({items:[],pagination:{nextCursor:null,hasMore:false}})
       ]);
       const postItems=(postRes.data??[]).map((p:any)=>({kind:'post' as const,data:{...p,_source_label:'Testagram'}}));
-      const fedItems=(fedRes.items??[]).map((p:any)=>({
-        kind:'fed' as const,
-        data:{
-          ...p,
-          id:p.id??p.uri??p.url,
-          content:p.content??p.text??'',
-          created_at:p.created_at??p.published_at??p.published??new Date().toISOString(),
-          user_profiles:p.remote_account??p.actor??p.account??{},
-          remote_status_uri:p.uri??p.url,
-          is_federated:true,
-          _source_label:'Fediverse'
-        }
-      }));
-      const base:MixedItem[]=[
-        ...normalizedThreads.map(data=>({kind:'thread' as const,data})),
-        ...postItems,
-        ...fedItems
-      ].sort((a,b)=>new Date(b.data.created_at).getTime()-new Date(a.data.created_at).getTime());
+      const fedItems=(fedRes.items??[]).map((p:any)=>({kind:'fed' as const,data:{...p,id:p.id??p.uri??p.url,content:p.content??p.text??'',created_at:p.created_at??p.published_at??p.published??new Date().toISOString(),user_profiles:p.remote_account??p.actor??p.account??{},remote_status_uri:p.uri??p.url,is_federated:true,_source_label:'Fediverse'}}));
+      const base:MixedItem[]=[...normalizedThreads.map(data=>({kind:'thread' as const,data})),...postItems,...fedItems]
+        .sort((a,b)=>new Date(b.data.created_at).getTime()-new Date(a.data.created_at).getTime());
 
-      // Avoid long runs from one source: if the next three items all come from
-      // the same surface, pull the next different source forward.
-      const mixed:MixedItem[]=[];
-      const pending=[...base];
+      const mixed:MixedItem[]=[]; const pending=[...base];
       while(pending.length){
-        let pick=0;
-        const lastKinds=mixed.slice(-2).map(x=>x.kind);
-        if(lastKinds.length===2&&lastKinds[0]===lastKinds[1]){
-          const alt=pending.findIndex(x=>x.kind!==lastKinds[0]);
-          if(alt>0) pick=alt;
-        }
+        let pick=0; const lastKinds=mixed.slice(-2).map(x=>x.kind);
+        if(lastKinds.length===2&&lastKinds[0]===lastKinds[1]){const alt=pending.findIndex(x=>x.kind!==lastKinds[0]);if(alt>0)pick=alt;}
         mixed.push(pending.splice(pick,1)[0]);
       }
-      setMixedItems(mixed);
+
+      setThreads(prev=>reset?normalizedThreads:[...prev,...normalizedThreads]);
+      setMixedItems(prev=>reset?mixed:[...prev,...mixed.filter(next=>!prev.some(old=>old.kind===next.kind&&old.data.id===next.data.id))]);
+      const nextCursor=rows.at(-1)?.created_at??null;
+      setCursor(nextCursor);
+      setHasMore(rows.length>=pageSize || Boolean(fedRes.pagination?.hasMore) || postItems.length>=8);
 
       if(user&&rows.length){
         const ids2=rows.map(r=>r.id);
-        const [l,r,b]=await Promise.all([
+        const [l,rr,b]=await Promise.all([
           supabase.from('thread_likes').select('thread_id').eq('user_id',user.id).in('thread_id',ids2),
           supabase.from('thread_reposts').select('thread_id').eq('user_id',user.id).in('thread_id',ids2),
           supabase.from('thread_bookmarks').select('thread_id').eq('user_id',user.id).in('thread_id',ids2)
         ]);
-        setLiked(new Set((l.data??[]).map((x:any)=>x.thread_id))); setReposted(new Set((r.data??[]).map((x:any)=>x.thread_id))); setBookmarked(new Set((b.data??[]).map((x:any)=>x.thread_id)));
+        setLiked(prev=>{const n=new Set(reset?[]:prev);(l.data??[]).forEach((x:any)=>n.add(x.thread_id));return n;});
+        setReposted(prev=>{const n=new Set(reset?[]:prev);(rr.data??[]).forEach((x:any)=>n.add(x.thread_id));return n;});
+        setBookmarked(prev=>{const n=new Set(reset?[]:prev);(b.data??[]).forEach((x:any)=>n.add(x.thread_id));return n;});
       }
     }catch(error){console.error('Threads feed error',error);toast.error('Could not load Threads');}
-    finally{setLoading(false);setRefreshing(false);}
-  },[tab,user?.id]);
+    finally{setLoading(false);setRefreshing(false);setLoadingMore(false);}
+  },[tab,user?.id,cursor,loadingMore,hasMore]);
+  useEffect(()=>{void loadThreads(true);},[tab,user?.id]);
 
-  useEffect(()=>{void loadThreads();},[loadThreads]);
+  useEffect(()=>{
+    const el=loadMoreRef.current;if(!el)return;
+    const observer=new IntersectionObserver(entries=>{if(entries[0]?.isIntersecting&&!loading&&!loadingMore&&hasMore)void loadThreads(false);},{rootMargin:'900px 0px'});
+    observer.observe(el);return()=>observer.disconnect();
+  },[loadThreads,loading,loadingMore,hasMore]);
 
   const mutate=(setter:React.Dispatch<React.SetStateAction<Set<string>>>,id:string,active:boolean)=>setter(prev=>{const n=new Set(prev);active?n.add(id):n.delete(id);return n;});
   const toggleLike=async(thread:Thread)=>{if(!user){navigate('/auth');return;}const active=!liked.has(thread.id);mutate(setLiked,thread.id,active);setThreads(p=>p.map(t=>t.id===thread.id?{...t,likes_count:Math.max(0,t.likes_count+(active?1:-1))}:t));const res=active?await supabase.from('thread_likes').insert({thread_id:thread.id,user_id:user.id}):await supabase.from('thread_likes').delete().eq('thread_id',thread.id).eq('user_id',user.id);if(res.error){mutate(setLiked,thread.id,!active);setThreads(p=>p.map(t=>t.id===thread.id?{...t,likes_count:Math.max(0,t.likes_count+(active?-1:1))}:t));toast.error('Like failed');}};
@@ -189,7 +177,7 @@ export default function ThreadsPage() {
     <div className="border-b border-border bg-background/95 backdrop-blur-xl">
       <div className="flex items-center justify-between px-3">
         <div className="flex min-w-0 flex-1">{TABS.map(item=><button key={item} onClick={()=>setTab(item)} className={`relative flex-1 px-3 py-4 text-sm font-semibold ${tab===item?'text-foreground':'text-muted-foreground hover:text-foreground'}`}>{item}{tab===item&&<span className="absolute inset-x-8 bottom-0 h-1 rounded-full bg-foreground"/>}</button>)}</div>
-        <div className="flex items-center gap-1"><button onClick={()=>setSearch(v=>v?'':' ')} className="rounded-full p-2 hover:bg-muted" aria-label="Search threads"><Search className="h-4 w-4"/></button><button onClick={()=>void loadThreads()} className="rounded-full p-2 hover:bg-muted" aria-label="Refresh">{refreshing?<Loader2 className="h-4 w-4 animate-spin"/>:<Sparkles className="h-4 w-4"/>}</button></div>
+        <div className="flex items-center gap-1"><button onClick={()=>setSearch(v=>v?'':' ')} className="rounded-full p-2 hover:bg-muted" aria-label="Search threads"><Search className="h-4 w-4"/></button><button onClick={()=>void loadThreads(true)} className="rounded-full p-2 hover:bg-muted" aria-label="Refresh">{refreshing?<Loader2 className="h-4 w-4 animate-spin"/>:<Sparkles className="h-4 w-4"/>}</button></div>
       </div>
       {search!==''&&<div className="px-4 pb-3"><div className="flex items-center gap-2 rounded-2xl bg-muted/60 px-3 py-2"><Search className="h-4 w-4 text-muted-foreground"/><input autoFocus value={search.trim()} onChange={e=>setSearch(e.target.value)} placeholder="Search Threads" className="min-w-0 flex-1 bg-transparent text-sm outline-none"/><button onClick={()=>setSearch('')}><X className="h-4 w-4 text-muted-foreground"/></button></div></div>}
     </div>
@@ -201,7 +189,7 @@ export default function ThreadsPage() {
           ? <ThreadCard thread={item.data} liked={liked.has(item.data.id)} reposted={reposted.has(item.data.id)} bookmarked={bookmarked.has(item.data.id)} onLike={()=>void toggleLike(item.data)} onRepost={()=>void toggleRepost(item.data)} onBookmark={()=>void toggleBookmark(item.data)}/>
           : <div className="relative">
               <div className="px-4 pt-2"><span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold ${item.kind==='fed'?'border-sky-500/20 bg-sky-500/5 text-sky-600':'border-primary/20 bg-primary/5 text-primary'}`}>{item.kind==='fed'?'Fediverse':'Testagram post'}</span></div>
-              <PostCard post={item.data} onUpdate={()=>void loadThreads()}/>
+              <PostCard post={item.data} onUpdate={()=>void loadThreads(true)}/>
             </div>;
         return <div key={`${item.kind}-${item.data.id}-${index}`}>{content}{(index+1)%6===0&&<FeedAdCard/>}{(index+1)%9===0&&<DynamicAd location="feed_inline" className="border-b border-border px-4 py-3" />}</div>;
       })}
