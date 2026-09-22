@@ -11,6 +11,8 @@ import { uploadTestagramMedia } from '@/services/mediaClient';
 import { formatNumber } from '@/lib/utils';
 import { useSEO } from '@/hooks/useSEO';
 import { toast } from 'sonner';
+import { FeedAdCard } from '@/components/features/FeedAdCard';
+import { DynamicAd } from '@/components/features/DynamicAd';
 
 type Profile={id:string;username:string;avatar_url:string|null;verified:boolean;display_name?:string|null};
 type MediaAsset={url:string;name?:string;type?:string;size?:number};
@@ -140,7 +142,8 @@ export default function ThreadDetailPage(){
 
  return <div className="min-h-screen bg-background pb-20 md:pb-0"><TopBar title="Thread" showBack/><main>
   <ThreadNode thread={root} depth={0} onReply={setReplyTarget} onQuote={(x)=>void quote(x)} onLike={(x)=>void mutate('like',x)} onRepost={(x)=>void mutate('repost',x)} onBookmark={(x)=>void mutate('bookmark',x)} liked={liked.has(root.id)} reposted={reposted.has(root.id)} bookmarked={bookmarked.has(root.id)} quotes={quoteMap.get(root.id)||[]}/>
-  {ordered.map((n,i)=><ThreadNode key={n.id+i} thread={n} depth={1} onReply={setReplyTarget} onQuote={(x)=>void quote(x)} onLike={(x)=>void mutate('like',x)} onRepost={(x)=>void mutate('repost',x)} onBookmark={(x)=>void mutate('bookmark',x)} liked={liked.has(n.id)} reposted={reposted.has(n.id)} bookmarked={bookmarked.has(n.id)} quotes={quoteMap.get(n.id)||[]}/>)}
+  <DynamicAd location="feed_inline" className="border-y border-border px-4 py-3"/>
+  {ordered.map((n,i)=><div key={n.id+i}><ThreadNode thread={n} depth={1} onReply={setReplyTarget} onQuote={(x)=>void quote(x)} onLike={(x)=>void mutate('like',x)} onRepost={(x)=>void mutate('repost',x)} onBookmark={(x)=>void mutate('bookmark',x)} liked={liked.has(n.id)} reposted={reposted.has(n.id)} bookmarked={bookmarked.has(n.id)} quotes={quoteMap.get(n.id)||[]}/>{(i+1)%6===0&&<FeedAdCard/>}</div>)}
   <section className="border-t border-border px-4 py-5"><div className="mb-3 flex items-center gap-2 text-sm font-bold"><MessageCircle className="h-4 w-4"/>Continue the thread</div>
    <Button onClick={()=>setReplyTarget(root.id)} className="rounded-full">Reply to this thread</Button>
   </section>
