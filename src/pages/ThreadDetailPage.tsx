@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
+import { uploadTestagramMedia } from '@/services/mediaClient';
 import { formatNumber } from '@/lib/utils';
 import { useSEO } from '@/hooks/useSEO';
 import { toast } from 'sonner';
@@ -101,7 +102,14 @@ export default function ThreadDetailPage(){
  };
  const addFiles=(incoming:File[])=>{const room=MAX_FILES-replyFiles.length;const valid=incoming.filter(f=>f.size<=MAX_FILE_BYTES).slice(0,room);if(incoming.some(f=>f.size>MAX_FILE_BYTES))toast.error('Each attachment must be 25 MiB or smaller');setReplyFiles(p=>[...p,...valid]);setReplyPreviews(p=>[...p,...valid.map(f=>URL.createObjectURL(f))]);};
  const removeFile=(i:number)=>{URL.revokeObjectURL(replyPreviews[i]);setReplyFiles(p=>p.filter((_,n)=>n!==i));setReplyPreviews(p=>p.filter((_,n)=>n!==i));};
- const uploadFiles=async(files:File[])=>{const out:MediaAsset[]=[];for(const [i,file] of files.entries()){const safe=file.name.replace(/[^a-zA-Z0-9._-]/g,'-').slice(-100)||'attachment';const path=`threads/${user!.id}/${crypto.randomUUID()}-${i}-${safe}`;const {error}=await supabase.storage.from('posts').upload(path,file,{contentType:file.type||'application/octet-stream',upsert:false,cacheControl:'31536000'});if(error)throw error;out.push({url:supabase.storage.from('posts').getPublicUrl(path).data.publicUrl,name:file.name,type:file.type||'application/octet-stream',size:file.size});}return out;};
+ const uploadFiles=async(files:File[],threadId:string)=>{
+  const out:MediaAsset[]=[];
+  for(const file of files){
+    const uploaded=await uploadTestagramMedia(file,null,threadId);
+    out.push({url:uploaded.public_url||'',name:file.name,type:file.type||'application/octet-stream',size:file.size});
+  }
+  return out;
+};
 
  const reply=async()=>{if(!requireAuth()||!replyTarget||(!replyText.trim()&&!replyFiles.length))return;setSending(true);try{const media=await uploadFiles(replyFiles);const parent=root?.id===replyTarget?root:nodes.find(n=>n.id===replyTarget);const rootId=root?.id||replyTarget;const {error}=await supabase.from('threads').insert({owner_id:user!.id,body:replyText.trim(),visibility:'public',reply_to_id:replyTarget,root_thread_id:rootId,media_urls:media}).select('id').single();if(error)throw error;setReplyText('');setReplyFiles([]);setReplyPreviews([]);setReplyTarget(null);toast.success('Reply added to the thread');await load();}catch(e:any){toast.error(e?.message||'Reply failed');}finally{setSending(false);}};
  const quote=async(threadId:string)=>{if(!requireAuth())return;setReplyTarget(null);setQuoteTarget(threadId);setReplyText('');};
