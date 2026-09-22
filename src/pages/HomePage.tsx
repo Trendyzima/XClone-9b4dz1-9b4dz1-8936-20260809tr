@@ -969,16 +969,15 @@ export default function HomePage() {
       const lastPost = filtered.filter((i: any) => i.type === 'post').slice(-1)[0];
       if (lastPost) setFeedCursor((lastPost.data as any).created_at ?? null);
     } else if (activeTab === 'foryou') {
-      const [rankedPage, federatedPage] = await Promise.all([
-        fetchRankedForYou(null),
-        fetchFederatedPage(null),
-      ]);
+      const [rankedPage, federatedPage] = user
+        ? await Promise.all([fetchRankedForYou(null), fetchFederatedPage(null)])
+        : [{ items: await fetchFeed(0), nextCursor: null, hasMore: false }, await fetchFederatedPage(null)];
       const mixed = mixHomeDiscovery(rankedPage.items, federatedPage.posts, 0);
       setFeedItems(mixed);
       setFeedCursor(rankedPage.nextCursor);
       setFederatedCursor(federatedPage.nextCursor);
       setFederatedHasMore(federatedPage.hasMore);
-      setFeedHasMore(rankedPage.hasMore || federatedPage.hasMore || federatedPage.items.length > 0);
+      setFeedHasMore(rankedPage.hasMore || federatedPage.hasMore || rankedPage.items.length >= PAGE_SIZE || federatedPage.items.length > 0);
       if (mixed.length > 0) {
         setCachedFeed(activeTab, mixed);
         setWarmFeed(activeTab, user?.id, mixed);
@@ -1172,10 +1171,9 @@ export default function HomePage() {
       setFederatedCursor(fedPage.nextCursor); setFederatedHasMore(fedPage.hasMore); setFeedHasMore(fedPage.hasMore); setPage(nextPage); return fedPage.hasMore;
     }
     if (activeTab === 'foryou') {
-      const [rankedPage, federatedPage] = await Promise.all([
-        fetchRankedForYou(feedCursor),
-        fetchFederatedPage(federatedCursor),
-      ]);
+      const [rankedPage, federatedPage] = user
+        ? await Promise.all([fetchRankedForYou(feedCursor), fetchFederatedPage(federatedCursor)])
+        : [{ items: await fetchFeed(nextPage), nextCursor: null, hasMore: false }, await fetchFederatedPage(federatedCursor)];
       const mixed = mixHomeDiscovery(rankedPage.items, federatedPage.posts, nextPage);
       const incomingLocalPosts = rankedPage.items.filter((i: any) => i.type === 'post');
       const incomingFedPosts = mixed.filter((i: any) => i.type === 'fedpost');
@@ -1187,7 +1185,7 @@ export default function HomePage() {
       setFeedCursor(rankedPage.nextCursor);
       setFederatedCursor(federatedPage.nextCursor);
       setFederatedHasMore(federatedPage.hasMore);
-      const hasMore = rankedPage.hasMore || federatedPage.hasMore || incomingLocalPosts.length > 0 || incomingFedPosts.length > 0;
+      const hasMore = rankedPage.hasMore || federatedPage.hasMore || incomingLocalPosts.length >= PAGE_SIZE || federatedPage.hasMore || incomingFedPosts.length > 0;
       setPage(nextPage); setFeedHasMore(hasMore); return hasMore;
     }
     const newItems = await fetchFeed(nextPage);
