@@ -205,6 +205,19 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
 
+
+  recover-known-good:
+    name: Recover known-good production alias during Vercel quota outage
+    if: ${{ github.event.before == '2f95ac93814c12b7126902b08f45b7a4965cea69' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+      - name: Promote last known-good deployment
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel promote kooone-9b4dz1-9b4dz1-8936-20260809tr-rila53fsm.vercel.app --scope criss-projects-7c0f74aa --token="$VERCEL_TOKEN" --yes
+
 # Deployment trigger: run against the latest main revision.
 # Exact-SHA deployment proof trigger.
 
