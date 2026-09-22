@@ -116,20 +116,12 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
 
   const fetchReactions = useCallback(async () => {
-    const { data } = await supabase
-      .from('post_reactions')
-      .select('emoji, user_id')
-      .eq('post_id', post.id);
-    if (data) {
-      const emojis: string[] = [];
-      const nums: number[] = [];
-      let myReaction: string | null = null;
-      data.forEach(r => {
-        const idx = emojis.indexOf(r.emoji);
-        if (idx >= 0) nums[idx]++;
-        else { emojis.push(r.emoji); nums.push(1); }
-        if (r.user_id === user?.id) myReaction = r.emoji;
-      });
+    const { data, error } = await supabase.rpc('testagram_local_reaction_state', { p_post_id: post.id });
+    if (!error && data) {
+      const counts = (data.counts ?? {}) as Record<string, number>;
+      const emojis = Object.keys(counts);
+      const nums = emojis.map(emoji => Number(counts[emoji] ?? 0));
+      const myReaction: string | null = typeof data.emoji === 'string' ? data.emoji : null;
       setReactionEmojis(emojis);
       setReactionNums(nums);
       setUserReaction(myReaction);
@@ -173,8 +165,8 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
         setReactionNums(nextNums);
         return next;
       });
-      const { error } = await supabase.from('post_reactions').delete().eq('post_id', post.id).eq('user_id', user.id);
-      if (error) console.warn('[reaction] remove failed', error);
+      const { error } = await supabase.rpc('testagram_clear_local_reaction', { p_post_id: post.id });
+      if (error) { console.warn('[reaction] remove failed', error); toast({ title: 'Reaction failed', description: error.message, variant: 'destructive' }); return; }
       if (emoji === '❤️' && isLiked) {
         const state = await togglePostLike(post.id, true);
         setIsLiked(state.is_liked);
@@ -186,7 +178,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
 
     // Switching away from an existing reaction removes it first.
     if (previousReaction) {
-      await supabase.from('post_reactions').delete().eq('post_id', post.id).eq('user_id', user.id);
+      await supabase.rpc('testagram_clear_local_reaction', { p_post_id: post.id });
       setReactionEmojis(prev => {
         const next = [...prev];
         const nextNums = [...reactionNums];
@@ -215,10 +207,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       });
     } else {
       setUserReaction(emoji);
-      const { error } = await supabase.from('post_reactions').upsert(
-        { post_id: post.id, user_id: user.id, emoji },
-        { onConflict: 'post_id,user_id' }
-      );
+      const { error } = await supabase.rpc('testagram_set_local_reaction', { p_post_id: post.id, p_emoji: emoji });
       if (error) {
         console.warn('[reaction] save failed', error);
         toast({ title: 'Reaction failed', description: error.message, variant: 'destructive' });
