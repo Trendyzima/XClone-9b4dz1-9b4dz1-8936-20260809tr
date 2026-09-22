@@ -18,7 +18,7 @@ type Thread={id:string;owner_id:string;body:string;visibility:string;created_at:
 type QuoteItem={id:string;thread_id:string;user_id:string;content:string;media_urls:MediaAsset[];created_at:string;profiles?:Profile};
 
 const MAX_FILE_BYTES=20*1024*1024;
-const MAX_FILES=8;
+const MAX_FILES=20;
 
 function normalizeMedia(value:any):MediaAsset[]{return Array.isArray(value)?value.map((x:any)=>typeof x==='string'?{url:x}:x).filter((x:any)=>x?.url):[];}
 function Avatar({profile}:{profile?:Profile}){return <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-muted flex items-center justify-center font-bold">{profile?.avatar_url?<img src={profile.avatar_url} alt="" className="h-full w-full object-cover"/>:(profile?.username||'?').slice(0,1).toUpperCase()}</div>}
