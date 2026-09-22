@@ -67,24 +67,115 @@ jobs:
             *) echo "::error::Unsupported event ${GITHUB_EVENT_NAME}"; exit 1 ;;
           esac
 
-      - name: Probe Supabase PostgreSQL without mutation
+      - name: Probe Supabase PostgreSQL through IPv4 Supavisor
         shell: bash
+        env:
+          EXPECTED_SUPABASE_PROJECT_REF: "aepbqfrmheihfsauzcby"
         run: |
           set -euo pipefail
+
           if [ -z "${SUPABASE_DB_URL:-}" ]; then
             echo "::warning::SUPABASE_DB_URL is not configured; database boundary remains QUARANTINED."
+            echo "::warning::Configure the production SUPABASE_DB_URL from Supabase Connect -> Session pooler (Supavisor), not the direct db.*.supabase.co endpoint."
             exit 0
           fi
+
+          # Never print the connection string: it contains the database password.
+          printf '::add-mask::%s\n' "${SUPABASE_DB_URL}"
+
+          # Supabase's Shared Pooler (Supavisor) is IPv4-only. The direct
+          # db.<project>.supabase.co endpoint is IPv6 unless the project has
+          # the IPv4 add-on. This gate deliberately requires the pooler host.
+          node <<'NODE'
+          const raw = process.env.SUPABASE_DB_URL;
+          let u;
+          try { u = new URL(raw); } catch { console.error("::error::SUPABASE_DB_URL is not a valid PostgreSQL URL."); process.exit(1); }
+          if (!/^postgres(?:ql)?:$/.test(u.protocol)) { console.error("::error::SUPABASE_DB_URL must use postgres:// or postgresql://."); process.exit(1); }
+          if (!/\.pooler\.supabase\.com$/i.test(u.hostname)) {
+            console.error("::error::SUPABASE_DB_URL is not using the IPv4 Supavisor pooler hostname.");
+            process.exit(1);
+          }
+          const port = u.port || "5432";
+          if (port !== "5432") {
+            console.error("::error::Infrastructure forensic probe requires Supavisor Session mode on port 5432.");
+            process.exit(1);
+          }
+          const username = decodeURIComponent(u.username || "");
+          const expected = process.env.EXPECTED_SUPABASE_PROJECT_REF;
+          if (username.startsWith("postgres.") && !username.endsWith("." + expected)) {
+            console.error("::error::SUPABASE_DB_URL username is bound to a different Supabase project ref.");
+            process.exit(1);
+          }
+          console.log("DB_ROUTE=SUPAVISOR_SESSION_IPV4");
+          console.log("DB_PORT=5432");
+          console.log("DB_PROJECT_REF_CHECK=PASSED");
+          NODE
+
           for delay in 5 15 30 60 120; do
-            echo "Read-only PostgreSQL probe; retry window ${delay}s"
-            if command -v pg_isready >/dev/null 2>&1 && pg_isready "${SUPABASE_DB_URL}"; then
+            echo "IPv4 Supavisor reachability probe; retry window ${delay}s"
+            if pg_isready "${SUPABASE_DB_URL}" >/dev/null 2>&1; then
               echo "SUPABASE_DB_REACHABLE=true"
-              exit 0
+              break
             fi
             sleep "${delay}"
           done
-          echo "::warning::PostgreSQL remains unreachable after bounded retries; no migration command will be executed."
-          exit 0
+
+          if ! pg_isready "${SUPABASE_DB_URL}" >/dev/null 2>&1; then
+            echo "::error::Supavisor Session endpoint remains unreachable after bounded retries."
+            exit 1
+          fi
+
+          # pg_isready proves socket/server readiness, but not authentication.
+          # Execute a real read-only SQL query before declaring the DB boundary green.
+          export PGSSLMODE=require
+          psql "${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -Atqc '
+            select
+              current_database(),
+              coalesce(inet_server_addr()::text, ''unknown''),
+              coalesce(inet_client_addr()::text, ''unknown''),
+              version()
+          ' >/tmp/db-identity.txt
+
+          echo "SUPABASE_DB_SQL_REACHABLE=true"
+          echo "Database identity probe completed without printing credentials."
+
+          # Verify the exact production federation tables exist. This is read-only.
+          psql "${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -Atqc '
+            select table_name
+            from information_schema.tables
+            where table_schema = ''public''
+              and table_name in (
+                ''activitypub_outbox'',
+                ''federation_deliveries'',
+                ''federated_follow_relationships'',
+                ''federated_activities''
+              )
+            order by table_name
+          ' >/tmp/federation-tables.txt
+
+          expected_tables=4
+          actual_tables="$(wc -l </tmp/federation-tables.txt | tr -d ' ')"
+          if [ "${actual_tables}" -ne "${expected_tables}" ]; then
+            echo "::error::Production federation schema probe found ${actual_tables}/${expected_tables} required tables."
+            exit 1
+          fi
+          echo "FEDERATION_SCHEMA_REACHABLE=true"
+
+          # Emit only counts/status, never row payloads or secrets.
+          psql "${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -Atqc '
+            select ''activitypub_outbox'', count(*) from public.activitypub_outbox
+            union all
+            select ''federation_deliveries'', count(*) from public.federation_deliveries
+            union all
+            select ''federated_follow_relationships'', count(*) from public.federated_follow_relationships
+            union all
+            select ''federated_activities'', count(*) from public.federated_activities
+            order by 1
+          ' | while IFS='|' read -r table_name row_count; do
+            echo "DB_TABLE_COUNT ${table_name}=${row_count}"
+          done
+
+          echo "SUPABASE_DB_FORENSIC_PROBE=GREEN"
 
       - name: Verify Vercel deployment lineage when credentials exist
         shell: bash
