@@ -9,10 +9,18 @@ import { useAuth } from '@/hooks/useAuth';
 import { formatNumber } from '@/lib/utils';
 import { useSEO } from '@/hooks/useSEO';
 import { toast } from 'sonner';
+import { PostCard } from '@/components/features/PostCard';
+import { FeedAdCard } from '@/components/features/FeedAdCard';
+import { DynamicAd } from '@/components/features/DynamicAd';
+import * as federation from '@/api/federation';
 
 type Tab = 'For you' | 'Following' | 'Saved';
 type Profile = { id:string; username:string; avatar_url:string|null; verified:boolean; display_name?:string|null };
 type Thread = { id:string; owner_id:string; body:string; visibility:string; created_at:string; likes_count:number; reposts_count:number; quotes_count:number; replies_count:number; views_count:number; media_urls:any[]; profiles?:Profile };
+type MixedItem =
+  | { kind:'thread'; data:Thread }
+  | { kind:'post'; data:any }
+  | { kind:'fed'; data:any };
 const TABS:Tab[]=['For you','Following','Saved'];
 
 function mediaUrl(value:any){return typeof value==='string'?value:value?.url||'';}
@@ -67,7 +75,7 @@ function ThreadCard({thread,liked,reposted,bookmarked,onLike,onRepost,onBookmark
 
 export default function ThreadsPage() {
   const {user}=useAuth(); const navigate=useNavigate();
-  const [tab,setTab]=useState<Tab>('For you'); const [threads,setThreads]=useState<Thread[]>([]);
+  const [tab,setTab]=useState<Tab>('For you'); const [threads,setThreads]=useState<Thread[]>([]); const [mixedItems,setMixedItems]=useState<MixedItem[]>([]);
   const [liked,setLiked]=useState<Set<string>>(new Set()); const [reposted,setReposted]=useState<Set<string>>(new Set()); const [bookmarked,setBookmarked]=useState<Set<string>>(new Set());
   const [loading,setLoading]=useState(true); const [refreshing,setRefreshing]=useState(false); const [search,setSearch]=useState('');
 
@@ -94,7 +102,61 @@ export default function ThreadsPage() {
       const rows=(data??[]) as Thread[]; const ownerIds=[...new Set(rows.map(r=>r.owner_id))];
       const profiles:Profile[]=ownerIds.length?(((await supabase.from('profiles').select('id, username, avatar_url, verified, display_name').in('id',ownerIds)).data ?? []) as Profile[]):[];
       const byId=new Map(profiles.map((p:any)=>[p.id,p]));
-      setThreads(rows.map(r=>({...r,media_urls:Array.isArray(r.media_urls)?r.media_urls:[],profiles:byId.get(r.owner_id)})));
+      const normalizedThreads=rows.map(r=>({...r,media_urls:Array.isArray(r.media_urls)?r.media_urls:[],profiles:byId.get(r.owner_id)}));
+      setThreads(normalizedThreads);
+
+      // Threads is a conversation surface, but it should still feel like one
+      // Testagram network: native posts and federated posts are organically
+      // interleaved rather than hidden on separate islands.
+      const postQueryBase=supabase
+        .from('posts')
+        .select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
+        .is('community_id',null)
+        .order('created_at',{ascending:false})
+        .limit(18);
+      const postQuery=tab==='Following'&&ids
+        ? postQueryBase.in('user_id',ids)
+        : postQueryBase;
+      const shouldMixNetwork=tab!=='Saved';
+      const [postRes,fedRes]=await Promise.all([
+        postQuery,
+        shouldMixNetwork ? federation.getFederatedTimelinePage({limit:12}).catch(()=>({items:[],pagination:{nextCursor:null,hasMore:false}})) : Promise.resolve({items:[],pagination:{nextCursor:null,hasMore:false}})
+      ]);
+      const postItems=(postRes.data??[]).map((p:any)=>({kind:'post' as const,data:{...p,_source_label:'Testagram'}}));
+      const fedItems=(fedRes.items??[]).map((p:any)=>({
+        kind:'fed' as const,
+        data:{
+          ...p,
+          id:p.id??p.uri??p.url,
+          content:p.content??p.text??'',
+          created_at:p.created_at??p.published_at??p.published??new Date().toISOString(),
+          user_profiles:p.remote_account??p.actor??p.account??{},
+          remote_status_uri:p.uri??p.url,
+          is_federated:true,
+          _source_label:'Fediverse'
+        }
+      }));
+      const base:MixedItem[]=[
+        ...normalizedThreads.map(data=>({kind:'thread' as const,data})),
+        ...postItems,
+        ...fedItems
+      ].sort((a,b)=>new Date(b.data.created_at).getTime()-new Date(a.data.created_at).getTime());
+
+      // Avoid long runs from one source: if the next three items all come from
+      // the same surface, pull the next different source forward.
+      const mixed:MixedItem[]=[];
+      const pending=[...base];
+      while(pending.length){
+        let pick=0;
+        const lastKinds=mixed.slice(-2).map(x=>x.kind);
+        if(lastKinds.length===2&&lastKinds[0]===lastKinds[1]){
+          const alt=pending.findIndex(x=>x.kind!==lastKinds[0]);
+          if(alt>0) pick=alt;
+        }
+        mixed.push(pending.splice(pick,1)[0]);
+      }
+      setMixedItems(mixed);
+
       if(user&&rows.length){
         const ids2=rows.map(r=>r.id);
         const [l,r,b]=await Promise.all([
@@ -115,7 +177,12 @@ export default function ThreadsPage() {
   const toggleRepost=async(thread:Thread)=>{if(!user){navigate('/auth');return;}const active=!reposted.has(thread.id);mutate(setReposted,thread.id,active);setThreads(p=>p.map(t=>t.id===thread.id?{...t,reposts_count:Math.max(0,t.reposts_count+(active?1:-1))}:t));const res=active?await supabase.from('thread_reposts').insert({thread_id:thread.id,user_id:user.id}):await supabase.from('thread_reposts').delete().eq('thread_id',thread.id).eq('user_id',user.id);if(res.error){mutate(setReposted,thread.id,!active);setThreads(p=>p.map(t=>t.id===thread.id?{...t,reposts_count:Math.max(0,t.reposts_count+(active?-1:1))}:t));toast.error('Repost failed');}};
   const toggleBookmark=async(thread:Thread)=>{if(!user){navigate('/auth');return;}const active=!bookmarked.has(thread.id);mutate(setBookmarked,thread.id,active);const res=active?await supabase.from('thread_bookmarks').insert({thread_id:thread.id,user_id:user.id}):await supabase.from('thread_bookmarks').delete().eq('thread_id',thread.id).eq('user_id',user.id);if(res.error){mutate(setBookmarked,thread.id,!active);toast.error('Bookmark failed');}else toast.success(active?'Saved to your reading list':'Removed from saved');};
 
-  const visible=useMemo(()=>{const q=search.trim().toLowerCase();return q?threads.filter(t=>(t.body||'').toLowerCase().includes(q)||(t.profiles?.username||'').toLowerCase().includes(q)):threads;},[threads,search]);
+  const visible=useMemo(()=>{
+    const q=search.trim().toLowerCase();
+    return q
+      ? mixedItems.filter(item=>String(item.data?.body??item.data?.content??'').toLowerCase().includes(q)||String(item.data?.profiles?.username??item.data?.user_profiles?.username??'').toLowerCase().includes(q))
+      : mixedItems;
+  },[mixedItems,search]);
 
   return <div className="min-h-screen bg-background pb-20 md:pb-0">
     <TopBar title="Threads"/>
@@ -127,8 +194,17 @@ export default function ThreadsPage() {
       {search!==''&&<div className="px-4 pb-3"><div className="flex items-center gap-2 rounded-2xl bg-muted/60 px-3 py-2"><Search className="h-4 w-4 text-muted-foreground"/><input autoFocus value={search.trim()} onChange={e=>setSearch(e.target.value)} placeholder="Search Threads" className="min-w-0 flex-1 bg-transparent text-sm outline-none"/><button onClick={()=>setSearch('')}><X className="h-4 w-4 text-muted-foreground"/></button></div></div>}
     </div>
     {user&&<button onClick={()=>navigate('/threads/create')} className="flex w-full gap-3 border-b border-border px-4 py-4 text-left hover:bg-muted/20"><Avatar profile={{id:user.id,username:user.username,avatar_url:user.avatar,verified:false}}/><div className="flex-1"><p className="text-[15px] text-muted-foreground">What's new, @{user.username}?</p><div className="mt-3 flex items-center justify-between"><div className="flex items-center gap-3 text-primary"><ImageIcon className="h-5 w-5"/><span className="text-xs text-muted-foreground">Share a thought, photo or link</span></div><span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">Post</span></div></div></button>}
+    <DynamicAd location="feed_top" className="border-b border-border px-4 py-3"/>
     <div className="divide-y divide-border">
-      {loading?<div className="flex justify-center py-20"><Loader2 className="h-7 w-7 animate-spin text-primary"/></div>:visible.length===0?<div className="px-6 py-20 text-center"><div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted"><MessageCircle className="h-6 w-6 text-muted-foreground"/></div><h2 className="font-bold">{tab==='Following'?'Follow people to fill your feed':tab==='Saved'?'Your saved threads will appear here':'Start the conversation'}</h2><p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">{tab==='Following'?'Discover creators and follow people whose conversations you want to see.':tab==='Saved'?'Tap the bookmark on any thread to keep it for later.':'Share a thought and give the community something to respond to.'}</p>{tab==='Following'&&<Button onClick={()=>navigate('/discover')} className="mt-5 rounded-full"><UserPlus className="mr-2 h-4 w-4"/>Discover people</Button>}{tab==='For you'&&user&&<Button onClick={()=>navigate('/threads/create')} className="mt-5 rounded-full"><Plus className="mr-2 h-4 w-4"/>Create a thread</Button>}</div>:visible.map(thread=><ThreadCard key={thread.id} thread={thread} liked={liked.has(thread.id)} reposted={reposted.has(thread.id)} bookmarked={bookmarked.has(thread.id)} onLike={()=>void toggleLike(thread)} onRepost={()=>void toggleRepost(thread)} onBookmark={()=>void toggleBookmark(thread)}/>)}
+      {loading?<div className="flex justify-center py-20"><Loader2 className="h-7 w-7 animate-spin text-primary"/></div>:visible.length===0?<div className="px-6 py-20 text-center"><div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted"><MessageCircle className="h-6 w-6 text-muted-foreground"/></div><h2 className="font-bold">{tab==='Following'?'Follow people to fill your feed':tab==='Saved'?'Your saved threads will appear here':'Start the conversation'}</h2><p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">{tab==='Following'?'Discover creators and follow people whose conversations you want to see.':tab==='Saved'?'Tap the bookmark on any thread to keep it for later.':'Share a thought and give the community something to respond to.'}</p>{tab==='Following'&&<Button onClick={()=>navigate('/discover')} className="mt-5 rounded-full"><UserPlus className="mr-2 h-4 w-4"/>Discover people</Button>}{tab==='For you'&&user&&<Button onClick={()=>navigate('/threads/create')} className="mt-5 rounded-full"><Plus className="mr-2 h-4 w-4"/>Create a thread</Button>}</div>:visible.map((item,index)=>{
+        const content=item.kind==='thread'
+          ? <ThreadCard thread={item.data} liked={liked.has(item.data.id)} reposted={reposted.has(item.data.id)} bookmarked={bookmarked.has(item.data.id)} onLike={()=>void toggleLike(item.data)} onRepost={()=>void toggleRepost(item.data)} onBookmark={()=>void toggleBookmark(item.data)}/>
+          : <div className="relative">
+              <div className="px-4 pt-2"><span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold ${item.kind==='fed'?'border-sky-500/20 bg-sky-500/5 text-sky-600':'border-primary/20 bg-primary/5 text-primary'}`}>{item.kind==='fed'?'Fediverse':'Testagram post'}</span></div>
+              <PostCard post={item.data} onUpdate={()=>void loadThreads()}/>
+            </div>;
+        return <div key={`${item.kind}-${item.data.id}-${index}`}>{content}{(index+1)%6===0&&<FeedAdCard/>}{(index+1)%9===0&&<DynamicAd location="feed_inline" className="border-b border-border px-4 py-3" />}</div>;
+      })}
     </div>
   </div>;
 }
