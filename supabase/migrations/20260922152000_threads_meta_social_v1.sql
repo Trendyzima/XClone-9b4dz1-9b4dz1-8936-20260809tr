@@ -122,8 +122,6 @@ drop policy if exists "thread_bookmarks_owner_all" on public.thread_bookmarks;
 create policy "thread_bookmarks_owner_all" on public.thread_bookmarks for all to authenticated using (user_id=(select auth.uid())) with check (user_id=(select auth.uid()));
 drop policy if exists "thread_views_owner_read" on public.thread_views;
 create policy "thread_views_owner_read" on public.thread_views for select to authenticated using (user_id=(select auth.uid()));
-drop policy if exists "thread_views_owner_insert" on public.thread_views;
-create policy "thread_views_owner_insert" on public.thread_views for insert to authenticated with check (user_id=(select auth.uid()));
 
 grant select on public.threads, public.thread_replies, public.thread_likes, public.thread_reposts, public.thread_quotes to anon, authenticated;
 grant insert, update, delete on public.threads, public.thread_replies to authenticated;
