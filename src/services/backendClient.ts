@@ -25,11 +25,30 @@ export class BackendClientError extends Error {
 }
 
 export async function requireAccessToken(client: SupabaseClient = supabase): Promise<string> {
-  const { data, error } = await client.auth.getSession();
-  if (error) throw new BackendClientError(error.message, { code: 'SESSION_READ_FAILED' });
-  const token = data.session?.access_token;
-  if (!token) throw new BackendClientError('Please sign in again', { code: 'AUTH_REQUIRED', status: 401 });
-  return token;
+  // The composer can render immediately from the auth hook while Supabase Auth is
+  // still hydrating its persisted session. Do not turn that short race into a
+  // false "Authentication required" failure. Read the session, briefly retry
+  // hydration, then explicitly refresh the session before failing closed.
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const { data, error } = await client.auth.getSession();
+    if (error) lastError = error;
+    const token = data.session?.access_token;
+    if (token) return token;
+    if (attempt < 2) {
+      await new Promise(resolve => setTimeout(resolve, 100 * (attempt + 1)));
+    }
+  }
+
+  const { data: refreshed, error: refreshError } = await client.auth.refreshSession();
+  if (refreshError) lastError = refreshError;
+  const refreshedToken = refreshed.session?.access_token;
+  if (refreshedToken) return refreshedToken;
+
+  throw new BackendClientError(
+    lastError instanceof Error ? lastError.message : 'Please sign in again',
+    { code: 'AUTH_REQUIRED', status: 401 },
+  );
 }
 
 function extractFunctionError(error: unknown): BackendClientError {
