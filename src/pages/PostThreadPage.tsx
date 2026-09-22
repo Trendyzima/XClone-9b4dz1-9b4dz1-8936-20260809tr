@@ -16,7 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { formatDistanceToNow } from 'date-fns';
 import { useSEO, buildOgImageUrl } from '@/hooks/useSEO';
 import * as federation from '@/api/federation';
-import { getFederatedReplies } from '@/services/postInteractionService';
+import { createFederatedReply, getFederatedReplies } from '@/services/postInteractionService';
 
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { EmbedRenderer, PostContentEmbeds } from '@/components/features/EmbedRenderer';
@@ -270,6 +270,20 @@ export default function PostThreadPage() {
 
     setSubmitting(true);
     try {
+      // Federated replies have their own durable ledger. Never insert an
+      // ActivityPub URI into the local replies.post_id UUID column.
+      if (/^https:\/\//i.test(postId)) {
+        const result = await createFederatedReply(postId, replyContent.trim());
+        if (!result?.ok && !result?.accepted && !result?.queued) {
+          throw new Error(result?.error || 'Federated reply could not be persisted');
+        }
+        setReplyContent('');
+        setReplyPollData(null);
+        toast({ title: 'Reply recorded', description: result?.status === 'pending' ? 'Saved locally and queued for federation.' : 'Your reply is saved.' });
+        await fetchPostAndReplies();
+        return;
+      }
+
       const { data: newReply, error: insertError } = await supabase.from('replies').insert({
         post_id: postId,
         user_id: user.id,
