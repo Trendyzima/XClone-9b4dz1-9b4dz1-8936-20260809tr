@@ -128,7 +128,8 @@ grant insert, update, delete on public.threads, public.thread_replies to authent
 grant insert, delete on public.thread_likes, public.thread_reposts to authenticated;
 grant insert, update, delete on public.thread_quotes to authenticated;
 grant select, insert, update, delete on public.thread_bookmarks to authenticated;
-revoke all on table public.thread_bookmarks, public.thread_views from anon;\ngrant select, insert on public.thread_views to authenticated;
+revoke all on table public.thread_bookmarks, public.thread_views from anon;
+grant select, insert on public.thread_views to authenticated;
 
 create or replace function public.testagram_record_thread_view(p_thread_id uuid)
 returns integer language plpgsql security definer set search_path=public as $
@@ -143,7 +144,8 @@ begin
  select views_count into v_count from public.threads where id=p_thread_id;
  return coalesce(v_count,0);
 end; $$;
-revoke execute on function public.testagram_record_thread_view(uuid) from public, anon;\ngrant execute on function public.testagram_record_thread_view(uuid) to authenticated;
+revoke execute on function public.testagram_record_thread_view(uuid) from public, anon;
+grant execute on function public.testagram_record_thread_view(uuid) to authenticated;
 
 create schema if not exists private;
 create or replace function private.thread_like_counter() returns trigger language plpgsql security definer set search_path='' as $$
