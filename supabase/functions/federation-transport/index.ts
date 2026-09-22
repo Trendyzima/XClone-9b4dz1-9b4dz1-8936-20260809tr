@@ -374,9 +374,8 @@ async function queue(local: any, userId: string, inbox: string, activity: any) {
     created_at: now,
   };
 
-  // activity_id is the federation idempotency key. Two UI requests can arrive
-  // concurrently (double tap, React retry, network retry), so the second
-  // request must not surface PostgreSQL 23505 to the client.
+  // activity_id is the federation idempotency key. Concurrent UI retries
+  // collapse onto one durable activity instead of producing PostgreSQL 23505.
   const outboxResponse = await db("activitypub_outbox", {
     method: "POST",
     headers: { Prefer: "resolution=ignore-duplicates,return=representation" },
@@ -385,39 +384,107 @@ async function queue(local: any, userId: string, inbox: string, activity: any) {
 
   let outboxRows: any[] = [];
   try { outboxRows = await outboxResponse.json() as any[]; } catch {}
-
-  let outbox = outboxRows[0] || null;
   if (!outboxResponse.ok && outboxResponse.status !== 409) {
     const detail = outboxRows?.[0]?.message || JSON.stringify(outboxRows);
     throw Error(`Failed to persist ActivityPub outbox activity: ${detail.slice(0, 1200)}`);
   }
 
-  // If another request won the unique activity_id race, reuse its durable
-  // outbox row instead of inserting the same ActivityPub activity again.
+  let outbox = outboxRows[0] || null;
   if (!outbox) {
-    const existingResponse = await db(`activitypub_outbox?activity_id=eq.${enc(activityUri)}&select=id,delivered,activity_id&limit=1`);
+    const existingResponse = await db(`activitypub_outbox?activity_id=eq.${enc(activityUri)}&select=*&limit=1`);
     if (!existingResponse.ok) throw Error("Failed to read existing ActivityPub outbox activity");
     const existingRows = await existingResponse.json() as any[];
     outbox = existingRows[0] || null;
   }
   if (!outbox?.id) throw Error("Failed to persist ActivityPub outbox activity");
 
-  // If this exact activity has already been delivered, this request is a
-  // successful idempotent replay; never send it to the remote inbox again.
-  if (outbox.delivered === true) {
-    return {
-      status: "delivered",
-      activityId: activityUri,
-      outboxId: outbox.id,
-      idempotent: true,
-      remoteStatus: null,
-    };
+  // Bridge the legacy activitypub_outbox record into the durable delivery
+  // queue consumed by federation-delivery-worker. This closes the old gap where
+  // a concurrent loser could return "queued" but no worker owned the activity.
+  const activityRow = await db("federated_activities?on_conflict=uri", {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+    body: JSON.stringify({
+      uri: activityUri,
+      activity_type: typeOf(activity),
+      actor_uri: activityActor,
+      object_uri: idOf(activity.object),
+      target_uri: idOf(activity.target),
+      raw_activity: activity,
+      received_at: now,
+      processed_at: now,
+      processing_state: "processed",
+      processing_attempts: 0,
+    }),
+  });
+  if (!activityRow.ok) throw Error("Failed to persist federated activity delivery record");
+  let activityRows: any[] = [];
+  try { activityRows = await activityRow.json() as any[]; } catch {}
+  const federatedActivityId = activityRows[0]?.id;
+  if (!federatedActivityId) {
+    const lookup = await db(`federated_activities?uri=eq.${enc(activityUri)}&select=id&limit=1`);
+    if (!lookup.ok) throw Error("Failed to resolve federated activity delivery record");
+    const rows = await lookup.json() as any[];
+    if (!rows[0]?.id) throw Error("Federated activity delivery record has no id");
+    activityRows = rows;
+  }
+  const activityId = activityRows[0].id;
+
+  const deliveryUpsert = await db("federation_deliveries?on_conflict=activity_id,target_inbox", {
+    method: "POST",
+    headers: { Prefer: "resolution=merge-duplicates,return=representation" },
+    body: JSON.stringify({
+      activity_id: activityId,
+      target_inbox: inbox,
+      instance_domain: new URL(inbox).hostname,
+      status: "pending",
+      attempt_count: 0,
+      next_attempt_at: now,
+      activity_payload: activity,
+    }),
+  });
+  if (!deliveryUpsert.ok) throw Error("Failed to persist federation delivery job");
+  let deliveryRows: any[] = [];
+  try { deliveryRows = await deliveryUpsert.json() as any[]; } catch {}
+  let delivery = deliveryRows[0] || null;
+  if (!delivery) {
+    const lookup = await db(`federation_deliveries?activity_id=eq.${enc(activityId)}&target_inbox=eq.${enc(inbox)}&select=*&limit=1`);
+    if (!lookup.ok) throw Error("Failed to resolve federation delivery job");
+    const rows = await lookup.json() as any[];
+    delivery = rows[0] || null;
+  }
+  if (!delivery?.id) throw Error("Federation delivery job has no id");
+
+  if (outbox.delivered === true || delivery.status === "delivered") {
+    if (outbox.delivered !== true) {
+      await db(`activitypub_outbox?id=eq.${enc(outbox.id)}`, {
+        method: "PATCH",
+        headers: { Prefer: "return=minimal" },
+        body: JSON.stringify({ delivered: true, next_attempt_at: null, last_error: null }),
+      });
+    }
+    return { status: "delivered", activityId: activityUri, outboxId: outbox.id, idempotent: true, remoteStatus: null };
   }
 
-  // A concurrent request may have created this row. Only the request that
-  // inserted the row should perform the immediate delivery; the other request
-  // returns a queued success and lets the durable outbox worker retry it.
-  if (outboxRows.length === 0) {
+  // Atomically claim the durable delivery job. Exactly one concurrent caller
+  // gets in_flight and performs the remote HTTP request; other callers return
+  // queued and the worker owns retry/recovery if the winner crashes.
+  const claimed = await db(`federation_deliveries?id=eq.${enc(delivery.id)}&status=in.(pending,retry)`, {
+    method: "PATCH",
+    headers: { Prefer: "return=representation" },
+    body: JSON.stringify({
+      status: "in_flight",
+      attempt_count: Number(delivery.attempt_count || 0) + 1,
+      last_attempt_at: now,
+      locked_at: now,
+      last_error: null,
+    }),
+  });
+  let claimedRows: any[] = [];
+  try { claimedRows = await claimed.json() as any[]; } catch {}
+  if (!claimed.ok) throw Error("Failed to claim federation delivery job");
+
+  if (claimedRows.length === 0) {
     return {
       status: "queued",
       activityId: activityUri,
@@ -427,13 +494,11 @@ async function queue(local: any, userId: string, inbox: string, activity: any) {
     };
   }
 
-  // Count an attempt only when we actually begin remote delivery. The outbox
-  // row starts at zero so attempts reflects real HTTP delivery attempts.
-  const attemptAt = new Date().toISOString();
+  const attemptNumber = Number(claimedRows[0]?.attempt_count || delivery.attempt_count || 1);
   const attemptResponse = await db(`activitypub_outbox?id=eq.${enc(outbox.id)}`, {
     method: "PATCH",
     headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ attempts: Number(outbox.attempts || 0) + 1, next_attempt_at: attemptAt, last_error: null }),
+    body: JSON.stringify({ attempts: attemptNumber, next_attempt_at: now, last_error: null }),
   });
   if (!attemptResponse.ok) throw Error("Failed to record ActivityPub delivery attempt");
 
@@ -443,10 +508,16 @@ async function queue(local: any, userId: string, inbox: string, activity: any) {
     response = await signedFetch(local, inbox, "POST", body);
   } catch (error) {
     const message = error instanceof Error ? error.message : "network error";
+    const retryAt = new Date(Date.now()+5*60*1000).toISOString();
+    await db(`federation_deliveries?id=eq.${enc(delivery.id)}&status=in_flight`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ status: "retry", last_error: message.slice(0, 2000), next_attempt_at: retryAt, locked_at: null }),
+    }).catch(() => {});
     await db(`activitypub_outbox?id=eq.${enc(outbox.id)}`, {
       method: "PATCH",
       headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ last_error: message.slice(0, 2000), next_attempt_at: new Date(Date.now()+5*60*1000).toISOString() }),
+      body: JSON.stringify({ last_error: message.slice(0, 2000), next_attempt_at: retryAt }),
     }).catch(() => {});
     throw Error(`Federation delivery failed: ${message}`);
   }
@@ -454,18 +525,44 @@ async function queue(local: any, userId: string, inbox: string, activity: any) {
   const responseText = await response.text();
   if (!response.ok) {
     const message = `Remote inbox ${response.status}: ${responseText.slice(0, 1200)}`;
+    const retryAt = new Date(Date.now()+5*60*1000).toISOString();
+    await db(`federation_deliveries?id=eq.${enc(delivery.id)}&status=in_flight`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ status: "retry", last_status_code: response.status, last_error: message, next_attempt_at: retryAt, locked_at: null }),
+    }).catch(() => {});
     await db(`activitypub_outbox?id=eq.${enc(outbox.id)}`, {
       method: "PATCH",
       headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ last_error: message, next_attempt_at: new Date(Date.now()+5*60*1000).toISOString() }),
+      body: JSON.stringify({ last_error: message, next_attempt_at: retryAt }),
     }).catch(() => {});
     throw Error(message);
   }
 
+  const deliveryAck = await db(`federation_deliveries?id=eq.${enc(delivery.id)}&status=in_flight`, {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({
+      status: "delivered",
+      last_status_code: response.status,
+      last_error: null,
+      delivered_at: new Date().toISOString(),
+      locked_at: null,
+      next_attempt_at: null,
+    }),
+  });
+  if (!deliveryAck.ok) throw Error("Remote delivery succeeded but durable delivery acknowledgement failed");
+
   const patchResponse = await db(`activitypub_outbox?id=eq.${enc(outbox.id)}`, {
     method: "PATCH",
     headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ delivered: true, next_attempt_at: null, expires_at: new Date(Date.now()+86400000).toISOString(), payload: {} }),
+    body: JSON.stringify({
+      delivered: true,
+      next_attempt_at: null,
+      last_error: null,
+      expires_at: new Date(Date.now()+86400000).toISOString(),
+      payload: {},
+    }),
   });
   if (!patchResponse.ok) throw Error("ActivityPub delivery succeeded but outbox acknowledgement failed");
 
