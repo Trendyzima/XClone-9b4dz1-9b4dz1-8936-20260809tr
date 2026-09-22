@@ -15,7 +15,9 @@ type Profile = { id:string; username:string; avatar_url:string|null; verified:bo
 type Thread = { id:string; owner_id:string; body:string; visibility:string; created_at:string; likes_count:number; reposts_count:number; quotes_count:number; replies_count:number; views_count:number; media_urls:any[]; profiles?:Profile };
 const TABS:Tab[]=['For you','Following','Saved'];
 
-function mediaUrl(value:any){return typeof value==='string'?value:value?.url||'';}\n\nfunction Avatar({profile}:{profile?:Profile}) {
+function mediaUrl(value:any){return typeof value==='string'?value:value?.url||'';}
+
+function Avatar({profile}:{profile?:Profile}) {
   const initial=(profile?.display_name||profile?.username||'?').slice(0,1).toUpperCase();
   return <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-muted flex items-center justify-center text-sm font-bold">{profile?.avatar_url?<img src={profile.avatar_url} alt="" className="h-full w-full object-cover"/>:initial}</div>;
 }
