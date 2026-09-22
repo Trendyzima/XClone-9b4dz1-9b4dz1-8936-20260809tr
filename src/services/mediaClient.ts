@@ -1,4 +1,5 @@
 import { supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
+import { requireAccessToken } from '@/services/backendClient';
 
 export type MediaCompleted = { media_id:string; object_key:string; mime_type:string; media_type:'image'|'video'|'audio'|'file'; status:string; media_url:string|null; etag?:string|null; size_bytes:number; public_url:string|null; };
 export const MAX_TESTAGRAM_MEDIA_BYTES = 20 * 1024 * 1024;
