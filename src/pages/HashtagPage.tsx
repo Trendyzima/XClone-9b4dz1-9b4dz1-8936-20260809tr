@@ -166,7 +166,6 @@ export default function HashtagPage() {
       // Mix cached ActivityPub objects that advertise the same hashtag. The
       // cache is populated by inbound federation and followed-actor hydration,
       // so the hashtag page can surface remote and local conversations together.
-      const normalizedTag = String(tag ?? '').replace(/^#/, '').trim().toLowerCase();
       const { data: remoteMentions } = await supabase
         .from('federated_hashtag_mentions')
         .select('created_at, hashtags!inner(id,tag), federated_objects!inner(id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,object_type,url,deleted_at,tombstone)')
