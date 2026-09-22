@@ -118,23 +118,50 @@ export default function HashtagPage() {
 
   const fetchHashtagAndPosts = async () => {
     try {
-      const hashtagResult = await backendCapabilities.searchHashtags(tag ?? '', 1);
-      const hashtagData = hashtagResult.items?.find((item: any) =>
-        String(item?.tag ?? '').toLowerCase() === String(tag ?? '').toLowerCase()
-      );
+      // Resolve the canonical local hashtag directly from Postgres first. This
+      // keeps hashtag pages independent from the capability search gateway and
+      // also normalizes routes such as /hashtag/#PostgreSQL.
+      const normalizedTag = String(tag ?? '').replace(/^#/, '').trim().toLowerCase();
+      if (!normalizedTag) throw new Error('HASHTAG_NOT_FOUND');
+
+      const { data: directHashtag, error: hashtagError } = await supabase
+        .from('hashtags')
+        .select('id, tag, usage_count, post_count, follower_count, last_used_at, created_at, federated_post_count')
+        .ilike('tag', normalizedTag)
+        .maybeSingle();
+      if (hashtagError) throw hashtagError;
+
+      // Fall back to the authenticated capability search only if the direct
+      // canonical lookup misses. This preserves the existing gateway path for
+      // unusual/migrating hashtag records without making it a hard dependency.
+      let hashtagData = directHashtag as any;
+      if (!hashtagData) {
+        const hashtagResult = await backendCapabilities.searchHashtags(normalizedTag, 20);
+        hashtagData = hashtagResult.items?.find((item: any) =>
+          String(item?.tag ?? '').replace(/^#/, '').trim().toLowerCase() === normalizedTag
+        );
+      }
       if (!hashtagData) throw new Error('HASHTAG_NOT_FOUND');
       setHashtag(hashtagData);
 
-      const { count: fCount } = await supabase.from('hashtag_follows').select('*', { count: 'exact', head: true }).eq('hashtag_id', hashtagData.id);
+      const { count: fCount } = await supabase
+        .from('hashtag_follows')
+        .select('*', { count: 'exact', head: true })
+        .eq('hashtag_id', hashtagData.id);
       setFollowerCount(fCount ?? 0);
 
+      // post_hashtags has no created_at column in production. Order by the
+      // joined post timestamp after hydration instead of issuing an invalid
+      // PostgREST order against the junction table.
       const { data: postsData, error: postsError } = await supabase
         .from('post_hashtags')
         .select('post_id, posts(*, user_profiles:profiles!posts_user_id_fkey(*))')
-        .eq('hashtag_id', hashtagData.id)
-        .order('created_at', { ascending: false });
+        .eq('hashtag_id', hashtagData.id);
       if (postsError) throw postsError;
-      const formattedPosts = (postsData || []).map((item: any) => item.posts).filter(Boolean);
+      const formattedPosts = (postsData || [])
+        .map((item: any) => item.posts)
+        .filter(Boolean)
+        .sort((a: any, b: any) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')));
       setPosts(formattedPosts);
       // Mix cached ActivityPub objects that advertise the same hashtag. The
       // cache is populated by inbound federation and followed-actor hydration,
