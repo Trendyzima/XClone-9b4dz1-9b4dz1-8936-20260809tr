@@ -368,7 +368,7 @@ async function queue(local: any, userId: string, inbox: string, activity: any) {
     activity_id: activityUri,
     payload: activity,
     delivered: false,
-    attempts: 1,
+    attempts: 0,
     next_attempt_at: now,
     expires_at: new Date(Date.now()+14*86400000).toISOString(),
     created_at: now,
@@ -427,17 +427,39 @@ async function queue(local: any, userId: string, inbox: string, activity: any) {
     };
   }
 
+  // Count an attempt only when we actually begin remote delivery. The outbox
+  // row starts at zero so attempts reflects real HTTP delivery attempts.
+  const attemptAt = new Date().toISOString();
+  const attemptResponse = await db(`activitypub_outbox?id=eq.${enc(outbox.id)}`, {
+    method: "PATCH",
+    headers: { Prefer: "return=minimal" },
+    body: JSON.stringify({ attempts: Number(outbox.attempts || 0) + 1, next_attempt_at: attemptAt, last_error: null }),
+  });
+  if (!attemptResponse.ok) throw Error("Failed to record ActivityPub delivery attempt");
+
   const body = JSON.stringify(activity);
   let response: Response;
   try {
     response = await signedFetch(local, inbox, "POST", body);
   } catch (error) {
-    throw Error(`Federation delivery failed: ${error instanceof Error ? error.message : "network error"}`);
+    const message = error instanceof Error ? error.message : "network error";
+    await db(`activitypub_outbox?id=eq.${enc(outbox.id)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ last_error: message.slice(0, 2000), next_attempt_at: new Date(Date.now()+5*60*1000).toISOString() }),
+    }).catch(() => {});
+    throw Error(`Federation delivery failed: ${message}`);
   }
 
   const responseText = await response.text();
   if (!response.ok) {
-    throw Error(`Remote inbox ${response.status}: ${responseText.slice(0, 1200)}`);
+    const message = `Remote inbox ${response.status}: ${responseText.slice(0, 1200)}`;
+    await db(`activitypub_outbox?id=eq.${enc(outbox.id)}`, {
+      method: "PATCH",
+      headers: { Prefer: "return=minimal" },
+      body: JSON.stringify({ last_error: message, next_attempt_at: new Date(Date.now()+5*60*1000).toISOString() }),
+    }).catch(() => {});
+    throw Error(message);
   }
 
   const patchResponse = await db(`activitypub_outbox?id=eq.${enc(outbox.id)}`, {
