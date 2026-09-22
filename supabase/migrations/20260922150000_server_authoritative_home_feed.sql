@@ -57,7 +57,6 @@ candidates as (
   left join second_degree sd on sd.user_id = p.user_id
   where p.deleted_at is null
     and p.community_id is null
-    and p.visibility = 'public'
     and p.user_id <> p_user_id
     and not exists (select 1 from blocked b where b.user_id = p.user_id)
     and not exists (select 1 from muted m where m.user_id = p.user_id)
