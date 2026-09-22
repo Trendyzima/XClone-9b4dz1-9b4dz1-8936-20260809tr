@@ -39,7 +39,10 @@ async function mediaRequest<T>(body: Record<string, unknown>): Promise<T> {
   return payload as T;
 }
 
+export const MAX_TESTAGRAM_MEDIA_BYTES = 20 * 1024 * 1024;
+
 export async function uploadTestagramMedia(file: File, postId?: string | null, threadId?: string | null): Promise<MediaCompleted> {
+  if (file.size <= 0 || file.size > MAX_TESTAGRAM_MEDIA_BYTES) throw new Error('Each attachment must be 20 MiB or smaller');
   const init = await mediaRequest<MediaInit>({
     action: 'init',
     name: file.name,
