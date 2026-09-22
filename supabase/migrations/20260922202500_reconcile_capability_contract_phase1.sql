@@ -2,7 +2,12 @@
 -- Keep the existing dispatcher as a legacy implementation and add a thin
 -- authenticated router for capabilities whose backend substrate already exists.
 
-alter function public.capability_dispatch(text,jsonb) rename to capability_dispatch_legacy;
+do $
+begin
+  if to_regprocedure('public.capability_dispatch_legacy(text,jsonb)') is null and to_regprocedure('public.capability_dispatch(text,jsonb)') is not null then
+    alter function public.capability_dispatch(text,jsonb) rename to capability_dispatch_legacy;
+  end if;
+end $;
 
 create or replace function public.capability_dispatch(p_capability text,p_input jsonb default '{}'::jsonb)
 returns jsonb language plpgsql security invoker set search_path=public as $$
