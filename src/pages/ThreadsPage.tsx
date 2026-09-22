@@ -38,7 +38,7 @@ function ThreadCard({thread,liked,reposted,bookmarked,onLike,onRepost,onBookmark
         </div>
         <button onClick={open} className="mt-2 block w-full text-left">
           <p className="whitespace-pre-wrap break-words text-[15px] leading-6">{thread.body}</p>
-          {thread.media_urls?.length>0&&<div className={`mt-3 grid gap-1.5 overflow-hidden rounded-2xl border border-border ${thread.media_urls.length>1?'grid-cols-2':'grid-cols-1'}`}>{thread.media_urls.slice(0,4).map((url:any,i)=><img key={mediaUrl(url)+i} src={mediaUrl(url)} alt="" loading="lazy" className="max-h-[420px] w-full object-cover"/>)}</div>}
+          {thread.media_urls?.length>0&&<div className="mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none]">{thread.media_urls.map((item:any,i)=><div key={mediaUrl(item)+i} className="min-w-[88%] snap-center overflow-hidden rounded-2xl border border-border bg-muted/20 sm:min-w-[72%]">{(item?.type||'').startsWith('video/')?<video src={mediaUrl(item)} controls preload="metadata" className="max-h-[420px] w-full"/>:(item?.type||'').startsWith('audio/')?<audio src={mediaUrl(item)} controls className="w-full p-3"/>:<img src={mediaUrl(item)} alt="" loading="lazy" className="max-h-[420px] w-full object-contain"/></div>)}</div>}
         </button>
         <div className="mt-3 flex max-w-[520px] items-center justify-between text-muted-foreground">
           <button onClick={open} className="flex items-center gap-1.5 rounded-full p-1.5 hover:text-primary"><MessageCircle className="h-[18px] w-[18px]"/>{thread.replies_count>0&&<span className="text-xs">{formatNumber(thread.replies_count)}</span>}</button>
