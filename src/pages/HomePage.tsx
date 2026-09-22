@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { TrendingVideosSection } from '@/components/features/TrendingVideosSection';
 import { CommunitySpotlightStrip } from '@/components/features/CommunitySpotlightStrip';
+import { SuggestedPolls } from '@/components/features/SuggestedPolls';
 import { formatDistanceToNow } from 'date-fns';
 import { formatNumber, localizeSocialLinks } from '@/lib/utils';
 import { DynamicAd } from '@/components/features/DynamicAd';
@@ -1374,6 +1375,9 @@ export default function HomePage() {
 
       {/* Community Spotlight Strip */}
       {activeTab === 'foryou' && <CommunitySpotlightStrip />}
+
+      {/* Contextual poll discovery — ranked server-side and excludes polls already answered. */}
+      {activeTab === 'foryou' && <SuggestedPolls compact />}
 
       <ComposePost onSuccess={fetchInitialFeed} />
 
