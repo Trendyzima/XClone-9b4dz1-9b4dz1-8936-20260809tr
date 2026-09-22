@@ -511,6 +511,12 @@ async function handle(request: Request) {
     if (!body.target) return json({ error: "target required" }, 400);
     return json({ ok: true, ...await resolve(local, body.target) });
   }
+  if (body.operation === "fetch") {
+    if (!body.target) return json({ error: "target required" }, 400);
+    const remoteObject = await fetchRemoteObject(local, String(body.target));
+    if (!remoteObject) return json({ ok: false, error: "Remote ActivityPub object not found" }, 404);
+    return json({ ok: true, object: remoteObject }, 200);
+  }
   if (body.operation === "inspect") {
     if (!body.target) return json({ error: "target required" }, 400);
     const remoteObject=await fetchRemoteObject(local,String(body.target));
