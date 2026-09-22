@@ -194,5 +194,6 @@ export default function ThreadsPage() {
         return <div key={`${item.kind}-${item.data.id}-${index}`}>{content}{(index+1)%6===0&&<FeedAdCard/>}{(index+1)%9===0&&<DynamicAd location="feed_inline" className="border-b border-border px-4 py-3" />}</div>;
       })}
     </div>
+    <div ref={loadMoreRef} className="flex min-h-16 items-center justify-center border-t border-border">{loadingMore?<Loader2 className="h-5 w-5 animate-spin text-primary"/>:hasMore?<span className="text-xs text-muted-foreground">Loading more conversations…</span>:visible.length>0?<span className="py-4 text-xs text-muted-foreground">You’re caught up.</span>:null}</div>
   </div>;
 }
