@@ -25,8 +25,8 @@ seen as (
   select bh.entity_id as post_id from public.browsing_history bh
   where bh.user_id = p_user_id and bh.entity_type = 'post' and bh.entity_id is not null and bh.created_at > now() - interval '14 days'
   union
-  select l.post_id from public.likes l
-  where l.user_id = p_user_id and l.created_at > now() - interval '30 days'
+  select pr.post_id from public.post_reactions pr
+  where pr.user_id = p_user_id and pr.created_at > now() - interval '30 days'
 ),
 interest_posts as (
   select ph.post_id, max(coalesce(ui.interest_score, 0)) as interest_score
