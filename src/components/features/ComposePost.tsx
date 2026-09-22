@@ -428,6 +428,16 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
       });
       const postData = { id: postResult.post_id };
 
+      // Persist local quote linkage separately from post creation so quote
+      // metadata cannot be silently dropped by an older create-post path.
+      if (quotedPostId && !/^https:\/\//i.test(quotedPostId)) {
+        const { error: quoteError } = await supabase.rpc('testagram_record_local_quote', {
+          p_post_id: postResult.post_id,
+          p_quoted_post_id: quotedPostId,
+        });
+        if (quoteError) throw quoteError;
+      }
+
       if (postToFediverse) {
         try { await federation.postStatus({ content: content.trim(), visibility: 'public' }); sonnerToast.success('Also posted to Fediverse!'); }
         catch (fedErr: any) { sonnerToast.info('Posted locally. Fediverse delivery pending.'); }
