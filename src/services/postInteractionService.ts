@@ -80,20 +80,37 @@ export async function getFederatedReactionCounts(postId: string): Promise<Record
   return data.counts as Record<string, number>;
 }
 
-export async function getFederatedInteractionCounts(postId: string): Promise<{ likes: number; reposts: number; replies: number }> {
-  if (!isRemoteStatus(postId)) return { likes: 0, reposts: 0, replies: 0 };
+export type InteractionCounts = { likes: number; reposts: number; replies: number; quotes: number; views: number };
+
+export async function getInteractionCounts(postId: string): Promise<InteractionCounts> {
+  if (!postId) return { likes: 0, reposts: 0, replies: 0, quotes: 0, views: 0 };
   const { data, error } = await supabase.functions.invoke('testagram-api', {
-    body: { path: 'federated-interaction-counts', method: 'GET', params: { object_uri: postId } },
+    body: { path: '/interaction-counts', method: 'GET', params: { post_id: postId } },
   });
   if (error) {
-    console.warn('[federation] interaction counts unavailable', error);
-    return { likes: 0, reposts: 0, replies: 0 };
+    console.warn('[engagement] interaction counts unavailable', error);
+    return { likes: 0, reposts: 0, replies: 0, quotes: 0, views: 0 };
   }
   return {
     likes: Math.max(0, Number(data?.likes ?? 0)),
     reposts: Math.max(0, Number(data?.reposts ?? 0)),
     replies: Math.max(0, Number(data?.replies ?? 0)),
+    quotes: Math.max(0, Number(data?.quotes ?? 0)),
+    views: Math.max(0, Number(data?.views ?? 0)),
   };
+}
+
+export async function recordPostView(postId: string): Promise<number> {
+  if (!postId) return 0;
+  const { data, error } = await supabase.functions.invoke('testagram-api', {
+    body: { path: '/record-post-view', method: 'POST', body: { post_id: postId } },
+  });
+  if (error) throw error;
+  return Math.max(0, Number(data?.views ?? 0));
+}
+
+export async function getFederatedInteractionCounts(postId: string): Promise<InteractionCounts> {
+  return getInteractionCounts(postId);
 }
 
 export async function getFederatedReplies(postId: string): Promise<any[]> {
