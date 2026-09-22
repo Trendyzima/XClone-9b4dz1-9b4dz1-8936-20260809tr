@@ -73,8 +73,7 @@ export default function ThreadDetailPage(){
    const rootId=r.root_thread_id||id;
    const {data:children}=await supabase.from('threads').select('id,owner_id,body,visibility,created_at,likes_count,reposts_count,quotes_count,replies_count,views_count,media_urls,reply_to_id,root_thread_id').eq('root_thread_id',rootId).is('deleted_at',null).order('created_at',{ascending:true}).limit(1000);
    const rows=[r,...((children??[]) as any[]).filter(x=>x.id!==r.id).map(x=>({...x,media_urls:normalizeMedia(x.media_urls)}))] as Thread[];
-   const ids=[...new Set(rows.map(x=>x.owner_id))]; const {data:profiles}=ids.length?await supabase.from('profiles').select('id,username,avatar_url,verified,display_name').in('id',ids):{data:[]};
-   const pm=new Map((profiles??[]).map((p:any)=>[p.id,p as Profile])); rows.forEach(x=>x.profiles=pm.get(x.owner_id));
+   const ids=[...new Set(rows.map(x=>x.owner_id))]; const profileRows:Profile[]=ids.length?(((await supabase.from('profiles').select('id,username,avatar_url,verified,display_name').in('id',ids)).data ?? []) as Profile[]):[]; const pm=new Map<string,Profile>(profileRows.map((p)=>[p.id,p])); rows.forEach(x=>x.profiles=pm.get(x.owner_id));
    setRoot(r); setNodes(rows.filter(x=>x.id!==r.id));
    const quoteIds=rows.map(x=>x.id);
    const {data:qrows}=quoteIds.length?await supabase.from('thread_quotes').select('id,thread_id,user_id,content,media_urls,created_at').in('thread_id',quoteIds).order('created_at',{ascending:false}).limit(500):{data:[]};
