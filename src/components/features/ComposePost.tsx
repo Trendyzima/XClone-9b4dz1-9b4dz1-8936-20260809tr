@@ -232,7 +232,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
     if (mentionResults.length === 0 || mentionQuery === null) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionResults.length - 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); }
-    else if ((e.key === 'Enter' || e.key === 'Tab') && mentionResults[mentionIdx]) { e.preventDefault(); insertMention(mentionResults[mentionIdx].username); }
+    else if ((e.key === 'Enter' || e.key === 'Tab') && mentionResults[mentionIdx]) { e.preventDefault(); insertMention(mentionResults[mentionIdx].acct ?? mentionResults[mentionIdx].username); }
     else if (e.key === 'Escape') { setMentionQuery(null); setMentionResults([]); }
   }, [mentionResults, mentionQuery, mentionIdx, insertMention]);
 
@@ -695,14 +695,14 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
             {mentionQuery !== null && mentionResults.length > 0 && (
               <div className="absolute z-50 left-0 mt-1 w-64 bg-popover border border-border rounded-xl shadow-xl overflow-hidden">
                 {mentionResults.map((u, i) => (
-                  <button key={u.id} onMouseDown={e => { e.preventDefault(); insertMention(u.username); }}
+                  <button key={u.id} onMouseDown={e => { e.preventDefault(); insertMention(u.acct ?? u.username); }}
                     className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors ${i === mentionIdx ? 'bg-primary/10' : 'hover:bg-muted'}`}>
                     <div className="w-7 h-7 rounded-full bg-muted overflow-hidden flex-shrink-0">
                       {u.avatar_url
                         ? <img src={u.avatar_url} alt={u.username} className="w-full h-full object-cover" />
                         : <div className="w-full h-full flex items-center justify-center text-xs font-bold">{u.username[0]?.toUpperCase()}</div>}
                     </div>
-                    <p className="font-semibold text-sm truncate">@{u.username}</p>
+                    <p className="font-semibold text-sm truncate">@{u.acct ?? u.username}</p>
                     <AtSign className="w-3 h-3 text-primary ml-auto flex-shrink-0" />
                   </button>
                 ))}
