@@ -1,6 +1,4 @@
 -- Server-authoritative personalized home feed ranking.
--- Candidates are generated and ranked in Postgres so the browser no longer decides
--- which 20 posts are eligible for the For You page.
 create or replace function public.get_ranked_home_feed(
   p_user_id uuid,
   p_cursor_score double precision default null,
@@ -8,83 +6,48 @@ create or replace function public.get_ranked_home_feed(
   p_cursor_id uuid default null,
   p_limit integer default 20
 )
-returns table (
-  post_id uuid,
-  score double precision,
-  reason text,
-  source text,
-  created_at timestamptz
-)
+returns table (post_id uuid, score double precision, reason text, source text, created_at timestamptz)
 language sql
 security definer
 set search_path = public
 as $$
 with
 following as (
-  select f.following_id as user_id
-  from public.follows f
-  where f.follower_id = p_user_id
+  select f.following_id as user_id from public.follows f where f.follower_id = p_user_id
 ),
 blocked as (
-  select ub.blocked_id as user_id
-  from public.user_blocks ub
-  where ub.blocker_id = p_user_id
+  select b.blocked_id as user_id from public.blocks b where b.blocker_id = p_user_id
 ),
 muted as (
-  select um.muted_id as user_id
-  from public.user_mutes um
-  where um.muter_id = p_user_id
+  select m.muted_id as user_id from public.mutes m where m.muter_id = p_user_id
 ),
 seen as (
-  select bh.post_id
-  from public.browsing_history bh
-  where bh.user_id = p_user_id
-    and bh.post_id is not null
-    and bh.created_at > now() - interval '14 days'
+  select bh.entity_id as post_id from public.browsing_history bh
+  where bh.user_id = p_user_id and bh.entity_type = 'post' and bh.entity_id is not null and bh.created_at > now() - interval '14 days'
   union
-  select l.post_id
-  from public.likes l
-  where l.user_id = p_user_id
-    and l.created_at > now() - interval '30 days'
+  select l.post_id from public.likes l
+  where l.user_id = p_user_id and l.created_at > now() - interval '30 days'
 ),
 interest_posts as (
-  select
-    ph.post_id,
-    max(coalesce(ui.interest_score, 0)) as interest_score,
-    array_agg(distinct lower(h.tag)) as tags
+  select ph.post_id, max(coalesce(ui.interest_score, 0)) as interest_score
   from public.post_hashtags ph
-  join public.hashtags h on h.id = ph.hashtag_id
-  join public.user_interests ui
-    on ui.user_id = p_user_id
-   and ui.hashtag_id = ph.hashtag_id
+  join public.user_interests ui on ui.user_id = p_user_id and ui.hashtag_id = ph.hashtag_id
   group by ph.post_id
 ),
 second_degree as (
   select distinct f2.following_id as user_id
   from public.follows f1
   join public.follows f2 on f2.follower_id = f1.following_id
-  where f1.follower_id = p_user_id
-    and f2.following_id <> p_user_id
+  where f1.follower_id = p_user_id and f2.following_id <> p_user_id
 ),
 candidates as (
   select
-    p.id,
-    p.user_id,
-    p.created_at,
-    p.likes_count,
-    p.reposts_count,
-    p.replies_count,
-    p.views_count,
-    p.is_video,
-    p.media_count,
-    p.image_url,
-    p.media_urls,
-    case
-      when f.user_id is not null then 'following'
-      when ip.post_id is not null then 'interest'
-      when sd.user_id is not null then 'social'
-      else 'exploration'
-    end as source,
+    p.id, p.user_id, p.created_at, p.likes_count, p.reposts_count, p.replies_count, p.views_count,
+    p.is_video, p.media_count, p.image_url, p.media_urls,
+    case when f.user_id is not null then 'following'
+         when ip.post_id is not null then 'interest'
+         when sd.user_id is not null then 'social'
+         else 'exploration' end as source,
     coalesce(ip.interest_score, 0) as interest_score,
     case when f.user_id is not null then 1 else 0 end as is_following,
     case when sd.user_id is not null then 1 else 0 end as is_second_degree
@@ -113,31 +76,18 @@ scored as (
       + 1.5 * ln(1 + greatest(coalesce(c.replies_count, 0), 0))
       + 0.25 * ln(1 + greatest(coalesce(c.views_count, 0), 0))
       + case when coalesce(c.is_video, false) then 2.0 else 0 end
-      + case when coalesce(c.media_count, 0) > 0
-             or c.image_url is not null
-             or coalesce(array_length(c.media_urls, 1), 0) > 0 then 1.0 else 0 end
+      + case when coalesce(c.media_count, 0) > 0 or c.image_url is not null or coalesce(array_length(c.media_urls, 1), 0) > 0 then 1.0 else 0 end
       + case when c.is_following = 0 and c.interest_score = 0 then 2.0 else 0 end
-    )
-    * exp(
-      -greatest(
-        0,
-        extract(epoch from (now() - c.created_at))
-      ) / 86400.0 / 1.5
-    ) as score
+    ) * exp(-greatest(0, extract(epoch from (now() - c.created_at))) / 86400.0 / 1.5) as score
   from candidates c
 ),
 diversified as (
-  select
-    s.*,
-    row_number() over (
-      partition by s.user_id
-      order by s.score desc, s.created_at desc, s.id desc
-    ) as author_rank
+  select s.*,
+    row_number() over (partition by s.user_id order by s.score desc, s.created_at desc, s.id desc) as author_rank
   from scored s
 ),
 ranked as (
-  select *
-  from diversified d
+  select * from diversified d
   where d.author_rank <= 3
     and (
       p_cursor_score is null
@@ -165,6 +115,5 @@ $$;
 
 revoke all on function public.get_ranked_home_feed(uuid, double precision, timestamptz, uuid, integer) from public, anon, authenticated;
 grant execute on function public.get_ranked_home_feed(uuid, double precision, timestamptz, uuid, integer) to service_role;
-
 comment on function public.get_ranked_home_feed(uuid, double precision, timestamptz, uuid, integer)
 is 'Server-authoritative personalized For You candidate generation, scoring, diversity and cursor pagination.';
