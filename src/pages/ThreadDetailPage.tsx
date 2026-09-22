@@ -111,8 +111,23 @@ export default function ThreadDetailPage(){
   return out;
 };
 
- const reply=async()=>{if(!requireAuth()||!replyTarget||(!replyText.trim()&&!replyFiles.length))return;setSending(true);try{const media=await uploadFiles(replyFiles);const parent=root?.id===replyTarget?root:nodes.find(n=>n.id===replyTarget);const rootId=root?.id||replyTarget;const {error}=await supabase.from('threads').insert({owner_id:user!.id,body:replyText.trim(),visibility:'public',reply_to_id:replyTarget,root_thread_id:rootId,media_urls:media}).select('id').single();if(error)throw error;setReplyText('');setReplyFiles([]);setReplyPreviews([]);setReplyTarget(null);toast.success('Reply added to the thread');await load();}catch(e:any){toast.error(e?.message||'Reply failed');}finally{setSending(false);}};
- const quote=async(threadId:string)=>{if(!requireAuth())return;setReplyTarget(null);setQuoteTarget(threadId);setReplyText('');};
+ const reply=async()=>{if(!requireAuth()||(!replyTarget&&!quoteTarget)||(!replyText.trim()&&!replyFiles.length))return;setSending(true);try{
+  if(quoteTarget){
+    const {data:q,error}=await supabase.from('thread_quotes').insert({thread_id:quoteTarget,user_id:user!.id,content:replyText.trim(),media_urls:[]}).select('id').single();
+    if(error)throw error;
+    const media=await uploadFiles(replyFiles,quoteTarget);
+    if(media.length){const {error:updateError}=await supabase.from('thread_quotes').update({media_urls:media}).eq('id',q.id).eq('user_id',user!.id);if(updateError)throw updateError;}
+    toast.success('Quote posted');
+  }else{
+    const rootId=root?.id||replyTarget!;
+    const {data:newThread,error}=await supabase.from('threads').insert({owner_id:user!.id,body:replyText.trim(),visibility:'public',reply_to_id:replyTarget,root_thread_id:rootId,media_urls:[]}).select('id').single();
+    if(error)throw error;
+    const media=await uploadFiles(replyFiles,newThread.id);
+    if(media.length){const {error:updateError}=await supabase.from('threads').update({media_urls:media}).eq('id',newThread.id).eq('owner_id',user!.id);if(updateError)throw updateError;}
+    toast.success('Reply added to the thread');
+  }
+  setReplyText('');setReplyFiles([]);setReplyPreviews([]);setReplyTarget(null);setQuoteTarget(null);await load();
+ }catch(e:any){toast.error(e?.message||'Post failed');}finally{setSending(false);}};
  const remove=async()=>{if(!root||!user||root.owner_id!==user.id)return;if(!window.confirm('Delete this thread?'))return;const {error}=await supabase.from('threads').update({deleted_at:new Date().toISOString()}).eq('id',root.id).eq('owner_id',user.id);if(error)toast.error('Could not delete thread');else navigate('/threads');};
 
  const ordered=useMemo(()=>{const byParent=new Map<string,Thread[]>();nodes.forEach(n=>{const k=n.reply_to_id||root?.id||'';const a=byParent.get(k)||[];a.push(n);byParent.set(k,a);});const out:Thread[]=[];const walk=(parent:string,depth:number)=>{for(const n of byParent.get(parent)||[]){out.push({...n});walk(n.id,depth+1);}};if(root)walk(root.id,1);return out;},[nodes,root]);
