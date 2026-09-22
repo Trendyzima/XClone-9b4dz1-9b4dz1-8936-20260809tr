@@ -511,7 +511,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     // 7-day daily view counts from browsing_history
     const since = new Date(Date.now() - 6 * 86400000).toISOString().slice(0, 10);
     const [historyRes, analyticsRes] = await Promise.all([
-      supabase.from('browsing_history').select('created_at').eq('post_id', post.id).eq('view_type', 'post').gte('created_at', since),
+      supabase.from('browsing_history').select('created_at').eq('entity_id', post.id).eq('entity_type', 'post').gte('created_at', since),
       supabase.from('post_analytics').select('views, unique_viewers, engagement_rate, shares').eq('post_id', post.id).maybeSingle(),
     ]);
     // Build 7-day chart — parallel arrays, no index-sig (esbuild guard)
