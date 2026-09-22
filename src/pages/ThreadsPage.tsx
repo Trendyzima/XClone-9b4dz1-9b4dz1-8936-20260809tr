@@ -10,6 +10,7 @@ import { formatNumber } from '@/lib/utils';
 import { useSEO } from '@/hooks/useSEO';
 import { toast } from 'sonner';
 import { PostCard } from '@/components/features/PostCard';
+import React from 'react';
 import { FeedAdCard } from '@/components/features/FeedAdCard';
 import { DynamicAd } from '@/components/features/DynamicAd';
 import * as federation from '@/api/federation';
@@ -24,6 +25,13 @@ type MixedItem =
 const TABS:Tab[]=['For you','Following','Saved'];
 
 function mediaUrl(value:any){return typeof value==='string'?value:value?.url||'';}
+
+class MixedContentBoundary extends React.Component<{children:React.ReactNode},{hasError:boolean}> {
+  state={hasError:false};
+  static getDerivedStateFromError(){return {hasError:true};}
+  componentDidCatch(error:unknown){console.error('[Threads] mixed content render failed',error);}
+  render(){return this.state.hasError ? <div className="mx-4 my-3 rounded-2xl border border-border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">This item could not be displayed. Other conversations are still available.</div> : this.props.children;}
+}
 
 function Avatar({profile}:{profile?:Profile}) {
   const initial=(profile?.display_name||profile?.username||'?').slice(0,1).toUpperCase();
@@ -121,7 +129,7 @@ export default function ThreadsPage() {
         shouldMixNetwork ? federation.getFederatedTimelinePage({limit:8,before:reset?undefined:cursor??undefined}).catch(()=>({items:[],pagination:{nextCursor:null,hasMore:false}})) : Promise.resolve({items:[],pagination:{nextCursor:null,hasMore:false}})
       ]);
       const postItems=(postRes.data??[]).map((p:any)=>({kind:'post' as const,data:{...p,_source_label:'Testagram'}}));
-      const fedItems=(fedRes.items??[]).map((p:any)=>({kind:'fed' as const,data:{...p,id:p.id??p.uri??p.url,content:p.content??p.text??'',created_at:p.created_at??p.published_at??p.published??new Date().toISOString(),user_profiles:p.remote_account??p.actor??p.account??{},remote_status_uri:p.uri??p.url,is_federated:true,_source_label:'Fediverse'}}));
+      const fedItems=(fedRes.items??[]).map((p:any)=>{const account=p.remote_account??p.actor??p.account??{};return {kind:'fed' as const,data:{...p,id:p.id??p.uri??p.url??crypto.randomUUID(),user_id:p.user_id??account.id??`remote-${p.id??p.uri??'account'}`,content:p.content??p.text??'',created_at:p.created_at??p.published_at??p.published??new Date().toISOString(),likes_count:Number(p.likes_count??p.favourites_count??p.favorite_count??0),reposts_count:Number(p.reposts_count??p.reblogs_count??p.boosts_count??0),replies_count:Number(p.replies_count??0),views_count:Number(p.views_count??0),user_profiles:{id:account.id??p.user_id??'',username:account.username??account.preferredUsername??'fediverse-user',display_name:account.display_name??account.name??account.username??'Fediverse user',avatar_url:account.avatar_url??account.avatar??account.icon?.url??null,verified_tier:account.verified_tier??null,verified:Boolean(account.verified),follower_count:Number(account.follower_count??account.followers_count??0),following_count:Number(account.following_count??account.following_count??0)},remote_status_uri:p.uri??p.url,is_federated:true,_source_label:'Fediverse'}};});
       const base:MixedItem[]=[...normalizedThreads.map(data=>({kind:'thread' as const,data})),...postItems,...fedItems]
         .sort((a,b)=>new Date(b.data.created_at).getTime()-new Date(a.data.created_at).getTime());
 
@@ -189,7 +197,7 @@ export default function ThreadsPage() {
           ? <ThreadCard thread={item.data} liked={liked.has(item.data.id)} reposted={reposted.has(item.data.id)} bookmarked={bookmarked.has(item.data.id)} onLike={()=>void toggleLike(item.data)} onRepost={()=>void toggleRepost(item.data)} onBookmark={()=>void toggleBookmark(item.data)}/>
           : <div className="relative">
               <div className="px-4 pt-2"><span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold ${item.kind==='fed'?'border-sky-500/20 bg-sky-500/5 text-sky-600':'border-primary/20 bg-primary/5 text-primary'}`}>{item.kind==='fed'?'Fediverse':'Testagram post'}</span></div>
-              <PostCard post={item.data} onUpdate={()=>void loadThreads(true)}/>
+              <MixedContentBoundary><PostCard post={item.data} onUpdate={()=>void loadThreads(true)}/></MixedContentBoundary>
             </div>;
         return <div key={`${item.kind}-${item.data.id}-${index}`}>{content}{(index+1)%6===0&&<FeedAdCard/>}{(index+1)%9===0&&<DynamicAd location="feed_inline" className="border-b border-border px-4 py-3" />}</div>;
       })}
