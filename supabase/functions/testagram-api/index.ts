@@ -258,10 +258,19 @@ if(path==="/interaction-counts"&&method==="GET"){
   return json({likes:Number(likes.count||0),reposts:Number(reposts.count||0),replies:Number(replies.count||0),quotes:Number(quotes.count||0),views:Number(post.data?.views_count||0)},200);
 }
 if(path==="/federated-interaction-counts"&&method==="GET"){
+  const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
   const target=String(params.object_uri||params.objectUri||"").trim();
   if(!/^https:\/\//i.test(target))return json({error:"object_uri must be a remote ActivityPub object"},400);
-  const r=await fetch(new URL(req.url).origin+"/functions/v1/testagram-api");
-  return json({likes:0,reposts:0,replies:0},200);
+  const [ledger,replies,quotes,views]=await Promise.all([
+    admin.from("federated_interactions").select("interaction_type,active").eq("object_uri",target),
+    admin.from("federated_replies").select("id",{count:"exact",head:true}).eq("object_uri",target),
+    admin.from("federated_quotes").select("id",{count:"exact",head:true}).eq("object_uri",target),
+    admin.from("federated_post_views").select("id",{count:"exact",head:true}).eq("object_uri",target)
+  ]);
+  let likes=0,reposts=0;
+  for(const row of ledger.data||[]){if(row.active&&row.interaction_type==="like")likes++;if(row.active&&row.interaction_type==="repost")reposts++;}
+  try{const rr=await transport({user_id:u.id,operation:"inspect",target});const d=rr.data();likes=Math.max(likes,Number(d?.counts?.likes||0));reposts=Math.max(reposts,Number(d?.counts?.reposts||0));}catch{}
+  return json({likes,reposts,replies:Number(replies.count||0),quotes:Number(quotes.count||0),views:Number(views.count||0)},200);
 }
 if(path==="/record-post-view"&&method==="POST"){
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
