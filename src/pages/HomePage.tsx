@@ -850,6 +850,37 @@ export default function HomePage() {
     }
   };
 
+  // Server-authoritative For You feed. The backend generates candidates, scores them,
+  // applies author diversity and returns an opaque cursor. The client only renders/mixes
+  // the ranked page; it never chooses the primary 20 candidates.
+  const fetchRankedForYou = useCallback(async (cursor: string | null = null) => {
+    if (!user) return { items: [] as FeedItem[], nextCursor: null as string | null, hasMore: false };
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) return { items: [] as FeedItem[], nextCursor: null as string | null, hasMore: false };
+
+      const params = new URLSearchParams({ limit: String(PAGE_SIZE) });
+      if (cursor) params.set('cursor', cursor);
+      const response = await fetch('/api/home-feed?' + params.toString(), {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'same-origin',
+      });
+      if (!response.ok) throw new Error(`home-feed ${response.status}`);
+      const payload = await response.json();
+      const items = Array.isArray(payload.items) ? payload.items as FeedItem[] : [];
+      return {
+        items,
+        nextCursor: typeof payload.nextCursor === 'string' ? payload.nextCursor : null,
+        hasMore: payload.hasMore === true,
+      };
+    } catch (error) {
+      console.warn('[home-feed] server-ranked feed unavailable', error);
+      return { items: [] as FeedItem[], nextCursor: null as string | null, hasMore: false };
+    }
+  }, [user?.id]);
+
   const fetchInitialFeed = async (skipCache = false) => {
     // ── Warm-start: paint the last known first viewport immediately, then revalidate.
     // This avoids an empty Home screen on repeat visits while keeping network data authoritative.
@@ -938,15 +969,16 @@ export default function HomePage() {
       const lastPost = filtered.filter((i: any) => i.type === 'post').slice(-1)[0];
       if (lastPost) setFeedCursor((lastPost.data as any).created_at ?? null);
     } else if (activeTab === 'foryou') {
-      const [localItems, federatedPage] = await Promise.all([fetchFeed(0), fetchFederatedPage(null)]);
-      const mixed = mixHomeDiscovery(localItems, federatedPage.posts, 0);
+      const [rankedPage, federatedPage] = await Promise.all([
+        fetchRankedForYou(null),
+        fetchFederatedPage(null),
+      ]);
+      const mixed = mixHomeDiscovery(rankedPage.items, federatedPage.posts, 0);
       setFeedItems(mixed);
-      const localPosts = localItems.filter((i: any) => i.type === 'post');
-      const lastPost = localPosts.slice(-1)[0];
-      if (lastPost) setFeedCursor((lastPost.data as any).created_at ?? null);
+      setFeedCursor(rankedPage.nextCursor);
       setFederatedCursor(federatedPage.nextCursor);
       setFederatedHasMore(federatedPage.hasMore);
-      setFeedHasMore(localPosts.length >= PAGE_SIZE || federatedPage.hasMore || federatedPage.posts.length > 0);
+      setFeedHasMore(rankedPage.hasMore || federatedPage.hasMore || federatedPage.items.length > 0);
       if (mixed.length > 0) {
         setCachedFeed(activeTab, mixed);
         setWarmFeed(activeTab, user?.id, mixed);
@@ -1071,7 +1103,7 @@ export default function HomePage() {
       if (idleId !== null && win.cancelIdleCallback) win.cancelIdleCallback(idleId);
       if (timerId !== null) clearTimeout(timerId);
     };
-  }, [activeTab, user?.id, fetchHomeDiscovery]);
+  }, [activeTab, user?.id, fetchHomeDiscovery, fetchRankedForYou]);
 
   // ── Realtime new-post subscription (For You tab only) ─────────────────────
   useEffect(() => {
@@ -1140,18 +1172,22 @@ export default function HomePage() {
       setFederatedCursor(fedPage.nextCursor); setFederatedHasMore(fedPage.hasMore); setFeedHasMore(fedPage.hasMore); setPage(nextPage); return fedPage.hasMore;
     }
     if (activeTab === 'foryou') {
-      const [localItems, federatedPage] = await Promise.all([fetchFeed(nextPage), fetchFederatedPage(federatedCursor)]);
-      const mixed = mixHomeDiscovery(localItems, federatedPage.posts, nextPage);
-      const incomingLocalPosts = localItems.filter((i: any) => i.type === 'post');
+      const [rankedPage, federatedPage] = await Promise.all([
+        fetchRankedForYou(feedCursor),
+        fetchFederatedPage(federatedCursor),
+      ]);
+      const mixed = mixHomeDiscovery(rankedPage.items, federatedPage.posts, nextPage);
+      const incomingLocalPosts = rankedPage.items.filter((i: any) => i.type === 'post');
       const incomingFedPosts = mixed.filter((i: any) => i.type === 'fedpost');
       if (mixed.length > 0) setFeedItems(prev => {
         const localIds = new Set(prev.filter(i => i.type === 'post').map(i => (i.data as any).id));
         const fedIds = new Set(prev.filter(i => i.type === 'fedpost').map(i => (i.data as any).id));
         return [...prev, ...mixed.filter(i => i.type === 'post' ? !localIds.has((i.data as any).id) : i.type === 'fedpost' ? !fedIds.has((i.data as any).id) : true)];
       });
-      if (incomingLocalPosts.length > 0) setFeedCursor((incomingLocalPosts.slice(-1)[0].data as any).created_at ?? null);
-      setFederatedCursor(federatedPage.nextCursor); setFederatedHasMore(federatedPage.hasMore);
-      const hasMore = incomingLocalPosts.length >= PAGE_SIZE || federatedPage.hasMore || incomingFedPosts.length > 0;
+      setFeedCursor(rankedPage.nextCursor);
+      setFederatedCursor(federatedPage.nextCursor);
+      setFederatedHasMore(federatedPage.hasMore);
+      const hasMore = rankedPage.hasMore || federatedPage.hasMore || incomingLocalPosts.length > 0 || incomingFedPosts.length > 0;
       setPage(nextPage); setFeedHasMore(hasMore); return hasMore;
     }
     const newItems = await fetchFeed(nextPage);
