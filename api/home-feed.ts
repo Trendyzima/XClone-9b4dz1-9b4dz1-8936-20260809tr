@@ -22,8 +22,28 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
   },
 });
 
-async function authenticate(request: Request): Promise<string | null> {
-  const authorization = request.headers.get('authorization') || '';
+type RequestLike = Request | {
+  headers?: Headers | Record<string, string | string[] | undefined>;
+  url?: string;
+};
+
+function getHeader(request: RequestLike, name: string): string {
+  const headers = request.headers;
+  if (!headers) return '';
+  if (typeof (headers as Headers).get === 'function') {
+    return (headers as Headers).get(name) || '';
+  }
+  const value = (headers as Record<string, string | string[] | undefined>)[name.toLowerCase()];
+  return Array.isArray(value) ? value[0] || '' : value || '';
+}
+
+function getRequestUrl(request: RequestLike): string {
+  if (typeof request.url === 'string' && request.url) return request.url;
+  return 'https://testagram.site/api/home-feed';
+}
+
+async function authenticate(request: RequestLike): Promise<string | null> {
+  const authorization = getHeader(request, 'authorization');
   if (!/^Bearer\s+/i.test(authorization) || !SUPABASE_ANON_KEY) return null;
   const token = authorization.replace(/^Bearer\s+/i, '').trim();
   if (!token) return null;
@@ -58,16 +78,19 @@ function encodeCursor(row: { score: number; created_at: string; post_id: string 
   }));
 }
 
-export default async function handler(request: Request) {
-  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
-  if (request.method !== 'GET') return json({ error: 'GET required' }, 405);
+export default async function handler(request: RequestLike) {
+  const method = typeof (request as Request).method === 'string'
+    ? (request as Request).method
+    : '';
+  if (method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+  if (method !== 'GET') return json({ error: 'GET required' }, 405);
 
   const started = Date.now();
   try {
     const userId = await authenticate(request);
     if (!userId || !SUPABASE_SERVICE_ROLE_KEY) return json({ error: 'Authentication required' }, 401);
 
-    const url = new URL(request.url);
+    const url = new URL(getRequestUrl(request));
     const rawLimit = Number(url.searchParams.get('limit') || 20);
     const limit = Math.max(1, Math.min(50, Number.isFinite(rawLimit) ? Math.floor(rawLimit) : 20));
     const cursor = parseCursor(url.searchParams.get('cursor'));
