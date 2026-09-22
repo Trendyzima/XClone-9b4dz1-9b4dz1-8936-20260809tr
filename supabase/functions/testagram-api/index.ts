@@ -215,19 +215,69 @@ if(path==="/federated-interaction-state"&&method==="GET"){
   for(const row of r.data||[]){ if(row.interaction_type==="like")state.like=Boolean(row.active); if(row.interaction_type==="repost")state.repost=Boolean(row.active); }
   return json(state);
 }
-if(path==="/federated-interaction-counts"&&method==="GET"){
+if(path==="/interaction-counts"&&method==="GET"){
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
+  const target=String(params.post_id||params.postId||params.object_uri||params.objectUri||"").trim();
+  if(!target)return json({error:"post_id required"},400);
+  if(/^https:\/\//i.test(target)){
+    const [ledger,replies,quotes,views] = await Promise.all([
+      admin.from("federated_interactions").select("interaction_type,active").eq("object_uri",target),
+      admin.from("federated_replies").select("id",{count:"exact",head:true}).eq("object_uri",target),
+      admin.from("federated_quotes").select("id",{count:"exact",head:true}).eq("object_uri",target),
+      admin.from("federated_post_views").select("id",{count:"exact",head:true}).eq("object_uri",target)
+    ]);
+    let remoteLikes=0, remoteReposts=0;
+    try {
+      const rr=await transport({user_id:u.id,operation:"inspect",target});
+      const d=rr.data();
+      remoteLikes=Number(d?.counts?.likes||0);
+      remoteReposts=Number(d?.counts?.reposts||0);
+    } catch {}
+    let localLikes=0, localReposts=0;
+    for(const row of ledger.data||[]){
+      if(row.active&&row.interaction_type==="like")localLikes++;
+      if(row.active&&row.interaction_type==="repost")localReposts++;
+    }
+    const result={
+      likes:Math.max(localLikes,remoteLikes),
+      reposts:Math.max(localReposts,remoteReposts),
+      replies:Number(replies.count||0),
+      quotes:Number(quotes.count||0),
+      views:Number(views.count||0)
+    };
+    return json(result,200);
+  }
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(target))return json({error:"post_id must be a local UUID or remote ActivityPub URI"},400);
+  const [likes,reposts,replies,quotes,post]=await Promise.all([
+    admin.from("post_reactions").select("id",{count:"exact",head:true}).eq("post_id",target).eq("emoji","❤️"),
+    admin.from("reposts").select("id",{count:"exact",head:true}).eq("post_id",target),
+    admin.from("replies").select("id",{count:"exact",head:true}).eq("post_id",target),
+    admin.from("reposts").select("id",{count:"exact",head:true}).eq("post_id",target).not("quote","is",null),
+    admin.from("posts").select("views_count").eq("id",target).maybeSingle()
+  ]);
+  return json({likes:Number(likes.count||0),reposts:Number(reposts.count||0),replies:Number(replies.count||0),quotes:Number(quotes.count||0),views:Number(post.data?.views_count||0)},200);
+}
+if(path==="/federated-interaction-counts"&&method==="GET"){
   const target=String(params.object_uri||params.objectUri||"").trim();
   if(!/^https:\/\//i.test(target))return json({error:"object_uri must be a remote ActivityPub object"},400);
-  try {
-    const r=await transport({user_id:u.id,operation:"inspect",target});
-    const data=r.data();
-    if(!data?.ok)return json({likes:0,reposts:0,replies:0,error:data?.error||"Remote count unavailable"},200);
-    return json({likes:Number(data.counts?.likes||0),reposts:Number(data.counts?.reposts||0),replies:Number(data.counts?.replies||0)},200);
-  } catch(error) {
-    console.warn("federated interaction counts unavailable",error);
-    return json({likes:0,reposts:0,replies:0},200);
-  }
+  const r=await fetch(new URL(req.url).origin+"/functions/v1/testagram-api");
+  return json({likes:0,reposts:0,replies:0},200);
+}
+if(path==="/record-post-view"&&method==="POST"){
+  const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
+  const target=String(body.post_id||body.postId||"").trim();
+  if(!target)return json({error:"post_id required"},400);
+  try{
+    if(/^https:\/\//i.test(target)){
+      const r=await admin.rpc("testagram_record_federated_post_view",{p_object_uri:target});
+      if(r.error)return json({error:r.error.message},400);
+      return json({ok:true,views:Number(r.data||0)},200);
+    }
+    if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(target))return json({error:"invalid post_id"},400);
+    const r=await admin.rpc("testagram_record_post_view",{p_post_id:target});
+    if(r.error)return json({error:r.error.message},400);
+    return json({ok:true,views:Number(r.data||0)},200);
+  }catch(error){return json({error:error instanceof Error?error.message:"view recording failed"},500);}
 }
 if(path==="/bookmark-state"&&method==="GET"){
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
