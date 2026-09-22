@@ -572,25 +572,40 @@ export default function HomePage() {
 
   const mixHomeDiscovery = (localItems: FeedItem[], federatedPosts: any[], pageNum: number): FeedItem[] => {
     const result = [...localItems];
-    const seedBase = `${user?.id ?? 'anonymous'}:${pageNum}:${result.length}:${federatedPosts.length}`;
-    let seed = 2166136261;
-    for (let i = 0; i < seedBase.length; i++) seed = Math.imul(seed ^ seedBase.charCodeAt(i), 16777619);
-    const random = () => { seed += 0x6D2B79F5; let t = seed; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
-    const fed = [...federatedPosts].sort(() => random() - 0.5).map((post: any) => ({ type: 'fedpost' as const, data: post }));
-    const fedTarget = Math.min(fed.length, Math.max(1, Math.round(Math.min(0.16, 0.08 + random() * 0.08) * Math.max(result.length, 1))));
-    const usedPositions: number[] = [];
+    const now = Date.now();
+
+    // Rank remote content instead of randomly injecting it. The same signals
+    // used by the local feed are applied at the boundary: freshness,
+    // engagement, media richness and text-interest overlap.
+    const interestTerms = (recommendedPosts ?? [])
+      .flatMap((p: any) => String(p.content ?? '').match(/#([a-z0-9_]+)/gi) ?? [])
+      .map((x: string) => x.slice(1).toLowerCase());
+
+    const scoredFed = [...federatedPosts].map((post: any) => {
+      const ageHours = Math.max(0, (now - new Date(post.created_at ?? post.published_at ?? now).getTime()) / 3600000);
+      const freshness = Math.exp(-ageHours / 36) * 10;
+      const engagement =
+        Math.log1p(Number(post.likes_count ?? post.like_count ?? 0)) * 2 +
+        Math.log1p(Number(post.reposts_count ?? post.announce_count ?? 0)) * 2.5 +
+        Math.log1p(Number(post.replies_count ?? post.reply_count ?? 0)) * 1.5 +
+        Math.log1p(Number(post.views_count ?? 0)) * 0.2;
+      const text = String(post.content ?? post.summary ?? '').toLowerCase();
+      const interest = interestTerms.some((tag) => text.includes('#' + tag)) ? 4 : 0;
+      const media = Array.isArray(post.attachments) && post.attachments.length > 0 ? 1 : 0;
+      return { post, score: freshness + engagement + interest + media };
+    }).sort((a, b) => b.score - a.score);
+
+    const fed = scoredFed.map(({ post }) => ({ type: 'fedpost' as const, data: post }));
+    const targetRatio = Math.min(0.2, 0.08 + Math.min(0.12, fed.length * 0.02));
+    const fedTarget = Math.min(fed.length, Math.max(1, Math.round(targetRatio * Math.max(result.length, 1))));
     for (let i = 0; i < fedTarget; i++) {
-      if (!fed[i]) break;
-      const min = Math.min(4, Math.max(1, result.length));
-      const max = Math.max(min, result.length - 1);
-      let pos = min + Math.floor(random() * (max - min + 1));
-      while (usedPositions.includes(pos) && pos < max) pos++;
-      usedPositions.push(pos); result.splice(Math.min(pos, result.length), 0, fed[i]);
+      const pos = Math.min(result.length, Math.max(4, 4 + i * 7));
+      result.splice(pos, 0, fed[i]);
     }
-    const shouldSuggest = pageNum == 0 ? result.length >= 4 : random() < 0.35;
+
+    const shouldSuggest = pageNum === 0 ? result.length >= 4 : fedTarget > 0;
     if (shouldSuggest && result.length >= 4) {
-      const min = 3, max = Math.max(min, result.length - 2);
-      const pos = min + Math.floor(random() * (max - min + 1));
+      const pos = Math.min(result.length, Math.max(3, Math.floor(result.length * 0.45)));
       result.splice(pos, 0, { type: 'user-suggestions', data: null });
     }
     return result;
