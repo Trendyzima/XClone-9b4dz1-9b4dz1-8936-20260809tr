@@ -14,10 +14,10 @@ type SuggestedPoll = {
   community_display_name?: string | null;
 };
 
-export function SuggestedPolls({ compact = false }: { compact?: boolean }) {
+export function SuggestedPolls({ compact = false, initialPolls }: { compact?: boolean; initialPolls?: SuggestedPoll[] }) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [polls, setPolls] = useState<SuggestedPoll[]>([]);
+  const [polls, setPolls] = useState<SuggestedPoll[]>(initialPolls ?? []);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -25,6 +25,7 @@ export function SuggestedPolls({ compact = false }: { compact?: boolean }) {
       setPolls([]);
       return;
     }
+    if (initialPolls !== undefined) { setPolls(initialPolls); setLoading(false); return; }
     let cancelled = false;
     setLoading(true);
     supabase.rpc('suggest_polls_for_user', { p_limit: compact ? 2 : 3 })
@@ -41,7 +42,7 @@ export function SuggestedPolls({ compact = false }: { compact?: boolean }) {
         if (!cancelled) setLoading(false);
       });
     return () => { cancelled = true; };
-  }, [user?.id, compact]);
+  }, [user?.id, compact, initialPolls]);
 
   if (!user || loading || polls.length === 0) return null;
 
