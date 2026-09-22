@@ -13,11 +13,15 @@ const R2_SECRET_ACCESS_KEY = Deno.env.get("R2_SECRET_ACCESS_KEY") ?? "";
 const R2_BUCKET = Deno.env.get("R2_MEDIA_BUCKET") ?? "";
 const R2_PUBLIC_BASE_URL = (Deno.env.get("R2_PUBLIC_BASE_URL") ?? "").replace(/\/$/, "");
 
-const MAX_BYTES = 20 * 1024 * 1024;
-const ALLOWED = new Set([
-  "image/jpeg", "image/png", "image/gif", "image/webp", "image/avif",
-  "video/mp4", "video/webm", "video/quicktime", "video/x-matroska",
+const MAX_BYTES = 500 * 1024 * 1024;
+const BLOCKED = new Set([
+  "application/x-msdownload", "application/x-msdos-program", "application/x-dosexec",
 ]);
+function isAllowedMime(mime: string) {
+  const normalized = mime.trim().toLowerCase();
+  return Boolean(normalized && normalized !== "application/octet-stream" ? normalized.includes("/") : true)
+    && !BLOCKED.has(normalized);
+}
 const cors = { ...corsHeaders, "Access-Control-Allow-Methods": "POST,OPTIONS" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -75,11 +79,11 @@ Deno.serve(async (req) => {
       const size = Number(body.size_bytes);
       const postId = body.post_id ? String(body.post_id) : null;
       if (!name || name.length > 255) return json({ error: "Invalid file name" }, 400);
-      if (!ALLOWED.has(mime)) return json({ error: "Unsupported media type" }, 415);
-      if (!Number.isInteger(size) || size <= 0 || size > MAX_BYTES) return json({ error: "Media must be 20 MiB or smaller" }, 413);
+      if (!isAllowedMime(mime)) return json({ error: "Unsupported media type" }, 415);
+      if (!Number.isInteger(size) || size <= 0 || size > MAX_BYTES) return json({ error: "Media must be 500 MiB or smaller" }, 413);
       if (postId && !(await ownedPost(postId, user.id))) return json({ error: "Post not found or not owned by user" }, 404);
 
-      const mediaType = mime.startsWith("image/") ? "image" : "video";
+      const mediaType = mime.startsWith("image/") ? "image" : mime.startsWith("video/") ? "video" : mime.startsWith("audio/") ? "audio" : "file";
       const storageKey = `users/${user.id}/${crypto.randomUUID()}.${extension(name, mime)}`;
       const uploadUrl = await getSignedUrl(r2, new PutObjectCommand({
         Bucket: R2_BUCKET, Key: storageKey, ContentType: mime, ContentLength: size,
