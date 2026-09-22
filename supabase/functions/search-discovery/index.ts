@@ -35,15 +35,38 @@ Deno.serve(async (req) => {
       else { bucket.count += 1; if (bucket.count > MAX_REQUESTS) return json({ ok: false, data: null, error: { code: "RATE_LIMITED", message: "Too many search requests; retry shortly." }, request_id: requestId }, 429, requestId, { "Retry-After": "60" }); }
       const body = await req.json().catch(() => ({}));
       const q = cleanQuery(body.q); const limit = limitOf(body.limit); const offset = decodeCursor(body.cursor); const mode = body.mode === "suggest" ? "suggest" : "search"; const token = q.replace(/^[@#]/, "");
-      const [usersRes, postsRes, hashtagsRes, communitiesRes] = await Promise.all([
+      const [usersRes, postsRes, hashtagsRes, communitiesRes, fedUsersRes, fedPostsRes] = await Promise.all([
         db.from("profiles").select("id,username,display_name,avatar_url,bio,verified").or(`username.ilike.%${token}%,display_name.ilike.%${token}%`).order("verified", { ascending: false }).order("username", { ascending: true }).range(0, mode === "suggest" ? 7 : 29),
         mode === "suggest" ? Promise.resolve({ data: [] as any[], error: null }) : db.from("posts").select("id,author_id,user_id,body,content,created_at,updated_at,media_url,media_type").is("deleted_at", null).or(`body.ilike.%${token}%,content.ilike.%${token}%`).order("created_at", { ascending: false }).range(offset, offset + limit),
         mode === "suggest" ? db.from("hashtags").select("id,tag,usage_count").ilike("tag", `${token}%`).order("usage_count", { ascending: false }).limit(8) : db.from("hashtags").select("id,tag,usage_count").ilike("tag", `%${token}%`).order("usage_count", { ascending: false }).range(0, 29),
         mode === "suggest" ? Promise.resolve({ data: [] as any[], error: null }) : db.from("communities").select("id,name,slug,display_name,description,avatar_url,member_count,post_count").or(`name.ilike.%${token}%,display_name.ilike.%${token}%,description.ilike.%${token}%`).order("member_count", { ascending: false }).range(0, 19),
+        db.from("federation_remote_actors").select("id,username,acct,domain,actor_url,actor").or(`username.ilike.%${token}%,acct.ilike.%${token}%`).limit(mode === "suggest" ? 8 : 30),
+        mode === "suggest" ? Promise.resolve({ data: [] as any[], error: null }) : db.from("federated_objects").select("id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,object_type,url").is("deleted_at", null).or(`content.ilike.%${token}%,summary.ilike.%${token}%`).order("published_at", { ascending: false }).range(offset, offset + limit),
       ]);
       const firstError = [usersRes, postsRes, hashtagsRes, communitiesRes].find((r: any) => r?.error)?.error; if (firstError) throw firstError;
       const posts = postsRes.data ?? [];
-      return json({ ok: true, data: { users: usersRes.data ?? [], hashtags: hashtagsRes.data ?? [], posts: posts.slice(0, limit), communities: communitiesRes.data ?? [], next_cursor: posts.length > limit ? encodeCursor(offset + limit) : null }, error: null, request_id: requestId }, 200, requestId);
+      const fedUsers = (fedUsersRes.data ?? []).map((r: any) => ({
+        id: `fed:${r.actor_url ?? r.id}`,
+        username: r.username ?? r.actor?.preferredUsername ?? "user",
+        display_name: r.actor?.name ?? r.actor?.displayName ?? r.username ?? "Fediverse user",
+        avatar_url: r.actor?.icon?.url ?? r.actor?.icon?.href ?? null,
+        bio: r.actor?.summary ?? r.actor?.bio ?? "",
+        verified: Boolean(r.actor?.verified),
+        origin: "fediverse",
+        actor_uri: r.actor_url,
+        acct: r.acct ?? null,
+        domain: r.domain ?? null,
+      }));
+      const fedPosts = (fedPostsRes.data ?? []).map((p: any) => ({
+        ...p,
+        origin: "fediverse",
+        is_federated: true,
+        author_id: p.actor_uri,
+        user_id: p.actor_uri,
+        created_at: p.published_at ?? p.updated_at,
+        remote_status_uri: p.uri,
+      }));
+      return json({ ok: true, data: { users: [...(usersRes.data ?? []), ...fedUsers], hashtags: hashtagsRes.data ?? [], posts: [...posts, ...fedPosts].slice(0, limit), communities: communitiesRes.data ?? [], next_cursor: posts.length > limit ? encodeCursor(offset + limit) : null }, error: null, request_id: requestId }, 200, requestId);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Search failed"; return json({ ok: false, data: null, error: { code: message === "INVALID_QUERY" ? "INVALID_QUERY" : "SEARCH_FAILED", message }, request_id: requestId }, message === "INVALID_QUERY" ? 400 : 500, requestId);
     }
