@@ -139,6 +139,86 @@ export default function FediversePage() {
     fetchTestagramSuggestions();
   }, [user]);
 
+  // Federation state is pushed over Supabase Realtime. Polling remains only as
+  // a slow reconciliation fallback; UI status changes no longer wait 3 seconds.
+  useEffect(() => {
+    if (!user) return;
+    const inboxChannel = supabase.channel(`fediverse-inbox-${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'activitypub_inbox',
+        filter: `local_user_id=eq.${user.id}`,
+      }, (payload: any) => {
+        setInboxItems(prev => {
+          if (payload.eventType === 'DELETE') return prev.filter(x => x.id !== payload.old?.id);
+          const next = payload.new;
+          if (!next?.id) return prev;
+          const without = prev.filter(x => x.id !== next.id);
+          return [next, ...without].slice(0, 50);
+        });
+      })
+      .subscribe();
+
+    const outboxChannel = supabase.channel(`fediverse-outbox-${user.id}`)
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'activitypub_outbox',
+        filter: `local_user_id=eq.${user.id}`,
+      }, (payload: any) => {
+        setOutboxLog(prev => {
+          if (payload.eventType === 'DELETE') return prev.filter(x => x.id !== payload.old?.id);
+          const next = payload.new;
+          if (!next?.id) return prev;
+          const without = prev.filter(x => x.id !== next.id);
+          return [next, ...without].sort((a,b) =>
+            new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime()
+          ).slice(0, 30);
+        });
+      })
+      .subscribe();
+
+    const objectsChannel = supabase.channel(`fediverse-objects-${user.id}`)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'federated_objects',
+      }, (payload: any) => {
+        const next = payload.new;
+        if (!next?.uri || next?.deleted_at || next?.tombstone) return;
+        setRemotePosts(prev => [next, ...prev.filter(x => x.uri !== next.uri)].slice(0, 50));
+      })
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'federated_objects',
+      }, (payload: any) => {
+        const next = payload.new;
+        if (!next?.uri) return;
+        setRemotePosts(prev => {
+          const exists = prev.some(x => x.uri === next.uri);
+          return exists ? prev.map(x => x.uri === next.uri ? { ...x, ...next } : x) : [next, ...prev].slice(0, 50);
+        });
+      })
+      .subscribe();
+
+    // Slow reconciliation protects against a dropped WebSocket without making
+    // normal federation interactions feel delayed.
+    const reconcile = window.setInterval(() => {
+      fetchInbox();
+      fetchOutboxLog();
+      fetchFederatedFeed();
+    }, 30000);
+
+    return () => {
+      window.clearInterval(reconcile);
+      void supabase.removeChannel(inboxChannel);
+      void supabase.removeChannel(outboxChannel);
+      void supabase.removeChannel(objectsChannel);
+    };
+  }, [user]);
+
   // Load Mastodon timeline when switching to mastodon tab
   useEffect(() => {
     if (tab === 'mastodon' && mastodonPosts.length === 0) fetchMastodonTimeline(mastodonInstance);
@@ -228,15 +308,12 @@ export default function FediversePage() {
   };
 
   useEffect(() => {
-    if (tab === 'inbox') {
-      fetchInbox();
-      inboxPollRef.current = setInterval(fetchInbox, 3000);
-    } else {
-      if (inboxPollRef.current) { clearInterval(inboxPollRef.current); inboxPollRef.current = null; }
-    }
+    if (tab === 'inbox') fetchInbox();
     if (tab === 'relay') { fetchRelayConfig(); fetchOutboxLog(); }
     if (tab === 'analytics') fetchAnalytics();
-    return () => { if (inboxPollRef.current) clearInterval(inboxPollRef.current); };
+    return () => {
+      if (inboxPollRef.current) { clearInterval(inboxPollRef.current); inboxPollRef.current = null; }
+    };
   }, [tab, user]);
 
   const checkGateway = async () => {
