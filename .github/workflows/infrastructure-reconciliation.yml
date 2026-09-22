@@ -198,15 +198,16 @@ jobs:
           from information_schema.tables
           where table_schema = 'public'
             and table_name in (
+              'activitypub_inbox',
               'activitypub_outbox',
-              'federation_deliveries',
               'federated_follow_relationships',
-              'federated_activities'
+              'federated_objects',
+              'federation_remote_cache'
             )
           order by table_name;
           SQL
 
-          expected_tables=4
+          expected_tables=5
           actual_tables="$(wc -l </tmp/federation-tables.txt | tr -d ' ')"
           if [ "${actual_tables}" -ne "${expected_tables}" ]; then
             echo "::error::Production federation schema probe found ${actual_tables}/${expected_tables} required tables."
@@ -216,13 +217,15 @@ jobs:
 
           # Emit only counts/status, never row payloads or secrets.
           psql "${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -Atq <<'SQL' | while IFS='|' read -r table_name row_count; do
-          select 'activitypub_outbox', count(*) from public.activitypub_outbox
+          select 'activitypub_inbox', count(*) from public.activitypub_inbox
           union all
-          select 'federation_deliveries', count(*) from public.federation_deliveries
+          select 'activitypub_outbox', count(*) from public.activitypub_outbox
           union all
           select 'federated_follow_relationships', count(*) from public.federated_follow_relationships
           union all
-          select 'federated_activities', count(*) from public.federated_activities
+          select 'federated_objects', count(*) from public.federated_objects
+          union all
+          select 'federation_remote_cache', count(*) from public.federation_remote_cache
           order by 1;
           SQL
             echo "DB_TABLE_COUNT ${table_name}=${row_count}"
