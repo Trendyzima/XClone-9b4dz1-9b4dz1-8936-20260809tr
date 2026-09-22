@@ -17,14 +17,15 @@ type MediaAsset={url:string;name?:string;type?:string;size?:number};
 type Thread={id:string;owner_id:string;body:string;visibility:string;created_at:string;likes_count:number;reposts_count:number;quotes_count:number;replies_count:number;views_count:number;media_urls:MediaAsset[];reply_to_id:string|null;root_thread_id:string|null;profiles?:Profile};
 type QuoteItem={id:string;thread_id:string;user_id:string;content:string;media_urls:MediaAsset[];created_at:string;profiles?:Profile};
 
-const MAX_FILE_BYTES=25*1024*1024;
+const MAX_FILE_BYTES=20*1024*1024;
 const MAX_FILES=8;
 
 function normalizeMedia(value:any):MediaAsset[]{return Array.isArray(value)?value.map((x:any)=>typeof x==='string'?{url:x}:x).filter((x:any)=>x?.url):[];}
 function Avatar({profile}:{profile?:Profile}){return <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-muted flex items-center justify-center font-bold">{profile?.avatar_url?<img src={profile.avatar_url} alt="" className="h-full w-full object-cover"/>:(profile?.username||'?').slice(0,1).toUpperCase()}</div>}
 
 function Media({items}:{items:MediaAsset[]}){
- return <div className="mt-3 space-y-2">{items.map((m,i)=>{const type=m.type||'';return <div key={m.url+i} className="overflow-hidden rounded-2xl border border-border bg-muted/20">
+ if(!items.length)return null;
+ return <div className="mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:none]">{items.map((m,i)=>{const type=m.type||'';return <div key={m.url+i} className="min-w-[88%] snap-center overflow-hidden rounded-2xl border border-border bg-muted/20 sm:min-w-[72%]">
   {type.startsWith('image/')?<img src={m.url} alt={m.name||''} loading="lazy" className="max-h-[560px] w-full object-contain"/>:
    type.startsWith('video/')?<video src={m.url} controls preload="metadata" className="max-h-[560px] w-full"/>:
    type.startsWith('audio/')?<audio src={m.url} controls className="w-full p-3"/>:
@@ -100,7 +101,7 @@ export default function ThreadDetailPage(){
   const res=active?await supabase.from(table).insert({thread_id:threadId,user_id:user!.id}):await supabase.from(table).delete().eq('thread_id',threadId).eq('user_id',user!.id);
   if(res.error){setter(prev=>{const n=new Set(prev);active?n.delete(threadId):n.add(threadId);return n;});toast.error(kind+' failed');}
  };
- const addFiles=(incoming:File[])=>{const room=MAX_FILES-replyFiles.length;const valid=incoming.filter(f=>f.size<=MAX_FILE_BYTES).slice(0,room);if(incoming.some(f=>f.size>MAX_FILE_BYTES))toast.error('Each attachment must be 25 MiB or smaller');setReplyFiles(p=>[...p,...valid]);setReplyPreviews(p=>[...p,...valid.map(f=>URL.createObjectURL(f))]);};
+ const addFiles=(incoming:File[])=>{const room=MAX_FILES-replyFiles.length;const valid=incoming.filter(f=>f.size>0&&f.size<=MAX_FILE_BYTES).slice(0,room);if(incoming.some(f=>f.size>MAX_FILE_BYTES))toast.error('Each attachment must be 20 MiB or smaller');setReplyFiles(p=>[...p,...valid]);setReplyPreviews(p=>[...p,...valid.map(f=>URL.createObjectURL(f))]);};
  const removeFile=(i:number)=>{URL.revokeObjectURL(replyPreviews[i]);setReplyFiles(p=>p.filter((_,n)=>n!==i));setReplyPreviews(p=>p.filter((_,n)=>n!==i));};
  const uploadFiles=async(files:File[],threadId:string)=>{
   const out:MediaAsset[]=[];
