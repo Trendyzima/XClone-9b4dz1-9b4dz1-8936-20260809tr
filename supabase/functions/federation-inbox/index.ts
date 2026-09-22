@@ -170,13 +170,30 @@ Deno.serve(async req=>{
     }else await verify(req,raw,actor);
     const duplicate=await db.from("activitypub_inbox").select("id").eq("payload->>id",id).maybeSingle();
     if(duplicate.data)return new Response(null,{status:202,headers:CORS});
-    const target=uri(activity.object)||uri(activity.target)||actor;
-    const local=await localActorForTarget(target);
-    if(!local.data?.user_id&&activity.type!=="Create"&&activity.type!=="Update"&&activity.type!=="Delete")return json({error:"Activity target is not a local Testagram actor"},404);
-    if(local.data?.user_id){
+    const recipients=[...(Array.isArray(activity.to)?activity.to:[]),...(Array.isArray(activity.cc)?activity.cc:[]),...(Array.isArray(activity.bto)?activity.bto:[]),...(Array.isArray(activity.bcc)?activity.bcc:[]),...(Array.isArray(activity.audience)?activity.audience:[])].map(uri).filter(Boolean);
+    let local=null;
+    for(const candidate of [...recipients,uri(activity.object),uri(activity.target)]){
+      if(!candidate) continue;
+      const found=await localActorForTarget(candidate);
+      if(found.data?.user_id){local=found;break;}
+    }
+    const localRequired=["Follow","Accept","Reject","Like","Announce","Undo"].includes(str(activity.type));
+    if(!local?.data?.user_id&&localRequired)return json({error:"Activity has no local Testagram recipient"},404);
+    if(local?.data?.user_id){
       await db.from("activitypub_inbox").upsert({local_user_id:local.data.user_id,activity_type:str(activity.type),activity_key:id,actor_url:actor,object_url:uri(activity.object)||null,payload:activity,processed:false,payload_bytes:raw.length,expires_at:new Date(Date.now()+INBOX_RETENTION_DAYS*86400000).toISOString()},{onConflict:"activity_key",ignoreDuplicates:true});
     }
     await processActivity(activity,actor);
+    if(local?.data?.user_id && ["Like","Announce"].includes(str(activity.type))){
+      const interactionType=str(activity.type)==="Like"?"like":"repost";
+      const objectUri=uri(activity.object);
+      if(objectUri) await db.from("federated_interactions").upsert({user_id:local.data.user_id,object_uri:objectUri,interaction_type:interactionType,active:true,activity_uri:id,remote_actor_uri:actor,delivery_state:"delivered",updated_at:new Date().toISOString()},{onConflict:"user_id,object_uri,interaction_type"});
+    }
+    if(str(activity.type)==="Undo"){
+      const undone=activity.object||{};
+      const interactionType=str(undone.type)==="Like"?"like":str(undone.type)==="Announce"?"repost":null;
+      const objectUri=uri(undone.object);
+      if(local?.data?.user_id && interactionType && objectUri) await db.from("federated_interactions").upsert({user_id:local.data.user_id,object_uri:objectUri,interaction_type:interactionType,active:false,activity_uri:uri(undone.id)||id,remote_actor_uri:actor,delivery_state:"delivered",updated_at:new Date().toISOString()},{onConflict:"user_id,object_uri,interaction_type"});
+    }
     if(local.data?.user_id) await db.from("activitypub_inbox").update({processed:true}).eq("payload->>id",id);
     return new Response(null,{status:202,headers:CORS});
   }catch(e){console.error("[federation-inbox]",e);return json({error:e instanceof Error?e.message:"Malformed ActivityPub request"},401);}
