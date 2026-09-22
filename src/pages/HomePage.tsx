@@ -945,12 +945,28 @@ export default function HomePage() {
 
   useEffect(() => {
     if (activeTab === 'hashtags') { fetchHashtagFeed(); return; }
-    fetchInitialFeed();
-    fetchSponsoredContent();
-    fetchRecommendations();
-    fetchProductSpotlight();
-    fetchPublicSeries();
-    fetchUserAds();
+    let cancelled = false;
+    void fetchInitialFeed();
+    const deferSecondaryFeed = () => {
+      if (cancelled) return;
+      void Promise.allSettled([
+        fetchSponsoredContent(),
+        fetchRecommendations(),
+        fetchProductSpotlight(),
+        fetchPublicSeries(),
+        fetchUserAds(),
+      ]);
+    };
+    const win = window as Window & { requestIdleCallback?: (callback: () => void, options?: { timeout?: number }) => number; cancelIdleCallback?: (id: number) => void };
+    let idleId: number | null = null;
+    let timerId: ReturnType<typeof setTimeout> | null = null;
+    if (win.requestIdleCallback) idleId = win.requestIdleCallback(deferSecondaryFeed, { timeout: 1200 });
+    else timerId = setTimeout(deferSecondaryFeed, 350);
+    return () => {
+      cancelled = true;
+      if (idleId !== null && win.cancelIdleCallback) win.cancelIdleCallback(idleId);
+      if (timerId !== null) clearTimeout(timerId);
+    };
   }, [activeTab, user?.id]);
 
   // ── Realtime new-post subscription (For You tab only) ─────────────────────
