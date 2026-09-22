@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bookmark, Check, Heart, Image as ImageIcon, Loader2, MessageCircle, MoreHorizontal, Plus, Repeat2, Search, Quote, Sparkles, UserPlus, X } from 'lucide-react';
+import { Bookmark, Check, Eye, Heart, Image as ImageIcon, Loader2, MessageCircle, MoreHorizontal, Plus, Repeat2, Search, Quote, Sparkles, UserPlus, X } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { TopBar } from '@/components/layout/TopBar';
 import { Button } from '@/components/ui/button';
@@ -12,10 +12,10 @@ import { toast } from 'sonner';
 
 type Tab = 'For you' | 'Following' | 'Saved';
 type Profile = { id:string; username:string; avatar_url:string|null; verified:boolean; display_name?:string|null };
-type Thread = { id:string; owner_id:string; body:string; visibility:string; created_at:string; likes_count:number; reposts_count:number; quotes_count:number; replies_count:number; views_count:number; media_urls:string[]; profiles?:Profile };
+type Thread = { id:string; owner_id:string; body:string; visibility:string; created_at:string; likes_count:number; reposts_count:number; quotes_count:number; replies_count:number; views_count:number; media_urls:any[]; profiles?:Profile };
 const TABS:Tab[]=['For you','Following','Saved'];
 
-function Avatar({profile}:{profile?:Profile}) {
+function mediaUrl(value:any){return typeof value==='string'?value:value?.url||'';}\n\nfunction Avatar({profile}:{profile?:Profile}) {
   const initial=(profile?.display_name||profile?.username||'?').slice(0,1).toUpperCase();
   return <div className="h-10 w-10 shrink-0 overflow-hidden rounded-full bg-muted flex items-center justify-center text-sm font-bold">{profile?.avatar_url?<img src={profile.avatar_url} alt="" className="h-full w-full object-cover"/>:initial}</div>;
 }
@@ -36,13 +36,13 @@ function ThreadCard({thread,liked,reposted,bookmarked,onLike,onRepost,onBookmark
         </div>
         <button onClick={open} className="mt-2 block w-full text-left">
           <p className="whitespace-pre-wrap break-words text-[15px] leading-6">{thread.body}</p>
-          {thread.media_urls?.length>0&&<div className={`mt-3 grid gap-1.5 overflow-hidden rounded-2xl border border-border ${thread.media_urls.length>1?'grid-cols-2':'grid-cols-1'}`}>{thread.media_urls.slice(0,4).map(url=><img key={url} src={url} alt="" loading="lazy" className="max-h-[420px] w-full object-cover"/>)}</div>}
+          {thread.media_urls?.length>0&&<div className={`mt-3 grid gap-1.5 overflow-hidden rounded-2xl border border-border ${thread.media_urls.length>1?'grid-cols-2':'grid-cols-1'}`}>{thread.media_urls.slice(0,4).map((url:any,i)=><img key={mediaUrl(url)+i} src={mediaUrl(url)} alt="" loading="lazy" className="max-h-[420px] w-full object-cover"/>)}</div>}
         </button>
         <div className="mt-3 flex max-w-[520px] items-center justify-between text-muted-foreground">
           <button onClick={open} className="flex items-center gap-1.5 rounded-full p-1.5 hover:text-primary"><MessageCircle className="h-[18px] w-[18px]"/>{thread.replies_count>0&&<span className="text-xs">{formatNumber(thread.replies_count)}</span>}</button>
           <button onClick={onRepost} className={`flex items-center gap-1.5 rounded-full p-1.5 ${reposted?'text-green-600':'hover:text-green-600'}`}><Repeat2 className="h-[18px] w-[18px]"/>{thread.reposts_count>0&&<span className="text-xs">{formatNumber(thread.reposts_count)}</span>}</button>
           <button onClick={onLike} className={`flex items-center gap-1.5 rounded-full p-1.5 ${liked?'text-pink-600':'hover:text-pink-600'}`}><Heart className={`h-[18px] w-[18px] ${liked?'fill-current':''}`}/>{thread.likes_count>0&&<span className="text-xs">{formatNumber(thread.likes_count)}</span>}</button>
-          <button onClick={open} className="flex items-center gap-1 rounded-full p-1.5 hover:text-primary" aria-label="Quote"><Quote className="h-[17px] w-[17px]"/>{thread.quotes_count>0&&<span className="text-xs">{formatNumber(thread.quotes_count)}</span>}</button>
+          <button onClick={open} className="flex items-center gap-1 rounded-full p-1.5 hover:text-primary" aria-label="Quote"><Quote className="h-[17px] w-[17px]"/>{thread.quotes_count>0&&<span className="text-xs">{formatNumber(thread.quotes_count)}</span>}</button><span className="flex items-center gap-1 text-xs"><Eye className="h-[16px] w-[16px]"/>{formatNumber(thread.views_count)}</span>
           <button onClick={onBookmark} className={`rounded-full p-1.5 ${bookmarked?'text-primary':'hover:text-primary'}`}><Bookmark className={`h-[18px] w-[18px] ${bookmarked?'fill-current':''}`}/></button>
         </div>
       </div>
