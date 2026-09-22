@@ -165,8 +165,36 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
     setMentionIdx(0);
     mentionSearchRef.current = q;
     if (q.length === 0) { setMentionResults([]); return; }
-    const result = await backendCapabilities.searchUsers(q, 5);
-    if (mentionSearchRef.current === q) setMentionResults(result.items as any[]);
+    try {
+      const local = await backendCapabilities.searchUsers(q, 5);
+      let items: any[] = local.items as any[];
+      // Mention discovery crosses the local/Fediverse boundary. For a remote
+      // handle, or when local results are empty, resolve through ActivityPub.
+      if (q.includes('@') || items.length === 0) {
+        try {
+          const remote = await federation.search('@' + q, 'users');
+          const remoteItems = (remote ?? []).slice(0, 5).map((a: any) => ({
+            id: 'fed:' + String(a.uri ?? a.id ?? a.url),
+            username: a.username ?? a.preferredUsername ?? 'user',
+            display_name: a.display_name ?? a.displayName ?? a.username ?? 'Fediverse user',
+            avatar_url: a.avatar ?? a.icon?.url ?? null,
+            origin: 'fediverse',
+            actor_uri: a.uri ?? a.actor_uri ?? a.url ?? null,
+            acct: a.acct ?? null,
+          }));
+          const seen = new Set<string>();
+          items = [...items, ...remoteItems].filter((item: any) => {
+            const key = String(item.acct ?? item.username).toLowerCase();
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          }).slice(0, 5);
+        } catch { /* local results remain usable */ }
+      }
+      if (mentionSearchRef.current === q) setMentionResults(items);
+    } catch {
+      if (mentionSearchRef.current === q) setMentionResults([]);
+    }
   }, [linkPreview]);
 
   const insertMention = useCallback((username: string) => {
