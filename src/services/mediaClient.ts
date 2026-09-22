@@ -39,13 +39,14 @@ async function mediaRequest<T>(body: Record<string, unknown>): Promise<T> {
   return payload as T;
 }
 
-export async function uploadTestagramMedia(file: File, postId?: string | null): Promise<MediaCompleted> {
+export async function uploadTestagramMedia(file: File, postId?: string | null, threadId?: string | null): Promise<MediaCompleted> {
   const init = await mediaRequest<MediaInit>({
     action: 'init',
     name: file.name,
     mime_type: file.type,
     size_bytes: file.size,
     ...(postId ? { post_id: postId } : {}),
+    ...(threadId ? { thread_id: threadId } : {}),
   });
 
   const upload = await fetch(init.upload_url, {
