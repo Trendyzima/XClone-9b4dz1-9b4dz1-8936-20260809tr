@@ -41,7 +41,7 @@ export default function HashtagPage() {
       ? `#${tag} — ${formatNumber(hashtag.usage_count ?? posts.length)} posts on Testagram`
       : tag ? `#${tag} on Testagram` : 'Hashtag',
     description: hashtag
-      ? `Browse ${hashtag.usage_count?.toLocaleString() ?? '0'} posts tagged with #${tag} on Testagram. Join the conversation and follow this hashtag to see it in your feed.`
+      ? `Browse ${(Number(hashtag.usage_count ?? 0) + Number(hashtag.federated_post_count ?? 0)).toLocaleString()} posts tagged with #${tag} on Testagram. Join the conversation and follow this hashtag to see it in your feed.`
       : `Posts tagged with #${tag} on Testagram.`,
     image: tag ? buildOgImageUrl({ tag }) : undefined,
     url: `/hashtag/${tag}`,
@@ -140,13 +140,15 @@ export default function HashtagPage() {
       // cache is populated by inbound federation and followed-actor hydration,
       // so the hashtag page can surface remote and local conversations together.
       const normalizedTag = String(tag ?? '').replace(/^#/, '').trim().toLowerCase();
-      const { data: remoteRows } = await supabase
-        .from('federated_objects')
-        .select('id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,remote_account,object_type,url')
-        .is('deleted_at', null)
-         .ilike('content', `%#${normalizedTag}%`)
-        .order('published_at', { ascending: false })
+      const { data: remoteMentions } = await supabase
+        .from('federated_hashtag_mentions')
+        .select('created_at, hashtags!inner(id,tag), federated_objects!inner(id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,remote_account,object_type,url,deleted_at,tombstone)')
+        .eq('hashtags.tag', normalizedTag)
+        .is('federated_objects.deleted_at', null)
+        .eq('federated_objects.tombstone', false)
+        .order('created_at', { ascending: false })
         .limit(50);
+      const remoteRows = (remoteMentions ?? []).map((m: any) => m.federated_objects).filter(Boolean);
       setFederatedPosts((remoteRows ?? []).map((p: any) => ({
         ...p,
         id: p.id ?? p.uri,
@@ -226,7 +228,7 @@ export default function HashtagPage() {
               <h1 className="text-3xl font-bold">#{tag}</h1>
             </div>
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <span><strong className="text-foreground">{formatNumber(hashtag.usage_count)}</strong> posts</span>
+              <span><strong className="text-foreground">{formatNumber(Number(hashtag.usage_count ?? 0) + Number(hashtag.federated_post_count ?? 0))}</strong> posts</span>
               <span className="flex items-center gap-1">
                 <Users className="w-3.5 h-3.5" />
                 <strong className="text-foreground">{formatNumber(followerCount)}</strong> followers
