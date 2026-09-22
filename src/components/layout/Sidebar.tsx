@@ -187,7 +187,7 @@ export function Sidebar() {
   const navItems = [
     { icon: Home, label: 'Home', path: '/', requireAuth: false, badge: 0 },
     { icon: Hash, label: 'Explore', path: '/explore', requireAuth: false, badge: 0 },
-    { icon: FileText, label: 'Threads', path: '/threads', requireAuth: false, badge: 0 },
+    { icon: MessageSquare, label: 'Threads', path: '/threads', requireAuth: false, badge: 0 },
     { icon: Bell, label: 'Notifications', path: '/notifications', requireAuth: true, badge: unreadNotifs },
     { icon: Mail, label: 'Messages', path: '/messages', requireAuth: true, badge: unreadMessages },
     { icon: Radio, label: 'Spaces', path: '/spaces', requireAuth: false, badge: 0 },
