@@ -49,11 +49,15 @@ export class TestagramCapabilityClient{
     'X-Client-Info': `testagram-web/${this.version}`,
   };
   try {
-    const response = await fetch(`${supabaseUrl.replace(/\/$/, '')}/rest/v1/rpc/capability_dispatch`, {
+    // Route authenticated capability calls through the canonical Vercel gateway.
+    // This keeps capability dispatch on the same server-side auth boundary as media
+    // uploads and avoids browser/PostgREST auth-header races after large uploads.
+    const response = await fetch(this.endpoint, {
       method: 'POST',
       headers,
-      body: JSON.stringify({ p_capability: capability, p_input: input }),
+      body: JSON.stringify({ capability, input }),
       signal: ctl.signal,
+      credentials: 'same-origin',
     });
     const raw = await response.text();
     let data: unknown = null;
