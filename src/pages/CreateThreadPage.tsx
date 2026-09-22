@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Image as ImageIcon, Loader2, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
-import { Avatar } from '@/components/ui/avatar';
 import { toast } from 'sonner';
 
 const MAX_CHARS=500;
