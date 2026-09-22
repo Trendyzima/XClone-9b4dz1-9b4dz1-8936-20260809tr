@@ -6,8 +6,9 @@ import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 const isRemoteStatus = (postId: string) => /^https:\/\//i.test(postId);
 
 async function remoteAction(path: string, body: Record<string, unknown>) {
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const { data, error } = await supabase.functions.invoke('testagram-api', {
-    body: { path, method: 'POST', body },
+    body: { path: normalizedPath, method: 'POST', body },
   });
   // Federated interactions are best-effort: a remote server can reject an
   // otherwise valid ActivityPub interaction without making the local UI fail.
