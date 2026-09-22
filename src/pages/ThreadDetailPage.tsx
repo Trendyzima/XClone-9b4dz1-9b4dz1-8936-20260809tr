@@ -128,6 +128,7 @@ export default function ThreadDetailPage(){
   }
   setReplyText('');setReplyFiles([]);setReplyPreviews([]);setReplyTarget(null);setQuoteTarget(null);await load();
  }catch(e:any){toast.error(e?.message||'Post failed');}finally{setSending(false);}};
+ const quote=async(threadId:string)=>{if(!requireAuth())return;setReplyTarget(null);setQuoteTarget(threadId);setReplyText('');setReplyFiles([]);setReplyPreviews([]);};
  const remove=async()=>{if(!root||!user||root.owner_id!==user.id)return;if(!window.confirm('Delete this thread?'))return;const {error}=await supabase.from('threads').update({deleted_at:new Date().toISOString()}).eq('id',root.id).eq('owner_id',user.id);if(error)toast.error('Could not delete thread');else navigate('/threads');};
 
  const ordered=useMemo(()=>{const byParent=new Map<string,Thread[]>();nodes.forEach(n=>{const k=n.reply_to_id||root?.id||'';const a=byParent.get(k)||[];a.push(n);byParent.set(k,a);});const out:Thread[]=[];const walk=(parent:string,depth:number)=>{for(const n of byParent.get(parent)||[]){out.push({...n});walk(n.id,depth+1);}};if(root)walk(root.id,1);return out;},[nodes,root]);
