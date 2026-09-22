@@ -607,8 +607,9 @@ export default function HomePage() {
 
       let threadsQuery = supabase
         .from('threads')
-        .select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
-        .eq('is_published', true)
+        .select('*')
+        .eq('visibility', 'public')
+        .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .range(pageNum * 5, (pageNum + 1) * 5 - 1);
 
@@ -647,6 +648,15 @@ export default function HomePage() {
       }
 
       const [postsRes, threadsRes] = await Promise.all([postsQuery, threadsQuery]);
+
+      // Threads use owner_id rather than the posts.user_id foreign key, so enrich
+      // their profiles explicitly instead of asking PostgREST for the wrong join.
+      const threadRows = (threadsRes.data ?? []) as any[];
+      const threadOwnerIds = [...new Set(threadRows.map((t: any) => t.owner_id).filter(Boolean))] as string[];
+      const threadProfiles = threadOwnerIds.length
+        ? (((await supabase.from('profiles').select('id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at').in('id', threadOwnerIds)).data ?? []) as any[])
+        : [];
+      const threadProfileMap = new Map<string, any>(threadProfiles.map((p: any) => [p.id, p]));
 
       // Boosted — parallel arrays (esbuild guard: no Record<string,T> type annotation)
       const postIds = (postsRes.data ?? []).map((p: any) => p.id);
@@ -699,9 +709,9 @@ export default function HomePage() {
         return raw >= minEngScore;
       });
 
-      const threads = (threadsRes.data ?? []).map((t: any) => ({
+      const threads = threadRows.map((t: any) => ({
         type: 'thread' as const,
-        data: t,
+        data: { ...t, user_profiles: threadProfileMap.get(t.owner_id) ?? null },
         _score: 0,
         _ts: new Date(t.created_at).getTime(),
       }));
