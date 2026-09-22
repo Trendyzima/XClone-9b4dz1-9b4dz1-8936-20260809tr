@@ -171,7 +171,7 @@ Deno.serve(async req=>{
     const duplicate=await db.from("activitypub_inbox").select("id").eq("payload->>id",id).maybeSingle();
     if(duplicate.data)return new Response(null,{status:202,headers:CORS});
     const recipients=[...(Array.isArray(activity.to)?activity.to:[]),...(Array.isArray(activity.cc)?activity.cc:[]),...(Array.isArray(activity.bto)?activity.bto:[]),...(Array.isArray(activity.bcc)?activity.bcc:[]),...(Array.isArray(activity.audience)?activity.audience:[])].map(uri).filter(Boolean);
-    let local=null;
+    let local:any=null;
     for(const candidate of [...recipients,uri(activity.object),uri(activity.target)]){
       if(!candidate) continue;
       const found=await localActorForTarget(candidate);
