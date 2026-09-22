@@ -63,8 +63,9 @@ export function ProductTagDialog({ onClose, onProductSelected }: ProductTagDialo
     return (
       <CreateProductForm
         onClose={() => setShowCreateProduct(false)}
-        onCreated={() => {
+        onCreated={(created) => {
           setShowCreateProduct(false);
+          if (created) setSelectedProducts(prev => prev.some(p => p.id === created.id) ? prev : [...prev, created]);
           fetchProducts();
         }}
       />
@@ -163,7 +164,7 @@ export function ProductTagDialog({ onClose, onProductSelected }: ProductTagDialo
   );
 }
 
-function CreateProductForm({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+function CreateProductForm({ onClose, onCreated }: { onClose: () => void; onCreated: (product?: Product) => void }) {
   const { user } = useAuth();
   const [name, setName] = useState('');
   const [price, setPrice] = useState('');
@@ -202,10 +203,7 @@ function CreateProductForm({ onClose, onCreated }: { onClose: () => void; onCrea
       if (error) throw error;
 
       toast.success('Product created and listed in Marketplace');
-      onCreated();
-      if (createdProduct) {
-        onProductSelected([...selectedProducts, createdProduct]);
-      }
+      onCreated(createdProduct ?? undefined);
     } catch (error: any) {
       toast.error(error.message);
     } finally {
