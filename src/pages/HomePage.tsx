@@ -133,6 +133,11 @@ export default function HomePage() {
   const [recommendedPosts, setRecommendedPosts] = useState<any[]>([]);
   const [spotlightProducts, setSpotlightProducts] = useState<any[]>([]);
   const [publicSeries, setPublicSeries] = useState<any[]>([]);
+  const [discoveryUsers, setDiscoveryUsers] = useState<any[]>([]);
+  const [discoveryCommunities, setDiscoveryCommunities] = useState<any[]>([]);
+  const [discoveryPolls, setDiscoveryPolls] = useState<any[]>([]);
+  const [discoveryFediverse, setDiscoveryFediverse] = useState<any[]>([]);
+  const [discoveryTrends, setDiscoveryTrends] = useState<any[]>([]);
   const [hashtagFeedItems, setHashtagFeedItems] = useState<FeedItem[]>([]);
   const [hashtagFeedLoading, setHashtagFeedLoading] = useState(false);
   // Real-time new posts banner
@@ -376,16 +381,11 @@ export default function HomePage() {
       if (Array.isArray(bundle.products)) setSpotlightProducts(bundle.products);
       if (Array.isArray(bundle.series)) setPublicSeries(bundle.series);
       if (Array.isArray(bundle.hashtags)) setTrendingHashtags(bundle.hashtags);
-      if (Array.isArray(bundle.users)) {
-        // InlineSuggestions owns its own interaction state; the bundle is consumed
-        // by the feed through the existing recommendation injection path.
-        (window as any).__testagramHomeUserSuggestions = bundle.users;
-      }
-      if (Array.isArray(bundle.fediverse)) {
-        // Cache only the ranked candidates; the normal federated paginator remains
-        // authoritative for the dedicated Federated tab.
-        (window as any).__testagramHomeFederatedSuggestions = bundle.fediverse;
-      }
+      if (Array.isArray(bundle.users)) setDiscoveryUsers(bundle.users);
+      if (Array.isArray(bundle.communities)) setDiscoveryCommunities(bundle.communities);
+      if (Array.isArray(bundle.polls)) setDiscoveryPolls(bundle.polls);
+      if (Array.isArray(bundle.trends)) setDiscoveryTrends(bundle.trends);
+      if (Array.isArray(bundle.fediverse)) setDiscoveryFediverse(normalizeFederatedPosts(bundle.fediverse));
     } catch (error) {
       console.warn('[home-discovery] edge bundle unavailable; legacy fallbacks remain active', error);
     }
@@ -497,8 +497,7 @@ export default function HomePage() {
         .in('user_id', followIds)
         .eq('is_active', true)
         .order('created_at', { ascending: false })
-        .limit(6);
-      setSpotlightProducts(products ?? []);
+        .limit(6);      setSpotlightProducts(products ?? []);
     } catch { setSpotlightProducts([]); }
   }, [user?.id]);
 
@@ -997,8 +996,7 @@ export default function HomePage() {
         .select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
         .in('id', postIds.slice(0, 50))
         .is('community_id', null)
-        .order('created_at', { ascending: false });
-      // Build tag map for badge display
+        .order('created_at', { ascending: false });      // Build tag map for badge display
       // postTagMap as parallel arrays (esbuild guard: no index-sig type annotations)
       const tagPostIds: string[] = [];
       const tagPostTags: string[][] = [];
@@ -1109,6 +1107,7 @@ export default function HomePage() {
 
   // Trending hashtags — refresh every 2 minutes
   useEffect(() => {
+    if (user) return;
     const load = async () => {
       const { data } = await supabase
         .from('trending_hashtags')
@@ -1126,8 +1125,8 @@ export default function HomePage() {
     setRefreshing(true);
     setHasNewPosts(false);
     setNewPostCount(0);
-    await Promise.all([fetchRecommendations(), fetchProductSpotlight()]);
-    await fetchInitialFeed();
+    if (user) await Promise.all([fetchHomeDiscovery(), fetchInitialFeed(true)]);
+    else await Promise.all([fetchRecommendations(), fetchProductSpotlight(), fetchSponsoredContent(), fetchPublicSeries(), fetchUserAds(), fetchInitialFeed(true)]);
     setRefreshing(false);
   };
 
@@ -1420,10 +1419,10 @@ export default function HomePage() {
       {activeTab === 'foryou' && <TrendingVideosSection variant="compact" />}
 
       {/* Community Spotlight Strip */}
-      {activeTab === 'foryou' && <CommunitySpotlightStrip />}
+      {activeTab === 'foryou' && <CommunitySpotlightStrip initialCommunities={user ? discoveryCommunities : undefined} />}
 
       {/* Contextual poll discovery — ranked server-side and excludes polls already answered. */}
-      {activeTab === 'foryou' && <SuggestedPolls compact />}
+      {activeTab === 'foryou' && <SuggestedPolls compact initialPolls={user ? discoveryPolls : undefined} />}
 
       <ComposePost onSuccess={fetchInitialFeed} />
 
@@ -1497,8 +1496,7 @@ export default function HomePage() {
                       ) : p.is_video && p.video_url ? (
                         <div className="w-full h-full bg-black flex items-center justify-center">
                           <video src={`${p.video_url}#t=0.5`} className="w-full h-full object-cover" muted preload="metadata" />
-                        </div>
-                      ) : null}
+                        </div>                      ) : null}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                       {p.is_video && (
                         <div className="absolute top-2 right-2 w-7 h-7 bg-black/40 backdrop-blur-sm rounded-full flex items-center justify-center">
@@ -1536,7 +1534,7 @@ export default function HomePage() {
               ) : item.type === 'user-ad' ? (
                 <UserAdCard ad={item.data} />
               ) : item.type === 'user-suggestions' ? (
-                <InlineSuggestions />
+                <InlineSuggestions initialSuggestions={user ? discoveryUsers : undefined} />
               ) : item.type === 'recommended' ? (
                 <RecommendedPostCard post={item.data} onNavigate={(p: string) => navigate(p)} />
               ) : item.type === 'product-spotlight' ? (
@@ -1780,8 +1778,8 @@ function FederatedPostCard({ post }: { post: any }) {
 }
 
 // ── Inline Suggestions ────────────────────────────────────────────────────────
-function InlineSuggestions() {
-  const [suggestions, setSuggestions] = useState<any[]>([]);
+function InlineSuggestions({ initialSuggestions }: { initialSuggestions?: any[] }) {
+  const [suggestions, setSuggestions] = useState<any[]>(initialSuggestions ?? []);
   // following ids — plain array (esbuild guard: no Set<string> state)
   const [followingIds, setFollowingIds] = useState<string[]>([]);
   const { user } = useAuth();
@@ -1789,6 +1787,7 @@ function InlineSuggestions() {
 
   useEffect(() => {
     if (!user) return;
+    if (initialSuggestions !== undefined) { setSuggestions(initialSuggestions.slice(0, 3)); return; }
     (async () => {
       const { data: followData } = await supabase
         .from('follows')
@@ -1826,7 +1825,7 @@ function InlineSuggestions() {
 
       if (data) setSuggestions(data.filter((u: any) => !followed.includes(u.id)).slice(0, 3));
     })();
-  }, [user]);
+  }, [user, initialSuggestions]);
 
   const handleFollow = async (targetId: string) => {
     if (!user) return;
