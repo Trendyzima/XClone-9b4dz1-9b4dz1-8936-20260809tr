@@ -77,7 +77,7 @@ export default function ThreadsPage() {
       if(tab==='Saved'&&ids)query=query.in('id',ids);
       const {data,error}=await query; if(error)throw error;
       const rows=(data??[]) as Thread[]; const ownerIds=[...new Set(rows.map(r=>r.owner_id))];
-      const profiles=ownerIds.length?(await supabase.from('profiles').select('id, username, avatar_url, verified, display_name').in('id',ownerIds)).data??[]:[];
+      const profiles:Profile[]=ownerIds.length?(((await supabase.from('profiles').select('id, username, avatar_url, verified, display_name').in('id',ownerIds)).data ?? []) as Profile[]):[];
       const byId=new Map(profiles.map((p:any)=>[p.id,p]));
       setThreads(rows.map(r=>({...r,media_urls:Array.isArray(r.media_urls)?r.media_urls:[],profiles:byId.get(r.owner_id)})));
       if(user&&rows.length){
