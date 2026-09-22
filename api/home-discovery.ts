@@ -49,16 +49,16 @@ export default async function handler(request: Request) {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    const [followingRes, interestsRes] = await Promise.all([
+    const [followingRes, interestsRes, memberRows] = await Promise.all([
       admin.from('follows').select('following_id').eq('follower_id', userId).limit(300),
       admin.from('user_interests').select('interest_score,hashtags(id,tag)').eq('user_id', userId)
         .order('interest_score', { ascending: false }).limit(50),
+      admin.from('community_members').select('community_id').eq('user_id', userId).eq('status', 'active').limit(100),
     ]);
 
     const followingIds = unique((followingRes.data || []).map((x: any) => x.following_id).filter(Boolean));
     const followedSet = new Set(followingIds);
     const interestTags = unique((interestsRes.data || []).map((x: any) => x.hashtags?.tag).filter(Boolean).map((x: string) => x.toLowerCase()));
-    const interestTagIds = unique((interestsRes.data || []).map((x: any) => x.hashtags?.id).filter(Boolean));
 
     const [
       recGeneration, recRows, userSuggestions, hashtags, communities, polls,
@@ -133,8 +133,6 @@ export default async function handler(request: Request) {
       return { ...h, _score: interest * 8 + activity * 3 + freshness * 4, _reason: interest ? 'Matches your interests' : 'Trending now' };
     }).sort((a: any, b: any) => b._score - a._score).slice(0, 10);
 
-    const memberRows = await admin.from('community_members').select('community_id')
-      .eq('user_id', userId).eq('status', 'active').limit(100);
     const joinedCommunities = new Set((memberRows.data || []).map((x: any) => x.community_id));
     const rankedCommunities = (communities.data || []).filter((c: any) => !joinedCommunities.has(c.id))
       .map((c: any) => ({
@@ -143,7 +141,15 @@ export default async function handler(request: Request) {
         _reason: Number(c.post_count || 0) > 0 ? 'Active community' : 'Growing community',
       })).sort((a: any, b: any) => b._score - a._score).slice(0, 8);
 
-    const rankedAds = (ads.data || []).map((a: any) => ({ ...a, id: a.ad_id || a.id }));
+    let adRows = ads.data || [];
+    if (adRows.length === 0) {
+      const fallbackAds = await admin.from('user_ads')
+        .select('*, user_profiles!user_ads_user_id_fkey(id,username,avatar_url,verified)')
+        .eq('status', 'active').eq('payment_status', 'paid')
+        .order('created_at', { ascending: false }).limit(5);
+      adRows = fallbackAds.data || [];
+    }
+    const rankedAds = adRows.map((a: any) => ({ ...a, id: a.ad_id || a.id }));
     const rankedProducts = (products.data || []).filter((p: any) => p.user_id && followedSet.has(p.user_id));
     const rankedFederated = (federated.data || []).map((p: any) => {
       const ageHours = Math.max(0, (Date.now() - new Date(p.published_at || Date.now()).getTime()) / 3600000);
