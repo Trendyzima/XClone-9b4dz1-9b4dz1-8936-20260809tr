@@ -1,70 +1,8 @@
 import { supabase } from '@/lib/supabase';
 
-type MediaInit = {
-  media_id: string;
-  object_key: string;
-  upload_url: string;
-  public_url: string | null;
-  expires_in: number;
-};
-
-type MediaCompleted = {
-  id: string;
-  storage_key: string;
-  post_id: string | null;
-  byte_size: number;
-  mime_type: string;
-  media_type: 'image' | 'video' | 'audio' | 'file';
-  status: string;
-  media_url: string | null;
-  etag?: string | null;
-  object_key: string;
-  size_bytes: number;
-  public_url: string | null;
-};
-
-async function mediaRequest<T>(body: Record<string, unknown>): Promise<T> {
-  const { data, error } = await supabase.auth.getSession();
-  if (error || !data.session?.access_token) throw new Error('Please sign in again');
-  const response = await fetch('/api/media', {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${data.session.access_token}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(payload?.error || `Media request failed (${response.status})`);
-  return payload as T;
-}
-
+export type MediaCompleted = { media_id:string; object_key:string; mime_type:string; media_type:'image'|'video'|'audio'|'file'; status:string; media_url:string|null; etag?:string|null; size_bytes:number; public_url:string|null; };
 export const MAX_TESTAGRAM_MEDIA_BYTES = 20 * 1024 * 1024;
-
-export async function uploadTestagramMedia(file: File, postId?: string | null, threadId?: string | null): Promise<MediaCompleted> {
-  if (file.size <= 0 || file.size > MAX_TESTAGRAM_MEDIA_BYTES) throw new Error('Each attachment must be 20 MiB or smaller');
-  const init = await mediaRequest<MediaInit>({
-    action: 'init',
-    name: file.name,
-    mime_type: file.type || 'application/octet-stream',
-    size_bytes: file.size,
-    ...(postId ? { post_id: postId } : {}),
-    ...(threadId ? { thread_id: threadId } : {}),
-  });
-
-  const upload = await fetch(init.upload_url, {
-    method: 'PUT',
-    headers: { 'Content-Type': file.type || 'application/octet-stream' },
-    body: file,
-  });
-  if (!upload.ok) throw new Error(`R2 upload failed (${upload.status})`);
-
-  return mediaRequest<MediaCompleted>({
-    action: 'complete',
-    media_id: init.media_id,
-  });
-}
-
-export async function deleteTestagramMedia(mediaId: string): Promise<void> {
-  await mediaRequest({ action: 'delete', media_id: mediaId });
-}
+function friendlyMediaError(error:unknown){ const m=error instanceof Error?error.message:String(error??''); if(/Failed to fetch|NetworkError|Load failed/i.test(m)) return 'Connection interrupted while uploading. Please try again.'; if(/401|Authentication required|sign in again/i.test(m)) return 'Your session expired. Please sign in again.'; if(/413|20 MiB|too large|FILE_TOO_LARGE/i.test(m)) return 'That file is too large. Maximum size is 20 MiB.'; return m||'Media upload failed. Please try again.'; }
+export async function uploadTestagramMedia(file:File,postId?:string|null,threadId?:string|null):Promise<MediaCompleted>{ try { if(file.size<=0) throw new Error('The selected file is empty.'); if(file.size>MAX_TESTAGRAM_MEDIA_BYTES) throw new Error('That file is too large. Maximum size is 20 MiB.'); const {data,error}=await supabase.auth.getSession(); if(error||!data.session?.access_token) throw new Error('Please sign in again.'); const form=new FormData(); form.append('file',file,file.name); if(postId) form.append('post_id',postId); if(threadId) form.append('thread_id',threadId); const base=import.meta.env.VITE_SUPABASE_URL; const key=import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY??import.meta.env.VITE_SUPABASE_ANON_KEY??''; const response=await fetch(base+'/functions/v1/post-media-upload',{method:'POST',headers:{Authorization:'Bearer '+data.session.access_token,apikey:key},body:form}); const payload=await response.json().catch(()=>({})); if(!response.ok) throw new Error(payload?.error||('Upload failed ('+response.status+')')); return payload as MediaCompleted; } catch(error){ throw new Error(friendlyMediaError(error)); } }
+export async function attachTestagramMedia(mediaId:string,postId:string):Promise<void>{ const {data,error}=await supabase.auth.getSession(); if(error||!data.session?.access_token) throw new Error('Please sign in again.'); const response=await fetch('/api/media',{method:'POST',headers:{Authorization:'Bearer '+data.session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action:'attach',media_id:mediaId,post_id:postId})}); const payload=await response.json().catch(()=>({})); if(!response.ok) throw new Error(payload?.error||('Media attach failed ('+response.status+')')); }
+export async function deleteTestagramMedia(mediaId:string):Promise<void>{ const {data,error}=await supabase.auth.getSession(); if(error||!data.session?.access_token) return; await fetch('/api/media',{method:'POST',headers:{Authorization:'Bearer '+data.session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action:'delete',media_id:mediaId})}).catch(()=>undefined); }
