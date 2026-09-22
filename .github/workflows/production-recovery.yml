@@ -1,1 +1,20 @@
-name: Production Recovery\n\non:\n  push:\n    branches: [main]\n\npermissions:\n  contents: read\n\njobs:\n  promote-known-good:\n    if: ${{ github.sha == 'c249924e6d3d472733f747546d1b9da2e6e45653' }}\n    runs-on: ubuntu-latest\n    steps:\n      - name: Install Vercel CLI\n        run: npm install --global vercel@latest\n      - name: Promote known-good deployment\n        env:\n          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}\n        run: vercel promote kooone-9b4dz1-9b4dz1-8936-20260809tr-rila53fsm.vercel.app --scope criss-projects-7c0f74aa --token="$VERCEL_TOKEN" --yes\n
+name: Production Recovery
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  promote-known-good:
+    if: "${{ github.sha == 'c249924e6d3d472733f747546d1b9da2e6e45653' }}"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+      - name: Promote known-good deployment
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel promote kooone-9b4dz1-9b4dz1-8936-20260809tr-rila53fsm.vercel.app --scope criss-projects-7c0f74aa --token="$VERCEL_TOKEN" --yes
