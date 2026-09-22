@@ -115,10 +115,26 @@ async function processActivity(activity:any,actor:string){
   }
   if(type==="Accept"||type==="Reject"){
     const f=activity.object||{};if(str(f.type)==="Follow"){
-      const follower=uri(f.actor),target=uri(f.object);const local=await localActorForTarget(follower);
-      if(local.data?.user_id&&target){
-        await db.from("federated_follow_relationships").update({state:type==="Accept"?"active":"failed",delivery_state:type==="Accept"?"delivered":"failed",updated_at:new Date().toISOString()})
-          .eq("local_user_id",local.data.user_id).eq("remote_actor_uri",target).eq("direction","following");
+      const follower=uri(f.actor),target=uri(f.object),followId=str(f.id);const local=await localActorForTarget(follower);
+      if(local.data?.user_id&&target&&followId){
+        // Only activate/fail the relationship when the remote response
+        // references the exact Follow activity we sent. This prevents stale
+        // or unrelated Accept/Reject activities from changing local state.
+        const existing=await db.from("federated_follow_relationships")
+          .select("id,follow_activity_uri")
+          .eq("local_user_id",local.data.user_id)
+          .eq("remote_actor_uri",target)
+          .eq("direction","following")
+          .maybeSingle();
+        if(existing.error)throw existing.error;
+        if(existing.data?.follow_activity_uri===followId){
+          await db.from("federated_follow_relationships").update({
+            state:type==="Accept"?"active":"failed",
+            delivery_state:type==="Accept"?"delivered":"failed",
+            last_error:type==="Accept"?null:"Remote actor rejected Follow",
+            updated_at:new Date().toISOString()
+          }).eq("id",existing.data.id);
+        }
       }
     }
     return;
