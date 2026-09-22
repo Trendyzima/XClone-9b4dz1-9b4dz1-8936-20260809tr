@@ -29,62 +29,46 @@ as $$
 declare
   tag_item jsonb;
   tag_value text;
-  hashtag_id uuid;
+  v_hashtag_id uuid;
+  affected_ids uuid[] := '{}'::uuid[];
 begin
   if p_object_id is null then return; end if;
+
+  select coalesce(array_agg(hashtag_id), '{}'::uuid[])
+    into affected_ids
+  from public.federated_hashtag_mentions
+  where object_id = p_object_id;
 
   delete from public.federated_hashtag_mentions where object_id = p_object_id;
 
   for tag_item in
-    select value
-    from jsonb_array_elements(coalesce(p_tags, '[]'::jsonb))
+    select value from jsonb_array_elements(coalesce(p_tags, '[]'::jsonb))
   loop
-    if coalesce(tag_item->>'type', '') not in ('Hashtag', 'Tag', '') then
-      continue;
-    end if;
+    if coalesce(tag_item->>'type', '') not in ('Hashtag', 'Tag', '') then continue; end if;
 
-    tag_value := lower(
-      regexp_replace(
-        btrim(coalesce(tag_item->>'name', '')),
-        '^#+',
-        ''
-      )
-    );
-
-    if tag_value !~ '^[[:alnum:]_][[:alnum:]_-]{0,63}$' then
-      continue;
-    end if;
+    tag_value := lower(regexp_replace(btrim(coalesce(tag_item->>'name', '')), '^#+', ''));
+    if tag_value !~ '^[[:alnum:]_][[:alnum:]_-]{0,63}$' then continue; end if;
 
     insert into public.hashtags(tag, last_used_at)
     values(tag_value, now())
-    on conflict(tag) do update
-      set last_used_at = greatest(public.hashtags.last_used_at, excluded.last_used_at)
-    returning id into hashtag_id;
+    on conflict(tag) do update set last_used_at = greatest(public.hashtags.last_used_at, excluded.last_used_at)
+    returning id into v_hashtag_id;
 
-    if hashtag_id is null then
-      select id into hashtag_id from public.hashtags where tag = tag_value;
+    if v_hashtag_id is null then
+      select h.id into v_hashtag_id from public.hashtags h where h.tag = tag_value;
     end if;
 
+    affected_ids := array_append(affected_ids, v_hashtag_id);
     insert into public.federated_hashtag_mentions(object_id, hashtag_id)
-    values(p_object_id, hashtag_id)
+    values(p_object_id, v_hashtag_id)
     on conflict do nothing;
   end loop;
 
   update public.hashtags h
   set federated_post_count = (
-    select count(*)
-    from public.federated_hashtag_mentions m
-    where m.hashtag_id = h.id
+    select count(*) from public.federated_hashtag_mentions m where m.hashtag_id = h.id
   )
-  where h.id in (
-    select hashtag_id from public.federated_hashtag_mentions where object_id = p_object_id
-    union
-    select id from public.hashtags where federated_post_count > 0
-      and not exists (
-        select 1 from public.federated_hashtag_mentions m2
-        where m2.hashtag_id = public.hashtags.id
-      )
-  );
+  where h.id = any(affected_ids);
 end;
 $$;
 
