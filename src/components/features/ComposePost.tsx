@@ -473,7 +473,9 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
         return;
       }
 
-      let postResult: { post_id: string; poll_id?: string | null; created: boolean };\n      try {\n        postResult = await backendCapabilities.createPost({
+      let postResult: { post_id: string; poll_id?: string | null; created: boolean };
+      try {
+        postResult = await backendCapabilities.createPost({
         content: content.trim() || '',
         communityId,
         mediaUrls,
@@ -489,6 +491,10 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
           durationMinutes: pollData.duration,
         } : undefined,
       });
+      } catch (createError) {
+        await Promise.allSettled(uploadedMediaIds.map(deleteTestagramMedia));
+        throw createError;
+      }
       const postData = { id: postResult.post_id };
 
       // Bind uploaded media assets to the newly-created post. The binary upload
