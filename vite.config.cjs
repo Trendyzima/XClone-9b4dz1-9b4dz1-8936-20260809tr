@@ -199,7 +199,21 @@ module.exports = defineConfig({
         // multiple React.lazy routes (Profile, Messages, Notifications and
         // Daily Rewards) fail together. Inline dynamic imports removes the
         // fragile runtime asset-fetch boundary for the SPA's single entry.
-        inlineDynamicImports: true,
+        inlineDynamicImports: false,
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (id.includes('livekit-client')) return 'vendor-livekit';
+          if (id.includes('three') || id.includes('@react-three')) return 'vendor-3d';
+          if (id.includes('chart.js') || id.includes('recharts')) return 'vendor-charts';
+          if (id.includes('leaflet') || id.includes('react-leaflet')) return 'vendor-maps';
+          if (id.includes('jspdf') || id.includes('xlsx')) return 'vendor-docs';
+          if (id.includes('@radix-ui') || id.includes('lucide-react')) return 'vendor-ui';
+          if (id.includes('@supabase')) return 'vendor-supabase';
+          if (id.includes('framer-motion')) return 'vendor-motion';
+          if (id.includes('hls.js')) return 'vendor-video';
+          if (id.includes('react') || id.includes('react-dom') || id.includes('react-router')) return 'vendor-react';
+          return 'vendor';
+        },
       },
       onwarn(warning, warn) {
         if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return;
