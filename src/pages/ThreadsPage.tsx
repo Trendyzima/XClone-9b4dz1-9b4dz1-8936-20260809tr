@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bookmark, Check, Heart, Image as ImageIcon, Loader2, MessageCircle, MoreHorizontal, Plus, Repeat2, Search, Send, Sparkles, UserPlus, X } from 'lucide-react';
+import { Bookmark, Check, Heart, Image as ImageIcon, Loader2, MessageCircle, MoreHorizontal, Plus, Repeat2, Search, Quote, Sparkles, UserPlus, X } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { TopBar } from '@/components/layout/TopBar';
 import { Button } from '@/components/ui/button';
@@ -42,7 +42,7 @@ function ThreadCard({thread,liked,reposted,bookmarked,onLike,onRepost,onBookmark
           <button onClick={open} className="flex items-center gap-1.5 rounded-full p-1.5 hover:text-primary"><MessageCircle className="h-[18px] w-[18px]"/>{thread.replies_count>0&&<span className="text-xs">{formatNumber(thread.replies_count)}</span>}</button>
           <button onClick={onRepost} className={`flex items-center gap-1.5 rounded-full p-1.5 ${reposted?'text-green-600':'hover:text-green-600'}`}><Repeat2 className="h-[18px] w-[18px]"/>{thread.reposts_count>0&&<span className="text-xs">{formatNumber(thread.reposts_count)}</span>}</button>
           <button onClick={onLike} className={`flex items-center gap-1.5 rounded-full p-1.5 ${liked?'text-pink-600':'hover:text-pink-600'}`}><Heart className={`h-[18px] w-[18px] ${liked?'fill-current':''}`}/>{thread.likes_count>0&&<span className="text-xs">{formatNumber(thread.likes_count)}</span>}</button>
-          <button onClick={open} className="flex items-center gap-1 rounded-full p-1.5 hover:text-primary" aria-label="Quote"><Send className="h-[17px] w-[17px]"/>{thread.quotes_count>0&&<span className="text-xs">{formatNumber(thread.quotes_count)}</span>}</button>
+          <button onClick={open} className="flex items-center gap-1 rounded-full p-1.5 hover:text-primary" aria-label="Quote"><Quote className="h-[17px] w-[17px]"/>{thread.quotes_count>0&&<span className="text-xs">{formatNumber(thread.quotes_count)}</span>}</button>
           <button onClick={onBookmark} className={`rounded-full p-1.5 ${bookmarked?'text-primary':'hover:text-primary'}`}><Bookmark className={`h-[18px] w-[18px] ${bookmarked?'fill-current':''}`}/></button>
         </div>
       </div>
