@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, FilePlus2, Loader2, X } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
 import { uploadTestagramMedia } from '@/services/mediaClient';
 import { toast } from 'sonner';
 
@@ -34,8 +34,41 @@ export default function CreateThreadPage(){
     if(!user||(!body.trim()&&!files.length))return;
     setPosting(true);
     try{
-      const {data,error}=await supabase.from('threads').insert({owner_id:user.id,body:body.trim(),visibility:'public',media_urls:[]}).select('id').single();
-      if(error)throw error;
+      // Do not trust the Zustand user object as the write credential. Resolve the
+      // current Supabase session first, then send that JWT explicitly to PostgREST.
+      // This closes the same Auth-hydration race that affected the main composer.
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      let accessToken = sessionData.session?.access_token ?? null;
+      if (!accessToken) {
+        const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError) throw refreshError;
+        accessToken = refreshed.session?.access_token ?? null;
+      }
+      if (!accessToken) throw new Error('Authentication required');
+      const { data: tokenUser, error: tokenUserError } = await supabase.auth.getUser(accessToken);
+      if (tokenUserError || !tokenUser.user) throw new Error('Authentication required');
+      if (tokenUser.user.id !== user.id) throw new Error('Authentication session changed. Please retry.');
+      const threadResponse = await fetch(`${supabaseUrl.replace(/\\/$/, '')}/rest/v1/threads?select=id`, {
+        method: 'POST',
+        headers: {
+          apikey: (await import('@/lib/supabase')).supabasePublishableKey,
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Prefer: 'return=representation',
+        },
+        body: JSON.stringify({owner_id:user.id,body:body.trim(),visibility:'public',media_urls:[]}),
+      });
+      const threadRaw = await threadResponse.text();
+      let threadRows:any = null;
+      try { threadRows = threadRaw ? JSON.parse(threadRaw) : null; } catch { threadRows = null; }
+      if (!threadResponse.ok) {
+        const message = Array.isArray(threadRows) ? threadRows[0]?.message : threadRows?.message;
+        throw new Error(message || (threadResponse.status === 401 || threadResponse.status === 403 ? 'Authentication required' : 'Could not create thread'));
+      }
+      const data = Array.isArray(threadRows) ? threadRows[0] : threadRows;
+      if (!data?.id) throw new Error('Thread creation returned no id');
       const mediaUrls:MediaAsset[]=[];
       try {
         for(const file of files) {
