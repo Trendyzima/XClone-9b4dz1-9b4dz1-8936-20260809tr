@@ -93,9 +93,9 @@ export default async function handler(request: Request) {
       ? await admin.from('posts').select('*, user_profiles:profiles!posts_user_id_fkey(' + profileSelect + ')')
           .in('id', recIds).is('community_id', null)
       : { data: [], error: null };
-    const recById = new Map((recRows.data || []).map((r: any) => [r.recommended_post_id, r]));
+    const recById = new Map<string, any>((recRows.data || []).map((r: any) => [String(r.recommended_post_id), r]));
     const recommendedPosts = (recommendationPosts.data || []).map((post: any) => {
-      const rec = recById.get(post.id);
+      const rec: any = recById.get(String(post.id));
       return { ...post, _reason: rec?.reason || 'Recommended for you', _score: rec?.score || 0 };
     }).sort((a: any, b: any) => Number(b._score) - Number(a._score)).slice(0, 10);
 
@@ -104,7 +104,7 @@ export default async function handler(request: Request) {
     const suggestedProfiles = suggestedIds.length
       ? await admin.from('profiles').select(profileSelect).in('id', suggestedIds)
       : { data: [], error: null };
-    const suggestionScore = new Map((userSuggestions.data || []).map((x: any) => [x.suggested_user_id, x]));
+    const suggestionScore = new Map<string, any>((userSuggestions.data || []).map((x: any) => [String(x.suggested_user_id), x]));
     const rankedUsers: any[] = (suggestedProfiles.data || []).map((p: any) => ({
       ...p, _score: Number(suggestionScore.get(p.id)?.score || 0),
       _reason: suggestionScore.get(p.id)?.reason || 'Suggested for you',
@@ -127,7 +127,7 @@ export default async function handler(request: Request) {
 
     const interestWeight = new Map((interestsRes.data || []).map((x: any) => [String(x.hashtags?.id || ''), Number(x.interest_score || 0)]));
     const rankedHashtags = (hashtags.data || []).map((h: any) => {
-      const interest = interestWeight.get(h.id) || 0;
+      const interest = Number(interestWeight.get(h.id) || 0);
       const activity = Math.log1p(Number(h.post_count || 0) + Number(h.federated_post_count || 0));
       const freshness = Math.exp(-Math.max(0, Date.now() - new Date(h.last_used_at || Date.now()).getTime()) / 86400000);
       return { ...h, _score: interest * 8 + activity * 3 + freshness * 4, _reason: interest ? 'Matches your interests' : 'Trending now' };
