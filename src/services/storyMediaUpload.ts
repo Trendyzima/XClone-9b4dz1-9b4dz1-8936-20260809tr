@@ -66,36 +66,7 @@ function xhrPut(url: string, file: File, onProgress: (pct: number) => void): Pro
   });
 }
 
-async function init(file: File): Promise<InitResponse> {
-  const headers = await authHeaders();
-  const response = await fetch(mediaApiUrl(), {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      action: 'init',
-      name: file.name,
-      mime_type: file.type,
-      size_bytes: file.size,
-    }),
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || 'Unable to initialize upload');
-  return body as InitResponse;
-}
-
-async function complete(mediaId: string): Promise<CompleteResponse> {
-  const headers = await authHeaders();
-  const response = await fetch(mediaApiUrl(), {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ action: 'complete', media_id: mediaId }),
-  });
-  const body = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(body.error || 'Unable to finalize upload');
-  return body as CompleteResponse;
-}
-
-async function uploadOne(
+async function uploadCanonical(file: File, onProgress: (pct: number) => void): Promise<CompleteResponse> {\n  const { data, error } = await supabase.auth.getSession();\n  if (error || !data.session?.access_token) throw new Error('Authentication required');\n  const form = new FormData();\n  form.append('file', file, file.name);\n  const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL || window.location.origin}/functions/v1/post-media-upload`, {\n    method: 'POST',\n    headers: { Authorization: `Bearer ${data.session.access_token}`, apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '' },\n    body: form,\n  });\n  const body = await response.json().catch(() => ({}));\n  if (!response.ok) throw new Error(body.error || `Upload failed (${response.status})`);\n  onProgress(100);\n  return { id: body.media_id, object_key: body.object_key, public_url: body.public_url ?? null, media_url: body.media_url ?? body.public_url ?? null, media_type: body.media_type, mime_type: body.mime_type, byte_size: body.size_bytes, status: body.status };\n}\n\nasync function uploadOne(
   item: StoryUploadItem,
   update: (patch: Partial<StoryUploadItem>) => void,
 ): Promise<CompleteResponse> {
