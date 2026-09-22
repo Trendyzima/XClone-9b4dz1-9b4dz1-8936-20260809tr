@@ -101,6 +101,7 @@ export default async function handler(req: any, res: any) {
       const mime = String(body.mime_type ?? '').trim().toLowerCase();
       const size = Number(body.size_bytes);
       const postId = body.post_id ? String(body.post_id) : null;
+      const threadId = body.thread_id ? String(body.thread_id) : null;
 
       if (!name || name.length > 255) return json(res, 400, { error: 'Invalid file name' });
       if (!ALLOWED.has(mime)) return json(res, 415, { error: 'Unsupported media type' });
@@ -109,6 +110,10 @@ export default async function handler(req: any, res: any) {
       }
       if (postId && !(await ownedPost(admin, postId, user.id))) {
         return json(res, 404, { error: 'Post not found or not owned by user' });
+      }
+      if (threadId) {
+        const { data: thread } = await admin.from('threads').select('id,owner_id,deleted_at').eq('id', threadId).maybeSingle();
+        if (!thread || thread.owner_id !== user.id || thread.deleted_at) return json(res, 404, { error: 'Thread not found or not owned by user' });
       }
 
       const mediaType = mime.startsWith('image/') ? 'image' : 'video';
@@ -119,10 +124,10 @@ export default async function handler(req: any, res: any) {
       const mediaUrl = cfg.publicBaseUrl ? cfg.publicBaseUrl + '/' + storageKey : null;
 
       const { data, error } = await admin.from('media_assets').insert({
-        owner_id: user.id, post_id: postId, storage_key: storageKey, bucket: cfg.r2Bucket,
+        owner_id: user.id, post_id: postId, thread_id: threadId, storage_key: storageKey, bucket: cfg.r2Bucket,
         original_name: name, mime_type: mime, media_type: mediaType, byte_size: size,
         status: 'pending', media_url: mediaUrl,
-      }).select('id,storage_key,status,media_url').single();
+      }).select('id,storage_key,status,media_url,thread_id').single();
 
       if (error) return json(res, 500, { error: 'Unable to create media record' });
       return json(res, 200, {
