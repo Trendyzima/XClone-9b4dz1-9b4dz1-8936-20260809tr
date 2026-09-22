@@ -1,5 +1,4 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 /** Shared ActivityPub interoperability primitives. Keep protocol parsing tolerant. */
 export const AP_CONTEXT = [
@@ -149,14 +148,14 @@ const json = (value: unknown, status = 200) => new Response(JSON.stringify(value
 });
 const enc = (value: string) => encodeURIComponent(value);
 
-async function db(path: string, init: RequestInit = {}) {
+async function db(path: string, init: RequestInit = {}, allowStatuses: number[] = []) {
   if (!SERVICE_KEY) throw Error("Federation service credential is not configured");
   const headers = new Headers(init.headers);
   headers.set("apikey", SERVICE_KEY);
   headers.set("Authorization", `Bearer ${SERVICE_KEY}`);
   headers.set("Content-Type", "application/json");
   const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { ...init, headers });
-  if (!response.ok) throw Error(`database ${response.status}: ${(await response.text()).slice(0, 800)}`);
+  if (!response.ok && !allowStatuses.includes(response.status)) throw Error(`database ${response.status}: ${(await response.text()).slice(0, 800)}`);
   return response;
 }
 
@@ -382,7 +381,7 @@ async function queue(local: any, userId: string, inbox: string, activity: any) {
     method: "POST",
     headers: { Prefer: "resolution=ignore-duplicates,return=representation" },
     body: JSON.stringify(payload),
-  });
+  }, [409]);
 
   let outboxRows: any[] = [];
   try { outboxRows = await outboxResponse.json() as any[]; } catch {}
