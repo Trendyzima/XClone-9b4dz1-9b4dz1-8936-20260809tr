@@ -70,7 +70,7 @@ jobs:
       - name: Probe Supabase PostgreSQL through IPv4 Supavisor
         shell: bash
         env:
-          EXPECTED_SUPABASE_PROJECT_REF: "aepbqfrmheihfsauzcby"
+          EXPECTED_SUPABASE_PROJECT_REF: "ffrhglgkukgsuhxenena"
         run: |
           set -euo pipefail
 
