@@ -196,9 +196,9 @@ export function WalletDashboard() {
           if (statusData?.status === 'completed') {
             clearInterval(interval);
             setDepositPolling(false);
-            // Credit wallet via RPC (also logs transaction)
-            await supabase.rpc('add_to_wallet', { p_user_id: user!.id, p_amount: parseFloat(depositAmount) });
-            toast.success(`Deposit of KES ${kesAmount.toLocaleString()} confirmed! +$${parseFloat(depositAmount).toFixed(2)} added to wallet.`);
+            // The M-Pesa callback/status pipeline already settles the canonical wallet
+            // transaction atomically. Never credit the wallet a second time from the browser.
+            toast.success(`Deposit of KES ${kesAmount.toLocaleString()} confirmed and credited.`);
             setShowDeposit(false);
             setDepositAmount('');
             fetchWallet();
@@ -236,18 +236,9 @@ export function WalletDashboard() {
         throw new Error(msg);
       }
 
-      if (wallet) {
-        await supabase.from('wallet_transactions').insert({
-          wallet_id: wallet.id,
-          user_id: user!.id,
-          type: 'withdrawal',
-          amount: parseFloat(withdrawAmount),
-          payment_method: 'mpesa',
-          status: 'pending',
-          description: `M-Pesa withdrawal to ${withdrawPhone} — KES ${kesAmount.toLocaleString()}`,
-        });
-      }
-
+      // mpesa-b2c-payout reserves/debits the wallet and creates the pending
+      // canonical transaction before contacting Safaricom. Do not insert a
+      // second browser-side transaction here.
       toast.success('Withdrawal initiated! Funds will arrive shortly.');
       setShowWithdraw(false);
       setWithdrawAmount('');
