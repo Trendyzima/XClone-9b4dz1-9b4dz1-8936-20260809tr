@@ -13,15 +13,14 @@ function friendlyMediaError(error:unknown){
 }
 
 async function uploadAttempt(file:File,postId?:string|null,threadId?:string|null){
-  const {data,error}=await supabase.auth.getSession();
-  if(error||!data.session?.access_token) throw new Error('Please sign in again.');
+  const accessToken = await requireAccessToken();
   const form=new FormData();
   form.append('file',file,file.name);
   if(postId) form.append('post_id',postId);
   if(threadId) form.append('thread_id',threadId);
   const response=await fetch(supabaseUrl+'/functions/v1/post-media-upload',{
     method:'POST',
-    headers:{Authorization:'Bearer '+data.session.access_token,apikey:supabasePublishableKey},
+    headers:{Authorization:'Bearer '+accessToken,apikey:supabasePublishableKey},
     body:form,
   });
   const payload=await response.json().catch(()=>({}));
@@ -48,14 +47,13 @@ export async function uploadTestagramMedia(file:File,postId?:string|null,threadI
 }
 
 export async function attachTestagramMedia(mediaId:string,postId:string):Promise<void>{
-  const {data,error}=await supabase.auth.getSession();
-  if(error||!data.session?.access_token) throw new Error('Please sign in again.');
-  const response=await fetch('/api/media',{method:'POST',headers:{Authorization:'Bearer '+data.session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action:'attach',media_id:mediaId,post_id:postId})});
+  const accessToken = await requireAccessToken();
+  const response=await fetch('/api/media',{method:'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},body:JSON.stringify({action:'attach',media_id:mediaId,post_id:postId})});
   const payload=await response.json().catch(()=>({}));
   if(!response.ok) throw new Error(payload?.error||('Media attach failed ('+response.status+')'));
 }
 export async function deleteTestagramMedia(mediaId:string):Promise<void>{
-  const {data,error}=await supabase.auth.getSession();
-  if(error||!data.session?.access_token) return;
-  await fetch('/api/media',{method:'POST',headers:{Authorization:'Bearer '+data.session.access_token,'Content-Type':'application/json'},body:JSON.stringify({action:'delete',media_id:mediaId})}).catch(()=>undefined);
+  let accessToken:string;
+  try { accessToken = await requireAccessToken(); } catch { return; }
+  await fetch('/api/media',{method:'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},body:JSON.stringify({action:'delete',media_id:mediaId})}).catch(()=>undefined);
 }
