@@ -134,19 +134,16 @@ export default function HashtagDiscoveryPage() {
               .order('created_at', { ascending: false })
               .limit(100)
           : Promise.resolve({ data: [] }),
-        supabase.from('trending_hashtags')
-          .select('trend_score, hourly_posts, daily_posts, hashtags(id, tag, usage_count)')
-          .order('trend_score', { ascending: false })
+        supabase.from('hashtags')
+          .select('id, tag, usage_count, federated_post_count, last_used_at')
+          .order('federated_post_count', { ascending: false })
+          .order('usage_count', { ascending: false })
           .limit(30),
       ]);
       const followed = ((followRes as any).data ?? []).map((f: any) => f.hashtags).filter(Boolean);
       setFollowedHashtags(followed);
       setFollowedIds(followed.map((h: any) => h.id));
-      setTrendingHashtags(
-        ((trendRes.data ?? []) as any[])
-          .filter((r: any) => r.hashtags)
-          .map((r: any) => ({ ...r.hashtags, trend_score: r.trend_score, hourly_posts: r.hourly_posts, daily_posts: r.daily_posts }))
-      );
+      setTrendingHashtags(((trendRes.data ?? []) as any[]).filter((h: any) => h?.id));
       setLoading(false);
     };
     load();
@@ -506,7 +503,7 @@ export default function HashtagDiscoveryPage() {
                           <div className="flex items-center gap-1.5">
                             <Hash className="w-4 h-4 text-primary shrink-0" />
                             <span className="font-bold text-sm">{h.tag}</span>
-                            {!query && h.trend_score > 50 && (
+                            {!query && (h.federated_post_count ?? 0) > 0 && (
                               <TrendingUp className="w-3.5 h-3.5 text-orange-500 shrink-0" />
                             )}
                           </div>
@@ -514,9 +511,9 @@ export default function HashtagDiscoveryPage() {
                             <span className="text-xs text-muted-foreground flex items-center gap-1">
                               <Users className="w-3 h-3" />{formatNumber(h.usage_count ?? 0)} posts
                             </span>
-                            {h.daily_posts > 0 && (
+                            {(h.federated_post_count ?? h.usage_count ?? 0) > 0 && (
                               <span className="text-xs text-orange-500 font-semibold">
-                                +{formatNumber(h.daily_posts)}/day
+                                +{formatNumber(h.federated_post_count ?? h.usage_count ?? 0)} federated
                               </span>
                             )}
                           </div>
