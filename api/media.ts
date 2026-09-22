@@ -5,11 +5,9 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 // Per-object safety ceiling. Media bytes go directly from the browser to R2;
 // this endpoint only signs/finalizes metadata, so increasing this does not route
 // large payloads through Vercel. R2 single-PUT supports up to 5 GiB.
-const MAX_BYTES = 500 * 1024 * 1024;
-const ALLOWED = new Set([
-  'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif',
-  'video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska',
-]);
+const MAX_BYTES = 20 * 1024 * 1024;
+const BLOCKED = new Set(['application/x-msdownload','application/x-msdos-program','application/x-dosexec']);
+function isAllowedMime(mime: string) { const normalized=mime.trim().toLowerCase(); return Boolean(normalized && normalized.includes('/')) && !BLOCKED.has(normalized); }
 
 function env(name: string, fallback = '') { return process.env[name] ?? fallback; }
 
@@ -104,9 +102,9 @@ export default async function handler(req: any, res: any) {
       const threadId = body.thread_id ? String(body.thread_id) : null;
 
       if (!name || name.length > 255) return json(res, 400, { error: 'Invalid file name' });
-      if (!ALLOWED.has(mime)) return json(res, 415, { error: 'Unsupported media type' });
+      if (!isAllowedMime(mime)) return json(res, 415, { error: 'Unsupported media type' });
       if (!Number.isInteger(size) || size <= 0 || size > MAX_BYTES) {
-        return json(res, 413, { error: 'Media must be 500 MiB or smaller' });
+        return json(res, 413, { error: 'Media must be 20 MiB or smaller' });
       }
       if (postId && !(await ownedPost(admin, postId, user.id))) {
         return json(res, 404, { error: 'Post not found or not owned by user' });
