@@ -473,7 +473,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
         return;
       }
 
-      const postResult = await backendCapabilities.createPost({
+      let postResult: { post_id: string; poll_id?: string | null; created: boolean };\n      try {\n        postResult = await backendCapabilities.createPost({
         content: content.trim() || '',
         communityId,
         mediaUrls,
