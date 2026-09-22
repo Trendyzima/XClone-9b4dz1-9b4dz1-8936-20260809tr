@@ -128,30 +128,30 @@ jobs:
           # pg_isready proves socket/server readiness, but not authentication.
           # Execute a real read-only SQL query before declaring the DB boundary green.
           export PGSSLMODE=require
-          psql "${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -Atqc '
-            select
-              current_database(),
-              coalesce(inet_server_addr()::text, ''unknown''),
-              coalesce(inet_client_addr()::text, ''unknown''),
-              version()
-          ' >/tmp/db-identity.txt
+          psql "${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -Atqc <<'SQL' >/tmp/db-identity.txt
+          select
+            current_database(),
+            coalesce(inet_server_addr()::text, 'unknown'),
+            coalesce(inet_client_addr()::text, 'unknown'),
+            version();
+          SQL
 
           echo "SUPABASE_DB_SQL_REACHABLE=true"
           echo "Database identity probe completed without printing credentials."
 
           # Verify the exact production federation tables exist. This is read-only.
-          psql "${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -Atqc '
-            select table_name
-            from information_schema.tables
-            where table_schema = ''public''
-              and table_name in (
-                ''activitypub_outbox'',
-                ''federation_deliveries'',
-                ''federated_follow_relationships'',
-                ''federated_activities''
-              )
-            order by table_name
-          ' >/tmp/federation-tables.txt
+          psql "${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -Atqc <<'SQL' >/tmp/federation-tables.txt
+          select table_name
+          from information_schema.tables
+          where table_schema = 'public'
+            and table_name in (
+              'activitypub_outbox',
+              'federation_deliveries',
+              'federated_follow_relationships',
+              'federated_activities'
+            )
+          order by table_name;
+          SQL
 
           expected_tables=4
           actual_tables="$(wc -l </tmp/federation-tables.txt | tr -d ' ')"
@@ -162,16 +162,16 @@ jobs:
           echo "FEDERATION_SCHEMA_REACHABLE=true"
 
           # Emit only counts/status, never row payloads or secrets.
-          psql "${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -Atqc '
-            select ''activitypub_outbox'', count(*) from public.activitypub_outbox
-            union all
-            select ''federation_deliveries'', count(*) from public.federation_deliveries
-            union all
-            select ''federated_follow_relationships'', count(*) from public.federated_follow_relationships
-            union all
-            select ''federated_activities'', count(*) from public.federated_activities
-            order by 1
-          ' | while IFS='|' read -r table_name row_count; do
+          psql "${SUPABASE_DB_URL}" -v ON_ERROR_STOP=1 -Atqc <<'SQL' | while IFS='|' read -r table_name row_count; do
+          select 'activitypub_outbox', count(*) from public.activitypub_outbox
+          union all
+          select 'federation_deliveries', count(*) from public.federation_deliveries
+          union all
+          select 'federated_follow_relationships', count(*) from public.federated_follow_relationships
+          union all
+          select 'federated_activities', count(*) from public.federated_activities
+          order by 1;
+          SQL
             echo "DB_TABLE_COUNT ${table_name}=${row_count}"
           done
 
