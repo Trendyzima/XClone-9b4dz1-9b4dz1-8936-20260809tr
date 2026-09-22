@@ -977,7 +977,7 @@ export default function HomePage() {
       setFeedCursor(rankedPage.nextCursor);
       setFederatedCursor(federatedPage.nextCursor);
       setFederatedHasMore(federatedPage.hasMore);
-      setFeedHasMore(rankedPage.hasMore || federatedPage.hasMore || rankedPage.items.length >= PAGE_SIZE || federatedPage.items.length > 0);
+      setFeedHasMore(rankedPage.hasMore || federatedPage.hasMore || rankedPage.items.length >= PAGE_SIZE || federatedPage.posts.length > 0);
       if (mixed.length > 0) {
         setCachedFeed(activeTab, mixed);
         setWarmFeed(activeTab, user?.id, mixed);
