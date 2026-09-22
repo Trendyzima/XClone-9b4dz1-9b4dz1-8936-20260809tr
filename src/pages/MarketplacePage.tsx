@@ -1,5 +1,5 @@
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -551,6 +551,9 @@ export default function MarketplacePage() {
   const [products, setProducts] = useState([]);
   const [featured, setFeatured] = useState([]);
   const [loading, setLoading]   = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const MARKET_PAGE_SIZE = 24;
 
   // Filters
   const [search,     setSearch]     = useState('');
@@ -607,21 +610,52 @@ export default function MarketplacePage() {
     keywords: 'marketplace, shop, buy, sell, products, creators, testagram, kenya, africa',
   });
 
-  useEffect(() => { fetchProducts(); }, []);
+  useEffect(() => { void fetchProducts(0, true); }, []);
 
-  const fetchProducts = async () => {
-    setLoading(true);
-    const { data } = await supabase
-      .from('products')
-      .select('*, profiles(id, username, avatar_url, verified_tier)')
-      .eq('is_active', true)
-      .order('views_count', { ascending: false })
-      .limit(120);
-    const all = data ?? [];
-    setProducts(all);
-    setFeatured(all.filter((p: any) => p.is_featured).slice(0, 6));
-    setLoading(false);
-  };
+  const fetchProducts = useCallback(async (page = 0, replace = false) => {
+    if (page === 0) setLoading(true); else setLoadingMore(true);
+    try {
+      const from = page * MARKET_PAGE_SIZE;
+      const to = from + MARKET_PAGE_SIZE - 1;
+      const { data, error } = await supabase
+        .from('products')
+        .select('*, profiles(id, username, avatar_url, verified_tier)')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .range(from, to);
+      if (error) throw error;
+      const incoming = data ?? [];
+      setProducts(prev => {
+        if (replace) return incoming;
+        const seen = new Set(prev.map((p: any) => p.id));
+        return [...prev, ...incoming.filter((p: any) => !seen.has(p.id))];
+      });
+      if (page === 0) setFeatured(incoming.filter((p: any) => p.is_featured).slice(0, 6));
+      setHasMore(incoming.length === MARKET_PAGE_SIZE);
+    } catch (error) {
+      console.error('[marketplace] product fetch failed', error);
+      if (page === 0) setProducts([]);
+      setHasMore(false);
+    } finally {
+      setLoading(false);
+      setLoadingMore(false);
+    }
+  }, []);
+
+  const loadMoreProducts = useCallback(() => {
+    if (loadingMore || !hasMore) return;
+    const nextPage = Math.floor(products.length / MARKET_PAGE_SIZE);
+    void fetchProducts(nextPage, false);
+  }, [fetchProducts, hasMore, loadingMore, products.length]);
+
+  const loadMoreRef = useCallback((node: HTMLDivElement | null) => {
+    if (!node || loadingMore || !hasMore) return;
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0]?.isIntersecting) loadMoreProducts();
+    }, { rootMargin: '700px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [hasMore, loadMoreProducts, loadingMore]);
 
   const trackView = async (id: string) => {
     await supabase.rpc('increment', { row_id: id, table_name: 'products', column_name: 'views_count' }).catch(() => {});
@@ -857,6 +891,9 @@ export default function MarketplacePage() {
             ))}
           </div>
         )}
+      </div>
+      <div ref={loadMoreRef} className="h-10 flex items-center justify-center" aria-hidden="true">
+        {loadingMore && <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />}
       </div>
 
       {/* ── Filter Sheet ── */}
