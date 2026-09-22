@@ -25,7 +25,7 @@ import {
 import { VideoMonetizationAd } from './VideoMonetizationAd';
 import { EmbedRenderer, PostContentEmbeds } from './EmbedRenderer';
 import { updateInterestSignal } from '@/services/recommendations';
-import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts, getFederatedReplies, setFederatedReaction, getFederatedReactionState, getFederatedReactionCounts } from '@/services/postInteractionService';
+import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts, getFederatedReplies, setFederatedReaction, getFederatedReactionState, getFederatedReactionCounts, getInteractionCounts, recordPostView } from '@/services/postInteractionService';
 import { backendCapabilities } from '@/services/backendClient';
 import * as federation from '@/api/federation';
 // Canonical social interaction reads/writes stay behind backend capabilities.
@@ -61,6 +61,8 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const [isReposted, setIsReposted] = useState(false);
   const [likesCount, setLikesCount] = useState(post.likes_count);
   const [repostsCount, setRepostsCount] = useState(post.reposts_count);
+  const [quoteCount, setQuoteCount] = useState(0);
+  const [viewsCount, setViewsCount] = useState(post.views_count ?? 0);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteMenu, setShowDeleteMenu] = useState(false);
@@ -303,14 +305,10 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const fetchAnalytics = useCallback(async () => {
     if (analytics) return;
     setLoadingAnalytics(true);
-    const { data } = await supabase
-      .from('post_analytics')
-      .select('views, unique_viewers, engagement_rate, shares')
-      .eq('post_id', post.id)
-      .maybeSingle();
-    setAnalytics(data ?? { views: post.views_count ?? 0, unique_viewers: 0, engagement_rate: 0, shares: 0 });
+    const counts = await getInteractionCounts(interactionPostId);
+    setAnalytics({ views: counts.views, unique_viewers: 0, engagement_rate: 0, shares: 0 });
     setLoadingAnalytics(false);
-  }, [post.id, analytics, post.views_count]);
+  }, [interactionPostId, analytics]);
 
   const openTooltip = useCallback(() => {
     setShowEngagement(true);
@@ -636,22 +634,41 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
           setLikesCount(counts.likes);
           setRepostsCount(counts.reposts);
           setRepliesCount(counts.replies);
+          setQuoteCount(counts.quotes);
+          setViewsCount(counts.views);
         } else {
-          const [likeResult, repostResult] = await Promise.all([
+          const [likeResult, repostResult, counts] = await Promise.all([
             backendCapabilities.getLikeState(post.id),
             backendCapabilities.getRepostState(post.id),
+            getInteractionCounts(post.id),
           ]);
           setIsLiked(likeResult.state.is_liked);
           setIsReposted(repostResult.state.is_reposted);
-          setLikesCount(likeResult.state.likes_count);
-          setRepostsCount(repostResult.state.reposts_count);
+          setLikesCount(counts.likes);
+          setRepostsCount(counts.reposts);
+          setRepliesCount(counts.replies);
+          setQuoteCount(counts.quotes);
+          setViewsCount(counts.views);
         }
       } catch (error) {
         console.error('Error checking user interactions:', error);
       }
     };
     checkUserInteractions();
-  }, [user, post.id, interactionPostId, isFederatedPost, post.likes_count, post.reposts_count, post.replies_count]);
+  }, [user, post.id, interactionPostId, isFederatedPost]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const key = 'testagram:viewed:' + interactionPostId;
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, '1');
+    } catch {}
+    recordPostView(interactionPostId)
+      .then(count => { if (!cancelled) setViewsCount(count); })
+      .catch(error => console.warn('[engagement] view record failed', error));
+    return () => { cancelled = true; };
+  }, [interactionPostId]);
 
   const handleLike = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1008,7 +1025,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
               className="flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors cursor-pointer select-none"
             >
               <Eye className="w-3.5 h-3.5" />
-              <span>{formatNumber(post.views_count || 0)} views</span>
+              <span>{formatNumber(viewsCount)} views</span>
               <BarChart3 className="w-3 h-3 opacity-40" />
             </button>
 
@@ -1028,7 +1045,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
                 ) : analytics ? (
                   <div className="grid grid-cols-2 gap-2">
                     <div className="bg-blue-500/8 rounded-xl p-2 text-center">
-                      <p className="text-sm font-bold text-blue-600">{formatNumber(analytics.views ?? post.views_count ?? 0)}</p>
+                      <p className="text-sm font-bold text-blue-600">{formatNumber(analytics.views ?? viewsCount)}</p>
                       <p className="text-[9px] text-muted-foreground mt-0.5 flex items-center justify-center gap-0.5"><Eye className="w-2.5 h-2.5" />Views</p>
                     </div>
                     <div className="bg-purple-500/8 rounded-xl p-2 text-center">
@@ -1111,13 +1128,14 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
 
             {/* Quote Tweet */}
             <button
-              title="Quote Tweet"
+              title={'Quote Tweet' + (quoteCount ? ' · ' + quoteCount : '')}
               className="flex items-center space-x-2 text-muted-foreground hover:text-blue-500 transition-colors group"
               onClick={e => { e.stopPropagation(); navigate(`/?quote_post_id=${encodeURIComponent(interactionPostId)}&quote_preview=${encodeURIComponent(post.content.slice(0, 100))}`); }}
             >
               <div className="p-2 rounded-full group-hover:bg-blue-500/10 transition-colors">
                 <Quote className="w-4 h-4" />
               </div>
+              {quoteCount > 0 && <span className="text-sm tabular-nums">{formatNumber(quoteCount)}</span>}
             </button>
 
             <button
