@@ -658,7 +658,18 @@ export default function MarketplacePage() {
   }, [hasMore, loadMoreProducts, loadingMore]);
 
   const trackView = async (id: string) => {
-    await supabase.rpc('increment', { row_id: id, table_name: 'products', column_name: 'views_count' }).catch(() => {});
+    // Use the canonical marketplace analytics RPC; the legacy generic increment
+    // RPC is not part of the production database contract.
+    const { error } = await supabase.rpc('record_marketplace_event', {
+      p_product_id: id,
+      p_event_type: 'view',
+      p_ref_code: null,
+      p_source: 'marketplace',
+      p_medium: 'product_view',
+      p_campaign: null,
+      p_session_id: null,
+    });
+    if (error) console.warn('[marketplace] view event failed', error.message);
   };
 
   const resetFilters = () => {
