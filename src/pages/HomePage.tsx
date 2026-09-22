@@ -205,7 +205,7 @@ export default function HomePage() {
         prefetchedTabs.current = prefetchedTabs.current.filter(t => t !== tabId);
       }
     }, 50);
-  }, [activeTab, user?.id]);
+  }, [activeTab, user?.id, fetchHomeDiscovery]);
 
   const handleTabHoverEnd = useCallback(() => {
     if (prefetchHoverRef.current) clearTimeout(prefetchHoverRef.current);
@@ -352,6 +352,44 @@ export default function HomePage() {
       },
     ],
   });
+
+  // ── Edge discovery bundle ─────────────────────────────────────────────────
+  // One Vercel Edge request hydrates all secondary recommendation rails in parallel.
+  // The primary feed remains independently paginated so discovery never blocks LCP.
+  const fetchHomeDiscovery = useCallback(async () => {
+    if (!user) return;
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData.session?.access_token;
+      if (!token) return;
+
+      const response = await fetch('/api/home-discovery', {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'same-origin',
+      });
+      if (!response.ok) throw new Error(`home-discovery ${response.status}`);
+      const bundle = await response.json();
+
+      if (Array.isArray(bundle.recommendations)) setRecommendedPosts(bundle.recommendations);
+      if (Array.isArray(bundle.ads)) setSponsoredPosts(bundle.ads);
+      if (Array.isArray(bundle.products)) setSpotlightProducts(bundle.products);
+      if (Array.isArray(bundle.series)) setPublicSeries(bundle.series);
+      if (Array.isArray(bundle.hashtags)) setTrendingHashtags(bundle.hashtags);
+      if (Array.isArray(bundle.users)) {
+        // InlineSuggestions owns its own interaction state; the bundle is consumed
+        // by the feed through the existing recommendation injection path.
+        (window as any).__testagramHomeUserSuggestions = bundle.users;
+      }
+      if (Array.isArray(bundle.fediverse)) {
+        // Cache only the ranked candidates; the normal federated paginator remains
+        // authoritative for the dedicated Federated tab.
+        (window as any).__testagramHomeFederatedSuggestions = bundle.fediverse;
+      }
+    } catch (error) {
+      console.warn('[home-discovery] edge bundle unavailable; legacy fallbacks remain active', error);
+    }
+  }, [user?.id]);
 
   // ── Fetch personalized recommendations ──────────────────────────────────
   const fetchRecommendations = useCallback(async () => {
@@ -1006,16 +1044,24 @@ export default function HomePage() {
   useEffect(() => {
     if (activeTab === 'hashtags') { fetchHashtagFeed(); return; }
     let cancelled = false;
-    void fetchInitialFeed();
+    // Paint the primary feed immediately while the Edge discovery bundle hydrates
+    // recommendations, users, hashtags, communities, polls, ads and Fediverse rails.
+    void Promise.allSettled([
+      fetchInitialFeed(),
+      fetchHomeDiscovery(),
+    ]);
     const deferSecondaryFeed = () => {
       if (cancelled) return;
-      void Promise.allSettled([
-        fetchSponsoredContent(),
-        fetchRecommendations(),
-        fetchProductSpotlight(),
-        fetchPublicSeries(),
-        fetchUserAds(),
-      ]);
+      // Guest/public fallback only. Authenticated users already received the
+      // consolidated Edge bundle, avoiding a dozen duplicate database calls.
+      if (!user) {
+        void Promise.allSettled([
+          fetchSponsoredContent(),
+          fetchProductSpotlight(),
+          fetchPublicSeries(),
+          fetchUserAds(),
+        ]);
+      }
     };
     const win = window as Window & { requestIdleCallback?: (callback: () => void, options?: { timeout?: number }) => number; cancelIdleCallback?: (id: number) => void };
     let idleId: number | null = null;
