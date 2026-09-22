@@ -1,0 +1,20 @@
+name: Production Recovery Trigger
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  promote-known-good:
+    if: ${{ github.event.head_commit.message == 'ops: trigger production recovery promotion' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+      - name: Promote known-good deployment
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: vercel promote kooone-9b4dz1-9b4dz1-8936-20260809tr-rila53fsm.vercel.app --scope criss-projects-7c0f74aa --token="$VERCEL_TOKEN" --yes
