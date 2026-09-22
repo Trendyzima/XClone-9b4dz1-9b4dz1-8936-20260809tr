@@ -103,6 +103,10 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
   const [mentionResults, setMentionResults] = useState([]);
   const [mentionIdx, setMentionIdx] = useState(0);
   const mentionSearchRef = useRef(null as string | null);
+  const [hashtagQuery, setHashtagQuery] = useState(null as string | null);
+  const [hashtagResults, setHashtagResults] = useState<any[]>([]);
+  const [hashtagIdx, setHashtagIdx] = useState(0);
+  const hashtagSearchRef = useRef(null as string | null);
 
   // Load draft on mount
   useEffect(() => {
@@ -158,43 +162,51 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
     const ta = textareaRef.current;
     const pos = ta?.selectionStart ?? val.length;
     const before = val.slice(0, pos);
-    const atMatch = before.match(/@(\w*)$/);
-    if (!atMatch) { setMentionQuery(null); setMentionResults([]); return; }
-    const q = atMatch[1];
-    setMentionQuery(q);
-    setMentionIdx(0);
-    mentionSearchRef.current = q;
-    if (q.length === 0) { setMentionResults([]); return; }
-    try {
-      const local = await backendCapabilities.searchUsers(q, 5);
-      let items: any[] = local.items as any[];
-      // Mention discovery crosses the local/Fediverse boundary. For a remote
-      // handle, or when local results are empty, resolve through ActivityPub.
-      if (q.includes('@') || items.length === 0) {
-        try {
-          const remote = await federation.search('@' + q, 'users');
-          const remoteItems = (remote ?? []).slice(0, 5).map((a: any) => ({
-            id: 'fed:' + String(a.uri ?? a.id ?? a.url),
-            username: a.username ?? a.preferredUsername ?? 'user',
-            display_name: a.display_name ?? a.displayName ?? a.username ?? 'Fediverse user',
-            avatar_url: a.avatar ?? a.icon?.url ?? null,
-            origin: 'fediverse',
-            actor_uri: a.uri ?? a.actor_uri ?? a.url ?? null,
-            acct: a.acct ?? null,
-          }));
-          const seen = new Set<string>();
-          items = [...items, ...remoteItems].filter((item: any) => {
-            const key = String(item.acct ?? item.username).toLowerCase();
-            if (seen.has(key)) return false;
-            seen.add(key);
-            return true;
-          }).slice(0, 5);
-        } catch { /* local results remain usable */ }
-      }
-      if (mentionSearchRef.current === q) setMentionResults(items);
-    } catch {
-      if (mentionSearchRef.current === q) setMentionResults([]);
+    const atMatch = before.match(/@(\\w*)$/);
+    const hashMatch = before.match(/(^|\\s)#([\\w-]*)$/);
+    if (atMatch) {
+      setHashtagQuery(null); setHashtagResults([]);
+      const q = atMatch[1];
+      setMentionQuery(q); setMentionIdx(0); mentionSearchRef.current = q;
+      if (q.length === 0) { setMentionResults([]); return; }
+      try {
+        const local = await backendCapabilities.searchUsers(q, 5);
+        let items: any[] = local.items as any[];
+        if (q.includes('@') || items.length === 0) {
+          try {
+            const remote = await federation.search('@' + q, 'users');
+            const remoteItems = (remote ?? []).slice(0, 5).map((a: any) => ({
+              id: 'fed:' + String(a.uri ?? a.id ?? a.url),
+              username: a.username ?? a.preferredUsername ?? 'user',
+              display_name: a.display_name ?? a.displayName ?? a.username ?? 'Fediverse user',
+              avatar_url: a.avatar ?? a.icon?.url ?? null,
+              origin: 'fediverse', actor_uri: a.uri ?? a.actor_uri ?? a.url ?? null, acct: a.acct ?? null,
+            }));
+            const seen = new Set<string>();
+            items = [...items, ...remoteItems].filter((item: any) => {
+              const key = String(item.acct ?? item.username).toLowerCase();
+              if (seen.has(key)) return false; seen.add(key); return true;
+            }).slice(0, 5);
+          } catch {}
+        }
+        if (mentionSearchRef.current === q) setMentionResults(items);
+      } catch { if (mentionSearchRef.current === q) setMentionResults([]); }
+      return;
     }
+    setMentionQuery(null); setMentionResults([]);
+    if (!hashMatch) { setHashtagQuery(null); setHashtagResults([]); return; }
+    const q = hashMatch[2].toLowerCase();
+    setHashtagQuery(q); setHashtagIdx(0); hashtagSearchRef.current = q;
+    if (q.length === 0) { setHashtagResults([]); return; }
+    try {
+      const { data } = await supabase.from('hashtags')
+        .select('id,tag,usage_count,post_count,federated_post_count')
+        .ilike('tag', q + '%')
+        .order('usage_count', { ascending: false })
+        .order('federated_post_count', { ascending: false })
+        .limit(8);
+      if (hashtagSearchRef.current === q) setHashtagResults(data ?? []);
+    } catch { if (hashtagSearchRef.current === q) setHashtagResults([]); }
   }, [linkPreview]);
 
   const insertMention = useCallback((username: string) => {
@@ -228,13 +240,30 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
     sonnerToast.success('Embed URL added to post');
   };
 
+  const insertHashtag = useCallback((tag: string) => {
+    const ta = textareaRef.current;
+    const pos = ta?.selectionStart ?? content.length;
+    const before = content.slice(0, pos);
+    const after = content.slice(pos);
+    const replaced = before.replace(/(^|\s)#([\w-]*)$/, '$1#' + tag.replace(/^#/, '') + ' ');
+    setContent(replaced + after);
+    setHashtagQuery(null); setHashtagResults([]);
+    setTimeout(() => { if (ta) { ta.focus(); ta.setSelectionRange(replaced.length, replaced.length); } }, 0);
+  }, [content]);
+
   const handleMentionKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (hashtagQuery !== null && hashtagResults.length > 0) {
+      if (e.key === 'ArrowDown') { e.preventDefault(); setHashtagIdx(i => Math.min(i + 1, hashtagResults.length - 1)); return; }
+      if (e.key === 'ArrowUp') { e.preventDefault(); setHashtagIdx(i => Math.max(i - 1, 0)); return; }
+      if ((e.key === 'Enter' || e.key === 'Tab') && hashtagResults[hashtagIdx]) { e.preventDefault(); insertHashtag(hashtagResults[hashtagIdx].tag); return; }
+      if (e.key === 'Escape') { setHashtagQuery(null); setHashtagResults([]); return; }
+    }
     if (mentionResults.length === 0 || mentionQuery === null) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); setMentionIdx(i => Math.min(i + 1, mentionResults.length - 1)); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); setMentionIdx(i => Math.max(i - 1, 0)); }
     else if ((e.key === 'Enter' || e.key === 'Tab') && mentionResults[mentionIdx]) { e.preventDefault(); insertMention(mentionResults[mentionIdx].acct ?? mentionResults[mentionIdx].username); }
     else if (e.key === 'Escape') { setMentionQuery(null); setMentionResults([]); }
-  }, [mentionResults, mentionQuery, mentionIdx, insertMention]);
+  }, [mentionResults, mentionQuery, mentionIdx, insertMention, hashtagQuery, hashtagResults, hashtagIdx, insertHashtag]);
 
   // ── AI Caption Generator ─────────────────────────────────────────────────
   const [showCaptionGen, setShowCaptionGen] = useState(false);
@@ -691,6 +720,19 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
               className="min-h-[80px] border-0 resize-none focus-visible:ring-0 p-0 text-lg bg-transparent w-full"
               maxLength={700}
             />
+            {/* #Hashtag suggestions — includes hashtags discovered from federated content */}
+            {hashtagQuery !== null && hashtagResults.length > 0 && (
+              <div className="absolute z-50 left-0 mt-1 w-72 bg-popover border border-border rounded-xl shadow-xl overflow-hidden">
+                {hashtagResults.map((h, i) => (
+                  <button key={h.id} onMouseDown={e => { e.preventDefault(); insertHashtag(h.tag); }}
+                    className={`w-full flex items-center gap-2.5 px-3 py-2.5 text-left transition-colors ${i === hashtagIdx ? 'bg-primary/10' : 'hover:bg-muted'}`}>
+                    <span className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0"><Hash className="w-3.5 h-3.5 text-primary"/></span>
+                    <span className="min-w-0 flex-1"><span className="font-semibold text-sm block truncate">#{h.tag}</span><span className="text-[10px] text-muted-foreground">{Number(h.usage_count ?? 0) + Number(h.federated_post_count ?? 0)} posts discovered</span></span>
+                    {Number(h.federated_post_count ?? 0) > 0 && <Globe className="w-3.5 h-3.5 text-sky-500 shrink-0" aria-label="Fediverse hashtag"/>}
+                  </button>
+                ))}
+              </div>
+            )}
             {/* @Mentions dropdown */}
             {mentionQuery !== null && mentionResults.length > 0 && (
               <div className="absolute z-50 left-0 mt-1 w-64 bg-popover border border-border rounded-xl shadow-xl overflow-hidden">
