@@ -1,6 +1,11 @@
 import { supabase } from './supabase';
 
-export const MAX_MEDIA_BYTES = 20 * 1024 * 1024;
+export const MAX_MEDIA_BYTES = 500 * 1024 * 1024;
+export const ALLOWED_MEDIA_TYPES = new Set<string>();
+
+mport { supabase } from './supabase';
+
+export const MAX_MEDIA_BYTES = 500 * 1024 * 1024;
 export const ALLOWED_MEDIA_TYPES = new Set([
   'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/avif',
   'video/mp4', 'video/webm', 'video/quicktime', 'video/x-matroska',
@@ -19,64 +24,7 @@ export type MediaUploadResult = {
 };
 
 function validateMedia(file: File) {
-  if (!ALLOWED_MEDIA_TYPES.has(file.type.toLowerCase())) {
-    throw new Error('Unsupported media type. Use a supported image or video format.');
-  }
-  if (file.size <= 0 || file.size > MAX_MEDIA_BYTES) {
-    throw new Error('Images and videos must be 20 MiB or smaller.');
-  }
+  if (!file.type && !file.name) throw new Error('File type could not be determined.');
+  if (file.size <= 0 || file.size > MAX_MEDIA_BYTES) throw new Error('Attachments must be 500 MiB or smaller.');
 }
 
-async function mediaFunction(action: string, body: Record<string, unknown>) {
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session?.access_token) throw new Error('Authentication required');
-
-  const response = await fetch('/api/media', {
-    method: 'POST',
-    headers: {
-      Authorization: 'Bearer ' + session.access_token,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ action, ...body }),
-  });
-
-  const data = await response.json().catch(() => ({}));
-  if (!response.ok || data?.error) {
-    throw new Error(String(data?.error ?? 'Media backend request failed (' + response.status + ').'));
-  }
-  return data;
-}
-
-/** Uploads the binary directly to Cloudflare R2; Supabase stores metadata only. */
-export async function uploadMedia(file: File, postId?: string | null): Promise<MediaUploadResult> {
-  validateMedia(file);
-
-  const initialized = await mediaFunction('init', {
-    name: file.name,
-    mime_type: file.type.toLowerCase(),
-    size_bytes: file.size,
-    post_id: postId ?? null,
-  });
-
-  const response = await fetch(String(initialized.upload_url), {
-    method: 'PUT',
-    headers: { 'Content-Type': file.type.toLowerCase() },
-    body: file,
-  });
-
-  if (!response.ok) {
-    await mediaFunction('delete', { media_id: initialized.media_id }).catch(() => undefined);
-    throw new Error('Cloudflare media upload failed (' + response.status + ').');
-  }
-
-  return mediaFunction('complete', { media_id: initialized.media_id });
-}
-
-/** Attaches an already-uploaded R2 object to a Supabase post. */
-export async function attachMediaToPost(mediaId: string, postId: string): Promise<MediaUploadResult> {
-  return mediaFunction('attach', { media_id: mediaId, post_id: postId });
-}
-
-export async function deleteMedia(mediaId: string) {
-  return mediaFunction('delete', { media_id: mediaId });
-}
