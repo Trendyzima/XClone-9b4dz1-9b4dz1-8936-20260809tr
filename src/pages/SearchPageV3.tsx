@@ -37,7 +37,7 @@ export default function SearchPageV3(){
    // Search the complete Testagram graph as well: people, hashtags, communities, live Spaces and trends.
    const { data: global } = await supabase.rpc('search_everything',{p_query:clean,p_limit:50,p_cursor:append?data.next_cursor??null:null});
    const { data: threadRows } = await supabase.from('threads')
-    .select('id,owner_id,body,created_at,media_urls,likes_count,reposts_count,replies_count,quotes_count,views_count,profiles!threads_owner_id_fkey(id,username,display_name,avatar_url,verified)')
+    .select('id,owner_id,body,created_at,media_urls,likes_count,reposts_count,replies_count,quotes_count,views_count')
     .is('deleted_at', null).eq('visibility','public')
     .ilike('body', `%${clean.replace(/[%_]/g,' ')}%`)
     .order('created_at',{ascending:false}).limit(40);
