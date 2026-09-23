@@ -31,10 +31,16 @@ function extension(name: string, mime: string) {
     ?? mime.split('/')[1].replace('jpeg', 'jpg').replace('quicktime', 'mov');
 }
 
+const CANONICAL_SUPABASE_URL = 'https://ffrhglgkukgsuhxenena.supabase.co';
+const CANONICAL_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya';
+
 function config() {
   return {
-    supabaseUrl: env('SUPABASE_URL', env('VITE_SUPABASE_URL')),
-    supabaseKey: env('SUPABASE_ANON_KEY', env('VITE_SUPABASE_ANON_KEY')),
+    // Keep media auth on the exact same Supabase project as the browser session
+    // and /api/capability. Stale Vercel SUPABASE_URL values must not create a
+    // second authentication plane that rejects an otherwise valid user JWT.
+    supabaseUrl: CANONICAL_SUPABASE_URL,
+    supabaseKey: CANONICAL_SUPABASE_PUBLISHABLE_KEY,
     serviceRole: env('SUPABASE_SERVICE_ROLE_KEY', env('SUPABASE_SECRET_KEY')),
     r2AccountId: env('R2_ACCOUNT_ID'),
     r2AccessKeyId: env('R2_ACCESS_KEY_ID'),
