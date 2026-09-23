@@ -12,7 +12,7 @@ import { toast } from 'sonner';
 import { FeedAdCard } from '@/components/features/FeedAdCard';
 import { DynamicAd } from '@/components/features/DynamicAd';
 import { getThreadLikeState,toggleThreadLike } from '@/features/threadLikes/threadLikesService';
-import { toggleThreadRepost } from '@/features/threadReposts/threadRepostsService';
+import { toggleThreadRepost, getThreadRepostState } from '@/features/threadReposts/threadRepostsService';
 
 type Profile={id:string;username:string;avatar_url:string|null;verified:boolean;display_name?:string|null};
 type MediaAsset={url:string;name?:string;type?:string;size?:number};
@@ -24,7 +24,7 @@ function Media({items}:{items:MediaAsset[]}){if(!items.length)return null;return
 export default function ThreadDetailPage(){
  const {id}=useParams(); const {user}=useAuth(); const navigate=useNavigate(); const [thread,setThread]=useState<Thread|null>(null); const [liked,setLiked]=useState(false); const [reposted,setReposted]=useState(false); const [loading,setLoading]=useState(true);
  useSEO({title:thread?.body?.slice(0,60)||'Thread',description:'Thread on Testagram',url:id?'/thread/'+id:undefined,type:'article'});
- useEffect(()=>{if(!id)return;void (async()=>{try{const {data,error}=await supabase.from('threads').select('id,owner_id,body,visibility,created_at,likes_count,reposts_count,quotes_count,replies_count,views_count,media_urls').eq('id',id).is('deleted_at',null).single();if(error)throw error;const owner=await supabase.from('profiles').select('id,username,avatar_url,verified,display_name').eq('id',data.owner_id).maybeSingle();setThread({...data,media_urls:normalizeMedia(data.media_urls),profiles:owner.data??undefined});if(user){setLiked(await getThreadLikeState(id,user.id));const {data:r}=await supabase.from('thread_reposts').select('id').eq('thread_id',id).eq('user_id',user.id).maybeSingle();setReposted(Boolean(r));}}catch(e){console.error('[ThreadDetail]',e);toast.error('Thread not found');navigate('/threads');}finally{setLoading(false);}})();},[id,user?.id,navigate]);
+ useEffect(()=>{if(!id)return;void (async()=>{try{const {data,error}=await supabase.from('threads').select('id,owner_id,body,visibility,created_at,likes_count,reposts_count,quotes_count,replies_count,views_count,media_urls').eq('id',id).is('deleted_at',null).single();if(error)throw error;const owner=await supabase.from('profiles').select('id,username,avatar_url,verified,display_name').eq('id',data.owner_id).maybeSingle();setThread({...data,media_urls:normalizeMedia(data.media_urls),profiles:owner.data??undefined});if(user){setLiked(await getThreadLikeState(id,user.id));setReposted(await getThreadRepostState(id,user.id));}}catch(e){console.error('[ThreadDetail]',e);toast.error('Thread not found');navigate('/threads');}finally{setLoading(false);}})();},[id,user?.id,navigate]);
  const requireAuth=()=>{if(!user){navigate('/auth');return false;}return true};
  const like=async()=>{if(!thread||!requireAuth())return;try{const active=await toggleThreadLike(thread.id,user!.id);setLiked(active);setThread(t=>t?{...t,likes_count:Math.max(0,t.likes_count+(active?1:-1))}:t);}catch(e:any){toast.error(e?.message||'Like failed');}};
  const repost=async()=>{if(!thread||!requireAuth())return;try{const active=await toggleThreadRepost(thread.id,user!.id);setReposted(active);setThread(t=>t?{...t,reposts_count:Math.max(0,t.reposts_count+(active?1:-1))}:t);}catch(e:any){toast.error(e?.message||'Repost failed');}};
