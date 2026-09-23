@@ -508,16 +508,16 @@ export default function ProfilePage() {
     setTipGoal(null);
     const startOfMonth = new Date();
     startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0);
-    const { data: monthTips } = await supabase.from('tips').select('from_user_id, amount').eq('to_user_id', userId).gte('created_at', startOfMonth.toISOString()).order('amount', { ascending: false });
+    const { data: monthTips, error: monthTipsError } = await supabase.from('tips').select('from_user_id, amount').eq('to_user_id', userId).gte('created_at', startOfMonth.toISOString()).order('amount', { ascending: false });
+    if (monthTipsError) console.error('[profile] monthly tips query failed', { userId, monthTipsError });
     const total = (monthTips ?? []).reduce((s: number, t: any) => s + Number(t.amount ?? 0), 0);
     setCurrentMonthTips(total);
-    // Use parallel arrays instead of index-sig objects (esbuild guard)
     const tipperIds: string[] = [];
     const tipperAmts: number[] = [];
     for (const t of (monthTips ?? [])) {
       const idx = tipperIds.indexOf(t.from_user_id);
-      if (idx >= 0) tipperAmts[idx] += Number(t.amount ?? 0) / 100;
-      else { tipperIds.push(t.sender_id); tipperAmts.push(Number(t.amount_cents ?? 0) / 100); }
+      if (idx >= 0) tipperAmts[idx] += Number(t.amount ?? 0);
+      else { tipperIds.push(t.from_user_id); tipperAmts.push(Number(t.amount ?? 0)); }
     }
     const sorted = [...tipperAmts].sort((a, b) => b - a).slice(0, 3);
     setTopTippers(sorted.map((amount, i) => ({ rank: i + 1, amount })));
@@ -572,11 +572,7 @@ export default function ProfilePage() {
     setLoadingGifts(true);
     const { data } = await supabase.from('premium_gifts').select('*').or(`sender_id.eq.${userId},recipient_id.eq.${userId}`).order('created_at', { ascending: false }).limit(50);
     if (!data || data.length === 0) { setGiftHistory([]); setLoadingGifts(false); return; }
-    const { data: inbox } = await supabase.from('platform_inbox').select('body, sent_at, user_id').eq('user_id', userId).ilike('subject', '%gift%').order('sent_at', { ascending: false }).limit(30);
-    setGiftHistory(data.map((sub: any) => ({
-      ...sub,
-      inboxHint: (inbox ?? []).find((m: any) => Math.abs(new Date(m.sent_at).getTime() - new Date(sub.started_at).getTime()) < 60000),
-    })));
+    setGiftHistory(data);
     setLoadingGifts(false);
   };
 
