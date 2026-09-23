@@ -1,25 +1,18 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
 import { PostCard } from '@/components/features/PostCard';
 import { PollCard } from '@/components/features/PollCard';
-import { CreatePollDialog } from '@/components/features/CreatePollDialog';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import { sendActivityNotification } from '@/components/layout/AuthProvider';
 import { Post } from '@/types/app-types';
-import { Loader2, Send, BadgeCheck, Twitter, Facebook, Link2, MessageCircle, BarChart3, X, Heart } from 'lucide-react';
-import { DynamicAd } from '@/components/features/DynamicAd';
-import { Textarea } from '@/components/ui/textarea';
+import { Loader2, Twitter, Facebook, Link2, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { formatDistanceToNow } from 'date-fns';
 import { useSEO, buildOgImageUrl } from '@/hooks/useSEO';
 import * as federation from '@/api/federation';
-import { createFederatedReply, getFederatedReplies } from '@/services/postInteractionService';
 
 import { PageAdBanner } from '@/components/features/AdSenseAd';
-import { EmbedRenderer, PostContentEmbeds } from '@/components/features/EmbedRenderer';
 
 function PostThreadAdBanner() { return <PageAdBanner />; }
 
@@ -68,62 +61,6 @@ export default function PostThreadPage() {
       sharedContent: post.is_video && post.video_url ? { '@type': 'VideoObject', contentUrl: post.video_url } : undefined,
     } : undefined,
   });
-
-  // Poll reply count every 10s — show floating pill when new replies arrive
-  useEffect(() => {
-    if (!postId) return;
-    const fetchReplyCount = async () => {
-      const { count } = await supabase
-        .from('replies')
-        .select('*', { count: 'exact', head: true })
-        .eq('post_id', postId);
-      if (count !== null) {
-        setLiveReplyCount(count);
-        if (knownReplyCount.current !== null && count > knownReplyCount.current) {
-          setNewReplyCount(count - knownReplyCount.current);
-        }
-        // Initialize base after first load completes
-        if (knownReplyCount.current === null) knownReplyCount.current = count;
-      }
-    };
-    fetchReplyCount();
-    const iv = setInterval(fetchReplyCount, 10_000);
-    return () => clearInterval(iv);
-  }, [postId]);
-
-  const handleViewNewReplies = () => {
-    knownReplyCount.current = liveReplyCount;
-    setNewReplyCount(0);
-    fetchPostAndReplies();
-  };
-
-  const fetchReplyLikes = async (replyIds: string[]) => {
-    if (!replyIds.length) return;
-    const { data: likes } = await supabase
-      .from('reply_likes')
-      .select('reply_id, user_id')
-      .in('reply_id', replyIds);
-    const map: Record<string, { count: number; liked: boolean }> = {};
-    replyIds.forEach(id => { map[id] = { count: 0, liked: false }; });
-    (likes ?? []).forEach((l: { reply_id: string; user_id: string }) => {
-      if (!map[l.reply_id]) map[l.reply_id] = { count: 0, liked: false };
-      map[l.reply_id].count++;
-      if (l.user_id === user?.id) map[l.reply_id].liked = true;
-    });
-    setReplyLikes(prev => ({ ...prev, ...map }));
-  };
-
-  const handleReplyLike = async (replyId: string) => {
-    if (!user) { navigate('/auth'); return; }
-    const current = replyLikes[replyId] ?? { count: 0, liked: false };
-    if (current.liked) {
-      setReplyLikes(prev => ({ ...prev, [replyId]: { count: Math.max(0, (prev[replyId]?.count ?? 0) - 1), liked: false } }));
-      await supabase.from('reply_likes').delete().eq('reply_id', replyId).eq('user_id', user.id);
-    } else {
-      setReplyLikes(prev => ({ ...prev, [replyId]: { count: (prev[replyId]?.count ?? 0) + 1, liked: true } }));
-      await supabase.from('reply_likes').upsert({ reply_id: replyId, user_id: user.id }, { onConflict: 'reply_id,user_id' });
-    }
-  };
 
   const fetchPost = async () => {
     if (!postId) return;
@@ -231,13 +168,6 @@ export default function PostThreadPage() {
     const text = post ? `${post.content?.slice(0, 100)}... ` : '';
     window.open(`https://wa.me/?text=${encodeURIComponent(text + url)}`, '_blank');
   };
-
-  // Sync knownReplyCount once replies load
-  useEffect(() => {
-    if (replies.length > 0 && knownReplyCount.current === null) {
-      knownReplyCount.current = replies.length;
-    }
-  }, [replies.length]);
 
   if (loading) {
     return (
