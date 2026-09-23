@@ -160,37 +160,38 @@ if(path==="/unbookmark"&&method==="POST"){
   if(r.error)return json({error:r.error.message},400);
   return json({ok:true,removed:true});
 }
-if(path==="/federated-reaction"&&method==="POST"){
+if((path==="/federated/reactions"||path==="/federated-reaction")&&method==="POST"){
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
-  const target=String(body.post_id||body.postId||"").trim();
+  const target=String(body.post_id||body.postId||body.object_uri||body.objectUri||"").trim();
   const emoji=String(body.emoji||"").trim();
   const enabled=body.enabled!==false;
   if(!/^https:\/\//i.test(target)||!emoji)return json({error:"Remote reaction requires object URI and emoji"},400);
   if(enabled){
-    const r=await admin.from("federated_reactions").upsert({
-      user_id:u.id,object_uri:target,reaction_type:"reaction",content:emoji,delivered:false,updated_at:new Date().toISOString()
-    },{onConflict:"user_id,object_uri,reaction_type"}).select("id,object_uri,reaction_type,content,delivered,created_at,updated_at").single();
-    if(r.error)return json({error:"Failed to persist federated reaction",details:r.error.message},500);
+    const r=await admin.from("federated_emoji_reactions").upsert({
+      user_id:u.id,object_uri:target,emoji,delivered:false,delivery_state:"pending",updated_at:new Date().toISOString()
+    },{onConflict:"user_id,object_uri,emoji"}).select("id,user_id,object_uri,emoji,delivered,delivery_state,created_at,updated_at").single();
+    if(r.error)return json({error:"Failed to persist federated emoji reaction",details:r.error.message},500);
     return json({ok:true,active:true,reaction:r.data},200);
   }
-  const r=await admin.from("federated_reactions").delete().eq("user_id",u.id).eq("object_uri",target).eq("reaction_type","reaction");
-  if(r.error)return json({error:"Failed to remove federated reaction",details:r.error.message},500);
-  return json({ok:true,active:false},200);
+  const r=await admin.from("federated_emoji_reactions").delete().eq("user_id",u.id).eq("object_uri",target).eq("emoji",emoji);
+  if(r.error)return json({error:"Failed to remove federated emoji reaction",details:r.error.message},500);
+  return json({ok:true,active:false,emoji},200);
 }
-if(path==="/federated-reaction-state"&&method==="GET"){
+if((path==="/federated/reactions"||path==="/federated-reaction-state")&&method==="GET"){
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
   const target=String(params.object_uri||params.objectUri||"").trim();
   if(!/^https:\/\//i.test(target))return json({error:"object_uri must be a remote ActivityPub object"},400);
-  const r=await admin.from("federated_reactions").select("content,delivered,updated_at").eq("user_id",u.id).eq("object_uri",target).eq("reaction_type","reaction").maybeSingle();
+  const r=await admin.from("federated_emoji_reactions").select("emoji,delivered,delivery_state,updated_at").eq("user_id",u.id).eq("object_uri",target);
   if(r.error)return json({error:r.error.message},400);
-  return json({emoji:r.data?.content||null,active:Boolean(r.data)},200);
+  const emojis=(r.data||[]).map((x:any)=>String(x.emoji)).filter(Boolean);
+  return json({emojis,emoji:emojis[0]||null,active:emojis.length>0,reactions:r.data||[]},200);
 }
 if(path==="/federated-reaction-counts"&&method==="GET"){
   const target=String(params.object_uri||params.objectUri||"").trim();
   if(!/^https:\/\//i.test(target))return json({error:"object_uri must be a remote ActivityPub object"},400);
-  const r=await admin.from("federated_reactions").select("content").eq("object_uri",target).eq("reaction_type","reaction");
+  const r=await admin.from("federated_emoji_reactions").select("emoji").eq("object_uri",target);
   if(r.error)return json({error:r.error.message},400);
-  const counts:any={}; for(const row of r.data||[]){const k=String(row.content||""); if(k)counts[k]=(counts[k]||0)+1;}
+  const counts:any={}; for(const row of r.data||[]){const k=String(row.emoji||""); if(k)counts[k]=(counts[k]||0)+1;}
   return json({counts},200);
 }
 if(path==="/federated-object"&&method==="GET"){
