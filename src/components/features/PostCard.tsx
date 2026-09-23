@@ -25,7 +25,7 @@ import {
 import { VideoMonetizationAd } from './VideoMonetizationAd';
 import { EmbedRenderer, PostContentEmbeds } from './EmbedRenderer';
 import { updateInterestSignal } from '@/services/recommendations';
-import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts, getFederatedReplies, setFederatedReaction, getFederatedReactionState, getFederatedReactionCounts, getInteractionCounts, recordPostView } from '@/services/postInteractionService';
+import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts, getFederatedReplies, setFederatedReaction, getFederatedReactionState, getFederatedReactionStateAll, getFederatedReactionCounts, getInteractionCounts, recordPostView } from '@/services/postInteractionService';
 import { backendCapabilities } from '@/services/backendClient';
 import * as federation from '@/api/federation';
 // Canonical social interaction reads/writes stay behind backend capabilities.
@@ -115,9 +115,22 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   };
 
   const [userReaction, setUserReaction] = useState<string | null>(null);
+  const [userReactions, setUserReactions] = useState<string[]>([]);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
 
   const fetchReactions = useCallback(async () => {
+    if (isFederatedPost) {
+      const [counts, mine] = await Promise.all([
+        getFederatedReactionCounts(interactionPostId),
+        getFederatedReactionStateAll(interactionPostId),
+      ]);
+      const emojis = Object.keys(counts);
+      setReactionEmojis(emojis);
+      setReactionNums(emojis.map(emoji => Number(counts[emoji] ?? 0)));
+      setUserReactions(mine.emojis);
+      setUserReaction(mine.emojis[0] ?? null);
+      return;
+    }
     const { data, error } = await supabase.rpc('testagram_local_reaction_state', { p_post_id: post.id });
     if (!error && data) {
       const counts = (data.counts ?? {}) as Record<string, number>;
@@ -127,10 +140,11 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       setReactionEmojis(emojis);
       setReactionNums(nums);
       setUserReaction(myReaction);
+      setUserReactions(myReaction ? [myReaction] : []);
     }
-  }, [post.id, user?.id]);
+  }, [post.id, user?.id, isFederatedPost, interactionPostId]);
 
-  useEffect(() => { fetchReactions(); }, [post.id]);
+  useEffect(() => { fetchReactions(); }, [fetchReactions]);
 
   const handleReact = async (emoji: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -141,19 +155,31 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     // in the separate federated reaction ledger so they survive refresh without
     // pretending that remote servers support arbitrary emoji reactions.
     if (isFederatedPost) {
-      const wasReaction = userReaction === emoji;
+      const wasReaction = userReactions.includes(emoji);
       const nextActive = !wasReaction;
       try {
         if (emoji === '❤️') {
           const wasLiked = isLiked;
           setIsLiked(!wasLiked);
-          setUserReaction(nextActive ? emoji : null);
           setLikesCount(prev => Math.max(0, prev + (wasLiked ? -1 : 1)));
           await togglePostLike(interactionPostId, wasLiked);
         } else {
           await setFederatedReaction(interactionPostId, emoji, nextActive);
-          setUserReaction(nextActive ? emoji : null);
         }
+        setUserReactions(prev => {
+          const next = nextActive ? [...new Set([...prev, emoji])] : prev.filter(x => x !== emoji);
+          setUserReaction(next[0] ?? null);
+          return next;
+        });
+        setReactionEmojis(prev => nextActive ? (prev.includes(emoji) ? prev : [...prev, emoji]) : prev);
+        setReactionNums(prev => {
+          const idx = reactionEmojis.indexOf(emoji);
+          if (idx < 0 && nextActive) return [...prev, 1];
+          if (idx < 0) return prev;
+          const next = [...prev];
+          next[idx] = Math.max(0, next[idx] + (nextActive ? 1 : -1));
+          return next;
+        });
       } catch (error) {
         console.warn('[federation] reaction unavailable', error);
         toast({ title: 'Reaction failed', description: error instanceof Error ? error.message : 'Could not save reaction', variant: 'destructive' });
@@ -992,7 +1018,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
                       onClick={(e) => handleReact(emoji, e)}
                       className={cn(
                         'text-xl transition-all duration-100 hover:scale-125 active:scale-90 rounded-full w-9 h-9 flex items-center justify-center',
-                        userReaction === emoji ? 'bg-primary/10 scale-110 ring-2 ring-primary/20' : 'hover:bg-muted'
+                        userReactions.includes(emoji) ? 'bg-primary/10 scale-110 ring-2 ring-primary/20' : 'hover:bg-muted'
                       )}
                       title={emoji}
                     >
