@@ -19,6 +19,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { formatNumber } from '@/lib/utils';
 import { Post } from '@/types/app-types';
 import { listProfileLikes } from '@/features/likes/likesService';
+import { listProfileReplies } from '@/features/replies/repliesService';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { AdvertiserSurface } from '@/components/features/AdvertiserSurface';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -826,25 +827,11 @@ export default function ProfilePage() {
     setThreads(data || []);
   };
   const fetchReplies = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('replies')
-      .select('id,user_id,post_id,content,created_at,updated_at,posts!replies_post_id_fkey(id,content,author_id,created_at,profiles!posts_author_id_fkey(id,username,full_name,avatar_url,verified))')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false });
-    if (error) console.error('[profile] replies query failed', { userId, error });
-    setReplies(data || []);
-  };
-  const fetchMedia = async (userId: string) => {
-    const { data, error } = await supabase.from('posts').select('*, profiles!posts_author_id_fkey(*)').eq('user_id', userId).or('image_url.not.is.null,video_url.not.is.null,media_urls.neq.[]').order('created_at', { ascending: false });
-    if (error) console.error('[profile] media query failed', { userId, error });
-    setMedia(data || []);
-  };
-  const fetchLikedPosts = async (userId: string) => {
     try {
-      setLikedPosts(await listProfileLikes(userId, 100));
+      setReplies(await listProfileReplies(userId, 100));
     } catch (error) {
-      console.error('[profile] independent likes query failed', { userId, error });
-      setLikedPosts([]);
+      console.error('[profile] independent replies query failed', { userId, error });
+      setReplies([]);
     }
   };
   const fetchFollowers = async (userId: string) => {
