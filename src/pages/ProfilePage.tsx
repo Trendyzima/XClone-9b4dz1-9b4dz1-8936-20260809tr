@@ -18,6 +18,7 @@ import { usePremium } from '@/hooks/usePremium';
 import { formatDistanceToNow } from 'date-fns';
 import { formatNumber } from '@/lib/utils';
 import { Post } from '@/types/app-types';
+import { listProfileLikes } from '@/features/likes/likesService';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { AdvertiserSurface } from '@/components/features/AdvertiserSurface';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -839,9 +840,12 @@ export default function ProfilePage() {
     setMedia(data || []);
   };
   const fetchLikedPosts = async (userId: string) => {
-    const { data, error } = await supabase.from('post_likes').select('posts(*, profiles!posts_author_id_fkey(*))').eq('user_id', userId).order('created_at', { ascending: false });
-    if (error) console.error('[profile] liked posts query failed', { userId, error });
-    setLikedPosts((data || []).map((item: any) => item.posts).filter(Boolean));
+    try {
+      setLikedPosts(await listProfileLikes(userId, 100));
+    } catch (error) {
+      console.error('[profile] independent likes query failed', { userId, error });
+      setLikedPosts([]);
+    }
   };
   const fetchFollowers = async (userId: string) => {
     const { data } = await supabase.from('follows').select('follower:profiles!follows_follower_id_fkey(*)').eq('following_id', userId);
