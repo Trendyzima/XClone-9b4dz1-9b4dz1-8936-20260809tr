@@ -5,14 +5,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-export function formatNumber(num: number): string {
-  if (num >= 1000000) {
-    return (num / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
+export function formatNumber(num: number | null | undefined): string {
+  // Feed/sidebar payloads can legitimately omit aggregate counters. Formatting
+  // must be total because these values are rendered during the initial tree.
+  const value = typeof num === 'number' && Number.isFinite(num) ? num : 0;
+  if (value >= 1000000) {
+    return (value / 1000000).toFixed(1).replace(/\.0$/, '') + 'M';
   }
-  if (num >= 1000) {
-    return (num / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
+  if (value >= 1000) {
+    return (value / 1000).toFixed(1).replace(/\.0$/, '') + 'K';
   }
-  return num.toString();
+  return String(value);
 }
 
 export function localizeSocialLinks(content: string): string {
