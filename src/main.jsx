@@ -98,7 +98,6 @@ class AppErrorBoundary extends Component {
   }
 }
 
-let appMounted = false;
 
 const root = createRoot(container);
 const renderFatalBootError = (error) => {
@@ -128,7 +127,6 @@ window.addEventListener('unhandledrejection', (event) => {
   try {
     const { default: App } = await import('./App');
     root.render(createElement(AppErrorBoundary, null, createElement(App)));
-    appMounted = true;
   } catch (error) {
     renderFatalBootError(error);
   }
