@@ -111,6 +111,28 @@ export class TestagramCapabilityClient{
         token=refreshed.data.session?.access_token??null;
         if(token)continue;
       }
+      // Authenticated content writes get a direct Supabase RPC fallback. Threads
+      // already use the canonical Supabase REST boundary successfully; keeping
+      // post creation on the same project/auth plane avoids a Vercel gateway
+      // header race turning a valid user session into auth.uid() = null.
+      if(!isPublic && capability==="testagram.posts.create" && token){
+        try{
+          const directResponse=await fetch(`${supabaseUrl.replace(/\\/$/,"")}/rest/v1/rpc/capability_dispatch`,{
+            method:"POST",
+            headers:{apikey:supabasePublishableKey,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Accept:"application/json"},
+            body:JSON.stringify({p_capability:capability,p_input:input}),
+          });
+          const directRaw=await directResponse.text();
+          let directData:unknown=null; try{directData=directRaw?JSON.parse(directRaw):null;}catch{}
+          if(directResponse.ok){
+            return directData as T;
+          }
+          const directMessage=typeof directData==="object"&&directData&&"message" in directData?String((directData as {message?:unknown}).message):`Post creation failed (${directResponse.status})`;
+          throw new CapabilityClientError(directMessage,{code:directResponse.status===401||directResponse.status===403?"AUTH_REQUIRED":"CAPABILITY_DISPATCH_FAILED",requestId:id,status:directResponse.status});
+        }catch(directError){
+          if(directError instanceof CapabilityClientError)throw directError;
+        }
+      }
       throw new CapabilityClientError(p.error?.message??`Capability request failed (${r.status})`,{code:p.error?.code??"CAPABILITY_REQUEST_FAILED",requestId:p.request_id??id,status:r.status});
     }
   }catch(e){
