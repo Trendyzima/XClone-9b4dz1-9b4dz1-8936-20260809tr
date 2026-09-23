@@ -727,7 +727,7 @@ export default function ProfilePage() {
     try {
       const initialProfileQuery = username ? await supabase.from('profiles').select('*').eq('username', username).maybeSingle() : { data: null, error: null };
       let profileData = initialProfileQuery.data;
-      if (!profileData && currentUser) {
+      if (!profileData && !username && currentUser) {
         const ownProfileQuery = await supabase.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
         profileData = ownProfileQuery.data;
       }
@@ -1655,6 +1655,7 @@ export default function ProfilePage() {
                           <p className="font-bold text-sm line-clamp-2 leading-snug">{podTitle}</p>
                           <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                             {podDur && <span className="flex items-center gap-0.5"><Clock className="w-3 h-3" />{podDur}</span>}
+                            {(pod.spaces?.listener_count ?? 0) > 0 && <span className="flex items-center gap-0.5"><Users className="w-3 h-3" />{formatNumber(pod.spaces.listener_count)}</span>}
                             <span>{formatDistanceToNow(new Date(pod.created_at), { addSuffix: true })}</span>
                           </div>
                         </div>
