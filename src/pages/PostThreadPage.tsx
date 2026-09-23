@@ -90,9 +90,13 @@ export default function PostThreadPage() {
           user_profiles: {
             id: actor,
             username: actorPath.replace(/^@/, ''),
+            email: '',
             display_name: object.attributedTo?.name ?? actorPath.replace(/^@/, ''),
             avatar_url: object.attributedTo?.icon?.url ?? object.attributedTo?.icon ?? undefined,
             verified: false,
+            follower_count: 0,
+            following_count: 0,
+            created_at: published,
           },
           likes_count: Number(object.likes?.totalItems ?? 0),
           reposts_count: Number(object.shares?.totalItems ?? 0),
