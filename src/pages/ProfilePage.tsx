@@ -428,15 +428,20 @@ export default function ProfilePage() {
   const handleSubscribe = async (tier: string, price: number) => {
     if (!currentUser) { navigate('/auth'); return; }
     setSubscribing(true);
-    const { error: deductErr } = await supabase.rpc('deduct_from_wallet', { p_user_id: currentUser.id, p_amount: price });
-    if (deductErr) { toast.error('Insufficient wallet balance. Top up your wallet first.'); setSubscribing(false); return; }
+    const idempotencyKey = `profile-subscription:${currentUser.id}:${profile.id}:${tier}:${crypto.randomUUID()}`;
+    const { data: transfer, error: transferError } = await supabase.rpc('p2p_wallet_transfer', {
+      p_from_user_id: currentUser.id, p_to_user_id: profile.id, p_amount: price,
+      p_note: `Subscription to @${profile.username} — ${tier}`, p_idempotency_key: idempotencyKey,
+    });
+    if (transferError) { toast.error(transferError.message || 'Subscription payment failed'); setSubscribing(false); return; }
     const expiresAt = new Date();
     expiresAt.setMonth(expiresAt.getMonth() + 1);
-    const { error } = await supabase.from('creator_subscriptions').upsert({
-      creator_id: profile.id, subscriber_id: currentUser.id, tier, amount: price, status: 'active',
-      expires_at: expiresAt.toISOString(),
+    const { error } = await supabase.from('subscriptions').upsert({
+      creator_id: profile.id, subscriber_id: currentUser.id, plan: tier, status: 'active',
+      started_at: new Date().toISOString(), ends_at: expiresAt.toISOString(), provider: 'internal',
+      provider_reference: transfer?.reference ?? null,
     }, { onConflict: 'creator_id,subscriber_id' });
-    if (error) { toast.error('Subscription failed'); setSubscribing(false); return; }
+    if (error) { toast.error('Subscription record failed'); setSubscribing(false); return; }
     await supabase.from('creator_earnings').insert({ creator_id: profile.id, source_type: 'subscription', source_id: null, amount: price, currency: 'USD', status: 'paid' }).then(() => {}).catch(() => {});
     await supabase.from('notifications').insert({ recipient_id: profile.id, kind: 'follow', actor_id: currentUser.id  }).catch(() => {});
     toast.success(`Subscribed to @${profile.username} on ${tier} tier!`);
@@ -447,7 +452,7 @@ export default function ProfilePage() {
 
   const handleUnsubscribe = async () => {
     if (!currentUser || !profile) return;
-    await supabase.from('creator_subscriptions').update({ status: 'cancelled' }).eq('creator_id', profile.id).eq('subscriber_id', currentUser.id);
+    await supabase.from('subscriptions').update({ status: 'cancelled' }).eq('creator_id', profile.id).eq('subscriber_id', currentUser.id);
     setActiveSubscription(null);
     toast.success('Subscription cancelled');
   };
@@ -499,8 +504,9 @@ export default function ProfilePage() {
 
   const fetchSubscription = async (creatorId: string) => {
     if (!currentUser) return;
-    const { data } = await supabase.from('creator_subscriptions').select('*').eq('creator_id', creatorId).eq('subscriber_id', currentUser.id).eq('status', 'active').maybeSingle();
-    setActiveSubscription(data ?? null);
+    const { data, error } = await supabase.from('subscriptions').select('*').eq('creator_id', creatorId).eq('subscriber_id', currentUser.id).eq('status', 'active').maybeSingle();
+    if (error) console.error('[profile] subscription query failed', { creatorId, error });
+    setActiveSubscription(data ? { tier: data.plan, price: null, status: data.status, ends_at: data.ends_at } : null);
   };
 
   const fetchTipGoal = async (userId: string) => {
