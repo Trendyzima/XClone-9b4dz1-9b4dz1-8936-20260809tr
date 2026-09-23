@@ -25,7 +25,8 @@ import {
 import { VideoMonetizationAd } from './VideoMonetizationAd';
 import { EmbedRenderer, PostContentEmbeds } from './EmbedRenderer';
 import { updateInterestSignal } from '@/services/recommendations';
-import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts, getFederatedReplies, setFederatedReaction, getFederatedReactionState, getFederatedReactionStateAll, getFederatedReactionCounts, getInteractionCounts, recordPostView } from '@/services/postInteractionService';
+import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts, getFederatedReplies, getInteractionCounts, recordPostView } from '@/services/postInteractionService';
+import { toggleFederatedEmojiReaction, getFederatedEmojiReactionState, getFederatedEmojiReactionCounts } from '@/features/federatedReactions/federatedReactionsService';
 import { backendCapabilities } from '@/services/backendClient';
 import * as federation from '@/api/federation';
 // Canonical social interaction reads/writes stay behind backend capabilities.
@@ -121,8 +122,8 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const fetchReactions = useCallback(async () => {
     if (isFederatedPost) {
       const [counts, mine] = await Promise.all([
-        getFederatedReactionCounts(interactionPostId),
-        getFederatedReactionStateAll(interactionPostId),
+        getFederatedEmojiReactionCounts(interactionPostId),
+        getFederatedEmojiReactionState(interactionPostId),
       ]);
       const emojis = Object.keys(counts);
       setReactionEmojis(emojis);
@@ -164,7 +165,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
           setLikesCount(prev => Math.max(0, prev + (wasLiked ? -1 : 1)));
           await togglePostLike(interactionPostId, wasLiked);
         } else {
-          await setFederatedReaction(interactionPostId, emoji, nextActive);
+          await toggleFederatedEmojiReaction(interactionPostId, emoji, nextActive);
         }
         setUserReactions(prev => {
           const next = nextActive ? [...new Set([...prev, emoji])] : prev.filter(x => x !== emoji);
@@ -524,14 +525,15 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     const checkUserInteractions = async () => {
       try {
         if (isFederatedPost) {
-          const [state, counts, reaction] = await Promise.all([
+          const [state, counts, reactions] = await Promise.all([
             getFederatedInteractionState(interactionPostId),
             getFederatedInteractionCounts(interactionPostId),
-            getFederatedReactionState(interactionPostId),
+            getFederatedEmojiReactionState(interactionPostId),
           ]);
           setIsLiked(state.is_liked);
           setIsReposted(state.is_reposted);
-          setUserReaction(reaction.active ? reaction.emoji : null);
+          setUserReactions(reactions);
+          setUserReaction(reactions[0] ?? null);
           setLikesCount(counts.likes);
           setRepostsCount(counts.reposts);
           setRepliesCount(counts.replies);
