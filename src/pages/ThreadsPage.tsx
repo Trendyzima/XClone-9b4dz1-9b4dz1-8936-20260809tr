@@ -14,8 +14,8 @@ import React from 'react';
 import { FeedAdCard } from '@/components/features/FeedAdCard';
 import { DynamicAd } from '@/components/features/DynamicAd';
 import * as federation from '@/api/federation';
-import { toggleThreadLike } from '@/features/threadLikes/threadLikesService';
-import { toggleThreadRepost } from '@/features/threadReposts/threadRepostsService';
+import { toggleThreadLike, getThreadLikeStates } from '@/features/threadLikes/threadLikesService';
+import { toggleThreadRepost, getThreadRepostStates } from '@/features/threadReposts/threadRepostsService';
 
 
 type Tab = 'For you' | 'Following' | 'Saved';
@@ -152,12 +152,12 @@ export default function ThreadsPage() {
       if(user&&rows.length){
         const ids2=rows.map(r=>r.id);
         const [l,rr,b]=await Promise.all([
-          supabase.from('thread_likes').select('thread_id').eq('user_id',user.id).in('thread_id',ids2),
-          supabase.from('thread_reposts').select('thread_id').eq('user_id',user.id).in('thread_id',ids2),
+          getThreadLikeStates(ids2,user.id),
+          getThreadRepostStates(ids2,user.id),
           supabase.from('thread_bookmarks').select('thread_id').eq('user_id',user.id).in('thread_id',ids2)
         ]);
-        setLiked(prev=>{const n=new Set(reset?[]:prev);(l.data??[]).forEach((x:any)=>n.add(x.thread_id));return n;});
-        setReposted(prev=>{const n=new Set(reset?[]:prev);(rr.data??[]).forEach((x:any)=>n.add(x.thread_id));return n;});
+        setLiked(prev=>{const n=new Set(reset?[]:prev);l.forEach((id)=>n.add(id));return n;});
+        setReposted(prev=>{const n=new Set(reset?[]:prev);rr.forEach((id)=>n.add(id));return n;});
         setBookmarked(prev=>{const n=new Set(reset?[]:prev);(b.data??[]).forEach((x:any)=>n.add(x.thread_id));return n;});
       }
     }catch(error){console.error('Threads feed error',error);toast.error('Could not load Threads');}
