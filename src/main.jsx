@@ -18,14 +18,29 @@ import { supabase } from './lib/supabase';
 import { analytics } from './lib/posthog';
 import { TestagramEvent, trackTestagramEvent } from './lib/testagram-analytics';
 
-analytics.init();
+try {
+  analytics.init();
+} catch (error) {
+  console.warn('[Testagram] analytics initialization failed (non-fatal):', error);
+}
 
-supabase.auth.getSession().then(({ data }) => {
-  analytics.identify(data.session?.user ?? null);
-});
+// Auth/network initialization must never prevent the React application from mounting.
+// A transient Supabase/network failure is recoverable and should not trip the boot
+// fatal-error screen before the user can even see the app.
+void supabase.auth.getSession()
+  .then(({ data }) => {
+    try { analytics.identify(data.session?.user ?? null); } catch (error) {
+      console.warn('[Testagram] analytics identify failed (non-fatal):', error);
+    }
+  })
+  .catch((error) => {
+    console.warn('[Testagram] initial auth hydration failed (non-fatal):', error);
+  });
 
 supabase.auth.onAuthStateChange((_event, session) => {
-  analytics.identify(session?.user ?? null);
+  try { analytics.identify(session?.user ?? null); } catch (error) {
+    console.warn('[Testagram] auth analytics update failed (non-fatal):', error);
+  }
 });
 
 function trackRouteView() {
