@@ -678,15 +678,13 @@ export default function ProfilePage() {
     const amount = tipAmount ?? Number(customTipAmount);
     if (!amount || amount <= 0) { toast.error('Enter a valid tip amount'); return; }
     setSendingTip(true);
-    const { data: wallet } = await supabase.from('user_wallets').select('balance').eq('user_id', currentUser.id).maybeSingle();
-    if (!wallet || Number(wallet.balance) < amount) { toast.error('Insufficient wallet balance'); setSendingTip(false); return; }
     const idempotencyKey = `profile-tip:${currentUser.id}:${profile.id}:${crypto.randomUUID()}`;
     const { data: tipResult, error: tipErr } = await supabase.rpc('send_wallet_tip', { p_to_user_id: profile.id, p_amount: amount, p_note: `Tip to @${profile.username}`, p_idempotency_key: idempotencyKey });
     if (tipErr) { toast.error(tipErr.message || 'Could not send tip'); setSendingTip(false); return; }
     if (!tipResult?.success) { toast.error('Tip transaction was not completed'); setSendingTip(false); return; }
     await supabase.from('creator_earnings').insert({ creator_id: profile.id, source_type: 'tip', source_id: tipResult.tip_id, amount, currency: tipResult.currency ?? 'KES', status: 'paid' }).then(() => {}).catch(() => {});
     await supabase.from('notifications').insert({ recipient_id: profile.id, kind: 'tip', actor_id: currentUser.id  }).catch(() => {});
-    toast.success(`$${amount.toFixed(2)} tip sent to @${profile.username}!`);
+    toast.success(`${tipResult.currency ?? 'KES'} ${amount.toFixed(2)} tip sent to @${profile.username}!`);
     setTipSent(true); setShowTipDialog(false); setTipAmount(null); setCustomTipAmount(''); setSendingTip(false);
     setTimeout(() => setTipSent(false), 3000);
   };
