@@ -1777,7 +1777,7 @@ export default function ProfilePage() {
             <div className="text-center py-16 text-muted-foreground">
               <BookOpen className="w-14 h-14 mx-auto mb-3 opacity-20" />
               <p className="font-semibold">No public series yet</p>
-              {isOwnProfile && <button onClick={() => navigate(`/series/${s.id}`)} className="mt-4 px-5 py-2 bg-primary text-primary-foreground rounded-full text-sm font-bold hover:opacity-90">Create a Series</button>}
+              {isOwnProfile && <button onClick={() => navigate('/series')} className="mt-4 px-5 py-2 bg-primary text-primary-foreground rounded-full text-sm font-bold hover:opacity-90">Create a Series</button>}
             </div>
           ) : (
             <div className="divide-y divide-border">
@@ -1788,7 +1788,7 @@ export default function ProfilePage() {
                 const sPct = sProg && sTotal > 0 ? Math.round((sProg.currentPart / sTotal) * 100) : 0;
                 return (
                   <div key={s.id} className="hover:bg-muted/20 transition-colors">
-                    <button onClick={() => navigate('/series')} className="w-full flex items-start gap-3 p-4 text-left">
+                    <button onClick={() => navigate(`/series/${s.id}`)} className="w-full flex items-start gap-3 p-4 text-left">
                       <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center shrink-0 overflow-hidden border border-border">
                         {s.cover_image ? <img src={s.cover_image} alt={s.title} className="w-full h-full object-cover" /> : <BookOpen className="w-7 h-7 text-primary" />}
                       </div>
@@ -1805,7 +1805,7 @@ export default function ProfilePage() {
                       <ChevronRight className="w-4 h-4 text-muted-foreground mt-1 shrink-0" />
                     </button>
                     <div className="px-4 pb-3">
-                      <button onClick={() => navigate('/series')} className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-colors ${sProg && sTotal > 0 ? 'bg-primary text-primary-foreground hover:opacity-90' : 'bg-muted hover:bg-muted/80 text-foreground'}`}>
+                      <button onClick={() => navigate(`/series/${s.id}`)} className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold transition-colors ${sProg && sTotal > 0 ? 'bg-primary text-primary-foreground hover:opacity-90' : 'bg-muted hover:bg-muted/80 text-foreground'}`}>
                         <Play className="w-3.5 h-3.5" />
                         {sProg && sTotal > 0 ? `Continue (Part ${sProg.currentPart})` : 'Start Reading'}
                       </button>
