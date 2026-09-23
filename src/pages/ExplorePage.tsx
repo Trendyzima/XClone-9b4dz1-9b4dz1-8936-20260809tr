@@ -55,7 +55,7 @@ function ExploreMarketplace({ searchQuery, navigate }: { searchQuery: string; na
     (async () => {
       let query = supabase
         .from('products')
-        .select('*, user_profiles:profiles!posts_user_id_fkey(id, username, avatar_url, verified_tier)')
+        .select('*, user_profiles:profiles!products_user_id_fkey(id, username, avatar_url, verified_tier)')
         .eq('is_active', true)
         .order('views_count', { ascending: false })
         .limit(60);
@@ -281,7 +281,7 @@ function CategoryTabContent({
       const orFilter = keywords.map(k => `content.ilike.%${k}%`).join(',');
       const { data } = await supabase
         .from('posts')
-        .select('id, content, image_url, video_url, is_video, views_count, likes_count, reposts_count, replies_count, created_at, user_profiles:profiles!posts_user_id_fkey(id, username, avatar_url, verified_tier)')
+        .select('id, content, image_url, video_url, is_video, views_count, likes_count, reposts_count, replies_count, created_at, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
         .or(orFilter)
         .is('community_id', null)
         .gte('created_at', since7d)
@@ -293,7 +293,7 @@ function CategoryTabContent({
         if (finalPosts.length < 5) {
           const { data: fallback } = await supabase
             .from('posts')
-            .select('id, content, image_url, video_url, is_video, views_count, likes_count, reposts_count, replies_count, created_at, user_profiles:profiles!posts_user_id_fkey(id, username, avatar_url, verified_tier)')
+            .select('id, content, image_url, video_url, is_video, views_count, likes_count, reposts_count, replies_count, created_at, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
             .is('community_id', null)
             .gte('created_at', since7d)
             .order('views_count', { ascending: false })
@@ -625,7 +625,7 @@ export default function ExplorePage() {
           .ilike('username', `%${clean}%`).order('follower_count', { ascending: false }).limit(5),
         supabase.from('hashtags').select('id, tag, usage_count')
           .ilike('tag', `${clean.replace(/^#/, '')}%`).order('usage_count', { ascending: false }).limit(5),
-        supabase.from('posts').select('id, content, image_url, is_video, views_count, likes_count, user_profiles:profiles!posts_user_id_fkey(id, username, avatar_url, verified_tier)')
+        supabase.from('posts').select('id, content, image_url, is_video, views_count, likes_count, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
           .ilike('content', `%${clean}%`).is('community_id', null).order('likes_count', { ascending: false }).limit(5),
       ]);
       setInlineSearchResults({
@@ -712,7 +712,7 @@ export default function ExplorePage() {
     const since48h = new Date(Date.now() - 48 * 3600000).toISOString();
     const { data } = await supabase
       .from('posts')
-      .select('id, content, image_url, video_url, media_urls, is_video, views_count, likes_count, user_profiles:profiles!posts_user_id_fkey(id, username, avatar_url, verified_tier)')
+      .select('id, content, image_url, video_url, media_urls, is_video, views_count, likes_count, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
       .is('community_id', null)
       .gte('created_at', since48h)
       .order('views_count', { ascending: false })
@@ -750,7 +750,7 @@ export default function ExplorePage() {
     try {
       const { data: stories } = await supabase
         .from('stories')
-        .select('id, media_url, media_type, caption, views_count, user_id, user_profiles:profiles!posts_user_id_fkey(id, username, avatar_url, verified_tier)')
+        .select('id, media_url, media_type, caption, views_count, user_id, expires_at, created_at')
         .gt('expires_at', new Date().toISOString())
         .order('views_count', { ascending: false })
         .limit(30);
@@ -779,17 +779,17 @@ export default function ExplorePage() {
 
   const fetchData = async () => {
     setLoading(true);
-    const [trendingData, hashtagRes, whoRes] = await Promise.all([
+    const [trendingData, hashtagRes, whoRes] = await Promise.allSettled([
       backendCapabilities.getTrends(50),
-      supabase.from('trending_hashtags').select('hashtag_id, trend_score, daily_posts, hashtags(id, tag, usage_count)').order('trend_score', { ascending: false }).limit(20),
+      supabase.from('hashtags').select('id, tag, usage_count, post_count, federated_post_count, last_used_at').order('federated_post_count', { ascending: false }).order('usage_count', { ascending: false }).order('last_used_at', { ascending: false }).limit(20),
       supabase.from('profiles').select('*').order('follower_count', { ascending: false }).limit(10),
     ]);
-    setTrending(trendingData?.items ?? []);
-    if (hashtagRes.data) {
-      setTrendingHashtags(hashtagRes.data.filter((r: any) => r.hashtags).map((r: any) => ({ ...r.hashtags, daily_posts: r.daily_posts })));
+    setTrending(trendingData.status === 'fulfilled' ? (trendingData.value?.items ?? []) : []);
+    if (hashtagRes.status === 'fulfilled' && hashtagRes.value.data) {
+      setTrendingHashtags((hashtagRes.value.data as any[]).map((h: any) => ({ ...h, daily_posts: Number(h.federated_post_count ?? 0) + Number(h.post_count ?? h.usage_count ?? 0) })));
     }
-    if (whoRes.data) {
-      let suggestions = whoRes.data;
+    if (whoRes.status === 'fulfilled' && whoRes.value.data) {
+      let suggestions = whoRes.value.data;
       if (user) suggestions = suggestions.filter((u: any) => u.id !== user.id);
       setWhoToFollow(suggestions.slice(0, 5));
     }
