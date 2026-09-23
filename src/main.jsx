@@ -83,6 +83,8 @@ class AppErrorBoundary extends Component {
   }
 }
 
+let appMounted = false;
+
 const root = createRoot(container);
 const renderFatalBootError = (error) => {
   console.error('[Testagram] boot failed', error);
@@ -97,16 +99,19 @@ const renderFatalBootError = (error) => {
 };
 
 window.addEventListener('error', (event) => {
-  if (event.error) renderFatalBootError(event.error);
+  if (event.error && !appMounted) renderFatalBootError(event.error);
+  else if (event.error) console.error('[Testagram] runtime error', event.error);
 });
 window.addEventListener('unhandledrejection', (event) => {
-  renderFatalBootError(event.reason);
+  if (!appMounted) renderFatalBootError(event.reason);
+  else console.error('[Testagram] runtime rejection', event.reason);
 });
 
 (async () => {
   try {
     const { default: App } = await import('./App');
     root.render(createElement(AppErrorBoundary, null, createElement(App)));
+    appMounted = true;
   } catch (error) {
     renderFatalBootError(error);
   }
