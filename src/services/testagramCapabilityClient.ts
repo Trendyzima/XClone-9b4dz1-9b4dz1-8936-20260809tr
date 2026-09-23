@@ -117,7 +117,7 @@ export class TestagramCapabilityClient{
       // header race turning a valid user session into auth.uid() = null.
       if(!isPublic && capability==="testagram.posts.create" && token){
         try{
-          const directResponse=await fetch(`${supabaseUrl.replace(/\\/$/,"")}/rest/v1/rpc/capability_dispatch`,{
+          const directResponse=await fetch(`${supabaseUrl.replace(/\/$/,"")}/rest/v1/rpc/capability_dispatch`,{
             method:"POST",
             headers:{apikey:supabasePublishableKey,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Accept:"application/json"},
             body:JSON.stringify({p_capability:capability,p_input:input}),
