@@ -1655,7 +1655,6 @@ export default function ProfilePage() {
                           <p className="font-bold text-sm line-clamp-2 leading-snug">{podTitle}</p>
                           <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                             {podDur && <span className="flex items-center gap-0.5"><Clock className="w-3 h-3" />{podDur}</span>}
-                            {(pod.listener_count ?? 0) > 0 && <span className="flex items-center gap-0.5"><Users className="w-3 h-3" />{formatNumber(pod.listener_count)}</span>}
                             <span>{formatDistanceToNow(new Date(pod.created_at), { addSuffix: true })}</span>
                           </div>
                         </div>
