@@ -428,7 +428,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
           }
         }
         sonnerToast.dismiss();
-        if (imageUrls.length > 0) sonnerToast.success(`${imageUrls.length} image(s) uploaded securely!`);
+        if (imageUrls.length > 0) sonnerToast.success(`${imageUrls.length} image(s) uploaded — publishing post…`);
       }
 
       if (video) {
@@ -494,9 +494,9 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
           options: pollData.options,
           durationMinutes: pollData.duration,
         } : undefined,
-      });
+      }, publishAccessToken);
       } catch (createError) {
-        await Promise.allSettled(uploadedMediaIds.map(deleteTestagramMedia));
+        await Promise.allSettled(uploadedMediaIds.map(mediaId => deleteTestagramMedia(mediaId, publishAccessToken)));
         throw createError;
       }
       const postData = { id: postResult.post_id };
@@ -508,7 +508,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
         try {
           await Promise.all(uploadedMediaIds.map((mediaId, index) => attachTestagramMedia(mediaId, postResult.post_id, publishAccessToken)));
         } catch (mediaAttachError: any) {
-          await Promise.allSettled(uploadedMediaIds.map(deleteTestagramMedia));
+          await Promise.allSettled(uploadedMediaIds.map(mediaId => deleteTestagramMedia(mediaId, publishAccessToken)));
           throw new Error(mediaAttachError?.message ?? 'Post media could not be linked to the post.');
         }
       }
