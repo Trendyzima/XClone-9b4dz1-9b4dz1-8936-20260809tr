@@ -834,6 +834,27 @@ export default function ProfilePage() {
       setReplies([]);
     }
   };
+  const fetchMedia = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('posts')
+      .select('*, profiles!posts_author_id_fkey(*)')
+      .eq('author_id', userId)
+      .is('deleted_at', null)
+      .or('image_url.not.is.null,video_url.not.is.null,media_urls.neq.[]')
+      .order('created_at', { ascending: false });
+    if (error) console.error('[profile] media query failed', { userId, error });
+    setMedia(data || []);
+  };
+
+  const fetchLikedPosts = async (userId: string) => {
+    try {
+      setLikedPosts(await listProfileLikes(userId, 100));
+    } catch (error) {
+      console.error('[profile] independent likes query failed', { userId, error });
+      setLikedPosts([]);
+    }
+  };
+
   const fetchFollowers = async (userId: string) => {
     const { data } = await supabase.from('follows').select('follower:profiles!follows_follower_id_fkey(*)').eq('following_id', userId);
     setFollowers((data || []).map((item: any) => item.follower).filter(Boolean));
