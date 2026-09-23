@@ -14,6 +14,9 @@ import React from 'react';
 import { FeedAdCard } from '@/components/features/FeedAdCard';
 import { DynamicAd } from '@/components/features/DynamicAd';
 import * as federation from '@/api/federation';
+import { toggleThreadLike } from '@/features/threadLikes/threadLikesService';
+import { toggleThreadRepost } from '@/features/threadReposts/threadRepostsService';
+
 
 type Tab = 'For you' | 'Following' | 'Saved';
 type Profile = { id:string; username:string; avatar_url:string|null; verified:boolean; display_name?:string|null };
@@ -70,10 +73,10 @@ function ThreadCard({thread,liked,reposted,bookmarked,onLike,onRepost,onBookmark
           {thread.media_urls?.length>0&&<ThreadMedia items={thread.media_urls}/>}
         </button>
         <div className="mt-3 flex max-w-[520px] items-center justify-between text-muted-foreground">
-          <button onClick={open} className="flex items-center gap-1.5 rounded-full p-1.5 hover:text-primary"><MessageCircle className="h-[18px] w-[18px]"/>{thread.replies_count>0&&<span className="text-xs">{formatNumber(thread.replies_count)}</span>}</button>
+          <button onClick={()=>navigate(`/thread/${thread.id}/replies`)} className="flex items-center gap-1.5 rounded-full p-1.5 hover:text-primary"><MessageCircle className="h-[18px] w-[18px]"/>{thread.replies_count>0&&<span className="text-xs">{formatNumber(thread.replies_count)}</span>}</button>
           <button onClick={onRepost} className={`flex items-center gap-1.5 rounded-full p-1.5 ${reposted?'text-green-600':'hover:text-green-600'}`}><Repeat2 className="h-[18px] w-[18px]"/>{thread.reposts_count>0&&<span className="text-xs">{formatNumber(thread.reposts_count)}</span>}</button>
           <button onClick={onLike} className={`flex items-center gap-1.5 rounded-full p-1.5 ${liked?'text-pink-600':'hover:text-pink-600'}`}><Heart className={`h-[18px] w-[18px] ${liked?'fill-current':''}`}/>{thread.likes_count>0&&<span className="text-xs">{formatNumber(thread.likes_count)}</span>}</button>
-          <button onClick={open} className="flex items-center gap-1 rounded-full p-1.5 hover:text-primary" aria-label="Quote"><Quote className="h-[17px] w-[17px]"/>{thread.quotes_count>0&&<span className="text-xs">{formatNumber(thread.quotes_count)}</span>}</button><span className="flex items-center gap-1 text-xs"><Eye className="h-[16px] w-[16px]"/>{formatNumber(thread.views_count)}</span>
+          <button onClick={()=>navigate(`/thread/${thread.id}/quotes`)} className="flex items-center gap-1 rounded-full p-1.5 hover:text-primary" aria-label="Quote"><Quote className="h-[17px] w-[17px]"/>{thread.quotes_count>0&&<span className="text-xs">{formatNumber(thread.quotes_count)}</span>}</button><span className="flex items-center gap-1 text-xs"><Eye className="h-[16px] w-[16px]"/>{formatNumber(thread.views_count)}</span>
           <button onClick={onBookmark} className={`rounded-full p-1.5 ${bookmarked?'text-primary':'hover:text-primary'}`}><Bookmark className={`h-[18px] w-[18px] ${bookmarked?'fill-current':''}`}/></button>
         </div>
       </div>
@@ -169,8 +172,8 @@ export default function ThreadsPage() {
   },[loadThreads,loading,loadingMore,hasMore]);
 
   const mutate=(setter:React.Dispatch<React.SetStateAction<Set<string>>>,id:string,active:boolean)=>setter(prev=>{const n=new Set(prev);active?n.add(id):n.delete(id);return n;});
-  const toggleLike=async(thread:Thread)=>{if(!user){navigate('/auth');return;}const active=!liked.has(thread.id);mutate(setLiked,thread.id,active);setThreads(p=>p.map(t=>t.id===thread.id?{...t,likes_count:Math.max(0,t.likes_count+(active?1:-1))}:t));const res=active?await supabase.from('thread_likes').insert({thread_id:thread.id,user_id:user.id}):await supabase.from('thread_likes').delete().eq('thread_id',thread.id).eq('user_id',user.id);if(res.error){mutate(setLiked,thread.id,!active);setThreads(p=>p.map(t=>t.id===thread.id?{...t,likes_count:Math.max(0,t.likes_count+(active?-1:1))}:t));toast.error('Like failed');}};
-  const toggleRepost=async(thread:Thread)=>{if(!user){navigate('/auth');return;}const active=!reposted.has(thread.id);mutate(setReposted,thread.id,active);setThreads(p=>p.map(t=>t.id===thread.id?{...t,reposts_count:Math.max(0,t.reposts_count+(active?1:-1))}:t));const res=active?await supabase.from('thread_reposts').insert({thread_id:thread.id,user_id:user.id}):await supabase.from('thread_reposts').delete().eq('thread_id',thread.id).eq('user_id',user.id);if(res.error){mutate(setReposted,thread.id,!active);setThreads(p=>p.map(t=>t.id===thread.id?{...t,reposts_count:Math.max(0,t.reposts_count+(active?-1:1))}:t));toast.error('Repost failed');}};
+  const toggleLike=async(thread:Thread)=>{if(!user){navigate('/auth');return;}try{const active=await toggleThreadLike(thread.id,user.id);mutate(setLiked,thread.id,active);setThreads(p=>p.map(t=>t.id===thread.id?{...t,likes_count:Math.max(0,t.likes_count+(active?1:-1))}:t));}catch(e:any){toast.error(e?.message||'Like failed');}};
+  const toggleRepost=async(thread:Thread)=>{if(!user){navigate('/auth');return;}try{const active=await toggleThreadRepost(thread.id,user.id);mutate(setReposted,thread.id,active);setThreads(p=>p.map(t=>t.id===thread.id?{...t,reposts_count:Math.max(0,t.reposts_count+(active?1:-1))}:t));}catch(e:any){toast.error(e?.message||'Repost failed');}};
   const toggleBookmark=async(thread:Thread)=>{if(!user){navigate('/auth');return;}const active=!bookmarked.has(thread.id);mutate(setBookmarked,thread.id,active);const res=active?await supabase.from('thread_bookmarks').insert({thread_id:thread.id,user_id:user.id}):await supabase.from('thread_bookmarks').delete().eq('thread_id',thread.id).eq('user_id',user.id);if(res.error){mutate(setBookmarked,thread.id,!active);toast.error('Bookmark failed');}else toast.success(active?'Saved to your reading list':'Removed from saved');};
 
   const visible=useMemo(()=>{
