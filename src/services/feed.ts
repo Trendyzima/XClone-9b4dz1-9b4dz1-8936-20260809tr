@@ -1,4 +1,5 @@
 import { backendCapabilities } from '@/services/backendClient';
+import { supabase } from '@/lib/supabase';
 import * as federation from '@/api/federation';
 
 export type Post = {
@@ -53,7 +54,28 @@ export async function getMergedHomeTimeline({ limit = 20, before }: { limit?: nu
     fedRes = { posts: [] };
   }
 
-  const localPosts = (localRes?.items ?? []).map(normalizeLocal);
+  let localItems = Array.isArray(localRes?.items) ? localRes.items : [];
+
+  // The personalized ranking intentionally excludes self-authored and recently
+  // seen posts. That is useful for ranking, but it must never make Home appear
+  // empty in a small/new account or when the ranked candidate set is exhausted.
+  // Fall back to the canonical public posts read path before rendering an empty
+  // Home timeline.
+  if (localItems.length === 0) {
+    try {
+      const { data, error } = await supabase.from('posts')
+        .select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
+        .is('community_id', null)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      if (!error) localItems = data ?? [];
+    } catch (err) {
+      console.warn('[feed] chronological fallback failed', err);
+    }
+  }
+
+  const localPosts = localItems.map(normalizeLocal);
   const fedPosts = (fedRes?.posts ?? []).map(normalizeFederated);
 
   // Merge and dedupe by federation_id or fallback to id
