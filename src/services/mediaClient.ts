@@ -52,8 +52,8 @@ export async function attachTestagramMedia(mediaId:string,postId:string,accessTo
   const payload=await response.json().catch(()=>({}));
   if(!response.ok) throw new Error(payload?.error||('Media attach failed ('+response.status+')'));
 }
-export async function deleteTestagramMedia(mediaId:string):Promise<void>{
+export async function deleteTestagramMedia(mediaId:string,accessTokenOverride?:string):Promise<void>{
   let accessToken:string;
-  try { accessToken = await requireAccessToken(); } catch { return; }
+  try { accessToken = accessTokenOverride ?? await requireAccessToken(); } catch { return; }
   await fetch('/api/media',{method:'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},body:JSON.stringify({action:'delete',media_id:mediaId})}).catch(()=>undefined);
 }
