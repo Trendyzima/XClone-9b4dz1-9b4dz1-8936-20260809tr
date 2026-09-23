@@ -3,7 +3,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { FunctionsHttpError } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
-import { backendCapabilities } from '@/services/backendClient';
+import { backendCapabilities, requireAccessToken } from '@/services/backendClient';
 import { pingGoogleSitemap } from '@/lib/pingGoogle';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -404,6 +404,10 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
     violationCheckedRef.current = false; // reset for next post
     setLoading(true);
     try {
+      // Capture one canonical session JWT for the whole publish transaction.
+      // Uploading media must never cause the subsequent post/attach calls to
+      // silently re-read a different/empty Auth state.
+      const publishAccessToken = await requireAccessToken();
       let imageUrls: string[] = [];
       let uploadedMediaIds: string[] = [];
       let videoUrl = null;
@@ -412,7 +416,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
         sonnerToast.loading(`Uploading ${images.length} image(s) to secure media storage...`);
         for (let i = 0; i < images.length; i++) {
           try {
-            const media = await uploadTestagramMedia(images[i]);
+            const media = await uploadTestagramMedia(images[i],null,null,publishAccessToken);
             if (!media.public_url) throw new Error('The media service did not return a usable file URL.');
             imageUrls.push(media.public_url);
             uploadedMediaIds.push(media.media_id);
@@ -430,7 +434,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
       if (video) {
         sonnerToast.loading('Uploading video to secure media storage...');
         try {
-          const media = await uploadTestagramMedia(video);
+          const media = await uploadTestagramMedia(video,null,null,publishAccessToken);
           if (!media.public_url) throw new Error('The media service did not return a usable file URL.');
           videoUrl = media.public_url;
           uploadedMediaIds.push(media.media_id);
@@ -502,7 +506,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
       // insert; this second step makes the relationship authoritative.
       if (uploadedMediaIds.length > 0) {
         try {
-          await Promise.all(uploadedMediaIds.map((mediaId, index) => attachTestagramMedia(mediaId, postResult.post_id)));
+          await Promise.all(uploadedMediaIds.map((mediaId, index) => attachTestagramMedia(mediaId, postResult.post_id, publishAccessToken)));
         } catch (mediaAttachError: any) {
           await Promise.allSettled(uploadedMediaIds.map(deleteTestagramMedia));
           throw new Error(mediaAttachError?.message ?? 'Post media could not be linked to the post.');
