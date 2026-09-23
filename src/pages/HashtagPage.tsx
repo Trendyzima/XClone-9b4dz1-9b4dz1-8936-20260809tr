@@ -50,13 +50,20 @@ export default function HashtagPage() {
     structuredData: hashtag ? buildHashtagLD(tag ?? '', hashtag.usage_count ?? 0) : undefined,
   });
 
+  // Hashtag content is keyed only by the route. Do not refetch the entire
+  // page when auth hydration changes the user object; that previously caused
+  // duplicate failing requests/toasts during initial navigation.
   useEffect(() => {
-    if (tag) {
-      fetchHashtagAndPosts();
-      if (user) checkFollowStatus();
-      fetchRelatedSuggestions(tag);
-    }
-  }, [tag, user]);
+    if (!tag) return;
+    fetchHashtagAndPosts();
+    fetchRelatedSuggestions(tag);
+  }, [tag]);
+
+  // Follow state is the only part of this page that depends on auth.
+  useEffect(() => {
+    if (user && hashtag?.id) checkFollowStatus();
+    else if (!user) setIsFollowing(false);
+  }, [user?.id, hashtag?.id]);
 
   const fetchRelatedSuggestions = useCallback(async (tagName: string) => {
     // Related live spaces: search title for the hashtag keyword
