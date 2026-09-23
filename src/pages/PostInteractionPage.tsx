@@ -10,7 +10,7 @@ import { listQuotes,quotePost } from '@/features/quotes/quotesService';
 import { listQuoteLikes } from '@/features/quoteLikes/quoteLikesService';
 
 type Kind='likes'|'replies'|'reposts'|'quotes'|'quote-likes';
-const META:Record<Kind,{title:string;icon:any}>={likes:{title:'Likes',icon:Heart},replies:{title:'Replies',icon:MessageCircle},reposts:{title:'Reposts',icon:Repeat2},quotes:{title:'Quotes',icon:Quote},'quote-likes':{title:'Quote Likes',icon:Heart}};
+const META:Record<Kind,{title:string;icon:any}>={likes:{title:'Likes',icon:Heart},replies:{title:'Replies',icon:MessageCircle},reposts:{title:'Reposts / Retweets',icon:Repeat2},quotes:{title:'Quotes',icon:Quote},'quote-likes':{title:'Quote Likes',icon:Heart}};
 
 export default function PostInteractionPage({kind}:{kind:Kind}){
  const {postId}=useParams(); const navigate=useNavigate(); const {user}=useAuth();
