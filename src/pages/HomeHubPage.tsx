@@ -49,103 +49,14 @@ export default function HomeHubPage(){
     }
 
     if(target==='all'){
-      // Home is the aggregation surface: hydrate every first-class social source
-      // with its complete media/profile payload, then blend them before rendering.
-      const [localResult, threadResult, fedResult] = await Promise.allSettled([
-        supabase.from('posts')
-          .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
-          .is('community_id',null).is('deleted_at',null)
-          .order('created_at',{ascending:false}).range(offset,offset+39),
-        supabase.from('threads')
-          .select('*')
-          .eq('visibility','public').is('deleted_at',null)
-          .order('created_at',{ascending:false}).range(offset,offset+39),
-        federation.getFederatedTimelinePage({limit:40}),
-      ]);
-      const localRows = localResult.status === 'fulfilled' && !localResult.value.error ? (localResult.value.data ?? []) : [];
-      const threadRows = threadResult.status === 'fulfilled' && !threadResult.value.error ? (threadResult.value.data ?? []) : [];
-      const fedItems = fedResult.status === 'fulfilled'
-        ? (Array.isArray(fedResult.value) ? fedResult.value : (fedResult.value?.items ?? []))
-        : [];
-
-      const locals=localRows.map((p:any)=>({
-        type:'post' as const,
-        source:'local',
-        data:{...p,is_federated:false},
-      }));
-      const threads=threadRows.map((t:any)=>({
-        type:'thread' as const,
-        source:'thread',
-        data:{...t,is_federated:false},
-      }));
-      const fed=fedItems.map((p:any)=>({
-        type:'fedpost' as const,
-        source:'federated',
-        data:{
-          ...p,
-          id:p.id??p.uri,
-          content:p.content??p.text??'',
-          created_at:p.created_at??p.published_at??p.published,
-          user_profiles:p.user_profiles??p.remote_account??p.actor??p.account??p.author??{},
-          media_urls:p.media_urls??p.mediaUrls??p.attachments??[],
-          image_url:p.image_url??p.preview_image_url??p.thumbnail_url,
-          video_url:p.video_url??p.videoUrl,
-          is_video:Boolean(p.is_video||p.video_url||p.videoUrl),
-          is_federated:true,
-        },
-      }));
-
-      if (!locals.length && !threads.length && !fed.length) {
-        const errors = [
-          localResult.status === 'rejected' ? localResult.reason : localResult.status === 'fulfilled' ? localResult.value.error : null,
-          threadResult.status === 'rejected' ? threadResult.reason : threadResult.status === 'fulfilled' ? threadResult.value.error : null,
-          fedResult.status === 'rejected' ? fedResult.reason : null,
-        ].filter(Boolean);
-        if (errors.length) console.warn('[home-hub] all Home sources failed', errors);
-      }
-
-      const all=[...locals,...threads,...fed]
-        .filter((item:any)=>item.data?.created_at)
-        .sort((a,b)=>new Date(b.data.created_at).getTime()-new Date(a.data.created_at).getTime());
-
-      // Organic blending: don't expose three source silos. Prefer fresh content,
-      // but deliberately pull older candidates forward and avoid repeating a source
-      // more than twice consecutively. The resulting sequence naturally varies
-      // between patterns such as new/old/new/old/old/new.
-      const fresh=all.slice(0,Math.max(1,Math.ceil(all.length*0.45)));
-      const older=all.slice(Math.max(1,Math.ceil(all.length*0.45)));
-      const blended:Item[]=[];
-      const used=new Set<string>();
-      let fi=0,oi=0,lastSource='';
-      const pick=(pool:any[],preferDifferent=true)=>{
-        for(let i=0;i<pool.length;i++){
-          const candidate=pool[i];
-          const key=candidate.type+':'+(candidate.data?.id??i);
-          if(used.has(key))continue;
-          if(preferDifferent && candidate.source===lastSource){
-            const alt=pool.find((x:any)=>{
-              const k=x.type+':'+(x.data?.id??0);
-              return !used.has(k)&&x.source!==lastSource;
-            });
-            if(alt)return alt;
-          }
-          return candidate;
-        }
-        return null;
-      };
-      while(fi<fresh.length||oi<older.length){
-        const useOld=blended.length>0 && (blended.length%3!==0 || fi>=fresh.length);
-        const pool=useOld?older:fresh;
-        const candidate=pick(pool,true)??pick(useOld?fresh:older,false);
-        if(!candidate)break;
-        const key=candidate.type+':'+candidate.data.id;
-        used.add(key);
-        blended.push({type:candidate.type,data:candidate.data});
-        if(fresh.includes(candidate))fi=fresh.indexOf(candidate)+1;
-        else oi=older.indexOf(candidate)+1;
-        lastSource=candidate.source;
-      }
-      return blended.slice(0,20);
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      const response = await fetch('/api/home-feed?limit=12&page='+pageNum, {
+        headers: token ? { Authorization: 'Bearer '+token } : {},
+      });
+      if (!response.ok) throw new Error('Home edge feed unavailable');
+      const payload = await response.json();
+      const next = Array.isArray(payload?.items) ? payload.items : [];
+      return next.map((item:any)=>({ type:item.type, data:item.data }));
     }
 
     let query=supabase.from('posts').select('*, '+profileSelect).is('community_id',null).is('deleted_at',null);
@@ -164,10 +75,10 @@ export default function HomeHubPage(){
     return (data??[]).map((x:any)=>({type:'post' as const,data:x}));
   },[user?.id]);
 
-  const load=useCallback(async(target:Tab)=>{setLoading(true);setPage(0);setHasMore(true);try{const next=await fetchTab(target,0);setItems(next);setHasMore(next.length>=20);}catch(e){console.error('[home-hub]',e);setItems([]);setHasMore(false);}finally{setLoading(false);}},[fetchTab]);
+  const load=useCallback(async(target:Tab)=>{setLoading(true);setPage(0);setHasMore(true);try{const next=await fetchTab(target,0);setItems(next);setHasMore(next.length>=12);}catch(e){console.error('[home-hub]',e);setItems([]);setHasMore(false);}finally{setLoading(false);}},[fetchTab]);
   useEffect(()=>{void load(tab);},[tab,load]);
 
-  const loadMore=useCallback(async()=>{if(!hasMore||loadingMore)return false;setLoadingMore(true);try{const nextPage=page+1;const next=await fetchTab(tab,nextPage);setItems(prev=>[...prev,...next]);setPage(nextPage);setHasMore(next.length>=20);return next.length>=20;}finally{setLoadingMore(false);}},[fetchTab,hasMore,loadingMore,page,tab]);
+  const loadMore=useCallback(async()=>{if(!hasMore||loadingMore)return false;setLoadingMore(true);try{const nextPage=page+1;const next=await fetchTab(tab,nextPage);setItems(prev=>[...prev,...next]);setPage(nextPage);setHasMore(next.length>=12);return next.length>=20;}finally{setLoadingMore(false);}},[fetchTab,hasMore,loadingMore,page,tab]);
   const {lastElementRef}=useInfiniteScroll(loadMore);
   const refresh=async()=>{setRefreshing(true);await load(tab);setRefreshing(false);};
 
