@@ -19,7 +19,7 @@ const TABS: {id:Tab;label:string}[] = [
   {id:'media',label:'Media'},{id:'communities',label:'Communities'},{id:'polls',label:'Polls'},
   {id:'shopping',label:'Shopping'},{id:'federated',label:'Federated'},
 ];
-const profileSelect='user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)';
+const profileSelect='user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)';
 
 export default function HomeHubPage(){
   const {user}=useAuth(); const navigate=useNavigate();
@@ -51,31 +51,33 @@ export default function HomeHubPage(){
     if(target==='all'){
       // Home is the aggregation surface: hydrate every first-class social source
       // with its complete media/profile payload, then blend them before rendering.
-      const [localRes, threadRes, fedRes] = await Promise.all([
+      const [localResult, threadResult, fedResult] = await Promise.allSettled([
         supabase.from('posts')
-          .select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
+          .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
           .is('community_id',null).is('deleted_at',null)
           .order('created_at',{ascending:false}).range(offset,offset+39),
         supabase.from('threads')
-          .select('*, user_profiles:profiles!threads_owner_id_fkey(id,username,display_name,avatar_url,verified_tier)')
+          .select('*')
           .eq('visibility','public').is('deleted_at',null)
           .order('created_at',{ascending:false}).range(offset,offset+39),
         federation.getFederatedTimelinePage({limit:40}),
       ]);
-      if(localRes.error)throw localRes.error;
-      if(threadRes.error)throw threadRes.error;
+      const localRows = localResult.status === 'fulfilled' && !localResult.value.error ? (localResult.value.data ?? []) : [];
+      const threadRows = threadResult.status === 'fulfilled' && !threadResult.value.error ? (threadResult.value.data ?? []) : [];
+      const fedItems = fedResult.status === 'fulfilled'
+        ? (Array.isArray(fedResult.value) ? fedResult.value : (fedResult.value?.items ?? fedResult.value?.posts ?? []))
+        : [];
 
-      const locals=(localRes.data??[]).map((p:any)=>({
+      const locals=localRows.map((p:any)=>({
         type:'post' as const,
         source:'local',
         data:{...p,is_federated:false},
       }));
-      const threads=(threadRes.data??[]).map((t:any)=>({
+      const threads=threadRows.map((t:any)=>({
         type:'thread' as const,
         source:'thread',
         data:{...t,is_federated:false},
       }));
-      const fedItems=Array.isArray(fedRes) ? fedRes : (fedRes?.items??fedRes?.posts??[]);
       const fed=fedItems.map((p:any)=>({
         type:'fedpost' as const,
         source:'federated',
@@ -93,7 +95,18 @@ export default function HomeHubPage(){
         },
       }));
 
-      const all=[...locals,...threads,...fed].sort((a,b)=>new Date(b.data.created_at).getTime()-new Date(a.data.created_at).getTime());
+      if (!locals.length && !threads.length && !fed.length) {
+        const errors = [
+          localResult.status === 'rejected' ? localResult.reason : localResult.status === 'fulfilled' ? localResult.value.error : null,
+          threadResult.status === 'rejected' ? threadResult.reason : threadResult.status === 'fulfilled' ? threadResult.value.error : null,
+          fedResult.status === 'rejected' ? fedResult.reason : null,
+        ].filter(Boolean);
+        if (errors.length) console.warn('[home-hub] all Home sources failed', errors);
+      }
+
+      const all=[...locals,...threads,...fed]
+        .filter((item:any)=>item.data?.created_at)
+        .sort((a,b)=>new Date(b.data.created_at).getTime()-new Date(a.data.created_at).getTime());
 
       // Organic blending: don't expose three source silos. Prefer fresh content,
       // but deliberately pull older candidates forward and avoid repeating a source
