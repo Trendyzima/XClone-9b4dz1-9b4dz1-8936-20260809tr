@@ -28,7 +28,11 @@ export function ThreadCard({ thread }: ThreadCardProps) {
   const avatar = profile?.avatar_url;
   const created = thread.created_at ? formatDistanceToNow(new Date(thread.created_at), { addSuffix: true }) : '';
   const body = thread.body ?? thread.content ?? '';
-  const media = Array.isArray(thread.media_urls) ? thread.media_urls : [];
+  const rawMedia = thread.media_urls ?? thread.mediaUrls ?? thread.attachments ?? [];
+  const media = (Array.isArray(rawMedia) ? rawMedia : [])
+    .map((item: any) => typeof item === 'string' ? item : (item?.url ?? item?.media_url ?? item?.mediaUrl))
+    .filter(Boolean)
+    .slice(0, 4);
 
   return (
     <article className="border-b border-border bg-background px-4 py-4 hover:bg-muted/20 transition-colors">
@@ -46,7 +50,9 @@ export function ThreadCard({ thread }: ThreadCardProps) {
           {body && <p className="mt-1 whitespace-pre-wrap break-words text-[15px] leading-6">{body}</p>}
           {media.length > 0 && (
             <div className="grid grid-cols-2 gap-2 mt-3">
-              {media.slice(0,4).map((url: string, i: number) => <img key={i} src={url} alt="" loading="lazy" className="w-full max-h-64 object-cover rounded-xl border border-border" />)}
+              {media.map((url: string, i: number) => /\.(mp4|webm|mov|m4v|ogv)(?:[?#].*)?$/i.test(url)
+                ? <video key={i} src={url} controls playsInline preload="metadata" className="w-full max-h-64 object-cover rounded-xl border border-border" />
+                : <img key={i} src={url} alt="" loading="lazy" decoding="async" className="w-full max-h-64 object-cover rounded-xl border border-border" />)}
             </div>
           )}
           <div className="flex items-center justify-between mt-3 max-w-lg text-muted-foreground">
