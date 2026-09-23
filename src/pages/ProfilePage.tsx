@@ -406,15 +406,10 @@ export default function ProfilePage() {
     const GIFT_PRICE = 4.99;
     setGiftingPremium(true);
     try {
-      const { error: deductErr } = await supabase.rpc('deduct_from_wallet', { p_user_id: currentUser.id, p_amount: GIFT_PRICE });
-      if (deductErr) { toast.error(`Insufficient wallet balance. You need $${GIFT_PRICE} to gift premium.`); return; }
-      const expiresAt = new Date();
-      expiresAt.setMonth(expiresAt.getMonth() + 1);
-      const { error } = await supabase.from('premium_subscriptions').upsert({
-        user_id: profile.id, plan: 'monthly', status: 'active', price: GIFT_PRICE,
-        started_at: new Date().toISOString(), expires_at: expiresAt.toISOString(),
-      }, { onConflict: 'user_id' });
+      const idempotencyKey = `premium-gift:${currentUser.id}:${profile.id}:${crypto.randomUUID()}`;
+      const { data, error } = await supabase.rpc('send_premium_gift', { p_recipient_id: profile.id, p_amount: GIFT_PRICE, p_idempotency_key: idempotencyKey });
       if (error) throw error;
+      const expiresAt = new Date(data?.expires_at ?? Date.now() + 30 * 86400000);
       await supabase.from('platform_inbox').insert({
         user_id: profile.id, subject: '🎁 Someone gifted you Premium!',
         body: `@${currentUser.username} gifted you 1 month of Premium! Enjoy an ad-free experience until ${expiresAt.toLocaleDateString()}.`,
@@ -442,7 +437,7 @@ export default function ProfilePage() {
       expires_at: expiresAt.toISOString(),
     }, { onConflict: 'creator_id,subscriber_id' });
     if (error) { toast.error('Subscription failed'); setSubscribing(false); return; }
-    await supabase.from('creator_earnings').insert({ user_id: profile.id, source: 'subscription', amount_cents: Math.round(price * 100), currency: 'USD', status: 'paid' }).then(() => {}).catch(() => {});
+    await supabase.from('creator_earnings').insert({ creator_id: profile.id, source_type: 'subscription', source_id: null, amount: price, currency: 'USD', status: 'paid' }).then(() => {}).catch(() => {});
     await supabase.from('notifications').insert({ recipient_id: profile.id, kind: 'follow', actor_id: currentUser.id  }).catch(() => {});
     toast.success(`Subscribed to @${profile.username} on ${tier} tier!`);
     setActiveSubscription({ tier, price, status: 'active' });
@@ -540,7 +535,7 @@ export default function ProfilePage() {
 
   const fetchTipHistory = async (userId: string) => {
     setLoadingTips(true);
-    const { data: tips } = await supabase.from('tips').select('*').or(`sender_id.eq.${userId},recipient_id.eq.${userId}`).order('created_at', { ascending: false }).limit(50);
+    const { data: tips, error } = await supabase.from('tips').select('*').or(`from_user_id.eq.${userId},to_user_id.eq.${userId}`).order('created_at', { ascending: false }).limit(50);
     if (!tips || tips.length === 0) { setTipHistory([]); setLoadingTips(false); return; }
     const allUids = tips.flatMap((t: any) => [t.from_user_id, t.to_user_id]) as string[];
     const uids = allUids.filter((u: string, i: number) => allUids.indexOf(u) === i);
@@ -575,7 +570,7 @@ export default function ProfilePage() {
 
   const fetchGiftHistory = async (userId: string) => {
     setLoadingGifts(true);
-    const { data } = await supabase.from('premium_subscriptions').select('*').or(`user_id.eq.${userId}`).order('started_at', { ascending: false }).limit(50);
+    const { data } = await supabase.from('premium_gifts').select('*').or(`sender_id.eq.${userId},recipient_id.eq.${userId}`).order('created_at', { ascending: false }).limit(50);
     if (!data || data.length === 0) { setGiftHistory([]); setLoadingGifts(false); return; }
     const { data: inbox } = await supabase.from('platform_inbox').select('body, sent_at, user_id').eq('user_id', userId).ilike('subject', '%gift%').order('sent_at', { ascending: false }).limit(30);
     setGiftHistory(data.map((sub: any) => ({
@@ -626,19 +621,11 @@ export default function ProfilePage() {
   const togglePinPost = async (postId: string) => {
     if (!currentUser || !isOwnProfile) return;
     const newPinned = pinnedPostId === postId ? null : postId;
+    const { error } = await supabase.from('profiles').update({ pinned_post_id: newPinned }).eq('id', currentUser.id);
+    if (error) { toast.error('Could not save pinned post'); return; }
     setPinnedPostId(newPinned);
-    if (newPinned) {
-      localStorage.setItem(`pinned_post_${currentUser.id}`, newPinned);
-      toast.success('Post pinned to your profile');
-    } else {
-      localStorage.removeItem(`pinned_post_${currentUser.id}`);
-      toast.success('Post unpinned');
-    }
+    toast.success(newPinned ? 'Post pinned to your profile' : 'Post unpinned');
   };
-
-  useEffect(() => {
-    if (isOwnProfile && currentUser) setPinnedPostId(localStorage.getItem(`pinned_post_${currentUser.id}`));
-  }, [isOwnProfile, currentUser]);
 
   useEffect(() => { if (username) fetchProfile(); }, [username]);
 
@@ -697,11 +684,11 @@ export default function ProfilePage() {
     setSendingTip(true);
     const { data: wallet } = await supabase.from('user_wallets').select('balance').eq('user_id', currentUser.id).maybeSingle();
     if (!wallet || Number(wallet.balance) < amount) { toast.error('Insufficient wallet balance'); setSendingTip(false); return; }
-    const { error: deductErr } = await supabase.rpc('deduct_from_wallet', { p_user_id: currentUser.id, p_amount: amount });
-    if (deductErr) { toast.error('Could not deduct from wallet'); setSendingTip(false); return; }
-    await supabase.rpc('add_to_wallet', { p_user_id: profile.id, p_amount: amount }).catch(() => {});
-    await supabase.from('tips').insert({ sender_id: currentUser.id, recipient_id: profile.id, amount_cents: Math.round(amount * 100), currency: 'USD', provider: 'internal', status: 'completed' }).then(() => {}).catch(() => {});
-    await supabase.from('creator_earnings').insert({ user_id: profile.id, source: 'tips', amount_cents: Math.round(amount * 100), currency: 'USD', status: 'paid' }).then(() => {}).catch(() => {});
+    const idempotencyKey = `profile-tip:${currentUser.id}:${profile.id}:${crypto.randomUUID()}`;
+    const { data: tipResult, error: tipErr } = await supabase.rpc('send_wallet_tip', { p_to_user_id: profile.id, p_amount: amount, p_note: `Tip to @${profile.username}`, p_idempotency_key: idempotencyKey });
+    if (tipErr) { toast.error(tipErr.message || 'Could not send tip'); setSendingTip(false); return; }
+    if (!tipResult?.success) { toast.error('Tip transaction was not completed'); setSendingTip(false); return; }
+    await supabase.from('creator_earnings').insert({ creator_id: profile.id, source_type: 'tip', source_id: tipResult.tip_id, amount, currency: tipResult.currency ?? 'KES', status: 'paid' }).then(() => {}).catch(() => {});
     await supabase.from('notifications').insert({ recipient_id: profile.id, kind: 'tip', actor_id: currentUser.id  }).catch(() => {});
     toast.success(`$${amount.toFixed(2)} tip sent to @${profile.username}!`);
     setTipSent(true); setShowTipDialog(false); setTipAmount(null); setCustomTipAmount(''); setSendingTip(false);
@@ -748,6 +735,7 @@ export default function ProfilePage() {
       const socialLinks = (profileData.social_links ?? {}) as { twitter?: string | null; instagram?: string | null; linkedin?: string | null };
       const { data: monetization } = await supabase.from('user_monetization').select('total_earnings').eq('user_id', profileData.id).maybeSingle();
       const normalizedProfile = { ...profileData, twitter_handle: socialLinks.twitter ?? null, instagram_handle: socialLinks.instagram ?? null, linkedin_url: socialLinks.linkedin ?? null, cover_image: profileData.cover_url ?? null, verified: profileData.verified_tier !== 'none', total_earnings: monetization?.total_earnings ?? 0 };
+      setPinnedPostId(profileData.pinned_post_id ?? null);
       setProfile(normalizedProfile);
       // Update meta tags inline (no IIFE in render — this is async data loading)
       const title = `@${profileData.username} on Testagram`;
@@ -1537,7 +1525,7 @@ export default function ProfilePage() {
               {threads.map(thread => (
                 <div key={thread.id} onClick={() => navigate(`/thread/${thread.id}`)} className="border-b border-border p-4 hover:bg-muted/5 cursor-pointer">
                   <h3 className="font-bold text-lg mb-2">{thread.title}</h3>
-                  <p className="text-muted-foreground line-clamp-3 mb-2">{thread.content.substring(0, 200)}...</p>
+                  <p className="text-muted-foreground line-clamp-3 mb-2">{thread.body?.substring(0, 200) ?? ''}{thread.body?.length > 200 ? '...' : ''}</p>
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <span>{formatNumber(thread.views_count)} views</span>
                     <span>{formatNumber(thread.likes_count)} likes</span>
@@ -1697,10 +1685,7 @@ export default function ProfilePage() {
               {giftHistory.map((sub: any) => {
                 const isActive = sub.status === 'active' && new Date(sub.expires_at) > new Date();
                 const isExpired = sub.status === 'expired' || (sub.expires_at && new Date(sub.expires_at) <= new Date());
-                const hint = sub.inboxHint?.body ?? '';
-                const gifterMatch = hint.match(/@(\w+)\s+gifted you/);
-                const gifterName = gifterMatch?.[1] ?? null;
-                const isReceived = sub.user_id === profile.id;
+                const isReceived = sub.recipient_id === profile.id;
                 return (
                   <div key={sub.id} className="p-4 hover:bg-muted/5 transition-colors flex items-center gap-3">
                     <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${isActive ? 'bg-gradient-to-br from-amber-500/20 to-yellow-500/20 border border-amber-500/30' : 'bg-muted border border-border'}`}>
@@ -1708,14 +1693,14 @@ export default function ProfilePage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-semibold text-sm">{isReceived ? (gifterName ? `From @${gifterName}` : 'Premium Gift') : 'Gift Sent'}</span>
+                        <span className="font-semibold text-sm">{isReceived ? 'Premium Gift Received' : 'Premium Gift Sent'}</span>
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${isActive ? 'bg-amber-500/15 text-amber-600' : isExpired ? 'bg-muted text-muted-foreground' : 'bg-primary/10 text-primary'}`}>
                           {isActive ? '✓ Active' : isExpired ? 'Expired' : sub.status}
                         </span>
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-600 font-semibold capitalize">{sub.plan}</span>
                       </div>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {sub.started_at ? formatDistanceToNow(new Date(sub.started_at), { addSuffix: true }) : ''}
+                        {sub.created_at ? formatDistanceToNow(new Date(sub.created_at), { addSuffix: true }) : ''}
                         {sub.expires_at && ` · Expires ${new Date(sub.expires_at).toLocaleDateString()}`}
                       </p>
                       {isActive && sub.expires_at && (
@@ -1728,7 +1713,7 @@ export default function ProfilePage() {
                         </div>
                       )}
                     </div>
-                    <p className="text-base font-bold shrink-0 text-amber-600">${Number(sub.price).toFixed(2)}</p>
+                    <p className="text-base font-bold shrink-0 text-amber-600">${Number(sub.amount).toFixed(2)}</p>
                   </div>
                 );
               })}
