@@ -128,8 +128,8 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       const emojis = Object.keys(counts);
       setReactionEmojis(emojis);
       setReactionNums(emojis.map(emoji => Number(counts[emoji] ?? 0)));
-      setUserReactions(mine.emojis);
-      setUserReaction(mine.emojis[0] ?? null);
+      setUserReactions(mine);
+      setUserReaction(mine[0] ?? null);
       return;
     }
     const { data, error } = await supabase.rpc('testagram_local_reaction_state', { p_post_id: post.id });
