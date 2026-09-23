@@ -76,7 +76,8 @@ export async function getMergedHomeTimeline({ limit = 20, before }: { limit?: nu
   }
 
   const localPosts = localItems.map(normalizeLocal);
-  const fedPosts = (fedRes?.posts ?? []).map(normalizeFederated);
+  const federatedItems = Array.isArray(fedRes) ? fedRes : (fedRes?.posts ?? fedRes?.items ?? []);
+  const fedPosts = federatedItems.map(normalizeFederated);
 
   // Merge and dedupe by federation_id or fallback to id
   const map = new Map<string, Post>();
