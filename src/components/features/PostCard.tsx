@@ -1067,15 +1067,17 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
             )}
           </div>
 
+          <div className="flex gap-4 mt-1 text-[11px] text-muted-foreground"><button onClick={(e) => { e.stopPropagation(); navigate(`/post/${interactionPostId}/likes`); }} className="hover:text-primary">{formatNumber(likesCount)} likes</button><button onClick={(e) => { e.stopPropagation(); navigate(`/post/${interactionPostId}/reposts`); }} className="hover:text-primary">{formatNumber(repostsCount)} reposts</button><button onClick={(e) => { e.stopPropagation(); navigate(`/post/${interactionPostId}/quotes`); }} className="hover:text-primary">{formatNumber(quoteCount)} quotes</button></div>
+
           <div className="flex justify-between mt-3 max-w-md">
             <button
               className="flex items-center space-x-2 text-muted-foreground hover:text-primary transition-colors group"
-              onClick={toggleComments}
+              onClick={(e) => { e.stopPropagation(); navigate(`/post/${interactionPostId}/replies`); }}
             >
               <div className="p-2 rounded-full group-hover:bg-primary/10 transition-colors">
                 <MessageCircle className="w-5 h-5" />
               </div>
-              <span className="text-sm">{formatNumber(repliesCount)}</span>
+              <span onClick={(e) => { e.stopPropagation(); navigate(`/post/${interactionPostId}/replies`); }} className="text-sm cursor-pointer">{formatNumber(repliesCount)}</span>
               {showComments ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3 opacity-50" />}
             </button>
 
@@ -1086,7 +1088,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
               <div className="p-2 rounded-full group-hover:bg-green-500/10 transition-colors">
                 <Repeat2 className="w-5 h-5" />
               </div>
-              <span className="text-sm">{formatNumber(repostsCount)}</span>
+              <span onClick={(e) => { e.stopPropagation(); navigate(`/post/${interactionPostId}/reposts`); }} className="text-sm cursor-pointer">{formatNumber(repostsCount)}</span>
             </button>
 
             {/* Reaction button + picker */}
@@ -1130,7 +1132,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
             <button
               title={'Quote Tweet' + (quoteCount ? ' · ' + quoteCount : '')}
               className="flex items-center space-x-2 text-muted-foreground hover:text-blue-500 transition-colors group"
-              onClick={e => { e.stopPropagation(); navigate(`/?quote_post_id=${encodeURIComponent(interactionPostId)}&quote_preview=${encodeURIComponent(post.content.slice(0, 100))}`); }}
+              onClick={e => { e.stopPropagation(); navigate(`/post/${interactionPostId}/quotes?compose=1`); }}
             >
               <div className="p-2 rounded-full group-hover:bg-blue-500/10 transition-colors">
                 <Quote className="w-4 h-4" />
