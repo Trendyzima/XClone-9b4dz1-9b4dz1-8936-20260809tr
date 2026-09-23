@@ -12,8 +12,8 @@ function friendlyMediaError(error:unknown){
   return m||'Media upload failed. Please try again.';
 }
 
-async function uploadAttempt(file:File,postId?:string|null,threadId?:string|null){
-  const accessToken = await requireAccessToken();
+async function uploadAttempt(file:File,postId?:string|null,threadId?:string|null,accessTokenOverride?:string){
+  const accessToken = accessTokenOverride ?? await requireAccessToken();
   const form=new FormData();
   form.append('file',file,file.name);
   if(postId) form.append('post_id',postId);
@@ -28,13 +28,13 @@ async function uploadAttempt(file:File,postId?:string|null,threadId?:string|null
   return payload as MediaCompleted;
 }
 
-export async function uploadTestagramMedia(file:File,postId?:string|null,threadId?:string|null):Promise<MediaCompleted>{
+export async function uploadTestagramMedia(file:File,postId?:string|null,threadId?:string|null,accessTokenOverride?:string):Promise<MediaCompleted>{
   try {
     if(file.size<=0) throw new Error('The selected file is empty.');
     if(file.size>MAX_TESTAGRAM_MEDIA_BYTES) throw new Error('That file is too large. Maximum size is 20 MiB.');
     let last:unknown=null;
     for(let attempt=0;attempt<3;attempt++){
-      try { return await uploadAttempt(file,postId,threadId); }
+      try { return await uploadAttempt(file,postId,threadId,accessTokenOverride); }
       catch(error){
         last=error;
         const message=error instanceof Error?error.message:String(error??'');
@@ -46,8 +46,8 @@ export async function uploadTestagramMedia(file:File,postId?:string|null,threadI
   } catch(error){ throw new Error(friendlyMediaError(error)); }
 }
 
-export async function attachTestagramMedia(mediaId:string,postId:string):Promise<void>{
-  const accessToken = await requireAccessToken();
+export async function attachTestagramMedia(mediaId:string,postId:string,accessTokenOverride?:string):Promise<void>{
+  const accessToken = accessTokenOverride ?? await requireAccessToken();
   const response=await fetch('/api/media',{method:'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},body:JSON.stringify({action:'attach',media_id:mediaId,post_id:postId})});
   const payload=await response.json().catch(()=>({}));
   if(!response.ok) throw new Error(payload?.error||('Media attach failed ('+response.status+')'));
