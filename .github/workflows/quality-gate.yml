@@ -92,5 +92,18 @@ jobs:
           if grep -q "supabase.from('post_reposts')" src/components/features/PostCard.tsx; then exit 1; fi
           if grep -q "supabase.from('replies')" src/components/features/PostCard.tsx; then exit 1; fi
           if grep -qE "from\\(['\"]post_likes['\"]\\)|from\\(['\"]post_reposts['\"]\\)|from\\(['\"]replies['\"]\\)" src/components/features/PostCard.tsx; then exit 1; fi
+          # Independent interaction architecture: each local interaction domain has
+          # its own service/page, while post detail remains a composition surface.
+          for f in             src/features/likes/likesService.ts             src/features/replies/repliesService.ts             src/features/reposts/repostsService.ts             src/features/quotes/quotesService.ts             src/features/quoteLikes/quoteLikesService.ts             src/pages/PostInteractionPage.tsx; do
+            test -f "$f"
+          done
+          if grep -qE "supabase\\.from\\(['\"]replies['\"]\\)|supabase\\.from\\(['\"]reply_likes['\"]\\)" src/pages/PostThreadPage.tsx; then
+            echo 'Nested reply persistence/read path remains in PostThreadPage.'
+            exit 1
+          fi
+          if grep -qE "supabase\\.from\\(['\"]replies['\"]\\)|supabase\\.from\\(['\"]reply_likes['\"]\\)" src/components/features/PostCard.tsx; then
+            echo 'Nested reply persistence/read path remains in PostCard.'
+            exit 1
+          fi
 
 # Verification trigger: run the canonical gate against the committed tree only.
