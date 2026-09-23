@@ -953,7 +953,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
                 <MessageCircle className="w-5 h-5" />
               </div>
               <span onClick={(e) => { e.stopPropagation(); isFederatedPost ? navigate(federatedProfilePath()) : navigate(`/post/${interactionPostId}/replies`); }} className="text-sm cursor-pointer">{formatNumber(repliesCount)}</span>
-              {showComments ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3 opacity-50" />}
+              
             </button>
 
             <button
