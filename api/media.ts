@@ -51,19 +51,28 @@ function config() {
 }
 
 async function authenticate(req: any, cfg: ReturnType<typeof config>) {
-  // Normalize the inbound header before forwarding it. Passing an arbitrary
-  // raw header value into the Supabase SDK can produce Node ERR_INVALID_CHAR
-  // and turn a valid session into a 500 during media finalization.
+  // Validate the bearer token directly against the canonical Supabase Auth
+  // endpoint. This avoids SDK/global-header forwarding inside Vercel's Node
+  // HTTP stack and keeps media authentication on the same auth plane as the
+  // browser session and /api/capability.
   const rawAuthorization = String(req.headers.authorization ?? '').trim();
-  const token = rawAuthorization.replace(/^Bearer\s+/i, '').trim();
+  const token = rawAuthorization.replace(/^Bearer\\s+/i, '').trim();
   if (!token || !cfg.supabaseUrl || !cfg.supabaseKey || /[\\r\\n]/.test(token)) return null;
-  const authorization = 'Bearer ' + token;
-  const client = createClient(cfg.supabaseUrl, cfg.supabaseKey, {
-    global: { headers: { Authorization: authorization } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-  const { data } = await client.auth.getUser(token);
-  return data.user ?? null;
+  try {
+    const response = await fetch(cfg.supabaseUrl + '/auth/v1/user', {
+      method: 'GET',
+      headers: {
+        apikey: cfg.supabaseKey,
+        Authorization: 'Bearer ' + token,
+      },
+    });
+    if (!response.ok) return null;
+    const user = await response.json();
+    return user?.id ? user : null;
+  } catch (error) {
+    console.error('media auth validation failed', error);
+    return null;
+  }
 }
 
 function makeR2(cfg: ReturnType<typeof config>) {
