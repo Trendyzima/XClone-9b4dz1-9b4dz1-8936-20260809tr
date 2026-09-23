@@ -155,7 +155,7 @@ export default function HashtagPage() {
       // PostgREST order against the junction table.
       const { data: postsData, error: postsError } = await supabase
         .from('post_hashtags')
-        .select('post_id, posts(*, user_profiles:profiles!posts_user_id_fkey(*))')
+        .select('post_id, posts(*, user_profiles:profiles!posts_author_id_fkey(*))')
         .eq('hashtag_id', hashtagData.id);
       if (postsError) throw postsError;
       const formattedPosts = (postsData || [])
