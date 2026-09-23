@@ -820,7 +820,7 @@ export default function ProfilePage() {
     checkImpressionMilestones(userId, postList).catch(() => {});
   };
   const fetchThreads = async (userId: string) => {
-    const { data, error } = await supabase.from('threads').select('*').eq('owner_id', userId).eq('deleted_at', null).order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('threads').select('*').eq('owner_id', userId).is('deleted_at', null).order('created_at', { ascending: false });
     if (error) console.error('[profile] threads query failed', { userId, error });
     setThreads(data || []);
   };
