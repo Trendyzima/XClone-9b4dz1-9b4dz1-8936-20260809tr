@@ -6,7 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { listLikes } from '@/features/likes/likesService';
 import { listReplies,createReply } from '@/features/replies/repliesService';
 import { listReposts } from '@/features/reposts/repostsService';
-import { listQuotes } from '@/features/quotes/quotesService';
+import { listQuotes,quotePost } from '@/features/quotes/quotesService';
 import { listQuoteLikes } from '@/features/quoteLikes/quoteLikesService';
 
 type Kind='likes'|'replies'|'reposts'|'quotes'|'quote-likes';
@@ -37,7 +37,7 @@ export default function PostInteractionPage({kind}:{kind:Kind}){
    <p className="mt-3 text-sm whitespace-pre-wrap break-words line-clamp-5">{post.content}</p>
    <div className="flex gap-5 mt-3 text-xs text-muted-foreground"><span>{post.likes_count??0} likes</span><span>{post.replies_count??0} replies</span><span>{post.reposts_count??0} reposts</span></div>
   </button>}
-  {kind==='replies'&&user&&<div className="p-3 border-b border-border flex gap-2"><input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void sendReply()}}} placeholder="Write a reply…" className="flex-1 rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm outline-none"/><button disabled={!text.trim()||sending} onClick={()=>void sendReply()} className="p-2 rounded-xl bg-primary text-primary-foreground disabled:opacity-40"><Send className="w-4 h-4"/></button></div>}
+  {kind==='replies'&&user&&<div className="p-3 border-b border-border flex gap-2"><input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void sendReply()}}} placeholder="Write a reply…" className="flex-1 rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm outline-none"/><button disabled={!text.trim()||sending} onClick={()=>void sendReply()} className="p-2 rounded-xl bg-primary text-primary-foreground disabled:opacity-40"><Send className="w-4 h-4"/></button></div>}{kind==='quotes'&&user&&<div className="p-3 border-b border-border flex gap-2"><input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void (async()=>{if(!postId||!text.trim())return;setSending(true);try{await quotePost(postId,text.trim());setText('');setItems(await listQuotes(postId,100));}catch(e){console.error(e)}finally{setSending(false)}})()}}} placeholder="Add your quote…" className="flex-1 rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm outline-none"/><button disabled={!text.trim()||sending} onClick={()=>void (async()=>{if(!postId||!text.trim())return;setSending(true);try{await quotePost(postId,text.trim());setText('');setItems(await listQuotes(postId,100));}catch(e){console.error(e)}finally{setSending(false)}})()} className="p-2 rounded-xl bg-primary text-primary-foreground disabled:opacity-40"><Send className="w-4 h-4"/></button></div>}
   <div>{loading?<div className="py-16 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary"/></div>:items.length===0?<div className="py-16 text-center text-muted-foreground">No {meta.title.toLowerCase()} yet.</div>:items.map((item:any)=><InteractionRow key={item.id} item={item} kind={kind} onOpenProfile={(u:string)=>u&&navigate('/profile/'+u)} onOpenPost={(id:string)=>navigate('/post/'+id)}/>)}</div>
  </div>
 }
