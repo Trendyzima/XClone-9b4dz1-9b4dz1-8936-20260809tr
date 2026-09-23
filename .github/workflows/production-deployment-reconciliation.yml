@@ -176,10 +176,10 @@ jobs:
             local max_attempts=4
             while true; do
               if [[ -n "$optional_arg" ]]; then
-                if supabase functions deploy "$name" --project-ref "$PROJECT_REF" "$optional_arg"; then
+                if supabase functions deploy "$name" --use-api --project-ref "$PROJECT_REF" "$optional_arg"; then
                   return 0
                 fi
-              elif supabase functions deploy "$name" --project-ref "$PROJECT_REF"; then
+              elif supabase functions deploy "$name" --use-api --project-ref "$PROJECT_REF"; then
                 return 0
               fi
               if (( attempt >= max_attempts )); then
@@ -211,15 +211,15 @@ jobs:
             PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
           fi
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref."; exit 1; }
-          supabase functions deploy gateway-relay --project-ref "$PROJECT_REF" --no-verify-jwt
-          supabase functions deploy federated-feed --project-ref "$PROJECT_REF"
-          supabase functions deploy megalodon-gateway --project-ref "$PROJECT_REF"
+          supabase functions deploy gateway-relay --use-api --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase functions deploy federated-feed --use-api --project-ref "$PROJECT_REF"
+          supabase functions deploy megalodon-gateway --use-api --project-ref "$PROJECT_REF"
           # The production UI's Follow/Unfollow path is testagram-api -> federation-transport.
           # Keep both gateway functions reconciled with the same exact source revision.
-          supabase functions deploy testagram-api --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase functions deploy testagram-api --use-api --project-ref "$PROJECT_REF" --no-verify-jwt
           # Testagram's public ActivityPub actor URLs are canonical on testagram.site.
           export FEDERATION_PUBLIC_ORIGIN="https://testagram.site"
-          supabase functions deploy federation-transport --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase functions deploy federation-transport --use-api --project-ref "$PROJECT_REF" --no-verify-jwt
           # activitypub-federation was the retired duplicate client gateway. Remove the
           # live Edge Function as part of reconciliation so production has one canonical
           # outbound path: testagram-api -> federation-transport.
@@ -245,9 +245,9 @@ jobs:
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref."; exit 1; }
           for fn in testagram-ad-campaign testagram-ads zenad-decision zenad-event testagram-ad-asset-upload zenad-campaign zenad-ad-asset-upload mpesa-ad-payment; do
             if [[ "$fn" == "zenad-event" || "$fn" == "mpesa-ad-payment" ]]; then
-              supabase functions deploy "$fn" --project-ref "$PROJECT_REF" --no-verify-jwt
+              supabase functions deploy "$fn" --use-api --project-ref "$PROJECT_REF" --no-verify-jwt
             else
-              supabase functions deploy "$fn" --project-ref "$PROJECT_REF"
+              supabase functions deploy "$fn" --use-api --project-ref "$PROJECT_REF"
             fi
           done
           node -e 'const fs=require("node:fs"); const p="supabase/migrations/20260919193000_testagram_ads_runtime_schema_repair.sql"; if(!fs.existsSync(p)){console.error("Canonical Testagram Ads runtime migration is missing:",p); process.exit(1)} console.log("Testagram Ads schema source present:",p);'
@@ -410,7 +410,7 @@ jobs:
           fi
           [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required for profile media deployment."; exit 1; }
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref for profile media deployment."; exit 1; }
-          supabase functions deploy profile-media-upload --project-ref "$PROJECT_REF" --no-verify-jwt
+          supabase functions deploy profile-media-upload --use-api --project-ref "$PROJECT_REF" --no-verify-jwt
           echo "Profile media Edge Function deployed with in-function bearer authentication."
       - name: Synchronize Cloudflare R2 secrets into Vercel production
         shell: bash
