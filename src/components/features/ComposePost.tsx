@@ -419,7 +419,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
             const media = await uploadTestagramMedia(images[i],null,null,publishAccessToken);
             if (!media.public_url) throw new Error('The media service did not return a usable file URL.');
             imageUrls.push(media.public_url);
-            uploadedMediaIds.push(media.media_id);
+            uploadedMediaIds.push(String(media.media_id || (media as any).id || ''));
           } catch (uploadError: any) {
             sonnerToast.dismiss();
             sonnerToast.error(uploadError?.message ?? 'Could not upload the image. Please try again.');
@@ -499,7 +499,9 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
         await Promise.allSettled(uploadedMediaIds.map(mediaId => deleteTestagramMedia(mediaId, publishAccessToken)));
         throw createError;
       }
-      const postData = { id: postResult.post_id };
+      const resolvedPostId = String((postResult as any)?.post_id || (postResult as any)?.id || (postResult as any)?.post?.id || (postResult as any)?.data?.post_id || '');
+      if (!resolvedPostId) throw new Error('Post was created but the backend did not return its post ID. Media cannot be attached safely.');
+      const postData = { id: resolvedPostId };
 
       // Bind uploaded media assets to the newly-created post. The binary upload
       // happens before post creation so the R2 transfer is never coupled to a DB
@@ -507,7 +509,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
       if (uploadedMediaIds.length > 0) {
         try {
           sonnerToast.loading('Finalizing media attachments…');
-          await Promise.all(uploadedMediaIds.map((mediaId) => attachTestagramMedia(mediaId, postResult.post_id, publishAccessToken)));
+          await Promise.all(uploadedMediaIds.map((mediaId) => attachTestagramMedia(mediaId, resolvedPostId, publishAccessToken)));
         } catch (mediaAttachError: any) {
           await Promise.allSettled(uploadedMediaIds.map(mediaId => deleteTestagramMedia(mediaId, publishAccessToken)));
           throw new Error(mediaAttachError?.message ?? 'Post media could not be linked to the post.');
@@ -518,7 +520,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
       // metadata cannot be silently dropped by an older create-post path.
       if (quotedPostId && !/^https:\/\//i.test(quotedPostId)) {
         const { error: quoteError } = await supabase.rpc('testagram_record_local_quote', {
-          p_post_id: postResult.post_id,
+          p_post_id: resolvedPostId,
           p_quoted_post_id: quotedPostId,
         });
         if (quoteError) throw quoteError;
