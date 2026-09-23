@@ -595,7 +595,7 @@ export default function ProfilePage() {
   };
 
   const fetchPostImpressions = async (userId: string) => {
-    const { data: userPosts } = await supabase.from('posts').select('id').eq('user_id', userId).limit(50);
+    const { data: userPosts } = await supabase.from('posts').select('id').eq('author_id', userId).limit(50);
     if (!userPosts || userPosts.length === 0) return;
     const since = new Date(Date.now() - 29 * 86400000).toISOString();
     const { data } = await supabase.from('browsing_history').select('created_at').in('post_id', userPosts.map((p: any) => p.id)).eq('view_type', 'post').gte('created_at', since);
@@ -810,7 +810,7 @@ export default function ProfilePage() {
   };
 
   const fetchPosts = async (userId: string) => {
-    const { data, error } = await supabase.from('posts').select('*, profiles!posts_author_id_fkey(*)').eq('user_id', userId).order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('posts').select('*, profiles!posts_author_id_fkey(*)').eq('author_id', userId).order('created_at', { ascending: false });
     if (error) {
       console.error('[profile] posts query failed', { userId, error });
       setPosts([]);
