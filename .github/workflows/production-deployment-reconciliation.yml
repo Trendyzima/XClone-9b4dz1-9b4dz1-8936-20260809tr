@@ -169,9 +169,28 @@ jobs:
           fi
           [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required for M-Pesa Edge Function deployment."; exit 1; }
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref for M-Pesa deployment."; exit 1; }
-          supabase functions deploy mpesa-stk-push --project-ref "$PROJECT_REF" --no-verify-jwt
-          supabase functions deploy mpesa-stk-status --project-ref "$PROJECT_REF"
-          supabase functions deploy mpesa-config-status --project-ref "$PROJECT_REF"
+          deploy_function() {
+            local name="$1"
+            local jwt_flag="${2:-}"
+            local attempt=1
+            local max_attempts=4
+            while true; do
+              if supabase functions deploy "$name" --project-ref "$PROJECT_REF" $jwt_flag; then
+                return 0
+              fi
+              if (( attempt >= max_attempts )); then
+                echo "::error::Supabase Edge Function deployment failed after $max_attempts attempts: $name"
+                return 1
+              fi
+              local delay=$((attempt * 20))
+              echo "::warning::Supabase Edge Function deployment hit a transient registry/deployment failure for $name; retrying in ${delay}s (attempt $((attempt+1))/$max_attempts)."
+              sleep "$delay"
+              attempt=$((attempt+1))
+            done
+          }
+          deploy_function mpesa-stk-push "--no-verify-jwt"
+          deploy_function mpesa-stk-status
+          deploy_function mpesa-config-status
           echo "M-Pesa sandbox Edge Functions deployed with callback-compatible JWT configuration."
 
       - name: Deploy Fediverse Edge Functions
