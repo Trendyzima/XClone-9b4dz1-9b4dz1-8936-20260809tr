@@ -48,7 +48,10 @@ export async function uploadTestagramMedia(file:File,postId?:string|null,threadI
 
 export async function attachTestagramMedia(mediaId:string,postId:string,accessTokenOverride?:string):Promise<void>{
   const accessToken = accessTokenOverride ?? await requireAccessToken();
-  const response=await fetch('/api/media',{method:'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},body:JSON.stringify({action:'attach',media_id:mediaId,post_id:postId})});
+  const normalizedMediaId=String(mediaId??'').trim();
+  const normalizedPostId=String(postId??'').trim();
+  if(!normalizedMediaId||!normalizedPostId) throw new Error('Media attachment could not start because the media or post ID was missing.');
+  const response=await fetch('/api/media',{method:'POST',headers:{Authorization:'Bearer '+accessToken,'Content-Type':'application/json'},body:JSON.stringify({action:'attach',media_id:normalizedMediaId,media_asset_id:normalizedMediaId,post_id:normalizedPostId})});
   const payload=await response.json().catch(()=>({}));
   if(!response.ok) throw new Error(payload?.error||('Media attach failed ('+response.status+')'));
 }
