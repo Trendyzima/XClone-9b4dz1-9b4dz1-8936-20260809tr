@@ -354,7 +354,7 @@ export default function ProfilePage() {
     supabase
       .from('stories')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', profile.id)
+      .eq('owner_id', profile.id)
       .gt('expires_at', new Date().toISOString())
       .then(({ count }) => setProfileHasStories((count ?? 0) > 0));
   }, [profile?.id]);
@@ -615,7 +615,7 @@ export default function ProfilePage() {
   const fetchProfileSeries = async (userId: string) => {
     if (profileSeriesFetched) return;
     setLoadingProfileSeries(true);
-    const { data } = await supabase.from('post_series').select('*').eq('user_id', userId).eq('is_public', true).order('item_count', { ascending: false }).limit(20);
+    const { data } = await supabase.from('post_series').select('*').eq('owner_id', userId).order('created_at', { ascending: false }).limit(20);
     setProfileSeries(data ?? []);
     setLoadingProfileSeries(false);
     setProfileSeriesFetched(true);
@@ -664,7 +664,7 @@ export default function ProfilePage() {
   };
 
   const fetchAvailableStories = async (userId: string) => {
-    const { data } = await supabase.from('stories').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(30);
+    const { data } = await supabase.from('stories').select('*').eq('owner_id', userId).order('created_at', { ascending: false }).limit(30);
     setAvailableStories(data ?? []);
   };
 
@@ -825,7 +825,7 @@ export default function ProfilePage() {
     checkImpressionMilestones(userId, postList).catch(() => {});
   };
   const fetchThreads = async (userId: string) => {
-    const { data } = await supabase.from('threads').select('*').eq('user_id', userId).eq('is_published', true).order('created_at', { ascending: false });
+    const { data } = await supabase.from('threads').select('*').eq('owner_id', userId).eq('deleted_at', null).order('created_at', { ascending: false });
     setThreads(data || []);
   };
   const fetchReplies = async (userId: string) => {
