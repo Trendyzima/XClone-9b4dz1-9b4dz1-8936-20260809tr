@@ -56,7 +56,7 @@ export default function HashtagDiscoveryPage() {
         const since48h = new Date(Date.now() - 48 * 3600000).toISOString();
         const { data } = await supabase
           .from('posts')
-          .select('*, user_profiles:profiles!posts_user_id_fkey(id, username, avatar_url, verified_tier)')
+          .select('*, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
           .is('community_id', null)
           .eq('is_video', false)
           .gte('created_at', since48h)
@@ -72,7 +72,7 @@ export default function HashtagDiscoveryPage() {
         const since48h = new Date(Date.now() - 48 * 3600000).toISOString();
         const { data } = await supabase
           .from('posts')
-          .select('*, user_profiles:profiles!posts_user_id_fkey(id, username, avatar_url, verified_tier)')
+          .select('*, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
           .eq('is_video', true)
           .gte('created_at', since48h)
           .order('views_count', { ascending: false })
@@ -92,11 +92,15 @@ export default function HashtagDiscoveryPage() {
       } else if (tab === 'Threads') {
         const { data } = await supabase
           .from('threads')
-          .select('*, user_profiles:profiles!posts_user_id_fkey(id, username, avatar_url, verified_tier)')
+          .select('*, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
           .eq('is_published', true)
           .order('likes_count', { ascending: false })
           .limit(20);
-        setRecommendedThreads(data ?? []);
+        const rows = data ?? [];
+         const ownerIds = [...new Set(rows.map((r: any) => r.owner_id).filter(Boolean))];
+         const { data: profiles } = ownerIds.length ? await supabase.from('profiles').select('id, username, avatar_url, verified_tier').in('id', ownerIds) : { data: [] as any[] };
+         const byOwner = new Map((profiles ?? []).map((p: any) => [p.id, p]));
+         setRecommendedThreads(rows.map((r: any) => ({ ...r, user_profiles: byOwner.get(r.owner_id) ?? null })));
       }
     } catch (err) {
       console.error('[fetchTabContent]', err);
