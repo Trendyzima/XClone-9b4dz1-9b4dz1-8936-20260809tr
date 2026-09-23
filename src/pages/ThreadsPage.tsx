@@ -123,7 +123,7 @@ export default function ThreadsPage() {
       const normalizedThreads=rows.map(r=>({...r,media_urls:Array.isArray(r.media_urls)?r.media_urls:[],profiles:byId.get(r.owner_id)}));
 
       const postQueryBase=supabase.from('posts')
-        .select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
+        .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
         .is('community_id',null).order('created_at',{ascending:false}).limit(8);
       const postQuery=tab==='Following'&&ids?postQueryBase.in('user_id',ids):postQueryBase;
       const shouldMixNetwork=tab!=='Saved';
