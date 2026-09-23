@@ -56,8 +56,8 @@ async function authenticate(req: any, cfg: ReturnType<typeof config>) {
   // HTTP stack and keeps media authentication on the same auth plane as the
   // browser session and /api/capability.
   const rawAuthorization = String(req.headers.authorization ?? '').trim();
-  const token = rawAuthorization.replace(/^Bearer\\s+/i, '').trim();
-  if (!token || !cfg.supabaseUrl || !cfg.supabaseKey || /[\\r\\n]/.test(token)) return null;
+  const token = rawAuthorization.replace(/^Bearer\s+/i, '').trim();
+  if (!token || !cfg.supabaseUrl || !cfg.supabaseKey || /[\r\n]/.test(token)) return null;
   try {
     const response = await fetch(cfg.supabaseUrl + '/auth/v1/user', {
       method: 'GET',
