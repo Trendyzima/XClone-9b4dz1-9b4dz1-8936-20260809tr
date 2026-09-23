@@ -498,11 +498,17 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     videoRef2.current?.play().catch(() => {});
   };
 
-  const mediaUrls = post.media_urls && post.media_urls.length > 0
-    ? post.media_urls
-    : post.image_url
-      ? [post.image_url]
-      : [];
+  const rawMedia = (post as any).media_urls ?? (post as any).mediaUrls ?? (post as any).attachments ?? [];
+  const mediaUrls: string[] = Array.isArray(rawMedia)
+    ? rawMedia.map((item: any) => typeof item === 'string' ? item : (item?.url ?? item?.media_url ?? item?.mediaUrl)).filter(Boolean)
+    : [];
+  const resolvedImageUrls = mediaUrls.length
+    ? mediaUrls.filter((url: string) => !/\.(mp4|webm|mov|m4v|ogv)(?:[?#].*)?$/i.test(url))
+    : ((post as any).image_url ? [String((post as any).image_url)] : []);
+  const resolvedVideoUrl = (post as any).video_url
+    ? String((post as any).video_url)
+    : mediaUrls.find((url: string) => /\.(mp4|webm|mov|m4v|ogv)(?:[?#].*)?$/i.test(url));
+  const hasVideo = Boolean((post as any).is_video || resolvedVideoUrl);
 
   const boostLabel = post.is_boosted
     ? post.boost_type === 'paid' ? 'Sponsored Content' : 'Boosted Content'
@@ -843,7 +849,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
           )}
 
           {/* Video Player with monetization pre-roll */}
-          {post.is_video && post.video_url && (
+          {hasVideo && resolvedVideoUrl && (
             <div className="mt-3 relative rounded-2xl overflow-hidden bg-black max-h-[600px]" onClick={e => e.stopPropagation()}>
               {showVideoAd && (
                 <VideoMonetizationAd
@@ -866,23 +872,23 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
                 preload="metadata"
                 onPlay={handleVideoPlay}
               >
-                <source src={post.video_url} type="video/mp4" />
-                <source src={post.video_url} type="video/webm" />
-                <source src={post.video_url} type="video/ogg" />
+                <source src={resolvedVideoUrl} type="video/mp4" />
+                <source src={resolvedVideoUrl} type="video/webm" />
+                <source src={resolvedVideoUrl} type="video/ogg" />
                 Your browser does not support the video tag.
               </video>
             </div>
           )}
 
           {/* Multi-Image Grid */}
-          {!post.is_video && mediaUrls.length > 0 && (
+          {!hasVideo && resolvedImageUrls.length > 0 && (
             <div className={`mt-3 gap-2 rounded-2xl overflow-hidden ${
-              mediaUrls.length === 1 ? 'grid grid-cols-1' :
-              mediaUrls.length === 2 ? 'grid grid-cols-2' :
+              resolvedImageUrls.length === 1 ? 'grid grid-cols-1' :
+              resolvedImageUrls.length === 2 ? 'grid grid-cols-2' :
               'grid grid-cols-2'
             }`}>
-              {mediaUrls.map((url: string, index: number) => (
-                <div key={index} className={`relative overflow-hidden ${mediaUrls.length === 3 && index === 0 ? 'col-span-2' : ''}`}>
+              {resolvedImageUrls.map((url: string, index: number) => (
+                <div key={index} className={`relative overflow-hidden ${resolvedImageUrls.length === 3 && index === 0 ? 'col-span-2' : ''}`}>
                   <img src={url} alt={`Post media ${index + 1}`} className="w-full h-full object-cover max-h-96" />
                 </div>
               ))}
