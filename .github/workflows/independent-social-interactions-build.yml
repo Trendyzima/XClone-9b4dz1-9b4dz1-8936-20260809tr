@@ -6,6 +6,9 @@ on:
     paths:
       - 'src/features/**'
       - 'src/pages/PostInteractionPage.tsx'
+      - 'src/pages/ThreadInteractionPage.tsx'
+      - 'src/pages/ThreadDetailPage.tsx'
+      - 'src/pages/ThreadsPage.tsx'
       - 'src/components/features/PostCard.tsx'
       - 'src/services/testagramCapabilityClient.ts'
       - 'src/App.tsx'
