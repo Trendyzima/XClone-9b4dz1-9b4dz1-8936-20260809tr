@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useSEO } from '@/hooks/useSEO';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import * as federation from '@/api/federation';
+import { getMergedHomeTimeline } from '@/services/feed';
 import { Loader2, Sparkles, Users, ShoppingBag, BarChart3, RefreshCw, ArrowRight } from 'lucide-react';
 
 type Tab = 'all'|'following'|'explore'|'media'|'communities'|'polls'|'shopping'|'federated';
@@ -38,14 +39,32 @@ export default function HomeHubPage(){
     if(target==='communities'){const {data}=await supabase.from('communities').select('*').order('member_count',{ascending:false}).range(offset,offset+19);return (data??[]).map((x:any)=>({type:'community',data:x}));}
     if(target==='polls'){const {data}=await supabase.from('polls').select('*').order('created_at',{ascending:false}).range(offset,offset+19);return (data??[]).map((x:any)=>({type:'poll',data:x}));}
     if(target==='shopping'){const {data}=await supabase.from('products').select('*').eq('is_active',true).order('created_at',{ascending:false}).range(offset,offset+19);return (data??[]).map((x:any)=>({type:'product',data:x}));}
+    if(target==='all'){
+      const [merged, threadsRes] = await Promise.all([
+        getMergedHomeTimeline({limit:20}),
+        pageNum === 0
+          ? supabase.from('threads').select('*').eq('visibility','public').is('deleted_at',null).order('created_at',{ascending:false}).limit(8)
+          : Promise.resolve({data:[],error:null}),
+      ]);
+      if(threadsRes.error) throw threadsRes.error;
+      const timeline = (merged.posts ?? []).map((post:any)=>({
+        type: post.origin === 'federated' ? 'fedpost' as const : 'post' as const,
+        data: {
+          ...post,
+          is_federated: post.origin === 'federated' || Boolean(post.is_federated),
+        },
+      }));
+      const threads = (threadsRes.data ?? []).map((x:any)=>({type:'thread' as const,data:x}));
+      return [...timeline,...threads]
+        .sort((a,b)=>new Date(b.data.created_at).getTime()-new Date(a.data.created_at).getTime());
+    }
+
     let query=supabase.from('posts').select('*, '+profileSelect).is('community_id',null).is('deleted_at',null);
     if(target==='following'&&user){const {data:follows}=await supabase.from('follows').select('following_id').eq('follower_id',user.id);const ids=(follows??[]).map((x:any)=>x.following_id);if(!ids.length)return [];query=query.in('user_id',ids);}
     if(target==='media')query=query.or('image_url.not.is.null,video_url.not.is.null,media_count.gt.0');
     if(target==='explore')query=query.order('likes_count',{ascending:false}).order('views_count',{ascending:false}); else query=query.order('created_at',{ascending:false});
     const {data,error}=await query.range(offset,offset+19); if(error)throw error;
-    const posts=(data??[]).map((x:any)=>({type:'post' as const,data:x}));
-    if(target==='all'&&pageNum===0){const {data:threads}=await supabase.from('threads').select('*').eq('visibility','public').is('deleted_at',null).order('created_at',{ascending:false}).limit(4);return [...posts,...(threads??[]).map((x:any)=>({type:'thread' as const,data:x}))].sort((a,b)=>new Date(b.data.created_at).getTime()-new Date(a.data.created_at).getTime());}
-    return posts;
+    return (data??[]).map((x:any)=>({type:'post' as const,data:x}));
   },[user?.id]);
 
   const load=useCallback(async(target:Tab)=>{setLoading(true);setPage(0);setHasMore(true);try{const next=await fetchTab(target,0);setItems(next);setHasMore(next.length>=20);}catch(e){console.error('[home-hub]',e);setItems([]);setHasMore(false);}finally{setLoading(false);}},[fetchTab]);
