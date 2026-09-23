@@ -171,12 +171,15 @@ jobs:
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref for M-Pesa deployment."; exit 1; }
           deploy_function() {
             local name="$1"
+            local optional_arg="${2:-}"
             local attempt=1
             local max_attempts=4
-            local -a extra_args=()
-            if [[ -n "${2:-}" ]]; then extra_args+=("$2"); fi
             while true; do
-              if supabase functions deploy "$name" --project-ref "$PROJECT_REF" "${extra_args[@]}"; then
+              if [[ -n "$optional_arg" ]]; then
+                if supabase functions deploy "$name" --project-ref "$PROJECT_REF" "$optional_arg"; then
+                  return 0
+                fi
+              elif supabase functions deploy "$name" --project-ref "$PROJECT_REF"; then
                 return 0
               fi
               if (( attempt >= max_attempts )); then
