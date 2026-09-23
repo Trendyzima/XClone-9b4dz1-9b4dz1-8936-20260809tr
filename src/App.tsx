@@ -62,7 +62,25 @@ const BoostAnalyticsPage = lazy(() => import('@/pages/BoostAnalyticsPage'));
 const BoostCreatePage = lazy(() => import('@/pages/BoostCreatePage'));
 const RewardedAdHistory = lazy(() => import('@/pages/RewardedAdHistory'));
 const PostAnalyticsDashboard = lazy(() => import('@/pages/PostAnalyticsDashboard'));
-const lazyWithChunkRecovery = (loader) => lazy(async () => {\n  try {\n    return await loader();\n  } catch (error) {\n    const message = error instanceof Error ? error.message : String(error);\n    const isChunkLoadFailure = /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk|ChunkLoadError|dynamically imported module/i.test(message);\n    if (isChunkLoadFailure && typeof window !== 'undefined') {\n      const key = 'testagram-fediverse-chunk-recovery';\n      const last = Number(window.sessionStorage.getItem(key) ?? '0');\n      if (Date.now() - last >= 15000) {\n        window.sessionStorage.setItem(key, String(Date.now()));\n        window.location.reload();\n      }\n    }\n    throw error;\n  }\n});\n\nconst FediversePage = lazyWithChunkRecovery(() => import('@/pages/FediversePage'));
+const lazyWithChunkRecovery = (loader) => lazy(async () => {
+  try {
+    return await loader();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const isChunkLoadFailure = /Failed to fetch dynamically imported module|Importing a module script failed|Loading chunk|ChunkLoadError|dynamically imported module/i.test(message);
+    if (isChunkLoadFailure && typeof window !== 'undefined') {
+      const key = 'testagram-fediverse-chunk-recovery';
+      const last = Number(window.sessionStorage.getItem(key) ?? '0');
+      if (Date.now() - last >= 15000) {
+        window.sessionStorage.setItem(key, String(Date.now()));
+        window.location.reload();
+      }
+    }
+    throw error;
+  }
+});
+
+const FediversePage = lazyWithChunkRecovery(() => import('@/pages/FediversePage'));
 const FediverseProfilePage = lazy(() => import('@/pages/FediverseProfilePage'));
 const VerificationRequestPage = lazy(() => import('@/pages/VerificationRequestPage'));
 const AdminVerificationPage = lazy(() => import('@/pages/AdminVerificationPage'));
