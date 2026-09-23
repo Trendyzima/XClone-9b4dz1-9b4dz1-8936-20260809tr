@@ -162,13 +162,19 @@ export function startTestagramHeartbeat(clientVersion = "web-v1"): () => void {
 
   const { data: authSubscription } = supabase.auth.onAuthStateChange(onAuthStateChange);
 
-  void supabase.auth.getSession().then(({ data }) => {
-    if (stopped || !data.session) return;
-    accessToken = data.session.access_token;
-    authenticated = true;
-    lastActivityAt = Date.now();
-    void maybeSend();
-  });
+  void supabase.auth.getSession()
+    .then(({ data }) => {
+      if (stopped || !data.session) return;
+      accessToken = data.session.access_token;
+      authenticated = true;
+      lastActivityAt = Date.now();
+      void maybeSend();
+    })
+    .catch((error) => {
+      // Heartbeat is advisory; auth hydration/network failures must never
+      // become unhandled rejections or affect application startup.
+      if (!stopped) console.warn('[Heartbeat] initial auth hydration failed (non-fatal):', error);
+    });
 
   cleanup = () => {
     stopped = true;
