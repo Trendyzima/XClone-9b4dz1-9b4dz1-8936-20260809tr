@@ -2,9 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
 import { PostCard } from '@/components/features/PostCard';
-import { PollCard } from '@/components/features/PollCard';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/hooks/useAuth';
 import { Post } from '@/types/app-types';
 import { Loader2, Twitter, Facebook, Link2, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,7 +16,6 @@ function PostThreadAdBanner() { return <PageAdBanner />; }
 
 export default function PostThreadPage() {
   const { postId } = useParams<{ postId: string }>();
-  const { user } = useAuth();
   const navigate = useNavigate();
   const { toast } = useToast();
 
