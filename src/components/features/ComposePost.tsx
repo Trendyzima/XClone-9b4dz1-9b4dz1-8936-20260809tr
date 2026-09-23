@@ -580,8 +580,10 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
       onSuccess?.();
     } catch (error: any) {
       console.error('Post error:', error);
-      sonnerToast.error(error.message || 'Failed to create post');
-      toast({ title: 'Error', description: error.message || 'Failed to create post', variant: 'destructive' });
+      // One publish failure = one user-facing error. Previously both Sonner and
+      // the app toast rendered the same backend error, making a single auth
+      // failure look like two separate failures.
+      sonnerToast.error(error?.message || 'Failed to create post');
     } finally {
       setLoading(false);
     }
