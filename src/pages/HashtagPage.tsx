@@ -104,7 +104,7 @@ export default function HashtagPage() {
   const fetchTopPosts = async (hashtagId: string) => {
     const { data } = await supabase
       .from('post_hashtags')
-      .select('post_id, posts(*, user_profiles:profiles!posts_user_id_fkey(*))')
+      .select('post_id, posts(*, user_profiles:profiles!posts_author_id_fkey(*))')
       .eq('hashtag_id', hashtagId);
     if (!data) return;
     const allPosts = data.map((item: any) => item.posts).filter(Boolean);
@@ -166,15 +166,37 @@ export default function HashtagPage() {
       // Mix cached ActivityPub objects that advertise the same hashtag. The
       // cache is populated by inbound federation and followed-actor hydration,
       // so the hashtag page can surface remote and local conversations together.
-      const { data: remoteMentions } = await supabase
+      const { data: remoteHashtag } = await supabase
+        .from('hashtags')
+        .select('id')
+        .eq('id', hashtagData.id)
+        .maybeSingle();
+      const remoteHashtagId = remoteHashtag?.id ?? hashtagData.id;
+      const { data: remoteMentions, error: remoteMentionsError } = await supabase
         .from('federated_hashtag_mentions')
-        .select('created_at, hashtags!inner(id,tag), federated_objects!inner(id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,object_type,url,deleted_at,tombstone)')
-        .eq('hashtags.tag', normalizedTag)
-        .is('federated_objects.deleted_at', null)
-        .eq('federated_objects.tombstone', false)
+        .select('object_id, created_at')
+        .eq('hashtag_id', remoteHashtagId)
         .order('created_at', { ascending: false })
         .limit(50);
-      const remoteRows = (remoteMentions ?? []).map((m: any) => m.federated_objects).filter(Boolean);
+      if (remoteMentionsError) {
+        console.warn('Federated hashtag index unavailable; continuing with local posts:', remoteMentionsError);
+      }
+      const remoteIds = (remoteMentions ?? []).map((m: any) => m.object_id).filter(Boolean);
+      let remoteRows: any[] = [];
+      if (remoteIds.length) {
+        const { data: remoteObjects, error: remoteObjectsError } = await supabase
+          .from('federated_objects')
+          .select('id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,object_type,url,deleted_at,tombstone')
+          .in('id', remoteIds)
+          .is('deleted_at', null)
+          .eq('tombstone', false);
+        if (remoteObjectsError) {
+          console.warn('Federated hashtag objects unavailable; continuing with local posts:', remoteObjectsError);
+        } else {
+          const byId = new Map((remoteObjects ?? []).map((p: any) => [p.id, p]));
+          remoteRows = remoteIds.map((id: string) => byId.get(id)).filter(Boolean);
+        }
+      }
       setFederatedPosts((remoteRows ?? []).map((p: any) => ({
         ...p,
         id: p.id ?? p.uri,
