@@ -818,26 +818,35 @@ export default function ProfilePage() {
   };
 
   const fetchPosts = async (userId: string) => {
-    const { data } = await supabase.from('posts').select('*, profiles!posts_user_id_fkey(*)').eq('user_id', userId).order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('posts').select('*, profiles!posts_author_id_fkey(*)').eq('user_id', userId).order('created_at', { ascending: false });
+    if (error) {
+      console.error('[profile] posts query failed', { userId, error });
+      setPosts([]);
+      return;
+    }
     const postList = data || [];
     setPosts(postList);
     // Fire milestone alerts asynchronously — won't block UI
     checkImpressionMilestones(userId, postList).catch(() => {});
   };
   const fetchThreads = async (userId: string) => {
-    const { data } = await supabase.from('threads').select('*').eq('owner_id', userId).eq('deleted_at', null).order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('threads').select('*').eq('owner_id', userId).eq('deleted_at', null).order('created_at', { ascending: false });
+    if (error) console.error('[profile] threads query failed', { userId, error });
     setThreads(data || []);
   };
   const fetchReplies = async (userId: string) => {
-    const { data } = await supabase.from('replies').select('*, posts(*, profiles!posts_user_id_fkey(*))').eq('user_id', userId).order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('replies').select('*, posts(*, profiles!posts_author_id_fkey(*))').eq('user_id', userId).order('created_at', { ascending: false });
+    if (error) console.error('[profile] replies query failed', { userId, error });
     setReplies(data || []);
   };
   const fetchMedia = async (userId: string) => {
-    const { data } = await supabase.from('posts').select('*, profiles!posts_user_id_fkey(*)').eq('user_id', userId).or('image_url.not.is.null,video_url.not.is.null,media_urls.neq.[]').order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('posts').select('*, profiles!posts_author_id_fkey(*)').eq('user_id', userId).or('image_url.not.is.null,video_url.not.is.null,media_urls.neq.[]').order('created_at', { ascending: false });
+    if (error) console.error('[profile] media query failed', { userId, error });
     setMedia(data || []);
   };
   const fetchLikedPosts = async (userId: string) => {
-    const { data } = await supabase.from('post_likes').select('posts(*, profiles!posts_user_id_fkey(*))').eq('user_id', userId).order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('post_likes').select('posts(*, profiles!posts_author_id_fkey(*))').eq('user_id', userId).order('created_at', { ascending: false });
+    if (error) console.error('[profile] liked posts query failed', { userId, error });
     setLikedPosts((data || []).map((item: any) => item.posts).filter(Boolean));
   };
   const fetchFollowers = async (userId: string) => {
@@ -1541,7 +1550,7 @@ export default function ProfilePage() {
         {activeTab === 'Replies' && (
           replies.length > 0 ? replies.map((reply: any) => (
             <div key={reply.id} className="border-b border-border p-4 hover:bg-muted/5">
-              <p className="text-sm text-muted-foreground mb-2">Replying to @{reply.posts?.user_profiles?.username}</p>
+              <p className="text-sm text-muted-foreground mb-2">Replying to @{reply.posts?.profiles?.username}</p>
               <p className="mb-2">{reply.content}</p>
               <button onClick={() => navigate(`/post/${reply.post_id}`)} className="text-sm text-primary hover:underline">View conversation</button>
             </div>
