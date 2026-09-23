@@ -22,151 +22,165 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
   },
 });
 
-type RequestLike = Request | {
-  headers?: Headers | Record<string, string | string[] | undefined>;
-  url?: string;
-};
+type RequestLike = Request | { headers?: Headers | Record<string, string | string[] | undefined>; url?: string; };
 
-function getHeader(request: RequestLike, name: string): string {
+function header(request: RequestLike, name: string) {
   const headers = request.headers;
   if (!headers) return '';
-  if (typeof (headers as Headers).get === 'function') {
-    return (headers as Headers).get(name) || '';
-  }
+  if (typeof (headers as Headers).get === 'function') return (headers as Headers).get(name) || '';
   const value = (headers as Record<string, string | string[] | undefined>)[name.toLowerCase()];
   return Array.isArray(value) ? value[0] || '' : value || '';
 }
 
-function getRequestUrl(request: RequestLike): string {
-  if (typeof request.url === 'string' && request.url) return request.url;
-  return 'https://testagram.site/api/home-feed';
-}
-
-async function authenticate(request: RequestLike): Promise<string | null> {
-  const authorization = getHeader(request, 'authorization');
+async function authenticate(request: RequestLike) {
+  const authorization = header(request, 'authorization');
   if (!/^Bearer\s+/i.test(authorization) || !SUPABASE_ANON_KEY) return null;
   const token = authorization.replace(/^Bearer\s+/i, '').trim();
   if (!token) return null;
-  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    global: { headers: { Authorization: authorization } },
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data } = await client.auth.getUser(token);
-  return data.user?.id ?? null;
+  return data.user?.id ? { id: data.user.id, token } : null;
 }
 
-function parseCursor(value: string | null) {
-  if (!value) return null;
-  try {
-    const parsed = JSON.parse(atob(value));
-    if (
-      typeof parsed?.score !== 'number' ||
-      typeof parsed?.createdAt !== 'string' ||
-      typeof parsed?.id !== 'string'
-    ) return null;
-    return parsed as { score: number; createdAt: string; id: string };
-  } catch {
-    return null;
+function requestUrl(request: RequestLike) {
+  return typeof request.url === 'string' && request.url ? request.url : 'https://testagram.site/api/home-feed';
+}
+
+function sourceKey(item: any) {
+  return String(item.type) + ':' + String(item.data?.id ?? item.data?.uri ?? '');
+}
+
+function blend(items: any[], limit: number) {
+  const sorted = items.filter((x) => x?.data?.created_at).sort((a, b) =>
+    new Date(b.data.created_at).getTime() - new Date(a.data.created_at).getTime()
+  );
+  const freshCut = Math.max(1, Math.ceil(sorted.length * 0.5));
+  const fresh = sorted.slice(0, freshCut);
+  const older = sorted.slice(freshCut);
+  const used = new Set<string>();
+  const out: any[] = [];
+  let fi = 0, oi = 0, lastSource = '';
+
+  while (out.length < limit && (fi < fresh.length || oi < older.length)) {
+    const preferOld = out.length > 0 && out.length % 3 !== 0 && oi < older.length;
+    const pool = preferOld ? older : fresh;
+    const start = preferOld ? oi : fi;
+    let candidate: any = null;
+    let candidateIndex = -1;
+
+    for (let i = start; i < pool.length; i++) {
+      const item = pool[i];
+      const key = sourceKey(item);
+      if (used.has(key)) continue;
+      if (item.source !== lastSource || !pool.some((x) => x.source !== lastSource && !used.has(sourceKey(x)))) {
+        candidate = item;
+        candidateIndex = i;
+        break;
+      }
+    }
+    if (!candidate) {
+      const fallback = pool.find((x) => !used.has(sourceKey(x)));
+      if (fallback) { candidate = fallback; candidateIndex = pool.indexOf(fallback); }
+    }
+    if (!candidate) {
+      if (preferOld) oi = older.length;
+      else fi = fresh.length;
+      continue;
+    }
+
+    used.add(sourceKey(candidate));
+    out.push({ type: candidate.type, data: candidate.data });
+    lastSource = candidate.source;
+    if (preferOld) oi = candidateIndex + 1;
+    else fi = candidateIndex + 1;
   }
-}
-
-function encodeCursor(row: { score: number; created_at: string; post_id: string }) {
-  return btoa(JSON.stringify({
-    score: Number(row.score),
-    createdAt: row.created_at,
-    id: row.post_id,
-  }));
+  return out;
 }
 
 export default async function handler(request: RequestLike) {
-  const method = typeof (request as Request).method === 'string'
-    ? (request as Request).method
-    : '';
+  const method = typeof (request as Request).method === 'string' ? (request as Request).method : '';
   if (method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
   if (method !== 'GET') return json({ error: 'GET required' }, 405);
-
   const started = Date.now();
+
   try {
-    const userId = await authenticate(request);
-    if (!userId || !SUPABASE_SERVICE_ROLE_KEY) return json({ error: 'Authentication required' }, 401);
+    const auth = await authenticate(request);
+    if (!auth || !SUPABASE_SERVICE_ROLE_KEY) return json({ error: 'Authentication required' }, 401);
 
-    const url = new URL(getRequestUrl(request));
-    const rawLimit = Number(url.searchParams.get('limit') || 20);
-    const limit = Math.max(1, Math.min(50, Number.isFinite(rawLimit) ? Math.floor(rawLimit) : 20));
-    const cursor = parseCursor(url.searchParams.get('cursor'));
+    const url = new URL(requestUrl(request));
+    const limit = Math.max(1, Math.min(20, Math.floor(Number(url.searchParams.get('limit') || 12))));
+    const page = Math.max(0, Math.floor(Number(url.searchParams.get('page') || 0)));
+    const before = url.searchParams.get('before');
+    const offset = page * limit;
 
-    const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 
-    const { data: rankedRows, error: rankError } = await admin.rpc('get_ranked_home_feed', {
-      p_user_id: userId,
-      p_cursor_score: cursor?.score ?? null,
-      p_cursor_created_at: cursor?.createdAt ?? null,
-      p_cursor_id: cursor?.id ?? null,
-      p_limit: limit,
-    });
+    const [postsResult, threadsResult, fedResult] = await Promise.all([
+      admin.from('posts')
+        .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
+        .is('community_id', null).is('deleted_at', null)
+        .order('created_at', { ascending: false }).range(offset, offset + limit - 1),
+      admin.from('threads')
+        .select('*')
+        .eq('visibility', 'public').is('deleted_at', null)
+        .order('created_at', { ascending: false }).range(offset, offset + limit - 1),
+      (async () => {
+        const qs = new URLSearchParams({ limit: String(limit) });
+        if (before) qs.set('before', before);
+        const response = await fetch(SUPABASE_URL + '/functions/v1/federated-feed?' + qs, {
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + auth.token },
+        });
+        if (!response.ok) return { items: [], pagination: { hasMore: false, nextCursor: null } };
+        const value = await response.json();
+        return Array.isArray(value) ? { items: value, pagination: { hasMore: false, nextCursor: null } } : (value || { items: [], pagination: {} });
+      })(),
+    ]);
 
-    if (rankError) {
-      console.error('[home-feed] ranking RPC failed', rankError);
-      return json({ error: 'Feed ranking unavailable' }, 503);
-    }
+    if (postsResult.error) console.error('[home-feed] posts', postsResult.error);
+    if (threadsResult.error) console.error('[home-feed] threads', threadsResult.error);
 
-    const rows = Array.isArray(rankedRows) ? rankedRows : [];
-    const hasMore = rows.length > limit;
-    const pageRows = rows.slice(0, limit);
-    const ids = pageRows.map((row: any) => row.post_id).filter(Boolean);
+    const local = (postsResult.data || []).map((p: any) => ({
+      type: 'post', source: 'local',
+      data: { ...p, is_federated: false },
+    }));
+    const threads = (threadsResult.data || []).map((t: any) => ({
+      type: 'thread', source: 'thread',
+      data: { ...t, is_federated: false },
+    }));
+    const fedItems = Array.isArray(fedResult?.items) ? fedResult.items : [];
+    const fed = fedItems.map((p: any) => ({
+      type: 'fedpost', source: 'federated',
+      data: {
+        ...p,
+        id: p.id ?? p.uri,
+        content: p.content ?? p.text ?? '',
+        created_at: p.created_at ?? p.published_at ?? p.published,
+        user_profiles: p.user_profiles ?? p.remote_account ?? p.actor ?? p.account ?? p.author ?? {},
+        media_urls: p.media_urls ?? p.mediaUrls ?? p.attachments ?? [],
+        image_url: p.image_url ?? p.preview_image_url ?? p.thumbnail_url,
+        video_url: p.video_url ?? p.videoUrl,
+        is_video: Boolean(p.is_video || p.video_url || p.videoUrl),
+        is_federated: true,
+      },
+    }));
 
-    if (!ids.length) {
-      return json({
-        ok: true,
-        items: [],
-        nextCursor: null,
-        hasMore: false,
-        latencyMs: Date.now() - started,
-        algorithm: 'server-ranked-v1',
-      });
-    }
+    const items = blend([...local, ...threads, ...fed], limit);
+    const hasMore = Boolean(
+      (postsResult.data || []).length >= limit ||
+      (threadsResult.data || []).length >= limit ||
+      fedResult?.pagination?.hasMore
+    );
 
-    const { data: posts, error: postsError } = await admin
-      .from('posts')
-      .select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
-      .in('id', ids)
-      .is('community_id', null);
-
-    if (postsError) {
-      console.error('[home-feed] post hydration failed', postsError);
-      return json({ error: 'Feed hydration unavailable' }, 503);
-    }
-
-    const postById = new Map<string, any>((posts || []).map((post: any) => [String(post.id), post]));
-    const items = pageRows
-      .map((row: any) => {
-        const post = postById.get(String(row.post_id));
-        if (!post) return null;
-        return {
-          type: 'post',
-          data: {
-            ...post,
-            _feed_score: Number(row.score),
-            _feed_reason: row.reason,
-            _feed_source: row.source,
-          },
-        };
-      })
-      .filter(Boolean);
-
-    const last = pageRows[pageRows.length - 1];
     return json({
       ok: true,
       items,
-      nextCursor: hasMore && last ? encodeCursor(last) : null,
       hasMore,
+      nextCursor: fedResult?.pagination?.nextCursor ?? null,
       latencyMs: Date.now() - started,
-      algorithm: 'server-ranked-v1',
+      algorithm: 'organic-cross-surface-v2',
     });
   } catch (error) {
     console.error('[home-feed]', error);
-    return json({ error: error instanceof Error ? error.message : 'Feed failed' }, 500);
+    return json({ error: 'Home feed aggregation temporarily unavailable' }, 502);
   }
 }
