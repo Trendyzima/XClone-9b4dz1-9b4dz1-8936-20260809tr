@@ -51,9 +51,13 @@ function config() {
 }
 
 async function authenticate(req: any, cfg: ReturnType<typeof config>) {
-  const authorization = String(req.headers.authorization ?? '');
-  const token = authorization.replace(/^Bearer\s+/i, '');
-  if (!token || !cfg.supabaseUrl || !cfg.supabaseKey) return null;
+  // Normalize the inbound header before forwarding it. Passing an arbitrary
+  // raw header value into the Supabase SDK can produce Node ERR_INVALID_CHAR
+  // and turn a valid session into a 500 during media finalization.
+  const rawAuthorization = String(req.headers.authorization ?? '').trim();
+  const token = rawAuthorization.replace(/^Bearer\s+/i, '').trim();
+  if (!token || !cfg.supabaseUrl || !cfg.supabaseKey || /[\\r\\n]/.test(token)) return null;
+  const authorization = 'Bearer ' + token;
   const client = createClient(cfg.supabaseUrl, cfg.supabaseKey, {
     global: { headers: { Authorization: authorization } },
     auth: { persistSession: false, autoRefreshToken: false },
