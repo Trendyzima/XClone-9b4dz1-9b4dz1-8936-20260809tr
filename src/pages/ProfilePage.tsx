@@ -825,7 +825,11 @@ export default function ProfilePage() {
     setThreads(data || []);
   };
   const fetchReplies = async (userId: string) => {
-    const { data, error } = await supabase.from('replies').select('*, posts(*, profiles!posts_author_id_fkey(*))').eq('user_id', userId).order('created_at', { ascending: false });
+    const { data, error } = await supabase
+      .from('replies')
+      .select('id,user_id,post_id,content,created_at,updated_at,posts!replies_post_id_fkey(id,content,author_id,created_at,profiles!posts_author_id_fkey(id,username,full_name,avatar_url,verified))')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
     if (error) console.error('[profile] replies query failed', { userId, error });
     setReplies(data || []);
   };
@@ -1540,8 +1544,22 @@ export default function ProfilePage() {
         {activeTab === 'Replies' && (
           replies.length > 0 ? replies.map((reply: any) => (
             <div key={reply.id} className="border-b border-border p-4 hover:bg-muted/5">
-              <p className="text-sm text-muted-foreground mb-2">Replying to @{reply.posts?.profiles?.username}</p>
-              <p className="mb-2">{reply.content}</p>
+              <button
+                onClick={() => reply.posts?.profiles?.username && navigate(`/profile/${reply.posts.profiles.username}`)}
+                className="text-sm text-muted-foreground mb-2 hover:text-primary transition-colors"
+              >
+                Replying to @{reply.posts?.profiles?.username ?? 'user'}
+              </button>
+              {reply.posts?.content && (
+                <button
+                  onClick={() => navigate(`/post/${reply.post_id}`)}
+                  className="block w-full text-left rounded-xl border border-border/70 bg-muted/20 p-3 mb-3 hover:bg-muted/40 transition-colors"
+                >
+                  <p className="text-xs text-muted-foreground mb-1">Original post</p>
+                  <p className="text-sm line-clamp-3">{reply.posts.content}</p>
+                </button>
+              )}
+              <p className="mb-2 whitespace-pre-wrap break-words">{reply.content}</p>
               <button onClick={() => navigate(`/post/${reply.post_id}`)} className="text-sm text-primary hover:underline">View conversation</button>
             </div>
           )) : <div className="text-center py-12 text-muted-foreground"><p>No replies yet</p></div>
