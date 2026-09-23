@@ -68,3 +68,11 @@ returns jsonb language sql security invoker set search_path=public as $$
   );
 $$;
 grant execute on function public.get_my_premium_status() to authenticated;
+
+revoke all on function public.send_premium_gift(uuid,numeric,text) from public;
+grant execute on function public.send_premium_gift(uuid,numeric,text) to authenticated;
+revoke all on function public.get_my_premium_status() from public;
+grant execute on function public.get_my_premium_status() to authenticated;
+revoke all on function public.send_wallet_tip(uuid,numeric,text,text) from anon;
+revoke all on function public.send_wallet_tip(uuid,numeric,text) from anon;
+revoke all on function public.p2p_wallet_transfer(uuid,uuid,numeric,text,text) from anon;
