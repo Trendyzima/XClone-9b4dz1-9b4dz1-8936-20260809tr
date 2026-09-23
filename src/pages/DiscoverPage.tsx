@@ -105,7 +105,7 @@ export default function DiscoverPage() {
     setLoading(true);
     try {
       const [remoteA, remoteB] = await Promise.all([
-        supabase.from('federation_remote_actors').select('id,username,acct,domain,actor_url,actor,updated_at').order('updated_at', { ascending: false }).limit(40),
+        Promise.resolve({ data: [] as any[], error: null }),
         supabase.from('federated_actors').select('id,preferred_username,display_name,summary,uri,created_at,discoverable,suspended').eq('discoverable', true).eq('suspended', false).order('created_at', { ascending: false }).limit(40),
       ]);
       const merged: SuggestedUser[] = [];
