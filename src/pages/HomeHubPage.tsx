@@ -65,7 +65,7 @@ export default function HomeHubPage(){
       const localRows = localResult.status === 'fulfilled' && !localResult.value.error ? (localResult.value.data ?? []) : [];
       const threadRows = threadResult.status === 'fulfilled' && !threadResult.value.error ? (threadResult.value.data ?? []) : [];
       const fedItems = fedResult.status === 'fulfilled'
-        ? (Array.isArray(fedResult.value) ? fedResult.value : (fedResult.value?.items ?? fedResult.value?.posts ?? []))
+        ? (Array.isArray(fedResult.value) ? fedResult.value : (fedResult.value?.items ?? []))
         : [];
 
       const locals=localRows.map((p:any)=>({
