@@ -215,16 +215,6 @@ export default function PostThreadPage() {
           <MessageCircle className="w-5 h-5 text-muted-foreground shrink-0" />
         </button>
       </div>
-      {/* Poll creation dialog for replies */}
-      {showPollDialog && (
-        <CreatePollDialog
-          onClose={() => setShowPollDialog(false)}
-          onPollCreated={(data) => {
-            setReplyPollData(data);
-            setShowPollDialog(false);
-          }}
-        />
-      )}
     </div>
   );
 }
