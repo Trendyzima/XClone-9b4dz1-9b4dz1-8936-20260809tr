@@ -113,13 +113,15 @@ const renderFatalBootError = (error) => {
   if (message) console.error('[Testagram] fatal boot message:', message);
 };
 
+// Do not turn arbitrary pre-mount browser/network rejections into a fatal
+// application screen. Third-party SDKs, auth refreshes, analytics and browser
+// APIs can reject independently of React boot. The dynamic import below has
+// its own explicit catch, so only an actual app-module load failure is fatal.
 window.addEventListener('error', (event) => {
-  if (event.error && !appMounted) renderFatalBootError(event.error);
-  else if (event.error) console.error('[Testagram] runtime error', event.error);
+  if (event.error) console.error('[Testagram] runtime error', event.error);
 });
 window.addEventListener('unhandledrejection', (event) => {
-  if (!appMounted) renderFatalBootError(event.reason);
-  else console.error('[Testagram] runtime rejection', event.reason);
+  console.error('[Testagram] unhandled rejection', event.reason);
 });
 
 (async () => {
