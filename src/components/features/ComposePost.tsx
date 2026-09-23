@@ -428,7 +428,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
           }
         }
         sonnerToast.dismiss();
-        if (imageUrls.length > 0) sonnerToast.success(`${imageUrls.length} image(s) uploaded — publishing post…`);
+        if (imageUrls.length > 0) sonnerToast.loading(`${imageUrls.length} image(s) uploaded — publishing post…`);
       }
 
       if (video) {
@@ -506,7 +506,8 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
       // insert; this second step makes the relationship authoritative.
       if (uploadedMediaIds.length > 0) {
         try {
-          await Promise.all(uploadedMediaIds.map((mediaId, index) => attachTestagramMedia(mediaId, postResult.post_id, publishAccessToken)));
+          sonnerToast.loading('Finalizing media attachments…');
+          await Promise.all(uploadedMediaIds.map((mediaId) => attachTestagramMedia(mediaId, postResult.post_id, publishAccessToken)));
         } catch (mediaAttachError: any) {
           await Promise.allSettled(uploadedMediaIds.map(mediaId => deleteTestagramMedia(mediaId, publishAccessToken)));
           throw new Error(mediaAttachError?.message ?? 'Post media could not be linked to the post.');
