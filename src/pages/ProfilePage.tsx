@@ -513,15 +513,15 @@ export default function ProfilePage() {
     setTipGoal(null);
     const startOfMonth = new Date();
     startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0);
-    const { data: monthTips } = await supabase.from('tips').select('sender_id, amount_cents').eq('recipient_id', userId).gte('created_at', startOfMonth.toISOString()).order('amount_cents', { ascending: false });
-    const total = (monthTips ?? []).reduce((s: number, t: any) => s + Number(t.amount_cents ?? 0) / 100, 0);
+    const { data: monthTips } = await supabase.from('tips').select('from_user_id, amount').eq('to_user_id', userId).gte('created_at', startOfMonth.toISOString()).order('amount', { ascending: false });
+    const total = (monthTips ?? []).reduce((s: number, t: any) => s + Number(t.amount ?? 0), 0);
     setCurrentMonthTips(total);
     // Use parallel arrays instead of index-sig objects (esbuild guard)
     const tipperIds: string[] = [];
     const tipperAmts: number[] = [];
     for (const t of (monthTips ?? [])) {
-      const idx = tipperIds.indexOf(t.sender_id);
-      if (idx >= 0) tipperAmts[idx] += Number(t.amount_cents ?? 0) / 100;
+      const idx = tipperIds.indexOf(t.from_user_id);
+      if (idx >= 0) tipperAmts[idx] += Number(t.amount ?? 0) / 100;
       else { tipperIds.push(t.sender_id); tipperAmts.push(Number(t.amount_cents ?? 0) / 100); }
     }
     const sorted = [...tipperAmts].sort((a, b) => b - a).slice(0, 3);
@@ -542,7 +542,7 @@ export default function ProfilePage() {
     setLoadingTips(true);
     const { data: tips } = await supabase.from('tips').select('*').or(`sender_id.eq.${userId},recipient_id.eq.${userId}`).order('created_at', { ascending: false }).limit(50);
     if (!tips || tips.length === 0) { setTipHistory([]); setLoadingTips(false); return; }
-    const allUids = tips.flatMap((t: any) => [t.sender_id, t.recipient_id]) as string[];
+    const allUids = tips.flatMap((t: any) => [t.from_user_id, t.to_user_id]) as string[];
     const uids = allUids.filter((u: string, i: number) => allUids.indexOf(u) === i);
     const { data: profileRows } = await supabase.from('profiles').select('id, username, avatar_url').in('id', uids);
     // Use parallel arrays instead of index-sig objects (esbuild guard)
@@ -550,7 +550,7 @@ export default function ProfilePage() {
     const pData: any[] = [];
     for (const p of (profileRows ?? [])) { pIds.push(p.id); pData.push(p); }
     const getP = (uid: string) => pData[pIds.indexOf(uid)];
-    setTipHistory(tips.map((t: any) => ({ ...t, sender: getP(t.sender_id), recipient: getP(t.recipient_id) })));
+    setTipHistory(tips.map((t: any) => ({ ...t, sender: getP(t.from_user_id), recipient: getP(t.to_user_id) })));
     setLoadingTips(false);
   };
 
@@ -588,7 +588,8 @@ export default function ProfilePage() {
   const fetchProfilePodcasts = async (userId: string) => {
     if (podcastsFetched) return;
     setLoadingPodcasts(true);
-    const { data } = await supabase.from('space_recordings').select('id, title, audio_url, video_url, has_video, duration, listener_count, created_at, spaces(title, artwork_url, category, episode_number, subscriber_only)').eq('user_id', userId).order('created_at', { ascending: false }).limit(30);
+    const { data, error } = await supabase.from('space_recordings').select('id, title, audio_url, video_url, duration, created_at, space_id, spaces(title, artwork_url, category, episode_number, subscriber_only)').eq('user_id', userId).order('created_at', { ascending: false }).limit(30);
+    if (error) console.error('[profile] podcasts query failed', { userId, error });
     setProfilePodcasts(data ?? []);
     setLoadingPodcasts(false);
     setPodcastsFetched(true);
@@ -615,7 +616,8 @@ export default function ProfilePage() {
   const fetchProfileSeries = async (userId: string) => {
     if (profileSeriesFetched) return;
     setLoadingProfileSeries(true);
-    const { data } = await supabase.from('post_series').select('*').eq('owner_id', userId).order('created_at', { ascending: false }).limit(20);
+    const { data, error } = await supabase.from('post_series').select('*, post_series_items(count)').eq('owner_id', userId).order('created_at', { ascending: false }).limit(20);
+    if (error) console.error('[profile] series query failed', { userId, error });
     setProfileSeries(data ?? []);
     setLoadingProfileSeries(false);
     setProfileSeriesFetched(true);
@@ -1659,7 +1661,7 @@ export default function ProfilePage() {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                             {podEp && <span className="text-[10px] text-muted-foreground">Ep. {podEp}</span>}
-                            {pod.has_video && <span className="text-[10px] text-primary font-semibold">📹 Video</span>}
+                            {pod.video_url && <span className="text-[10px] text-primary font-semibold">📹 Video</span>}
                             {podSub && <span className="text-[10px] text-amber-600 font-semibold">⭐ Sub</span>}
                           </div>
                           <p className="font-bold text-sm line-clamp-2 leading-snug">{podTitle}</p>
@@ -1745,7 +1747,7 @@ export default function ProfilePage() {
           ) : (
             <div className="divide-y divide-border">
               {tipHistory.map((tip: any) => {
-                const isSent = tip.from_user_id === profile.id;
+                const isSent = tip.from_user_id === currentUser?.id;
                 const other = isSent ? tip.recipient : tip.sender;
                 const uname = other?.username ?? 'user';
                 return (
@@ -1775,23 +1777,23 @@ export default function ProfilePage() {
             <div className="text-center py-16 text-muted-foreground">
               <BookOpen className="w-14 h-14 mx-auto mb-3 opacity-20" />
               <p className="font-semibold">No public series yet</p>
-              {isOwnProfile && <button onClick={() => navigate('/series')} className="mt-4 px-5 py-2 bg-primary text-primary-foreground rounded-full text-sm font-bold hover:opacity-90">Create a Series</button>}
+              {isOwnProfile && <button onClick={() => navigate(`/series/${s.id}`)} className="mt-4 px-5 py-2 bg-primary text-primary-foreground rounded-full text-sm font-bold hover:opacity-90">Create a Series</button>}
             </div>
           ) : (
             <div className="divide-y divide-border">
               {profileSeries.map((s: any) => {
                 let sProg: any = null;
                 try { const raw = localStorage.getItem('series_progress'); sProg = raw ? (JSON.parse(raw)[s.id] ?? null) : null; } catch { sProg = null; }
-                const sTotal = s.item_count ?? 0;
+                const sTotal = s.post_series_items?.[0]?.count ?? 0;
                 const sPct = sProg && sTotal > 0 ? Math.round((sProg.currentPart / sTotal) * 100) : 0;
                 return (
                   <div key={s.id} className="hover:bg-muted/20 transition-colors">
                     <button onClick={() => navigate('/series')} className="w-full flex items-start gap-3 p-4 text-left">
                       <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-primary/20 to-purple-500/20 flex items-center justify-center shrink-0 overflow-hidden border border-border">
-                        {s.cover_image ? <img src={s.cover_image} alt={s.name} className="w-full h-full object-cover" /> : <BookOpen className="w-7 h-7 text-primary" />}
+                        {s.cover_image ? <img src={s.cover_image} alt={s.title} className="w-full h-full object-cover" /> : <BookOpen className="w-7 h-7 text-primary" />}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="font-bold text-sm truncate">{s.name}</p>
+                        <p className="font-bold text-sm truncate">{s.title}</p>
                         {s.description && <p className="text-xs text-muted-foreground mt-0.5 truncate">{s.description}</p>}
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                           <span className="text-[10px] font-semibold text-primary bg-primary/10 px-1.5 py-0.5 rounded-full">{sTotal} parts</span>
