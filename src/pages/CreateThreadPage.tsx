@@ -55,7 +55,7 @@ export default function CreateThreadPage(){
       const mediaUrls:MediaAsset[]=[];
       try {
         for(const file of files) {
-          const uploaded=await uploadTestagramMedia(file,null,data.id);
+          const uploaded=await uploadTestagramMedia(file,null,data.id,accessToken);
           mediaUrls.push({url:uploaded.public_url||'',name:file.name,type:file.type||'application/octet-stream',size:file.size});
         }
         if(mediaUrls.length) {
