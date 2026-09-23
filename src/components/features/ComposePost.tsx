@@ -535,6 +535,7 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
       localStorage.removeItem(DRAFT_KEY);
       setHasDraft(false);
       setDraftSavedAt(null);
+      sonnerToast.dismiss();
       sonnerToast.success('Post created successfully!');
       toast({ title: 'Success', description: 'Post created successfully' });
       pingGoogleSitemap();
