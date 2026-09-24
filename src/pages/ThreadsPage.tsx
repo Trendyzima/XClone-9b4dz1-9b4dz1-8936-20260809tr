@@ -115,7 +115,7 @@ export default function ThreadsPage() {
       const parallelNetworkPromise = tab === 'For you'
         ? Promise.all([
             supabase.from('posts')
-              .select('id, content, image_url, video_url, media_urls, is_video, views_count, likes_count, reposts_count, replies_count, created_at, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,verified_tier)')
+              .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
               .is('community_id',null).is('deleted_at',null).order('created_at',{ascending:false}).limit(8),
             federation.getFederatedTimelinePage({limit:8,before:reset?undefined:cursor??undefined}).catch(()=>({items:[],pagination:{nextCursor:null,hasMore:false}}))
           ])
