@@ -822,7 +822,7 @@ export default function ExplorePage() {
     const [trendingData, hashtagRes, whoRes] = await Promise.allSettled([
       backendCapabilities.getTrends(50),
       supabase.from('hashtags').select('id, tag, usage_count, post_count, federated_post_count, last_used_at').order('federated_post_count', { ascending: false }).order('usage_count', { ascending: false }).order('last_used_at', { ascending: false }).limit(20),
-      supabase.from('profiles').select('*').order('follower_count', { ascending: false }).limit(10),
+      supabase.from('profiles').select('id, username, display_name, avatar_url, follower_count, verified_tier, verified').order('follower_count', { ascending: false }).limit(10),
     ]);
     setTrending(trendingData.status === 'fulfilled' ? (trendingData.value?.items ?? []) : []);
     if (hashtagRes.status === 'fulfilled' && hashtagRes.value.data) {
