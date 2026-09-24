@@ -87,7 +87,7 @@ Deno.serve(async (request) => {
         const actorUrl = new URL(actorUri);
         if (!["http:", "https:"].includes(actorUrl.protocol)) return;
         const actorRes = await fetch(actorUrl.toString(), {
-          headers: { Accept: "application/activity+json, application/ld+json" },
+          headers: { Accept: "application/activity+json, application/ld+json", "User-Agent": "Testagram-Federation/4.0" },
         });
         if (!actorRes.ok) return;
         const actor = await actorRes.json();
@@ -154,9 +154,19 @@ Deno.serve(async (request) => {
                 : [];
           }
         }
-        const objects = entries
-          .map((entry: any) => entry?.object ?? entry)
-          .filter((object: any) => object && typeof object === "object" && object.type !== "Delete")
+        const rawEntries = entries.slice(0, 30);
+        const objects = (await Promise.all(rawEntries.map(async (entry: any) => {
+          const candidate = entry?.object ?? entry;
+          if (candidate && typeof candidate === "object") return candidate;
+          if (typeof candidate === "string" && /^https?:\/\//i.test(candidate)) {
+            try {
+              const response = await fetchCollectionPage(candidate);
+              return response && typeof response === "object" ? response : null;
+            } catch { return null; }
+          }
+          return null;
+        })))
+          .filter((object: any) => object && object.type !== "Delete")
           .filter((object: any) => ["Note", "Article", "Question", "Video", "Image"].includes(object.type))
           .slice(0, 20);
 
@@ -194,7 +204,11 @@ Deno.serve(async (request) => {
     };
 
     if (followedActorUris.length) {
-      await Promise.all(followedActorUris.slice(0, 10).map(hydrateActor));
+      const hydrateQueue = followedActorUris.slice(0, 27);
+      const concurrency = 5;
+      for (let i = 0; i < hydrateQueue.length; i += concurrency) {
+        await Promise.all(hydrateQueue.slice(i, i + concurrency).map(hydrateActor));
+      }
     }
 
     const enrichRemoteAccounts = async (items: any[]) => {
