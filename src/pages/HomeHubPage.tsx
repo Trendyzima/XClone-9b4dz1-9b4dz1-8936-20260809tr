@@ -12,6 +12,7 @@ import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import * as federation from '@/api/federation';
 import { Loader2, Sparkles, Users, ShoppingBag, BarChart3, RefreshCw, ArrowRight } from 'lucide-react';
 import { readHomeFeedCache, writeHomeFeedCache, saveHomeScroll, mergeHomeFeedItems } from '@/lib/homeFeedCache';
+import { FederatedOrganicCard } from '@/components/features/FederatedOrganicDiscovery';
 
 type Tab = 'all'|'following'|'explore'|'media'|'communities'|'polls'|'shopping'|'federated';
 type Item = { type:'post'|'thread'|'community'|'poll'|'product'|'fedpost'; data:any };
@@ -126,7 +127,7 @@ export default function HomeHubPage(){
       setHasMore(Boolean(cacheCursorRef.current));
       await persistBuffer();
     }catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);setLoading(false);}}
-  },[fetchTab,persistBuffer,prefetchNext]);
+  },[fetchTab,persistBuffer]);
 
   useEffect(()=>{
     let active=true;
@@ -204,7 +205,7 @@ export default function HomeHubPage(){
       <div>{items.map((item,i)=><div key={item.type+'-'+(item.data?.id??i)} ref={i===items.length-1?lastElementRef:null}>
         {item.type==='post'&&<PostCard post={item.data} onUpdate={()=>load(tab)}/>}
         {item.type==='thread'&&<ThreadCard thread={item.data}/>}
-        {item.type==='fedpost'&&<PostCard post={item.data} onUpdate={()=>load(tab)}/>}
+        {item.type==='fedpost'&&(item.data?.is_federated_discovery?<FederatedOrganicCard item={item.data}/>:<PostCard post={item.data} onUpdate={()=>load(tab)}/>)}
         {item.type==='community'&&<CommunityCard community={item.data} onOpen={()=>navigate('/c/'+item.data.name)}/>}
         {item.type==='poll'&&<PollCard poll={item.data} onOpen={()=>navigate('/polls')}/>}
         {item.type==='product'&&<ProductCard product={item.data} onOpen={()=>navigate('/p/'+item.data.id)}/>}
