@@ -18,8 +18,6 @@ import { usePremium } from '@/hooks/usePremium';
 import { formatDistanceToNow } from 'date-fns';
 import { formatNumber } from '@/lib/utils';
 import { Post } from '@/types/app-types';
-import { listProfileLikes } from '@/features/likes/likesService';
-import { listProfileReplies } from '@/features/replies/repliesService';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { AdvertiserSurface } from '@/components/features/AdvertiserSurface';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -240,11 +238,6 @@ export default function ProfilePage() {
   // profile is null initially — this avoids TDZ ReferenceError (blank screen).
   // DO NOT move this below any conditional return.
   const isOwnProfile = !!currentUser && !!profile && currentUser.id === profile.id;
-  const [posts, setPosts] = useState([] as Post[]);
-  const [threads, setThreads] = useState([]);
-  const [replies, setReplies] = useState([]);
-  const [media, setMedia] = useState([]);
-  const [likedPosts, setLikedPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const activeTab = (() => {
     const section = location.pathname.split('/').filter(Boolean).pop()?.toLowerCase();
@@ -258,8 +251,6 @@ export default function ProfilePage() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [verifyBannerDismissed, setVerifyBannerDismissed] = useState(false);
-  const [followers, setFollowers] = useState([]);
-  const [following, setFollowing] = useState([]);
   const [streakDay, setStreakDay] = useState(0);
   const [followerRank, setFollowerRank] = useState(null as number | null);
   const [referralCopied, setReferralCopied] = useState(false);
@@ -759,14 +750,6 @@ export default function ProfilePage() {
 
       // Route-owned data lifecycle: load only the collection represented by the current profile route.
       const loaders: Record<string, () => Promise<unknown>> = {
-        Posts: () => fetchPosts(profileData.id),
-        Threads: () => fetchThreads(profileData.id),
-        Replies: () => fetchReplies(profileData.id),
-        Media: () => fetchMedia(profileData.id),
-        Videos: () => fetchPosts(profileData.id),
-        Likes: () => fetchLikedPosts(profileData.id),
-        Followers: () => fetchFollowers(profileData.id),
-        Following: () => fetchFollowing(profileData.id),
         Tips: () => Promise.all([fetchTipHistory(profileData.id), fetchTipGoal(profileData.id), fetchProfileViews7d(profileData.id)]),
         Gifts: () => fetchGiftHistory(profileData.id),
         Podcasts: () => fetchProfilePodcasts(profileData.id),
@@ -816,69 +799,6 @@ export default function ProfilePage() {
     ));
   };
 
-  const fetchPosts = async (userId: string) => {
-    const { data, error } = await supabase.from('posts').select('*, profiles!posts_author_id_fkey(*)').eq('author_id', userId).order('created_at', { ascending: false });
-    if (error) {
-      console.error('[profile] posts query failed', { userId, error });
-      setPosts([]);
-      return;
-    }
-    const postList = data || [];
-    setPosts(postList);
-    // Fire milestone alerts asynchronously — won't block UI
-    checkImpressionMilestones(userId, postList).catch(() => {});
-  };
-  const fetchThreads = async (userId: string) => {
-    const { data, error } = await supabase.from('threads').select('*').eq('owner_id', userId).is('deleted_at', null).order('created_at', { ascending: false });
-    if (error) console.error('[profile] threads query failed', { userId, error });
-    setThreads(data || []);
-  };
-  const fetchReplies = async (userId: string) => {
-    try {
-      setReplies(await listProfileReplies(userId, 100));
-    } catch (error) {
-      console.error('[profile] independent replies query failed', { userId, error });
-      setReplies([]);
-    }
-  };
-  const fetchMedia = async (userId: string) => {
-    const { data, error } = await supabase
-      .from('posts')
-      .select('*, profiles!posts_author_id_fkey(*)')
-      .eq('author_id', userId)
-      .is('deleted_at', null)
-      .or('image_url.not.is.null,video_url.not.is.null,media_urls.neq.[]')
-      .order('created_at', { ascending: false });
-    if (error) console.error('[profile] media query failed', { userId, error });
-    setMedia(data || []);
-  };
-
-  const fetchLikedPosts = async (userId: string) => {
-    try {
-      setLikedPosts(await listProfileLikes(userId, 100));
-    } catch (error) {
-      console.error('[profile] independent likes query failed', { userId, error });
-      setLikedPosts([]);
-    }
-  };
-
-  const fetchFollowers = async (userId: string) => {
-    const { data } = await supabase.from('follows').select('follower:profiles!follows_follower_id_fkey(*)').eq('following_id', userId);
-    setFollowers((data || []).map((item: any) => item.follower).filter(Boolean));
-  };
-  const fetchProfileStats = async (userId: string) => {
-    const { data: reward } = await supabase.from('daily_rewards').select('streak_day').eq('user_id', userId).maybeSingle();
-    setStreakDay(reward?.streak_day ?? 0);
-    const { data: pd } = await supabase.from('profiles').select('follower_count').eq('id', userId).maybeSingle();
-    if (pd) {
-      const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).gt('follower_count', pd.follower_count ?? 0);
-      setFollowerRank((count ?? 0) + 1);
-    }
-  };
-  const fetchFollowing = async (userId: string) => {
-    const { data } = await supabase.from('follows').select('following:profiles!follows_following_id_fkey(*)').eq('follower_id', userId);
-    setFollowing((data || []).map((item: any) => item.following).filter(Boolean));
-  };
   const checkFollowStatus = async () => {
     if (!currentUser || !profile) return;
     const { data } = await supabase.from('follows').select('id').eq('follower_id', currentUser.id).eq('following_id', profile.id).single();
@@ -1491,148 +1411,6 @@ export default function ProfilePage() {
       </div>
 
       <div>
-        {activeTab === 'Posts' && (
-          posts.length > 0 ? (
-            <div>
-              {pinnedPostId && posts.find(p => p.id === pinnedPostId) && (
-                <div className="border-b-2 border-primary/20 bg-primary/3">
-                  <div className="flex items-center gap-2 px-4 pt-3 pb-0">
-                    <span className="text-[10px] font-bold text-primary uppercase tracking-wide">📌 Pinned Post</span>
-                    {isOwnProfile && <button onClick={() => togglePinPost(pinnedPostId)} className="ml-auto text-[10px] text-muted-foreground hover:text-destructive transition-colors">Unpin</button>}
-                  </div>
-                  <PostCard post={posts.find(p => p.id === pinnedPostId)!} onUpdate={fetchProfile} />
-                </div>
-              )}
-              {posts.filter(p => p.id !== pinnedPostId).map(post => (
-                <div key={post.id} className="relative group">
-                  <PostCard post={post} onUpdate={fetchProfile} />
-                  {/* Impression milestone badge — ⭐ 1K · 🚀 10K (esbuild guard: no IIFE, plain conditional) */}
-                  {(post.views_count ?? 0) >= 10000 && (
-                    <div className="absolute top-3 left-14 z-10 flex items-center gap-0.5 px-1.5 py-0.5 bg-primary text-primary-foreground rounded-full text-[9px] font-black shadow pointer-events-none">
-                      🚀 {formatNumber(post.views_count ?? 0)}
-                    </div>
-                  )}
-                  {(post.views_count ?? 0) >= 1000 && (post.views_count ?? 0) < 10000 && (
-                    <div className="absolute top-3 left-14 z-10 flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-500 text-white rounded-full text-[9px] font-black shadow pointer-events-none">
-                      ⭐ {formatNumber(post.views_count ?? 0)}
-                    </div>
-                  )}
-                  {isOwnProfile && (
-                    <button onClick={() => togglePinPost(post.id)} className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-bold text-muted-foreground hover:text-primary bg-background/90 px-2 py-1 rounded-full border border-border shadow-sm">
-                      {pinnedPostId === post.id ? 'Unpin' : '📌 Pin'}
-                    </button>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : <div className="text-center py-12 text-muted-foreground"><p>No posts yet</p></div>
-        )}
-
-        {activeTab === 'Threads' && isOwnProfile && (
-          <div className="flex items-center gap-2 px-4 pt-3 pb-0">
-            <button onClick={async () => { await navigator.clipboard.writeText(getPodcastRssUrl(profile.username ?? '')); toast.success('Podcast RSS URL copied!'); }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-orange-500/30 bg-orange-500/5 text-orange-600 dark:text-orange-400 hover:bg-orange-500/10 transition-colors text-xs font-semibold">
-              <Rss className="w-3.5 h-3.5" />Copy Podcast RSS
-            </button>
-            <span className="text-[10px] text-muted-foreground">Subscribe in Apple Podcasts, Spotify…</span>
-          </div>
-        )}
-        {activeTab === 'Threads' && (
-          threads.length > 0 ? (
-            <>
-              <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-muted/20">
-                <Rss className="w-4 h-4 text-orange-500" />
-                <span className="text-sm text-muted-foreground flex-1">Share your podcast RSS feed</span>
-                <button onClick={() => navigator.clipboard.writeText(getPodcastRssUrl(profile.username)).then(() => toast.success('RSS feed URL copied!'))}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-orange-500/30 bg-orange-500/5 hover:bg-orange-500/10 text-orange-600 dark:text-orange-400 text-xs font-semibold transition-colors">
-                  <Copy className="w-3 h-3" /> Copy RSS
-                </button>
-              </div>
-              {threads.map(thread => (
-                <div key={thread.id} onClick={() => navigate(`/thread/${thread.id}`)} className="border-b border-border p-4 hover:bg-muted/5 cursor-pointer">
-                  <h3 className="font-bold text-lg mb-2">{thread.title}</h3>
-                  <p className="text-muted-foreground line-clamp-3 mb-2">{thread.body?.substring(0, 200) ?? ''}{thread.body?.length > 200 ? '...' : ''}</p>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span>{formatNumber(thread.views_count)} views</span>
-                    <span>{formatNumber(thread.likes_count)} likes</span>
-                    <span>{formatDistanceToNow(new Date(thread.created_at), { addSuffix: true })}</span>
-                  </div>
-                </div>
-              ))}
-            </>
-          ) : <div className="text-center py-12 text-muted-foreground"><p>No threads yet</p></div>
-        )}
-
-        {activeTab === 'Replies' && (
-          replies.length > 0 ? replies.map((reply: any) => (
-            <div key={reply.id} className="border-b border-border p-4 hover:bg-muted/5">
-              <button
-                onClick={() => reply.posts?.profiles?.username && navigate(`/profile/${reply.posts.profiles.username}`)}
-                className="text-sm text-muted-foreground mb-2 hover:text-primary transition-colors"
-              >
-                Replying to @{reply.posts?.profiles?.username ?? 'user'}
-              </button>
-              {reply.posts?.content && (
-                <button
-                  onClick={() => navigate(`/post/${reply.post_id}`)}
-                  className="block w-full text-left rounded-xl border border-border/70 bg-muted/20 p-3 mb-3 hover:bg-muted/40 transition-colors"
-                >
-                  <p className="text-xs text-muted-foreground mb-1">Original post</p>
-                  <p className="text-sm line-clamp-3">{reply.posts.content}</p>
-                </button>
-              )}
-              <p className="mb-2 whitespace-pre-wrap break-words">{reply.content}</p>
-              <button onClick={() => navigate(`/post/${reply.post_id}`)} className="text-sm text-primary hover:underline">View conversation</button>
-            </div>
-          )) : <div className="text-center py-12 text-muted-foreground"><p>No replies yet</p></div>
-        )}
-
-        {activeTab === 'Media' && (
-          media.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-2">
-              {media.map(post => {
-                const mediaUrl = post.video_url || post.image_url || post.media_urls?.[0];
-                return (
-                  <div key={post.id} onClick={() => navigate(`/post/${post.id}`)} className="aspect-square bg-muted rounded-lg overflow-hidden cursor-pointer hover:opacity-80 transition-opacity">
-                    {post.is_video || post.video_url ? <video src={mediaUrl} className="w-full h-full object-cover" /> : <img src={mediaUrl} alt="Media" className="w-full h-full object-cover" />}
-                  </div>
-                );
-              })}
-            </div>
-          ) : <div className="text-center py-12 text-muted-foreground"><p>No media yet</p></div>
-        )}
-
-        {activeTab === 'Videos' && (
-          <div className="p-3">
-            {videoPosts.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground">
-                <Play className="w-14 h-14 mx-auto mb-4 opacity-20" />
-                <p className="font-semibold text-lg">No videos yet</p>
-                <p className="text-sm">Upload short videos to appear here</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 gap-2">
-                {videoPosts.map(post => (
-                  <button key={post.id} onClick={() => navigate(`/videos?id=${post.id}`)} className="relative rounded-xl overflow-hidden bg-black aspect-[9/16] hover:scale-[1.02] active:scale-[0.98] transition-transform focus:outline-none">
-                    <video src={`${post.video_url}#t=0.5`} className="w-full h-full object-cover" muted preload="metadata" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-                    <div className="absolute top-2 right-2 w-7 h-7 bg-black/50 rounded-full flex items-center justify-center">
-                      <Play className="w-3.5 h-3.5 text-white fill-white ml-0.5" />
-                    </div>
-                    <div className="absolute bottom-2 left-2 right-2">
-                      <p className="text-white text-[10px] font-medium line-clamp-2 mb-1 leading-tight">{post.content?.slice(0, 60)}</p>
-                      <div className="flex items-center gap-2">
-                        <span className="flex items-center gap-0.5 text-white/70 text-[10px]"><Heart className="w-2.5 h-2.5" />{formatNumber(post.likes_count ?? 0)}</span>
-                        <span className="flex items-center gap-0.5 text-white/70 text-[10px]"><Eye className="w-2.5 h-2.5" />{formatNumber(post.views_count ?? 0)}</span>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
         {activeTab === 'Podcasts' && (
           loadingPodcasts ? (
             <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>
@@ -1842,33 +1620,6 @@ export default function ProfilePage() {
           )
         )}
 
-        {activeTab === 'Likes' && (
-          likedPosts.length > 0 ? likedPosts.map(post => <PostCard key={post.id} post={post} onUpdate={fetchProfile} />) : <div className="text-center py-12 text-muted-foreground"><p>No liked posts yet</p></div>
-        )}
-
-        {activeTab === 'Followers' && (
-          followers.length > 0 ? (
-            <div className="divide-y divide-border">
-              {followers.map(follower => (
-                <div key={follower.id} className="p-4 hover:bg-muted/5 flex items-center justify-between">
-                  <div className="flex items-center space-x-3 flex-1 cursor-pointer" onClick={() => navigate(`/profile/${follower.username}`)}>
-                    <div className="w-12 h-12 rounded-full bg-muted overflow-hidden">
-                      {follower.avatar_url ? <img src={follower.avatar_url} alt={follower.username} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-lg font-bold">{follower.username[0].toUpperCase()}</div>}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1">
-                        <span className="font-bold">{follower.username}</span>
-                        {follower.verified && <VerifiedTick className="w-4 h-4 text-primary" />}
-                      </div>
-                      <p className="text-sm text-muted-foreground line-clamp-1">{follower.bio || `@${follower.username}`}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : <div className="text-center py-12 text-muted-foreground"><p>No followers yet</p></div>
-        )}
-
         {activeTab === 'Analytics' && isOwnProfile && (
           <div className="p-4 space-y-5">
             {/* Header */}
@@ -2038,30 +1789,6 @@ export default function ProfilePage() {
             )}
           </div>
         )}
-
-        {activeTab === 'Following' && (
-          following.length > 0 ? (
-            <div className="divide-y divide-border">
-              {following.map(followedUser => (
-                <div key={followedUser.id} className="p-4 hover:bg-muted/5 flex items-center justify-between">
-                  <div className="flex items-center space-x-3 flex-1 cursor-pointer" onClick={() => navigate(`/profile/${followedUser.username}`)}>
-                    <div className="w-12 h-12 rounded-full bg-muted overflow-hidden">
-                      {followedUser.avatar_url ? <img src={followedUser.avatar_url} alt={followedUser.username} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-lg font-bold">{followedUser.username[0].toUpperCase()}</div>}
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-1">
-                        <span className="font-bold">{followedUser.username}</span>
-                        {followedUser.verified && <VerifiedTick className="w-4 h-4 text-primary" />}
-                      </div>
-                      <p className="text-sm text-muted-foreground line-clamp-1">{followedUser.bio || `@${followedUser.username}`}</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : <div className="text-center py-12 text-muted-foreground"><p>Not following anyone yet</p></div>
-        )}
-      </div>
 
       {/* Highlight Viewer */}
       {viewingHighlight && (
