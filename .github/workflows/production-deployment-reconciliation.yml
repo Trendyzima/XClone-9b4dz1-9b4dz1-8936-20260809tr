@@ -480,8 +480,9 @@ jobs:
               echo "Reusing existing READY production deployment for exact SHA $TARGET_SHA: $DEPLOY_URL"
             else
               # Build on Vercel with its production environment, then deploy.
-              # This avoids prebuilt artifacts losing system/build environment variables.
-              vercel deploy --prod --yes --force --token="$VERCEL_TOKEN" \
+              # Use Vercel's archive upload mode to avoid the Hobby api-upload-free
+              # per-file upload quota while preserving the exact-SHA build metadata.
+              vercel deploy --prod --yes --force --archive=tgz --token="$VERCEL_TOKEN" \
                 --build-env "TESTAGRAM_COMMIT_SHA=$TARGET_SHA" \
                 --env "TESTAGRAM_COMMIT_SHA=$TARGET_SHA" \
                 --meta "githubDeployment=1" \
