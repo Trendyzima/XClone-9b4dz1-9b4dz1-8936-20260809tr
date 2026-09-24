@@ -744,10 +744,16 @@ export default function ProfilePage() {
       }
       if (!profileData) throw initialProfileQuery.error ?? new Error('Canonical profile not found');
       const socialLinks = (profileData.social_links ?? {}) as { twitter?: string | null; instagram?: string | null; linkedin?: string | null };
-      const { data: monetization } = await supabase.from('user_monetization').select('total_earnings').eq('user_id', profileData.id).maybeSingle();
-      const normalizedProfile = { ...profileData, twitter_handle: socialLinks.twitter ?? null, instagram_handle: socialLinks.instagram ?? null, linkedin_url: socialLinks.linkedin ?? null, cover_image: profileData.cover_url ?? null, verified: profileData.verified_tier !== 'none', total_earnings: monetization?.total_earnings ?? 0 };
+      // Critical path: render the canonical profile immediately. Non-critical profile
+      // enrichments must never block the profile shell from becoming visible.
+      const normalizedProfile = { ...profileData, twitter_handle: socialLinks.twitter ?? null, instagram_handle: socialLinks.instagram ?? null, linkedin_url: socialLinks.linkedin ?? null, cover_image: profileData.cover_url ?? null, verified: profileData.verified_tier !== 'none', total_earnings: 0 };
       setPinnedPostId(profileData.pinned_post_id ?? null);
       setProfile(normalizedProfile);
+      setLoading(false);
+      // Enrich non-critical fields after first paint.
+      void supabase.from('user_monetization').select('total_earnings').eq('user_id', profileData.id).maybeSingle()
+        .then(({ data }) => { if (data) setProfile((prev: any) => prev ? { ...prev, total_earnings: data.total_earnings ?? 0 } : prev); })
+        .catch(() => {});
       // Update meta tags inline (no IIFE in render — this is async data loading)
       const title = `@${profileData.username} on Testagram`;
       const desc = profileData.bio?.slice(0, 200) || `Follow @${profileData.username} on Testagram`;
@@ -765,12 +771,12 @@ export default function ProfilePage() {
         Series: () => fetchProfileSeries(profileData.id),
         Analytics: () => Promise.all([fetchProfileStats(profileData.id), fetchPostImpressions(profileData.id)]),
       };
-      await loaders[activeTab]?.();
-      // Small shared header lifecycle only; content collections remain route-owned.
-      await Promise.all([fetchHighlights(profileData.id), fetchSubscription(profileData.id)]);
-      if (activeTab === 'Posts' || activeTab === 'Videos') await trackProfileView(profileData.id);
-      setLoading(false);
-      if (currentUser && currentUser.id !== profileData.id) checkBlockMuteStatus(profileData.id);
+      // Route-specific enrichment is non-blocking; the profile shell is already visible.
+      void loaders[activeTab]?.().catch(() => {});
+      // Shared secondary data is also deferred so a slow query cannot blank/delay the profile.
+      void Promise.allSettled([fetchHighlights(profileData.id), fetchSubscription(profileData.id)]);
+      if (activeTab === 'Posts' || activeTab === 'Videos') void trackProfileView(profileData.id).catch(() => {});
+      if (currentUser && currentUser.id !== profileData.id) void checkBlockMuteStatus(profileData.id).catch(() => {});
     } catch (error) {
       console.error('Error fetching profile:', error);
       setLoading(false);
