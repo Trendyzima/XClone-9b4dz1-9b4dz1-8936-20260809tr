@@ -34,6 +34,8 @@ export default function PostInteractionPage({kind}:{kind:Kind}){
    if(kind==='quote-likes')rows=await listQuoteLikes(postId,100);
    if(!cancelled)setItems(rows);
  }catch(e){console.error('[post-interaction]',kind,e);if(!cancelled)setItems([])}finally{if(!cancelled)setLoading(false)}})();return()=>{cancelled=true}},[postId,kind]);
+ useEffect(()=>{if(!postId)return; const channel=supabase.channel(`post-interactions:${postId}`).on('postgres_changes',{event:'*',schema:'public',table:'replies',filter:`post_id=eq.${postId}`},async()=>{try{const next=(await listReplies(postId,100)).items??[];setItems(kind==='replies'?next:items=>items);const live=await getInteractionCounts(postId);setCounts(live)}catch{}}).on('postgres_changes',{event:'*',schema:'public',table:'post_reactions',filter:`post_id=eq.${postId}`},async()=>{try{const live=await getInteractionCounts(postId);setCounts(live)}catch{}}).on('postgres_changes',{event:'*',schema:'public',table:'reposts',filter:`post_id=eq.${postId}`},async()=>{try{const live=await getInteractionCounts(postId);setCounts(live)}catch{}}).subscribe();return()=>{void supabase.removeChannel(channel)}},[postId,kind]);
+
  const sendReply=async()=>{if(!postId||!text.trim()||!user)return;setSending(true);try{await createReply(postId,text.trim());setText('');const next=(await listReplies(postId,100)).items??[];setItems(next);setCounts(prev=>({...prev,replies:prev.replies+1}))}catch(e){console.error(e)}finally{setSending(false)}};
  return <div className="min-h-screen bg-background">
   <div className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border px-4 py-3 flex items-center gap-3">
