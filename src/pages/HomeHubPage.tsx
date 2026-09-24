@@ -27,15 +27,13 @@ export default function HomeHubPage(){
   const {user}=useAuth(); const navigate=useNavigate();
   const [tab,setTab]=useState<Tab>('all'); const [items,setItems]=useState<Item[]>([]);
   const [loading,setLoading]=useState(true); const [loadingMore,setLoadingMore]=useState(false);
-  const [refreshing,setRefreshing]=useState(false); const [page,setPage]=useState(0); const [hasMore,setHasMore]=useState(true); const [nextCursor,setNextCursor]=useState<string|null>(null);
+  const [refreshing,setRefreshing]=useState(false); const [hasMore,setHasMore]=useState(true); const [nextCursor,setNextCursor]=useState<string|null>(null);
 
   useSEO({title:'Home — Testagram',description:'One home feed for posts, videos, communities, polls, shopping and the Fediverse on Testagram.',url:'/',type:'website'});
 
   const fetchTab=useCallback(async(target:Tab,pageNum=0):Promise<Item[]>=>{
-    const offset=pageNum*12;
-
     if(target==='communities'){
-      const {data,error}=await supabase.from('communities').select('*').order('member_count',{ascending:false}).range(offset,offset+19);
+      const {data,error}=await supabase.from('communities').select('*').order('member_count',{ascending:false}).range(0,11);
       if(error)throw error;
       return (data??[]).map((x:any)=>({type:'community',data:x}));
     }
@@ -52,8 +50,8 @@ export default function HomeHubPage(){
 
     if(target==='all'){
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const params = new URLSearchParams({ limit: '12', page: String(pageNum) });
-      if (pageNum > 0 && nextCursor) params.set('before', nextCursor);
+      const params = new URLSearchParams({ limit: '6' });
+      if (nextCursor) params.set('before', nextCursor);
       const response = await fetch('/api/home-feed?'+params.toString(), {
         headers: token ? { Authorization: 'Bearer '+token } : {},
       });
@@ -83,10 +81,10 @@ export default function HomeHubPage(){
     return (data??[]).map((x:any)=>({type:'post' as const,data:x}));
   },[user?.id]);
 
-  const load=useCallback(async(target:Tab)=>{setLoading(true);setPage(0);setNextCursor(null);setHasMore(true);try{const next=await fetchTab(target,0);setItems(next);if(target!=='all')setHasMore(next.length>=12);}catch(e){console.error('[home-hub]',e);setItems([]);setHasMore(false);}finally{setLoading(false);}},[fetchTab]);
+  const load=useCallback(async(target:Tab)=>{setLoading(true);setNextCursor(null);setHasMore(true);try{const next=await fetchTab(target,0);setItems(next);if(target!=='all')setHasMore(next.length>=12);}catch(e){console.error('[home-hub]',e);setItems([]);setHasMore(false);}finally{setLoading(false);}},[fetchTab]);
   useEffect(()=>{void load(tab);},[tab,load]);
 
-  const loadMore=useCallback(async()=>{if(!hasMore||loadingMore)return false;setLoadingMore(true);try{const nextPage=page+1;const next=await fetchTab(tab,nextPage);setItems(prev=>[...prev,...next]);setPage(nextPage);if(tab!=='all')setHasMore(next.length>=12);return next.length>0;}finally{setLoadingMore(false);}},[fetchTab,hasMore,loadingMore,page,tab,nextCursor]);
+  const loadMore=useCallback(async()=>{if(!hasMore||loadingMore)return false;setLoadingMore(true);try{const next=await fetchTab(tab,1);setItems(prev=>[...prev,...next]);if(tab!=='all')setHasMore(next.length>=12);return next.length>0;}finally{setLoadingMore(false);}},[fetchTab,hasMore,loadingMore,tab,nextCursor]);
   const {lastElementRef}=useInfiniteScroll(loadMore);
   const refresh=async()=>{setRefreshing(true);await load(tab);setRefreshing(false);};
 
