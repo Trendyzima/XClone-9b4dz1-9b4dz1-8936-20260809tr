@@ -1070,7 +1070,7 @@ export default function ExplorePage() {
       <div className="border-b border-border bg-background">
         <div className="px-3 py-2 flex gap-2 overflow-x-auto scrollbar-hide">
           {[
-            { label: 'Fediverse Discovery', icon: Globe2, path: '/fediverse/organic-discovery' },
+            { label: 'Fediverse Discovery', icon: Globe, path: '/fediverse/organic-discovery' },
             { label: 'Search', icon: Search, path: '/search' },
             { label: 'Hashtags', icon: Hash, path: '/hashtags' },
             { label: 'Creators', icon: UsersIcon, path: '/discover' },
