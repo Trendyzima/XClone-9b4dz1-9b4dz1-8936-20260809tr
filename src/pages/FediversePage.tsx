@@ -55,7 +55,7 @@ type FediversePageProps = { initialTab?: Tab; standalone?: boolean };\n\nexport 
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [tab] = useState<Tab>(initialTab);
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [searchHandle, setSearchHandle] = useState('');
   const [searchResult, setSearchResult] = useState<any | null>(null);
   const [searching, setSearching] = useState(false);
