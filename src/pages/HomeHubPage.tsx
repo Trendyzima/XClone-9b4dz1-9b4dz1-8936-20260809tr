@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState, useEffect, useCallback } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ComposePost } from '@/components/features/ComposePost';
 import { PostCard } from '@/components/features/PostCard';
@@ -12,6 +12,7 @@ import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import * as federation from '@/api/federation';
 import { Loader2, Sparkles, Users, ShoppingBag, BarChart3, RefreshCw, ArrowRight } from 'lucide-react';
 import { FederatedOrganicInjection } from '@/components/features/FederatedOrganicDiscovery';
+import { readHomeFeedCache, writeHomeFeedCache, saveHomeScroll } from '@/lib/homeFeedCache';
 
 type Tab = 'all'|'following'|'explore'|'media'|'communities'|'polls'|'shopping'|'federated';
 type Item = { type:'post'|'thread'|'community'|'poll'|'product'|'fedpost'; data:any };
@@ -28,6 +29,7 @@ export default function HomeHubPage(){
   const [tab,setTab]=useState<Tab>('all'); const [items,setItems]=useState<Item[]>([]);
   const [loading,setLoading]=useState(true); const [loadingMore,setLoadingMore]=useState(false);
   const [refreshing,setRefreshing]=useState(false); const [hasMore,setHasMore]=useState(true); const [nextCursor,setNextCursor]=useState<string|null>(null);
+  const [cacheHydrated,setCacheHydrated]=useState(false); const [newCount,setNewCount]=useState(0); const scrollTimer=useRef<number|undefined>(undefined);
 
   useSEO({title:'Home — Testagram',description:'One home feed for posts, videos, communities, polls, shopping and the Fediverse on Testagram.',url:'/',type:'website'});
 
@@ -82,8 +84,33 @@ export default function HomeHubPage(){
     return (data??[]).map((x:any)=>({type:'post' as const,data:x}));
   },[user?.id]);
 
-  const load=useCallback(async(target:Tab)=>{setLoading(true);setNextCursor(null);setHasMore(true);try{const next=await fetchTab(target,0);setItems(next);if(target!=='all')setHasMore(next.length>=12);}catch(e){console.error('[home-hub]',e);setItems([]);setHasMore(false);}finally{setLoading(false);}},[fetchTab]);
-  useEffect(()=>{void load(tab);},[tab,load]);
+  const load=useCallback(async(target:Tab,background=false)=>{
+    if(!background)setLoading(true); setNextCursor(null); setHasMore(true);
+    try{
+      const next=await fetchTab(target,0);
+      if(target==='all' && background){
+        setItems(prev=>{const existing=new Set(prev.map(x=>x.data?.id).filter(Boolean)); const fresh=next.filter(x=>x.data?.id&&!existing.has(x.data.id)); setNewCount(fresh.length); return fresh.length?[...fresh,...prev]:prev;});
+      } else setItems(next);
+      if(target!=='all')setHasMore(next.length>=12);
+      if(target==='all') await writeHomeFeedCache({key:'home',items:next,cursor:nextCursor,updatedAt:Date.now(),scrollY:window.scrollY,anchorId:next[0]?.data?.id??null});
+    }catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);}}finally{if(!background)setLoading(false);}
+  },[fetchTab,nextCursor]);
+  useEffect(()=>{
+    let active=true;
+    if(tab!=='all'){void load(tab);return ()=>{active=false;};}
+    void readHomeFeedCache().then(cached=>{
+      if(!active)return;
+      if(cached?.items?.length){setItems(cached.items);setNextCursor(cached.cursor);setHasMore(true);setLoading(false);setCacheHydrated(true); if(cached.scrollY>0)requestAnimationFrame(()=>window.scrollTo({top:cached.scrollY,behavior:'instant' as ScrollBehavior}));}
+      else setCacheHydrated(true);
+      void load('all',true);
+    }).catch(()=>{setCacheHydrated(true);void load('all');});
+    const onScroll=()=>{window.clearTimeout(scrollTimer.current);scrollTimer.current=window.setTimeout(()=>{const first=items[0]?.data?.id??null;saveHomeScroll(window.scrollY,first);},250);};
+    window.addEventListener('scroll',onScroll,{passive:true});
+    return()=>{active=false;window.removeEventListener('scroll',onScroll);};
+  },[tab]);
+  useEffect(()=>{if(tab==='all'&&cacheHydrated&&items.length===0)void load('all');},[cacheHydrated,tab]);
+  useEffect(()=>{if(newCount>0&&window.scrollY<500){setNewCount(0);}},[newCount]);
+
 
   const loadMore=useCallback(async()=>{if(!hasMore||loadingMore)return false;setLoadingMore(true);try{const next=await fetchTab(tab,1,nextCursor);setItems(prev=>[...prev,...next]);if(tab!=='all')setHasMore(next.length>=12);return next.length>0;}finally{setLoadingMore(false);}},[fetchTab,hasMore,loadingMore,tab,nextCursor]);
   const {lastElementRef}=useInfiniteScroll(loadMore);
@@ -99,6 +126,7 @@ export default function HomeHubPage(){
       <button onClick={()=>navigate('/polls')} className="flex-1 rounded-xl border border-border bg-card px-3 py-2 text-xs font-bold flex items-center justify-center gap-2"><BarChart3 className="w-4 h-4 text-primary"/>Community Polls</button>
     </div>
     <ComposePost onSuccess={()=>load(tab)}/>
+    {!loading&&newCount>0&&<button onClick={()=>{window.scrollTo({top:0,behavior:'smooth'});setNewCount(0)}} className="w-full py-2 bg-primary/5 text-xs font-semibold text-primary">{newCount} new post{newCount===1?'':'s'} · Tap to view</button>}
     {!loading&&<button onClick={refresh} disabled={refreshing} className="w-full py-2 border-b border-border text-xs text-muted-foreground flex items-center justify-center gap-2"><RefreshCw className={'w-3 h-3 '+(refreshing?'animate-spin':'')}/>{refreshing?'Refreshing…':'Refresh feed'}</button>}
     {loading?<div className="py-20 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-primary"/></div>:
       items.length===0?<div className="py-20 text-center text-muted-foreground"><Sparkles className="w-10 h-10 mx-auto mb-3 opacity-30"/><p className="font-semibold">Nothing here yet</p><p className="text-sm mt-1">Explore another section or be the first to add content.</p></div>:
