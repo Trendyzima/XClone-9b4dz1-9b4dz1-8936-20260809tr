@@ -18,6 +18,8 @@ import { usePremium } from '@/hooks/usePremium';
 import { formatDistanceToNow } from 'date-fns';
 import { formatNumber } from '@/lib/utils';
 import { Post } from '@/types/app-types';
+import { listProfileLikes } from '@/features/likes/likesService';
+import { listProfileReplies } from '@/features/replies/repliesService';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { AdvertiserSurface } from '@/components/features/AdvertiserSurface';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
@@ -238,6 +240,11 @@ export default function ProfilePage() {
   // profile is null initially — this avoids TDZ ReferenceError (blank screen).
   // DO NOT move this below any conditional return.
   const isOwnProfile = !!currentUser && !!profile && currentUser.id === profile.id;
+  const [posts, setPosts] = useState([] as Post[]);
+  const [threads, setThreads] = useState([]);
+  const [replies, setReplies] = useState([]);
+  const [media, setMedia] = useState([]);
+  const [likedPosts, setLikedPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const activeTab = (() => {
     const section = location.pathname.split('/').filter(Boolean).pop()?.toLowerCase();
@@ -251,6 +258,8 @@ export default function ProfilePage() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [verifyBannerDismissed, setVerifyBannerDismissed] = useState(false);
+  const [followers, setFollowers] = useState([]);
+  const [following, setFollowing] = useState([]);
   const [streakDay, setStreakDay] = useState(0);
   const [followerRank, setFollowerRank] = useState(null as number | null);
   const [referralCopied, setReferralCopied] = useState(false);
@@ -799,6 +808,69 @@ export default function ProfilePage() {
     ));
   };
 
+  const fetchPosts = async (userId: string) => {
+    const { data, error } = await supabase.from('posts').select('*, profiles!posts_author_id_fkey(*)').eq('author_id', userId).order('created_at', { ascending: false });
+    if (error) {
+      console.error('[profile] posts query failed', { userId, error });
+      setPosts([]);
+      return;
+    }
+    const postList = data || [];
+    setPosts(postList);
+    // Fire milestone alerts asynchronously — won't block UI
+    checkImpressionMilestones(userId, postList).catch(() => {});
+  };
+  const fetchThreads = async (userId: string) => {
+    const { data, error } = await supabase.from('threads').select('*').eq('owner_id', userId).is('deleted_at', null).order('created_at', { ascending: false });
+    if (error) console.error('[profile] threads query failed', { userId, error });
+    setThreads(data || []);
+  };
+  const fetchReplies = async (userId: string) => {
+    try {
+      setReplies(await listProfileReplies(userId, 100));
+    } catch (error) {
+      console.error('[profile] independent replies query failed', { userId, error });
+      setReplies([]);
+    }
+  };
+  const fetchMedia = async (userId: string) => {
+    const { data, error } = await supabase
+      .from('posts')
+      .select('*, profiles!posts_author_id_fkey(*)')
+      .eq('author_id', userId)
+      .is('deleted_at', null)
+      .or('image_url.not.is.null,video_url.not.is.null,media_urls.neq.[]')
+      .order('created_at', { ascending: false });
+    if (error) console.error('[profile] media query failed', { userId, error });
+    setMedia(data || []);
+  };
+
+  const fetchLikedPosts = async (userId: string) => {
+    try {
+      setLikedPosts(await listProfileLikes(userId, 100));
+    } catch (error) {
+      console.error('[profile] independent likes query failed', { userId, error });
+      setLikedPosts([]);
+    }
+  };
+
+  const fetchFollowers = async (userId: string) => {
+    const { data } = await supabase.from('follows').select('follower:profiles!follows_follower_id_fkey(*)').eq('following_id', userId);
+    setFollowers((data || []).map((item: any) => item.follower).filter(Boolean));
+  };
+  const fetchProfileStats = async (userId: string) => {
+    const { data: reward } = await supabase.from('daily_rewards').select('streak_day').eq('user_id', userId).maybeSingle();
+    setStreakDay(reward?.streak_day ?? 0);
+    const { data: pd } = await supabase.from('profiles').select('follower_count').eq('id', userId).maybeSingle();
+    if (pd) {
+      const { count } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).gt('follower_count', pd.follower_count ?? 0);
+      setFollowerRank((count ?? 0) + 1);
+    }
+  };
+  const fetchFollowing = async (userId: string) => {
+    const { data } = await supabase.from('follows').select('following:profiles!follows_following_id_fkey(*)').eq('follower_id', userId);
+    setFollowing((data || []).map((item: any) => item.following).filter(Boolean));
+  };
   const checkFollowStatus = async () => {
     if (!currentUser || !profile) return;
     const { data } = await supabase.from('follows').select('id').eq('follower_id', currentUser.id).eq('following_id', profile.id).single();
@@ -1411,6 +1483,7 @@ export default function ProfilePage() {
       </div>
 
       <div>
+
         {activeTab === 'Podcasts' && (
           loadingPodcasts ? (
             <div className="flex justify-center py-16"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>
@@ -1620,6 +1693,7 @@ export default function ProfilePage() {
           )
         )}
 
+
         {activeTab === 'Analytics' && isOwnProfile && (
           <div className="p-4 space-y-5">
             {/* Header */}
@@ -1789,6 +1863,8 @@ export default function ProfilePage() {
             )}
           </div>
         )}
+
+      </div>
 
       {/* Highlight Viewer */}
       {viewingHighlight && (
