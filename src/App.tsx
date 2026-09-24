@@ -149,6 +149,19 @@ const FediverseAnalyticsPage = lazy(() => import('@/pages/FediverseAnalyticsPage
 const FediverseDiscoverPage = lazy(() => import('@/pages/FediverseDiscoverPage'));
 const FediverseIdentityPage = lazy(() => import('@/pages/FediverseIdentityPage'));
 const FediverseProfilePage = lazy(() => import('@/pages/FediverseProfilePage'));
+const FediverseProfilePostsPage = lazy(() => import('@/pages/FediverseProfilePostsPage'));
+const FediverseProfileThreadsPage = lazy(() => import('@/pages/FediverseProfileThreadsPage'));
+const FediverseProfileRepliesPage = lazy(() => import('@/pages/FediverseProfileRepliesPage'));
+const FediverseProfileMediaPage = lazy(() => import('@/pages/FediverseProfileMediaPage'));
+const FediverseProfileVideosPage = lazy(() => import('@/pages/FediverseProfileVideosPage'));
+const FediverseProfilePodcastsPage = lazy(() => import('@/pages/FediverseProfilePodcastsPage'));
+const FediverseProfileSeriesPage = lazy(() => import('@/pages/FediverseProfileSeriesPage'));
+const FediverseProfileLikesPage = lazy(() => import('@/pages/FediverseProfileLikesPage'));
+const FediverseProfileTipsPage = lazy(() => import('@/pages/FediverseProfileTipsPage'));
+const FediverseProfileGiftsPage = lazy(() => import('@/pages/FediverseProfileGiftsPage'));
+const FediverseProfileFollowersPage = lazy(() => import('@/pages/FediverseProfileFollowersPage'));
+const FediverseProfileFollowingPage = lazy(() => import('@/pages/FediverseProfileFollowingPage'));
+const FediverseProfileAnalyticsPage = lazy(() => import('@/pages/FediverseProfileAnalyticsPage'));
 const VerificationRequestPage = lazy(() => import('@/pages/VerificationRequestPage'));
 const AdminVerificationPage = lazy(() => import('@/pages/AdminVerificationPage'));
 const DailyRewardsPage = lazy(() => import('@/pages/DailyRewardsPage'));
@@ -268,7 +281,20 @@ function AppInner(){useCreatorTierAlert();useEffect(()=>{applyAppearance(getStor
 <Route path="/fediverse/relay" element={<FediverseRelayPage/>}/>
 <Route path="/fediverse/analytics" element={<FediverseAnalyticsPage/>}/>
 <Route path="/fediverse/discover" element={<FediverseDiscoverPage/>}/>
-<Route path="/fediverse/identity" element={<FediverseIdentityPage/>}/><Route path="/fediverse/profile" element={<FediverseProfilePage/>}/><Route path="/daily-rewards" element={<DailyRewardsPage/>}/><Route path="/leaderboard" element={<LeaderboardPage/>}/><Route path="/leaderboard/challenges" element={<ChallengeLeaderboardPage/>}/><Route path="/discover" element={<DiscoverPage/>}/><Route path="/referral" element={<ReferralPage/>}/><Route path="/referrals" element={<ReferralPage/>}/><Route path="/space-recording/:id" element={<SpaceRecordingViewerPage/>}/><Route path="/spaces/:id" element={<SpaceDetailPage/>}/><Route path="/trending/:topic" element={<TrendingTopicFeedPage/>}/><Route path="/challenge/:id" element={<HashtagChallengePage/>}/><Route path="/admin/ads-review" element={<AdminAdsDashboard/>}/><Route path="/notification-preferences" element={<NotificationPreferencesPage/>}/><Route path="/wishlist" element={<WishlistPage/>}/><Route path="/marketplace" element={<MarketplacePage/>}/><Route path="/shop" element={<ShoppingMallPage/>}/><Route path="/p/:productId" element={<MarketProductPage/>}/><Route path="/polls" element={<PollsPage/>}/><Route path="/interests" element={<InterestOnboardingPage/>}/><Route path="/ad-analytics" element={<AdAnalyticsPage/>}/><Route path="/series" element={<SeriesPage/>}/><Route path="/platform-inbox" element={<PlatformInboxPage/>}/><Route path="/admin/seo" element={<SEOAuditPage/>}/><Route path="/videos/watchlater" element={<VideoWatchLaterPage/>}/><Route path="/hashtags" element={<HashtagDiscoveryPage/>}/><Route path="/podcasts/search" element={<PodcastSearchPage/>}/><Route path="/regulator" element={<RegulatorPanel/>}/>
+<Route path="/fediverse/identity" element={<FediverseIdentityPage/>}/><Route path="/fediverse/profile" element={<FediverseProfilePage/>}/>
+<Route path="/fediverse/profile/posts" element={<FediverseProfilePostsPage/>}/>
+<Route path="/fediverse/profile/threads" element={<FediverseProfileThreadsPage/>}/>
+<Route path="/fediverse/profile/replies" element={<FediverseProfileRepliesPage/>}/>
+<Route path="/fediverse/profile/media" element={<FediverseProfileMediaPage/>}/>
+<Route path="/fediverse/profile/videos" element={<FediverseProfileVideosPage/>}/>
+<Route path="/fediverse/profile/podcasts" element={<FediverseProfilePodcastsPage/>}/>
+<Route path="/fediverse/profile/series" element={<FediverseProfileSeriesPage/>}/>
+<Route path="/fediverse/profile/likes" element={<FediverseProfileLikesPage/>}/>
+<Route path="/fediverse/profile/tips" element={<FediverseProfileTipsPage/>}/>
+<Route path="/fediverse/profile/gifts" element={<FediverseProfileGiftsPage/>}/>
+<Route path="/fediverse/profile/followers" element={<FediverseProfileFollowersPage/>}/>
+<Route path="/fediverse/profile/following" element={<FediverseProfileFollowingPage/>}/>
+<Route path="/fediverse/profile/analytics" element={<FediverseProfileAnalyticsPage/>}/><Route path="/daily-rewards" element={<DailyRewardsPage/>}/><Route path="/leaderboard" element={<LeaderboardPage/>}/><Route path="/leaderboard/challenges" element={<ChallengeLeaderboardPage/>}/><Route path="/discover" element={<DiscoverPage/>}/><Route path="/referral" element={<ReferralPage/>}/><Route path="/referrals" element={<ReferralPage/>}/><Route path="/space-recording/:id" element={<SpaceRecordingViewerPage/>}/><Route path="/spaces/:id" element={<SpaceDetailPage/>}/><Route path="/trending/:topic" element={<TrendingTopicFeedPage/>}/><Route path="/challenge/:id" element={<HashtagChallengePage/>}/><Route path="/admin/ads-review" element={<AdminAdsDashboard/>}/><Route path="/notification-preferences" element={<NotificationPreferencesPage/>}/><Route path="/wishlist" element={<WishlistPage/>}/><Route path="/marketplace" element={<MarketplacePage/>}/><Route path="/shop" element={<ShoppingMallPage/>}/><Route path="/p/:productId" element={<MarketProductPage/>}/><Route path="/polls" element={<PollsPage/>}/><Route path="/interests" element={<InterestOnboardingPage/>}/><Route path="/ad-analytics" element={<AdAnalyticsPage/>}/><Route path="/series" element={<SeriesPage/>}/><Route path="/platform-inbox" element={<PlatformInboxPage/>}/><Route path="/admin/seo" element={<SEOAuditPage/>}/><Route path="/videos/watchlater" element={<VideoWatchLaterPage/>}/><Route path="/hashtags" element={<HashtagDiscoveryPage/>}/><Route path="/podcasts/search" element={<PodcastSearchPage/>}/><Route path="/regulator" element={<RegulatorPanel/>}/>
 <Route path="/regulator/employees" element={<RegulatorPanel/>}/>
 <Route path="/regulator/features" element={<RegulatorPanel/>}/>
 <Route path="/regulator/wallets" element={<RegulatorPanel/>}/>
