@@ -205,13 +205,14 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
       })
       .subscribe();
 
-    // Slow reconciliation protects against a dropped WebSocket without making
-    // normal federation interactions feel delayed.
+    // Reconcile frequently enough to surface remote content even when a
+    // Realtime websocket is unavailable. Feed refresh is incremental and does
+    // not reset the user's current list/scroll position.
     const reconcile = window.setInterval(() => {
-      fetchInbox();
-      fetchOutboxLog();
-      fetchFederatedFeed();
-    }, 30000);
+      void fetchInbox();
+      void fetchOutboxLog();
+      void fetchFederatedFeed({ incremental: true });
+    }, 15000);
 
     return () => {
       window.clearInterval(reconcile);
@@ -356,16 +357,34 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
     await supabase.from('federated_objects').upsert(rows, { onConflict: 'uri', ignoreDuplicates: false })
       .then(() => setCachedAt(new Date())).catch(() => {});
   };
-  const fetchFederatedFeed = async () => {
-    setLoadingFeed(true);
+  const fetchFederatedFeed = async ({ incremental = false }: { incremental?: boolean } = {}) => {
+    // Incremental reconciliation must not replace the existing feed: replacing
+    // the array causes visible jumps and can discard content loaded below the
+    // fold. Instead, merge the newest page by canonical URI and keep ordering.
+    if (!incremental) setLoadingFeed(true);
     try {
       const page = await federation.getFederatedTimelinePage({ limit: 30 });
       const fresh = Array.isArray(page?.items) ? page.items : [];
       if (fresh.length > 0) {
-        setRemotePosts(fresh);
-        cacheFederatedPosts(fresh).catch(() => {});
+        setRemotePosts(prev => {
+          if (!incremental) return fresh;
+          const byUri = new Map<string, any>();
+          for (const item of prev) {
+            const key = String(item?.uri ?? item?.id ?? '');
+            if (key) byUri.set(key, item);
+          }
+          for (const item of fresh) {
+            const key = String(item?.uri ?? item?.id ?? '');
+            if (key) byUri.set(key, { ...(byUri.get(key) ?? {}), ...item });
+          }
+          return [...byUri.values()]
+            .filter(item => !item?.deleted_at && !item?.tombstone)
+            .sort((a, b) => new Date(b?.published_at ?? 0).getTime() - new Date(a?.published_at ?? 0).getTime())
+            .slice(0, 100);
+        });
+        void cacheFederatedPosts(fresh);
         setCachedAt(new Date());
-      } else {
+      } else if (!incremental) {
         const { data: cached } = await supabase
           .from('federated_objects')
           .select('*')
@@ -375,16 +394,18 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
         if ((cached ?? []).length > 0) setCachedAt(new Date());
       }
     } catch {
-      const { data: cached } = await supabase
-        .from('federated_objects')
-        .select('*')
-        .order('published_at', { ascending: false })
-        .limit(30);
-      setRemotePosts(cached ?? []);
-      if ((cached ?? []).length > 0) setCachedAt(new Date());
-      console.log('[FediversePage] Personalized feed unavailable, serving from cache');
+      if (!incremental) {
+        const { data: cached } = await supabase
+          .from('federated_objects')
+          .select('*')
+          .order('published_at', { ascending: false })
+          .limit(30);
+        setRemotePosts(cached ?? []);
+        if ((cached ?? []).length > 0) setCachedAt(new Date());
+        console.log('[FediversePage] Personalized feed unavailable, serving from cache');
+      }
     } finally {
-      setLoadingFeed(false);
+      if (!incremental) setLoadingFeed(false);
       setIsStale(false);
     }
   };
