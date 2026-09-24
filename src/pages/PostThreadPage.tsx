@@ -286,9 +286,6 @@ export default function PostThreadPage() {
         )}
         {replies.length > 3 && <button onClick={openReplies} className="w-full py-3 text-sm font-semibold text-primary border-t border-border">View all {counts.replies} replies</button>}
       </section>
-          <MessageCircle className="w-5 h-5 text-muted-foreground shrink-0" />
-        </button>
-      </div>
     </div>
   );
 }
