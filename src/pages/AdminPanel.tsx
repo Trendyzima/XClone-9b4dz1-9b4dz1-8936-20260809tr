@@ -40,18 +40,6 @@ interface PlatformStats {
   total_earnings_distributed: number;
 }
 
-interface VerificationRequest {
-  id: string;
-  user_id: string;
-  tier: string;
-  payment_status: string;
-  payment_amount: number;
-  status: string;
-  admin_notes: string;
-  created_at: string;
-  user: { username: string; email: string; avatar_url?: string; follower_count: number };
-}
-
 interface UserAdEntry {
   id: string;
   user_id: string;
@@ -102,7 +90,6 @@ export default function AdminPanel() {
     total_revenue: 0, pending_verifications: 0, pending_ads: 0,
     fraud_alerts: 0, active_streams: 0, total_earnings_distributed: 0,
   });
-  const [verifications, setVerifications] = useState<VerificationRequest[]>([]);
   const [userAds, setUserAds] = useState<UserAdEntry[]>([]);
   const [users, setUsers] = useState<ReportedUser[]>([]);
   const [fraudAlerts, setFraudAlerts] = useState<FraudAlert[]>([]);
@@ -110,7 +97,6 @@ export default function AdminPanel() {
   const [pendingReports, setPendingReports] = useState(0);
   const [userSearch, setUserSearch] = useState('');
   const [adFilter, setAdFilter] = useState<'all' | 'pending' | 'active' | 'rejected'>('pending');
-  const [verFilter, setVerFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [sponsoredForm, setSponsoredForm] = useState({ title: '', content: '', advertiser_name: '', budget: '' });
   const [createSponsoredOpen, setCreateSponsoredOpen] = useState(false);
@@ -125,7 +111,7 @@ export default function AdminPanel() {
     const { data } = await supabase.from('admin_users').select('*').eq('user_id', user.id).single();
     if (!data) { toast.error('Access denied — admin only'); navigate('/'); return; }
     setIsAdmin(true);
-    await Promise.all([fetchStats(), fetchVerifications(), fetchUserAds(), fetchUsers(), fetchFraudAlerts(), fetchReportedPosts()]);
+    await Promise.all([fetchStats(), fetchUserAds(), fetchUsers(), fetchFraudAlerts(), fetchReportedPosts()]);
     setLoading(false);
   };
 
@@ -163,15 +149,6 @@ export default function AdminPanel() {
       active_streams: liveStreams ?? 0,
       total_earnings_distributed,
     });
-  };
-
-  const fetchVerifications = async () => {
-    const { data } = await supabase
-      .from('verification_requests')
-      .select('*, user:profiles(username, email, avatar_url, follower_count)')
-      .order('created_at', { ascending: false })
-      .limit(100);
-    setVerifications((data as any) || []);
   };
 
   const fetchUserAds = async () => {
@@ -224,25 +201,6 @@ export default function AdminPanel() {
       .order('created_at', { ascending: false })
       .limit(50);
     setFraudAlerts((data as any) || []);
-  };
-
-  // ── Verification actions ────────────────────────────────────────────────────
-  const handleVerification = async (id: string, userId: string, approve: boolean, notes = '') => {
-    setActionLoading(id);
-    try {
-      const status = approve ? 'approved' : 'rejected';
-      await supabase.from('verification_requests').update({ status, admin_notes: notes, processed_at: new Date().toISOString() }).eq('id', id);
-      if (approve) {
-        await supabase.from('profiles').update({ verified: true }).eq('id', userId);
-      }
-      toast.success(approve ? 'User verified ✓' : 'Verification rejected');
-      fetchVerifications();
-      fetchStats();
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setActionLoading(null);
-    }
   };
 
   // ── Ad review actions ───────────────────────────────────────────────────────
@@ -322,7 +280,6 @@ export default function AdminPanel() {
     u.email?.toLowerCase().includes(userSearch.toLowerCase())
   );
   const filteredAds = adFilter === 'all' ? userAds : userAds.filter(a => a.status === adFilter);
-  const filteredVer = verFilter === 'all' ? verifications : verifications.filter(v => v.status === verFilter);
 
   // ── Stat card ───────────────────────────────────────────────────────────────
   const StatCard = ({ icon: Icon, label, value, color, alert }: any) => (
@@ -400,14 +357,7 @@ export default function AdminPanel() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <TabsList className="grid grid-cols-5 w-full h-auto p-1">
             <TabsTrigger value="overview" className="text-xs py-2">Overview</TabsTrigger>
-            <TabsTrigger value="verifications" className="relative text-xs py-2">
-              Verify
-              {stats.pending_verifications > 0 && (
-                <span className="absolute -top-1 -right-1 w-4 h-4 bg-yellow-500 rounded-full text-white text-[10px] flex items-center justify-center font-bold">
-                  {stats.pending_verifications > 9 ? '9+' : stats.pending_verifications}
-                </span>
-              )}
-            </TabsTrigger>
+            
             <TabsTrigger value="ads" className="relative text-xs py-2">
               Ads
               {stats.pending_ads > 0 && (
@@ -436,7 +386,7 @@ export default function AdminPanel() {
                   <Zap className="w-4 h-4 text-primary" /> Quick Actions
                 </h3>
                 <div className="space-y-2">
-                  <button onClick={() => setActiveTab('verifications')} className="w-full flex items-center justify-between p-3 rounded-lg bg-yellow-500/10 hover:bg-yellow-500/20 transition-colors">
+                  <button onClick={() => navigate('/admin/verifications')} className="w-full flex items-center justify-between p-3 rounded-lg bg-yellow-500/10 hover:bg-yellow-500/20 transition-colors">
                     <div className="flex items-center gap-2">
                       <UserCheck className="w-4 h-4 text-yellow-600" />
                       <span className="text-sm font-medium">Review Verifications</span>
@@ -569,47 +519,7 @@ export default function AdminPanel() {
           </TabsContent>
 
           {/* ── VERIFICATIONS ─────────────────────────────────────────────────── */}
-          <TabsContent value="verifications" className="space-y-4 mt-4">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-lg flex items-center gap-2">
-                <UserCheck className="w-5 h-5 text-primary" /> Verification Requests
-              </h3>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => navigate('/admin/verifications')}
-                  className="text-xs px-3 py-1.5 bg-primary/10 text-primary rounded-full font-semibold hover:bg-primary/20 transition-colors"
-                >
-                  Full View
-                </button>
-                <div className="flex gap-1">
-                {(['all', 'pending', 'approved', 'rejected'] as const).map(f => (
-                  <button
-                    key={f}
-                    onClick={() => setVerFilter(f)}
-                    className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${verFilter === f ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-muted/80'}`}
-                  >
-                    {f}
-                  </button>
-                ))}
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              {filteredVer.map(req => (
-                <VerificationCard
-                  key={req.id}
-                  req={req}
-                  actionLoading={actionLoading}
-                  onApprove={(id, userId) => handleVerification(id, userId, true)}
-                  onReject={(id, userId) => handleVerification(id, userId, false)}
-                />
-              ))}
-              {filteredVer.length === 0 && (
-                <EmptyState icon={UserCheck} title="No verification requests" subtitle={verFilter !== 'all' ? `No ${verFilter} requests` : 'All caught up!'} />
-              )}
-            </div>
-          </TabsContent>
+          
 
           {/* ── ADS REVIEW ────────────────────────────────────────────────────── */}
           <TabsContent value="ads" className="space-y-4 mt-4">
@@ -741,58 +651,6 @@ export default function AdminPanel() {
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
-
-function VerificationCard({ req, actionLoading, onApprove, onReject }: {
-  req: VerificationRequest;
-  actionLoading: string | null;
-  onApprove: (id: string, userId: string) => void;
-  onReject: (id: string, userId: string) => void;
-}) {
-  const isLoading = actionLoading === req.id;
-  return (
-    <div className="bg-card border border-border rounded-xl p-4">
-      <div className="flex items-start justify-between mb-3">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-muted overflow-hidden flex-shrink-0">
-            {req.user?.avatar_url ? (
-              <img src={req.user.avatar_url} alt="" className="w-full h-full object-cover" />
-            ) : (
-              <div className="w-full h-full flex items-center justify-center font-bold text-sm">
-                {req.user?.username?.[0]?.toUpperCase()}
-              </div>
-            )}
-          </div>
-          <div>
-            <p className="font-bold text-foreground">@{req.user?.username}</p>
-            <p className="text-xs text-muted-foreground">{req.user?.email}</p>
-            <p className="text-xs text-muted-foreground">{formatNumber(req.user?.follower_count || 0)} followers</p>
-          </div>
-        </div>
-        <div className="flex flex-col items-end gap-1">
-          <StatusBadge status={req.status} />
-          <span className="text-xs text-muted-foreground capitalize">{req.tier} tier</span>
-          <span className="text-xs font-semibold text-green-600">${req.payment_amount}</span>
-        </div>
-      </div>
-      <p className="text-xs text-muted-foreground mb-3">
-        {formatDistanceToNow(new Date(req.created_at), { addSuffix: true })}
-      </p>
-      {req.status === 'pending' && (
-        <div className="flex gap-2">
-          <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700" disabled={isLoading} onClick={() => onApprove(req.id, req.user_id)}>
-            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><CheckCircle className="w-4 h-4 mr-1" /> Approve</>}
-          </Button>
-          <Button size="sm" variant="destructive" className="flex-1" disabled={isLoading} onClick={() => onReject(req.id, req.user_id)}>
-            {isLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><XCircle className="w-4 h-4 mr-1" /> Reject</>}
-          </Button>
-        </div>
-      )}
-      {req.status !== 'pending' && req.admin_notes && (
-        <p className="text-xs text-muted-foreground bg-muted/50 rounded p-2">Note: {req.admin_notes}</p>
-      )}
-    </div>
-  );
-}
 
 function AdReviewCard({ ad, actionLoading, onApprove, onReject }: {
   ad: UserAdEntry;
