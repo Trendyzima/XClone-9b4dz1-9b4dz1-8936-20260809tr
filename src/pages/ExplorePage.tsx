@@ -1343,7 +1343,7 @@ export default function ExplorePage() {
             </section>
           )}
 
-          {/* Story viewer — pre-computed vars, no IIFE (esbuild guard) */
+          {/* Story viewer — pre-computed vars, no IIFE (esbuild guard) */}
           {activeStoryIdx !== null && activeStory && (
             <div className="fixed inset-0 z-[500] bg-black flex items-center justify-center" onClick={() => setActiveStoryIdx(null)}>
               <div className="relative w-full max-w-sm h-full" onClick={e => e.stopPropagation()}>
