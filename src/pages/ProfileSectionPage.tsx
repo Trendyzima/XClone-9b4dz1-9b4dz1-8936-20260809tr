@@ -63,7 +63,37 @@ export default function ProfileSectionPage({section: sectionProp}: {section?: Se
       section==='media'?<div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-2">{items.map(p=>{const u=p.video_url||p.image_url||p.media_urls?.[0];return <button key={p.id} onClick={()=>navigate('/post/'+p.id)} className="aspect-square rounded-lg overflow-hidden bg-muted"><img src={u} alt="" className="w-full h-full object-cover"/></button>})}</div>:
       section==='videos'?<div className="grid grid-cols-2 gap-2 p-3">{items.map(p=><button key={p.id} onClick={()=>navigate('/videos?id='+p.id)} className="relative aspect-[9/16] rounded-xl overflow-hidden bg-black"><video src={p.video_url+'#t=0.5'} muted preload="metadata" className="w-full h-full object-cover"/><Play className="absolute bottom-2 left-2 w-5 h-5 text-white fill-white"/></button>)}</div>:
       section==='threads'?<div className="divide-y divide-border">{items.map(t=><button key={t.id} onClick={()=>navigate('/thread/'+t.id)} className="w-full text-left p-4"><p className="font-bold">{t.title}</p><p className="text-sm text-muted-foreground mt-1 line-clamp-3">{t.body}</p></button>)}</div>:
-      section==='replies'?<div className="divide-y divide-border">{items.map((r:any)=><article key={r.id} className="p-4"><div className="flex items-start gap-3"><button onClick={()=>r.profile?.username&&navigate('/profile/'+encodeURIComponent(r.profile.username))} className="shrink-0 w-11 h-11 rounded-full overflow-hidden bg-muted">{r.profile?.avatar_url?<img src={r.profile.avatar_url} alt="" className="w-full h-full object-cover" loading="lazy"/>:<span className="w-full h-full flex items-center justify-center font-bold">{(r.profile?.display_name||r.profile?.username||'?').slice(0,1).toUpperCase()}</span>}</button><div className="min-w-0 flex-1"><button onClick={()=>r.profile?.username&&navigate('/profile/'+encodeURIComponent(r.profile.username))} className="text-left"><div className="flex items-center gap-1 flex-wrap"><span className="font-bold">{r.profile?.display_name||r.profile?.full_name||'User'}</span>{r.profile?.verified&&<VerifiedTick className="w-4 h-4 text-primary"/>}<span className="text-muted-foreground text-sm">@{r.profile?.username||'user'}</span></div>{(r.profile?.bio||r.profile?.location)&&<p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{r.profile.bio||r.profile.location}</p>}</button><button onClick={()=>navigate('/post/'+r.post_id)} className="w-full text-left mt-2"><p className="text-sm whitespace-pre-wrap">{r.content}</p><p className="text-xs text-muted-foreground mt-2">{r.created_at?new Date(r.created_at).toLocaleString():''}</p></button>{r.posts?.profiles&&<button onClick={()=>r.posts.profiles.username&&navigate('/profile/'+encodeURIComponent(r.posts.profiles.username))} className="mt-3 w-full rounded-xl border border-border bg-muted/30 p-3 text-left"><p className="text-[11px] text-muted-foreground">Replying to</p><div className="flex items-center gap-2 mt-1"><div className="w-6 h-6 rounded-full overflow-hidden bg-muted">{r.posts.profiles.avatar_url?<img src={r.posts.profiles.avatar_url} alt="" className="w-full h-full object-cover" loading="lazy"/>:<span className="text-[10px] w-full h-full flex items-center justify-center">{(r.posts.profiles.username||'?')[0].toUpperCase()}</span>}</div><span className="text-xs font-semibold">@{r.posts.profiles.username||'user'}</span></div><p className="text-xs mt-1 line-clamp-2">{r.posts.content}</p></button>}</div></div></article>)}{nextCursor&&<div ref={loadMoreRef} className="py-6 flex justify-center text-xs text-muted-foreground">{loadingMore?'Loading more replies…':'Scroll for more replies'}</div>}</div>:
+      section==='replies'?<div className="divide-y divide-border">{items.map((r:any)=>{
+        const replyAuthor=r.profile??profile;
+        const parentAuthor=r.posts?.profiles;
+        return <article key={r.id} className="p-4 hover:bg-muted/20 transition-colors">
+          <div className="flex items-start gap-3">
+            <button onClick={()=>replyAuthor?.username&&navigate('/profile/'+encodeURIComponent(replyAuthor.username))} aria-label="Open profile" className="shrink-0 w-11 h-11 rounded-full overflow-hidden bg-muted ring-1 ring-border">
+              {replyAuthor?.avatar_url?<img src={replyAuthor.avatar_url} alt="" className="w-full h-full object-cover" loading="lazy"/>:<span className="w-full h-full flex items-center justify-center font-bold">{(replyAuthor?.display_name||replyAuthor?.full_name||replyAuthor?.username||'?').slice(0,1).toUpperCase()}</span>}
+            </button>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 min-w-0">
+                <button onClick={()=>replyAuthor?.username&&navigate('/profile/'+encodeURIComponent(replyAuthor.username))} className="min-w-0 text-left">
+                  <span className="font-bold truncate inline-block max-w-[14rem] align-bottom">{replyAuthor?.display_name||replyAuthor?.full_name||'User'}</span>
+                  {replyAuthor?.verified&&<VerifiedTick className="inline-block w-4 h-4 text-primary ml-1 align-[-2px]"/>}
+                  <span className="text-muted-foreground text-sm ml-1">@{replyAuthor?.username||'user'}</span>
+                </button>
+                <span className="text-xs text-muted-foreground shrink-0">· {r.created_at?new Date(r.created_at).toLocaleDateString():''}</span>
+              </div>
+              {replyAuthor?.bio&&<p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{replyAuthor.bio}</p>}
+              <button onClick={()=>navigate('/post/'+r.post_id)} className="mt-3 w-full text-left rounded-2xl border border-border bg-card p-4 hover:bg-muted/30 transition-colors">
+                <p className="text-xs text-muted-foreground mb-2">Replying to {parentAuthor?.username?'@'+parentAuthor.username:'a post'}</p>
+                <p className="text-sm whitespace-pre-wrap break-words leading-6">{r.content}</p>
+                <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+                  <span>Open reply chain →</span>
+                  {r.parent_reply_id&&<span>Reply</span>}
+                </div>
+              </button>
+              {r.posts?.profiles&&<div className="mt-2 px-1 text-xs text-muted-foreground truncate">Original post by @{r.posts.profiles.username||'user'}</div>}
+            </div>
+          </div>
+        </article>
+      })}{nextCursor&&<div ref={loadMoreRef} className="py-6 flex justify-center text-xs text-muted-foreground">{loadingMore?'Loading more replies…':'Scroll for more replies'}</div>}</div>:
       <div className="divide-y divide-border">{items.map(u=><button key={u.id} onClick={()=>navigate('/profile/'+u.username)} className="w-full flex items-center gap-3 p-4 text-left"><div className="w-10 h-10 rounded-full bg-muted overflow-hidden">{u.avatar_url?<img src={u.avatar_url} alt="" className="w-full h-full object-cover"/>:<div className="w-full h-full flex items-center justify-center font-bold">{u.username?.[0]?.toUpperCase()}</div>}</div><span className="font-semibold">@{u.username}</span></button>)}</div>}
   </div>;
 }
