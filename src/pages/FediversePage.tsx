@@ -23,6 +23,7 @@ import { useSEO, buildOgImageUrl } from '@/hooks/useSEO';
 
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { PostCard } from '@/components/features/PostCard';
+import { FederatedOrganicInjection } from '@/components/features/FederatedOrganicDiscovery';
 function FediverseAdBanner() { return <PageAdBanner />; }
 
 type Tab = 'feed' | 'inbox' | 'relay' | 'analytics' | 'discover' | 'identity' | 'mastodon';
@@ -992,6 +993,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
               )}
             </div>
           )}
+          <FederatedOrganicInjection surface="fediverse" />
           {(loadingTestagramSuggestions || testagramSuggestions.length > 0) && (
             <section className="border-y border-border bg-muted/10">
               <div className="px-4 py-3 flex items-center justify-between">
