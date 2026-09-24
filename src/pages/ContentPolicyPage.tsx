@@ -95,10 +95,10 @@ const AD_ENCOURAGED_ITEMS = [
 ];
 
 const ENFORCEMENT_STEPS = [
-  { title: 'Review', desc: 'A report or safety signal may trigger automated screening, prioritisation, or additional review. A signal is not itself a finding of a violation.', icon: Flag },
-  { title: 'Context & decision', desc: 'Where appropriate, reviewers may consider context, severity, repetition, account history, applicable law, and available evidence.', icon: Scale },
-  { title: 'Action', desc: 'Depending on the circumstances, action may include a warning, content removal, feature restriction, account restriction, or suspension.', icon: Ban },
-];
+  { title: 'Review', desc: 'A report or safety signal may trigger automated screening, prioritisation, or additional review. A signal is not itself a finding of a violation.', icon: 'review' },
+  { title: 'Context & decision', desc: 'Where appropriate, reviewers may consider context, severity, repetition, account history, applicable law, and available evidence.', icon: 'context' },
+  { title: 'Action', desc: 'Depending on the circumstances, action may include a warning, content removal, feature restriction, account restriction, or suspension.', icon: 'action' },
+] as const;
 
 const QUICK_LINKS = [
   { id: 'overview', label: 'Overview' },
@@ -114,6 +114,12 @@ const FAQS = [
   ['How do I report something?', 'Use the reporting controls available on the relevant post, profile, message, or advertisement. Include enough context for the moderation team to understand the concern.'],
   ['How do I appeal?', 'Use the Appeals page to submit a clear explanation of why you believe an enforcement action was incorrect. Review timing can vary by case and volume.'],
 ];
+
+function getStepIconNode(kind: string) {
+  if (kind === 'review') return <Flag className="w-5 h-5" />;
+  if (kind === 'context') return <Scale className="w-5 h-5" />;
+  return <Ban className="w-5 h-5" />;
+}
 
 function getCatIconNode(title: string, colorClass: string) {
   if (title === 'Hate Speech') return <AlertTriangle className={`w-5 h-5 ${colorClass}`} />;
@@ -254,8 +260,8 @@ export default function ContentPolicyPage() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             {[
-              ['Never allowed', AD_PROHIBITED_ITEMS, 'text-red-600', XCircle],
-              ['Good advertising practice', AD_ENCOURAGED_ITEMS, 'text-green-600', CheckCircle],
+              ['Never allowed', AD_PROHIBITED_ITEMS, 'text-red-600', 'prohibited'],
+              ['Good advertising practice', AD_ENCOURAGED_ITEMS, 'text-green-600', 'encouraged'],
             ].map(([title, items, color, Icon]) => (
               <div key={String(title)} className="rounded-2xl border border-border bg-card p-5">
                 <p className={`mb-3 flex items-center gap-1.5 text-xs font-black uppercase tracking-wide ${color}`}><Icon className="w-3.5 h-3.5" />{String(title)}</p>
@@ -272,9 +278,8 @@ export default function ContentPolicyPage() {
           </div>
           <div className="grid gap-3">
             {ENFORCEMENT_STEPS.map((step, index) => {
-              const Icon = step.icon;
               return <div key={step.title} className="flex gap-4 rounded-2xl border border-border bg-card p-4">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Icon className="w-5 h-5" /></div>
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">{getStepIconNode(step.icon)}</div>
                 <div><p className="text-sm font-black">{index + 1}. {step.title}</p><p className="mt-1 text-xs leading-relaxed text-muted-foreground">{step.desc}</p></div>
               </div>;
             })}
