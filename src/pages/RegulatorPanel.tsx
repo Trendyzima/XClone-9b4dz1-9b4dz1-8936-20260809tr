@@ -1973,7 +1973,7 @@ export default function RegulatorPanel() {
                 { label: 'Appeals Queue',        icon: '📋', path: '/appeals', tab: undefined },
               ].map(r => (
                 <button key={r.label}
-                  onClick={() => r.path ? navigate(r.path) : r.tab ? setActiveTab(r.tab) : undefined}
+                  onClick={() => r.path ? navigate(r.path) : r.tab ? navigate(`/regulator/${r.tab}`) : undefined}
                   className="w-full flex items-center gap-3 px-4 py-3 bg-card border border-border rounded-xl hover:border-primary/20 transition-colors text-left">
                   <span className="text-xl shrink-0">{r.icon}</span>
                   <span className="font-semibold text-sm flex-1">{r.label}</span>
