@@ -133,3 +133,14 @@ export async function flagStatus(postId: string, category: string): Promise<any>
 export async function bookmarkRemote(postId: string): Promise<any> { if (!/^https:\/\//i.test(postId)) throw new Error('Bookmark target must be a remote ActivityPub object'); return api('/bookmark','POST',{post_id:postId}); }
 export async function unbookmarkRemote(postId: string): Promise<any> { if (!/^https:\/\//i.test(postId)) throw new Error('Bookmark target must be a remote ActivityPub object'); return api('/unbookmark','POST',{post_id:postId}); }
 export async function remoteBookmarkState(postId: string): Promise<boolean> { if (!/^https:\/\//i.test(postId)) return false; const r=await api<{bookmarked:boolean}>('/bookmark-state','GET',undefined,{post_id:postId}); return Boolean(r?.bookmarked); }
+
+export async function getFederatedDiscoveryFeed(params: { limit?: number; surface?: string } = {}): Promise<{ items: any[]; nextCursor?: string | null }> {
+  const token = await getToken();
+  const query = new URLSearchParams({ limit: String(Math.min(Math.max(params.limit ?? 6, 1), 12)), surface: params.surface ?? 'home' });
+  const { data, error } = await supabase.functions.invoke(`federated-discovery-feed?${query.toString()}`, {
+    method: 'GET',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (error) throw new GatewayError(0, error.message ?? 'Federated discovery feed error', '/federated-discovery-feed');
+  return data as { items: any[]; nextCursor?: string | null };
+}

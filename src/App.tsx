@@ -18,6 +18,7 @@ import { startTestagramHeartbeat } from '@/services/heartbeatClient';
 import { applyAppearance, getStoredAppearance } from '@/theme/themes';
 import { useAuth } from '@/hooks/useAuth';
 const HomePage = lazy(() => import('@/pages/HomePage'));
+const FederatedOrganicDiscoveryPage = lazy(() => import('@/pages/FederatedOrganicDiscoveryPage'));
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
 const VideosPage = lazy(() => import('@/pages/VideosPage'));
 const FastPixShortsPage = lazy(() => import('@/pages/FastPixShortsPage'));
@@ -280,7 +281,7 @@ function AppInner(){useCreatorTierAlert();useEffect(()=>{applyAppearance(getStor
 <Route path="/fediverse/inbox" element={<FediverseInboxPage/>}/>
 <Route path="/fediverse/relay" element={<FediverseRelayPage/>}/>
 <Route path="/fediverse/analytics" element={<FediverseAnalyticsPage/>}/>
-<Route path="/fediverse/discover" element={<FediverseDiscoverPage/>}/>
+<Route path="/fediverse/discover" element={<FediverseDiscoverPage/>}/><Route path="/fediverse/organic-discovery" element={<FederatedOrganicDiscoveryPage/>}/>
 <Route path="/fediverse/identity" element={<FediverseIdentityPage/>}/><Route path="/fediverse/profile" element={<FediverseProfilePage/>}/>
 <Route path="/fediverse/profile/posts" element={<FediverseProfilePostsPage/>}/>
 <Route path="/fediverse/profile/threads" element={<FediverseProfileThreadsPage/>}/>
