@@ -156,7 +156,7 @@ async function worker() {
         failed++;
         invalidContracts++;
         sampleFailure(response, body, "invalid_json_contract");
-      } else if (body.commit !== expectedCommit) {
+      } else if (body.commit !== deployedCommit) {
         failed++;
         revisionMismatches++;
         sampleFailure(response, body, "revision_mismatch");
