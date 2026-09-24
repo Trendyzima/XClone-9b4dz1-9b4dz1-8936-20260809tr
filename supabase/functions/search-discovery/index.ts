@@ -78,8 +78,13 @@ Deno.serve(async (req) => {
       const fedPosts = (fedPostsRes.data ?? []).map((p: any) => ({ ...p, origin: "fediverse", is_federated: true, author_id: p.actor_uri, user_id: p.actor_uri, created_at: p.published_at ?? p.updated_at, remote_status_uri: p.uri }));
       const users = [...(usersRes.data ?? []), ...fedUsers];
       const posts = [...(postsRes.data ?? []), ...fedPosts].slice(0, limit);
-      const items = kind === "people" ? users : kind === "posts" ? posts : kind === "hashtags" ? normalizedHashtags : [...users, ...normalizedHashtags, ...posts];
-      return json({ ok: true, data: { users: [...(usersRes.data ?? []), ...fedUsers], hashtags: normalizedHashtags, posts: [...posts, ...fedPosts].slice(0, limit), communities: communitiesRes.data ?? [], next_cursor: posts.length > limit ? encodeCursor(offset + limit) : null }, error: null, request_id: requestId }, 200, requestId);
+      const items = kind === "people" ? users.slice(offset, offset + limit) : kind === "posts" ? posts : kind === "hashtags" ? normalizedHashtags.slice(offset, offset + limit) : [...users, ...normalizedHashtags, ...posts].slice(0, limit);
+      const hasMore = kind === "people"
+        ? users.length > offset + limit
+        : kind === "hashtags"
+          ? normalizedHashtags.length > offset + limit
+          : posts.length === limit;
+      return json({ ok: true, data: { users: [...(usersRes.data ?? []), ...fedUsers], hashtags: normalizedHashtags, posts, communities: communitiesRes.data ?? [], items, next_cursor: hasMore ? encodeCursor(offset + limit) : null }, error: null, request_id: requestId }, 200, requestId);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Search failed"; return json({ ok: false, data: null, error: { code: message === "INVALID_QUERY" ? "INVALID_QUERY" : "SEARCH_FAILED", message }, request_id: requestId }, message === "INVALID_QUERY" ? 400 : 500, requestId);
     }
