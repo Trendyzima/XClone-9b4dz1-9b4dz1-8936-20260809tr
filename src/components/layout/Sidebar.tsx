@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,17 @@ import { supabase } from '@/lib/supabase';
 import { formatNumber } from '@/lib/utils';
 import { useFediversePolling } from '@/hooks/useFediversePolling';
 import { useIsRegulator } from '@/hooks/useFeatureUnlock';
+
+function runWhenIdle(task: () => void, timeout = 1200) {
+  if (typeof window === 'undefined') return;
+  const ric = (window as any).requestIdleCallback;
+  if (typeof ric === 'function') {
+    const id = ric(task, { timeout });
+    return () => (window as any).cancelIdleCallback?.(id);
+  }
+  const id = window.setTimeout(task, 80);
+  return () => window.clearTimeout(id);
+}
 
 interface Community {
   id: string;
@@ -39,8 +50,8 @@ export function Sidebar() {
   // Check employee status for team-chat link visibility
   useEffect(() => {
     if (!user || isReg) { setIsEmployee(isReg); return; }
-    supabase.from('employee_assignments').select('id').eq('user_id', user.id).eq('is_active', true).maybeSingle()
-      .then(({ data }) => setIsEmployee(!!data));
+    return runWhenIdle(() => { supabase.from('employee_assignments').select('id').eq('user_id', user.id).eq('is_active', true).maybeSingle()
+      .then(({ data }) => setIsEmployee(!!data)); });
   }, [user?.id, isReg]);
 
   // ── Unread counts ────────────────────────────────────────────────────────
@@ -60,9 +71,9 @@ export function Sidebar() {
       const { count } = await supabase.from('user_ads').select('id', { count: 'exact', head: true }).eq('status', 'pending');
       setPendingAdsBadge(count ?? 0);
     };
-    checkAdminAds();
+    const cancel = runWhenIdle(() => { checkAdminAds(); });
     const iv = setInterval(checkAdminAds, 30_000);
-    return () => clearInterval(iv);
+    return () => { cancel?.(); clearInterval(iv); };
   }, [user?.id]);
 
   // Poll help ticket reply badge
@@ -126,7 +137,7 @@ export function Sidebar() {
         if (mounted) setUnreadMessages(0);
       }
     };
-    fetchCounts();
+    const cancel = runWhenIdle(fetchCounts);
     // Poll every 15s for near-real-time badges
     const iv = setInterval(fetchCounts, 15_000);
 
@@ -146,7 +157,7 @@ export function Sidebar() {
       }, () => { if (mounted) fetchCounts(); })
       .subscribe();
 
-    return () => { mounted = false; clearInterval(iv); supabase.removeChannel(sub); };
+    return () => { mounted = false; cancel?.(); clearInterval(iv); supabase.removeChannel(sub); };
   }, [user?.id]);
 
   // Clear badges when visiting relevant pages
@@ -160,9 +171,9 @@ export function Sidebar() {
   }, [location.pathname]);
 
   useEffect(() => {
-    if (user) fetchUserCommunities();
-    fetchTrendingCommunities();
-  }, [user]);
+    const cancel = runWhenIdle(() => { if (user) void fetchUserCommunities(); void fetchTrendingCommunities(); });
+    return () => cancel?.();
+  }, [user?.id]);
 
   const fetchUserCommunities = async () => {
     if (!user) return;
@@ -216,9 +227,9 @@ export function Sidebar() {
         .eq('status', 'pending');
       setScheduledBadge(count ?? 0);
     };
-    fetchScheduled();
+    const cancel = runWhenIdle(fetchScheduled);
     const iv = setInterval(fetchScheduled, 60_000);
-    return () => clearInterval(iv);
+    return () => { cancel?.(); clearInterval(iv); };
   }, [user?.id]);
 
   const adminTools = [

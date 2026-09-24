@@ -1,5 +1,13 @@
 
 import { useState, useEffect, useCallback } from 'react';
+
+function runWhenIdle(task: () => void, timeout = 1400) {
+  if (typeof window === 'undefined') return;
+  const ric = (window as any).requestIdleCallback;
+  if (typeof ric === 'function') { const id = ric(task, { timeout }); return () => (window as any).cancelIdleCallback?.(id); }
+  const id = window.setTimeout(task, 80); return () => window.clearTimeout(id);
+}
+
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -67,7 +75,7 @@ function CreatorEarningsWidget() {
     const startOfMonth = new Date();
     startOfMonth.setDate(1);
     startOfMonth.setHours(0, 0, 0, 0);
-    Promise.all([
+    const cancel = runWhenIdle(() => Promise.all([
       supabase.from('creator_earnings').select('amount').eq('user_id', user.id).gte('created_at', startOfMonth.toISOString()),
       supabase.from('user_monetization').select('pending_user_payout').eq('user_id', user.id).maybeSingle(),
     ]).then(([earningsRes, monRes]) => {
@@ -75,7 +83,8 @@ function CreatorEarningsWidget() {
       setMonthEarnings(total);
       setPendingPayout(Number(monRes.data?.pending_user_payout ?? 0));
       setLoading(false);
-    });
+    }));
+    return () => cancel?.();
   }, [user?.id]);
 
   if (!user || loading || (monthEarnings === 0 && pendingPayout === 0)) return null;
@@ -183,9 +192,9 @@ function CreatorLeaderboardWidget() {
   }, []);
 
   useEffect(() => {
-    fetchLeaders();
+    const cancel = runWhenIdle(fetchLeaders);
     const iv = setInterval(fetchLeaders, 60_000);
-    return () => clearInterval(iv);
+    return () => { cancel?.(); clearInterval(iv); };
   }, [fetchLeaders]);
 
   if (loading || leaders.length === 0) return null;
@@ -409,15 +418,15 @@ export function RightSidebar() {
   }, []); // Dependencies are now explicit empty array, because comms and spaces are passed as arguments
 
   useEffect(() => {
-    fetchTrending();
-    fetchTrendingHashtags();
-    fetchCommunities();
-    fetchLiveSpaces();
-    if (user) { fetchFollowedTags(); fetchFollowedHashtagsPanel(); }
-
-    // Auto-refresh trending hashtags every 60s
+    const cancel = runWhenIdle(() => {
+      void fetchTrending();
+      void fetchTrendingHashtags();
+      void fetchCommunities();
+      void fetchLiveSpaces();
+      if (user) { void fetchFollowedTags(); void fetchFollowedHashtagsPanel(); }
+    });
     const iv = setInterval(fetchTrendingHashtags, 60_000);
-    return () => clearInterval(iv);
+    return () => { cancel?.(); clearInterval(iv); };
   }, [user, fetchTrending, fetchTrendingHashtags, fetchCommunities, fetchLiveSpaces, fetchFollowedTags, fetchFollowedHashtagsPanel]);
 
   const unfollowHashtag = async (hashtagId: string, _tag: string, e: React.MouseEvent) => {
