@@ -260,12 +260,12 @@ export default function ContentPolicyPage() {
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             {[
-              ['Never allowed', AD_PROHIBITED_ITEMS, 'text-red-600', 'prohibited'],
-              ['Good advertising practice', AD_ENCOURAGED_ITEMS, 'text-green-600', 'encouraged'],
-            ].map(([title, items, color, Icon]) => (
-              <div key={String(title)} className="rounded-2xl border border-border bg-card p-5">
-                <p className={`mb-3 flex items-center gap-1.5 text-xs font-black uppercase tracking-wide ${color}`}><Icon className="w-3.5 h-3.5" />{String(title)}</p>
-                <ul className="space-y-2">{(items as string[]).map(item => <li key={item} className="flex gap-2 text-xs leading-relaxed text-muted-foreground"><Icon className="mt-0.5 h-3 w-3 shrink-0" />{item}</li>)}</ul>
+              { title: 'Never allowed', items: AD_PROHIBITED_ITEMS, color: 'text-red-600', icon: XCircle },
+              { title: 'Good advertising practice', items: AD_ENCOURAGED_ITEMS, color: 'text-green-600', icon: CheckCircle },
+            ].map(({ title, items, color, icon: Icon }) => (
+              <div key={title} className="rounded-2xl border border-border bg-card p-5">
+                <p className={`mb-3 flex items-center gap-1.5 text-xs font-black uppercase tracking-wide ${color}`}><Icon className="w-3.5 h-3.5" />{title}</p>
+                <ul className="space-y-2">{items.map(item => <li key={item} className="flex gap-2 text-xs leading-relaxed text-muted-foreground"><Icon className="mt-0.5 h-3 w-3 shrink-0" />{item}</li>)}</ul>
               </div>
             ))}
           </div>
