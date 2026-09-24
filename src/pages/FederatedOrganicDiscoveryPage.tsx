@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Globe, Loader2, RefreshCw } from 'lucide-react';
+import { Globe, Loader2, RefreshCw, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import * as federation from '@/api/federation';
 import { FederatedOrganicCard } from '@/components/features/FederatedOrganicDiscovery';
