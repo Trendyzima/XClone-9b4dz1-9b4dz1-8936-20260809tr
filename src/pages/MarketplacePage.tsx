@@ -551,6 +551,7 @@ export default function MarketplacePage() {
   const [products, setProducts] = useState([]);
   const [featured, setFeatured] = useState([]);
   const [loading, setLoading]   = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const MARKET_PAGE_SIZE = 24;
@@ -613,7 +614,7 @@ export default function MarketplacePage() {
   useEffect(() => { void fetchProducts(0, true); }, []);
 
   const fetchProducts = useCallback(async (page = 0, replace = false) => {
-    if (page === 0) setLoading(true); else setLoadingMore(true);
+    if (page === 0) { setLoading(true); setLoadError(null); } else setLoadingMore(true);
     try {
       const from = page * MARKET_PAGE_SIZE;
       const to = from + MARKET_PAGE_SIZE - 1;
@@ -632,9 +633,9 @@ export default function MarketplacePage() {
       });
       if (page === 0) setFeatured(incoming.filter((p: any) => p.is_featured).slice(0, 6));
       setHasMore(incoming.length === MARKET_PAGE_SIZE);
-    } catch (error) {
+    } catch (error: any) {
       console.error('[marketplace] product fetch failed', error);
-      if (page === 0) setProducts([]);
+      if (page === 0) { setProducts([]); setFeatured([]); setLoadError(error?.message ?? 'Unable to load marketplace'); }
       setHasMore(false);
     } finally {
       setLoading(false);
@@ -864,16 +865,25 @@ export default function MarketplacePage() {
           <div className="flex justify-center py-20">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
+        ) : loadError ? (
+          <div className="text-center py-20">
+            <div className="w-16 h-16 rounded-2xl bg-destructive/10 text-destructive flex items-center justify-center mx-auto mb-4"><ShoppingBag className="w-8 h-8" /></div>
+            <h2 className="text-lg font-bold mb-2">Marketplace unavailable</h2>
+            <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-4">We couldn't load the product catalog. Your filters were kept so you can retry without losing your place.</p>
+            <button onClick={() => void fetchProducts(0, true)} className="px-5 py-2.5 bg-primary text-primary-foreground rounded-full font-semibold text-sm hover:opacity-90">Retry</button>
+          </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-20">
             <ShoppingBag className="w-16 h-16 text-muted-foreground/20 mx-auto mb-4" />
-            <h2 className="text-lg font-bold mb-2">No products found</h2>
-            <p className="text-sm text-muted-foreground mb-4">
-              {search ? `No results for "${search}"` : 'Try adjusting your filters'}
+            <h2 className="text-lg font-bold mb-2">{products.length === 0 && !search && category === 'all' ? 'No products yet' : 'No products found'}</h2>
+            <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-4">
+              {search ? `No results for "${search}"` : products.length === 0 ? 'Be the first creator or seller to publish a product on Testagram Mall.' : 'Try adjusting your filters or search terms.'}
             </p>
-            <button onClick={resetFilters} className="px-5 py-2.5 bg-primary text-primary-foreground rounded-full font-semibold text-sm hover:opacity-90">
-              Reset Filters
-            </button>
+            {products.length === 0 && user ? (
+              <button onClick={() => navigate('/products')} className="px-5 py-2.5 bg-primary text-primary-foreground rounded-full font-semibold text-sm hover:opacity-90">Create a product</button>
+            ) : (
+              <button onClick={resetFilters} className="px-5 py-2.5 bg-primary text-primary-foreground rounded-full font-semibold text-sm hover:opacity-90">Reset Filters</button>
+            )}
           </div>
         ) : gridMode === 'grid' ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
