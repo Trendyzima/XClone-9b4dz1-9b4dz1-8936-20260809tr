@@ -1,0 +1,6 @@
+const DB_NAME='testagram-feed-cache-v1'; const STORE='home-feed'; const MAX_ITEMS=80;
+type CachedFeed={key:string;items:any[];cursor:string|null;updatedAt:number;scrollY:number;anchorId:string|null};
+function openFeedDb():Promise<IDBDatabase>{return new Promise((resolve,reject)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>r.result.createObjectStore(STORE,{keyPath:'key'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
+export async function readHomeFeedCache(key='home'):Promise<CachedFeed|null>{if(typeof indexedDB==='undefined')return null;const db=await openFeedDb();return new Promise((resolve,reject)=>{const r=db.transaction(STORE).objectStore(STORE).get(key);r.onsuccess=()=>resolve(r.result??null);r.onerror=()=>reject(r.error);});}
+export async function writeHomeFeedCache(value:CachedFeed,key='home'){if(typeof indexedDB==='undefined')return;const db=await openFeedDb();value.items=value.items.slice(-MAX_ITEMS);return new Promise<void>((resolve,reject)=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).put({...value,key});tx.oncomplete=()=>resolve();tx.onerror=()=>reject(tx.error);});}
+export function saveHomeScroll(y:number,anchorId:string|null){void readHomeFeedCache().then(c=>c&&writeHomeFeedCache({...c,scrollY:y,anchorId})).catch(()=>{});}
