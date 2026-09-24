@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Sparkles, TrendingUp, Users, CheckCircle2, RefreshCw, Search, Globe2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -39,14 +39,17 @@ const REASON_LABELS: Record<string, string> = {
 
 function DiscoverAdBanner() { return <PageAdBanner />; }
 
-export default function DiscoverPage() {
+export default function DiscoverPage({ section, standalone = false }: { section?: Tab; standalone?: boolean }) {
   const { user } = useAuth();
-  const [tab, setTab] = useState<Tab>('suggested');
+  const navigate = useNavigate();
+  const [tab, setTab] = useState<Tab>(section ?? 'suggested');
   const [users, setUsers] = useState<SuggestedUser[]>([]);
   const [following, setFollowing] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [followLoading, setFollowLoading] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
+
+  useEffect(() => { if (section) setTab(section); }, [section]);
 
   const discoverJsonLd = useMemo(() => {
     const top5 = users.slice(0, 5);
@@ -225,7 +228,7 @@ export default function DiscoverPage() {
           { key: 'popular', icon: TrendingUp, label: 'Popular' },
           { key: 'fediverse', icon: Globe2, label: 'Fediverse' },
         ] as const).map(({ key, icon: Icon, label }) => (
-          <button key={key} onClick={() => setTab(key)} className={cn('flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold border-b-2 transition-colors', tab === key ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground')}>
+          <button key={key} onClick={() => { setTab(key); navigate(`/discover/${key}`); }} className={cn('flex-1 flex items-center justify-center gap-2 py-3 text-sm font-semibold border-b-2 transition-colors', tab === key ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground')}>
             <Icon className="w-4 h-4" />
             {label}
           </button>

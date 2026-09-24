@@ -21,7 +21,7 @@ import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { CreatorStudioWorkbench } from '@/components/features/CreatorStudioWorkbench';
 function CreatorStudioAdBanner() { return <PageAdBanner />; }
 
-export default function CreatorStudio() {
+export default function CreatorStudio({ section = 'overview', standalone = false }: { section?: 'overview' | 'analytics' | 'videos' | 'earnings' | 'revenue'; standalone?: boolean }) {
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -44,9 +44,11 @@ export default function CreatorStudio() {
   const [videoPostsCount, setVideoPostsCount] = useState(0);
   const [loading, setLoading] = useState(true);
   // esbuild guard: type annotation on useState is fine for union literal types
-  const [activeStudioTab, setActiveStudioTab] = useState<'overview' | 'analytics' | 'videos' | 'earnings' | 'revenue'>('overview');
+  const [activeStudioTab, setActiveStudioTab] = useState<'overview' | 'analytics' | 'videos' | 'earnings' | 'revenue'>(section);
   const [exportStartMonth, setExportStartMonth] = useState('');
   const [exportEndMonth, setExportEndMonth] = useState('');
+  useEffect(() => { setActiveStudioTab(section); }, [section]);
+
   useEffect(() => {
     const now = new Date();
     setExportEndMonth(now.toISOString().slice(0, 7));
@@ -596,7 +598,7 @@ export default function CreatorStudio() {
         {/* Studio tabs */}
         <div className="flex bg-muted/30 rounded-xl p-1 gap-1 overflow-x-auto scrollbar-hide">
           {(['overview', 'analytics', 'videos', 'earnings', 'revenue'] as const).map(tab => (
-            <button key={tab} onClick={() => setActiveStudioTab(tab)}
+            <button key={tab} onClick={() => { setActiveStudioTab(tab); navigate(`/creator-studio/${tab}`); }}
               className={`flex-1 py-2 rounded-lg text-xs font-semibold capitalize transition-all whitespace-nowrap ${
                 activeStudioTab === tab ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
               }`}>

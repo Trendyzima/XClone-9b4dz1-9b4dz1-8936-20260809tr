@@ -60,7 +60,7 @@ interface CommunityMember {
   user_profiles: { username: string; avatar_url?: string; verified: boolean; };
 }
 
-export default function CommunityPage() {
+export default function CommunityPage({ section, standalone = false }: { section?: CommPageTab | 'shop'; standalone?: boolean }) {
   const { name } = useParams<{ name: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -84,7 +84,7 @@ export default function CommunityPage() {
 
   const shopUnlocked = useFeatureUnlock('community_shop');
   const nftUnlocked  = useFeatureUnlock('nft_badges');
-  const [activeTab, setActiveTab] = useState<CommPageTab | 'shop'>('posts');
+  const [activeTab, setActiveTab] = useState<CommPageTab | 'shop'>(section ?? 'posts');
 
   // Shop state
   const [shopProducts, setShopProducts] = useState<any[]>([]);
@@ -348,6 +348,8 @@ export default function CommunityPage() {
     });
     setShowRoleMenu(null);
   }, [community]);
+
+  useEffect(() => { if (section) setActiveTab(section); }, [section]);
 
   useEffect(() => {
     if (activeTab === 'chat' && community) {
@@ -883,7 +885,7 @@ export default function CommunityPage() {
             const TabIcon = tab === 'posts' ? MessageSquare : tab === 'members' ? Users : tab === 'chat' ? MessageCircle : CalendarDays;
             const tabLabel = tab === 'posts' ? 'Posts' : tab === 'members' ? 'Members' : tab === 'chat' ? 'Chat' : 'Events';
             return (
-              <button key={tab} onClick={() => setActiveTab(tab)}
+              <button key={tab} onClick={() => { setActiveTab(tab); if (community?.name) navigate(`/c/${community.name}/${tab}`); }}
                 className={`flex-shrink-0 flex-1 py-3 text-sm font-semibold flex items-center justify-center gap-1.5 border-b-2 transition-colors min-w-0 ${activeTab === tab ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground'}`}>
                 <TabIcon className="w-4 h-4" />
                 {tabLabel}
@@ -892,7 +894,7 @@ export default function CommunityPage() {
             );
           })}
           {shopUnlocked && (
-            <button onClick={() => setActiveTab('shop')}
+            <button onClick={() => { setActiveTab('shop'); if (community?.name) navigate(`/c/${community.name}/shop`); }}
               className={`flex-shrink-0 flex-1 py-3 text-sm font-semibold flex items-center justify-center gap-1.5 border-b-2 transition-colors min-w-0 ${activeTab === 'shop' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground'}`}>
               <ShoppingBag className="w-4 h-4" /> Shop
             </button>

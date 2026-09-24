@@ -63,8 +63,8 @@ function ThemeIcon({ id, cls, active }: { id: ThemeChoice; cls: string; active: 
   return <Monitor className={iconCls} />;
 }
 
-export default function SettingsPage() {
-  useSEO({ noindex: true, title: 'Settings', url: '/settings' });
+export default function SettingsPage({ section = 'all' }: { section?: 'all' | 'account' | 'appearance' | 'connections' | 'notifications' | 'privacy' }) {
+  useSEO({ noindex: true, title: section === 'all' ? 'Settings' : `Settings · ${section}`, url: section === 'all' ? '/settings' : `/settings/${section}` });
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState(true);
