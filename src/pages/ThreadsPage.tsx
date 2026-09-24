@@ -110,6 +110,16 @@ export default function ThreadsPage() {
       }
 
       const pageSize=20;
+      // For the default For-you surface, start independent network reads together.
+      // Following/Saved still need their user-specific ID lists before querying.
+      const parallelNetworkPromise = tab === 'For you'
+        ? Promise.all([
+            supabase.from('posts')
+              .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
+              .is('community_id',null).is('deleted_at',null).order('created_at',{ascending:false}).limit(8),
+            federation.getFederatedTimelinePage({limit:8,before:reset?undefined:cursor??undefined}).catch(()=>({items:[],pagination:{nextCursor:null,hasMore:false}}))
+          ])
+        : null;
       let query=supabase.from('threads').select('id, owner_id, body, visibility, created_at, likes_count, reposts_count, quotes_count, replies_count, views_count, media_urls')
         .eq('visibility','public').is('deleted_at',null).order('created_at',{ascending:false}).limit(pageSize);
       if(cursor&&!reset) query=query.lt('created_at',cursor);
@@ -123,14 +133,16 @@ export default function ThreadsPage() {
       const normalizedThreads=rows.map(r=>({...r,media_urls:Array.isArray(r.media_urls)?r.media_urls:[],profiles:byId.get(r.owner_id)}));
 
       const postQueryBase=supabase.from('posts')
-        .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
-        .is('community_id',null).order('created_at',{ascending:false}).limit(8);
+        .select('id, content, image_url, video_url, media_urls, is_video, views_count, likes_count, reposts_count, replies_count, created_at, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,verified_tier)')
+        .is('community_id',null).is('deleted_at',null).order('created_at',{ascending:false}).limit(8);
       const postQuery=tab==='Following'&&ids?postQueryBase.in('user_id',ids):postQueryBase;
       const shouldMixNetwork=tab!=='Saved';
-      const [postRes,fedRes]=await Promise.all([
-        postQuery,
-        shouldMixNetwork ? federation.getFederatedTimelinePage({limit:8,before:reset?undefined:cursor??undefined}).catch(()=>({items:[],pagination:{nextCursor:null,hasMore:false}})) : Promise.resolve({items:[],pagination:{nextCursor:null,hasMore:false}})
-      ]);
+      const [postRes,fedRes]=parallelNetworkPromise
+        ? await parallelNetworkPromise
+        : await Promise.all([
+            shouldMixNetwork ? postQuery : Promise.resolve({data:[]}),
+            shouldMixNetwork ? federation.getFederatedTimelinePage({limit:8,before:reset?undefined:cursor??undefined}).catch(()=>({items:[],pagination:{nextCursor:null,hasMore:false}})) : Promise.resolve({items:[],pagination:{nextCursor:null,hasMore:false}})
+          ]);
       const postItems=(postRes.data??[]).map((p:any)=>({kind:'post' as const,data:{...p,_source_label:'Testagram'}}));
       const fedItems=(fedRes.items??[]).map((p:any)=>{const account=p.remote_account??p.actor??p.account??{};return {kind:'fed' as const,data:{...p,id:p.id??p.uri??p.url??crypto.randomUUID(),user_id:p.user_id??account.id??`remote-${p.id??p.uri??'account'}`,content:p.content??p.text??'',created_at:p.created_at??p.published_at??p.published??new Date().toISOString(),likes_count:Number(p.likes_count??p.favourites_count??p.favorite_count??0),reposts_count:Number(p.reposts_count??p.reblogs_count??p.boosts_count??0),replies_count:Number(p.replies_count??0),views_count:Number(p.views_count??0),user_profiles:{id:account.id??p.user_id??'',username:account.username??account.preferredUsername??'fediverse-user',display_name:account.display_name??account.name??account.username??'Fediverse user',avatar_url:account.avatar_url??account.avatar??account.icon?.url??null,verified_tier:account.verified_tier??null,verified:Boolean(account.verified),follower_count:Number(account.follower_count??account.followers_count??0),following_count:Number(account.following_count??account.following_count??0)},remote_status_uri:p.uri??p.url,is_federated:true,_source_label:'Fediverse'}};});
       const base:MixedItem[]=[...normalizedThreads.map(data=>({kind:'thread' as const,data})),...postItems,...fedItems]
