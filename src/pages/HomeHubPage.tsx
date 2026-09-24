@@ -12,7 +12,7 @@ import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import * as federation from '@/api/federation';
 import { Loader2, Sparkles, Users, ShoppingBag, BarChart3, RefreshCw, ArrowRight } from 'lucide-react';
 import { FederatedOrganicInjection } from '@/components/features/FederatedOrganicDiscovery';
-import { readHomeFeedCache, writeHomeFeedCache, saveHomeScroll } from '@/lib/homeFeedCache';
+import { readHomeFeedCache, writeHomeFeedCache, saveHomeScroll, mergeHomeFeedItems } from '@/lib/homeFeedCache';
 
 type Tab = 'all'|'following'|'explore'|'media'|'communities'|'polls'|'shopping'|'federated';
 type Item = { type:'post'|'thread'|'community'|'poll'|'product'|'fedpost'; data:any };
@@ -29,7 +29,7 @@ export default function HomeHubPage(){
   const [tab,setTab]=useState<Tab>('all'); const [items,setItems]=useState<Item[]>([]);
   const [loading,setLoading]=useState(true); const [loadingMore,setLoadingMore]=useState(false);
   const [refreshing,setRefreshing]=useState(false); const [hasMore,setHasMore]=useState(true); const [nextCursor,setNextCursor]=useState<string|null>(null);
-  const [cacheHydrated,setCacheHydrated]=useState(false); const [newCount,setNewCount]=useState(0); const nextCursorRef=useRef<string|null>(null); const scrollTimer=useRef<number|undefined>(undefined);
+  const [cacheHydrated,setCacheHydrated]=useState(false); const [newCount,setNewCount]=useState(0); const nextCursorRef=useRef<string|null>(null); const scrollTimer=useRef<number|undefined>(undefined); const feedBufferRef=useRef<Item[]>([]); const feedBufferOffsetRef=useRef(0); const cacheCursorRef=useRef<string|null>(null); const prefetchingRef=useRef(false); const refreshTimerRef=useRef<number|undefined>(undefined);
 
   useSEO({title:'Home — Testagram',description:'One home feed for posts, videos, communities, polls, shopping and the Fediverse on Testagram.',url:'/',type:'website'});
 
@@ -84,35 +84,109 @@ export default function HomeHubPage(){
     return (data??[]).map((x:any)=>({type:'post' as const,data:x}));
   },[user?.id]);
 
-  const load=useCallback(async(target:Tab,background=false)=>{
-    if(!background)setLoading(true); setNextCursor(null); nextCursorRef.current=null; setHasMore(true);
+  const persistBuffer=useCallback(async()=>{
+    await writeHomeFeedCache({key:'home',items:feedBufferRef.current,cursor:cacheCursorRef.current,updatedAt:Date.now(),scrollY:window.scrollY,anchorId:items[0]?.data?.id??null});
+  },[items]);
+
+  const prefetchNext=useCallback(async()=>{
+    if(tab!=='all'||prefetchingRef.current||!cacheCursorRef.current)return;
+    prefetchingRef.current=true;
     try{
-      const next=await fetchTab(target,0);
-      if(target==='all' && background){
-        setItems(prev=>{const existing=new Set(prev.map(x=>x.data?.id).filter(Boolean)); const fresh=next.filter(x=>x.data?.id&&!existing.has(x.data.id)); setNewCount(fresh.length); return fresh.length?[...fresh,...prev]:prev;});
-      } else setItems(next);
-      if(target!=='all')setHasMore(next.length>=12);
-      if(target==='all') await writeHomeFeedCache({key:'home',items:next,cursor:nextCursorRef.current,updatedAt:Date.now(),scrollY:window.scrollY,anchorId:next[0]?.data?.id??null});
-    }catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);}}finally{if(!background)setLoading(false);}
-  },[fetchTab,nextCursor]);
+      const next=await fetchTab('all',0,cacheCursorRef.current);
+      if(next.length){
+        feedBufferRef.current=mergeHomeFeedItems(feedBufferRef.current,next,80);
+        cacheCursorRef.current=nextCursorRef.current;
+        setHasMore(Boolean(cacheCursorRef.current));
+        await persistBuffer();
+      }else{cacheCursorRef.current=null;nextCursorRef.current=null;setHasMore(false);}
+    }catch(e){console.warn('[home-hub] background prefetch',e)}
+    finally{prefetchingRef.current=false;}
+  },[fetchTab,persistBuffer,tab]);
+
+  const load=useCallback(async(target:Tab,background=false)=>{
+    if(target!=='all'){
+      if(!background)setLoading(true);
+      try{const next=await fetchTab(target,0);setItems(next);setHasMore(next.length>=12);}
+      catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);}}
+      finally{if(!background)setLoading(false);}
+      return;
+    }
+    try{
+      const next=await fetchTab('all',0);
+      const previous=feedBufferRef.current;
+      const previousIds=new Set(previous.map(x=>String(x.data?.id??x.data?.uri??'')));
+      const fresh=next.filter(x=>!previousIds.has(String(x.data?.id??x.data?.uri??'')));
+      feedBufferRef.current=mergeHomeFeedItems(previous,next,80);
+      cacheCursorRef.current=nextCursorRef.current;
+      if(background){
+        setNewCount(fresh.length);
+        if(fresh.length&&window.scrollY<500)setItems(prev=>[...fresh,...prev].slice(0,80));
+      }else{
+        setItems(next);feedBufferRef.current=mergeHomeFeedItems([],next,80);cacheCursorRef.current=nextCursorRef.current;setLoading(false);
+      }
+      setHasMore(Boolean(cacheCursorRef.current));
+      await persistBuffer();
+      void prefetchNext();
+    }catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);setLoading(false);}}
+  },[fetchTab,persistBuffer,prefetchNext]);
+
   useEffect(()=>{
     let active=true;
-    if(tab!=='all'){void load(tab);return ()=>{active=false;};}
+    if(tab!=='all'){void load(tab);return()=>{active=false;};}
     void readHomeFeedCache().then(cached=>{
       if(!active)return;
-      if(cached?.items?.length){setItems(cached.items);setNextCursor(cached.cursor);nextCursorRef.current=cached.cursor;setHasMore(true);setLoading(false);setCacheHydrated(true); if(cached.scrollY>0)requestAnimationFrame(()=>window.scrollTo({top:cached.scrollY,behavior:'instant' as ScrollBehavior}));}
-      else setCacheHydrated(true);
+      if(cached?.items?.length){
+        feedBufferRef.current=cached.items;
+        feedBufferOffsetRef.current=Math.min(6,cached.items.length);
+        setItems(cached.items.slice(0,6));
+        cacheCursorRef.current=cached.cursor;nextCursorRef.current=cached.cursor;
+        setHasMore(Boolean(cached.cursor)||cached.items.length>6);setLoading(false);setCacheHydrated(true);
+        if(cached.scrollY>0)requestAnimationFrame(()=>window.scrollTo({top:cached.scrollY,behavior:'instant' as ScrollBehavior}));
+        void prefetchNext();
+      }else setCacheHydrated(true);
       void load('all',true);
     }).catch(()=>{setCacheHydrated(true);void load('all');});
-    const onScroll=()=>{window.clearTimeout(scrollTimer.current);scrollTimer.current=window.setTimeout(()=>{const first=items[0]?.data?.id??null;saveHomeScroll(window.scrollY,first);},250);};
+    const onScroll=()=>{window.clearTimeout(scrollTimer.current);scrollTimer.current=window.setTimeout(()=>saveHomeScroll(window.scrollY,items[0]?.data?.id??null),250);};
     window.addEventListener('scroll',onScroll,{passive:true});
-    return()=>{active=false;window.removeEventListener('scroll',onScroll);};
+    const scheduleRefresh=()=>{window.clearTimeout(refreshTimerRef.current);refreshTimerRef.current=window.setTimeout(()=>void load('all',true),1500);};
+    const channel=supabase.channel('home-feed-live')
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'posts'},scheduleRefresh)
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'threads'},scheduleRefresh)
+      .subscribe();
+    const fallback=window.setInterval(()=>{if(document.visibilityState==='visible')void load('all',true);},60000);
+    return()=>{active=false;window.removeEventListener('scroll',onScroll);window.clearTimeout(refreshTimerRef.current);window.clearInterval(fallback);void supabase.removeChannel(channel);};
   },[tab]);
+
   useEffect(()=>{if(tab==='all'&&cacheHydrated&&items.length===0)void load('all');},[cacheHydrated,tab]);
-  useEffect(()=>{if(newCount>0&&window.scrollY<500){setNewCount(0);}},[newCount]);
+  useEffect(()=>{if(newCount>0&&window.scrollY<500)setNewCount(0);},[newCount]);
 
+  const loadMore=useCallback(async()=>{
+    if(!hasMore||loadingMore)return false;setLoadingMore(true);
+    try{
+      if(tab==='all'){
+        const offset=feedBufferOffsetRef.current;
+        if(offset<feedBufferRef.current.length){
+          const next=feedBufferRef.current.slice(offset,offset+6);
+          feedBufferOffsetRef.current=offset+next.length;setItems(prev=>[...prev,...next]);
+          if(feedBufferOffsetRef.current+3>=feedBufferRef.current.length)void prefetchNext();
+          return next.length>0;
+        }
+        if(cacheCursorRef.current){
+          const next=await fetchTab('all',0,cacheCursorRef.current);
+          if(next.length){
+            feedBufferRef.current=mergeHomeFeedItems(feedBufferRef.current,next,80);
+            cacheCursorRef.current=nextCursorRef.current;
+            const page=feedBufferRef.current.slice(offset,offset+6);
+            feedBufferOffsetRef.current=offset+page.length;setItems(prev=>[...prev,...page]);await persistBuffer();
+            return page.length>0;
+          }
+        }
+        setHasMore(false);return false;
+      }
+      const next=await fetchTab(tab,1,nextCursor);setItems(prev=>[...prev,...next]);setHasMore(next.length>=12);return next.length>0;
+    }finally{setLoadingMore(false);}
+  },[fetchTab,hasMore,loadingMore,tab,nextCursor,prefetchNext,persistBuffer]);
 
-  const loadMore=useCallback(async()=>{if(!hasMore||loadingMore)return false;setLoadingMore(true);try{const next=await fetchTab(tab,1,nextCursor);setItems(prev=>[...prev,...next]);if(tab!=='all')setHasMore(next.length>=12);return next.length>0;}finally{setLoadingMore(false);}},[fetchTab,hasMore,loadingMore,tab,nextCursor]);
   const {lastElementRef}=useInfiniteScroll(loadMore);
   const refresh=async()=>{setRefreshing(true);try{await load(tab);}finally{setRefreshing(false);}};
 
