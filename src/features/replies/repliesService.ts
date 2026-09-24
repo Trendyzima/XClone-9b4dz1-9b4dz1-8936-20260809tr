@@ -50,11 +50,48 @@ export async function createReply(postId: string, content: string) {
 export async function listProfileReplies(userId: string, limit = 50): Promise<ReplyItem[]> {
   const { data, error } = await supabase
     .from('replies')
-    .select('id,user_id,post_id,content,created_at,updated_at,posts!replies_post_id_fkey(id,content,author_id,created_at,profiles!posts_author_id_fkey(id,username,full_name,avatar_url,verified))')
+    .select('id,user_id,post_id,content,created_at,updated_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
     .limit(boundedLimit(limit));
 
   if (error) throw error;
-  return (data ?? []) as ReplyItem[];
+
+  const rows = data ?? [];
+  if (!rows.length) return [];
+
+  // Keep this read independent of PostgREST relationship metadata. The profile
+  // replies page should not fail merely because a generated/aliased FK relation
+  // is unavailable or has been renamed in the database schema.
+  const postIds = [...new Set(rows.map((row: any) => row.post_id).filter(Boolean))];
+  const { data: posts, error: postsError } = postIds.length
+    ? await supabase
+        .from('posts')
+        .select('id,content,author_id,created_at')
+        .in('id', postIds)
+    : { data: [], error: null };
+
+  if (postsError) throw postsError;
+
+  const authorIds = [...new Set((posts ?? []).map((post: any) => post.author_id).filter(Boolean))];
+  const { data: profiles, error: profilesError } = authorIds.length
+    ? await supabase
+        .from('profiles')
+        .select('id,username,full_name,avatar_url,verified')
+        .in('id', authorIds)
+    : { data: [], error: null };
+
+  if (profilesError) throw profilesError;
+
+  const profileById = new Map((profiles ?? []).map((profile: any) => [profile.id, profile]));
+  const postById = new Map((posts ?? []).map((post: any) => [
+    post.id,
+    { ...post, profiles: profileById.get(post.author_id) ?? null },
+  ]));
+
+  return rows.map((row: any) => ({
+    ...row,
+    posts: postById.get(row.post_id) ?? null,
+    profile: profileById.get(row.user_id) ?? null,
+  })) as ReplyItem[];
 }
