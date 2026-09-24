@@ -32,6 +32,13 @@ export function FederatedOrganicCard({ item, onFollow }: { item:any; onFollow?: 
   </article>;
 }
 
+export function FederatedOrganicInjection({ surface = 'home' }: { surface?: string }) {
+  const [item, setItem] = useState<any | null>(null);
+  useEffect(() => { let active=true; federation.getFederatedDiscoveryFeed({limit:1,surface}).then(r=>{if(active)setItem(r.items?.[0]??null)}).catch(()=>{}); return ()=>{active=false}; }, [surface]);
+  if (!item) return null;
+  return <div className="border-y border-border bg-card"><div className="px-4 py-2 flex items-center gap-2 text-[11px] text-muted-foreground"><Sparkles className="w-3.5 h-3.5 text-primary"/>Suggested from the Fediverse</div><FederatedOrganicCard item={item}/></div>;
+}
+
 export default function FederatedOrganicDiscoveryPage() {
   const [items,setItems]=useState<any[]>([]); const [loading,setLoading]=useState(true); const [refreshing,setRefreshing]=useState(false);
   const load=useCallback(async()=>{setLoading(true);try{const r=await federation.getFederatedDiscoveryFeed({limit:12,surface:'discover'});setItems(r.items??[])}catch(e:any){toast.error(e?.message??'Federated discovery unavailable')}finally{setLoading(false)}},[]);
