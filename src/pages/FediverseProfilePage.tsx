@@ -6,7 +6,9 @@ import { useAuth } from '@/hooks/useAuth';
 import * as federation from '@/api/federation';
 import { supabase } from '@/lib/supabase';
 
-export default function FediverseProfilePage() {
+type FediverseProfilePageProps = { initialTab?: string; standalone?: boolean };
+
+export default function FediverseProfilePage({ initialTab = 'Posts', standalone = false }: FediverseProfilePageProps) {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const { user } = useAuth();
@@ -19,7 +21,7 @@ export default function FediverseProfilePage() {
   const [following, setFollowing] = useState(false);
   const [followState, setFollowState] = useState<string | null>(null);
   const [working, setWorking] = useState(false);
-  const [activeTab, setActiveTab] = useState('Posts');
+  const [activeTab, setActiveTab] = useState(initialTab);
 
   const profileTabs = ['Posts', 'Threads', 'Replies', 'Media', 'Videos', 'Podcasts', 'Series', 'Likes', 'Tips', 'Gifts', 'Followers', 'Following', 'Analytics'];
   const mediaPosts = posts.filter((post: any) => Array.isArray(post.attachments) && post.attachments.length > 0);
@@ -266,6 +268,7 @@ export default function FediverseProfilePage() {
             </section>
 
             <section>
+              {!standalone && (
               <nav aria-label="Profile sections" className="sticky top-14 z-10 border-b border-border bg-background/95 backdrop-blur-xl overflow-x-auto scrollbar-hide">
                 <div className="flex min-w-max">
                   {profileTabs.map(tab => (
@@ -276,6 +279,7 @@ export default function FediverseProfilePage() {
                   ))}
                 </div>
               </nav>
+              )}
 
               {['Posts', 'Threads', 'Replies'].includes(activeTab) && (
                 <div className="divide-y divide-border">
