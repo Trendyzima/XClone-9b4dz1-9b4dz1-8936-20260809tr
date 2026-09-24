@@ -31,19 +31,20 @@ export default function HomeHubPage(){
 
   useSEO({title:'Home — Testagram',description:'One home feed for posts, videos, communities, polls, shopping and the Fediverse on Testagram.',url:'/',type:'website'});
 
-  const fetchTab=useCallback(async(target:Tab,pageNum=0):Promise<Item[]>=>{
+  const fetchTab=useCallback(async(target:Tab,pageNum=0,cursorOverride: string|null = null):Promise<Item[]>=>{
+    const offset=pageNum*12;
     if(target==='communities'){
       const {data,error}=await supabase.from('communities').select('*').order('member_count',{ascending:false}).range(0,11);
       if(error)throw error;
       return (data??[]).map((x:any)=>({type:'community',data:x}));
     }
     if(target==='polls'){
-      const {data,error}=await supabase.from('polls').select('*').order('created_at',{ascending:false}).range(offset,offset+19);
+      const {data,error}=await supabase.from('polls').select('*').order('created_at',{ascending:false}).range(offset,offset+11);
       if(error)throw error;
       return (data??[]).map((x:any)=>({type:'poll',data:x}));
     }
     if(target==='shopping'){
-      const {data,error}=await supabase.from('products').select('*').eq('is_active',true).order('created_at',{ascending:false}).range(offset,offset+19);
+      const {data,error}=await supabase.from('products').select('*').eq('is_active',true).order('created_at',{ascending:false}).range(offset,offset+11);
       if(error)throw error;
       return (data??[]).map((x:any)=>({type:'product',data:x}));
     }
