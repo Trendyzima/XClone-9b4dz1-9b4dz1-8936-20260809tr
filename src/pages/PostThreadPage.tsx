@@ -138,7 +138,9 @@ export default function PostThreadPage() {
 
   const openReplies = () => {
     if (!postId) return;
-    navigate(/^https:\/\//i.test(postId) ? `/post/${encodeURIComponent(postId)}/replies` : `/post/${postId}/replies`);
+    navigate(/^https:\/\//i.test(postId)
+      ? `/post/${encodeURIComponent(postId)}/replies`
+      : `/post/${postId}/replies`);
   };
 
   // Build URL lazily — avoids window.location at render scope (esbuild non-determinism)
@@ -208,9 +210,9 @@ export default function PostThreadPage() {
           className="w-full flex items-center justify-between gap-3 rounded-2xl border border-border bg-background px-4 py-3 text-left hover:bg-muted/40 transition-colors"
         >
           <div>
-            <p className="font-semibold">Replies</p>
+            <p className="font-semibold">Replies & conversation</p>
             <p className="text-sm text-muted-foreground">
-              {post.replies_count ?? 0} {post.replies_count === 1 ? 'reply' : 'replies'} · Open the independent replies page
+              {post.replies_count ?? 0} {post.replies_count === 1 ? 'reply' : 'replies'} · Open to read and add replies
             </p>
           </div>
           <MessageCircle className="w-5 h-5 text-muted-foreground shrink-0" />
