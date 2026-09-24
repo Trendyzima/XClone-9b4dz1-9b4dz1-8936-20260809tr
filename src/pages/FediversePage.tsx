@@ -205,14 +205,13 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
       })
       .subscribe();
 
-    // Reconcile frequently enough to surface remote content even when a
-    // Realtime websocket is unavailable. Feed refresh is incremental and does
-    // not reset the user's current list/scroll position.
+    // Hourly reconciliation is the fallback for missed Realtime events.
+    // Realtime federation events still surface new content immediately.
     const reconcile = window.setInterval(() => {
       void fetchInbox();
       void fetchOutboxLog();
       void fetchFederatedFeed({ incremental: true });
-    }, 15000);
+    }, 60 * 60 * 1000);
 
     return () => {
       window.clearInterval(reconcile);
