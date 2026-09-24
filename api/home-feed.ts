@@ -139,7 +139,8 @@ export default async function handler(request: RequestLike) {
     const fedQuery = new URLSearchParams({ limit: String(sourceLimit) });
     if (cursor.fed) fedQuery.set('before', cursor.fed);
 
-    const [postsResult, threadsResult, fedResponse] = await Promise.all([
+    const discoveryQuery = new URLSearchParams({ limit: '1', surface: 'home' });
+  const [postsResult, threadsResult, fedResponse, discoveryResponse] = await Promise.all([
       postsQuery,
       threadsQuery,
       fetch(SUPABASE_URL + '/functions/v1/federated-feed?' + fedQuery, {
@@ -150,6 +151,9 @@ export default async function handler(request: RequestLike) {
     const fedResult = fedResponse.ok
       ? await fedResponse.json()
       : { items: [], pagination: { hasMore: false, nextCursor: null } };
+    const discoveryResult = discoveryResponse.ok
+      ? await discoveryResponse.json()
+      : { items: [] };
 
     if (postsResult.error) console.error('[home-feed] posts', postsResult.error);
     if (threadsResult.error) console.error('[home-feed] threads', threadsResult.error);
@@ -163,6 +167,23 @@ export default async function handler(request: RequestLike) {
       data: { ...t, is_federated: false },
     }));
     const fedItems = Array.isArray(fedResult?.items) ? fedResult.items : [];
+    const discoveryItems = Array.isArray(discoveryResult?.items) ? discoveryResult.items : [];
+    const discovery = discoveryItems.map((p: any) => ({
+      type: 'fedpost', source: 'federated-discovery',
+      data: {
+        ...p,
+        id: p.id ?? p.uri,
+        content: p.content ?? p.text ?? '',
+        created_at: p.created_at ?? p.published_at ?? p.published,
+        user_profiles: p.user_profiles ?? p.remote_account ?? p.actor ?? p.account ?? p.author ?? {},
+        media_urls: p.media_urls ?? p.mediaUrls ?? p.attachments ?? [],
+        image_url: p.image_url ?? p.preview_image_url ?? p.thumbnail_url,
+        video_url: p.video_url ?? p.videoUrl,
+        is_video: Boolean(p.is_video || p.video_url || p.videoUrl),
+        is_federated: true,
+        is_federated_discovery: true,
+      },
+    }));
     const fed = fedItems.map((p: any) => ({
       type: 'fedpost', source: 'federated',
       data: {
@@ -179,7 +200,7 @@ export default async function handler(request: RequestLike) {
       },
     }));
 
-    const items = blend([...local, ...threads, ...fed], limit);
+    const items = blend([...local, ...threads, ...fed, ...discovery], limit);
     const lastPost = postsResult.data?.at(-1)?.created_at;
     const lastThread = threadsResult.data?.at(-1)?.created_at;
     const nextFed = fedResult?.pagination?.nextCursor ?? null;
@@ -196,7 +217,7 @@ export default async function handler(request: RequestLike) {
       hasMore,
       nextCursor,
       latencyMs: Date.now() - started,
-      algorithm: 'organic-cross-surface-v3-cursor',
+      algorithm: 'organic-cross-surface-v4-cursor-federated-discovery',
     });
   } catch (error) {
     console.error('[home-feed]', error);
