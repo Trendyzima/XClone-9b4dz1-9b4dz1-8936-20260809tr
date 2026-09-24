@@ -548,7 +548,10 @@ async function queue(local: any, userId: string, inbox: string, activity: any) {
       last_error: null,
       delivered_at: new Date().toISOString(),
       locked_at: null,
-      next_attempt_at: null,
+      // federation_deliveries.next_attempt_at is NOT NULL. A delivered job
+      // no longer needs a retry deadline, but it must retain a valid timestamp
+      // so the acknowledgement cannot violate the database contract.
+      next_attempt_at: new Date().toISOString(),
     }),
   });
   if (!deliveryAck.ok) throw Error("Remote delivery succeeded but durable delivery acknowledgement failed");
