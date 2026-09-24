@@ -885,7 +885,7 @@ export default function CommunityPage({ section, standalone = false }: { section
             const TabIcon = tab === 'posts' ? MessageSquare : tab === 'members' ? Users : tab === 'chat' ? MessageCircle : CalendarDays;
             const tabLabel = tab === 'posts' ? 'Posts' : tab === 'members' ? 'Members' : tab === 'chat' ? 'Chat' : 'Events';
             return (
-              <button key={tab} onClick={() => setActiveTab(tab)}
+              <button key={tab} onClick={() => { setActiveTab(tab); if (community?.name) navigate(`/c/${community.name}/${tab}`); }}
                 className={`flex-shrink-0 flex-1 py-3 text-sm font-semibold flex items-center justify-center gap-1.5 border-b-2 transition-colors min-w-0 ${activeTab === tab ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground'}`}>
                 <TabIcon className="w-4 h-4" />
                 {tabLabel}
@@ -894,7 +894,7 @@ export default function CommunityPage({ section, standalone = false }: { section
             );
           })}
           {shopUnlocked && (
-            <button onClick={() => setActiveTab('shop')}
+            <button onClick={() => { setActiveTab('shop'); if (community?.name) navigate(`/c/${community.name}/shop`); }}
               className={`flex-shrink-0 flex-1 py-3 text-sm font-semibold flex items-center justify-center gap-1.5 border-b-2 transition-colors min-w-0 ${activeTab === 'shop' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground'}`}>
               <ShoppingBag className="w-4 h-4" /> Shop
             </button>
