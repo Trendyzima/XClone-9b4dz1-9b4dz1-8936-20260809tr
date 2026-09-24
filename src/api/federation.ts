@@ -101,19 +101,18 @@ export async function search(q: string, type: 'users' | 'posts' | 'hashtags' | '
 }
 export async function getFollowers(acct: string, params: TimelineParams = {}): Promise<any> { return api(`/users/${encodeURIComponent(acct)}/followers`, 'GET', undefined, params as any); }
 
-export interface FederatedDiscoveryResult { users: any[]; posts: any[]; hashtags: any[]; communities: any[]; next_cursor?: string | null; }
+export interface FederatedDiscoveryResult { users: any[]; posts: any[]; hashtags: any[]; communities: any[]; items: any[]; next_cursor?: string | null; }
 
 /** Unified federated discovery contract used by the standalone Discover surface. */
-export async function searchFederatedDiscovery(q: string, limit = 20, cursor?: string, mode: 'search' | 'suggest' = 'search'): Promise<FederatedDiscoveryResult> {
+export async function searchFederatedDiscovery(q: string, limit = 20, cursor?: string, mode: 'search' | 'suggest' = 'search', kind: 'all' | 'people' | 'posts' | 'hashtags' | 'mentions' | 'media' | 'conversations' | 'instances' = 'all'): Promise<FederatedDiscoveryResult> {
   const token = await getToken();
   const { data, error } = await supabase.functions.invoke('search-discovery', {
-    method: 'POST',
-    body: { q, limit: Math.min(Math.max(limit, 1), 50), cursor, mode },
+    method: 'POST', body: { q, limit: Math.min(Math.max(limit, 1), 50), cursor, mode, kind },
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (error) throw error;
   if (!data?.ok) throw new GatewayError(0, data?.error?.message ?? 'Federated discovery failed', '/search-discovery');
-  return data.data ?? { users: [], posts: [], hashtags: [], communities: [], next_cursor: null };
+  return data.data ?? { users: [], posts: [], hashtags: [], communities: [], items: [], next_cursor: null };
 }
 export async function getFollowing(acct: string, params: TimelineParams = {}): Promise<any> { return api(`/users/${encodeURIComponent(acct)}/following`, 'GET', undefined, params as any); }
 export async function getInstance(): Promise<any> { const remote = await megalodonGatewayService.getInstance('https://mastodon.social'); return remote.instance; }
