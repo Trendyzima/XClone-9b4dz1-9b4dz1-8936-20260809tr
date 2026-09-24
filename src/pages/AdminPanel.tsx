@@ -386,7 +386,7 @@ export default function AdminPanel() {
                   <Zap className="w-4 h-4 text-primary" /> Quick Actions
                 </h3>
                 <div className="space-y-2">
-                  <button onClick={() => setActiveTab('verifications')} className="w-full flex items-center justify-between p-3 rounded-lg bg-yellow-500/10 hover:bg-yellow-500/20 transition-colors">
+                  <button onClick={() => navigate('/admin/verifications')} className="w-full flex items-center justify-between p-3 rounded-lg bg-yellow-500/10 hover:bg-yellow-500/20 transition-colors">
                     <div className="flex items-center gap-2">
                       <UserCheck className="w-4 h-4 text-yellow-600" />
                       <span className="text-sm font-medium">Review Verifications</span>
