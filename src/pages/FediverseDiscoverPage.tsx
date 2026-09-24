@@ -61,7 +61,8 @@ export default function FediverseDiscoverPage() {
     append ? setLoadingMore(true) : setLoading(true);
     setSearched(true);
     try {
-      const data = await federation.searchFederatedDiscovery(q, 30, append ? nextCursor ?? undefined : undefined, 'search', selectedMode);
+      const kind = selectedMode as Exclude<Mode, 'feeds'>;
+      const data = await federation.searchFederatedDiscovery(q, 30, append ? nextCursor ?? undefined : undefined, 'search', kind);
       const incoming = Array.isArray(data.items) ? data.items : (
         selectedMode === 'people' ? data.users : selectedMode === 'posts' ? data.posts : selectedMode === 'hashtags' ? data.hashtags : [...data.users, ...data.hashtags, ...data.posts]
       );
