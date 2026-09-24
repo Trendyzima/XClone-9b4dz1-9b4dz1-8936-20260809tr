@@ -5,7 +5,7 @@ import { PostCard } from '@/components/features/PostCard';
 import { VerifiedTick } from '@/components/ui/VerifiedTick';
 import { Loader2, Play, RefreshCw } from 'lucide-react';
 import { listProfileLikes } from '@/features/likes/likesService';
-import { listProfileReplies, listProfileRepliesPage, type ReplyItem } from '@/features/replies/repliesService';
+import { listProfileRepliesPage } from '@/features/replies/repliesService';
 
 type Section = 'posts'|'threads'|'replies'|'media'|'videos'|'likes'|'followers'|'following';
 const labels: Record<Section,string> = {posts:'Posts',threads:'Threads',replies:'Replies',media:'Media',videos:'Videos',likes:'Likes',followers:'Followers',following:'Following'};
