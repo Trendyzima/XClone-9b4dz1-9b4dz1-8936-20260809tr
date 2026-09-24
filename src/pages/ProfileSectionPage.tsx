@@ -13,7 +13,8 @@ const getSection=(p:string):Section=>{const s=p.split('/').filter(Boolean).pop()
 
 export default function ProfileSectionPage({section: sectionProp}: {section?: Section}){
   const {username}=useParams(); const location=useLocation(); const navigate=useNavigate();
-  const section=sectionProp ?? useMemo(()=>getSection(location.pathname),[location.pathname]);
+  const pathSection=useMemo(()=>getSection(location.pathname),[location.pathname]);
+  const section=sectionProp ?? pathSection;
   const [profile,setProfile]=useState<any>(null); const [items,setItems]=useState<any[]>([]);
   const [loading,setLoading]=useState(true); const [error,setError]=useState<string|null>(null);
 
