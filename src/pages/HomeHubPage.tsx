@@ -1,9 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { lazy, Suspense, useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ComposePost } from '@/components/features/ComposePost';
 import { PostCard } from '@/components/features/PostCard';
 import { ThreadCard } from '@/components/features/ThreadCard';
-import { StoriesStrip } from '@/components/features/StoriesStrip';
+
 import { TopBar } from '@/components/layout/TopBar';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -20,6 +20,7 @@ const TABS: {id:Tab;label:string}[] = [
   {id:'media',label:'Media'},{id:'communities',label:'Communities'},{id:'polls',label:'Polls'},
   {id:'shopping',label:'Shopping'},{id:'federated',label:'Federated'},
 ];
+const StoriesStrip = lazy(() => import('@/components/features/StoriesStrip').then(m => ({ default: m.StoriesStrip })));
 const profileSelect='user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)';
 
 export default function HomeHubPage(){
@@ -90,7 +91,7 @@ export default function HomeHubPage(){
   const refresh=async()=>{setRefreshing(true);await load(tab);setRefreshing(false);};
 
   return <div className="min-h-screen bg-background pb-16 lg:pb-0">
-    <TopBar title="Home"/><StoriesStrip/>
+    <TopBar title="Home"/><Suspense fallback={<div className="h-20 border-b border-border bg-background" aria-hidden="true" />}><StoriesStrip/></Suspense>
     <div className="sticky top-14 z-30 bg-background/95 backdrop-blur border-b border-border"><div className="flex overflow-x-auto scrollbar-hide">
       {TABS.map(t=><button key={t.id} onClick={()=>setTab(t.id)} className={'min-w-[96px] px-4 py-3 text-sm font-semibold border-b-2 whitespace-nowrap '+(tab===t.id?'border-primary text-foreground':'border-transparent text-muted-foreground hover:bg-muted/40')}>{t.label}</button>)}
     </div></div>
