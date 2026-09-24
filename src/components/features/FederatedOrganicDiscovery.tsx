@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Globe, UserPlus, Sparkles } from 'lucide-react';
 import * as federation from '@/api/federation';
@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 
 export function FederatedOrganicCard({ item, onFollow }: { item:any; onFollow?: (actor:string)=>void }) {
   const navigate=useNavigate(); const [following,setFollowing]=useState(false); const actor=actorFrom(item);
-  const follow=async(e:React.MouseEvent)=>{e.stopPropagation(); if(following)return; try{await federation.follow(actor.actor_uri);setFollowing(true);onFollow?.(actor.actor_uri);toast.success('Follow request sent')}catch(err:any){toast.error(err?.message??'Follow failed')}};
+  const follow=async(e:MouseEvent)=>{e.stopPropagation(); if(following)return; try{await federation.follow(actor.actor_uri);setFollowing(true);onFollow?.(actor.actor_uri);toast.success('Follow request sent')}catch(err:any){toast.error(err?.message??'Follow failed')}};
   return <article className="border-b border-border bg-card">
     <div className="px-4 pt-3 flex items-center gap-3">
       <button onClick={()=>navigate(`/fediverse/profile/posts?actor=${encodeURIComponent(actor.actor_uri)}`)} className="flex items-center gap-2 min-w-0 text-left">
