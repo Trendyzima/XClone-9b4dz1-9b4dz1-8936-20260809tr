@@ -59,7 +59,7 @@ function ExploreMarketplace({ searchQuery, navigate }: { searchQuery: string; na
         .select('*, user_profiles:profiles!products_user_id_fkey(id, username, avatar_url, verified_tier)')
         .eq('is_active', true)
         .order('views_count', { ascending: false })
-        .limit(60);
+        .limit(20);
       if (catFilter !== 'all') query = query.eq('category', catFilter);
       const { data } = await query;
       if (!cancelled) { setProducts(data ?? []); setLoading(false); }
@@ -685,12 +685,37 @@ export default function ExplorePage() {
   const tabs: ExploreTab[] = ['Explore', 'Trending', 'News', 'Sports', 'Entertainment', 'Marketplace'];
 
   useEffect(() => {
-    fetchData();
-    fetchActiveChallenges();
-    fetchExploreStories();
-    fetchTrendingPosts();
-    fetchFreshExplorePosts();
-    fetchCategoryPostCounts();
+    let cancelled = false;
+    void fetchData();
+
+    // Keep the first render focused on the active surface. Secondary Explore
+    // datasets are fetched only when their tab/section can actually use them.
+    if (activeTab === 'Explore') {
+      void fetchExploreStories();
+      void fetchFreshExplorePosts();
+    }
+    if (activeTab === 'Trending') {
+      void fetchTrendingPosts();
+      void fetchCategoryPostCounts();
+    }
+    if (activeTab === 'News' || activeTab === 'Sports' || activeTab === 'Entertainment') {
+      void fetchTrendingPosts();
+    }
+    if (activeTab === 'Explore' || activeTab === 'Trending') {
+      const schedule = typeof window !== 'undefined' && 'requestIdleCallback' in window
+        ? (cb: () => void) => (window as Window & { requestIdleCallback: (callback: () => void) => number }).requestIdleCallback(cb)
+        : (cb: () => void) => window.setTimeout(cb, 1);
+      const idleId = schedule(() => { if (!cancelled) void fetchActiveChallenges(); });
+      return () => {
+        cancelled = true;
+        if (typeof idleId === 'number' && 'cancelIdleCallback' in window) {
+          (window as Window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback?.(idleId);
+        } else if (typeof idleId === 'number') {
+          window.clearTimeout(idleId);
+        }
+      };
+    }
+    return () => { cancelled = true; };
   }, [activeTab, user?.id]);
 
   const fetchCategoryPostCounts = async () => {
