@@ -29,7 +29,9 @@ type Tab = 'feed' | 'inbox' | 'relay' | 'analytics' | 'discover' | 'identity' | 
 
 const CHART_COLORS = ['#06b6d4', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#3b82f6'];
 
-type FediversePageProps = { initialTab?: Tab; standalone?: boolean };\n\nexport default function FediversePage({ initialTab = 'feed', standalone = false }: FediversePageProps) {
+type FediversePageProps = { initialTab?: Tab; standalone?: boolean };
+
+export default function FediversePage({ initialTab = 'feed', standalone = false }: FediversePageProps) {
   useSEO({
     title: 'Fediverse — Connect Across the Open Web | Testagram',
     description: 'Follow and interact with accounts from Mastodon, Pixelfed, and other ActivityPub platforms directly from Testagram. Join the open federated social web.',
