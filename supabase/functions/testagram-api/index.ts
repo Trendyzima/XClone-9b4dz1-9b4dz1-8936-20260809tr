@@ -27,9 +27,10 @@ async function replyOp(body:any,auth:string|null){
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
   const target=String(body.post_id||body.postId||"").trim();
   const content=String(body.content||"").trim();
+  const parentReplyId=String(body.parent_reply_id||body.parentReplyId||"").trim()||null;
   if(!target||!content)return json({error:"post_id and content required"},400);
   if(!/^https:\/\//i.test(target)){
-    const r=await admin.from("replies").insert({post_id:target,user_id:u.id,content}).select("id,post_id,user_id,content,created_at,updated_at").single();
+    const r=await admin.from("replies").insert({post_id:target,user_id:u.id,content,...parentReplyId?{parent_reply_id:parentReplyId}:{}}).select("id,post_id,user_id,content,created_at,updated_at").single();
     if(r.error)return json({error:r.error.message},400);
     const count=await admin.from("posts").select("replies_count").eq("id",target).single();
     if(count.data) await admin.from("posts").update({replies_count:Number(count.data.replies_count||0)+1,updated_at:new Date().toISOString()}).eq("id",target);

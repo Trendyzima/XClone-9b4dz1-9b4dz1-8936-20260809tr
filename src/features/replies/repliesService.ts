@@ -8,6 +8,7 @@ export type ReplyItem = {
   content: string;
   created_at: string;
   updated_at: string;
+  parent_reply_id?: string | null;
   profile: any;
 };
 
@@ -18,7 +19,7 @@ export async function listReplies(postId: string, limit = 50): Promise<{ items: 
   // depend on the authenticated-only capability. Creation remains capability-gated.
   const { data, error } = await supabase
     .from('replies')
-    .select('id,user_id,post_id,content,created_at,updated_at')
+    .select('id,user_id,post_id,parent_reply_id,content,created_at,updated_at')
     .eq('post_id', postId)
     .order('created_at', { ascending: false })
     .limit(boundedLimit(limit));
@@ -43,8 +44,8 @@ export async function listReplies(postId: string, limit = 50): Promise<{ items: 
   };
 }
 
-export async function createReply(postId: string, content: string) {
-  return backendCapabilities.createReply(postId, content);
+export async function createReply(postId: string, content: string, parentReplyId?: string) {
+  return backendCapabilities.createReply(postId, content, parentReplyId);
 }
 
 export async function listProfileReplies(userId: string, limit = 50): Promise<ReplyItem[]> {
