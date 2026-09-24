@@ -29,7 +29,7 @@ type Tab = 'feed' | 'inbox' | 'relay' | 'analytics' | 'discover' | 'identity' | 
 
 const CHART_COLORS = ['#06b6d4', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#3b82f6'];
 
-export default function FediversePage() {
+type FediversePageProps = { initialTab?: Tab; standalone?: boolean };\n\nexport default function FediversePage({ initialTab = 'feed', standalone = false }: FediversePageProps) {
   useSEO({
     title: 'Fediverse — Connect Across the Open Web | Testagram',
     description: 'Follow and interact with accounts from Mastodon, Pixelfed, and other ActivityPub platforms directly from Testagram. Join the open federated social web.',
@@ -55,7 +55,7 @@ export default function FediversePage() {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [tab, setTab] = useState<Tab>('feed');
+  const [tab] = useState<Tab>(initialTab);
   const [searchHandle, setSearchHandle] = useState('');
   const [searchResult, setSearchResult] = useState<any | null>(null);
   const [searching, setSearching] = useState(false);
@@ -911,7 +911,7 @@ export default function FediversePage() {
         </div>
       )}
 
-      <div className="sticky top-14 z-30 bg-background/95 backdrop-blur-sm border-b border-border overflow-x-auto flex scrollbar-hide">
+      {!standalone && <div className="sticky top-14 z-30 bg-background/95 backdrop-blur-sm border-b border-border overflow-x-auto flex scrollbar-hide">
         {TABS.map(t => {
           const Icon = t.icon;
           const active = tab === t.id;
@@ -931,7 +931,7 @@ export default function FediversePage() {
             </button>
           );
         })}
-      </div>
+      </div>}
 
       {/* ══════════════════ FEED TAB ══════════════════ */}
       {tab === 'feed' && (
