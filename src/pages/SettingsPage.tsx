@@ -63,8 +63,8 @@ function ThemeIcon({ id, cls, active }: { id: ThemeChoice; cls: string; active: 
   return <Monitor className={iconCls} />;
 }
 
-export default function SettingsPage() {
-  useSEO({ noindex: true, title: 'Settings', url: '/settings' });
+export default function SettingsPage({ section = 'all' }: { section?: 'all' | 'account' | 'appearance' | 'connections' | 'notifications' | 'privacy' }) {
+  useSEO({ noindex: true, title: section === 'all' ? 'Settings' : `Settings · ${section}`, url: section === 'all' ? '/settings' : `/settings/${section}` });
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState(true);
@@ -350,6 +350,7 @@ export default function SettingsPage() {
       <TopBar title="Settings" showBack />
       <div className="divide-y divide-border">
 
+{(section === 'all' || section === 'account') && (
         {/* ── Account ── */}
         <div className="p-4">
           <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Account</h2>
@@ -607,6 +608,9 @@ export default function SettingsPage() {
           </div>
         </div>
 
+
+)}
+{(section === 'all' || section === 'appearance') && (
         {/* ── Appearance ── */}
         <div className="p-4">
           <div className="flex items-center justify-between mb-3">
@@ -812,6 +816,9 @@ export default function SettingsPage() {
           </div>
         </div>
 
+
+)}
+{(section === 'all' || section === 'connections') && (
         {/* ── Connected Accounts ── */}
         <div className="p-4">
           <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Connected Accounts</h2>
@@ -882,6 +889,9 @@ export default function SettingsPage() {
           )}
         </div>
 
+
+)}
+{(section === 'all' || section === 'notifications') && (
         {/* ── Notifications ── */}
         <div className="p-4">
           <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Notifications</h2>
@@ -956,6 +966,9 @@ export default function SettingsPage() {
           )}
         </div>
 
+
+)}
+{(section === 'all' || section === 'privacy') && (
         {/* ── Privacy & Security ── */}
         <div className="p-4">
           <h2 className="text-xs font-bold uppercase tracking-widest text-muted-foreground mb-3">Privacy & Security</h2>
@@ -1121,6 +1134,8 @@ export default function SettingsPage() {
             Log Out
           </Button>
         </div>
+
+)}
       </div>
     </div>
   );
