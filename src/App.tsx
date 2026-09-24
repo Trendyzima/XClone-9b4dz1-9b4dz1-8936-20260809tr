@@ -40,7 +40,6 @@ const ThreadQuotesPage = lazy(() => import('@/pages/ThreadQuotesPage'));
 const ThreadQuoteLikesPage = lazy(() => import('@/pages/ThreadQuoteLikesPage'));
 const ThreadReplyLikesPage = lazy(() => import('@/pages/ThreadReplyLikesPage'));
 
-const PostInteractionPage = lazy(() => import('@/pages/PostInteractionPage'));
 const CommunitiesPage = lazy(() => import('@/pages/CommunitiesPage'));
 const CommunityPage = lazy(() => import('@/pages/CommunityPage'));
 const HashtagPage = lazy(() => import('@/pages/HashtagPage'));
@@ -58,7 +57,6 @@ const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
 const ThreadsPage = lazy(() => import('@/pages/ThreadsPage'));
 const CreateThreadPage = lazy(() => import('@/pages/CreateThreadPage'));
 const ThreadDetailPage = lazy(() => import('@/pages/ThreadDetailPage'));
-const ThreadInteractionPage = lazy(() => import('@/pages/ThreadInteractionPage'));
 const HistoryPage = lazy(() => import('@/pages/HistoryPage'));
 const HelpPage = lazy(() => import('@/pages/HelpPage'));
 const WalletPage = lazy(() => import('@/pages/WalletPage'));
