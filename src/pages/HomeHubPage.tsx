@@ -120,9 +120,9 @@ export default function HomeHubPage(){
       cacheCursorRef.current=nextCursorRef.current;
       if(background){
         setNewCount(fresh.length);
-        if(fresh.length&&window.scrollY<500)setItems(prev=>[...fresh,...prev].slice(0,80));
+        if(fresh.length&&window.scrollY<500){setItems(prev=>{const merged=[...fresh,...prev].slice(0,80);feedBufferOffsetRef.current=merged.length;return merged;});}
       }else{
-        setItems(next);feedBufferRef.current=mergeHomeFeedItems([],next,80);cacheCursorRef.current=nextCursorRef.current;setLoading(false);
+        setItems(next);feedBufferRef.current=mergeHomeFeedItems([],next,80);feedBufferOffsetRef.current=next.length;cacheCursorRef.current=nextCursorRef.current;setLoading(false);
       }
       setHasMore(Boolean(cacheCursorRef.current));
       await persistBuffer();
