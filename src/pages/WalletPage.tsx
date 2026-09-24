@@ -360,7 +360,7 @@ function BiometricCard({ userId, credentialId, onSaved }: { userId: string; cred
         },
       }) as PublicKeyCredential;
       const credId = btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
-      const publicKey = cred.response.getPublicKey?.();
+      const publicKey = (cred.response as AuthenticatorAttestationResponse).getPublicKey?.();
       if (!publicKey) throw new Error('This authenticator did not provide a public key');
       const publicKeyB64 = btoa(String.fromCharCode(...new Uint8Array(publicKey)));
       const { error } = await supabase.rpc('set_wallet_biometric_enabled', {
@@ -2404,6 +2404,13 @@ const TAG_DOT_BG = {
 } as const;
 // ── Referral leaderboard ──────────────────────────────────────────────────
 const RANK_BADGES = ['🥇','🥈','🥉'];
+const WALLET_ROUTE_MAP: Record<ActiveTab, string> = {
+  wallet: '/wallet', pocket: '/wallet/pocket', send: '/wallet/send', receive: '/wallet/receive',
+  mpesa: '/wallet/mpesa', history: '/wallet/history', analytics: '/wallet/analytics',
+  referrals: '/wallet/referrals', scheduled: '/wallet/scheduled', savings: '/wallet/savings',
+  reminders: '/wallet/reminders', security: '/wallet/security', converter: '/wallet/converter',
+};
+
 // ── Wallet search commands ────────────────────────────────────────────────
 const SEARCH_COMMANDS: { label: string; hint: string; emoji: string; tab: ActiveTab; keywords: string[] }[] = [
   { label: 'Deposit via M-Pesa', hint: 'Top up your wallet',              emoji: '💰', tab: 'wallet',    keywords: ['deposit','top up','topup','add money','mpesa','funds']          },
