@@ -108,33 +108,48 @@ export default async function handler(request: RequestLike) {
     if (!auth || !SUPABASE_SERVICE_ROLE_KEY) return json({ error: 'Authentication required' }, 401);
 
     const url = new URL(requestUrl(request));
-    const limit = Math.max(1, Math.min(20, Math.floor(Number(url.searchParams.get('limit') || 12))));
-    const page = Math.max(0, Math.floor(Number(url.searchParams.get('page') || 0)));
+    const limit = Math.max(4, Math.min(8, Math.floor(Number(url.searchParams.get('limit') || 6))));
     const before = url.searchParams.get('before');
-    const offset = page * limit;
+    let cursor: { post?: string; thread?: string; fed?: string | null } = {};
+    if (before) {
+      try {
+        const decoded = JSON.parse(atob(before));
+        if (decoded && typeof decoded === 'object') cursor = decoded;
+      } catch {
+        return json({ error: 'Invalid feed cursor' }, 400);
+      }
+    }
 
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+    const sourceLimit = Math.max(4, Math.ceil(limit / 2));
+    const postsQuery = admin.from('posts')
+      .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
+      .is('community_id', null).is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(sourceLimit);
+    const threadsQuery = admin.from('threads')
+      .select('*')
+      .eq('visibility', 'public').is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(sourceLimit);
 
-    const [postsResult, threadsResult, fedResult] = await Promise.all([
-      admin.from('posts')
-        .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
-        .is('community_id', null).is('deleted_at', null)
-        .order('created_at', { ascending: false }).range(offset, offset + limit - 1),
-      admin.from('threads')
-        .select('*')
-        .eq('visibility', 'public').is('deleted_at', null)
-        .order('created_at', { ascending: false }).range(offset, offset + limit - 1),
-      (async () => {
-        const qs = new URLSearchParams({ limit: String(limit) });
-        if (before) qs.set('before', before);
-        const response = await fetch(SUPABASE_URL + '/functions/v1/federated-feed?' + qs, {
-          headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + auth.token },
-        });
-        if (!response.ok) return { items: [], pagination: { hasMore: false, nextCursor: null } };
-        const value = await response.json();
-        return Array.isArray(value) ? { items: value, pagination: { hasMore: false, nextCursor: null } } : (value || { items: [], pagination: {} });
-      })(),
+    if (cursor.post) postsQuery.lt('created_at', cursor.post);
+    if (cursor.thread) threadsQuery.lt('created_at', cursor.thread);
+
+    const fedQuery = new URLSearchParams({ limit: String(sourceLimit) });
+    if (cursor.fed) fedQuery.set('before', cursor.fed);
+
+    const [postsResult, threadsResult, fedResponse] = await Promise.all([
+      postsQuery,
+      threadsQuery,
+      fetch(SUPABASE_URL + '/functions/v1/federated-feed?' + fedQuery, {
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + auth.token },
+      }),
     ]);
+
+    const fedResult = fedResponse.ok
+      ? await fedResponse.json()
+      : { items: [], pagination: { hasMore: false, nextCursor: null } };
 
     if (postsResult.error) console.error('[home-feed] posts', postsResult.error);
     if (threadsResult.error) console.error('[home-feed] threads', threadsResult.error);
@@ -165,19 +180,23 @@ export default async function handler(request: RequestLike) {
     }));
 
     const items = blend([...local, ...threads, ...fed], limit);
-    const hasMore = Boolean(
-      (postsResult.data || []).length >= limit ||
-      (threadsResult.data || []).length >= limit ||
-      fedResult?.pagination?.hasMore
-    );
+    const lastPost = postsResult.data?.at(-1)?.created_at;
+    const lastThread = threadsResult.data?.at(-1)?.created_at;
+    const nextFed = fedResult?.pagination?.nextCursor ?? null;
+    const hasLocalMore = (postsResult.data || []).length >= sourceLimit || (threadsResult.data || []).length >= sourceLimit;
+    const hasMore = hasLocalMore || Boolean(fedResult?.pagination?.hasMore);
+
+    const nextCursor = hasMore && (lastPost || lastThread || nextFed)
+      ? btoa(JSON.stringify({ post: lastPost, thread: lastThread, fed: nextFed }))
+      : null;
 
     return json({
       ok: true,
       items,
       hasMore,
-      nextCursor: fedResult?.pagination?.nextCursor ?? null,
+      nextCursor,
       latencyMs: Date.now() - started,
-      algorithm: 'organic-cross-surface-v2',
+      algorithm: 'organic-cross-surface-v3-cursor',
     });
   } catch (error) {
     console.error('[home-feed]', error);
