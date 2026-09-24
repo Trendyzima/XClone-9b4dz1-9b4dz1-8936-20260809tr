@@ -29,7 +29,7 @@ export default function HomeHubPage(){
   const [tab,setTab]=useState<Tab>('all'); const [items,setItems]=useState<Item[]>([]);
   const [loading,setLoading]=useState(true); const [loadingMore,setLoadingMore]=useState(false);
   const [refreshing,setRefreshing]=useState(false); const [hasMore,setHasMore]=useState(true); const [nextCursor,setNextCursor]=useState<string|null>(null);
-  const [cacheHydrated,setCacheHydrated]=useState(false); const [newCount,setNewCount]=useState(0); const scrollTimer=useRef<number|undefined>(undefined);
+  const [cacheHydrated,setCacheHydrated]=useState(false); const [newCount,setNewCount]=useState(0); const nextCursorRef=useRef<string|null>(null); const scrollTimer=useRef<number|undefined>(undefined);
 
   useSEO({title:'Home — Testagram',description:'One home feed for posts, videos, communities, polls, shopping and the Fediverse on Testagram.',url:'/',type:'website'});
 
@@ -85,7 +85,7 @@ export default function HomeHubPage(){
   },[user?.id]);
 
   const load=useCallback(async(target:Tab,background=false)=>{
-    if(!background)setLoading(true); setNextCursor(null); setHasMore(true);
+    if(!background)setLoading(true); setNextCursor(null); nextCursorRef.current=null; setHasMore(true);
     try{
       const next=await fetchTab(target,0);
       if(target==='all' && background){
@@ -100,7 +100,7 @@ export default function HomeHubPage(){
     if(tab!=='all'){void load(tab);return ()=>{active=false;};}
     void readHomeFeedCache().then(cached=>{
       if(!active)return;
-      if(cached?.items?.length){setItems(cached.items);setNextCursor(cached.cursor);setHasMore(true);setLoading(false);setCacheHydrated(true); if(cached.scrollY>0)requestAnimationFrame(()=>window.scrollTo({top:cached.scrollY,behavior:'instant' as ScrollBehavior}));}
+      if(cached?.items?.length){setItems(cached.items);setNextCursor(cached.cursor);nextCursorRef.current=cached.cursor;setHasMore(true);setLoading(false);setCacheHydrated(true); if(cached.scrollY>0)requestAnimationFrame(()=>window.scrollTo({top:cached.scrollY,behavior:'instant' as ScrollBehavior}));}
       else setCacheHydrated(true);
       void load('all',true);
     }).catch(()=>{setCacheHydrated(true);void load('all');});
@@ -114,7 +114,7 @@ export default function HomeHubPage(){
 
   const loadMore=useCallback(async()=>{if(!hasMore||loadingMore)return false;setLoadingMore(true);try{const next=await fetchTab(tab,1,nextCursor);setItems(prev=>[...prev,...next]);if(tab!=='all')setHasMore(next.length>=12);return next.length>0;}finally{setLoadingMore(false);}},[fetchTab,hasMore,loadingMore,tab,nextCursor]);
   const {lastElementRef}=useInfiniteScroll(loadMore);
-  const refresh=async()=>{setRefreshing(true);await load(tab);setRefreshing(false);};
+  const refresh=async()=>{setRefreshing(true);try{await load(tab);}finally{setRefreshing(false);}};
 
   return <div className="min-h-screen bg-background pb-16 lg:pb-0">
     <TopBar title="Home"/><Suspense fallback={<div className="h-20 border-b border-border bg-background" aria-hidden="true" />}><StoriesStrip/></Suspense>
