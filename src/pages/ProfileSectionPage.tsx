@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { PostCard } from '@/components/features/PostCard';
 import { VerifiedTick } from '@/components/ui/VerifiedTick';
 import { Loader2, Play, RefreshCw } from 'lucide-react';
 import { listProfileLikes } from '@/features/likes/likesService';
-import { listProfileReplies } from '@/features/replies/repliesService';
+import { listProfileReplies, listProfileRepliesPage, type ReplyItem } from '@/features/replies/repliesService';
 
 type Section = 'posts'|'threads'|'replies'|'media'|'videos'|'likes'|'followers'|'following';
 const labels: Record<Section,string> = {posts:'Posts',threads:'Threads',replies:'Replies',media:'Media',videos:'Videos',likes:'Likes',followers:'Followers',following:'Following'};
@@ -16,7 +16,7 @@ export default function ProfileSectionPage({section: sectionProp}: {section?: Se
   const pathSection=useMemo(()=>getSection(location.pathname),[location.pathname]);
   const section=sectionProp ?? pathSection;
   const [profile,setProfile]=useState<any>(null); const [items,setItems]=useState<any[]>([]);
-  const [loading,setLoading]=useState(true); const [error,setError]=useState<string|null>(null); const [retryKey,setRetryKey]=useState(0);
+  const [loading,setLoading]=useState(true); const [loadingMore,setLoadingMore]=useState(false); const [error,setError]=useState<string|null>(null); const [retryKey,setRetryKey]=useState(0); const [nextCursor,setNextCursor]=useState<string|null>(null); const loadMoreRef=useRef<HTMLDivElement|null>(null);
 
   useEffect(()=>{let cancelled=false; (async()=>{
     setLoading(true);setError(null);
@@ -28,7 +28,7 @@ export default function ProfileSectionPage({section: sectionProp}: {section?: Se
       let rows:any[]=[];
       if(section==='posts'||section==='videos'){const q=await supabase.from('posts').select('*').or(`author_id.eq.${p.data.id},user_id.eq.${p.data.id}`).is('deleted_at',null).order('created_at',{ascending:false}).limit(100);if(q.error)throw q.error;rows=(q.data??[]).map((row:any)=>({...row,author_id:row.author_id??row.user_id,profiles:p.data}));if(section==='videos')rows=rows.filter((x:any)=>x.is_video&&x.video_url);}
       else if(section==='threads'){const q=await supabase.from('threads').select('*').eq('owner_id',p.data.id).is('deleted_at',null).order('created_at',{ascending:false}).limit(100);if(q.error)throw q.error;rows=q.data??[];}
-      else if(section==='replies'){rows=await listProfileReplies(p.data.id,100);}
+      else if(section==='replies'){const first=await listProfileRepliesPage(p.data.id,20);rows=first.items;setNextCursor(first.next_cursor);}
       else if(section==='likes'){rows=await listProfileLikes(p.data.id,100);}
       else if(section==='media'){const q=await supabase.from('posts').select('*').or(`author_id.eq.${p.data.id},user_id.eq.${p.data.id}`).is('deleted_at',null).or('image_url.not.is.null,video_url.not.is.null,media_count.gt.0').order('created_at',{ascending:false}).limit(100);if(q.error)throw q.error;rows=(q.data??[]).map((row:any)=>({...row,author_id:row.author_id??row.user_id,profiles:p.data}));}
       else if(section==='followers'){const q=await supabase.from('follows').select('follower_id').eq('following_id',p.data.id).eq('status','accepted').limit(100);if(q.error)throw q.error;const ids=(q.data??[]).map((x:any)=>x.follower_id).filter(Boolean);if(ids.length){const pr=await supabase.from('profiles').select('*').in('id',ids);if(pr.error)throw pr.error;rows=pr.data??[];}}
@@ -38,6 +38,15 @@ export default function ProfileSectionPage({section: sectionProp}: {section?: Se
   })();return()=>{cancelled=true}},[username,section,retryKey]);
 
   if(loading)return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-7 h-7 animate-spin text-primary"/></div>;
+  const loadMoreReplies=useCallback(async()=>{
+    if(section!=='replies'||!profile?.id||!nextCursor||loadingMore)return;
+    setLoadingMore(true);
+    try{const page=await listProfileRepliesPage(profile.id,20,nextCursor);setItems(prev=>[...prev,...page.items]);setNextCursor(page.next_cursor);}
+    catch(e){setError(e instanceof Error?e.message:'Unable to load more replies');}
+    finally{setLoadingMore(false);}
+  },[section,profile?.id,nextCursor,loadingMore]);
+  useEffect(()=>{if(section!=='replies'||!nextCursor||!loadMoreRef.current)return;const el=loadMoreRef.current;const observer=new IntersectionObserver(entries=>{if(entries[0]?.isIntersecting)void loadMoreReplies()},{rootMargin:'500px'});observer.observe(el);return()=>observer.disconnect();},[section,nextCursor,loadMoreReplies]);
+
   if(!profile)return <div className="p-8 text-center text-muted-foreground">{error??'Profile not found'}</div>;
   const base='/profile/'+encodeURIComponent(profile.username);
   return <div className="min-h-screen">
@@ -54,7 +63,7 @@ export default function ProfileSectionPage({section: sectionProp}: {section?: Se
       section==='media'?<div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-2">{items.map(p=>{const u=p.video_url||p.image_url||p.media_urls?.[0];return <button key={p.id} onClick={()=>navigate('/post/'+p.id)} className="aspect-square rounded-lg overflow-hidden bg-muted"><img src={u} alt="" className="w-full h-full object-cover"/></button>})}</div>:
       section==='videos'?<div className="grid grid-cols-2 gap-2 p-3">{items.map(p=><button key={p.id} onClick={()=>navigate('/videos?id='+p.id)} className="relative aspect-[9/16] rounded-xl overflow-hidden bg-black"><video src={p.video_url+'#t=0.5'} muted preload="metadata" className="w-full h-full object-cover"/><Play className="absolute bottom-2 left-2 w-5 h-5 text-white fill-white"/></button>)}</div>:
       section==='threads'?<div className="divide-y divide-border">{items.map(t=><button key={t.id} onClick={()=>navigate('/thread/'+t.id)} className="w-full text-left p-4"><p className="font-bold">{t.title}</p><p className="text-sm text-muted-foreground mt-1 line-clamp-3">{t.body}</p></button>)}</div>:
-      section==='replies'?<div className="divide-y divide-border">{items.map(r=><button key={r.id} onClick={()=>navigate('/post/'+r.post_id)} className="w-full text-left p-4"><p className="text-xs text-muted-foreground mb-1">Replying to @{r.posts?.profiles?.username??'user'}</p><p>{r.content}</p></button>)}</div>:
+      section==='replies'?<div className="divide-y divide-border">{items.map((r:any)=><article key={r.id} className="p-4"><div className="flex items-start gap-3"><button onClick={()=>r.profile?.username&&navigate('/profile/'+encodeURIComponent(r.profile.username))} className="shrink-0 w-11 h-11 rounded-full overflow-hidden bg-muted">{r.profile?.avatar_url?<img src={r.profile.avatar_url} alt="" className="w-full h-full object-cover" loading="lazy"/>:<span className="w-full h-full flex items-center justify-center font-bold">{(r.profile?.display_name||r.profile?.username||'?').slice(0,1).toUpperCase()}</span>}</button><div className="min-w-0 flex-1"><button onClick={()=>r.profile?.username&&navigate('/profile/'+encodeURIComponent(r.profile.username))} className="text-left"><div className="flex items-center gap-1 flex-wrap"><span className="font-bold">{r.profile?.display_name||r.profile?.full_name||'User'}</span>{r.profile?.verified&&<VerifiedTick className="w-4 h-4 text-primary"/>}<span className="text-muted-foreground text-sm">@{r.profile?.username||'user'}</span></div>{(r.profile?.bio||r.profile?.location)&&<p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{r.profile.bio||r.profile.location}</p>}</button><button onClick={()=>navigate('/post/'+r.post_id)} className="w-full text-left mt-2"><p className="text-sm whitespace-pre-wrap">{r.content}</p><p className="text-xs text-muted-foreground mt-2">{r.created_at?new Date(r.created_at).toLocaleString():''}</p></button>{r.posts?.profiles&&<button onClick={()=>r.posts.profiles.username&&navigate('/profile/'+encodeURIComponent(r.posts.profiles.username))} className="mt-3 w-full rounded-xl border border-border bg-muted/30 p-3 text-left"><p className="text-[11px] text-muted-foreground">Replying to</p><div className="flex items-center gap-2 mt-1"><div className="w-6 h-6 rounded-full overflow-hidden bg-muted">{r.posts.profiles.avatar_url?<img src={r.posts.profiles.avatar_url} alt="" className="w-full h-full object-cover" loading="lazy"/>:<span className="text-[10px] w-full h-full flex items-center justify-center">{(r.posts.profiles.username||'?')[0].toUpperCase()}</span>}</div><span className="text-xs font-semibold">@{r.posts.profiles.username||'user'}</span></div><p className="text-xs mt-1 line-clamp-2">{r.posts.content}</p></button>}</div></div></article>)}{nextCursor&&<div ref={loadMoreRef} className="py-6 flex justify-center text-xs text-muted-foreground">{loadingMore?'Loading more replies…':'Scroll for more replies'}</div>}</div>:
       <div className="divide-y divide-border">{items.map(u=><button key={u.id} onClick={()=>navigate('/profile/'+u.username)} className="w-full flex items-center gap-3 p-4 text-left"><div className="w-10 h-10 rounded-full bg-muted overflow-hidden">{u.avatar_url?<img src={u.avatar_url} alt="" className="w-full h-full object-cover"/>:<div className="w-full h-full flex items-center justify-center font-bold">{u.username?.[0]?.toUpperCase()}</div>}</div><span className="font-semibold">@{u.username}</span></button>)}</div>}
   </div>;
 }
