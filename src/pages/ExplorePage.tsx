@@ -586,6 +586,8 @@ export default function ExplorePage() {
   // ── Trending Posts Feed (top views in last 48h) ──
   const [trendingPosts, setTrendingPosts] = useState([] as any[]);
   const [trendingPostsLoading, setTrendingPostsLoading] = useState(false);
+  // Fresh local fallback keeps Explore useful when live trend tables have no current rows.
+  const [freshExplorePosts, setFreshExplorePosts] = useState([] as any[]);
   // ── Category post counts for tab badges ──
   // esbuild guard: plain number array, not Record<string,number>
   const [catPostCounts, setCatPostCounts] = useState([0, 0, 0]);
@@ -686,6 +688,7 @@ export default function ExplorePage() {
     fetchActiveChallenges();
     fetchExploreStories();
     fetchTrendingPosts();
+    fetchFreshExplorePosts();
     fetchCategoryPostCounts();
   }, [activeTab, user?.id]);
 
@@ -719,6 +722,17 @@ export default function ExplorePage() {
       .limit(10);
     setTrendingPosts(data ?? []);
     setTrendingPostsLoading(false);
+  };
+
+  const fetchFreshExplorePosts = async () => {
+    const { data } = await supabase
+      .from('posts')
+      .select('id, content, image_url, video_url, media_urls, is_video, views_count, likes_count, reposts_count, replies_count, created_at, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
+      .is('community_id', null)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .limit(12);
+    setFreshExplorePosts(data ?? []);
   };
 
   // Story progress timer
@@ -1051,6 +1065,24 @@ export default function ExplorePage() {
         </div>
       </div>
 
+      {/* Discovery destinations: each surface has a distinct job and remains one tap away. */}
+      <div className="border-b border-border bg-background">
+        <div className="px-3 py-2 flex gap-2 overflow-x-auto scrollbar-hide">
+          {[
+            { label: 'Search', icon: Search, path: '/search' },
+            { label: 'Hashtags', icon: Hash, path: '/hashtags' },
+            { label: 'Creators', icon: UsersIcon, path: '/discover' },
+            { label: 'Threads', icon: BookOpen, path: '/threads' },
+            { label: 'Marketplace', icon: ShoppingBag, path: '/marketplace' },
+          ].map(({ label, icon: Icon, path }) => (
+            <button key={path} onClick={() => navigate(path)}
+              className="shrink-0 inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold hover:border-primary/40 hover:bg-primary/5 transition-colors">
+              <Icon className="w-3.5 h-3.5 text-primary" />{label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* ── Inline Mixed Search Results ──────────────────────────── */}
       {(inlineSearchLoading || inlineSearchResults) && searchQuery.trim().length >= 2 && (
         <div className="border-b border-border bg-background">
@@ -1274,7 +1306,44 @@ export default function ExplorePage() {
             </section>
           )}
 
-          {/* Story viewer — pre-computed vars, no IIFE (esbuild guard) */}
+          {trendingPosts.length === 0 && !trendingPostsLoading && freshExplorePosts.length > 0 && (
+            <section className="border-b border-border">
+              <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+                <div>
+                  <h2 className="font-bold text-xl flex items-center gap-2"><Globe className="w-5 h-5 text-primary" />Fresh on Testagram</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">Recent public posts while trends build up</p>
+                </div>
+                <button onClick={() => navigate('/')} className="text-xs text-primary font-bold hover:underline">Home →</button>
+              </div>
+              <div className="divide-y divide-border">
+                {freshExplorePosts.slice(0, 8).map((post: any) => (
+                  <button key={post.id} onClick={() => navigate(`/post/${post.id}`)}
+                    className="w-full text-left px-4 py-3.5 hover:bg-muted/30 transition-colors flex gap-3">
+                    <div className="w-9 h-9 rounded-full bg-muted overflow-hidden shrink-0">
+                      {post.user_profiles?.avatar_url
+                        ? <img src={post.user_profiles.avatar_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+                        : <div className="w-full h-full flex items-center justify-center text-xs font-bold">{post.user_profiles?.username?.[0]?.toUpperCase() ?? '?'}</div>}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1 mb-0.5">
+                        <span className="text-xs font-bold truncate">@{post.user_profiles?.username ?? 'user'}</span>
+                        {post.user_profiles?.verified && <BadgeCheck className="w-3 h-3 text-primary shrink-0" fill="currentColor" />}
+                        <span className="text-[10px] text-muted-foreground ml-auto shrink-0">{formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}</span>
+                      </div>
+                      <p className="text-sm line-clamp-2 leading-snug">{post.content ?? ''}</p>
+                      <div className="flex items-center gap-3 mt-1.5 text-[10px] text-muted-foreground">
+                        <span>{formatNumber(post.likes_count ?? 0)} likes</span>
+                        <span>{formatNumber(post.views_count ?? 0)} views</span>
+                        <span>{formatNumber(post.replies_count ?? 0)} replies</span>
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {/* Story viewer — pre-computed vars, no IIFE (esbuild guard) */
           {activeStoryIdx !== null && activeStory && (
             <div className="fixed inset-0 z-[500] bg-black flex items-center justify-center" onClick={() => setActiveStoryIdx(null)}>
               <div className="relative w-full max-w-sm h-full" onClick={e => e.stopPropagation()}>
