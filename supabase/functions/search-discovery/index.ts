@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { withServiceMetric } from "./_shared/observability.ts";
+import { withServiceMetric } from "../_shared/observability.ts";
 
 const url = Deno.env.get("SUPABASE_URL") ?? "";
 const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
   if (!auth?.startsWith("Bearer ")) return json({ ok: false, data: null, error: { code: "AUTH_REQUIRED", message: "Authentication required" }, request_id: requestId }, 401, requestId);
   const db = createClient(url, anonKey, { global: { headers: { Authorization: auth } } });
 
-  return withServiceMetric("search", "discovery", async () => {
+  return withServiceMetric(db, "search", "discovery", async () => {
     try {
       const { data: authData, error: authError } = await db.auth.getUser();
       if (authError || !authData.user) return json({ ok: false, data: null, error: { code: "AUTH_REQUIRED", message: "Authentication required" }, request_id: requestId }, 401, requestId);
