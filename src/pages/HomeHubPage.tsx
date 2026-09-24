@@ -62,7 +62,7 @@ export default function HomeHubPage(){
       const payload = await response.json();
       const next = Array.isArray(payload?.items) ? payload.items : [];
       if (target === 'all') {
-        setNextCursor(payload?.nextCursor ?? null);
+        setNextCursor(payload?.nextCursor ?? null); nextCursorRef.current=payload?.nextCursor ?? null;
         setHasMore(Boolean(payload?.hasMore) && next.length > 0);
       }
       return next.map((item:any)=>({ type:item.type, data:item.data }));
@@ -92,7 +92,7 @@ export default function HomeHubPage(){
         setItems(prev=>{const existing=new Set(prev.map(x=>x.data?.id).filter(Boolean)); const fresh=next.filter(x=>x.data?.id&&!existing.has(x.data.id)); setNewCount(fresh.length); return fresh.length?[...fresh,...prev]:prev;});
       } else setItems(next);
       if(target!=='all')setHasMore(next.length>=12);
-      if(target==='all') await writeHomeFeedCache({key:'home',items:next,cursor:nextCursor,updatedAt:Date.now(),scrollY:window.scrollY,anchorId:next[0]?.data?.id??null});
+      if(target==='all') await writeHomeFeedCache({key:'home',items:next,cursor:nextCursorRef.current,updatedAt:Date.now(),scrollY:window.scrollY,anchorId:next[0]?.data?.id??null});
     }catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);}}finally{if(!background)setLoading(false);}
   },[fetchTab,nextCursor]);
   useEffect(()=>{
