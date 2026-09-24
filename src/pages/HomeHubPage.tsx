@@ -143,8 +143,8 @@ export default function HomeHubPage(){
         setHasMore(Boolean(cached.cursor)||cached.items.length>6);setLoading(false);setCacheHydrated(true);
         if(cached.scrollY>0)requestAnimationFrame(()=>window.scrollTo({top:cached.scrollY,behavior:'instant' as ScrollBehavior}));
         void prefetchNext();
-      }else setCacheHydrated(true);
-      void load('all',true);
+      }else {setCacheHydrated(true);void load('all');}
+      if(cached?.items?.length)void load('all',true);
     }).catch(()=>{setCacheHydrated(true);void load('all');});
     const onScroll=()=>{window.clearTimeout(scrollTimer.current);scrollTimer.current=window.setTimeout(()=>saveHomeScroll(window.scrollY,items[0]?.data?.id??null),250);};
     window.addEventListener('scroll',onScroll,{passive:true});
