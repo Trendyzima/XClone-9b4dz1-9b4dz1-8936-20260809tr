@@ -100,6 +100,21 @@ export async function search(q: string, type: 'users' | 'posts' | 'hashtags' | '
   return api('/search', 'GET', undefined, { q, type });
 }
 export async function getFollowers(acct: string, params: TimelineParams = {}): Promise<any> { return api(`/users/${encodeURIComponent(acct)}/followers`, 'GET', undefined, params as any); }
+
+export interface FederatedDiscoveryResult { users: any[]; posts: any[]; hashtags: any[]; communities: any[]; next_cursor?: string | null; }
+
+/** Unified federated discovery contract used by the standalone Discover surface. */
+export async function searchFederatedDiscovery(q: string, limit = 20, cursor?: string, mode: 'search' | 'suggest' = 'search'): Promise<FederatedDiscoveryResult> {
+  const token = await getToken();
+  const { data, error } = await supabase.functions.invoke('search-discovery', {
+    method: 'POST',
+    body: { q, limit: Math.min(Math.max(limit, 1), 50), cursor, mode },
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (error) throw error;
+  if (!data?.ok) throw new GatewayError(0, data?.error?.message ?? 'Federated discovery failed', '/search-discovery');
+  return data.data ?? { users: [], posts: [], hashtags: [], communities: [], next_cursor: null };
+}
 export async function getFollowing(acct: string, params: TimelineParams = {}): Promise<any> { return api(`/users/${encodeURIComponent(acct)}/following`, 'GET', undefined, params as any); }
 export async function getInstance(): Promise<any> { const remote = await megalodonGatewayService.getInstance('https://mastodon.social'); return remote.instance; }
 export async function getHealth(): Promise<any> { return megalodonGatewayService.detect('https://mastodon.social'); }
