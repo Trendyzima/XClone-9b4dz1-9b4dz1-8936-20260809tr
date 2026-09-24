@@ -60,7 +60,7 @@ interface CommunityMember {
   user_profiles: { username: string; avatar_url?: string; verified: boolean; };
 }
 
-export default function CommunityPage() {
+export default function CommunityPage({ section, standalone = false }: { section?: CommPageTab | 'shop'; standalone?: boolean }) {
   const { name } = useParams<{ name: string }>();
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -84,7 +84,7 @@ export default function CommunityPage() {
 
   const shopUnlocked = useFeatureUnlock('community_shop');
   const nftUnlocked  = useFeatureUnlock('nft_badges');
-  const [activeTab, setActiveTab] = useState<CommPageTab | 'shop'>('posts');
+  const [activeTab, setActiveTab] = useState<CommPageTab | 'shop'>(section ?? 'posts');
 
   // Shop state
   const [shopProducts, setShopProducts] = useState<any[]>([]);
@@ -348,6 +348,8 @@ export default function CommunityPage() {
     });
     setShowRoleMenu(null);
   }, [community]);
+
+  useEffect(() => { if (section) setActiveTab(section); }, [section]);
 
   useEffect(() => {
     if (activeTab === 'chat' && community) {
