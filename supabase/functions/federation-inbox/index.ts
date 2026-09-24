@@ -44,7 +44,7 @@ async function verifyLegacy(req:Request,raw:string,actor:string){
   }
   if(!await crypto.subtle.verify("RSASSA-PKCS1-v1_5",key,ub64(p.signature),new TextEncoder().encode(lines.join("\n"))))throw Error("HTTP signature invalid");
 }
-async function verifyRfc9421(req:Request,raw:string,actor:string){
+async function verifyRfc9421(req:Request,raw:string,actor:string,signatureTarget?:string){
   const input=req.headers.get("signature-input"),sig=req.headers.get("signature"),digest=req.headers.get("content-digest");
   if(!input||!sig||!digest)throw Error("missing RFC9421 headers");
   const m=input.match(/^sig1=(\([^)]*\))(.*)$/);if(!m)throw Error("malformed Signature-Input");
@@ -55,11 +55,16 @@ async function verifyRfc9421(req:Request,raw:string,actor:string){
   const expected=b64(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(raw)));if(dm[1]!==expected)throw Error("Content-Digest mismatch");
   const a=await federationJson(actor);if(!actorKeyMatches(a,actor))throw Error("remote actor key invalid");
   const key=await crypto.subtle.importKey("spki",pem(a.publicKey.publicKeyPem),{name:"RSASSA-PKCS1-v1_5",hash:"SHA-256"},false,["verify"]);
-  const target=new URL(req.url).toString();
+  const target=signatureTarget || new URL(req.url).toString();
   const base=`"@method": ${req.method}\n"@target-uri": ${target}\n"content-digest": ${digest}\n"@signature-params": ${params}`;
   if(!await crypto.subtle.verify("RSASSA-PKCS1-v1_5",key,ub64(sm[1]),new TextEncoder().encode(base)))throw Error("RFC9421 signature invalid");
 }
-async function verify(req:Request,raw:string,actor:string){if(req.headers.get("signature-input"))return verifyRfc9421(req,raw,actor);return verifyLegacy(req,raw,actor);}
+async function verify(req:Request,raw:string,actor:string){
+  const forwardedUrl=req.headers.get("x-testagram-forwarded-url");
+  const internal=req.headers.get("x-testagram-internal-token")===SERVICE;
+  if(req.headers.get("signature-input")) return verifyRfc9421(req,raw,actor,internal&&forwardedUrl?forwardedUrl:undefined);
+  return verifyLegacy(req,raw,actor);
+}
 function localActorForTarget(target:string){return db.from("activitypub_actors").select("user_id,actor_id").eq("actor_id",target).maybeSingle();}
 async function cacheRemoteActor(actorUri:string,doc:any){
   const u=new URL(actorUri);
