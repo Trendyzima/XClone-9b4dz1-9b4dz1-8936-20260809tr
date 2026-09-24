@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
 import { PostCard } from '@/components/features/PostCard';
 import { supabase } from '@/lib/supabase';
@@ -17,6 +17,7 @@ function PostThreadAdBanner() { return <PageAdBanner />; }
 export default function PostThreadPage() {
   const { postId } = useParams<{ postId: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
 
   const [post, setPost] = useState(null as Post | null);
@@ -136,6 +137,14 @@ export default function PostThreadPage() {
     if (postId) void fetchPost();
   }, [postId]);
 
+  // Deep links such as /post/:id?replies=1 open the standalone conversation
+  // immediately, so shared reply links never strand the user on a summary page.
+  useEffect(() => {
+    if (post && searchParams.get('replies') === '1') {
+      openReplies();
+    }
+  }, [post?.id, searchParams]);
+
   const openReplies = () => {
     if (!postId) return;
     navigate(/^https:\/\//i.test(postId) ? `/post/${encodeURIComponent(postId)}/replies` : `/post/${postId}/replies`);
@@ -210,7 +219,7 @@ export default function PostThreadPage() {
           <div>
             <p className="font-semibold">Replies</p>
             <p className="text-sm text-muted-foreground">
-              {post.replies_count ?? 0} {post.replies_count === 1 ? 'reply' : 'replies'} · Open the independent replies page
+              View {post.replies_count ?? 0} {post.replies_count === 1 ? 'reply' : 'replies'} · Join the conversation
             </p>
           </div>
           <MessageCircle className="w-5 h-5 text-muted-foreground shrink-0" />
