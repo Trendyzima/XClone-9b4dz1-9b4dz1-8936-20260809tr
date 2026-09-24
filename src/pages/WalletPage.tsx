@@ -265,46 +265,21 @@ function PinEntryModal({ title, onConfirm, onCancel, userId }: {
 
 // ── PIN Setup Card ────────────────────────────────────────────────────────
 function PinSetupCard({ userId, pinHash, onSaved }: { userId: string; pinHash: string | null; onSaved: () => void }) {
-  const hasPin = useMemo(() => !!pinHash, [pinHash]);
-  const [mode,       setMode]    = useState('idle' as 'idle' | 'setup' | 'change' | 'remove');
-  const [oldPin,     setOldPin]  = useState('');
-  const [newPin,     setNewPin]  = useState('');
-  const [confirmPin, setConfirm] = useState('');
-  const [saving,     setSaving]  = useState(false);
-  const resetForm = () => { setMode('idle'); setOldPin(''); setNewPin(''); setConfirm(''); };
+  const hasPin = !!pinHash;
+  const [mode, setMode] = useState('idle' as 'idle' | 'setup' | 'change');
+  const [newPin, setNewPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [saving, setSaving] = useState(false);
+  const resetForm = () => { setMode('idle'); setNewPin(''); setConfirmPin(''); };
 
   const handleSave = async () => {
-    if (newPin.length !== 4 || !/^\d{4}$/.test(newPin)) { toast.error('PIN must be exactly 4 digits'); return; }
+    if (!/^\\d{4,6}$/.test(newPin)) { toast.error('PIN must be 4 to 6 digits'); return; }
     if (newPin !== confirmPin) { toast.error('PINs do not match'); return; }
-    if (hasPin && mode === 'change') {
-      const oldHash = await hashPin(oldPin);
-      if (oldHash !== pinHash) { toast.error('Current PIN is incorrect'); return; }
-    }
     setSaving(true);
-    const hash = await hashPin(newPin);
-    const { error } = await supabase.from('user_wallets').update({ wallet_pin_hash: hash }).eq('user_id', userId);
+    const { error } = await supabase.rpc('set_wallet_pin', { p_pin: newPin });
     setSaving(false);
-    if (error) { toast.error('Failed to save PIN'); return; }
-    // Track last changed in localStorage
-    try {
-      const raw = localStorage.getItem(`ts-pin-meta-${userId}`);
-      const meta = raw ? JSON.parse(raw) : {};
-      meta.lastChanged = new Date().toISOString();
-      localStorage.setItem(`ts-pin-meta-${userId}`, JSON.stringify(meta));
-    } catch { /* ignore */ }
+    if (error) { toast.error(error.message || 'Failed to save PIN'); return; }
     toast.success(hasPin ? 'PIN updated!' : 'PIN set!');
-    resetForm(); onSaved();
-  };
-
-  const handleRemove = async () => {
-    if (oldPin.length !== 4) { toast.error('Enter your current PIN'); return; }
-    const oldHash = await hashPin(oldPin);
-    if (oldHash !== pinHash) { toast.error('PIN is incorrect'); return; }
-    setSaving(true);
-    const { error } = await supabase.from('user_wallets').update({ wallet_pin_hash: null }).eq('user_id', userId);
-    setSaving(false);
-    if (error) { toast.error('Failed to remove PIN'); return; }
-    toast.success('PIN removed');
     resetForm(); onSaved();
   };
 
@@ -318,57 +293,35 @@ function PinSetupCard({ userId, pinHash, onSaved }: { userId: string; pinHash: s
             {hasPin && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-500/10 text-green-600 font-bold border border-green-500/20">Active</span>}
           </div>
           {mode === 'idle' && (
-            <div className="flex gap-3">
-              {hasPin ? (
-                <>
-                  <button onClick={() => setMode('change')} className="text-xs text-primary font-semibold hover:underline">Change</button>
-                  <button onClick={() => setMode('remove')} className="text-xs text-red-500 font-semibold hover:underline">Remove</button>
-                </>
-              ) : (
-                <button onClick={() => setMode('setup')} className="text-xs text-primary font-semibold hover:underline">Set PIN</button>
-              )}
-            </div>
+            <button onClick={() => setMode(hasPin ? 'change' : 'setup')} className="text-xs text-primary font-semibold hover:underline">
+              {hasPin ? 'Change' : 'Set PIN'}
+            </button>
           )}
         </div>
-        {mode === 'idle' && (
+        {mode === 'idle' ? (
           <p className="text-xs text-muted-foreground">
-            {hasPin ? 'Your wallet PIN is required before sending or withdrawing.' : 'Set a 4-digit PIN for extra security on withdrawals and transfers.'}
+            {hasPin ? 'Your server-verified wallet PIN protects sensitive transactions.' : 'Set a 4–6 digit PIN. The wallet stores only a server-side password hash.'}
           </p>
-        )}
-        {mode !== 'idle' && (
+        ) : (
           <div className="mt-4 space-y-3">
-            {(mode === 'change' || mode === 'remove') && (
-              <div>
-                <label className="text-xs font-semibold text-muted-foreground mb-1.5 block uppercase tracking-wide">Current PIN</label>
-                <input type="password" inputMode="numeric" maxLength={4} placeholder="••••"
-                  value={oldPin} onChange={e => setOldPin(e.target.value.replace(/\D/g,'').slice(0,4))}
-                  className="w-full h-11 px-3 rounded-xl border border-border bg-background text-sm text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/30" />
-              </div>
-            )}
-            {mode !== 'remove' && (
-              <>
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground mb-1.5 block uppercase tracking-wide">New PIN</label>
-                  <input type="password" inputMode="numeric" maxLength={4} placeholder="••••"
-                    value={newPin} onChange={e => setNewPin(e.target.value.replace(/\D/g,'').slice(0,4))}
-                    className="w-full h-11 px-3 rounded-xl border border-border bg-background text-sm text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/30" />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-muted-foreground mb-1.5 block uppercase tracking-wide">Confirm PIN</label>
-                  <input type="password" inputMode="numeric" maxLength={4} placeholder="••••"
-                    value={confirmPin} onChange={e => setConfirm(e.target.value.replace(/\D/g,'').slice(0,4))}
-                    className="w-full h-11 px-3 rounded-xl border border-border bg-background text-sm text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/30" />
-                </div>
-              </>
-            )}
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground mb-1.5 block uppercase tracking-wide">New PIN</label>
+              <input type="password" inputMode="numeric" autoComplete="new-password" maxLength={6} placeholder="••••"
+                value={newPin} onChange={e => setNewPin(e.target.value.replace(/\\D/g,'').slice(0,6))}
+                className="w-full h-11 px-3 rounded-xl border border-border bg-background text-sm text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
+            <div>
+              <label className="text-xs font-semibold text-muted-foreground mb-1.5 block uppercase tracking-wide">Confirm PIN</label>
+              <input type="password" inputMode="numeric" autoComplete="new-password" maxLength={6} placeholder="••••"
+                value={confirmPin} onChange={e => setConfirmPin(e.target.value.replace(/\\D/g,'').slice(0,6))}
+                className="w-full h-11 px-3 rounded-xl border border-border bg-background text-sm text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-primary/30" />
+            </div>
             <div className="flex gap-3">
-              <button onClick={resetForm} className="flex-1 py-2.5 border border-border rounded-xl font-semibold text-sm hover:bg-muted transition-colors">Cancel</button>
-              <button onClick={mode === 'remove' ? handleRemove : handleSave} disabled={saving}
-                className={`flex-1 py-2.5 rounded-xl font-semibold text-sm disabled:opacity-50 flex items-center justify-center gap-2 ${
-                  mode === 'remove' ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-primary text-primary-foreground hover:opacity-90'
-                } transition-opacity`}>
+              <button onClick={resetForm} className="flex-1 py-2.5 border border-border rounded-xl font-semibold text-sm hover:bg-muted">Cancel</button>
+              <button onClick={handleSave} disabled={saving}
+                className="flex-1 py-2.5 bg-primary text-primary-foreground rounded-xl font-semibold text-sm disabled:opacity-50 flex items-center justify-center gap-2">
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Lock className="w-4 h-4" />}
-                {saving ? 'Saving…' : mode === 'remove' ? 'Remove PIN' : 'Save PIN'}
+                {saving ? 'Saving…' : 'Save PIN'}
               </button>
             </div>
           </div>
@@ -3737,7 +3690,7 @@ function WalletAdBanner() { return <PageAdBanner />; }
 export default function WalletPage({ initialTab, standaloneTitle }: { initialTab?: ActiveTab; standaloneTitle?: string } = {}) {
   useSEO({ noindex: true, title: 'Wallet', url: '/wallet' });
   const { user }                = useAuth();
-  const { wallet, fetchWallet } = useWallet();
+  const { wallet, walletSecurity, fetchWallet } = useWallet();
   const [showTour, setShowTour] = useState(false);
   const [canonicalSavingsBalance, setCanonicalSavingsBalance] = useState(0);
   useEffect(() => {
@@ -3846,8 +3799,8 @@ export default function WalletPage({ initialTab, standaloneTitle }: { initialTab
     if (user) await supabase.rpc('set_wallet_preferred_currency', { p_currency: c });
   };
 
-  const pinHash: string | null               = (wallet as any)?.wallet_pin_hash         ?? null;
-  const biometricCredentialId: string | null  = (wallet as any)?.biometric_credential_id ?? null;
+  const pinHash: string | null               = walletSecurity?.pin_hash ?? null;
+  const biometricCredentialId: string | null  = walletSecurity?.biometric_credential_id ?? null;
   const [showPinModal, setShowPinModal]       = useState(false);
 
   const [phone,    setPhone]    = useState('');
@@ -4367,7 +4320,7 @@ export default function WalletPage({ initialTab, standaloneTitle }: { initialTab
           <WalletDashboard />
         <AdvertiserSurface variant="wallet" />
           {user && wallet && <SpendLimitCard userId={user.id} wallet={wallet} onSaved={fetchWallet} />}
-          {user && wallet && <PinSetupCard userId={user.id} pinHash={(wallet as any)?.wallet_pin_hash ?? null} onSaved={fetchWallet} />}
+          {user && wallet && <PinSetupCard userId={user.id} pinHash={pinHash} onSaved={fetchWallet} />}
           {user && wallet && <BiometricCard userId={user.id} credentialId={(wallet as any)?.biometric_credential_id ?? null} onSaved={fetchWallet} />}
           {user && <PayoutScheduleCard userId={user.id} defaultPhone={wallet?.mpesa_phone ?? null} />}
           <WalletNotificationsHub userId={user.id} />
