@@ -50,11 +50,12 @@ export default function PlatformInboxPage() {
   const [hasMore, setHasMore] = useState(true);
   const PAGE_SIZE = 30;
 
-  const fetchMessages = useCallback(async (append = false) => {
+  const fetchMessages = useCallback(async (offset = 0) => {
     if (!user) return;
+    const append = offset > 0;
     if (append) setLoadingMore(true); else setLoading(true);
     setError(null);
-    const from = append ? messages.length : 0;
+    const from = offset;
     const to = from + PAGE_SIZE - 1;
     const { data, error: fetchError } = await supabase.from('platform_inbox')
       .select('id,user_id,type,subject,body,icon_emoji,cta_label,cta_url,read,sent_at,created_at,dedupe_key,metadata,generation_version')
@@ -68,7 +69,7 @@ export default function PlatformInboxPage() {
       setHasMore(next.length === PAGE_SIZE);
     }
     if (append) setLoadingMore(false); else setLoading(false);
-  }, [user, messages.length]);
+  }, [user]);
 
   useEffect(() => {
     if (!user) return;
@@ -167,7 +168,7 @@ export default function PlatformInboxPage() {
             </article>
           ); })}</div>
           {filter === 'all' && hasMore && (
-            <div className="flex justify-center pt-2"><Button variant="outline" onClick={() => void fetchMessages(true)} disabled={loadingMore} className="rounded-xl">{loadingMore ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}Load more</Button></div>
+            <div className="flex justify-center pt-2"><Button variant="outline" onClick={() => void fetchMessages(messages.length)} disabled={loadingMore} className="rounded-xl">{loadingMore ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}Load more</Button></div>
           )}
           </>
         )}
