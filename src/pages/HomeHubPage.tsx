@@ -51,7 +51,7 @@ export default function HomeHubPage(){
     if(target==='all'){
       const token = (await supabase.auth.getSession()).data.session?.access_token;
       const params = new URLSearchParams({ limit: '6' });
-      if (nextCursor) params.set('before', nextCursor);
+      if (cursorOverride) params.set('before', cursorOverride);
       const response = await fetch('/api/home-feed?'+params.toString(), {
         headers: token ? { Authorization: 'Bearer '+token } : {},
       });
@@ -84,7 +84,7 @@ export default function HomeHubPage(){
   const load=useCallback(async(target:Tab)=>{setLoading(true);setNextCursor(null);setHasMore(true);try{const next=await fetchTab(target,0);setItems(next);if(target!=='all')setHasMore(next.length>=12);}catch(e){console.error('[home-hub]',e);setItems([]);setHasMore(false);}finally{setLoading(false);}},[fetchTab]);
   useEffect(()=>{void load(tab);},[tab,load]);
 
-  const loadMore=useCallback(async()=>{if(!hasMore||loadingMore)return false;setLoadingMore(true);try{const next=await fetchTab(tab,1);setItems(prev=>[...prev,...next]);if(tab!=='all')setHasMore(next.length>=12);return next.length>0;}finally{setLoadingMore(false);}},[fetchTab,hasMore,loadingMore,tab,nextCursor]);
+  const loadMore=useCallback(async()=>{if(!hasMore||loadingMore)return false;setLoadingMore(true);try{const next=await fetchTab(tab,1,nextCursor);setItems(prev=>[...prev,...next]);if(tab!=='all')setHasMore(next.length>=12);return next.length>0;}finally{setLoadingMore(false);}},[fetchTab,hasMore,loadingMore,tab,nextCursor]);
   const {lastElementRef}=useInfiniteScroll(loadMore);
   const refresh=async()=>{setRefreshing(true);await load(tab);setRefreshing(false);};
 
