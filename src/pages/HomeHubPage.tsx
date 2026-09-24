@@ -11,7 +11,7 @@ import { useSEO } from '@/hooks/useSEO';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import * as federation from '@/api/federation';
 import { Loader2, Sparkles, Users, ShoppingBag, BarChart3, RefreshCw, ArrowRight } from 'lucide-react';
-import { FederatedOrganicInjection } from '@/pages/FederatedOrganicDiscoveryPage';
+import { FederatedOrganicInjection } from '@/components/features/FederatedOrganicDiscovery';
 
 type Tab = 'all'|'following'|'explore'|'media'|'communities'|'polls'|'shopping'|'federated';
 type Item = { type:'post'|'thread'|'community'|'poll'|'product'|'fedpost'; data:any };
