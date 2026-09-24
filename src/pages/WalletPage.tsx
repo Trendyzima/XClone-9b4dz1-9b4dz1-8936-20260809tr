@@ -3734,7 +3734,7 @@ const WALLET_TABS: { key: ActiveTab; label: string }[] = [
 
 function WalletAdBanner() { return <PageAdBanner />; }
 
-export default function WalletPage() {
+export default function WalletPage({ initialTab, standaloneTitle }: { initialTab?: ActiveTab; standaloneTitle?: string } = {}) {
   useSEO({ noindex: true, title: 'Wallet', url: '/wallet' });
   const { user }                = useAuth();
   const { wallet, fetchWallet } = useWallet();
@@ -3757,7 +3757,7 @@ export default function WalletPage() {
   const [searchParams] = useSearchParams();
 
   const [activeTab, setActiveTab] = useState(() => {
-    const t = searchParams.get('tab');
+    const t = initialTab ?? searchParams.get('tab');
     if (t === 'send')      return 'send';
     if (t === 'history')   return 'history';
     if (t === 'analytics') return 'analytics';
@@ -4057,13 +4057,13 @@ export default function WalletPage() {
         <InstallmentPanel userId={user.id} walletBalance={walletBalance} pinHash={pinHash} currency={currency} onClose={() => setShowInstallment(false)} />
       )}
 
-      <TopBar title="My Wallet" showBack />
+      <TopBar title={standaloneTitle ?? 'My Wallet'} showBack />
       <WalletAdBanner />
-      <div className="max-w-2xl mx-auto px-4 pt-2 pb-1 flex justify-end">
+      {!standaloneTitle && <div className="max-w-2xl mx-auto px-4 pt-2 pb-1 flex justify-end">
         <WalletSearchShortcut onNavigate={setActiveTab} />
-      </div>
+      </div>}
 
-      <div className="sticky top-14 z-30 bg-background/95 backdrop-blur-sm border-b border-border">
+      {!standaloneTitle && <div className="sticky top-14 z-30 bg-background/95 backdrop-blur-sm border-b border-border">
         <div className="flex max-w-2xl mx-auto overflow-x-auto scrollbar-hide">
           {WALLET_TABS.map(t => (
             <button key={t.key} onClick={() => setActiveTab(t.key)}
@@ -4079,7 +4079,7 @@ export default function WalletPage() {
             </button>
           ))}
         </div>
-      </div>
+      </div>}
 
       <div className="max-w-2xl mx-auto p-4 space-y-5">
         {activeTab === 'mpesa'     && user && <MpesaFullTab userId={user.id} currency={currency} wallet={wallet} onSaved={fetchWallet} />}
