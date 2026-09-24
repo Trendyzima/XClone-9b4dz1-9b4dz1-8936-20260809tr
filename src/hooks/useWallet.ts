@@ -32,6 +32,7 @@ export function useWallet() {
   const { user } = useAuth();
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [phoneIdentity, setPhoneIdentity] = useState<WalletPhoneIdentity | null>(null);
+  const [walletSecurity, setWalletSecurity] = useState<{ pin_hash: string | null; biometric_credential_id: string | null; biometric_enabled: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,6 +40,7 @@ export function useWallet() {
     if (!user) {
       setWallet(null);
       setPhoneIdentity(null);
+      setWalletSecurity(null);
       setLoading(false);
       return;
     }
@@ -62,6 +64,15 @@ export function useWallet() {
       if (!gatewayWallet) throw new Error('Payment wallet is not provisioned for this account');
 
       const resolvedWallet = gatewayWallet as Wallet;
+
+      const { data: security, error: securityError } = await supabase
+        .from('wallet_security')
+        .select('pin_hash,biometric_credential_id,biometric_enabled')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (securityError) throw securityError;
+      setWalletSecurity(security as typeof walletSecurity);
 
       const { data: identity, error: identityError } = await supabase
         .from('wallet_phone_identities')
@@ -137,6 +148,7 @@ export function useWallet() {
     error,
     phoneIdentity,
     phoneVerified: !!phoneIdentity?.verified_at,
+    walletSecurity,
     requestPhoneOtp,
     verifyPhoneOtp,
     fetchWallet,
