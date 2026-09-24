@@ -16,7 +16,7 @@ const json = (body: unknown, status = 200, requestId = crypto.randomUUID(), extr
 function limitOf(value: unknown) { const n = Number(value ?? 20); return Math.min(50, Math.max(1, Number.isFinite(n) ? Math.trunc(n) : 20)); }
 function decodeCursor(value: unknown) { if (typeof value !== "string" || !value) return 0; try { const n = Number(atob(value)); return Number.isFinite(n) && n >= 0 ? Math.trunc(n) : 0; } catch { return 0; } }
 function encodeCursor(value: number) { return btoa(String(value)); }
-function cleanQuery(value: unknown) { const q = typeof value === "string" ? value.trim().replace(/[,%()]/g, " ").replace(/\s+/g, " ") : ""; if (!q || q.length > 120) throw new Error("INVALID_QUERY"); return q; }
+function cleanQuery(value: unknown) { const q = typeof value === "string" ? value.trim().replace(/[,%()]/g, " ").replace(/\s+/g, " ") : ""; if (q.length > 120) throw new Error("INVALID_QUERY"); return q; }
 
 Deno.serve(async (req) => {
   const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
