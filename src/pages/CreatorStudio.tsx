@@ -598,7 +598,7 @@ export default function CreatorStudio({ section = 'overview', standalone = false
         {/* Studio tabs */}
         <div className="flex bg-muted/30 rounded-xl p-1 gap-1 overflow-x-auto scrollbar-hide">
           {(['overview', 'analytics', 'videos', 'earnings', 'revenue'] as const).map(tab => (
-            <button key={tab} onClick={() => setActiveStudioTab(tab)}
+            <button key={tab} onClick={() => { setActiveStudioTab(tab); navigate(`/creator-studio/${tab}`); }}
               className={`flex-1 py-2 rounded-lg text-xs font-semibold capitalize transition-all whitespace-nowrap ${
                 activeStudioTab === tab ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'
               }`}>
