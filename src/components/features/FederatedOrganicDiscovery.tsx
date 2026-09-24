@@ -4,6 +4,12 @@ import { Globe, UserPlus, Sparkles } from 'lucide-react';
 import * as federation from '@/api/federation';
 import { toast } from 'sonner';
 
+function stripHtml(value: unknown) { return String(value ?? '').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim(); }
+function actorFrom(item:any) {
+  const raw=item.raw_object?.attributedTo; const uri=String(item.actor_uri || (typeof raw==='string'?raw:raw?.id) || '');
+  const fallback=uri.split('/').filter(Boolean).pop() || 'remote-user';
+  return item.remote_account ?? { actor_uri:uri, username:fallback, display_name:fallback, domain: (()=>{try{return new URL(uri).hostname}catch{return ''}})() };
+}
 export function FederatedOrganicCard({ item, onFollow }: { item:any; onFollow?: (actor:string)=>void }) {
   const navigate=useNavigate(); const [following,setFollowing]=useState(false); const actor=actorFrom(item);
   const follow=async(e:MouseEvent)=>{e.stopPropagation(); if(following)return; try{await federation.follow(actor.actor_uri);setFollowing(true);onFollow?.(actor.actor_uri);toast.success('Follow request sent')}catch(err:any){toast.error(err?.message??'Follow failed')}};
