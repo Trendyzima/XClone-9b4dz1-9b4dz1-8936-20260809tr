@@ -981,12 +981,12 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
           <div className="flex justify-between mt-3 max-w-md">
             <button
               className="flex items-center space-x-2 text-muted-foreground hover:text-primary transition-colors group"
-              onClick={(e) => { e.stopPropagation(); isFederatedPost ? navigate(federatedProfilePath()) : navigate(`/post/${interactionPostId}/replies`); }}
+              onClick={(e) => { e.stopPropagation(); navigate(`/post/${encodeURIComponent(interactionPostId)}/replies`); }}
             >
               <div className="p-2 rounded-full group-hover:bg-primary/10 transition-colors">
                 <MessageCircle className="w-5 h-5" />
               </div>
-              <span onClick={(e) => { e.stopPropagation(); isFederatedPost ? navigate(federatedProfilePath()) : navigate(`/post/${interactionPostId}/replies`); }} className="text-sm cursor-pointer">{formatNumber(repliesCount)}</span>
+              <span onClick={(e) => { e.stopPropagation(); navigate(`/post/${encodeURIComponent(interactionPostId)}/replies`); }} className="text-sm cursor-pointer">{formatNumber(repliesCount)}</span>
               
             </button>
 
