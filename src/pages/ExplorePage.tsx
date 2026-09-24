@@ -1,5 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react';
+import { FederatedOrganicInjection } from '@/components/features/FederatedOrganicDiscovery';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { useNavigate } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
@@ -1069,6 +1070,7 @@ export default function ExplorePage() {
       <div className="border-b border-border bg-background">
         <div className="px-3 py-2 flex gap-2 overflow-x-auto scrollbar-hide">
           {[
+            { label: 'Fediverse Discovery', icon: Globe2, path: '/fediverse/organic-discovery' },
             { label: 'Search', icon: Search, path: '/search' },
             { label: 'Hashtags', icon: Hash, path: '/hashtags' },
             { label: 'Creators', icon: UsersIcon, path: '/discover' },
@@ -1082,6 +1084,8 @@ export default function ExplorePage() {
           ))}
         </div>
       </div>
+
+      <FederatedOrganicInjection surface="explore" />
 
       {/* ── Inline Mixed Search Results ──────────────────────────── */}
       {(inlineSearchLoading || inlineSearchResults) && searchQuery.trim().length >= 2 && (
