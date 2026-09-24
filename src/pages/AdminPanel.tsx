@@ -356,7 +356,7 @@ export default function AdminPanel({ section = 'overview', standalone = false }:
         </div>
 
         {/* Main Tabs */}
-        <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as 'overview' | 'ads' | 'users' | 'fraud')} className="w-full">
+        <Tabs value={activeTab} onValueChange={(value) => { const next = value as 'overview' | 'ads' | 'users' | 'fraud'; setActiveTab(next); navigate(`/admin/${next === 'ads' ? 'ads-management' : next}`); }} className="w-full">
           <TabsList className="grid grid-cols-5 w-full h-auto p-1">
             <TabsTrigger value="overview" className="text-xs py-2">Overview</TabsTrigger>
             
