@@ -11,9 +11,10 @@ type Section = 'posts'|'threads'|'replies'|'media'|'videos'|'likes'|'followers'|
 const labels: Record<Section,string> = {posts:'Posts',threads:'Threads',replies:'Replies',media:'Media',videos:'Videos',likes:'Likes',followers:'Followers',following:'Following'};
 const getSection=(p:string):Section=>{const s=p.split('/').filter(Boolean).pop()?.toLowerCase() as Section;return s&&s in labels?s:'posts';};
 
-export default function ProfileSectionPage(){
+export default function ProfileSectionPage({section: sectionProp}: {section?: Section}){
   const {username}=useParams(); const location=useLocation(); const navigate=useNavigate();
-  const section=useMemo(()=>getSection(location.pathname),[location.pathname]);
+  const pathSection=useMemo(()=>getSection(location.pathname),[location.pathname]);
+  const section=sectionProp ?? pathSection;
   const [profile,setProfile]=useState<any>(null); const [items,setItems]=useState<any[]>([]);
   const [loading,setLoading]=useState(true); const [error,setError]=useState<string|null>(null);
 
@@ -25,13 +26,13 @@ export default function ProfileSectionPage(){
     setProfile(p.data);
     try{
       let rows:any[]=[];
-      if(section==='posts'||section==='videos'){const q=await supabase.from('posts').select('*, profiles!posts_author_id_fkey(*)').eq('author_id',p.data.id).is('deleted_at',null).order('created_at',{ascending:false});rows=q.data??[];if(section==='videos')rows=rows.filter(x=>x.is_video&&x.video_url);}
-      else if(section==='threads'){const q=await supabase.from('threads').select('*').eq('owner_id',p.data.id).is('deleted_at',null).order('created_at',{ascending:false});rows=q.data??[];}
-      else if(section==='replies')rows=await listProfileReplies(p.data.id,100);
-      else if(section==='likes')rows=await listProfileLikes(p.data.id,100);
-      else if(section==='media'){const q=await supabase.from('posts').select('*, profiles!posts_author_id_fkey(*)').eq('author_id',p.data.id).is('deleted_at',null).or('image_url.not.is.null,video_url.not.is.null,media_urls.neq.[]').order('created_at',{ascending:false});rows=q.data??[];}
-      else if(section==='followers'){const q=await supabase.from('follows').select('follower:profiles!follows_follower_id_fkey(*)').eq('following_id',p.data.id);rows=(q.data??[]).map((x:any)=>x.follower).filter(Boolean);}
-      else {const q=await supabase.from('follows').select('following:profiles!follows_following_id_fkey(*)').eq('follower_id',p.data.id);rows=(q.data??[]).map((x:any)=>x.following).filter(Boolean);}
+      if(section==='posts'||section==='videos'){const q=await supabase.from('posts').select('*, profiles!posts_author_id_fkey(*)').eq('author_id',p.data.id).is('deleted_at',null).order('created_at',{ascending:false});if(q.error)throw q.error;rows=q.data??[];if(section==='videos')rows=rows.filter(x=>x.is_video&&x.video_url);}
+      else if(section==='threads'){const q=await supabase.from('threads').select('*').eq('owner_id',p.data.id).is('deleted_at',null).order('created_at',{ascending:false});if(q.error)throw q.error;rows=q.data??[];}
+      else if(section==='replies'){rows=await listProfileReplies(p.data.id,100);}
+      else if(section==='likes'){rows=await listProfileLikes(p.data.id,100);}
+      else if(section==='media'){const q=await supabase.from('posts').select('*, profiles!posts_author_id_fkey(*)').eq('author_id',p.data.id).is('deleted_at',null).or('image_url.not.is.null,video_url.not.is.null,media_urls.neq.[]').order('created_at',{ascending:false});if(q.error)throw q.error;rows=q.data??[];}
+      else if(section==='followers'){const q=await supabase.from('follows').select('follower_id').eq('following_id',p.data.id);if(q.error)throw q.error;const ids=(q.data??[]).map((x:any)=>x.follower_id).filter(Boolean);if(ids.length){const pr=await supabase.from('profiles').select('*').in('id',ids);if(pr.error)throw pr.error;rows=pr.data??[];}}
+      else {const q=await supabase.from('follows').select('following_id').eq('follower_id',p.data.id);if(q.error)throw q.error;const ids=(q.data??[]).map((x:any)=>x.following_id).filter(Boolean);if(ids.length){const pr=await supabase.from('profiles').select('*').in('id',ids);if(pr.error)throw pr.error;rows=pr.data??[];}}
       if(!cancelled){setItems(rows);setLoading(false);}
     }catch(e){if(!cancelled){setError(e instanceof Error?e.message:'Unable to load this section');setItems([]);setLoading(false);}}
   })();return()=>{cancelled=true}},[username,section]);

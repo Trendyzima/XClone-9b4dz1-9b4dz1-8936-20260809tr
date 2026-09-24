@@ -26,6 +26,14 @@ const NotificationsPage = lazy(() => import('@/pages/NotificationsPage'));
 const MessagesPage = lazy(() => import('@/pages/MessagesPage'));
 const ProfilePage = lazy(() => import('@/pages/ProfilePage'));
 const ProfileSectionPage = lazy(() => import('@/pages/ProfileSectionPage'));
+const ProfilePostsPage = lazy(() => import('@/pages/profile/ProfilePostsPage'));
+const ProfileThreadsPage = lazy(() => import('@/pages/profile/ProfileThreadsPage'));
+const ProfileRepliesPage = lazy(() => import('@/pages/profile/ProfileRepliesPage'));
+const ProfileMediaPage = lazy(() => import('@/pages/profile/ProfileMediaPage'));
+const ProfileVideosPage = lazy(() => import('@/pages/profile/ProfileVideosPage'));
+const ProfileLikesPage = lazy(() => import('@/pages/profile/ProfileLikesPage'));
+const ProfileFollowersPage = lazy(() => import('@/pages/profile/ProfileFollowersPage'));
+const ProfileFollowingPage = lazy(() => import('@/pages/profile/ProfileFollowingPage'));
 const ProfileFeaturesPage = lazy(() => import('@/pages/ProfileFeaturesPage'));
 const SearchPage = lazy(() => import('@/pages/SearchPage'));
 const SpacesPage = lazy(() => import('@/pages/SpacesPage'));
@@ -187,14 +195,14 @@ function AppearanceBootstrap() {
   return null;
 }
 function AppInner(){useCreatorTierAlert();useEffect(()=>{applyAppearance(getStoredAppearance());const mq=window.matchMedia('(prefers-color-scheme: dark)');const handler=()=>{const a=getStoredAppearance();if(a.mode==='system')applyAppearance(a)};mq.addEventListener('change',handler);return()=>mq.removeEventListener('change',handler)},[]);useEffect(()=>startTestagramHeartbeat('web-v1'),[]);useEffect(()=>{if(!Capacitor.isNativePlatform())return;(async()=>{try{await StatusBar.setOverlaysWebView({overlay:true});await StatusBar.setStyle({style:Style.Dark});try{await StatusBar.setBackgroundColor({color:'#00000000'})}catch{}}catch{try{await StatusBar.hide()}catch{}}})()},[]);return <AuthProvider><AppearanceBootstrap/><div className="flex min-h-screen bg-background overflow-x-hidden pb-20"><Sidebar/><main className="flex-1 max-w-2xl w-full border-x border-border overflow-x-hidden"><Suspense fallback={<PageLoader/>}><Routes><Route path="/" element={<HomePage/>}/><Route path="/auth" element={<AuthPage/>}/><Route path="/videos" element={<VideosPage/>}/><Route path="/shorts" element={<FastPixShortsPage/>}/><Route path="/explore" element={<ExplorePage/>}/><Route path="/notifications" element={<NotificationsPage/>}/><Route path="/messages" element={<MessagesPage/>}/><Route path="/spaces" element={<SpacesPage/>}/><Route path="/profile/:username" element={<ProfilePage/>}/>
-<Route path="/profile/:username/posts" element={<ProfileSectionPage/>}/>
-<Route path="/profile/:username/threads" element={<ProfileSectionPage/>}/>
-<Route path="/profile/:username/replies" element={<ProfileSectionPage/>}/>
-<Route path="/profile/:username/media" element={<ProfileSectionPage/>}/>
-<Route path="/profile/:username/videos" element={<ProfileSectionPage/>}/>
-<Route path="/profile/:username/likes" element={<ProfileSectionPage/>}/>
-<Route path="/profile/:username/followers" element={<ProfileSectionPage/>}/>
-<Route path="/profile/:username/following" element={<ProfileSectionPage/>}/>
+<Route path="/profile/:username/posts" element={<ProfilePostsPage/>}/>
+<Route path="/profile/:username/threads" element={<ProfileThreadsPage/>}/>
+<Route path="/profile/:username/replies" element={<ProfileRepliesPage/>}/>
+<Route path="/profile/:username/media" element={<ProfileMediaPage/>}/>
+<Route path="/profile/:username/videos" element={<ProfileVideosPage/>}/>
+<Route path="/profile/:username/likes" element={<ProfileLikesPage/>}/>
+<Route path="/profile/:username/followers" element={<ProfileFollowersPage/>}/>
+<Route path="/profile/:username/following" element={<ProfileFollowingPage/>}/>
 <Route path="/profile/:username/podcasts" element={<ProfilePage/>}/>
 <Route path="/profile/:username/series" element={<ProfilePage/>}/>
 <Route path="/profile/:username/tips" element={<ProfilePage/>}/>
