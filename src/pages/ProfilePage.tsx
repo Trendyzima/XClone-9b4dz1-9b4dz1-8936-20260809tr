@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { VerifiedTick } from '@/components/ui/VerifiedTick';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsRegulator } from '@/hooks/useFeatureUnlock';
@@ -228,6 +228,7 @@ export default function ProfilePage() {
   const { username } = useParams();
   const { user: currentUser } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   // ── CRITICAL: All hooks must be at top level — never after conditional returns ──
   const isRegulator = useIsRegulator();
   const { isActive: isPremiumUser } = usePremium();
@@ -245,7 +246,15 @@ export default function ProfilePage() {
   const [media, setMedia] = useState([]);
   const [likedPosts, setLikedPosts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('Posts');
+  const activeTab = (() => {
+    const section = location.pathname.split('/').filter(Boolean).pop()?.toLowerCase();
+    const byPath: Record<string, string> = {
+      posts: 'Posts', threads: 'Threads', replies: 'Replies', media: 'Media', videos: 'Videos',
+      podcasts: 'Podcasts', series: 'Series', likes: 'Likes', tips: 'Tips', gifts: 'Gifts',
+      followers: 'Followers', following: 'Following', analytics: 'Analytics',
+    };
+    return byPath[section ?? ''] ?? 'Posts';
+  })();
   const [isFollowing, setIsFollowing] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [verifyBannerDismissed, setVerifyBannerDismissed] = useState(false);
@@ -748,29 +757,27 @@ export default function ProfilePage() {
       setM('og:title', title); setM('og:description', desc); setM('og:image', img);
       setM('og:url', `${window.location.origin}/profile/${profileData.username}`);
 
-      // Phase 1: critical path — posts + threads + media (renders the UI)
-      await Promise.all([
-        fetchPosts(profileData.id),
-        fetchThreads(profileData.id),
-        fetchMedia(profileData.id),
-      ]);
+      // Route-owned data lifecycle: load only the collection represented by the current profile route.
+      const loaders: Record<string, () => Promise<unknown>> = {
+        Posts: () => fetchPosts(profileData.id),
+        Threads: () => fetchThreads(profileData.id),
+        Replies: () => fetchReplies(profileData.id),
+        Media: () => fetchMedia(profileData.id),
+        Videos: () => fetchPosts(profileData.id),
+        Likes: () => fetchLikedPosts(profileData.id),
+        Followers: () => fetchFollowers(profileData.id),
+        Following: () => fetchFollowing(profileData.id),
+        Tips: () => Promise.all([fetchTipHistory(profileData.id), fetchTipGoal(profileData.id), fetchProfileViews7d(profileData.id)]),
+        Gifts: () => fetchGiftHistory(profileData.id),
+        Podcasts: () => fetchProfilePodcasts(profileData.id),
+        Series: () => fetchProfileSeries(profileData.id),
+        Analytics: () => Promise.all([fetchProfileStats(profileData.id), fetchPostImpressions(profileData.id)]),
+      };
+      await loaders[activeTab]?.();
+      // Small shared header lifecycle only; content collections remain route-owned.
+      await Promise.all([fetchHighlights(profileData.id), fetchSubscription(profileData.id)]);
+      if (activeTab === 'Posts' || activeTab === 'Videos') await trackProfileView(profileData.id);
       setLoading(false);
-      // Phase 2: background loads — deferred, non-blocking
-      Promise.all([
-        fetchReplies(profileData.id),
-        fetchLikedPosts(profileData.id),
-        fetchFollowers(profileData.id),
-        fetchFollowing(profileData.id),
-        fetchProfileStats(profileData.id),
-        fetchHighlights(profileData.id),
-        fetchTipHistory(profileData.id),
-        fetchTipGoal(profileData.id),
-        fetchProfileViews7d(profileData.id),
-        fetchSubscription(profileData.id),
-        trackProfileView(profileData.id),
-        fetchGiftHistory(profileData.id),
-        fetchPostImpressions(profileData.id),
-      ]).catch(() => {});
       if (currentUser && currentUser.id !== profileData.id) checkBlockMuteStatus(profileData.id);
     } catch (error) {
       console.error('Error fetching profile:', error);
@@ -894,8 +901,8 @@ export default function ProfilePage() {
     navigate(`/messages?to=${profile.username}`);
   };
 
-  useEffect(() => { if (activeTab === 'Podcasts' && profile?.id && !podcastsFetched) fetchProfilePodcasts(profile.id); }, [activeTab, profile?.id, podcastsFetched]);
-  useEffect(() => { if (activeTab === 'Series' && profile?.id && !profileSeriesFetched) fetchProfileSeries(profile.id); }, [activeTab, profile?.id, profileSeriesFetched]);
+  useEffect(() => { if (profile?.id && activeTab === 'Podcasts' && !podcastsFetched) void fetchProfilePodcasts(profile.id); }, [activeTab, profile?.id, podcastsFetched]);
+  useEffect(() => { if (profile?.id && activeTab === 'Series' && !profileSeriesFetched) void fetchProfileSeries(profile.id); }, [activeTab, profile?.id, profileSeriesFetched]);
 
   if (loading) return <ProfileSkeleton />;
 
@@ -1315,10 +1322,10 @@ export default function ProfilePage() {
           )}
 
           <div className="flex gap-4">
-            <button onClick={() => setActiveTab('Following')} className="hover:underline">
+            <button onClick={() => navigate(`/profile/${profile.username}/following`)} className="hover:underline">
               <span className="font-bold">{formatNumber(profile.following_count)}</span> <span className="text-muted-foreground">Following</span>
             </button>
-            <button onClick={() => setActiveTab('Followers')} className="hover:underline">
+            <button onClick={() => navigate(`/profile/${profile.username}/followers`)} className="hover:underline">
               <span className="font-bold">{formatNumber(profile.follower_count)}</span> <span className="text-muted-foreground">Followers</span>
             </button>
           </div>
@@ -1471,12 +1478,15 @@ export default function ProfilePage() {
       {/* Tabs */}
       <div className="sticky top-14 z-30 bg-background border-b border-border">
         <div className="flex overflow-x-auto scrollbar-hide">
-          {tabs.map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)}
-              className={`flex-shrink-0 px-4 py-4 font-semibold transition-colors border-b-2 ${activeTab === tab ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:bg-muted/50'}`}>
-              {tab}
-            </button>
-          ))}
+          {tabs.map(tab => {
+            const slug = tab.toLowerCase();
+            return (
+              <button key={tab} onClick={() => navigate(`/profile/${profile.username}/${slug}`)}
+                className={`flex-shrink-0 px-4 py-4 font-semibold transition-colors border-b-2 ${activeTab === tab ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:bg-muted/50'}`}>
+                {tab}
+              </button>
+            );
+          })}
         </div>
       </div>
 
