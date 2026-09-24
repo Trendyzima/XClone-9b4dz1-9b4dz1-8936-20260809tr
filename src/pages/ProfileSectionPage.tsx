@@ -26,11 +26,11 @@ export default function ProfileSectionPage({section: sectionProp}: {section?: Se
     setProfile(p.data);
     try{
       let rows:any[]=[];
-      if(section==='posts'||section==='videos'){const q=await supabase.from('posts').select('*, profiles!posts_author_id_fkey(*)').eq('author_id',p.data.id).is('deleted_at',null).order('created_at',{ascending:false});if(q.error)throw q.error;rows=q.data??[];if(section==='videos')rows=rows.filter(x=>x.is_video&&x.video_url);}
+      if(section==='posts'||section==='videos'){const q=await supabase.from('posts').select('*').eq('author_id',p.data.id).is('deleted_at',null).order('created_at',{ascending:false}).limit(100);if(q.error)throw q.error;rows=(q.data??[]).map((row:any)=>({...row,profiles:p.data}));if(section==='videos')rows=rows.filter((x:any)=>x.is_video&&x.video_url);}
       else if(section==='threads'){const q=await supabase.from('threads').select('*').eq('owner_id',p.data.id).is('deleted_at',null).order('created_at',{ascending:false});if(q.error)throw q.error;rows=q.data??[];}
       else if(section==='replies'){rows=await listProfileReplies(p.data.id,100);}
       else if(section==='likes'){rows=await listProfileLikes(p.data.id,100);}
-      else if(section==='media'){const q=await supabase.from('posts').select('*, profiles!posts_author_id_fkey(*)').eq('author_id',p.data.id).is('deleted_at',null).or('image_url.not.is.null,video_url.not.is.null,media_urls.neq.[]').order('created_at',{ascending:false});if(q.error)throw q.error;rows=q.data??[];}
+      else if(section==='media'){const q=await supabase.from('posts').select('*').eq('author_id',p.data.id).is('deleted_at',null).or('image_url.not.is.null,video_url.not.is.null,media_count.gt.0').order('created_at',{ascending:false}).limit(100);if(q.error)throw q.error;rows=(q.data??[]).map((row:any)=>({...row,profiles:p.data}));}
       else if(section==='followers'){const q=await supabase.from('follows').select('follower_id').eq('following_id',p.data.id);if(q.error)throw q.error;const ids=(q.data??[]).map((x:any)=>x.follower_id).filter(Boolean);if(ids.length){const pr=await supabase.from('profiles').select('*').in('id',ids);if(pr.error)throw pr.error;rows=pr.data??[];}}
       else {const q=await supabase.from('follows').select('following_id').eq('follower_id',p.data.id);if(q.error)throw q.error;const ids=(q.data??[]).map((x:any)=>x.following_id).filter(Boolean);if(ids.length){const pr=await supabase.from('profiles').select('*').in('id',ids);if(pr.error)throw pr.error;rows=pr.data??[];}}
       if(!cancelled){setItems(rows);setLoading(false);}
