@@ -360,7 +360,12 @@ function BiometricCard({ userId, credentialId, onSaved }: { userId: string; cred
         },
       }) as PublicKeyCredential;
       const credId = btoa(String.fromCharCode(...new Uint8Array(cred.rawId)));
-      const { error } = await supabase.from('user_wallets').update({ biometric_credential_id: credId }).eq('user_id', userId);
+      const publicKey = cred.response.getPublicKey?.();
+      if (!publicKey) throw new Error('This authenticator did not provide a public key');
+      const publicKeyB64 = btoa(String.fromCharCode(...new Uint8Array(publicKey)));
+      const { error } = await supabase.rpc('set_wallet_biometric_enabled', {
+        p_enabled: true, p_credential_id: credId, p_public_key: publicKeyB64,
+      });
       if (error) throw error;
       toast.success('Biometric authentication enabled!');
       onSaved();
@@ -371,7 +376,9 @@ function BiometricCard({ userId, credentialId, onSaved }: { userId: string; cred
 
   const removeBiometric = async () => {
     setRemoving(true);
-    const { error } = await supabase.from('user_wallets').update({ biometric_credential_id: null }).eq('user_id', userId);
+    const { error } = await supabase.rpc('set_wallet_biometric_enabled', {
+      p_enabled: false, p_credential_id: null, p_public_key: null,
+    });
     setRemoving(false);
     if (error) { toast.error('Failed to remove biometrics'); return; }
     toast.success('Biometric authentication removed');
