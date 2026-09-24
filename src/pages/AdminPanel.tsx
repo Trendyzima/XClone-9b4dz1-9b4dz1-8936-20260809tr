@@ -78,13 +78,13 @@ interface FraudAlert {
 }
 
 // ─── Main Component ───────────────────────────────────────────────────────────
-export default function AdminPanel() {
+export default function AdminPanel({ section = 'overview', standalone = false }: { section?: 'overview' | 'ads' | 'users' | 'fraud'; standalone?: boolean }) {
   useSEO({ noindex: true, title: 'Admin Panel', url: '/admin' });
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [activeTab, setActiveTab] = useState('overview');
+  const [activeTab, setActiveTab] = useState(section);
   const [stats, setStats] = useState<PlatformStats>({
     total_users: 0, total_posts: 0, total_views: 0, total_communities: 0,
     total_revenue: 0, pending_verifications: 0, pending_ads: 0,
@@ -94,6 +94,8 @@ export default function AdminPanel() {
   const [users, setUsers] = useState<ReportedUser[]>([]);
   const [fraudAlerts, setFraudAlerts] = useState<FraudAlert[]>([]);
   const [reportedPosts, setReportedPosts] = useState<any[]>([]);
+  useEffect(() => { setActiveTab(section); }, [section]);
+
   const [pendingReports, setPendingReports] = useState(0);
   const [userSearch, setUserSearch] = useState('');
   const [adFilter, setAdFilter] = useState<'all' | 'pending' | 'active' | 'rejected'>('pending');
