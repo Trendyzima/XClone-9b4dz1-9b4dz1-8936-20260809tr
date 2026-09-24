@@ -30,16 +30,28 @@ export async function listReplies(postId: string, limit = 50): Promise<{ items: 
   const ids = [...new Set(rows.map((row: any) => row.user_id).filter(Boolean))];
   if (!ids.length) return { items: [], next_cursor: null };
 
-  const { data: profiles, error: profileError } = await supabase
-    .from('profiles')
-    .select('id,username,display_name,full_name,avatar_url,verified')
-    .in('id', ids);
+  let profiles: any[] = [];
+  if (ids.length) {
+    const { data, error: profileError } = await supabase
+      .from('profiles')
+      .select('id,username,display_name,full_name,avatar_url,verified')
+      .in('id', ids);
 
-  if (profileError) throw profileError;
+    // Reply rows are canonical. A profile enrichment/RLS mismatch must never
+    // turn an existing reply into an empty-state response.
+    if (profileError) {
+      console.warn('[replies] reply-author enrichment failed', profileError);
+    } else {
+      profiles = data ?? [];
+    }
+  }
 
-  const byId = new Map((profiles ?? []).map((profile: any) => [profile.id, profile]));
+  const byId = new Map(profiles.map((profile: any) => [profile.id, profile]));
   return {
-    items: rows.map((row: any) => ({ ...row, profile: byId.get(row.user_id) ?? null })),
+    items: rows.map((row: any) => ({
+      ...row,
+      profile: byId.get(row.user_id) ?? null,
+    })),
     next_cursor: null,
   };
 }
