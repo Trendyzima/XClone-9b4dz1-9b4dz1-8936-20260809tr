@@ -39,14 +39,16 @@ const REASON_LABELS: Record<string, string> = {
 
 function DiscoverAdBanner() { return <PageAdBanner />; }
 
-export default function DiscoverPage() {
+export default function DiscoverPage({ section, standalone = false }: { section?: Tab; standalone?: boolean }) {
   const { user } = useAuth();
-  const [tab, setTab] = useState<Tab>('suggested');
+  const [tab, setTab] = useState<Tab>(section ?? 'suggested');
   const [users, setUsers] = useState<SuggestedUser[]>([]);
   const [following, setFollowing] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [followLoading, setFollowLoading] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState('');
+
+  useEffect(() => { if (section) setTab(section); }, [section]);
 
   const discoverJsonLd = useMemo(() => {
     const top5 = users.slice(0, 5);
