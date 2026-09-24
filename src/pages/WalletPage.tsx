@@ -6,7 +6,7 @@ import { TwoFAModal, TwoFASetupCard, MpesaPaymentHistory, WalletBudgetPlanner, F
 import { MpesaFullTab } from '@/components/features/MpesaTab';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { useSEO } from '@/hooks/useSEO';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
 import { WalletDashboard } from '@/components/features/WalletDashboard';
 import { AdvertiserSurface } from '@/components/features/AdvertiserSurface';
@@ -3715,6 +3715,7 @@ export default function WalletPage({ initialTab, standaloneTitle }: { initialTab
   }, [user]);
 
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
 
   const [activeTab, setActiveTab] = useState(() => {
     const t = initialTab ?? searchParams.get('tab');
@@ -4020,13 +4021,13 @@ export default function WalletPage({ initialTab, standaloneTitle }: { initialTab
       <TopBar title={standaloneTitle ?? 'My Wallet'} showBack />
       <WalletAdBanner />
       {!standaloneTitle && <div className="max-w-2xl mx-auto px-4 pt-2 pb-1 flex justify-end">
-        <WalletSearchShortcut onNavigate={setActiveTab} />
+        <WalletSearchShortcut onNavigate={tab => navigate(WALLET_ROUTE_MAP[tab])} />
       </div>}
 
       {!standaloneTitle && <div className="sticky top-14 z-30 bg-background/95 backdrop-blur-sm border-b border-border">
         <div className="flex max-w-2xl mx-auto overflow-x-auto scrollbar-hide">
           {WALLET_TABS.map(t => (
-            <button key={t.key} onClick={() => setActiveTab(t.key)}
+            <button key={t.key} onClick={() => navigate(WALLET_ROUTE_MAP[t.key])}
               className={`flex-shrink-0 flex-1 py-3 font-semibold text-xs border-b-2 transition-colors whitespace-nowrap px-1 ${
                 activeTab === t.key ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:bg-muted/40'
               }`}>
@@ -4114,7 +4115,7 @@ export default function WalletPage({ initialTab, standaloneTitle }: { initialTab
         {showTour && user && (
           <WalletOnboardingTour
             userId={user.id}
-            onNavigate={tab => { setActiveTab(tab); setShowTour(false); }}
+            onNavigate={tab => { navigate(WALLET_ROUTE_MAP[tab]); setShowTour(false); }}
             onDismiss={() => setShowTour(false)}
           />
         )}
@@ -4134,10 +4135,10 @@ export default function WalletPage({ initialTab, standaloneTitle }: { initialTab
               </p>
             )}
             <div className="grid grid-cols-3 gap-2 mt-4">
-              <button onClick={() => setActiveTab('receive')} className="flex items-center justify-center gap-1.5 py-2 bg-primary/10 border border-primary/20 rounded-xl text-primary font-semibold text-xs hover:bg-primary/15 transition-colors">
+              <button onClick={() => navigate(WALLET_ROUTE_MAP.receive)} className="flex items-center justify-center gap-1.5 py-2 bg-primary/10 border border-primary/20 rounded-xl text-primary font-semibold text-xs hover:bg-primary/15 transition-colors">
                 <QrCode className="w-3.5 h-3.5" /> Receive
               </button>
-              <button onClick={() => setActiveTab('send')} className="flex items-center justify-center gap-1.5 py-2 bg-primary text-primary-foreground rounded-xl font-semibold text-xs hover:opacity-90 transition-opacity">
+              <button onClick={() => navigate(WALLET_ROUTE_MAP.send)} className="flex items-center justify-center gap-1.5 py-2 bg-primary text-primary-foreground rounded-xl font-semibold text-xs hover:opacity-90 transition-opacity">
                 <Send className="w-3.5 h-3.5" /> Send
               </button>
               <button onClick={() => setShowSplit(true)} className="flex items-center justify-center gap-1.5 py-2 bg-blue-500/10 border border-blue-500/20 rounded-xl text-blue-600 font-semibold text-xs hover:bg-blue-500/15 transition-colors">
@@ -4146,14 +4147,14 @@ export default function WalletPage({ initialTab, standaloneTitle }: { initialTab
               <button onClick={() => setShowInstallment(true)} className="flex items-center justify-center gap-1.5 py-2 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-600 font-semibold text-xs hover:bg-amber-500/15 transition-colors">
                 <Calendar className="w-3.5 h-3.5" /> Pay Later
               </button>
-              <button onClick={() => setActiveTab('referrals')} className="flex items-center justify-center gap-1.5 py-2 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-600 font-semibold text-xs hover:bg-purple-500/15 transition-colors">
+              <button onClick={() => navigate(WALLET_ROUTE_MAP.referrals)} className="flex items-center justify-center gap-1.5 py-2 bg-purple-500/10 border border-purple-500/20 rounded-xl text-purple-600 font-semibold text-xs hover:bg-purple-500/15 transition-colors">
                 <Users className="w-3.5 h-3.5" /> Refer
               </button>
-              <button onClick={() => setActiveTab('security')} className="flex items-center justify-center gap-1.5 py-2 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 font-semibold text-xs hover:bg-red-500/15 transition-colors">
+              <button onClick={() => navigate(WALLET_ROUTE_MAP.security)} className="flex items-center justify-center gap-1.5 py-2 bg-red-500/10 border border-red-500/20 rounded-xl text-red-500 font-semibold text-xs hover:bg-red-500/15 transition-colors">
                 <Lock className="w-3.5 h-3.5" /> Security
               </button>
             </div>
-            <button onClick={() => setActiveTab('pocket')}
+            <button onClick={() => navigate(WALLET_ROUTE_MAP.pocket)}
               className="w-full flex items-center justify-between gap-2 py-2.5 px-3 mt-1 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-emerald-700 dark:text-emerald-400 font-semibold text-xs hover:bg-emerald-500/15 transition-colors">
               <div className="flex items-center gap-1.5"><ArrowDownLeft className="w-3.5 h-3.5" /> Savings Pocket</div>
               <span className="font-black text-sm">{fmtAmt(savingsBalance, currency)}</span>
