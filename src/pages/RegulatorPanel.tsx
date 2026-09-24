@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { TopBar } from '@/components/layout/TopBar';
@@ -90,9 +90,16 @@ function getTopCategory(cats: any): { key: string; score: number } | null {
 export default function RegulatorPanel() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const isReg = useIsRegulator();
-
-  const [activeTab, setActiveTab] = useState<RegTab>('employees');
+  const activeTab = (() => {
+    const section = location.pathname.split('/').filter(Boolean).pop()?.toLowerCase();
+    const byPath: Record<string, RegTab> = {
+      employees: 'employees', features: 'features', wallets: 'wallets', moderation: 'moderation',
+      platform: 'platform', announce: 'announce', reports: 'reports', audit: 'audit', analytics: 'analytics',
+    };
+    return byPath[section ?? ''] ?? 'employees';
+  })();
   const [loading, setLoading] = useState(true);
 
   const [employees, setEmployees] = useState<any[]>([]);
@@ -180,8 +187,8 @@ export default function RegulatorPanel() {
 
   useEffect(() => {
     if (!isReg) { navigate('/'); return; }
-    fetchEmployees();
-    fetchPlatformStats();
+    void fetchEmployees();
+    void fetchPlatformStats();
     setLoading(false);
   }, [isReg]);
 
@@ -783,7 +790,7 @@ export default function RegulatorPanel() {
       <div className="sticky top-14 z-20 bg-background border-b border-border overflow-x-auto">
         <div className="flex min-w-max">
           {REG_TAB_DEFS.map(t => (
-            <button key={t.key} onClick={() => setActiveTab(t.key as RegTab)}
+            <button key={t.key} onClick={() => navigate(`/regulator/${t.key}`)}
               className={`px-4 py-3 text-xs font-bold border-b-2 flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap relative ${
                 activeTab === t.key ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground'
               }`}>
