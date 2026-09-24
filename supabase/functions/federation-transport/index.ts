@@ -509,7 +509,7 @@ async function queue(local: any, userId: string, inbox: string, activity: any) {
   } catch (error) {
     const message = error instanceof Error ? error.message : "network error";
     const retryAt = new Date(Date.now()+5*60*1000).toISOString();
-    await db(`federation_deliveries?id=eq.${enc(delivery.id)}&status=in_flight`, {
+    await db(`federation_deliveries?id=eq.${enc(delivery.id)}&status=eq.in_flight`, {
       method: "PATCH",
       headers: { Prefer: "return=minimal" },
       body: JSON.stringify({ status: "retry", last_error: message.slice(0, 2000), next_attempt_at: retryAt, locked_at: null }),
@@ -526,7 +526,7 @@ async function queue(local: any, userId: string, inbox: string, activity: any) {
   if (!response.ok) {
     const message = `Remote inbox ${response.status}: ${responseText.slice(0, 1200)}`;
     const retryAt = new Date(Date.now()+5*60*1000).toISOString();
-    await db(`federation_deliveries?id=eq.${enc(delivery.id)}&status=in_flight`, {
+    await db(`federation_deliveries?id=eq.${enc(delivery.id)}&status=eq.in_flight`, {
       method: "PATCH",
       headers: { Prefer: "return=minimal" },
       body: JSON.stringify({ status: "retry", last_status_code: response.status, last_error: message, next_attempt_at: retryAt, locked_at: null }),
@@ -539,7 +539,7 @@ async function queue(local: any, userId: string, inbox: string, activity: any) {
     throw Error(message);
   }
 
-  const deliveryAck = await db(`federation_deliveries?id=eq.${enc(delivery.id)}&status=in_flight`, {
+  const deliveryAck = await db(`federation_deliveries?id=eq.${enc(delivery.id)}&status=eq.in_flight`, {
     method: "PATCH",
     headers: { Prefer: "return=minimal" },
     body: JSON.stringify({
