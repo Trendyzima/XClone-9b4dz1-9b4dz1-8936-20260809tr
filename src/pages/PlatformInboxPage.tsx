@@ -46,19 +46,29 @@ export default function PlatformInboxPage() {
   const [filter, setFilter] = useState<'all' | 'unread' | 'trending' | 'payment' | 'update'>('all');
   const [creatorProfile, setCreatorProfile] = useState<CreatorProfile | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const PAGE_SIZE = 30;
 
-  const fetchMessages = useCallback(async () => {
+  const fetchMessages = useCallback(async (append = false) => {
     if (!user) return;
-    setLoading(true); setError(null);
+    if (append) setLoadingMore(true); else setLoading(true);
+    setError(null);
+    const from = append ? messages.length : 0;
+    const to = from + PAGE_SIZE - 1;
     const { data, error: fetchError } = await supabase.from('platform_inbox')
       .select('id,user_id,type,subject,body,icon_emoji,cta_label,cta_url,read,sent_at,created_at,dedupe_key,metadata,generation_version')
-      .eq('user_id', user.id).order('sent_at', { ascending: false }).limit(50);
+      .eq('user_id', user.id).order('sent_at', { ascending: false }).range(from, to);
     if (fetchError) {
       const message = getErrorMessage(fetchError, 'Unable to load your Wise Brain inbox.');
-      setError(message); setMessages([]); toast.error(message);
-    } else setMessages((data ?? []) as InboxMessage[]);
-    setLoading(false);
-  }, [user]);
+      setError(message); if (!append) setMessages([]); toast.error(message);
+    } else {
+      const next = (data ?? []) as InboxMessage[];
+      setMessages(prev => append ? [...prev, ...next] : next);
+      setHasMore(next.length === PAGE_SIZE);
+    }
+    if (append) setLoadingMore(false); else setLoading(false);
+  }, [user, messages.length]);
 
   useEffect(() => {
     if (!user) return;
@@ -123,7 +133,7 @@ export default function PlatformInboxPage() {
       <div className="max-w-2xl mx-auto p-4 space-y-4">
         <div className="bg-gradient-to-br from-primary/10 via-purple-500/5 to-transparent border border-primary/20 rounded-2xl p-5">
           <div className="flex items-start gap-4"><div className="text-4xl" aria-hidden="true">🦉</div><div className="flex-1"><h2 className="font-bold text-lg">Wise Brain</h2><p className="text-sm text-muted-foreground mt-0.5">Your personal assistant turns your real Testagram activity into useful updates — growth, content performance, wallet context, and important platform activity.</p></div></div>
-          <div className="flex gap-2 mt-4"><Button size="sm" onClick={generateDigest} disabled={generating} className="flex-1 rounded-xl">{generating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}{generating ? 'Generating…' : 'Generate Digest'}</Button><Button size="sm" variant="outline" onClick={() => void fetchMessages()} disabled={loading} className="rounded-xl px-3" aria-label="Refresh Wise Brain inbox"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></Button></div>
+          <div className="flex gap-2 mt-4"><Button size="sm" onClick={generateDigest} disabled={generating} className="flex-1 rounded-xl">{generating ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}{generating ? 'Generating…' : 'Generate Digest'}</Button><Button size="sm" variant="outline" onClick={() => void fetchMessages(false)} disabled={loading} className="rounded-xl px-3" aria-label="Refresh Wise Brain inbox"><RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} /></Button></div>
         </div>
 
         {creatorProfile && (creatorProfile.follower_count ?? 0) >= 500 && (
@@ -139,7 +149,7 @@ export default function PlatformInboxPage() {
           </div>
         )}
 
-        {error && <div role="alert" className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm"><p className="font-semibold text-destructive">Wise Brain could not complete that request.</p><p className="text-muted-foreground mt-1 break-words">{error}</p><Button size="sm" variant="outline" onClick={() => void fetchMessages()} className="mt-3">Try again</Button></div>}
+        {error && <div role="alert" className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm"><p className="font-semibold text-destructive">Wise Brain could not complete that request.</p><p className="text-muted-foreground mt-1 break-words">{error}</p><Button size="sm" variant="outline" onClick={() => void fetchMessages(false)} className="mt-3">Try again</Button></div>}
 
         {messages.length > 0 && <div className="flex items-center justify-between"><div className="flex items-center gap-2"><span className="text-sm font-semibold">{messages.length} message{messages.length !== 1 ? 's' : ''}</span>{unreadCount > 0 && <span className="text-xs bg-primary text-primary-foreground font-bold px-2 py-0.5 rounded-full">{unreadCount} new</span>}</div>{unreadCount > 0 && <button type="button" onClick={markAllRead} disabled={actionId === 'all'} className="text-xs text-primary font-semibold hover:underline flex items-center gap-1 disabled:opacity-50">{actionId === 'all' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />} Mark all read</button>}</div>}
 
@@ -150,11 +160,16 @@ export default function PlatformInboxPage() {
         {loading ? <div className="flex items-center justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div> : filteredMessages.length === 0 ? (
           <div className="text-center py-16 text-muted-foreground"><Inbox className="w-16 h-16 mx-auto mb-4 opacity-20" /><p className="font-semibold text-lg">{filter === 'unread' ? 'All caught up!' : 'Your Wise Brain inbox is ready'}</p><p className="text-sm mt-1">{filter === 'all' ? 'Generate a briefing from your real Testagram activity. It is safe to regenerate and will not create duplicate daily cards.' : 'There are no messages in this filter yet.'}</p>{filter === 'all' && <Button onClick={generateDigest} disabled={generating} className="mt-4 rounded-xl"><Sparkles className="w-4 h-4 mr-2" />Generate Digest Now</Button>}</div>
         ) : (
+          <>
           <div className="space-y-3">{filteredMessages.map(message => { const cfg = TYPE_CONFIG[message.type] ?? TYPE_CONFIG.news; const busy = actionId === message.id; return (
             <article key={message.id} onClick={() => { if (!message.read && !busy) void markRead(message.id); }} className={`rounded-2xl border p-4 transition-all cursor-pointer ${!message.read ? `${cfg.bg} shadow-sm` : 'bg-card border-border hover:bg-muted/30'}`}>
               <div className="flex items-start gap-3"><div className="text-2xl shrink-0" aria-hidden="true">{message.icon_emoji ?? cfg.icon}</div><div className="flex-1 min-w-0"><div className="flex items-start justify-between gap-2"><p className={`font-bold text-sm leading-snug ${!message.read ? '' : 'text-muted-foreground'}`}>{message.subject}</p><div className="flex items-center gap-1 shrink-0">{!message.read && <span className="w-2 h-2 rounded-full bg-primary shrink-0" aria-label="Unread" />}<button type="button" aria-label="Delete message" onClick={event => { event.stopPropagation(); void deleteMessage(message.id); }} disabled={busy} className="p-1 rounded-full hover:bg-muted transition-colors text-muted-foreground disabled:opacity-50">{busy ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}</button></div></div><p className="text-xs text-muted-foreground mt-1 leading-relaxed line-clamp-3">{message.body}</p><div className="flex items-center gap-3 mt-2"><span className="text-[10px] text-muted-foreground">{formatDistanceToNow(new Date(message.sent_at), { addSuffix: true })}</span>{message.cta_label && message.cta_url && <button type="button" onClick={event => { event.stopPropagation(); void markRead(message.id); navigate(message.cta_url!); }} className={`flex items-center gap-1 text-xs font-bold ${cfg.color} hover:underline`}>{message.cta_label} <ExternalLink className="w-3 h-3" /></button>}</div></div></div>
             </article>
           ); })}</div>
+          {filter === 'all' && hasMore && (
+            <div className="flex justify-center pt-2"><Button variant="outline" onClick={() => void fetchMessages(true)} disabled={loadingMore} className="rounded-xl">{loadingMore ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}Load more</Button></div>
+          )}
+          </>
         )}
 
         <div className="bg-muted/30 rounded-2xl p-4 text-xs text-muted-foreground"><div className="flex items-start gap-2"><Bell className="w-4 h-4 shrink-0 mt-0.5" /><p><strong>Wise Brain</strong> uses your actual Testagram activity to produce a concise briefing. Regeneration is idempotent for the current UTC day, so repeated clicks update the same daily briefing instead of creating duplicates.</p></div></div>
