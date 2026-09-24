@@ -72,7 +72,7 @@ begin
        'posts',v_posts,'likes',v_likes,'reposts',v_reposts,'replies',v_replies,
        'engagement',v_engagement,'incoming',v_incoming,'outgoing',v_outgoing,
        'currency',v_currency,'unread_updates',v_unread),7)
-  on conflict (user_id,dedupe_key) do update set
+  on conflict (dedupe_key) do update set
     body=excluded.body,icon_emoji=excluded.icon_emoji,cta_label=excluded.cta_label,
     cta_url=excluded.cta_url,sent_at=excluded.sent_at,metadata=excluded.metadata,
     generation_version=excluded.generation_version;
