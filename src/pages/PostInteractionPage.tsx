@@ -18,8 +18,14 @@ export default function PostInteractionPage({kind}:{kind:Kind}){
  const [post,setPost]=useState<any>(null); const [items,setItems]=useState<any[]>([]); const [counts,setCounts]=useState({likes:0,reposts:0,replies:0,quotes:0,views:0}); const [loading,setLoading]=useState(true); const [text,setText]=useState(''); const [sending,setSending]=useState(false);
  const meta=META[kind]; const Icon=meta.icon;
  useEffect(()=>{if(!postId)return;let cancelled=false;(async()=>{setLoading(true);try{
-   const {data,error}=await supabase.from('posts').select('id,content,created_at,user_id,author_id,likes_count,replies_count,reposts_count,quoted_post_id,profiles!posts_author_id_fkey(id,username,display_name,avatar_url,verified)').eq('id',postId).maybeSingle();
-   if(error)throw error; if(cancelled)return; setPost(data); const liveCounts=await getInteractionCounts(postId); if(!cancelled)setCounts(liveCounts);
+   const {data,error}=await supabase.from('posts').select('id,content,created_at,user_id,author_id,likes_count,replies_count,reposts_count,quoted_post_id').eq('id',postId).maybeSingle();
+   if(error)throw error; if(!data)throw new Error('Post not found');
+   const authorId=data.author_id??data.user_id;
+   let author:any=null;
+   if(authorId){const authorResult=await supabase.from('profiles').select('id,username,display_name,avatar_url,verified').eq('id',authorId).maybeSingle();if(authorResult.error)console.warn('[post-interaction] author enrichment failed',authorResult.error);author=authorResult.data??null;}
+   if(cancelled)return; setPost({...data,profiles:author});
+   const liveCounts=await getInteractionCounts(postId);
+   if(!cancelled)setCounts({...liveCounts,likes:Math.max(liveCounts.likes,Number(data.likes_count??0)),replies:Math.max(liveCounts.replies,Number(data.replies_count??0)),reposts:Math.max(liveCounts.reposts,Number(data.reposts_count??0))});
    let rows:any[]=[];
    if(kind==='likes')rows=await listLikes(postId,100);
    if(kind==='replies')rows=(await listReplies(postId,100)).items??[];
