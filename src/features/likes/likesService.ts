@@ -36,7 +36,7 @@ export async function listProfileLikes(userId: string, limit = 50): Promise<any[
   const { data: profiles, error: profilesError } = authorIds.length
     ? await supabase.from('profiles').select('id,username,display_name,full_name,avatar_url,verified').in('id', authorIds)
     : { data: [], error: null };
-  if (profilesError) throw profilesError;
+  if (profilesError) console.warn('[likes] profile enrichment failed', profilesError);
   const profileById = new Map((profiles ?? []).map((profile: any) => [profile.id, profile]));
   const byId = new Map((posts ?? []).map((post: any) => [post.id, { ...post, profiles: profileById.get(post.author_id) ?? null }]));
   return (data ?? []).map((row: any) => byId.get(row.post_id)).filter(Boolean);

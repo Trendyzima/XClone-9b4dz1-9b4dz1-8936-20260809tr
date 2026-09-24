@@ -35,7 +35,7 @@ export async function listReplies(postId: string, limit = 50): Promise<{ items: 
     .select('id,username,display_name,full_name,avatar_url,verified')
     .in('id', ids);
 
-  if (profileError) throw profileError;
+  if (profileError) console.warn('[replies] profile enrichment failed', profileError);
 
   const byId = new Map((profiles ?? []).map((profile: any) => [profile.id, profile]));
   return {
