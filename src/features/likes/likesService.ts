@@ -27,11 +27,11 @@ export async function listProfileLikes(userId: string, limit = 50): Promise<any[
 
   const { data: posts, error: postsError } = await supabase
     .from('posts')
-    .select('*, profiles!posts_author_id_fkey(*)')
+    .select('*')
     .in('id', postIds)
     .is('deleted_at', null);
   if (postsError) throw postsError;
 
-  const byId = new Map((posts ?? []).map((post: any) => [post.id, post]));
+  const byId = new Map((posts ?? []).map((post: any) => [post.id, { ...post, profiles: null }]));
   return (data ?? []).map((row: any) => byId.get(row.post_id)).filter(Boolean);
 }
