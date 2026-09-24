@@ -49,4 +49,4 @@ jobs:
         run: node scripts/production-capacity-baseline.mjs --wait-for-deployment
 
       - name: Run production capacity baseline
-        run: node scripts/production-capacity-baseline.mjs --skip-deployment-wait
+        run: node scripts/production-capacity-baseline.mjs
