@@ -150,7 +150,7 @@ export default function PlatformInboxPage() {
           </div>
         )}
 
-        {error && <div role="alert" className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm"><p className="font-semibold text-destructive">Wise Brain could not complete that request.</p><p className="text-muted-foreground mt-1 break-words">{error}</p><Button size="sm" variant="outline" onClick={() => void fetchMessages(false)} className="mt-3">Try again</Button></div>}
+        {error && <div role="alert" className="rounded-2xl border border-destructive/20 bg-destructive/5 p-4 text-sm"><p className="font-semibold text-destructive">Wise Brain could not complete that request.</p><p className="text-muted-foreground mt-1 break-words">{error}</p><Button size="sm" variant="outline" onClick={() => void fetchMessages(0)} className="mt-3">Try again</Button></div>}
 
         {messages.length > 0 && <div className="flex items-center justify-between"><div className="flex items-center gap-2"><span className="text-sm font-semibold">{messages.length} message{messages.length !== 1 ? 's' : ''}</span>{unreadCount > 0 && <span className="text-xs bg-primary text-primary-foreground font-bold px-2 py-0.5 rounded-full">{unreadCount} new</span>}</div>{unreadCount > 0 && <button type="button" onClick={markAllRead} disabled={actionId === 'all'} className="text-xs text-primary font-semibold hover:underline flex items-center gap-1 disabled:opacity-50">{actionId === 'all' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />} Mark all read</button>}</div>}
 
