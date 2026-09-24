@@ -11,8 +11,8 @@ import { useSEO } from '@/hooks/useSEO';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import * as federation from '@/api/federation';
 import { Loader2, Sparkles, Users, ShoppingBag, BarChart3, RefreshCw, ArrowRight } from 'lucide-react';
-import { FederatedOrganicInjection } from '@/components/features/FederatedOrganicDiscovery';
 import { readHomeFeedCache, writeHomeFeedCache, saveHomeScroll, mergeHomeFeedItems } from '@/lib/homeFeedCache';
+import { FederatedOrganicCard } from '@/components/features/FederatedOrganicDiscovery';
 
 type Tab = 'all'|'following'|'explore'|'media'|'communities'|'polls'|'shopping'|'federated';
 type Item = { type:'post'|'thread'|'community'|'poll'|'product'|'fedpost'; data:any };
@@ -126,9 +126,8 @@ export default function HomeHubPage(){
       }
       setHasMore(Boolean(cacheCursorRef.current));
       await persistBuffer();
-      void prefetchNext();
     }catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);setLoading(false);}}
-  },[fetchTab,persistBuffer,prefetchNext]);
+  },[fetchTab,persistBuffer]);
 
   useEffect(()=>{
     let active=true;
@@ -142,7 +141,6 @@ export default function HomeHubPage(){
         cacheCursorRef.current=cached.cursor;nextCursorRef.current=cached.cursor;
         setHasMore(Boolean(cached.cursor)||cached.items.length>6);setLoading(false);setCacheHydrated(true);
         if(cached.scrollY>0)requestAnimationFrame(()=>window.scrollTo({top:cached.scrollY,behavior:'instant' as ScrollBehavior}));
-        void prefetchNext();
       }else {setCacheHydrated(true);void load('all');}
       if(cached?.items?.length)void load('all',true);
     }).catch(()=>{setCacheHydrated(true);void load('all');});
@@ -207,11 +205,10 @@ export default function HomeHubPage(){
       <div>{items.map((item,i)=><div key={item.type+'-'+(item.data?.id??i)} ref={i===items.length-1?lastElementRef:null}>
         {item.type==='post'&&<PostCard post={item.data} onUpdate={()=>load(tab)}/>}
         {item.type==='thread'&&<ThreadCard thread={item.data}/>}
-        {item.type==='fedpost'&&<PostCard post={item.data} onUpdate={()=>load(tab)}/>}
+        {item.type==='fedpost'&&(item.data?.is_federated_discovery?<FederatedOrganicCard item={item.data}/>:<PostCard post={item.data} onUpdate={()=>load(tab)}/>)}
         {item.type==='community'&&<CommunityCard community={item.data} onOpen={()=>navigate('/c/'+item.data.name)}/>}
         {item.type==='poll'&&<PollCard poll={item.data} onOpen={()=>navigate('/polls')}/>}
         {item.type==='product'&&<ProductCard product={item.data} onOpen={()=>navigate('/p/'+item.data.id)}/>}
-        {tab==='all'&&i===4&&<FederatedOrganicInjection surface="home"/>}
       </div>)}
       {loadingMore&&<div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary"/></div>}
       {!loadingMore&&!hasMore&&<div className="py-10 text-center text-xs text-muted-foreground">You’re all caught up.</div>}</div>}
