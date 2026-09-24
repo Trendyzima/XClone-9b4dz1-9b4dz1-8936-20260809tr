@@ -64,30 +64,35 @@ export async function listProfileReplies(userId: string, limit = 50): Promise<Re
   // replies page should not fail merely because a generated/aliased FK relation
   // is unavailable or has been renamed in the database schema.
   const postIds = [...new Set(rows.map((row: any) => row.post_id).filter(Boolean))];
-  const { data: posts, error: postsError } = postIds.length
-    ? await supabase
-        .from('posts')
-        .select('id,content,author_id,created_at')
-        .in('id', postIds)
-    : { data: [], error: null };
+  // The reply rows are the canonical collection. Enrichment is deliberately
+  // best-effort: a missing/blocked parent post or profile must not turn a real
+  // reply into the generic "Unable to load this section" error.
+  let posts: any[] = [];
+  if (postIds.length) {
+    const { data, error: postsError } = await supabase
+      .from('posts')
+      .select('id,content,author_id,user_id,created_at')
+      .in('id', postIds);
+    if (postsError) console.warn('[replies] parent-post enrichment failed', postsError);
+    posts = data ?? [];
+  }
 
-  if (postsError) throw postsError;
+  const authorIds = [...new Set(posts.map((post: any) => post.author_id ?? post.user_id).filter(Boolean))];
+  let profiles: any[] = [];
+  if (authorIds.length) {
+    const { data, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id,username,full_name,display_name,avatar_url,verified')
+      .in('id', authorIds);
+    if (profilesError) console.warn('[replies] parent-author enrichment failed', profilesError);
+    profiles = data ?? [];
+  }
 
-  const authorIds = [...new Set((posts ?? []).map((post: any) => post.author_id).filter(Boolean))];
-  const { data: profiles, error: profilesError } = authorIds.length
-    ? await supabase
-        .from('profiles')
-        .select('id,username,full_name,avatar_url,verified')
-        .in('id', authorIds)
-    : { data: [], error: null };
-
-  if (profilesError) throw profilesError;
-
-  const profileById = new Map((profiles ?? []).map((profile: any) => [profile.id, profile]));
-  const postById = new Map((posts ?? []).map((post: any) => [
-    post.id,
-    { ...post, profiles: profileById.get(post.author_id) ?? null },
-  ]));
+  const profileById = new Map(profiles.map((profile: any) => [profile.id, profile]));
+  const postById = new Map(posts.map((post: any) => {
+    const authorId = post.author_id ?? post.user_id;
+    return [post.id, { ...post, author_id: authorId, profiles: profileById.get(authorId) ?? null }];
+  }));
 
   return rows.map((row: any) => ({
     ...row,
