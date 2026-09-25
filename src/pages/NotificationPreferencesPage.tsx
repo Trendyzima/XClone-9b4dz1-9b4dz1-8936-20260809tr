@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import {
   Bell, Heart, Repeat2, UserPlus, MessageCircle, AtSign,
   DollarSign, TrendingUp, Zap, Globe, Megaphone, Flame,
-  Smartphone, Mail, BellRing, Loader2, CheckCircle2, Volume2,
+  Smartphone, Mail, BellRing, Loader2, CheckCircle2,
   ShieldCheck, Star, Trophy, Gift,
 } from 'lucide-react';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
@@ -128,7 +128,6 @@ export default function NotificationPreferencesPage() {
   const [testing, setTesting] = useState(false);
   const [pushStatus, setPushStatus] = useState<NotificationPermission | 'unsupported'>('unsupported');
   const [pushBusy, setPushBusy] = useState(false);
-  const [expandedGroup, setExpandedGroup] = useState('Social');
   const enabledCount = Object.values(prefs).filter(p => p.in_app || p.push || p.email).length;
   const pushEnabledCount = Object.values(prefs).filter(p => p.push).length;
   const emailEnabledCount = Object.values(prefs).filter(p => p.email).length;
