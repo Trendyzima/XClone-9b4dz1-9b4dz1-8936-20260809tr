@@ -243,7 +243,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
         const posts = Array.isArray(d) ? d : d?.statuses ?? d?.data ?? [];
         if (posts.length > 0) { setMastodonPosts(posts); setLoadingMastodon(false); return; }
       }
-      const directRes = await fetch(`https://${instance}/api/v1/timelines/public?limit=20&local=true`);
+      const directRes = await fetch(`https://${instance}/api/v1/timelines/public?limit=20`);
       if (!directRes.ok) throw new Error('Direct fetch failed');
       const data = await directRes.json();
       setMastodonPosts(Array.isArray(data) ? data : []);
