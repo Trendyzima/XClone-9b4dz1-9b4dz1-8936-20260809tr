@@ -89,7 +89,7 @@ export default function PostInteractionPage({kind}:{kind:Kind}){
    <div className="min-w-0"><h1 className="font-bold">{meta.title}</h1><p className="text-xs text-muted-foreground">{counts.likes} likes · {counts.replies} replies · {counts.reposts} reposts</p></div>
   </div>
   <button onClick={()=>navigate('/post/'+post.id)} className="w-full text-left p-4 border-b border-border hover:bg-muted/20">
-   <div className="flex items-center gap-2"><img src={post.profiles?.avatar_url??''} alt="" className="w-8 h-8 rounded-full bg-muted object-cover"/><span className="font-semibold text-sm">@{post.profiles?.username??'user'}</span></div>
+   <div className="flex items-center gap-2"><img src={post.profiles?.avatar_url??''} alt="" className="w-8 h-8 rounded-full bg-muted object-cover"/><span className="font-semibold text-sm">{post.profiles?.display_name||post.profiles?.full_name||post.profiles?.username||'Profile'}</span>{(post.profiles?.username||post.profiles?.preferredUsername)&&<span className="text-xs text-muted-foreground">@{String(post.profiles?.username||post.profiles?.preferredUsername).replace(/^@/,'')}</span>}</div>
    <p className="mt-3 text-sm whitespace-pre-wrap break-words">{post.content}</p>
    <div className="flex gap-5 mt-3 text-xs text-muted-foreground"><span>{counts.likes} likes</span><span>{counts.replies} replies</span><span>{counts.reposts} reposts</span><span>{counts.quotes} quotes</span></div>
   </button>
@@ -103,12 +103,12 @@ export default function PostInteractionPage({kind}:{kind:Kind}){
 }
 
 function InteractionRow({item,kind,onOpenProfile,onOpenPost,onOpenReplyChain}:{item:any;kind:Kind;onOpenProfile:(u:string)=>void;onOpenPost:(id:string)=>void;onOpenReplyChain:(id:string)=>void}){
- const profile=item.profile??item.profiles??item.user_profiles??item.posts?.profiles??{}; const quote=item.quote; const username=profile.username??'user';
+ const profile=item.profile??item.profiles??item.user_profiles??item.posts?.profiles??{}; const quote=item.quote; const username=profile.username??profile.preferredUsername??profile.acct??''; const displayName=profile.display_name??profile.full_name??profile.name??username??'Profile';
  return <div className="p-4 border-b border-border">
   <div className="flex gap-3">
    <button onClick={()=>onOpenProfile(username)} aria-label={'Open @'+username}><img src={profile.avatar_url??''} alt="" className="w-10 h-10 rounded-full bg-muted object-cover"/></button>
    <div className="min-w-0 flex-1">
-    <button onClick={()=>onOpenProfile(username)} className="font-bold text-sm hover:underline">@{username}</button>
+    <button onClick={()=>onOpenProfile(username)} className="font-bold text-sm hover:underline">{displayName}{username&&<span className="ml-1 font-normal text-muted-foreground">@{String(username).replace(/^@/,'')}</span>}</button>
     {kind==='replies'&&<button onClick={()=>onOpenReplyChain(item.id)} className="mt-1 text-left w-full text-sm whitespace-pre-wrap break-words hover:bg-muted/30 rounded-lg p-1">{item.content}<span className="block text-[11px] text-primary mt-2">Open reply chain →</span></button>}
     {kind==='quotes'&&<><p className="mt-1 text-sm whitespace-pre-wrap break-words">{item.content}</p><button onClick={()=>onOpenPost(item.id)} className="mt-2 w-full text-left rounded-xl border border-border p-3 text-xs text-muted-foreground">Quoted post</button></>}
     {kind==='quote-likes'&&<><p className="text-xs text-muted-foreground mt-1">liked a quote post</p>{quote?.content&&<button onClick={()=>onOpenPost(quote.id)} className="mt-2 w-full text-left rounded-xl border border-border p-3 text-sm">{quote.content}</button>}</>}
