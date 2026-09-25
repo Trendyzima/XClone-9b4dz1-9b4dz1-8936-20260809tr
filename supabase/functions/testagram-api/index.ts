@@ -58,9 +58,11 @@ async function replyOp(body:any,auth:string|null){
   try {
     const r=await transport({user_id:u.id,operation:"deliver",target:parentUri,activity});
     const data=r.data();
-    const activityId=data?.activity?.id ?? data?.activity?.object?.id ?? null;
+    const activityId=data?.activity?.id ?? null;
+    const replyObjectUri=data?.activity?.object?.id ?? data?.activity?.object?.url ?? null;
     await admin.from("federated_replies").update({
       activity_uri:activityId,
+      reply_object_uri:replyObjectUri,
       delivery_state:(data?.delivery?.status==="delivered"||data?.delivery?.status==="queued")?"delivered":"pending",
       updated_at:new Date().toISOString()
     }).eq("id",localReply.data.id);
@@ -400,7 +402,14 @@ if(path==="/federated-replies"&&method==="GET"){
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
   const target=String(params.object_uri||params.objectUri||"").trim();
   if(!/^https:\/\//i.test(target))return json({error:"object_uri must be a remote ActivityPub object"},400);
-  const r=await admin.from("federated_replies").select("id,user_id,object_uri,parent_uri,content,activity_uri,delivery_state,created_at,updated_at").eq("object_uri",target).order("created_at",{ascending:false}).limit(100);
+  const parentUri=String(params.parent_uri||params.parentUri||"").trim();
+  const replyUri=String(params.reply_object_uri||params.replyObjectUri||"").trim();
+  const activityUri=String(params.activity_uri||params.activityUri||"").trim();
+  let query=admin.from("federated_replies").select("id,user_id,object_uri,parent_uri,reply_object_uri,content,activity_uri,delivery_state,created_at,updated_at").order("created_at",{ascending:false}).limit(100);
+  if(parentUri) query=query.eq("parent_uri",parentUri);
+  else if(replyUri) query=query.eq("reply_object_uri",replyUri);
+  else if(activityUri) query=query.eq("activity_uri",activityUri);
+  else query=query.eq("object_uri",target);
   if(r.error)return json({error:r.error.message},400);
   const rows=r.data||[];
   const userIds=[...new Set(rows.map((row:any)=>row.user_id).filter(Boolean))];

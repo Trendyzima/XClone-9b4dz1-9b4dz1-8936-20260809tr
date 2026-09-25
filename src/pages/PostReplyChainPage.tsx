@@ -18,36 +18,80 @@ export default function PostReplyChainPage(){
      const object = remote?.object ?? remote;
      const normalized = await federatedObjectToPost(object, federation.getFederatedObject);
      setPost(normalized);
-     // A remote reply is itself an ActivityPub object. Open its object directly
-     // so nested replies are loaded from the selected reply's replies collection
-     // instead of incorrectly treating every reply as a root-level child.
-     const selectedRemote = /^https:\/\//i.test(String(replyId||''))
-       ? await federation.getFederatedObject(String(replyId))
+     // Resolve the selected reply by canonical identity. An ActivityPub Create
+     // activity URI is NOT the reply object URI, so never substitute the root post
+     // when the selected reply cannot be fetched directly.
+     const selectedLedger = await federation.getFederatedReplies(postId, { activityUri: String(replyId) }).catch(() => []);
+     const selectedRow = selectedLedger[0] ?? null;
+     const canonicalReplyUri = String(selectedRow?.reply_object_uri || replyId);
+     const selectedRemote = /^https:\/\//i.test(canonicalReplyUri)
+       ? await federation.getFederatedObject(canonicalReplyUri).catch(() => null)
        : null;
-     const selectedObject = selectedRemote?.object ?? selectedRemote ?? object;
+     const selectedObject = selectedRemote?.object ?? selectedRemote ?? null;
+
+     let selectedItem: ReplyItem | null = null;
+     if (selectedObject?.id) {
+       selectedItem = federatedReplyToItem(selectedObject, postId) as ReplyItem;
+     } else if (selectedRow) {
+       selectedItem = {
+         id: String(selectedRow.reply_object_uri || selectedRow.activity_uri || selectedRow.id),
+         user_id: String(selectedRow.user_id || ''),
+         post_id: postId,
+         content: String(selectedRow.content || ''),
+         created_at: String(selectedRow.created_at || new Date().toISOString()),
+         updated_at: String(selectedRow.updated_at || selectedRow.created_at || new Date().toISOString()),
+         parent_reply_id: String(selectedRow.parent_uri || postId),
+         profile: selectedRow.profile ?? null,
+         remote: true,
+         delivery_state: selectedRow.delivery_state,
+       } as ReplyItem;
+     }
+
+     if (!selectedItem) {
+       throw new Error('Reply not found or no longer visible');
+     }
+
+     // Children belong to the selected reply's canonical object URI, not to the
+     // root post and not to the Create activity URI.
+     const parentUri = String(selectedObject?.id || selectedRow?.reply_object_uri || selectedRow?.activity_uri || replyId);
      const [remoteReplies, ledgerReplies] = await Promise.all([
-       resolveFederatedReplies(selectedObject?.replies, federation.getFederatedObject),
-       /^https:\/\//i.test(String(replyId||'')) ? federation.getFederatedReplies(String(replyId)) : Promise.resolve([]),
+       selectedObject?.replies
+         ? resolveFederatedReplies(selectedObject.replies, federation.getFederatedObject)
+         : Promise.resolve([]),
+       federation.getFederatedReplies(parentUri, { parentUri }),
      ]);
-     const selectedItem = selectedObject?.id ? [federatedReplyToItem(selectedObject, postId) as ReplyItem] : [];
-     const childRemoteItems = remoteReplies.map((r:any)=>federatedReplyToItem(r, postId)) as ReplyItem[];
-     const childLedgerItems = (ledgerReplies||[]).map((r:any)=>({
-       id:String(r.activity_uri||r.id),
-       user_id:String(r.user_id||''),
-       post_id:postId,
-       content:String(r.content||''),
-       created_at:String(r.created_at||new Date().toISOString()),
-       updated_at:String(r.updated_at||r.created_at||new Date().toISOString()),
-       parent_reply_id:String(r.parent_uri||replyId),
-       profile:r.profile??null,
-       remote:true,
-       delivery_state:r.delivery_state,
-     })) as ReplyItem[];
-     const byId=new Map<string,ReplyItem>();
-     for(const item of [...selectedItem,...childRemoteItems,...childLedgerItems]) if(item.id) byId.set(item.id,item);
-     const items=[...byId.values()].sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime());
-     const [liveCounts] = await Promise.all([getInteractionCounts(String(replyId))]);
-     setReplies(items); setCounts(liveCounts);
+
+     const childRemoteItems = remoteReplies
+       .filter((item:any) => String(item?.id || '') !== String(selectedItem!.id))
+       .map((item:any) => federatedReplyToItem(item, postId)) as ReplyItem[];
+
+     const childLedgerItems = (ledgerReplies || [])
+       .filter((row:any) => String(row.reply_object_uri || row.activity_uri || row.id) !== String(selectedItem!.id))
+       .map((row:any) => ({
+         id: String(row.reply_object_uri || row.activity_uri || row.id),
+         user_id: String(row.user_id || ''),
+         post_id: postId,
+         content: String(row.content || ''),
+         created_at: String(row.created_at || new Date().toISOString()),
+         updated_at: String(row.updated_at || row.created_at || new Date().toISOString()),
+         parent_reply_id: String(row.parent_uri || parentUri),
+         profile: row.profile ?? null,
+         remote: true,
+         delivery_state: row.delivery_state,
+       })) as ReplyItem[];
+
+     const byId = new Map<string, ReplyItem>();
+     byId.set(String(selectedItem.id), selectedItem);
+     for (const item of [...childRemoteItems, ...childLedgerItems]) {
+       if (item.id) byId.set(String(item.id), item);
+     }
+
+     const items = [...byId.values()]
+       .sort((a,b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+     const countTarget = String(selectedObject?.id || selectedRow?.reply_object_uri || selectedRow?.activity_uri || replyId);
+     const [liveCounts] = await Promise.all([getInteractionCounts(countTarget)]);
+
      return;
    }
    const [p,r,c]=await Promise.all([

@@ -102,9 +102,15 @@ export async function reply(payload: { postId: string; content: string; parentRe
     ...(payload.parentReplyId ? { parent_reply_id: payload.parentReplyId } : {}),
   });
 }
-export async function getFederatedReplies(objectUri: string): Promise<any[]> {
-  if (!/^https:\/\//i.test(objectUri)) throw new Error('Federated reply target must be an ActivityPub URI');
-  const result = await api<{items?: any[]}>('/federated-replies', 'GET', undefined, { object_uri: objectUri });
+export async function getFederatedReplies(objectUri: string, options: { parentUri?: string; replyObjectUri?: string; activityUri?: string } = {}): Promise<any[]> {
+  const target = options.parentUri || options.replyObjectUri || objectUri;
+  if (!/^https:\/\//i.test(target)) throw new Error('Federated reply target must be an ActivityPub URI');
+  const result = await api<{items?: any[]}>('/federated-replies', 'GET', undefined, {
+    object_uri: objectUri,
+    ...(options.parentUri ? { parent_uri: options.parentUri } : {}),
+    ...(options.replyObjectUri ? { reply_object_uri: options.replyObjectUri } : {}),
+    ...(options.activityUri ? { activity_uri: options.activityUri } : {}),
+  });
   return Array.isArray(result?.items) ? result.items : [];
 }
 
