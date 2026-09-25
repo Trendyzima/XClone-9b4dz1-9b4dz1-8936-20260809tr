@@ -38,3 +38,5 @@ jobs:
 
       - name: Production build
         run: npm run build
+
+# Keep the gate independently visible on every PR and main push.
