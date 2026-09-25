@@ -32,7 +32,7 @@ Deno.serve(async req=>{
   ]);
   const blockedDomains = new Set<string>((moderation[0]?.data || []).map((r:any)=>String(r.domain||"").toLowerCase().trim()).filter(Boolean));
   const activeFilters = (moderation[1]?.data || []).filter((r:any)=>!r.expires_at || new Date(r.expires_at).getTime()>Date.now());
-  const moderationAllowed=(row:any)=>{let domain="";try{domain=new URL(String(row.actor_uri||"")).hostname.toLowerCase()}catch{};if(domain&&blockedDomains.has(domain))return false;const body=String(row.content||"").replace(/<[^>]*>/g," ").toLowerCase();return !activeFilters.some((f:any)=>{const phrase=String(f.phrase||"").trim().toLowerCase();return phrase&&body.includes(phrase)})};
+  const moderationAllowed=(row:any)=>{let domain="";try{domain=new URL(String(row.actor_uri||"")).hostname.toLowerCase()}catch{};if(domain&&blockedDomains.has(domain))return false;const body=String(row.content||"").replace(/<[^>]*>/g," ").toLowerCase();return !activeFilters.some((f:any)=>{const phrase=String(f.phrase||"").trim().toLowerCase();return f.action==='hide'&&phrase&&body.includes(phrase)})};
   const followed=new Set((rel.data||[]).map((r:any)=>String(r.remote_actor_uri||"")).filter(Boolean));
   const seen=await admin.from("federated_discovery_impressions").select("object_id").eq("user_id",uid).eq("surface",surface).order("shown_at",{ascending:false}).limit(500);
   if(seen.error)throw seen.error;
