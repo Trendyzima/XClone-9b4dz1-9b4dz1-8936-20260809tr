@@ -23,8 +23,8 @@ export function ThreadCard({ thread }: ThreadCardProps) {
     return () => { cancelled = true; };
   }, [thread.owner_id, profile]);
 
-  const username = profile?.username ?? 'user';
-  const displayName = profile?.display_name ?? username;
+  const username = String(profile?.username ?? '').replace(/^@/,'');
+  const displayName = profile?.display_name ?? profile?.full_name ?? username || 'Profile';
   const avatar = profile?.avatar_url;
   const created = thread.created_at ? formatDistanceToNow(new Date(thread.created_at), { addSuffix: true }) : '';
   const body = thread.body ?? thread.content ?? '';
