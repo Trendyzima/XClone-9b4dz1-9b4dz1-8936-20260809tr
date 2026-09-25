@@ -36,6 +36,10 @@
       "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/users/:username"
     },
     {
+      "source": "/users/:username/statuses/:statusId",
+      "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/users/:username/statuses/:statusId"
+    },
+    {
       "source": "/users/:username/:collection(followers|following|outbox)",
       "destination": "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/mastodon-edge/users/:username/:collection"
     },
