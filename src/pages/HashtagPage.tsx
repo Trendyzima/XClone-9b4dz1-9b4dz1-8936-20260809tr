@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { formatNumber } from '@/lib/utils';
 import { useSEO, buildHashtagLD, buildOgImageUrl } from '@/hooks/useSEO';
 import { backendCapabilities } from '@/services/testagramCapabilityClient';
+import { FederatedHashtagDiscovery } from '@/components/features/FederatedOrganicDiscovery';
 
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 function HashtagAdBanner() { return <PageAdBanner />; }
@@ -292,6 +293,7 @@ export default function HashtagPage() {
     <div className="min-h-screen bg-background pb-16 md:pb-0">
       <TopBar title={`#${tag}`} showBack />
       <HashtagAdBanner />
+      <FederatedHashtagDiscovery surface="hashtag" />
 
       {/* Hashtag Header */}
       <div className="border-b border-border p-6 bg-gradient-to-br from-primary/10 to-primary/5">
