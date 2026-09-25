@@ -32,7 +32,20 @@ export default function SearchPageV3(){
  useEffect(()=>{try{setRecent(JSON.parse(localStorage.getItem('tsocial_recent_searches')||'[]').slice(0,8))}catch{}},[]);
  useEffect(()=>{const close=(e:MouseEvent)=>{if(box.current&&!box.current.contains(e.target as Node))setShowSuggest(false)};document.addEventListener('mousedown',close);return()=>document.removeEventListener('mousedown',close)},[]);
  const saveRecent=(q:string)=>{const next=[q,...recent.filter(x=>x!==q)].slice(0,8);setRecent(next);try{localStorage.setItem('tsocial_recent_searches',JSON.stringify(next))}catch{}};
- const suggestFor=async(q:string)=>{if(!q.trim()){setSuggest({users:[],hashtags:[],posts:[],communities:[],next_cursor:null,replies:[]});return}setSuggestLoading(true);try{const raw=q.trim();const token=raw.replace(/^[@#]/,'');const r:any=await api.searchUnified(token,'all',8);let next:any={...r,users:(r.users??[]).slice(0,8),hashtags:(r.hashtags??[]).slice(0,8),posts:[],communities:(r.communities??[]).slice(0,4),replies:[]};if(raw.startsWith('#')){try{const remote=await federation.search(token,'hashtags');const rows=Array.isArray(remote)?remote:[];const seen=new Set((next.hashtags??[]).map((h:any)=>String(h.tag??h.name).replace(/^#/,'').toLowerCase()));const remoteHashtags=rows.filter((h:any)=>{const name=String(h.tag??h.name??'').replace(/^#/,'').toLowerCase();return name&&!seen.has(name)}).map((h:any)=>({...h,tag:String(h.tag??h.name).replace(/^#/,'').toLowerCase(),is_federated:true}));next.hashtags=[...(next.hashtags??[]),...remoteHashtags];}catch(e){console.debug('[fediverse-hashtag-suggest]',e)}}else if(raw.startsWith('@')){try{const remote=await federation.search(token,'users');const remotePayload:any=remote as any; const rows=Array.isArray(remote)?remote:(remotePayload?.accounts??remotePayload?.users??[]);const seen=new Set((next.users??[]).map((p:any)=>String(p.username??'').toLowerCase()));const remoteUsers=rows.filter((a:any)=>{const name=String(a.username??a.preferredUsername??'').toLowerCase();return name&&!seen.has(name)}).map((a:any)=>({id:a.id??a.url,username:a.username??a.preferredUsername,display_name:a.display_name??a.name,avatar_url:a.avatar??a.avatar_url,bio:a.note??a.summary,verified:false,origin:'fediverse',actor_uri:a.url??a.id,domain:a.acct?.split('@')[1]??a.domain}));next.users=[...(next.users??[]),...remoteUsers].slice(0,8);}catch(e){console.debug('[fediverse-user-suggest]',e)}}setSuggest(next)}catch(e){console.debug('[search-suggest]',e)}finally{setSuggestLoading(false)}};
+ const suggestFor=async(q:string)=>{if(!q.trim()){setSuggest({users:[],hashtags:[],posts:[],communities:[],next_cursor:null,replies:[]});return}setSuggestLoading(true);try{const raw=q.trim();const token=raw.replace(/^[@#]/,'');const r:any=await api.searchUnified(token,'all',8);let next:any={...r,users:(r.users??[]).slice(0,8),hashtags:(r.hashtags??[]).slice(0,8),posts:[],communities:(r.communities??[]).slice(0,4),replies:[]};if(raw.startsWith('#')||raw.startsWith('@')){
+ try{
+  const kind=raw.startsWith('#')?'hashtags':'people';
+  const remote=await federation.searchFederatedDiscovery(raw,12,undefined,'suggest',kind as any);
+  const remoteRows=raw.startsWith('#')?(remote.hashtags??[]):(remote.users??[]);
+  if(raw.startsWith('#')){
+   const seen=new Set((next.hashtags??[]).map((h:any)=>String(h.tag??h.name).replace(/^#/,'').toLowerCase()));
+   next.hashtags=[...(next.hashtags??[]),...remoteRows.filter((h:any)=>{const name=String(h.tag??h.name??'').replace(/^#/,'').toLowerCase();return name&&!seen.has(name)}).map((h:any)=>({...h,tag:String(h.tag??h.name).replace(/^#/,'').toLowerCase(),is_federated:true}))];
+  }else{
+   const seen=new Set((next.users??[]).map((p:any)=>String(p.username??'').toLowerCase()));
+   next.users=[...(next.users??[]),...remoteRows.filter((a:any)=>{const name=String(a.username??a.preferredUsername??'').toLowerCase();return name&&!seen.has(name)}).map((a:any)=>({...a,origin:'fediverse'}))].slice(0,8);
+  }
+ }catch(e){console.debug('[fediverse-suggest]',e)}
+}}setSuggest(next)}catch(e){console.debug('[search-suggest]',e)}finally{setSuggestLoading(false)}};
 const run=async(q=query,nextTab=tab,append=false)=>{if(!q.trim())return;const clean=q.trim();if(!append){saveRecent(clean);setLoading(true);setHasMore(true);setData({users:[],hashtags:[],posts:[],communities:[],next_cursor:null});setFediverse([]);setFediversePosts([]);setThreadResults([]);setReplyResults([]);setParams({q:clean,tab:nextTab})}else setLoadingMore(true);
   try{
    const kindMap:any={Top:'all',Latest:'latest',People:'people',Media:'media',Hashtags:'hashtags',Replies:'replies',Threads:'threads',Communities:'communities',Fediverse:'fediverse',Instances:'people'};
@@ -44,7 +57,7 @@ const run=async(q=query,nextTab=tab,append=false)=>{if(!q.trim())return;const cl
    setData(r);
    setFediversePosts(cachedFedPosts);
    setHasMore(false);
-   if(nextTab==='Fediverse'||clean.startsWith('@')||clean.startsWith('#')||remoteRows.length===0){
+   {
     try{
      const discoveryKind=clean.startsWith('#')?'hashtags':clean.startsWith('@')||nextTab==='People'?'people':nextTab==='Fediverse'?'posts':'all';
      const live=await federation.searchFederatedDiscovery(clean,50,undefined,'search',discoveryKind as any);
