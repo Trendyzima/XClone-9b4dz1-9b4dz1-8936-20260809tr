@@ -92,11 +92,11 @@ Deno.serve(async (request) => {
           const res=await fetch(`https://${domain}/api/v1/timelines/public?limit=30&local=true`,{headers:{Accept:"application/json","User-Agent":"Testagram-Federation/4.0"},signal:AbortSignal.timeout(7000)});
           if(!res.ok)throw new Error(`HTTP ${res.status}`);
           const statuses=await res.json();
-          const rows=(Array.isArray(statuses)?statuses:[]).map((s:any)=>{
+          const rows:any[]=(Array.isArray(statuses)?statuses:[]).map((s:any)=>{
             const acct=s.account||{}; const actor=String(acct.url||acct.uri||`https://${domain}/users/${acct.username||"unknown"}`);
             const uri=String(s.uri||s.url||""); if(!uri)return null;
             return {uri,object_type:"Note",actor_uri:actor,url:s.url||uri,content:String(s.content||""),summary:s.spoiler_text||null,published_at:s.created_at||new Date().toISOString(),updated_at:s.edited_at||s.created_at||null,sensitive:Boolean(s.sensitive),in_reply_to_uri:s.in_reply_to_id?String(s.in_reply_to_id):null,quote_uri:s.quote_id?String(s.quote_id):null,attachments:Array.isArray(s.media_attachments)?s.media_attachments:[],tags:Array.isArray(s.tags)?s.tags:[],like_count:Number(s.favourites_count||0),announce_count:Number(s.reblogs_count||0),reply_count:Number(s.replies_count||0),quote_count:Number(s.quotes_count||0),view_count:Number(s.view_count||0),content_warning:s.spoiler_text||null,raw_object:s,remote_account:{id:actor,actor_uri:actor,url:acct.url||actor,username:acct.username||"unknown",preferredUsername:acct.username||"unknown",display_name:acct.display_name||acct.username||"unknown",domain,avatar_url:acct.avatar||null,header_url:acct.header||null,bio:acct.note||null,followers_count:Number(acct.followers_count||0),following_count:Number(acct.following_count||0),profile_url:acct.url||actor}};
-          }).filter((row: any): row is Record<string, any> => Boolean(row));
+          }).filter(Boolean);
           if(rows.length){const ins=await admin.from("federated_objects").upsert(rows,{onConflict:"uri",ignoreDuplicates:false});if(ins.error)throw ins.error;}
           await admin.from("fediverse_instance_sync_state").upsert({domain,last_synced_at:new Date().toISOString(),last_success_at:new Date().toISOString(),last_error:null,updated_at:new Date().toISOString()},{onConflict:"domain"});
         }catch(error){await admin.from("fediverse_instance_sync_state").upsert({domain,last_synced_at:new Date().toISOString(),last_error:error instanceof Error?error.message:"sync failed",updated_at:new Date().toISOString()},{onConflict:"domain"});}
