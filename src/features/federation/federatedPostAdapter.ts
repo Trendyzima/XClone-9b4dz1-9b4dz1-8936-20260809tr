@@ -1,6 +1,6 @@
 import type { Post } from '@/types/app-types';
 
-function normalizeFederatedText(value: unknown): string {
+export function normalizeFederatedText(value: unknown): string {
   const source = String(value ?? '');
   if (!source) return '';
 
