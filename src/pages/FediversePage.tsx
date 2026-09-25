@@ -955,6 +955,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
             </button>
           );
         })}
+        <button onClick={() => navigate('/fediverse/controls')} className="shrink-0 px-3 py-3 text-xs font-semibold text-primary hover:bg-primary/5 border-l border-border">Controls</button>
       </div>}
 
       {/* ══════════════════ FEED TAB ══════════════════ */}
