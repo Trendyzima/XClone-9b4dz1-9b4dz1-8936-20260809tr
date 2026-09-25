@@ -79,7 +79,7 @@ $$;
 revoke all on function public.cleanup_expired_fediverse_content(interval) from public;
 revoke all on function public.cleanup_expired_fediverse_content(interval) from anon, authenticated;
 
-do $$
+do $do$
 begin
   if exists(select 1 from cron.job where jobname='fediverse-content-retention') then
     perform cron.unschedule('fediverse-content-retention');
@@ -88,6 +88,6 @@ begin
   perform cron.schedule(
     'fediverse-content-retention',
     '*/30 * * * *',
-    $$select public.cleanup_expired_fediverse_content(interval '5 hours');$$
+    $job$select public.cleanup_expired_fediverse_content(interval '5 hours');$job$
   );
-end $$;
+end $do$;
