@@ -50,3 +50,41 @@ begin
     $job$
   );
 end $$;
+
+
+-- Safe read-only status RPC: the tables remain closed to direct client reads,
+-- while the UI can show the last real ingestion result without exposing internals.
+create or replace function public.get_fediverse_ingestion_status()
+returns jsonb
+language sql
+security definer
+set search_path = public
+as $$
+  select jsonb_build_object(
+    'last_run', coalesce((
+      select jsonb_build_object(
+        'id', r.id,
+        'started_at', r.started_at,
+        'completed_at', r.completed_at,
+        'status', r.status,
+        'domains_attempted', r.domains_attempted,
+        'domains_succeeded', r.domains_succeeded,
+        'domains_failed', r.domains_failed,
+        'objects_fetched', r.objects_fetched,
+        'objects_upserted', r.objects_upserted,
+        'duration_ms', r.duration_ms,
+        'error', r.error
+      )
+      from public.fediverse_ingestion_runs r
+      order by r.started_at desc
+      limit 1
+    ), '{}'::jsonb),
+    'next_scheduled_at', (
+      select min(next_sync_at)
+      from public.federated_instances
+      where next_sync_at is not null
+    )
+  );
+$$;
+revoke all on function public.get_fediverse_ingestion_status() from public;
+grant execute on function public.get_fediverse_ingestion_status() to anon, authenticated;
