@@ -91,10 +91,10 @@ async function syncDomain(instance:any){
   await db.from("fediverse_instance_sync_state").upsert({
     domain,last_synced_at:successAt,last_success_at:successAt,last_error:null,updated_at:successAt
   },{onConflict:"domain"});
-  await db.from("federated_actors").upsert(statuses.map((s:any)=>s.account||{}).map((a:any)=>{
+  const actorUpsert = await db.from("federated_actors").upsert(statuses.map((s:any)=>s.account||{}).map((a:any)=>{
     const actorUri=String(a.url||a.uri||""); if(!actorUri)return null;
     return {actor_uri:actorUri,username:String(a.username||"unknown"),domain,display_name:a.display_name||a.username||"unknown",bio:a.note||null,avatar_url:a.avatar||null,raw_actor:a,fetched_at:successAt,updated_at:successAt};
-  }).filter(Boolean),{onConflict:"actor_uri",ignoreDuplicates:false}).catch(()=>{});
+  }).filter(Boolean,{onConflict:"actor_uri",ignoreDuplicates:false}); if(actorUpsert.error) console.warn("[federation-inbound] actor index update failed",actorUpsert.error.message);
   return {domain,status:200,stored:rows.length};
 }
 
