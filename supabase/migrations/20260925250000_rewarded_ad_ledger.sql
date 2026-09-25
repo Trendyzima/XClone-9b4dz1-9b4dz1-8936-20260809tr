@@ -54,5 +54,5 @@ begin
 end;
 $$;
 
-revoke all on function public.claim_rewarded_ad(text) from public;
+revoke all on function public.claim_rewarded_ad(text) from public, anon;
 grant execute on function public.claim_rewarded_ad(text) to authenticated;
