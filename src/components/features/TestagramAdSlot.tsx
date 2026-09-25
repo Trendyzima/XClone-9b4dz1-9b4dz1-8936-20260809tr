@@ -16,6 +16,8 @@ export interface TestagramAdContext {
   community_id?: string;
   query?: string;
   category?: string;
+  page_path?: string;
+  surface?: string;
 }
 
 interface ServedAd {
