@@ -14,6 +14,7 @@ import { getInteractionCounts } from '@/services/postInteractionService';
 import { useAuth } from '@/hooks/useAuth';
 
 import { PageAdBanner } from '@/components/features/AdSenseAd';
+import { federatedObjectToPost, resolveFederatedReplies } from '@/features/federation/federatedPostAdapter';
 
 function PostThreadAdBanner() { return <PageAdBanner />; }
 
@@ -80,46 +81,22 @@ export default function PostThreadPage() {
         const object = remote?.object ?? remote;
         if (!object?.id) throw new Error('Remote ActivityPub object not found');
 
-        const actor = typeof object.attributedTo === 'string'
-          ? object.attributedTo
-          : object.attributedTo?.id ?? object.attributedTo?.url ?? '';
-        const actorPath = actor ? actor.replace(/\/$/, '').split('/').pop() || 'Fediverse user' : 'Fediverse user';
-        const published = object.published ?? object.created ?? new Date().toISOString();
-        const attachments = Array.isArray(object.attachment) ? object.attachment : [];
-        const mediaUrls = attachments
-          .map((a: any) => a?.url ?? a?.href)
-          .filter((v: any): v is string => typeof v === 'string');
-
-        setPost({
-          id: object.id,
-          content: object.content ?? object.name ?? object.summary ?? '',
-          created_at: published,
-          updated_at: object.updated ?? published,
-          user_id: actor,
-          author_id: actor,
-          user_profiles: {
-            id: actor,
-            username: actorPath.replace(/^@/, ''),
-            email: '',
-            display_name: object.attributedTo?.name ?? actorPath.replace(/^@/, ''),
-            avatar_url: object.attributedTo?.icon?.url ?? object.attributedTo?.icon ?? undefined,
-            verified: false,
-            follower_count: 0,
-            following_count: 0,
-            created_at: published,
+        const normalized = await federatedObjectToPost(object, federation.getFederatedObject);
+        setPost(normalized);
+        const remoteReplies = await resolveFederatedReplies(object.replies, federation.getFederatedObject);
+        setReplies(remoteReplies.map((r: any) => ({
+          id: String(r.id),
+          content: String(r.content ?? r.name ?? r.summary ?? ''),
+          created_at: r.published ?? r.created ?? new Date().toISOString(),
+          parent_reply_id: undefined,
+          profile: {
+            username: typeof r.attributedTo === 'string' ? r.attributedTo.split('/').filter(Boolean).pop() : r.attributedTo?.preferredUsername ?? r.attributedTo?.name ?? 'user',
+            display_name: typeof r.attributedTo === 'object' ? r.attributedTo?.name : undefined,
+            avatar_url: typeof r.attributedTo === 'object' ? (r.attributedTo?.icon?.url ?? r.attributedTo?.icon) : undefined,
           },
-          likes_count: Number(object.likes?.totalItems ?? 0),
-          reposts_count: Number(object.shares?.totalItems ?? 0),
-          replies_count: Number(object.replies?.totalItems ?? 0),
-          views_count: 0,
-          media_urls: mediaUrls,
-          image_url: mediaUrls.find((u: string) => /image|\.png$|\.jpe?g$|\.webp$/i.test(u)) ?? null,
-          video_url: mediaUrls.find((u: string) => /video|\.mp4$|\.webm$/i.test(u)) ?? null,
-          is_video: mediaUrls.some((u: string) => /video|\.mp4$|\.webm$/i.test(u)),
-          is_federated: true,
-          federation_id: object.id,
-        } as Post);
-        return;
+        })) as ReplyItem[]);
+        setCounts(prev => ({ ...prev, replies: remoteReplies.length || Number(object.replies?.totalItems ?? 0) }));
+
       }
 
       const { data: postData, error: postError } = await supabase
