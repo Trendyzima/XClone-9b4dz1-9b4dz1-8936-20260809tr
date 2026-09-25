@@ -12,6 +12,7 @@ import { useSEO, buildOgImageUrl } from '@/hooks/useSEO';
 import * as federation from '@/api/federation';
 import { listReplies, createReply, type ReplyItem } from '@/features/replies/repliesService';
 import { getInteractionCounts } from '@/services/postInteractionService';
+import { ReplyActions } from '@/components/features/ReplyActions';
 import { useAuth } from '@/hooks/useAuth';
 
 import { PageAdBanner } from '@/components/features/AdSenseAd';
@@ -33,6 +34,7 @@ export default function PostThreadPage() {
   const [copySuccess, setCopySuccess] = useState(false);
   const [replies, setReplies] = useState<ReplyItem[]>([]);
   const [replyText, setReplyText] = useState('');
+  const [replyingTo, setReplyingTo] = useState<string | undefined>();
   const [replySending, setReplySending] = useState(false);
   const [replyLoading, setReplyLoading] = useState(false);
   const [counts, setCounts] = useState({ likes: 0, replies: 0, reposts: 0, quotes: 0, views: 0 });
@@ -149,7 +151,8 @@ export default function PostThreadPage() {
     if (!postId || !user || !replyText.trim()) return;
     setReplySending(true);
     try {
-      await createReply(postId, replyText.trim());
+      await createReply(postId, replyText.trim(), replyingTo);
+      setReplyingTo(undefined);
       setReplyText('');
       await loadReplies();
       toast({ title: 'Reply posted' });
@@ -241,7 +244,7 @@ export default function PostThreadPage() {
           <button onClick={openReplies} className="text-xs font-semibold text-primary">Open all replies</button>
         </div>
         {user && !/^https:\/\//i.test(postId ?? '') && (
-          <div className="px-4 pb-3 flex gap-2">
+          <div className="px-4 pb-3 space-y-2"><div className="flex gap-2">{replyingTo && <button onClick={()=>setReplyingTo(undefined)} className="text-xs text-muted-foreground">Replying to another reply · Cancel</button>}</div><div className="flex gap-2">
             <input value={replyText} onChange={e => setReplyText(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void submitReply(); } }}
               placeholder="Write a reply…" aria-label="Write a reply"
@@ -249,8 +252,7 @@ export default function PostThreadPage() {
             <button onClick={() => void submitReply()} disabled={!replyText.trim() || replySending}
               className="rounded-full bg-primary text-primary-foreground px-4 disabled:opacity-40">
               {replySending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-            </button>
-          </div>
+            </button></div></div>
         )}
         {replyLoading ? (
           <div className="py-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
@@ -264,26 +266,18 @@ export default function PostThreadPage() {
             const safeHandle = username ? `@${username}` : '';
             const initial = displayName.slice(0, 1).toUpperCase();
             return (
-              <button key={reply.id} onClick={() => navigate('/post/' + postId + '/reply/' + reply.id)}
-                className="w-full text-left px-4 py-3 border-t border-border hover:bg-muted/20">
-                <div className="flex gap-3">
+              <article key={reply.id} className="px-4 py-3 border-t border-border hover:bg-muted/20">
+                <div className="flex gap-3 cursor-pointer" onClick={() => navigate('/post/' + postId + '/reply/' + reply.id)}>
                   <div className="w-9 h-9 rounded-full bg-muted overflow-hidden shrink-0 ring-1 ring-border">
-                    {author?.avatar_url ? (
-                      <img src={author.avatar_url} alt={displayName} className="w-full h-full object-cover" loading="lazy" />
-                    ) : (
-                      <span className="w-full h-full flex items-center justify-center text-xs font-bold text-muted-foreground">{initial}</span>
-                    )}
+                    {author?.avatar_url ? <img src={author.avatar_url} alt={displayName} className="w-full h-full object-cover" loading="lazy" /> : <span className="w-full h-full flex items-center justify-center text-xs font-bold text-muted-foreground">{initial}</span>}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="text-sm font-semibold truncate">{displayName}</span>
-                      {author?.verified && <VerifiedTick className="w-3.5 h-3.5 text-primary shrink-0" />}
-                      <span className="text-xs text-muted-foreground truncate">{safeHandle}</span>
-                    </div>
+                    <div className="flex items-center gap-1.5 min-w-0"><span className="text-sm font-semibold truncate">{displayName}</span>{author?.verified && <VerifiedTick className="w-3.5 h-3.5 text-primary shrink-0" />}<span className="text-xs text-muted-foreground truncate">{safeHandle}</span></div>
                     <p className="text-sm mt-1 whitespace-pre-wrap break-words">{reply.content}</p>
                   </div>
                 </div>
-              </button>
+                <ReplyActions replyId={reply.id} onReply={() => { setReplyingTo(reply.id); setReplyText(''); }} />
+              </article>
             );
           })}</div>
         )}
