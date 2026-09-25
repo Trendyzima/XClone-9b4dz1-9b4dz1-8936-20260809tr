@@ -35,21 +35,83 @@ export default function PostReplyChainPage(){
  const selected=replies.find(r=>r.id===replyId)||replies[0]; const selectedProfile=selected?.profile; const profileUsername=String(selectedProfile?.username||'').replace(/^@/,''); const profileName=String(selectedProfile?.display_name||selectedProfile?.full_name||selectedProfile?.username||'Profile'); const openProfile=()=>profileUsername&&navigate('/profile/'+profileUsername);
  const send=async()=>{if(!postId||!text.trim()||!user)return;try{await createReply(postId,text.trim(),replyingTo);setText('');await load()}catch(e){console.error(e)}};
  if(loading)return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-7 h-7 animate-spin text-primary"/></div>;
- return <div className="min-h-screen bg-background pb-20">
-  <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border px-4 py-3 flex items-center gap-3"><button onClick={()=>navigate(-1)} className="p-2 rounded-full hover:bg-muted"><ArrowLeft className="w-5 h-5"/></button><div><h1 className="font-bold">Reply chain</h1><p className="text-xs text-muted-foreground">{counts.replies} replies · {counts.likes} likes · {counts.reposts} reposts · {counts.quotes} quotes</p></div></header>
-  {post&&<button onClick={()=>navigate('/post/'+(post.is_federated ? encodeURIComponent(post.id) : post.id))} className="w-full text-left p-4 border-b border-border"><div className="flex items-center gap-2"><img src={post.profiles?.avatar_url||''} alt="" className="w-9 h-9 rounded-full bg-muted object-cover"/><b>{post.profiles?.display_name||post.profiles?.full_name||post.profiles?.username||'Profile'}</b>{(post.profiles?.username||post.profiles?.preferredUsername)&&<span className="text-muted-foreground ml-1">@{String(post.profiles?.username||post.profiles?.preferredUsername).replace(/^@/,'')}</span>}</div><p className="mt-3 whitespace-pre-wrap">{post.content}</p><div className="flex gap-4 mt-3 text-xs text-muted-foreground"><span>{counts.likes} likes</span><span>{counts.reposts} reposts</span><span>{counts.quotes} quotes</span><span>{counts.replies} replies</span></div></button>}
-  {selected&&<section className="p-4 border-b border-border">
-   <button onClick={openProfile} className="w-full text-left">
-    {selectedProfile?.cover_url&&<img src={selectedProfile.cover_url} alt="" className="w-full h-28 rounded-2xl object-cover bg-muted"/>}
-    <div className="flex items-end gap-3 relative">
-     <div className="w-16 h-16 rounded-full border-4 border-background bg-muted overflow-hidden flex items-center justify-center shrink-0">{selectedProfile?.avatar_url?<img src={selectedProfile.avatar_url} alt={profileName} className="w-full h-full object-cover"/>:<span className="text-xl font-bold">{profileName.slice(0,1).toUpperCase()}</span>}</div>
-     <div className="pb-1 min-w-0"><h2 className="font-bold truncate">{profileName}</h2>{profileUsername&&<p className="text-sm text-muted-foreground">@{profileUsername}</p>}</div>
+
+ return (
+  <div className="min-h-screen bg-background pb-20">
+   <header className="sticky top-0 z-20 bg-background/95 backdrop-blur border-b border-border px-4 py-3 flex items-center gap-3">
+    <button onClick={()=>navigate(-1)} className="p-2 rounded-full hover:bg-muted"><ArrowLeft className="w-5 h-5"/></button>
+    <div><h1 className="font-bold">Reply chain</h1><p className="text-xs text-muted-foreground">{counts.replies} replies · {counts.likes} likes · {counts.reposts} reposts · {counts.quotes} quotes</p></div>
+   </header>
+
+   {post ? (
+    <button onClick={()=>navigate('/post/'+(post.is_federated ? encodeURIComponent(post.id) : post.id))} className="w-full text-left p-4 border-b border-border">
+     <div className="flex items-center gap-2">
+      <img src={post.profiles?.avatar_url||''} alt="" className="w-9 h-9 rounded-full bg-muted object-cover"/>
+      <b>{post.profiles?.display_name||post.profiles?.full_name||post.profiles?.username||'Profile'}</b>
+      {(post.profiles?.username||post.profiles?.preferredUsername) && <span className="text-muted-foreground ml-1">@{String(post.profiles?.username||post.profiles?.preferredUsername).replace(/^@/,'')}</span>}
+     </div>
+     <p className="mt-3 whitespace-pre-wrap">{post.content}</p>
+     <div className="flex gap-4 mt-3 text-xs text-muted-foreground"><span>{counts.likes} likes</span><span>{counts.reposts} reposts</span><span>{counts.quotes} quotes</span><span>{counts.replies} replies</span></div>
+    </button>
+   ) : null}
+
+   {selected ? (
+    <section className="p-4 border-b border-border">
+     <button onClick={openProfile} className="w-full text-left">
+      {selectedProfile?.cover_url ? <img src={selectedProfile.cover_url} alt="" className="w-full h-28 rounded-2xl object-cover bg-muted"/> : null}
+      <div className="flex items-end gap-3 relative">
+       <div className="w-16 h-16 rounded-full border-4 border-background bg-muted overflow-hidden flex items-center justify-center shrink-0">
+        {selectedProfile?.avatar_url ? <img src={selectedProfile.avatar_url} alt={profileName} className="w-full h-full object-cover"/> : <span className="text-xl font-bold">{profileName.slice(0,1).toUpperCase()}</span>}
+       </div>
+       <div className="pb-1 min-w-0"><h2 className="font-bold truncate">{profileName}</h2>{profileUsername && <p className="text-sm text-muted-foreground">@{profileUsername}</p>}</div>
+      </div>
+      {selectedProfile?.bio ? <p className="mt-3 text-sm whitespace-pre-wrap break-words">{selectedProfile.bio}</p> : null}
+      <div className="flex flex-wrap gap-4 mt-3 text-xs text-muted-foreground">
+       <span><b className="text-foreground">{Number(selectedProfile?.follower_count??0)}</b> followers</span>
+       <span><b className="text-foreground">{Number(selectedProfile?.following_count??0)}</b> following</span>
+       <span><b className="text-foreground">{Number(selectedProfile?.posts_count??0)}</b> posts</span>
+      </div>
+     </button>
+    </section>
+   ) : null}
+
+   <main className="max-w-2xl mx-auto">
+    {replies.length ? replies.map((r,i) => {
+     const username=String(r.profile?.username||r.profile?.preferredUsername||r.profile?.acct||'').replace(/^@/,'');
+     const name=r.profile?.display_name||r.profile?.full_name||r.profile?.name||username||'Profile';
+     const openReplyProfile=()=>username&&navigate('/profile/'+username);
+     return (
+      <article key={r.id} className="relative px-5 py-4 border-b border-border">
+       <div className="flex gap-3">
+        <div className="shrink-0 flex flex-col items-center">
+         <button onClick={openReplyProfile} className="w-9 h-9 rounded-full bg-muted overflow-hidden flex items-center justify-center">
+          {r.profile?.avatar_url ? <img src={r.profile.avatar_url} alt={name} className="w-full h-full object-cover" loading="lazy"/> : <span className="text-xs font-bold text-muted-foreground">{String(name).slice(0,1).toUpperCase()}</span>}
+         </button>
+         {i<replies.length-1 ? <div className="w-px flex-1 bg-border mt-1"/> : null}
+        </div>
+        <div className="min-w-0 flex-1">
+         <div className="text-sm">
+          <button onClick={openReplyProfile} className="font-bold hover:underline">{name}</button>
+          {username ? <span className="text-muted-foreground ml-1">@{username}</span> : null}
+          <span className="text-muted-foreground ml-2">{new Date(r.created_at).toLocaleString()}</span>
+         </div>
+         <p className="mt-1 whitespace-pre-wrap break-words">{r.content}</p>
+         <ReplyActions replyId={r.id} profileUsername={username} onOpenProfile={openReplyProfile} onReply={()=>setReplyingTo(r.id)}/>
+        </div>
+       </div>
+      </article>
+     );
+    }) : (
+     <div className="p-12 text-center text-muted-foreground">{error||'This reply is no longer visible.'}<button onClick={()=>void load()} className="block mx-auto mt-3 rounded-full border px-4 py-2 text-sm">Retry</button></div>
+    )}
+   </main>
+
+   {user ? (
+    <div className="fixed bottom-0 left-0 right-0 md:static md:max-w-2xl md:mx-auto bg-background/95 backdrop-blur border-t border-border p-3 flex gap-2">
+     <input value={text} onChange={e=>setText(e.target.value)} placeholder={replyingTo?'Reply to this reply…':'Write a reply…'} className="flex-1 rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm"/>
+     <button disabled={!text.trim()} onClick={()=>void send()} className="p-2 rounded-xl bg-primary text-primary-foreground disabled:opacity-40"><Send className="w-4 h-4"/></button>
     </div>
-    {selectedProfile?.bio&&<p className="mt-3 text-sm whitespace-pre-wrap break-words">{selectedProfile.bio}</p>}
-    <div className="flex flex-wrap gap-4 mt-3 text-xs text-muted-foreground"><span><b className="text-foreground">{Number(selectedProfile?.follower_count??0)}</b> followers</span><span><b className="text-foreground">{Number(selectedProfile?.following_count??0)}</b> following</span><span><b className="text-foreground">{Number(selectedProfile?.posts_count??0)}</b> posts</span></div>
-   </button>
-  </section>}
-  <main className="max-w-2xl mx-auto">{replies.length?replies.map((r,i)=><article key={r.id} className="relative px-5 py-4 border-b border-border"><div className="flex gap-3"><div className="shrink-0 flex flex-col items-center"><button onClick={()=>{const u=String(r.profile?.username||r.profile?.preferredUsername||r.profile?.acct||'').replace(/^@/,'');if(u)navigate('/profile/'+u)}} className="w-9 h-9 rounded-full bg-muted overflow-hidden flex items-center justify-center">{r.profile?.avatar_url?<img src={r.profile.avatar_url} alt={r.profile?.display_name||r.profile?.username||'Profile'} className="w-full h-full object-cover" loading="lazy"/>:<span className="text-xs font-bold text-muted-foreground">{String(r.profile?.display_name||r.profile?.username||'P').slice(0,1).toUpperCase()}</span>}</button>{i<replies.length-1&&<div className="w-px flex-1 bg-border mt-1"/>}</div><div className="min-w-0 flex-1"><div className="text-sm"><button onClick={()=>{const u=String(r.profile?.username||r.profile?.preferredUsername||r.profile?.acct||'').replace(/^@/,'');if(u)navigate('/profile/'+u)}} className="font-bold hover:underline">{r.profile?.display_name||r.profile?.full_name||r.profile?.name||r.profile?.username||'Profile'}</button>{(r.profile?.username||r.profile?.preferredUsername||r.profile?.acct)&&<span className="text-muted-foreground ml-1">@{String(r.profile?.username||r.profile?.preferredUsername||r.profile?.acct).replace(/^@/,'')}</span>}<span className="text-muted-foreground ml-2">{new Date(r.created_at).toLocaleString()}</span></div><p className="mt-1 whitespace-pre-wrap break-words">{r.content}</p><ReplyActions replyId={r.id} profileUsername={String(r.profile?.username||r.profile?.preferredUsername||r.profile?.acct||'').replace(/^@/,'')} onOpenProfile={()=>{const u=String(r.profile?.username||r.profile?.preferredUsername||r.profile?.acct||'').replace(/^@/,'');if(u)navigate('/profile/'+u)}} onReply={()=>setReplyingTo(r.id)} /></div></div></article>) :<div className="p-12 text-center text-muted-foreground">{error||'This reply is no longer visible.'}<button onClick={()=>void load()} className="block mx-auto mt-3 rounded-full border px-4 py-2 text-sm">Retry</button></div>}</main>
-  {user&&<div className="fixed bottom-0 left-0 right-0 md:static md:max-w-2xl md:mx-auto bg-background/95 backdrop-blur border-t border-border p-3 flex gap-2"><input value={text} onChange={e=>setText(e.target.value)} placeholder={replyingTo?'Reply to this reply…':'Write a reply…'} className="flex-1 rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm"/><button disabled={!text.trim()} onClick={()=>void send()} className="p-2 rounded-xl bg-primary text-primary-foreground disabled:opacity-40"><Send className="w-4 h-4"/></button></div>}
- </div>;
+   ) : null}
+  </div>
+ );
 }
