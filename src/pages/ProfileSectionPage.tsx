@@ -1,3 +1,4 @@
+/* Production hook-order verification checkpoint. */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
