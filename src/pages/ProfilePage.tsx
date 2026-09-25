@@ -821,7 +821,13 @@ export default function ProfilePage() {
       setPosts([]);
       return;
     }
-    const postList = data || [];
+    // PostCard accepts the canonical `user_profiles` shape. Profile pages
+    // receive the joined author as `profiles`, so normalize it at the boundary
+    // instead of allowing the card to fall back to a placeholder identity.
+    const postList = (data || []).map((post: any) => ({
+      ...post,
+      user_profiles: post.user_profiles || post.profiles || null,
+    }));
     setPosts(postList);
     // Fire milestone alerts asynchronously — won't block UI
     checkImpressionMilestones(userId, postList).catch(() => {});
@@ -848,7 +854,10 @@ export default function ProfilePage() {
       .or('image_url.not.is.null,video_url.not.is.null,media_urls.neq.[]')
       .order('created_at', { ascending: false });
     if (error) console.error('[profile] media query failed', { userId, error });
-    setMedia(data || []);
+    setMedia((data || []).map((post: any) => ({
+      ...post,
+      user_profiles: post.user_profiles || post.profiles || null,
+    })));
   };
 
   const fetchLikedPosts = async (userId: string) => {
