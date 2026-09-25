@@ -35,9 +35,11 @@ export async function getReplyEngagement(replyId:string):Promise<ReplyEngagement
 async function toggle(name:string,replyId:string){
  if(/^https:\/\//i.test(replyId)){
    if(name==='testagram_toggle_reply_bookmark'){
-     const { data, error } = await supabase.functions.invoke('testagram-api',{body:{path:'bookmark',method:'POST',body:{post_id:replyId}}});
+     const before=await getReplyEngagement(replyId);
+     const path=before.is_bookmarked?'unbookmark':'bookmark';
+     const { data, error } = await supabase.functions.invoke('testagram-api',{body:{path,method:'POST',body:{post_id:replyId}}});
      if(error) throw error; if(data?.error) throw new Error(String(data.error));
-     return {active:true,count:Number(data?.count??1)};
+     return {active:!before.is_bookmarked,count:Math.max(0,before.bookmarks+(before.is_bookmarked?-1:1))};
    }
    if(name==='testagram_toggle_reply_share'){
      const { data, error } = await supabase.functions.invoke('testagram-api',{body:{path:'federated-reply-share',method:'POST',body:{object_uri:replyId}}});
