@@ -151,11 +151,11 @@ async function processActivity(activity:any,actor:string){
     }
     return;
   }
-  if(["Create","Update","Delete","Like","Announce"].includes(type)){
+  if(["Create","Update","Delete","Like","Announce","EmojiReact"].includes(type)){
     const object=activity.object&&typeof activity.object==="object"?activity.object:null;
     const objectId=uri(object)||str(activity.object);
     if(type==="Create"&&objectId&&object){
-      await db.from("federated_objects").upsert({uri:objectId,object_type:str(object.type)||"Object",actor_uri:actor,url:uri(object.url)||objectId,content:str(object.content)||null,summary:str(object.summary)||null,published_at:str(object.published)||null,updated_at:str(object.updated)||null,sensitive:Boolean(object.sensitive),attachments:Array.isArray(object.attachment)?object.attachment:[],tags:Array.isArray(object.tag)?object.tag:[],raw_object:object},{onConflict:"uri"});
+      await db.from("federated_objects").upsert({uri:objectId,object_type:str(object.type)||"Object",actor_uri:actor,url:uri(object.url)||objectId,content:str(object.content)||null,summary:str(object.summary)||null,published_at:str(object.published)||null,updated_at:str(object.updated)||null,sensitive:Boolean(object.sensitive),in_reply_to_uri:uri(object.inReplyTo)||null,quote_uri:str(object.quoteUri)||str(object.quoteUrl)||str(object._misskey_quote)||null,language_code:str(object.language)||null,attachments:Array.isArray(object.attachment)?object.attachment:[],tags:Array.isArray(object.tag)?object.tag:[],raw_object:object},{onConflict:"uri"});
     }
     if(type==="Delete"&&objectId)await db.from("federated_objects").update({deleted_at:new Date().toISOString(),tombstone:true}).eq("uri",objectId).eq("actor_uri",actor);
   }
@@ -182,12 +182,16 @@ Deno.serve(async req=>{
       const found=await localActorForTarget(candidate);
       if(found.data?.user_id){local=found;break;}
     }
-    const localRequired=["Follow","Accept","Reject","Like","Announce","Undo"].includes(str(activity.type));
+    const localRequired=["Follow","Accept","Reject","Like","Announce","EmojiReact","Undo"].includes(str(activity.type));
     if(!local?.data?.user_id&&localRequired)return json({error:"Activity has no local Testagram recipient"},404);
     if(local?.data?.user_id){
       await db.from("activitypub_inbox").upsert({local_user_id:local.data.user_id,activity_type:str(activity.type),activity_key:id,actor_url:actor,object_url:uri(activity.object)||null,payload:activity,processed:false,payload_bytes:raw.length,expires_at:new Date(Date.now()+INBOX_RETENTION_DAYS*86400000).toISOString()},{onConflict:"activity_key",ignoreDuplicates:true});
     }
     await processActivity(activity,actor);
+    if(local?.data?.user_id && str(activity.type)==="EmojiReact"){
+      const objectUri=uri(activity.object), emoji=str(activity.content||activity.name||"👍").slice(0,32);
+      if(objectUri) await db.from("federated_emoji_reactions").upsert({user_id:local.data.user_id,object_uri:objectUri,emoji,activity_uri:id,delivered:true,delivery_state:"delivered",updated_at:new Date().toISOString()},{onConflict:"user_id,object_uri,emoji"});
+    }
     if(local?.data?.user_id && ["Like","Announce"].includes(str(activity.type))){
       const interactionType=str(activity.type)==="Like"?"like":"repost";
       const objectUri=uri(activity.object);
