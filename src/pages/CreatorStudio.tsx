@@ -128,7 +128,7 @@ export default function CreatorStudio({ section = 'overview', standalone = false
       const { data } = await supabase
         .from('creator_earnings')
         .select('amount')
-        .eq('user_id', user.id)
+        .eq('creator_id', user.id)
         .gte('created_at', todayStart.toISOString());
       const todayTotal = (data ?? []).reduce((s, e) => s + Number(e.amount), 0);
       setAlertTodayEarnings(todayTotal);
@@ -218,7 +218,7 @@ export default function CreatorStudio({ section = 'overview', standalone = false
     try {
       const [postsRes, earningsRes] = await Promise.all([
         supabase.from('posts').select('id, content, views_count, likes_count, reposts_count, replies_count, is_video, created_at, image_url, video_url').eq('user_id', user.id).order('views_count', { ascending: false }).limit(20),
-        supabase.from('creator_earnings').select('amount, created_at').eq('user_id', user.id).eq('status', 'paid').order('created_at', { ascending: true }),
+        supabase.from('creator_earnings').select('amount, created_at').eq('creator_id', user.id).eq('status', 'paid').order('created_at', { ascending: true }),
       ]);
       const scored = (postsRes.data ?? []).map(p => ({
         ...p,
@@ -284,7 +284,7 @@ export default function CreatorStudio({ section = 'overview', standalone = false
     const { data } = await supabase
       .from('creator_earnings')
       .select('created_at')
-      .eq('user_id', user.id)
+      .eq('creator_id', user.id)
       .order('created_at', { ascending: false })
       .limit(90);
     if (!data || data.length === 0) { setEarningsStreak(0); return; }
@@ -325,7 +325,7 @@ export default function CreatorStudio({ section = 'overview', standalone = false
       const { data } = await supabase
         .from('creator_earnings')
         .select('amount, source')
-        .eq('user_id', user.id)
+        .eq('creator_id', user.id)
         .gte('created_at', lastWeekStart.toISOString())
         .lt('created_at', lastWeekEnd.toISOString());
       const rows = data ?? [];
@@ -399,7 +399,7 @@ export default function CreatorStudio({ section = 'overview', standalone = false
       const totalViews = posts?.reduce((s, p) => s + (p.views_count || 0), 0) || 0;
       const totalLikes = posts?.reduce((s, p) => s + (p.likes_count || 0), 0) || 0;
       const videoViews = posts?.filter(p => p.is_video).reduce((s, p) => s + (p.views_count || 0), 0) || 0;
-      const { data: earnings } = await supabase.from('creator_earnings').select('amount').eq('user_id', user.id).eq('status', 'paid');
+      const { data: earnings } = await supabase.from('creator_earnings').select('amount').eq('creator_id', user.id).eq('status', 'paid');
       const totalEarnings = earnings?.reduce((s, e) => s + Number(e.amount), 0) || 0;
       const { data: analytics } = await supabase.from('user_analytics').select('engagement_rate').eq('user_id', user.id).single();
       const now = Date.now();
@@ -420,7 +420,7 @@ export default function CreatorStudio({ section = 'overview', standalone = false
 
   const fetchEarningsHistory = async () => {
     if (!user) return;
-    const { data } = await supabase.from('creator_earnings').select('amount, source, created_at, status').eq('user_id', user.id).order('created_at', { ascending: true }).limit(60);
+    const { data } = await supabase.from('creator_earnings').select('amount, source, created_at, status').eq('creator_id', user.id).order('created_at', { ascending: true }).limit(60);
     if (!data) return;
     const byMonth: any = {};
     data.forEach((e: any) => {
@@ -435,16 +435,16 @@ export default function CreatorStudio({ section = 'overview', standalone = false
   const fetchWeeklyEarnings = async () => {
     if (!user) return;
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400000).toISOString();
-    const { data } = await supabase.from('creator_earnings').select('amount, source, created_at').eq('user_id', user.id).gte('created_at', sevenDaysAgo).order('created_at', { ascending: true });
+    const { data } = await supabase.from('creator_earnings').select('amount, source, created_at').eq('creator_id', user.id).gte('created_at', sevenDaysAgo).order('created_at', { ascending: true });
     if (!data) return;
     const days: any = {};
     for (let i = 6; i >= 0; i--) { const d = new Date(Date.now() - i * 86400000).toISOString().split('T')[0]; days[d] = { day: d.slice(5), tips: 0, subscriptions: 0, ads: 0, other: 0 }; }
     data.forEach((e: any) => {
       const d = e.created_at.split('T')[0]; if (!days[d]) return;
       const amt = Number(e.amount);
-      if (e.source === 'tips') days[d].tips += amt;
-      else if (e.source === 'subscription') days[d].subscriptions += amt;
-      else if (e.source?.includes('ad') || e.source?.includes('video')) days[d].ads += amt;
+      if (e.source_type === 'tips') days[d].tips += amt;
+      else if (e.source_type === 'subscription') days[d].subscriptions += amt;
+      else if (e.source_type?.includes('ad') || e.source_type?.includes('video')) days[d].ads += amt;
       else days[d].other += amt;
     });
     setWeeklyEarnings(Object.values(days));
@@ -453,7 +453,7 @@ export default function CreatorStudio({ section = 'overview', standalone = false
   const fetchRevenueBreakdown4W = async () => {
     if (!user) return;
     const fourWeeksAgo = new Date(Date.now() - 28 * 86400000).toISOString();
-    const { data } = await supabase.from('creator_earnings').select('amount, source, created_at').eq('user_id', user.id).gte('created_at', fourWeeksAgo).order('created_at', { ascending: true });
+    const { data } = await supabase.from('creator_earnings').select('amount, source, created_at').eq('creator_id', user.id).gte('created_at', fourWeeksAgo).order('created_at', { ascending: true });
     if (!data) return;
     const weeks: any = {};
     for (let w = 3; w >= 0; w--) {
@@ -465,7 +465,7 @@ export default function CreatorStudio({ section = 'overview', standalone = false
       for (const e of data) {
         const d = new Date(e.created_at);
         if (d >= start && d < end) {
-          const amt = Number(e.amount); const src = e.source ?? '';
+          const amt = Number(e.amount); const src = e.source_type ?? '';
           if (src === 'tips') weeks[key].tips += amt;
           else if (src === 'subscription') weeks[key].subscriptions += amt;
           else if (src?.includes('ad') || src?.includes('video')) weeks[key].ads += amt;
@@ -494,12 +494,12 @@ export default function CreatorStudio({ section = 'overview', standalone = false
       const startDate = `${exportStartMonth}-01T00:00:00.000Z`;
       const endDate = `${exportEndMonth}-31T23:59:59.999Z`;
       const [earningsRes, tipsRes, adRevenueRes] = await Promise.all([
-        supabase.from('creator_earnings').select('amount, source, created_at, status, post_id').eq('user_id', user.id).gte('created_at', startDate).lte('created_at', endDate).order('created_at', { ascending: true }),
+        supabase.from('creator_earnings').select('amount, source, created_at, status, post_id').eq('creator_id', user.id).gte('created_at', startDate).lte('created_at', endDate).order('created_at', { ascending: true }),
         supabase.from('tips').select('amount, message, created_at, from_user_id').eq('to_user_id', user.id).gte('created_at', startDate).lte('created_at', endDate).order('created_at', { ascending: true }),
         supabase.from('creator_ad_revenue').select('gross_revenue, creator_share, ad_type, created_at').eq('creator_user_id', user.id).gte('created_at', startDate).lte('created_at', endDate).order('created_at', { ascending: true }),
       ]);
       const rows: string[][] = [['Date', 'Source', 'Type', 'Amount (USD)', 'Status', 'Notes']];
-      for (const e of earningsRes.data ?? []) rows.push([new Date(e.created_at).toISOString().split('T')[0], e.source ?? 'creator_earnings', 'earnings', Number(e.amount).toFixed(4), e.status ?? 'paid', e.post_id ? `post:${e.post_id}` : '']);
+      for (const e of earningsRes.data ?? []) rows.push([new Date(e.created_at).toISOString().split('T')[0], e.source_type ?? 'creator_earnings', 'earnings', Number(e.amount).toFixed(4), e.status ?? 'paid', e.post_id ? `post:${e.post_id}` : '']);
       for (const t of tipsRes.data ?? []) rows.push([new Date(t.created_at).toISOString().split('T')[0], 'tips', 'tip', Number(t.amount).toFixed(4), 'paid', t.message ? t.message.slice(0, 80).replace(/,/g, ';') : '']);
       for (const a of adRevenueRes.data ?? []) rows.push([new Date(a.created_at).toISOString().split('T')[0], `ad_revenue (${a.ad_type ?? 'ad'})`, 'ad_revenue', Number(a.creator_share).toFixed(4), 'paid', `gross:$${Number(a.gross_revenue).toFixed(4)}`]);
       const header = rows[0];
@@ -520,7 +520,7 @@ export default function CreatorStudio({ section = 'overview', standalone = false
     setExportingPdf(true);
     try {
       const [earningsRes] = await Promise.all([
-        supabase.from('creator_earnings').select('amount, source, status, created_at').eq('user_id', user.id).order('created_at', { ascending: true }),
+        supabase.from('creator_earnings').select('amount, source, status, created_at').eq('creator_id', user.id).order('created_at', { ascending: true }),
       ]);
       const allEarnings = earningsRes.data ?? [];
       const totalPaid = allEarnings.filter((e: any) => e.status === 'paid').reduce((s, e: any) => s + Number(e.amount), 0);
@@ -531,7 +531,7 @@ export default function CreatorStudio({ section = 'overview', standalone = false
         if (e.status === 'paid') byMonth[m].paid += Number(e.amount); else byMonth[m].pending += Number(e.amount);
       });
       const sourceTotals: any = {};
-      allEarnings.forEach((e: any) => { const src = e.source ?? 'other'; sourceTotals[src] = (sourceTotals[src] ?? 0) + Number(e.amount); });
+      allEarnings.forEach((e: any) => { const src = e.source_type ?? 'other'; sourceTotals[src] = (sourceTotals[src] ?? 0) + Number(e.amount); });
       const now = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
       const monthlyRows = Object.entries(byMonth).slice(-12).map(([month, v]: any) => `<tr><td>${month}</td><td>$${v.paid.toFixed(2)}</td><td>$${v.pending.toFixed(2)}</td><td>$${(v.paid + v.pending).toFixed(2)}</td></tr>`).join('');
       const sourceRows = Object.entries(sourceTotals).sort((a: any, b: any) => b[1] - a[1]).map(([src, amt]: any) => `<tr><td>${src.replace(/_/g, ' ')}</td><td>$${amt.toFixed(4)}</td><td>${((amt / (totalPaid + totalPending)) * 100).toFixed(1)}%</td></tr>`).join('');
