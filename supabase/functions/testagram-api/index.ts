@@ -410,8 +410,8 @@ if(path==="/federated-replies"&&method==="GET"){
   else if(replyUri) query=query.eq("reply_object_uri",replyUri);
   else if(activityUri) query=query.eq("activity_uri",activityUri);
   else query=query.eq("object_uri",target);
-  if(r.error)return json({error:r.error.message},400);
-  const rows=r.data||[];
+  if(query.error)return json({error:query.error.message},400);
+  const rows=query.data||[];
   const userIds=[...new Set(rows.map((row:any)=>row.user_id).filter(Boolean))];
   let profiles:any[]=[];
   if(userIds.length){
