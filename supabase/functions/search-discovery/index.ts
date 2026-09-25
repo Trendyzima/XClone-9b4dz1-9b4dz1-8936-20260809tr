@@ -3,7 +3,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { withServiceMetric } from "./_shared/observability.ts";
 
 const url = Deno.env.get("SUPABASE_URL") ?? "";
-const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";\nconst serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || "";
+const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || "";
 if (!url || !anonKey) throw new Error("SUPABASE_URL and SUPABASE_ANON_KEY are required");
 const buckets = new Map<string, { started: number; count: number }>();
 const WINDOW_MS = 60_000;
@@ -146,7 +147,8 @@ Deno.serve(async (req) => {
   if (req.method !== "POST") return json({ ok: false, data: null, error: { code: "METHOD_NOT_ALLOWED", message: "POST required" }, request_id: requestId }, 405, requestId);
   const auth = req.headers.get("Authorization");
   if (!auth?.startsWith("Bearer ")) return json({ ok: false, data: null, error: { code: "AUTH_REQUIRED", message: "Authentication required" }, request_id: requestId }, 401, requestId);
-  const db = createClient(url, anonKey, { global: { headers: { Authorization: auth } } });\n  const discoveryDb = serviceKey ? createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } }) : db;
+  const db = createClient(url, anonKey, { global: { headers: { Authorization: auth } } });
+  const discoveryDb = serviceKey ? createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } }) : db;
 
   return withServiceMetric(db, "search", "discovery", async () => {
     try {
