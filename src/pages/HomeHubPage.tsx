@@ -33,7 +33,7 @@ export default function HomeHubPage(){
 
   useSEO({title:'Home — Testagram',description:'One home feed for posts, videos, communities, polls, shopping and the Fediverse on Testagram.',url:'/',type:'website'});
 
-  const fetchTab=useCallback(async(target:Tab,pageNum=0,cursorOverride: string|null = null):Promise<Item[]>=>{
+  const fetchTab=useCallback(async(target:Tab,pageNum=0,cursorOverride: string|null = null,includeFederated=true):Promise<Item[]>=>{
     const offset=pageNum*12;
     if(target==='communities'){
       const {data,error}=await supabase.from('communities').select('*').order('member_count',{ascending:false}).range(0,11);
@@ -53,7 +53,7 @@ export default function HomeHubPage(){
 
     if(target==='all'){
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const params = new URLSearchParams({ limit: '6', includeFederated: background || pageNum > 0 || Boolean(cursorOverride) ? '1' : '0' });
+      const params = new URLSearchParams({ limit: '6', includeFederated: includeFederated ? '1' : '0' });
       if (cursorOverride) params.set('before', cursorOverride);
       const response = await fetch('/api/home-feed?'+params.toString(), {
         headers: token ? { Authorization: 'Bearer '+token } : {},
@@ -112,7 +112,7 @@ export default function HomeHubPage(){
       return;
     }
     try{
-      const next=await fetchTab('all',0);
+      const next=await fetchTab('all',0,null,background);
       const previous=feedBufferRef.current;
       const previousIds=new Set(previous.map(x=>String(x.data?.id??x.data?.uri??'')));
       const fresh=next.filter(x=>!previousIds.has(String(x.data?.id??x.data?.uri??'')));
