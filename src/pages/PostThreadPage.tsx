@@ -25,7 +25,6 @@ export default function PostThreadPage() {
   const [searchParams] = useSearchParams();
   const postId = routePostId || searchParams.get('post_uri') || '';
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { user } = useAuth();
 
