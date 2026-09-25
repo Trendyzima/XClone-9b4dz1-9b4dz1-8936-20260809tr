@@ -84,7 +84,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
   const [loadingTestagramSuggestions, setLoadingTestagramSuggestions] = useState(false);
   const [followingActorUrls, setFollowingActorUrls] = useState<string[]>([]);
 
-  // ── Mastodon tab state ───────────────────────────────────────────────────
+  // Inbound federation is scheduled server-side; this page only reads the local cache.\n  // ── Mastodon tab state ───────────────────────────────────────────────────
   const [mastodonInstance, setMastodonInstance] = useState('mastodon.social');
   const [mastodonPosts, setMastodonPosts] = useState<any[]>([]);
   const [loadingMastodon, setLoadingMastodon] = useState(false);
