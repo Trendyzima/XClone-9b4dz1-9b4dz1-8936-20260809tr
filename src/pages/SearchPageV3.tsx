@@ -33,23 +33,22 @@ export default function SearchPageV3(){
  const saveRecent=(q:string)=>{const next=[q,...recent.filter(x=>x!==q)].slice(0,8);setRecent(next);try{localStorage.setItem('tsocial_recent_searches',JSON.stringify(next))}catch{}};
  const suggestFor=async(q:string)=>{if(!q.trim()){setSuggest({users:[],hashtags:[],posts:[],communities:[],next_cursor:null});return}setSuggestLoading(true);try{const token=q.trim().replace(/^[@#]/,'');const r=await api.searchDiscovery(endpoint('search-discovery'),token,'suggest',8);setSuggest(r)}catch(e){console.debug('[search-suggest]',e)}finally{setSuggestLoading(false)}};
  const run=async(q=query,nextTab=tab,append=false)=>{if(!q.trim())return;const clean=q.trim();if(!append){saveRecent(clean);setLoading(true);setHasMore(true);setData({users:[],hashtags:[],posts:[],communities:[],next_cursor:null});setFediverse([]);setFediversePosts([]);setThreadResults([]);setParams({q:clean,tab:nextTab})}else setLoadingMore(true);
-  try{const r=await api.searchDiscovery(endpoint('search-discovery'),clean,'search',50,append?data.next_cursor??undefined:undefined);
-   // Search the complete Testagram graph as well: people, hashtags, communities, live Spaces and trends.
-   const { data: global } = await supabase.rpc('search_everything',{p_query:clean,p_limit:50,p_cursor:append?data.next_cursor??null:null});
-   const { data: threadRows } = await supabase.from('threads')
-    .select('id,owner_id,body,created_at,media_urls,likes_count,reposts_count,replies_count,quotes_count,views_count')
-    .is('deleted_at', null).eq('visibility','public')
-    .ilike('body', `%${clean.replace(/[%_]/g,' ')}%`)
-    .order('created_at',{ascending:false}).limit(40);
-   setThreadResults(threadRows ?? []);
-   const { data: remoteRows } = await supabase.from('federated_objects').select('id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,remote_account,object_type,url').is('deleted_at', null).or(`content.ilike.%${clean.replace(/[%_]/g,' ')}%,summary.ilike.%${clean.replace(/[%_]/g,' ')}%`).order('published_at', { ascending: false }).limit(40);
-   const cachedFedPosts=(remoteRows??[]).map((p:any)=>({...p,id:p.id??p.uri,uri:p.uri,user_id:p.actor_uri,author_id:p.actor_uri,created_at:p.published_at??p.updated_at,content:p.content??p.summary??'',remote_status_uri:p.uri,user_profiles:p.remote_account??{actor_uri:p.actor_uri,username:'unknown',display_name:p.remote_account?.display_name??p.remote_account?.name??p.remote_account?.preferredUsername??p.remote_account?.username??'Profile',avatar_url:null},is_federated:true}));
-   if(global) setData(prev=>({
-     users: global.users ?? prev.users, hashtags: global.hashtags ?? prev.hashtags,
-     posts: append ? [...prev.posts,...(global.posts??[])] : (global.posts??prev.posts),
-     communities: global.communities ?? prev.communities,
-     next_cursor: r.next_cursor
-   }));setData(prev=>append?{users:r.users,hashtags:r.hashtags,posts:[...prev.posts,...r.posts],communities:r.communities,next_cursor:r.next_cursor}:{...r});setFediversePosts(prev=>append?[...prev,...cachedFedPosts.filter((p:any)=>!prev.some((x:any)=>x.uri===p.uri))]:cachedFedPosts);setHasMore(Boolean(r.next_cursor));
+  try{
+   const searchPromise=api.searchDiscovery(endpoint('search-discovery'),clean,'search',50,append?data.next_cursor??undefined:undefined);
+   const globalPromise=supabase.rpc('search_everything',{p_query:clean,p_limit:50,p_cursor:append?data.next_cursor??null:null});
+   const threadsPromise=supabase.from('threads').select('id,owner_id,body,created_at,media_urls,likes_count,reposts_count,replies_count,quotes_count,views_count').is('deleted_at',null).eq('visibility','public').ilike('body',`%${clean.replace(/[%_]/g,' ')}%`).order('created_at',{ascending:false}).limit(40);
+   const remotePromise=supabase.from('federated_objects').select('id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,object_type,url,remote_account').is('deleted_at',null).or(`content.ilike.%${clean.replace(/[%_]/g,' ')}%,summary.ilike.%${clean.replace(/[%_]/g,' ')}%`).order('published_at',{ascending:false}).limit(40);
+   const [searchR,globalR,threadsR,remoteR]=await Promise.allSettled([searchPromise,globalPromise,threadsPromise,remotePromise]);
+   const r=searchR.status==='fulfilled'?searchR.value:{users:[],hashtags:[],posts:[],communities:[],next_cursor:null};
+   const global=globalR.status==='fulfilled'?globalR.value.data:null;
+   const threadRows=threadsR.status==='fulfilled'?(threadsR.value.data??[]):[];
+   const remoteRows=remoteR.status==='fulfilled'?(remoteR.value.data??[]):[];
+   setThreadResults(threadRows);
+   const cachedFedPosts=remoteRows.map((p:any)=>({...p,id:p.id??p.uri,uri:p.uri,user_id:p.actor_uri,author_id:p.actor_uri,created_at:p.published_at??p.updated_at,content:p.content??p.summary??'',remote_status_uri:p.uri,user_profiles:p.remote_account??{actor_uri:p.actor_uri,username:'unknown',display_name:p.remote_account?.display_name??p.remote_account?.name??p.remote_account?.preferredUsername??p.remote_account?.username??'Profile',avatar_url:null},is_federated:true}));
+   if(global) setData(prev=>({users:global.users??prev.users,hashtags:global.hashtags??prev.hashtags,posts:append?[...prev.posts,...(global.posts??[])]:global.posts??prev.posts,communities:global.communities??prev.communities,next_cursor:r.next_cursor}));
+   setData(prev=>append?{users:r.users,hashtags:r.hashtags,posts:[...prev.posts,...r.posts],communities:r.communities,next_cursor:r.next_cursor}:{...r});
+   setFediversePosts(prev=>append?[...prev,...cachedFedPosts.filter((p:any)=>!prev.some((x:any)=>x.uri===p.uri))]:cachedFedPosts);
+   setHasMore(Boolean(r.next_cursor));
    if(nextTab==='Fediverse'||clean.startsWith('@')||clean.startsWith('#')){try{const term=clean.replace(/^[@#]/,'');const remote:any=await federation.search(term,clean.startsWith('#')?'hashtags':'users');const rows=Array.isArray(remote)?remote:remote?.accounts??remote?.users??remote?.hashtags??remote?.data??[];const remoteHashtags=clean.startsWith('#')?rows:[];if(remoteHashtags.length)setData(prev=>({...prev,hashtags:[...prev.hashtags,...remoteHashtags.filter((h:any)=>!prev.hashtags.some((x:any)=>String(x.tag).toLowerCase()===String(h.tag).toLowerCase()))]}));setFediverse(rows.map((a:any)=>({actor_url:a.url??a.id,username:a.username??a.preferredUsername,domain:a.acct?.split('@')[1]??a.domain,display_name:a.display_name??a.name,bio:a.note??a.summary,avatar_url:a.avatar??a.avatar_url})).filter((a:any)=>a.username))}catch{setFediverse([])}}
   }catch(e){toast.error(e instanceof CapabilityClientError&&e.code==='RATE_LIMITED'?'Search is rate limited briefly. Try again in a moment.':'Search could not be completed')}finally{setLoading(false);setLoadingMore(false)}};
  useEffect(()=>{if(initial)run(initial,tab)},[initial]);
