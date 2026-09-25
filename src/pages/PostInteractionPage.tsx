@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Heart, MessageCircle, Repeat2, Quote, Loader2, Send, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getInteractionCounts } from '@/services/postInteractionService';
@@ -17,7 +17,7 @@ type Kind='likes'|'replies'|'reposts'|'quotes'|'quote-likes';
 const META:Record<Kind,{title:string;icon:any}>={likes:{title:'Likes',icon:Heart},replies:{title:'Replies',icon:MessageCircle},reposts:{title:'Reposts / Retweets',icon:Repeat2},quotes:{title:'Quotes',icon:Quote},'quote-likes':{title:'Quote Likes',icon:Heart}};
 
 export default function PostInteractionPage({kind}:{kind:Kind}){
- const {postId}=useParams(); const navigate=useNavigate(); const {user}=useAuth();
+ const {postId:routePostId}=useParams(); const [searchParams]=useSearchParams(); const postId=routePostId || searchParams.get('post_uri') || ''; const navigate=useNavigate(); const {user}=useAuth();
  const [post,setPost]=useState<any>(null); const [items,setItems]=useState<any[]>([]);
  const [counts,setCounts]=useState({likes:0,reposts:0,replies:0,quotes:0,views:0});
  const [loading,setLoading]=useState(true); const [error,setError]=useState<string|null>(null);
@@ -114,7 +114,7 @@ export default function PostInteractionPage({kind}:{kind:Kind}){
    <button onClick={()=>navigate(-1)} className="p-2 rounded-full hover:bg-muted" aria-label="Back"><ArrowLeft className="w-5 h-5"/></button>
    <div className="min-w-0"><h1 className="font-bold">{meta.title}</h1><p className="text-xs text-muted-foreground">{counts.likes} likes · {counts.replies} replies · {counts.reposts} reposts</p></div>
   </div>
-  <button onClick={()=>navigate('/post/'+( /^https:\/\//i.test(post.id) ? encodeURIComponent(post.id) : post.id))} className="w-full text-left p-4 border-b border-border hover:bg-muted/20">
+  <button onClick={()=>navigate(/^https:\/\//i.test(post.id) ? `/post-remote?post_uri=${encodeURIComponent(post.id)}` : '/post/'+post.id)} className="w-full text-left p-4 border-b border-border hover:bg-muted/20">
    <div className="flex items-center gap-2"><img src={post.profiles?.avatar_url??''} alt="" className="w-8 h-8 rounded-full bg-muted object-cover"/><span className="font-semibold text-sm">{post.profiles?.display_name||post.profiles?.full_name||post.profiles?.username||'Profile'}</span>{(post.profiles?.username||post.profiles?.preferredUsername)&&<span className="text-xs text-muted-foreground">@{String(post.profiles?.username||post.profiles?.preferredUsername).replace(/^@/,'')}</span>}</div>
    <p className="mt-3 text-sm whitespace-pre-wrap break-words">{post.content}</p>
    <div className="flex gap-5 mt-3 text-xs text-muted-foreground"><span>{counts.likes} likes</span><span>{counts.replies} replies</span><span>{counts.reposts} reposts</span><span>{counts.quotes} quotes</span></div>
@@ -124,7 +124,7 @@ export default function PostInteractionPage({kind}:{kind:Kind}){
    <input value={text} onChange={e=>setText(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();void sendReply()}}} placeholder="Write a reply…" className="flex-1 rounded-xl border border-border bg-muted/30 px-3 py-2 text-sm outline-none"/>
    <button disabled={!text.trim()||sending} onClick={()=>void sendReply()} className="px-4 rounded-xl bg-primary text-primary-foreground disabled:opacity-40">{sending?<Loader2 className="w-4 h-4 animate-spin"/>:<Send className="w-4 h-4"/>}</button>
   </div>}
-  <div>{items.length===0?<div className="py-16 text-center text-muted-foreground"><Icon className="w-9 h-9 mx-auto mb-3 opacity-30"/><p>No {meta.title.toLowerCase()} yet.</p>{kind==='replies'&&<p className="text-xs mt-1">Be the first to reply.</p>}</div>:items.map((item:any)=><InteractionRow key={item.id} item={item} kind={kind} onOpenProfile={(u:string)=>u&&navigate('/profile/'+u)} onOpenPost={(id:string)=>navigate('/post/'+id)} onOpenReplyChain={(replyId:string)=>navigate('/post/'+encodeURIComponent(postId)+'/reply/'+encodeURIComponent(replyId))}/>)}</div>
+  <div>{items.length===0?<div className="py-16 text-center text-muted-foreground"><Icon className="w-9 h-9 mx-auto mb-3 opacity-30"/><p>No {meta.title.toLowerCase()} yet.</p>{kind==='replies'&&<p className="text-xs mt-1">Be the first to reply.</p>}</div>:items.map((item:any)=><InteractionRow key={item.id} item={item} kind={kind} onOpenProfile={(u:string)=>u&&navigate('/profile/'+u)} onOpenPost={(id:string)=>navigate('/post/'+id)} onOpenReplyChain={(replyId:string)=>navigate(/^https:\/\//i.test(postId) ? `/post-remote/reply/${encodeURIComponent(replyId)}?post_uri=${encodeURIComponent(postId)}` : `/post/${postId}/reply/${encodeURIComponent(replyId)}`)}/>)}</div>
  </div>;
 }
 
