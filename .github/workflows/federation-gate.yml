@@ -33,6 +33,10 @@ jobs:
       - name: Typecheck federation entrypoints
         run: |
           deno check --node-modules-dir=none supabase/functions/mastodon-federation/index.ts
+          deno check --node-modules-dir=none supabase/functions/mastodon-api/index.ts
+          deno check --node-modules-dir=none supabase/functions/megalodon-gateway/index.ts
+          deno check --node-modules-dir=none supabase/functions/federated-feed/index.ts
+          deno check --node-modules-dir=none supabase/functions/federated-discovery-feed/index.ts
           deno check --node-modules-dir=none supabase/functions/mastodon-edge/index.ts
           deno check --node-modules-dir=none supabase/functions/federation-inbox/index.ts
           deno check --node-modules-dir=none supabase/functions/federation-transport/index.ts
