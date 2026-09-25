@@ -58,6 +58,19 @@ Deno.serve(async (request) => {
         .filter(Boolean))];
     }
 
+    const moderation = userId ? await Promise.all([
+      admin.from("fediverse_domain_blocks").select("domain").eq("user_id", userId),
+      admin.from("fediverse_content_filters").select("phrase,action,expires_at").eq("user_id", userId)
+    ]) : [];
+    const blockedDomains = new Set<string>((moderation[0]?.data || []).map((r:any)=>String(r.domain||"").toLowerCase().trim()).filter(Boolean));
+    const activeFilters = (moderation[1]?.data || []).filter((r:any)=>!r.expires_at || new Date(r.expires_at).getTime()>Date.now());
+    const moderationAllowed = (item:any) => {
+      let domain = ""; try { domain = new URL(String(item.actor_uri||"")).hostname.toLowerCase(); } catch {}
+      if (domain && blockedDomains.has(domain)) return false;
+      const text = String(item.content||"").replace(/<[^>]*>/g," ").toLowerCase();
+      return !activeFilters.some((f:any)=>{ const phrase=String(f.phrase||"").trim().toLowerCase(); return phrase && text.includes(phrase); });
+    };
+
     const baseSelect = "id,uri,object_type,actor_uri,instance_id,url,content,summary,published_at,updated_at,sensitive,in_reply_to_uri,quote_uri,language_code,attachments,tags,like_count,announce_count,reply_count,quote_count,view_count,content_warning,raw_object";
 
     // A Follow only creates the relationship; it does not guarantee that a remote
@@ -258,7 +271,7 @@ Deno.serve(async (request) => {
       if (before) followedQuery = followedQuery.lt("published_at", new Date(before).toISOString());
       const { data, error } = await followedQuery;
       if (error) throw error;
-      followedItems = (data || []).map((item: any) => ({
+      followedItems = (data || []).filter(moderationAllowed).map((item: any) => ({
         ...item,
         feed_source: "following",
         remote_account: item.remote_account ?? hydratedActorProfiles.get(String(item.actor_uri)) ?? null,
@@ -274,7 +287,7 @@ Deno.serve(async (request) => {
       if (error) throw error;
       const followedSet = new Set(hydratedActorAliases);
       suggestedItems = (data || [])
-        .filter((item: any) => !followedSet.has(String(item.actor_uri || "")))
+        .filter((item: any) => !followedSet.has(String(item.actor_uri || "")) && moderationAllowed(item))
         .slice(0, suggestedNeeded)
         .map((item: any) => ({
           ...item,
