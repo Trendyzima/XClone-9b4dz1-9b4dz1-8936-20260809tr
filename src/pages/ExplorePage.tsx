@@ -7,6 +7,8 @@ import { TopBar } from '@/components/layout/TopBar';
 import { Input } from '@/components/ui/input';
 import { Search, TrendingUp, Globe, BadgeCheck, Settings, X, Check, Trophy, Gift, Clock, Hash, ChevronRight, Loader2, BookOpen, Eye, Play, ChevronLeft, ChevronRight as ChevronRightIcon, Flame, Users as UsersIcon, Star } from 'lucide-react';
 import { TrendingVideosSection } from '@/components/features/TrendingVideosSection';
+import { CommunitySpotlightStrip } from '@/components/features/CommunitySpotlightStrip';
+import { LiveSpaceBanner } from '@/components/features/LiveSpaceBanner';
 import { formatDistanceToNow } from 'date-fns';
 import { supabase } from '@/lib/supabase';
 import { formatNumber } from '@/lib/utils';
@@ -966,6 +968,17 @@ export default function ExplorePage() {
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
       <TopBar title="Explore" showProfile={false} />
+      <LiveSpaceBanner />
+      <section className="border-b border-border bg-gradient-to-r from-primary/5 via-background to-violet-500/5">
+        <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-black">Explore & Discover</h1>
+            <p className="text-xs text-muted-foreground">People, communities, live audio, hashtags and fresh conversations.</p>
+          </div>
+          <button onClick={() => navigate('/spaces')} className="px-3 py-1.5 rounded-full bg-primary/10 text-primary text-xs font-bold">Live audio</button>
+        </div>
+        <CommunitySpotlightStrip />
+      </section>
 
       {showSettings && (
         <div className="fixed inset-0 z-[110] bg-black/50" onClick={() => setShowSettings(false)}>
