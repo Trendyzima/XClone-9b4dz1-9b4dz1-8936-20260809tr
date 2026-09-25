@@ -1,4 +1,4 @@
-import { supabase from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { backendCapabilities } from '@/services/backendClient';
 
 export type ReplyItem = {
