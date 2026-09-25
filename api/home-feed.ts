@@ -136,18 +136,17 @@ export default async function handler(request: RequestLike) {
     if (cursor.post) postsQuery.lt('created_at', cursor.post);
     if (cursor.thread) threadsQuery.lt('created_at', cursor.thread);
 
+    const includeFederated = url.searchParams.get('includeFederated') !== '0';
     const fedQuery = new URLSearchParams({ limit: String(sourceLimit) });
     if (cursor.fed) fedQuery.set('before', cursor.fed);
 
-    const [postsResult, threadsResult, fedResponse] = await Promise.all([
-      postsQuery,
-      threadsQuery,
-      fetch(SUPABASE_URL + '/functions/v1/federated-feed?' + fedQuery, {
-        headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + auth.token },
-      }),
-    ]);
-
-    const fedResult = fedResponse.ok
+    const [postsResult, threadsResult] = await Promise.all([postsQuery, threadsQuery]);
+    const fedResponse = includeFederated
+      ? await fetch(SUPABASE_URL + '/functions/v1/federated-feed?' + fedQuery, {
+          headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + auth.token },
+        })
+      : null;
+    const fedResult = fedResponse?.ok
       ? await fedResponse.json()
       : { items: [], pagination: { hasMore: false, nextCursor: null } };
     // Organic discovery is intentionally outside the critical Home feed path.
