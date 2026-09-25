@@ -174,7 +174,7 @@ revoke all on function public.enqueue_local_post_federation() from public, anon,
 
 drop trigger if exists trg_enqueue_local_post_federation on public.posts;
 create trigger trg_enqueue_local_post_federation
-after insert or delete or update of content, image_url, video_url, media_urls, visibility, edited_at, deleted_at
+after insert or delete or update of content, image_url, video_url, media_urls, edited_at, deleted_at
 on public.posts
 for each row
 execute function public.enqueue_local_post_federation();
