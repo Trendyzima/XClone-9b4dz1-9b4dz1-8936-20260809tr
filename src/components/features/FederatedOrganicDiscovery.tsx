@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/lib/supabase';
 import { Globe, UserPlus, Sparkles } from 'lucide-react';
 import * as federation from '@/api/federation';
 import { toast } from 'sonner';
@@ -54,7 +55,7 @@ export function FederatedHashtagDiscovery({ limit = 8, surface = 'discovery' }: 
     let active = true;
     const load = async () => {
       try {
-        const { data } = await (await import('@/lib/supabase')).supabase
+        const { data } = await supabase
           .from('federated_objects')
           .select('tags,published_at')
           .order('published_at', { ascending: false })
