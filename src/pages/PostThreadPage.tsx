@@ -5,6 +5,7 @@ import { PostCard } from '@/components/features/PostCard';
 import { supabase } from '@/lib/supabase';
 import { Post } from '@/types/app-types';
 import { Loader2, Twitter, Facebook, Link2, MessageCircle, Send } from 'lucide-react';
+import { VerifiedTick } from '@/components/ui/VerifiedTick';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useSEO, buildOgImageUrl } from '@/hooks/useSEO';
@@ -251,20 +252,34 @@ export default function PostThreadPage() {
         ) : replies.length === 0 ? (
           <div className="px-4 py-8 text-center text-sm text-muted-foreground">No replies yet. Be the first to reply.</div>
         ) : (
-          <div>{replies.slice(0, 3).map(reply => (
-            <button key={reply.id} onClick={() => navigate('/post/' + postId + '/reply/' + reply.id)}
-              className="w-full text-left px-4 py-3 border-t border-border hover:bg-muted/20">
-              <div className="flex gap-3">
-                <div className="w-8 h-8 rounded-full bg-muted overflow-hidden shrink-0">
-                  {reply.profile?.avatar_url && <img src={reply.profile.avatar_url} alt="" className="w-full h-full object-cover" />}
+          <div>{replies.slice(0, 3).map(reply => {
+            const author = reply.profile;
+            const displayName = author?.display_name || author?.full_name || author?.username || 'User';
+            const username = author?.username || 'user';
+            const initial = displayName.slice(0, 1).toUpperCase();
+            return (
+              <button key={reply.id} onClick={() => navigate('/post/' + postId + '/reply/' + reply.id)}
+                className="w-full text-left px-4 py-3 border-t border-border hover:bg-muted/20">
+                <div className="flex gap-3">
+                  <div className="w-9 h-9 rounded-full bg-muted overflow-hidden shrink-0 ring-1 ring-border">
+                    {author?.avatar_url ? (
+                      <img src={author.avatar_url} alt={displayName} className="w-full h-full object-cover" loading="lazy" />
+                    ) : (
+                      <span className="w-full h-full flex items-center justify-center text-xs font-bold text-muted-foreground">{initial}</span>
+                    )}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="text-sm font-semibold truncate">{displayName}</span>
+                      {author?.verified && <VerifiedTick className="w-3.5 h-3.5 text-primary shrink-0" />}
+                      <span className="text-xs text-muted-foreground truncate">@{username}</span>
+                    </div>
+                    <p className="text-sm mt-1 whitespace-pre-wrap break-words">{reply.content}</p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold">@{reply.profile?.username ?? 'user'}</p>
-                  <p className="text-sm mt-1 whitespace-pre-wrap break-words">{reply.content}</p>
-                </div>
-              </div>
-            </button>
-          ))}</div>
+              </button>
+            );
+          })}</div>
         )}
         {replies.length > 3 && <button onClick={openReplies} className="w-full py-3 text-sm font-semibold text-primary border-t border-border">View all {counts.replies} replies</button>}
       </section>
