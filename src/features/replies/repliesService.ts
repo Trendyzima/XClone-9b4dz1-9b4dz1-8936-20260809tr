@@ -1,5 +1,6 @@
 import { backendCapabilities } from '@/services/backendClient';
 import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/backendClient';
 
 export type ReplyItem = {
   id: string;
