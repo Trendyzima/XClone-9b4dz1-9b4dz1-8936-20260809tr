@@ -10,7 +10,7 @@ interface BookmarkButtonProps {
   postId: string;
 }
 
-export function BookmarkButton({ postId }: BookmarkButtonProps) {
+export function BookmarkButton({ postId, onChange }: BookmarkButtonProps) {
   const { user } = useAuth();
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -47,12 +47,12 @@ export function BookmarkButton({ postId }: BookmarkButtonProps) {
       if (previous) {
         if (/^https:\/\//i.test(postId)) await unbookmarkRemote(postId);
         else await backendCapabilities.removeBookmark(postId);
-        toast.success('Removed from bookmarks');
+        onChange?.(false);\n        toast.success('Removed from bookmarks');
       } else {
         if (/^https:\/\//i.test(postId)) await bookmarkRemote(postId);
         else await backendCapabilities.bookmarkPost(postId);
         toast.success('Added to bookmarks');
-        updateInterestSignal(user.id, postId, 'bookmark').catch(() => {});
+        onChange?.(true);\n        updateInterestSignal(user.id, postId, 'bookmark').catch(() => {});
       }
     } catch (error: any) {
       setIsBookmarked(previous);
