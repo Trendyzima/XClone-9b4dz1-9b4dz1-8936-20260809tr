@@ -26,7 +26,6 @@ import { VideoMonetizationAd } from './VideoMonetizationAd';
 import { EmbedRenderer, PostContentEmbeds } from './EmbedRenderer';
 import { updateInterestSignal } from '@/services/recommendations';
 import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts, getFederatedReplies, getInteractionCounts, recordPostView, recordPostShare } from '@/services/postInteractionService';
-import { toggleFederatedEmojiReaction } from '@/features/federatedReactions/federatedReactionsService';
 import { backendCapabilities } from '@/services/backendClient';
 import * as federation from '@/api/federation';
 // Canonical social interaction reads/writes stay behind backend capabilities.
@@ -113,7 +112,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
 
   // Post Reactions
   // esbuild guard: no 'as const' on arrays used in .map() inside component
-  const REACTIONS: string[] = ['❤️', '😂', '😮', '😢', '🔥'];
+  const REACTIONS: string[] = ['❤️'];
   // Reaction counts — parallel arrays (esbuild guard: no Record<string,number> in state)
   const [reactionEmojis, setReactionEmojis] = useState<string[]>([]);
   const [reactionNums, setReactionNums] = useState<number[]>([]);
@@ -125,7 +124,6 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
 
   const [userReaction, setUserReaction] = useState<string | null>(null);
   const [userReactions, setUserReactions] = useState<string[]>([]);
-  const [showReactionPicker, setShowReactionPicker] = useState(false);
 
   const fetchReactions = useCallback(async () => {
     const counts = await getInteractionCounts(interactionPostId);
@@ -147,118 +145,6 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
 
   useEffect(() => { void fetchReactions(); }, [fetchReactions]);
 
-  const handleReact = async (emoji: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!user) { navigate('/auth'); return; }
-    setShowReactionPicker(false);
-
-    // Fediverse uses ActivityPub Like for ❤️. Other UI reactions are stored
-    // in the separate federated reaction ledger so they survive refresh without
-    // pretending that remote servers support arbitrary emoji reactions.
-    if (isFederatedPost) {
-      const wasReaction = userReactions.includes(emoji);
-      const nextActive = !wasReaction;
-      try {
-        if (emoji === '❤️') {
-          const wasLiked = isLiked;
-          setIsLiked(!wasLiked);
-          setLikesCount(prev => Math.max(0, prev + (wasLiked ? -1 : 1)));
-          await togglePostLike(interactionPostId, wasLiked);
-        } else {
-          await toggleFederatedEmojiReaction(interactionPostId, emoji, nextActive);
-        }
-        setUserReactions(prev => {
-          const next = nextActive ? [...new Set([...prev, emoji])] : prev.filter(x => x !== emoji);
-          setUserReaction(next[0] ?? null);
-          return next;
-        });
-        setReactionEmojis(prev => nextActive ? (prev.includes(emoji) ? prev : [...prev, emoji]) : prev);
-        setReactionNums(prev => {
-          const idx = reactionEmojis.indexOf(emoji);
-          if (idx < 0 && nextActive) return [...prev, 1];
-          if (idx < 0) return prev;
-          const next = [...prev];
-          next[idx] = Math.max(0, next[idx] + (nextActive ? 1 : -1));
-          return next;
-        });
-      } catch (error) {
-        console.warn('[federation] reaction unavailable', error);
-        toast({ title: 'Reaction failed', description: error instanceof Error ? error.message : 'Could not save reaction', variant: 'destructive' });
-      }
-      return;
-    }
-
-    const previousReaction = userReaction;
-    if (previousReaction === emoji) {
-      setUserReaction(null);
-      setReactionEmojis(prev => {
-        const idx = prev.indexOf(emoji);
-        if (idx < 0) return prev;
-        const next = [...prev];
-        const nextNums = [...reactionNums];
-        nextNums[idx] = Math.max(0, (nextNums[idx] ?? 1) - 1);
-        if (nextNums[idx] === 0) { next.splice(idx, 1); nextNums.splice(idx, 1); }
-        setReactionNums(nextNums);
-        return next;
-      });
-      const { error } = await supabase.rpc('testagram_clear_local_reaction', { p_post_id: post.id });
-      if (error) { console.warn('[reaction] remove failed', error); toast({ title: 'Reaction failed', description: error.message, variant: 'destructive' }); return; }
-      if (emoji === '❤️' && isLiked) {
-        const state = await togglePostLike(post.id, true);
-        setIsLiked(state.is_liked);
-        setLikesCount(state.likes_count);
-      }
-      onUpdate?.();
-      return;
-    }
-
-    // Switching away from an existing reaction removes it first.
-    if (previousReaction) {
-      await supabase.rpc('testagram_clear_local_reaction', { p_post_id: post.id });
-      setReactionEmojis(prev => {
-        const next = [...prev];
-        const nextNums = [...reactionNums];
-        const idx = next.indexOf(previousReaction);
-        if (idx >= 0) {
-          nextNums[idx] = Math.max(0, (nextNums[idx] ?? 1) - 1);
-          if (nextNums[idx] === 0) { next.splice(idx, 1); nextNums.splice(idx, 1); }
-        }
-        setReactionNums(nextNums);
-        return next;
-      });
-    }
-
-    if (emoji === '❤️') {
-      // Let the canonical like capability own the ❤️ row. Do not upsert it
-      // first, otherwise the toggle would immediately undo the new like.
-      const state = await togglePostLike(post.id, false);
-      setIsLiked(state.is_liked);
-      setLikesCount(state.likes_count);
-      setUserReaction('❤️');
-      setReactionEmojis(prev => prev.includes('❤️') ? prev : [...prev, '❤️']);
-      setReactionNums(prev => {
-        const idx = reactionEmojis.indexOf('❤️');
-        if (idx >= 0) return prev;
-        return [...prev, 1];
-      });
-    } else {
-      setUserReaction(emoji);
-      const { error } = await supabase.rpc('testagram_set_local_reaction', { p_post_id: post.id, p_emoji: emoji });
-      if (error) {
-        console.warn('[reaction] save failed', error);
-        toast({ title: 'Reaction failed', description: error.message, variant: 'destructive' });
-        return;
-      }
-      setReactionEmojis(prev => [...prev.filter(x => x !== emoji), emoji]);
-      setReactionNums(prev => [...prev.filter((_,i) => reactionEmojis[i] !== emoji), 1]);
-      if (previousReaction === '❤️' && isLiked) {
-        const state = await togglePostLike(post.id, true);
-        setIsLiked(state.is_liked);
-        setLikesCount(state.likes_count);
-      }
-    }
-    onUpdate?.();
-  };
 
   // Multi-language Post Translation
   const LANGUAGES = [
@@ -868,7 +754,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
           {!post.is_video && <EmbedRenderer content={post.content} />}
 
           {/* Reaction bubbles */}
-          {reactionEmojis.length > 0 && (
+          {false && (
             <div className="flex gap-1.5 mt-2 flex-wrap" onClick={e => e.stopPropagation()}>
               {REACTIONS.filter(e => getReactionCount(e) > 0).map(emoji => (
                 <button
@@ -970,7 +856,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
             {/* Reaction button + picker */}
             <div className="relative">
               <button
-                onClick={(e) => { e.stopPropagation(); isFederatedPost ? handleReact('❤️', e) : setShowReactionPicker(p => !p); }}
+                onClick={handleLike}
                 onMouseEnter={() => { if (!isFederatedPost) setShowReactionPicker(true); }}
                 onMouseLeave={() => { if (!isFederatedPost) setShowReactionPicker(false); }}
                 className={cn('flex items-center space-x-1.5 transition-colors group', userReaction ? 'text-pink-600' : 'text-muted-foreground hover:text-pink-600')}
@@ -980,29 +866,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
                 </div>
                 <span className="text-sm">{formatNumber(likesCount)}</span>
               </button>
-              {showReactionPicker && !isFederatedPost && (
-                <div
-                  className="absolute bottom-full mb-1 left-0 flex gap-0.5 bg-background border border-border rounded-full px-2 py-1.5 shadow-xl z-50"
-                  onMouseEnter={() => setShowReactionPicker(true)}
-                  onMouseLeave={() => setShowReactionPicker(false)}
-                  onClick={e => e.stopPropagation()}
-                >
-                  {REACTIONS.map(emoji => (
-                    <button
-                      key={emoji}
-                      onClick={(e) => handleReact(emoji, e)}
-                      className={cn(
-                        'text-xl transition-all duration-100 hover:scale-125 active:scale-90 rounded-full w-9 h-9 flex items-center justify-center',
-                        userReactions.includes(emoji) ? 'bg-primary/10 scale-110 ring-2 ring-primary/20' : 'hover:bg-muted'
-                      )}
-                      title={emoji}
-                    >
-                      {emoji}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+           </div>
 
             {/* Quote Tweet */}
             <button
