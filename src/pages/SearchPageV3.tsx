@@ -46,31 +46,45 @@ const run=async(q=query,nextTab=tab,append=false)=>{if(!q.trim())return;const cl
    setHasMore(false);
    if(nextTab==='Fediverse'||clean.startsWith('@')||clean.startsWith('#')||remoteRows.length===0){
     try{
-     const term=clean.replace(/^[@#]/,'');
-     const remoteType=clean.startsWith('#')?'hashtags':clean.startsWith('@')||nextTab==='People'?'users':'posts';
-     const remote:any=await federation.search(term,remoteType);
-     const rows=Array.isArray(remote)?remote:remote?.accounts??remote?.users??remote?.hashtags??remote?.statuses??remote?.data??[];
-     if(clean.startsWith('#')) setData(prev=>({...prev,hashtags:[...prev.hashtags,...rows.filter((h:any)=>!prev.hashtags.some((x:any)=>String(x.tag??x.name).replace(/^#/,'').toLowerCase()===String(h.tag??h.name).replace(/^#/,'').toLowerCase()))]}));
-     if(remoteType==='users') setFediverse(rows.map((a:any)=>({actor_url:a.url??a.id,username:a.username??a.preferredUsername??a.name,domain:a.acct?.split('@')[1]??a.domain,display_name:a.display_name??a.name,bio:a.note??a.summary,avatar_url:a.avatar??a.avatar_url,origin:'fediverse'})).filter((a:any)=>a.username));
-     else if(remoteType==='posts') setFediversePosts(rows.map((p:any)=>({
-      ...p,
-      id:p.id??p.url,
-      uri:p.uri??p.url,
-      user_id:p.account?.id??p.actor_uri,
-      author_id:p.account?.id??p.actor_uri,
-      created_at:p.created_at??p.published_at,
-      content:p.content??p.spoiler_text??'',
-      remote_status_uri:p.uri??p.url,
-      user_profiles:{
-       username:p.account?.username??p.username,
-       display_name:p.account?.display_name??p.account?.username,
-       avatar_url:p.account?.avatar??p.account?.avatar_url,
-       verified:false
-      },
-      is_federated:true,
-      origin:'fediverse'
-     })));
-    }catch(e){console.debug('[fediverse-live-search]',e)}
+     const discoveryKind=clean.startsWith('#')?'hashtags':clean.startsWith('@')||nextTab==='People'?'people':nextTab==='Fediverse'?'posts':'all';
+     const live=await federation.searchFederatedDiscovery(clean,50,undefined,'search',discoveryKind as any);
+     const liveHashtags=Array.isArray(live?.hashtags)?live.hashtags:[];
+     const liveUsers=Array.isArray(live?.users)?live.users:[];
+     const livePosts=Array.isArray(live?.posts)?live.posts:[];
+     if(liveHashtags.length) setData(prev=>{
+       const seen=new Set((prev.hashtags??[]).map((h:any)=>String(h.tag??h.name??'').replace(/^#/,'').toLowerCase()));
+       return {...prev,hashtags:[...(prev.hashtags??[]),...liveHashtags.filter((h:any)=>{const k=String(h.tag??h.name??'').replace(/^#/,'').toLowerCase();return k&&!seen.has(k)&&seen.add(k);})]};
+     });
+     if(liveUsers.length) setFediverse(prev=>{
+       const seen=new Set(prev.map((a:any)=>String(a.actor_url??a.id??a.username??'').toLowerCase()));
+       const rows=liveUsers.map((a:any)=>({actor_url:a.actor_url??a.url??a.id,username:a.username??a.preferredUsername??a.name,domain:a.domain??a.acct?.split('@')[1],display_name:a.display_name??a.name,bio:a.bio??a.note??a.summary,avatar_url:a.avatar_url??a.avatar,origin:'fediverse'})).filter((a:any)=>a.username);
+       return [...prev,...rows.filter((a:any)=>{const k=String(a.actor_url??a.username).toLowerCase();return !seen.has(k)&&seen.add(k);})];
+     });
+     if(livePosts.length) setFediversePosts(prev=>{
+       const seen=new Set(prev.map((p:any)=>String(p.uri??p.remote_status_uri??p.id)));
+       const rows=livePosts.map((p:any)=>({
+        ...p,
+        id:p.id??p.uri??p.url,
+        uri:p.uri??p.url,
+        user_id:p.account?.id??p.actor_uri,
+        author_id:p.account?.id??p.actor_uri,
+        created_at:p.created_at??p.published_at,
+        content:p.content??p.spoiler_text??'',
+        remote_status_uri:p.uri??p.url,
+        user_profiles:p.user_profiles??{
+         username:p.account?.username??p.username,
+         display_name:p.account?.display_name??p.account?.username,
+         avatar_url:p.account?.avatar??p.account?.avatar_url,
+         verified:false
+        },
+        is_federated:true,
+        origin:'fediverse'
+       }));
+       return [...prev,...rows.filter((p:any)=>{const k=String(p.uri??p.id);return !seen.has(k)&&seen.add(k);})];
+     });
+    }catch(e){
+     console.debug('[fediverse-live-search]',e);
+    }
    }
   }catch(e){toast.error(e instanceof CapabilityClientError&&e.code==='RATE_LIMITED'?'Search is rate limited briefly. Try again in a moment.':'Search could not be completed')}finally{setLoading(false);setLoadingMore(false)}};
  useEffect(()=>{if(initial)run(initial,tab)},[initial]);
