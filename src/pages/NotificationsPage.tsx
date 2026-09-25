@@ -330,18 +330,23 @@ export default function NotificationsPage() {
   };
 
   const getFedText = (n: any) => {
-    const actor = n.actor_url ?? n.account?.url ?? 'A remote user';
-    const actorShort = actor.replace(/https?:\/\//, '').split('/').pop() ?? actor;
+    const actor = n.actor_url ?? n.account?.url ?? '';
+    const actorName = String(n.account?.display_name ?? n.account?.name ?? n.account?.preferredUsername ?? n.account?.username ?? '').trim();
+    const actorUsername = String(n.account?.preferredUsername ?? n.account?.username ?? n.account?.acct ?? '').replace(/^@/, '').trim();
+    const actorDomain = String(n.account?.domain ?? '').trim();
+    const actorLabel = actorName || actorUsername || (actor ? actor.replace(/https?:\\/\\//, '').split('/').filter(Boolean).pop() : '') || 'Profile';
+    const actorHandle = actorUsername ? `@${actorUsername}${actorDomain ? `@${actorDomain}` : ''}` : '';
+    const identity = actorHandle ? `${actorLabel} ${actorHandle}` : actorLabel;
     const type = (n.activity_type ?? n.type ?? '').toLowerCase();
     switch (type) {
-      case 'follow': return `${actorShort} followed you from the Fediverse`;
+      case 'follow': return `${identity} followed you from the Fediverse`;
       case 'like':
-      case 'favourite': return `${actorShort} favourited your post`;
+      case 'favourite': return `${identity} favourited your post`;
       case 'boost':
-      case 'announce': return `${actorShort} boosted your post`;
-      case 'mention': return `${actorShort} mentioned you`;
-      case 'create': return `${actorShort} replied to your post`;
-      default: return `${actorShort} interacted with you`;
+      case 'announce': return `${identity} boosted your post`;
+      case 'mention': return `${identity} mentioned you`;
+      case 'create': return `${identity} replied to your post`;
+      default: return `${identity} interacted with you`;
     }
   };
 
