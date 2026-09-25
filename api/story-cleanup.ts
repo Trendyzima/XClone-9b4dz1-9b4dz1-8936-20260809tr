@@ -17,8 +17,9 @@ function config() {
 
 export default async function handler(req: any, res: any) {
   const cfg = config();
-  const authorization = String(req.headers.authorization ?? '');
-  if (!cfg.cronSecret || authorization !== `Bearer ${cfg.cronSecret}`) {
+  const authorization = String(req.headers.authorization ?? '').trim();
+  const expectedAuthorization = cfg.cronSecret.trim();
+  if (!expectedAuthorization || authorization !== `Bearer ${expectedAuthorization}`) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
