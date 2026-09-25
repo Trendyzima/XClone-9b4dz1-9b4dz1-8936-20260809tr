@@ -32,18 +32,36 @@ export async function listReplies(postId: string, limit = 50): Promise<{ items: 
       .slice(0, boundedLimit(limit))
       .map((reply: any) => federatedReplyToItem(reply, postId)) as ReplyItem[];
     const ledgerRows = ledgerResult.status === 'fulfilled' ? ledgerResult.value : [];
-    const ledgerItems = ledgerRows.map((row: any) => ({
-      id: String(row.activity_uri || row.id),
-      user_id: String(row.user_id || ''),
-      post_id: postId,
-      content: normalizeFederatedText(row.content || ''),
-      created_at: String(row.created_at || new Date().toISOString()),
-      updated_at: String(row.updated_at || row.created_at || new Date().toISOString()),
-      parent_reply_id: null,
-      profile: row.profile ?? null,
-      remote: true,
-      delivery_state: row.delivery_state,
-    })) as ReplyItem[];
+    const ledgerItems = (await Promise.all(ledgerRows.map(async (row: any) => {
+      const userId = String(row.user_id || '');
+      let profile = row.profile ?? null;
+      // Federation ledger rows can contain only the actor URI. Hydrate the
+      // real ActivityPub actor so interaction pages never fall back to "Profile".
+      if ((!profile || !profile.username || !profile.display_name || !profile.avatar_url) && /^https:\/\//i.test(userId)) {
+        try {
+          const actor = await federation.getFederatedObject(userId);
+          const resolved = actor?.object ?? actor;
+          const username = String(resolved?.preferredUsername ?? resolved?.username ?? resolved?.acct ?? '').replace(/^@/, '');
+          const displayName = String(resolved?.name ?? resolved?.displayName ?? resolved?.preferredUsername ?? username).trim();
+          const avatar = typeof resolved?.icon === 'string' ? resolved.icon : resolved?.icon?.url ?? resolved?.icon?.href ?? null;
+          profile = { ...(profile || {}), id: userId, username, preferredUsername: username, display_name: displayName, name: displayName, avatar_url: avatar, actor_uri: userId };
+        } catch {
+          // Keep the ledger row renderable even if the remote actor is temporarily unavailable.
+        }
+      }
+      return {
+        id: String(row.activity_uri || row.id),
+        user_id: userId,
+        post_id: postId,
+        content: normalizeFederatedText(row.content || ''),
+        created_at: String(row.created_at || new Date().toISOString()),
+        updated_at: String(row.updated_at || row.created_at || new Date().toISOString()),
+        parent_reply_id: null,
+        profile,
+        remote: true,
+        delivery_state: row.delivery_state,
+      };
+    }))) as ReplyItem[];
     const merged = new Map<string, ReplyItem>();
     for (const item of [...remoteItems, ...ledgerItems]) {
       if (item.id) merged.set(item.id, item);
