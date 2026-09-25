@@ -80,10 +80,11 @@ async function syncDomain(instance:any){
       content_warning:s.spoiler_text||null,raw_object:s
     };
   }).filter(Boolean);
+  let upsertedCount=0;
   if(rows.length){
     const stored=await db.from("federated_objects").upsert(rows,{onConflict:"uri",ignoreDuplicates:false}).select("id");
     if(stored.error)throw new Error(`database upsert failed: ${stored.error.message}`);
-    const upsertedCount=stored.data?.length ?? rows.length;
+    upsertedCount=stored.data?.length ?? rows.length;
   }
   const successAt=new Date().toISOString();
   await db.from("federated_instances").update({
