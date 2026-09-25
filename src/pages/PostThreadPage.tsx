@@ -21,7 +21,9 @@ import { federatedObjectToPost, resolveFederatedReplies, federatedReplyToItem, n
 function PostThreadAdBanner() { return <PageAdBanner />; }
 
 export default function PostThreadPage() {
-  const { postId } = useParams<{ postId: string }>();
+  const { postId: routePostId } = useParams<{ postId: string }>();
+  const [searchParams] = useSearchParams();
+  const postId = routePostId || searchParams.get('post_uri') || '';
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
@@ -198,7 +200,7 @@ export default function PostThreadPage() {
 
   const openReplies = () => {
     if (!postId) return;
-    navigate(/^https:\/\//i.test(postId) ? `/post/${encodeURIComponent(postId)}/replies` : `/post/${postId}/replies`);
+    navigate(/^https:\/\//i.test(postId) ? `/post-remote/replies?post_uri=${encodeURIComponent(postId)}` : `/post/${postId}/replies`);
   };
 
   // Build URL lazily — avoids window.location at render scope (esbuild non-determinism)
@@ -276,7 +278,7 @@ export default function PostThreadPage() {
             { label: 'Reposts', value: counts.reposts, icon: Repeat2, path: 'reposts' },
             { label: 'Quotes', value: counts.quotes, icon: Quote, path: 'quotes' },
           ].map(({ label, value, icon: ActivityIcon, path }) => (
-            <button key={path} onClick={() => navigate('/post/' + postId + '/' + path)} className="px-2 py-3 border-r border-border last:border-r-0 hover:bg-muted/30 text-center">
+            <button key={path} onClick={() => navigate(/^https:\/\//i.test(postId) ? `/post-remote/${path}?post_uri=${encodeURIComponent(postId)}` : `/post/${postId}/${path}`)} className="px-2 py-3 border-r border-border last:border-r-0 hover:bg-muted/30 text-center">
               <ActivityIcon className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
               <span className="block text-sm font-semibold">{value}</span>
               <span className="block text-[11px] text-muted-foreground">{label}</span>
@@ -332,7 +334,7 @@ export default function PostThreadPage() {
                   </button>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 min-w-0"><button onClick={() => username && navigate('/profile/' + username)} className="text-sm font-semibold truncate hover:underline">{displayName}</button>{author?.verified && <VerifiedTick className="w-3.5 h-3.5 text-primary shrink-0" />}<span className="text-xs text-muted-foreground truncate">{safeHandle}</span></div>
-                    <button onClick={() => navigate('/post/' + postId + '/reply/' + reply.id)} className="block text-left w-full"><p className="text-sm mt-1 whitespace-pre-wrap break-words">{reply.content}</p></button>
+                    <button onClick={() => navigate(/^https:\/\//i.test(postId) ? `/post-remote/reply/${encodeURIComponent(reply.id)}?post_uri=${encodeURIComponent(postId)}` : `/post/${postId}/reply/${encodeURIComponent(reply.id)}`)} className="block text-left w-full"><p className="text-sm mt-1 whitespace-pre-wrap break-words">{reply.content}</p></button>
                   </div>
                 </div>
                 <ReplyActions replyId={reply.id} profileUsername={username} onOpenProfile={() => username && navigate('/profile/' + username)} onReply={() => { setReplyingTo(reply.id); setReplyText(''); }} />
