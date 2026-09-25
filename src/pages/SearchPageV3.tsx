@@ -52,7 +52,24 @@ const run=async(q=query,nextTab=tab,append=false)=>{if(!q.trim())return;const cl
      const rows=Array.isArray(remote)?remote:remote?.accounts??remote?.users??remote?.hashtags??remote?.statuses??remote?.data??[];
      if(clean.startsWith('#')) setData(prev=>({...prev,hashtags:[...prev.hashtags,...rows.filter((h:any)=>!prev.hashtags.some((x:any)=>String(x.tag??x.name).replace(/^#/,'').toLowerCase()===String(h.tag??h.name).replace(/^#/,'').toLowerCase()))]}));
      if(remoteType==='users') setFediverse(rows.map((a:any)=>({actor_url:a.url??a.id,username:a.username??a.preferredUsername??a.name,domain:a.acct?.split('@')[1]??a.domain,display_name:a.display_name??a.name,bio:a.note??a.summary,avatar_url:a.avatar??a.avatar_url,origin:'fediverse'})).filter((a:any)=>a.username));
-     else if(remoteType==='posts') setFediversePosts(rows.map((p:any)=>({...p,id:p.id??p.url,uri:p.uri??p.url,user_id:p.account?.id??p.actor_uri,author_id:p.account?.id??p.actor_uri,created_at:p.created_at??p.published_at,content:p.content??p.spoiler_text??'',remote_status_uri:p.uri??p.url,user_profiles:{username:p.account?.username??p.username,display_name:p.account?.display_name??p.account?.username,avatar_url:p.account?.avatar??p.account?.avatar_url,verified:false},is_federated:true,origin:'fediverse'}))));
+     else if(remoteType==='posts') setFediversePosts(rows.map((p:any)=>({
+      ...p,
+      id:p.id??p.url,
+      uri:p.uri??p.url,
+      user_id:p.account?.id??p.actor_uri,
+      author_id:p.account?.id??p.actor_uri,
+      created_at:p.created_at??p.published_at,
+      content:p.content??p.spoiler_text??'',
+      remote_status_uri:p.uri??p.url,
+      user_profiles:{
+       username:p.account?.username??p.username,
+       display_name:p.account?.display_name??p.account?.username,
+       avatar_url:p.account?.avatar??p.account?.avatar_url,
+       verified:false
+      },
+      is_federated:true,
+      origin:'fediverse'
+     })));
     }catch(e){console.debug('[fediverse-live-search]',e)}
    }
   }catch(e){toast.error(e instanceof CapabilityClientError&&e.code==='RATE_LIMITED'?'Search is rate limited briefly. Try again in a moment.':'Search could not be completed')}finally{setLoading(false);setLoadingMore(false)}};
