@@ -44,8 +44,8 @@ export default function PostInteractionPage({kind}:{kind:Kind}){
       views:Number(liveCounts.views??0),
     });
     if(kind==='replies'){
-      next=await listReplies(postId,100);
-      setItems(next.items??[]);
+      const remoteReplies=await listReplies(postId,100);
+      setItems(remoteReplies.items??[]);
     }else{
       setItems([]);
     }
