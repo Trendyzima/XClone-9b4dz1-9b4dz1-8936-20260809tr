@@ -136,9 +136,9 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     setViewsCount(counts.views);
     setShareCount(counts.shares);
     setBookmarksCount(counts.bookmarks);
-  }, [interactionPostId]);
+  }, [interactionPostId, user?.id]);
 
-
+  useEffect(() => { void fetchReactions(); }, [fetchReactions]);
 
   const handleReact = async (emoji: string, e: React.MouseEvent) => {
     e.stopPropagation();
