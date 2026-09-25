@@ -28,6 +28,7 @@ export default function PostInteractionPage({kind}:{kind:Kind}){
   if(!postId)return;
   setLoading(true); setError(null);
   try{
+   let next:any[]=[];
    if(/^https:\/\//i.test(postId)){
     const remote=await federation.getFederatedObject(postId);
     const object=remote?.object??remote;
@@ -50,7 +51,6 @@ export default function PostInteractionPage({kind}:{kind:Kind}){
     }
     return;
    }
-   let next:any[]=[];
    const postResult=await supabase.from('posts').select('id,content,created_at,user_id,author_id,likes_count,replies_count,reposts_count,quoted_post_id,deleted_at').eq('id',postId).maybeSingle();
    if(postResult.error)throw postResult.error;
    if(!postResult.data){throw new Error('Post not found');}
