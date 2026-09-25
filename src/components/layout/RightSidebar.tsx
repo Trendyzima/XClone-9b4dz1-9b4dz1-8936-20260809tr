@@ -428,8 +428,7 @@ export function RightSidebar() {
       if (user) { void fetchFollowedTags(); void fetchFollowedHashtagsPanel(); }
     });
     const iv = setInterval(fetchTrendingHashtags, 60_000);
-    return (<>
-    <div className="w-full"><TestagramAdSlot placement="SIDEBAR" context={adContext} /></div>) => { cancel?.(); clearInterval(iv); };
+    return () => { cancel?.(); clearInterval(iv); };
   }, [user, fetchTrending, fetchTrendingHashtags, fetchCommunities, fetchLiveSpaces, fetchFollowedTags, fetchFollowedHashtagsPanel]);
 
   const unfollowHashtag = async (hashtagId: string, _tag: string, e: React.MouseEvent) => {
@@ -455,7 +454,8 @@ export function RightSidebar() {
     }
   };
   
-  return (
+  return (<>
+    <div className="hidden xl:block w-80 px-4 pt-4"><TestagramAdSlot placement="SIDEBAR" context={adContext} /></div>
     <aside className="hidden xl:block w-80 h-screen sticky top-0 p-4 space-y-4 overflow-y-auto">
       {/* Create Community */}
       <div className="bg-muted/50 rounded-xl p-4 border border-border">
