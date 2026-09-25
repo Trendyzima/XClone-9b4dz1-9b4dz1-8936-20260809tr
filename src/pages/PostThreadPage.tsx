@@ -91,8 +91,12 @@ export default function PostThreadPage() {
           created_at: r.published ?? r.created ?? new Date().toISOString(),
           parent_reply_id: undefined,
           profile: {
-            username: typeof r.attributedTo === 'string' ? r.attributedTo.split('/').filter(Boolean).pop() : r.attributedTo?.preferredUsername ?? r.attributedTo?.name ?? 'user',
-            display_name: typeof r.attributedTo === 'object' ? r.attributedTo?.name : undefined,
+            username: typeof r.attributedTo === 'string'
+              ? r.attributedTo.split('/').filter(Boolean).pop() || ''
+              : String(r.attributedTo?.preferredUsername ?? r.attributedTo?.acct ?? '').replace(/^@/, ''),
+            display_name: typeof r.attributedTo === 'object'
+              ? (r.attributedTo?.name ?? r.attributedTo?.displayName)
+              : undefined,
             avatar_url: typeof r.attributedTo === 'object' ? (r.attributedTo?.icon?.url ?? r.attributedTo?.icon) : undefined,
           },
         })) as ReplyItem[]);
@@ -255,8 +259,9 @@ export default function PostThreadPage() {
         ) : (
           <div>{replies.slice(0, 3).map(reply => {
             const author = reply.profile;
-            const displayName = author?.display_name || author?.full_name || author?.username || 'User';
-            const username = author?.username || 'user';
+            const username = String(author?.username || author?.preferredUsername || author?.acct || '').replace(/^@/, '');
+            const displayName = String(author?.display_name || author?.full_name || author?.name || username || 'Profile').trim();
+            const safeHandle = username ? `@${username}` : '';
             const initial = displayName.slice(0, 1).toUpperCase();
             return (
               <button key={reply.id} onClick={() => navigate('/post/' + postId + '/reply/' + reply.id)}
@@ -273,7 +278,7 @@ export default function PostThreadPage() {
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="text-sm font-semibold truncate">{displayName}</span>
                       {author?.verified && <VerifiedTick className="w-3.5 h-3.5 text-primary shrink-0" />}
-                      <span className="text-xs text-muted-foreground truncate">@{username}</span>
+                      <span className="text-xs text-muted-foreground truncate">{safeHandle}</span>
                     </div>
                     <p className="text-sm mt-1 whitespace-pre-wrap break-words">{reply.content}</p>
                   </div>
