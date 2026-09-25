@@ -964,8 +964,8 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
           {cachedAt && (
             <div className="flex items-center gap-2 px-4 py-1.5 bg-muted/30 border-b border-border text-xs text-muted-foreground">
               {isStale
-                ? <><Loader2 className="w-3 h-3 animate-spin text-primary" />Refreshing feed…</>
-                : <><CheckCircle className="w-3 h-3 text-green-500" />Synced {formatDistanceToNow(cachedAt, { addSuffix: true })}</>}
+                ? <><Loader2 className="w-3 h-3 animate-spin text-primary" />Refreshing local cache…</>
+                : <><CheckCircle className="w-3 h-3 text-green-500" />Local cache updated {formatDistanceToNow(cachedAt, { addSuffix: true })} · remote sync runs every 2 min</>}
             </div>
           )}
 
