@@ -18,10 +18,39 @@ const boundedLimit = (limit = 50) => Math.min(100, Math.max(1, Number.isFinite(l
 
 export async function listReplies(postId: string, limit = 50): Promise<{ items: ReplyItem[]; next_cursor: string | null }> {
   if (/^https:\/\//i.test(postId)) {
-    const remote = await federation.getFederatedObject(postId);
+    const [remoteResult, ledgerResult] = await Promise.allSettled([
+      federation.getFederatedObject(postId),
+      federation.getFederatedReplies(postId),
+    ]);
+    const remote = remoteResult.status === 'fulfilled' ? remoteResult.value : null;
     const object = remote?.object ?? remote;
-    const rawReplies = await resolveFederatedReplies(object?.replies, federation.getFederatedObject);
-    const items = rawReplies.filter((reply: any) => reply?.id).slice(0, boundedLimit(limit)).map((reply: any) => federatedReplyToItem(reply, postId)) as ReplyItem[];
+    const rawReplies = object?.replies
+      ? await resolveFederatedReplies(object.replies, federation.getFederatedObject)
+      : [];
+    const remoteItems = rawReplies
+      .filter((reply: any) => reply?.id)
+      .slice(0, boundedLimit(limit))
+      .map((reply: any) => federatedReplyToItem(reply, postId)) as ReplyItem[];
+    const ledgerRows = ledgerResult.status === 'fulfilled' ? ledgerResult.value : [];
+    const ledgerItems = ledgerRows.map((row: any) => ({
+      id: String(row.activity_uri || row.id),
+      user_id: String(row.user_id || ''),
+      post_id: postId,
+      content: String(row.content || ''),
+      created_at: String(row.created_at || new Date().toISOString()),
+      updated_at: String(row.updated_at || row.created_at || new Date().toISOString()),
+      parent_reply_id: null,
+      profile: row.profile ?? null,
+      remote: true,
+      delivery_state: row.delivery_state,
+    })) as ReplyItem[];
+    const merged = new Map<string, ReplyItem>();
+    for (const item of [...remoteItems, ...ledgerItems]) {
+      if (item.id) merged.set(item.id, item);
+    }
+    const items = [...merged.values()]
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+      .slice(0, boundedLimit(limit));
     return { items, next_cursor: null };
   }
   // Keep the reply read path compatible with both authenticated capability reads
