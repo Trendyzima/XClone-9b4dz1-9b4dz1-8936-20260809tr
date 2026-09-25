@@ -639,6 +639,14 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     navigate(`/post/${post.id}`);
   };
 
+  const authorProfile = { ...((post.user_profiles as any) || {}), ...((post as any).remote_account || {}) };
+  const authorUsername = String(authorProfile.preferredUsername || authorProfile.username || authorProfile.acct || '').replace(/^@/, '');
+  const authorDisplayName = String(authorProfile.display_name || authorProfile.displayName || authorProfile.name || authorUsername || 'Profile').trim();
+  const authorDomain = String(authorProfile.domain || '').trim();
+  const authorHandle = isFederatedPost
+    ? (authorUsername ? `@${authorUsername}${authorDomain ? `@${authorDomain}` : ''}` : '')
+    : (authorUsername ? `@${authorUsername}` : '');
+
   const handleDelete = async () => {
     if (!window.confirm('Are you sure you want to delete this post? This action cannot be undone.')) return;
     try {
@@ -670,10 +678,10 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
           onClick={(e) => { e.stopPropagation(); navigate(isFederatedPost ? federatedProfilePath() : `/profile/${post.user_profiles?.username}`); }}
         >
           {post.user_profiles?.avatar_url ? (
-            <img src={post.user_profiles.avatar_url} alt={post.user_profiles.username} className="w-full h-full object-cover" />
+            <img src={post.user_profiles.avatar_url} alt={authorDisplayName} className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-sm font-semibold">
-              {post.user_profiles?.username[0]?.toUpperCase()}
+              {authorDisplayName[0]?.toUpperCase()}
             </div>
           )}
         </div>
@@ -684,14 +692,14 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
               className="flex items-center space-x-1 min-w-0 cursor-pointer"
               onClick={(e) => { e.stopPropagation(); navigate(isFederatedPost ? federatedProfilePath() : `/profile/${post.user_profiles?.username}`); }}
             >
-              <span className="font-bold text-foreground truncate">{post.user_profiles?.username}</span>
+              <span className="font-bold text-foreground truncate">{authorDisplayName}</span>
               {post.user_profiles?.verified && (
                 <VerifiedTick className="w-4 h-4 text-primary flex-shrink-0" />
               )}
               {isAuthorPremium && (
                 <Crown className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" fill="currentColor" aria-label="Premium Member" />
               )}
-              <span className="text-muted-foreground text-sm truncate">@{post.user_profiles?.username}</span>
+              <span className="text-muted-foreground text-sm truncate">{authorHandle}</span>
               <span className="text-muted-foreground text-sm flex-shrink-0">·</span>
               <span className="text-muted-foreground text-sm flex-shrink-0">
                 {formatDistanceToNow(new Date(post.created_at), { addSuffix: true })}
