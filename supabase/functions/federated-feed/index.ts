@@ -89,7 +89,7 @@ Deno.serve(async (request) => {
       const due=domains.filter((d:string)=>now-(stateMap.get(d)||0)>15_000);
       await Promise.allSettled(due.map(async(domain:string)=>{
         try{
-          const res=await fetch(`https://${domain}/api/v1/timelines/public?limit=30&local=true`,{headers:{Accept:"application/json","User-Agent":"Testagram-Federation/4.0"},signal:AbortSignal.timeout(7000)});
+          const res=await fetch(`https://${domain}/api/v1/timelines/public?limit=30&local=false`,{headers:{Accept:"application/json","User-Agent":"Testagram-Federation/4.0"},signal:AbortSignal.timeout(7000)});
           if(!res.ok)throw new Error(`HTTP ${res.status}`);
           const statuses=await res.json();
           const rows:any[]=(Array.isArray(statuses)?statuses:[]).map((s:any)=>{
