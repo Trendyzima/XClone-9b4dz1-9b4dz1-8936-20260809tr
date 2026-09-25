@@ -212,6 +212,26 @@ export default function HashtagPage() {
           remoteRows = remoteIds.map((id: string) => byId.get(id)).filter(Boolean);
         }
       }
+      // Do not depend solely on the optional federated_hashtag_mentions index.
+      // Remote ActivityPub objects carry their own Hashtag tags; use that canonical
+      // object metadata as a live fallback so a remote hashtag is never invisible.
+      const { data: recentRemoteObjects } = await supabase
+        .from('federated_objects')
+        .select('id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,object_type,url,deleted_at,tombstone,remote_account')
+        .is('deleted_at', null)
+        .eq('tombstone', false)
+        .order('published_at', { ascending: false })
+        .limit(200);
+      const wantedTag = normalizedTag.toLowerCase();
+      const indexedUris = new Set((remoteRows ?? []).map((p: any) => p.uri));
+      const directRemoteRows = (recentRemoteObjects ?? []).filter((p: any) =>
+        Array.isArray(p.tags) && p.tags.some((x: any) => {
+          const name = String(x?.name ?? x?.tag ?? '').replace(/^#/, '').trim().toLowerCase();
+          return name === wantedTag;
+        })
+      );
+      remoteRows = [...remoteRows, ...directRemoteRows.filter((p: any) => !indexedUris.has(p.uri))];
+
       setFederatedPosts((remoteRows ?? []).map((p: any) => ({
         ...p,
         id: p.id ?? p.uri,
