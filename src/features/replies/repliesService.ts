@@ -111,8 +111,7 @@ export async function listReplies(postId: string, limit = 50): Promise<{ items: 
 }
 export async function createReply(postId: string, content: string, parentReplyId?: string) {
   if (/^https:\/\//i.test(postId)) {
-    if (parentReplyId) throw new Error('Replying to a remote reply chain is not supported yet');
-    return federation.reply({ postId, content });
+    return federation.reply({ postId, content, parentReplyId });
   }
   return backendCapabilities.createReply(postId, content, parentReplyId);
 }
