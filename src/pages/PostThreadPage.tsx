@@ -16,7 +16,7 @@ import { ReplyActions } from '@/components/features/ReplyActions';
 import { useAuth } from '@/hooks/useAuth';
 
 import { PageAdBanner } from '@/components/features/AdSenseAd';
-import { federatedObjectToPost, resolveFederatedReplies, federatedReplyToItem } from '@/features/federation/federatedPostAdapter';
+import { federatedObjectToPost, resolveFederatedReplies, federatedReplyToItem, normalizeFederatedText } from '@/features/federation/federatedPostAdapter';
 
 function PostThreadAdBanner() { return <PageAdBanner />; }
 
@@ -141,7 +141,7 @@ export default function PostThreadPage() {
             id: String(row.activity_uri || row.id),
             user_id: String(row.user_id || ''),
             post_id: postId,
-            content: String(row.content || ''),
+            content: normalizeFederatedText(row.content || ''),
             created_at: String(row.created_at || new Date().toISOString()),
             updated_at: String(row.updated_at || row.created_at || new Date().toISOString()),
             parent_reply_id: null,
