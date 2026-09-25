@@ -49,9 +49,45 @@ export async function resolveFederatedReplies(repliesRef: any, getObject: (uri: 
   const uri = typeof repliesRef === 'string' ? repliesRef : repliesRef?.id ?? repliesRef?.url ?? '';
   if (!uri) return [];
   try {
-    const result = await getObject(uri); const collection = result?.object ?? result;
-    const entries = Array.isArray(collection?.orderedItems) ? collection.orderedItems : Array.isArray(collection?.items) ? collection.items : [];
-    return entries.map((entry: any) => typeof entry === 'string' ? { id: entry } : entry).filter((x: any) => x?.id);
+    const result = await getObject(uri);
+    let collection = result?.object ?? result;
+    let entries = Array.isArray(collection?.orderedItems)
+      ? collection.orderedItems
+      : Array.isArray(collection?.items)
+        ? collection.items
+        : [];
+    // Many fediverse servers return a paged collection (or compact reply IDs).
+    // Follow the first page when the collection itself contains no members, then
+    // hydrate compact IDs into full ActivityPub objects before rendering them.
+    if (!entries.length) {
+      const first = typeof collection?.first === 'string'
+        ? collection.first
+        : collection?.first?.id ?? collection?.first?.url ?? '';
+      if (first) {
+        try {
+          const firstResult = await getObject(first);
+          collection = firstResult?.object ?? firstResult;
+          entries = Array.isArray(collection?.orderedItems)
+            ? collection.orderedItems
+            : Array.isArray(collection?.items)
+              ? collection.items
+              : [];
+        } catch {}
+      }
+    }
+    const hydrated = await Promise.all(entries.slice(0, 50).map(async (entry: any) => {
+      const id = typeof entry === 'string' ? entry : entry?.id ?? entry?.url ?? '';
+      if (!id) return null;
+      const hasContent = typeof entry === 'object' && Boolean(entry?.content ?? entry?.name ?? entry?.summary);
+      if (hasContent && typeof entry?.attributedTo === 'object') return entry;
+      try {
+        const fetched = await getObject(id);
+        return fetched?.object ?? fetched ?? entry;
+      } catch {
+        return entry;
+      }
+    }));
+    return hydrated.filter((x: any) => x?.id);
   } catch { return []; }
 }
 
