@@ -18,9 +18,18 @@ export default function PostReplyChainPage(){
      const object = remote?.object ?? remote;
      const normalized = await federatedObjectToPost(object, federation.getFederatedObject);
      setPost(normalized);
-     const remoteReplies = await resolveFederatedReplies(object.replies, federation.getFederatedObject);
-     const items = remoteReplies.map((r:any)=>federatedReplyToItem(r, postId)) as ReplyItem[];
-     setReplies(items); setCounts({likes:Number(object.likes?.totalItems??0),reposts:Number(object.shares?.totalItems??0),replies:items.length||Number(object.replies?.totalItems??0),quotes:0,views:0});
+     // A remote reply is itself an ActivityPub object. Open its object directly
+     // so nested replies are loaded from the selected reply's replies collection
+     // instead of incorrectly treating every reply as a root-level child.
+     const selectedObject = /^https:\/\//i.test(String(replyId||''))
+       ? ((await federation.getFederatedObject(String(replyId)))?.object ?? await federation.getFederatedObject(String(replyId)))
+       : object;
+     const remoteReplies = await resolveFederatedReplies(selectedObject?.replies, federation.getFederatedObject);
+     const selectedItem = selectedObject?.id ? [federatedReplyToItem(selectedObject, postId) as ReplyItem] : [];
+     const childItems = remoteReplies.map((r:any)=>federatedReplyToItem(r, postId)) as ReplyItem[];
+     const items = [...selectedItem, ...childItems];
+     const [liveCounts] = await Promise.all([getInteractionCounts(String(replyId))]);
+     setReplies(items); setCounts(liveCounts);
      return;
    }
    const [p,r,c]=await Promise.all([
