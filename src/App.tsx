@@ -48,6 +48,7 @@ const PostReplyChainPage = lazy(() => import('@/pages/PostReplyChainPage'));
 const PostRepostsPage = lazy(() => import('@/pages/PostRepostsPage'));
 const PostQuotesPage = lazy(() => import('@/pages/PostQuotesPage'));
 const PostQuoteLikesPage = lazy(() => import('@/pages/PostQuoteLikesPage'));
+const PostQuoteComposerPage = lazy(() => import('@/pages/PostQuoteComposerPage'));
 const ThreadLikesPage = lazy(() => import('@/pages/ThreadLikesPage'));
 const ThreadRepostsPage = lazy(() => import('@/pages/ThreadRepostsPage'));
 const ThreadRepliesPage = lazy(() => import('@/pages/ThreadRepliesPage'));
@@ -262,7 +263,7 @@ function AppInner(){useCreatorTierAlert();useEffect(()=>{applyAppearance(getStor
 <Route path="/admin/overview" element={<AdminOverviewPage/>}/>
 <Route path="/admin/ads-management" element={<AdminAdsPage/>}/>
 <Route path="/admin/users" element={<AdminUsersPage/>}/>
-<Route path="/admin/fraud" element={<AdminFraudPage/>}/><Route path="/post/:postId" element={<PostThreadPage/>}/><Route path="/post/:postId/likes" element={<PostLikesPage/>}/><Route path="/post/:postId/replies" element={<PostRepliesPage/>}/><Route path="/post/:postId/reply/:replyId" element={<PostReplyChainPage/>}/><Route path="/post/:postId/reposts" element={<PostRepostsPage/>}/><Route path="/post/:postId/quotes" element={<PostQuotesPage/>}/><Route path="/post/:postId/quote-likes" element={<PostQuoteLikesPage/>}/><Route path="/communities" element={<CommunitiesPage/>}/><Route path="/c/:name" element={<CommunityPage/>}/>
+<Route path="/admin/fraud" element={<AdminFraudPage/>}/><Route path="/post/:postId" element={<PostThreadPage/>}/><Route path="/post/:postId/likes" element={<PostLikesPage/>}/><Route path="/post/:postId/replies" element={<PostRepliesPage/>}/><Route path="/post/:postId/reply/:replyId" element={<PostReplyChainPage/>}/><Route path="/post/:postId/reposts" element={<PostRepostsPage/>}/><Route path="/post/:postId/quotes" element={<PostQuotesPage/>}/><Route path="/post/:postId/quote" element={<PostQuoteComposerPage/>}/><Route path="/post/:postId/quote-likes" element={<PostQuoteLikesPage/>}/><Route path="/communities" element={<CommunitiesPage/>}/><Route path="/c/:name" element={<CommunityPage/>}/>
 <Route path="/c/:name/posts" element={<CommunityPostsPage/>}/>
 <Route path="/c/:name/members" element={<CommunityMembersPage/>}/>
 <Route path="/c/:name/chat" element={<CommunityChatPage/>}/>

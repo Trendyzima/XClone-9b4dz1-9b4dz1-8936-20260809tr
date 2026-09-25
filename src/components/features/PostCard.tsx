@@ -1003,7 +1003,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
             <button
               title={'Quote Tweet' + (quoteCount ? ' · ' + quoteCount : '')}
               className="flex items-center space-x-2 text-muted-foreground hover:text-blue-500 transition-colors group"
-              onClick={e => { e.stopPropagation(); isFederatedPost ? navigate(federatedProfilePath()) : navigate(`/post/${interactionPostId}/quotes?compose=1`); }}
+              onClick={e => { e.stopPropagation(); navigate(`/post/${encodeURIComponent(interactionPostId)}/quote`); }}
             >
               <div className="p-2 rounded-full group-hover:bg-blue-500/10 transition-colors">
                 <Quote className="w-4 h-4" />
