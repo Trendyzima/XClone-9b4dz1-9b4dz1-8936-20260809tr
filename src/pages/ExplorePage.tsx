@@ -1561,7 +1561,7 @@ export default function ExplorePage() {
                 {trendingHashtags.slice(0, 8).map((tag: any) => (
                   <button key={tag.id} onClick={() => navigate(`/hashtag/${tag.tag}`)} className="p-3 border border-border rounded-xl hover:bg-muted/50 text-left transition-colors">
                     <p className="font-bold text-primary text-sm">#{tag.tag}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{formatNumber(tag.usage_count)} posts</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{formatNumber(tag.daily_posts ?? tag.federated_post_count ?? tag.post_count ?? 0)} posts</p>
                   </button>
                 ))}
               </div>
@@ -1638,7 +1638,7 @@ export default function ExplorePage() {
                   <span className={`text-xs font-black w-5 shrink-0 ${i === 0 ? 'text-orange-500' : i === 1 ? 'text-slate-400' : i === 2 ? 'text-amber-600' : 'text-muted-foreground'}`}>{i + 1}</span>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-sm text-primary truncate">#{tag.tag}</p>
-                    <p className="text-[10px] text-muted-foreground">{formatNumber(tag.usage_count)} posts</p>
+                    <p className="text-[10px] text-muted-foreground">{formatNumber(tag.daily_posts ?? tag.federated_post_count ?? tag.post_count ?? 0)} posts</p>
                   </div>
                   {i < 3 && <Flame className="w-3.5 h-3.5 text-orange-500 shrink-0" />}
                 </button>
