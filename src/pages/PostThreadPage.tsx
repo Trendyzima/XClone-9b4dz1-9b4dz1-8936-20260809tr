@@ -106,7 +106,8 @@ export default function PostThreadPage() {
         .eq('id', postId)
         .single();
       if (postError) throw postError;
-      const normalizedLocalPost = { ...postData, user_profiles: postData.profiles ?? postData.user_profiles ?? null };\n      setPost(normalizedLocalPost);
+      const normalizedLocalPost = { ...postData, user_profiles: postData.profiles ?? postData.user_profiles ?? null };
+      setPost(normalizedLocalPost);
 
       void supabase
         .from('posts')
