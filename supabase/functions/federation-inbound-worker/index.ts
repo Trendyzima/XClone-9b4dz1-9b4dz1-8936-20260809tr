@@ -150,7 +150,7 @@ Deno.serve(async(req)=>{
       results.push(...settled);
     }
     const succeeded=results.filter(r=>r.status===200);
-    const failed=results.filter(r=>r.status!=="200" && r.status!=="ok" && r.status!=="success");
+    const failed=results.filter(r=>r.status!==200);
     const fetched=succeeded.reduce((n,r)=>n+Number(r.fetched||0),0);
     const upserted=succeeded.reduce((n,r)=>n+Number(r.stored||0),0);
     const status=failed.length===0?"succeeded":succeeded.length>0?"partial":"failed";
