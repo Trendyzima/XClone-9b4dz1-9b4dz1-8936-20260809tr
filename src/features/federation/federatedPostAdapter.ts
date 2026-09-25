@@ -25,15 +25,15 @@ function normalizeFederatedText(value: unknown): string {
   }
 
   return source
-    .replace(/<script[\\s\\S]*?<\\/script>/gi, '')
-    .replace(/<style[\\s\\S]*?<\\/style>/gi, '')
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
     .replace(/<[^>]*>/g, ' ')
     .replace(/&nbsp;/gi, ' ')
     .replace(/&amp;/gi, '&')
     .replace(/&lt;/gi, '<')
     .replace(/&gt;/gi, '>')
     .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
+    .replace(/[ \t]+/g, ' ')
     .replace(/[ \\t]+/g, ' ')
     .trim();
 }
