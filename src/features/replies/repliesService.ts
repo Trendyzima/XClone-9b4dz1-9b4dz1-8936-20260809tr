@@ -48,7 +48,7 @@ export async function listReplies(postId: string, limit = 50): Promise<{ items: 
   if (ids.length) {
     const { data: profileRows, error: profileError } = await supabase
       .from('profiles')
-      .select('id,username,display_name,full_name,avatar_url,verified')
+      .select('id,username,display_name,full_name,avatar_url,cover_url,bio,website,website_url,location,verified,verified_tier,follower_count,following_count,posts_count,account_type,visibility,creator_tier,is_creator,created_at')
       .in('id', ids);
     if (profileError) console.warn('[replies] profile enrichment failed', profileError);
     profiles = profileRows ?? [];
