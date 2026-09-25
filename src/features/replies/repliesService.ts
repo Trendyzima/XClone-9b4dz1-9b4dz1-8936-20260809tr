@@ -39,7 +39,14 @@ export async function listReplies(postId: string, limit = 50): Promise<{ items: 
 
   const byId = new Map((profiles ?? []).map((profile: any) => [profile.id, profile]));
   return {
-    items: rows.map((row: any) => ({ ...row, profile: byId.get(row.user_id) ?? null })),
+    items: rows.map((row: any) => {
+      const profile = byId.get(row.user_id) ?? null;
+      return { ...row, profile: profile ? {
+        ...profile,
+        username: String(profile.username ?? '').replace(/^@/, ''),
+        display_name: profile.display_name ?? profile.full_name ?? profile.username ?? null,
+      } : null };
+    }),
     next_cursor: null,
   };
 }
