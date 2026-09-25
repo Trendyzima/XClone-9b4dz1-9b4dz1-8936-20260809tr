@@ -180,7 +180,16 @@ if((path==="/federated/reactions"||path==="/federated-reaction")&&method==="POST
       user_id:u.id,object_id:object.data.id,object_uri:target,reaction_type:"reaction",content:emoji,delivered:false,updated_at:new Date().toISOString()
     },{onConflict:"user_id,object_uri,reaction_type,content"}).select("id,user_id,object_id,object_uri,reaction_type,content,delivered,delivery_error,created_at,updated_at").single();
     if(r.error)return json({error:"Failed to persist federated emoji reaction",details:r.error.message},500);
-    return json({ok:true,active:true,reaction:r.data},200);
+    try{
+      const transportResult=await transport({user_id:u.id,operation:"deliver",target,activity:{type:"EmojiReact",object:target,content:emoji}});
+      const data=transportResult.data();
+      const delivered=data?.delivery?.status==="delivered"||data?.delivery?.status==="queued"||data?.accepted===true;
+      await admin.from("federated_reactions").update({delivered,delivery_error:delivered?null:String(data?.error||"")||null,updated_at:new Date().toISOString()}).eq("id",r.data.id);
+      return json({ok:true,active:true,delivered,reaction:r.data},200);
+    }catch(error){
+      await admin.from("federated_reactions").update({delivered:false,delivery_error:error instanceof Error?error.message:"Remote reaction delivery pending",updated_at:new Date().toISOString()}).eq("id",r.data.id);
+      return json({ok:true,active:true,delivered:false,pending:true,reaction:r.data},200);
+    }
   }
   const r=await admin.from("federated_reactions").delete().eq("user_id",u.id).eq("object_uri",target).eq("reaction_type","reaction").eq("content",emoji);
   if(r.error)return json({error:"Failed to remove federated emoji reaction",details:r.error.message},500);
