@@ -167,14 +167,17 @@ if((path==="/federated/reactions"||path==="/federated-reaction")&&method==="POST
   const emoji=String(body.emoji||"").trim();
   const enabled=body.enabled!==false;
   if(!/^https:\/\//i.test(target)||!emoji)return json({error:"Remote reaction requires object URI and emoji"},400);
+  const object=await admin.from("federated_objects").select("id").eq("uri",target).maybeSingle();
+  if(object.error)return json({error:object.error.message},400);
+  if(!object.data?.id)return json({error:"Remote object is not cached yet"},404);
   if(enabled){
-    const r=await admin.from("federated_emoji_reactions").upsert({
-      user_id:u.id,object_uri:target,emoji,delivered:false,delivery_state:"pending",updated_at:new Date().toISOString()
-    },{onConflict:"user_id,object_uri,emoji"}).select("id,user_id,object_uri,emoji,delivered,delivery_state,created_at,updated_at").single();
+    const r=await admin.from("federated_reactions").upsert({
+      user_id:u.id,object_id:object.data.id,object_uri:target,reaction_type:"reaction",content:emoji,delivered:false,updated_at:new Date().toISOString()
+    },{onConflict:"user_id,object_uri,reaction_type,content"}).select("id,user_id,object_id,object_uri,reaction_type,content,delivered,delivery_error,created_at,updated_at").single();
     if(r.error)return json({error:"Failed to persist federated emoji reaction",details:r.error.message},500);
     return json({ok:true,active:true,reaction:r.data},200);
   }
-  const r=await admin.from("federated_emoji_reactions").delete().eq("user_id",u.id).eq("object_uri",target).eq("emoji",emoji);
+  const r=await admin.from("federated_reactions").delete().eq("user_id",u.id).eq("object_uri",target).eq("reaction_type","reaction").eq("content",emoji);
   if(r.error)return json({error:"Failed to remove federated emoji reaction",details:r.error.message},500);
   return json({ok:true,active:false,emoji},200);
 }
@@ -182,17 +185,17 @@ if((path==="/federated/reactions"||path==="/federated-reaction-state")&&method==
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
   const target=String(params.object_uri||params.objectUri||"").trim();
   if(!/^https:\/\//i.test(target))return json({error:"object_uri must be a remote ActivityPub object"},400);
-  const r=await admin.from("federated_emoji_reactions").select("emoji,delivered,delivery_state,updated_at").eq("user_id",u.id).eq("object_uri",target);
+  const r=await admin.from("federated_reactions").select("content,delivered,delivery_error,updated_at").eq("user_id",u.id).eq("object_uri",target).eq("reaction_type","reaction");
   if(r.error)return json({error:r.error.message},400);
-  const emojis=(r.data||[]).map((x:any)=>String(x.emoji)).filter(Boolean);
+  const emojis=(r.data||[]).map((x:any)=>String(x.content||"")).filter(Boolean);
   return json({emojis,emoji:emojis[0]||null,active:emojis.length>0,reactions:r.data||[]},200);
 }
 if(path==="/federated-reaction-counts"&&method==="GET"){
   const target=String(params.object_uri||params.objectUri||"").trim();
   if(!/^https:\/\//i.test(target))return json({error:"object_uri must be a remote ActivityPub object"},400);
-  const r=await admin.from("federated_emoji_reactions").select("emoji,user_id").eq("object_uri",target);
+  const r=await admin.from("federated_reactions").select("content").eq("object_uri",target).eq("reaction_type","reaction");
   if(r.error)return json({error:r.error.message},400);
-  const counts:any={}; for(const row of r.data||[]){const k=String(row.emoji||""); if(k)counts[k]=(counts[k]||0)+1;}
+  const counts:any={}; for(const row of r.data||[]){const k=String(row.content||""); if(k)counts[k]=(counts[k]||0)+1;}
   return json({counts},200);
 }
 if(path==="/federated-object"&&method==="GET"){
@@ -226,7 +229,7 @@ if(path==="/interaction-counts"&&method==="GET"){
     const [object,ledger,reactions,replies,quotes,views,bookmarks] = await Promise.all([
       admin.from("federated_objects").select("like_count,announce_count,reply_count,quote_count,view_count").eq("uri",target).maybeSingle(),
       admin.from("federated_interactions").select("interaction_type,active,user_id").eq("object_uri",target),
-      admin.from("federated_emoji_reactions").select("emoji,user_id").eq("object_uri",target),
+      admin.from("federated_reactions").select("content,user_id").eq("object_uri",target).eq("reaction_type","reaction"),
       admin.from("federated_replies").select("id",{count:"exact",head:true}).eq("object_uri",target),
       admin.from("federated_quotes").select("id",{count:"exact",head:true}).eq("object_uri",target),
       admin.from("federated_post_views").select("id",{count:"exact",head:true}).eq("object_uri",target),
@@ -248,7 +251,7 @@ if(path==="/interaction-counts"&&method==="GET"){
       if(row.active&&row.interaction_type==="repost"){reposts++;if(u && String(row.user_id)===String(u.id))viewerReposted=true;}
     }
     const reactionCounts:any={}; const userReactions:string[]=[];
-    for(const row of reactions.data||[]){const k=String(row.emoji||"");if(k)reactionCounts[k]=(reactionCounts[k]||0)+1;if(u && String(row.user_id)===String(u.id)&&k)userReactions.push(k);}
+    for(const row of reactions.data||[]){const k=String(row.content||"");if(k)reactionCounts[k]=(reactionCounts[k]||0)+1;if(u && String(row.user_id)===String(u.id)&&k)userReactions.push(k);}
     return json({
       likes:Math.max(likes,Number(remote.like_count||0)),
       reposts:Math.max(reposts,Number(remote.announce_count||0)),
