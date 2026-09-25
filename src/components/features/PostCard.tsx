@@ -56,6 +56,13 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const remoteStatusUri = (post as any).remote_status_uri || ((post as any).uri?.startsWith?.('https://') ? (post as any).uri : '');
   const interactionPostId = remoteStatusUri || post.id;
   const isFederatedPost = Boolean(remoteStatusUri);
+  // Supabase profile joins are returned as `profiles` in several profile-page
+  // queries, while federation uses `user_profiles`. Resolve both shapes once
+  // so every post surface renders the canonical author identity.
+  const authorProfile = { ...(((post as any).user_profiles || (post as any).profiles || (post as any).author || {}) as any) };
+  const authorUsername = String(authorProfile.preferredUsername || authorProfile.username || authorProfile.acct || '').replace(/^@/, '');
+  const authorDisplayName = String(authorProfile.display_name || authorProfile.displayName || authorProfile.name || authorUsername || '').trim();
+  const authorAvatarUrl = authorProfile.avatar_url || authorProfile.avatar || '';
   const [isAuthorPremium, setIsAuthorPremium] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [repliesCount, setRepliesCount] = useState(post.replies_count ?? 0);
@@ -376,7 +383,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       } else {
         await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'payment_sent', actor_id: user.id, post_id: post.id  });
       }
-      toast({ title: `Tip of $${tipAmount} sent!`, description: `You tipped @${post.user_profiles?.username}` });
+      toast({ title: `Tip of $${tipAmount} sent!`, description: `You tipped @${authorUsername}` });
       setShowTipDialog(false);
       setTipAmount(null);
       setTipMessage('');
@@ -639,10 +646,8 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     navigate(`/post/${post.id}`);
   };
 
-  const authorProfile = { ...((post.user_profiles as any) || {}), ...((post as any).remote_account || {}) };
-  const authorUsername = String(authorProfile.preferredUsername || authorProfile.username || authorProfile.acct || '').replace(/^@/, '');
-  const authorDisplayName = String(authorProfile.display_name || authorProfile.displayName || authorProfile.name || authorUsername || 'Profile').trim();
-  const authorDomain = String(authorProfile.domain || '').trim();
+  const federatedProfile = { ...authorProfile, ...((post as any).remote_account || {}) };
+  const authorDomain = String(federatedProfile.domain || '').trim();
   const authorHandle = isFederatedPost
     ? (authorUsername ? `@${authorUsername}${authorDomain ? `@${authorDomain}` : ''}` : '')
     : (authorUsername ? `@${authorUsername}` : '');
@@ -677,11 +682,11 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
           className="w-10 h-10 rounded-full bg-muted flex-shrink-0 overflow-hidden cursor-pointer"
           onClick={(e) => { e.stopPropagation(); navigate(isFederatedPost ? federatedProfilePath() : `/profile/${post.user_profiles?.username}`); }}
         >
-          {post.user_profiles?.avatar_url ? (
-            <img src={post.user_profiles.avatar_url} alt={authorDisplayName} className="w-full h-full object-cover" />
+          {authorAvatarUrl ? (
+            <img src={post.user_profiles.avatar_url} alt={authorDisplayName || authorUsername || 'User'} className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-sm font-semibold">
-              {authorDisplayName[0]?.toUpperCase()}
+              {authorDisplayName[0]?.toUpperCase() || authorUsername[0]?.toUpperCase() || '?'}
             </div>
           )}
         </div>
@@ -693,7 +698,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
               onClick={(e) => { e.stopPropagation(); navigate(isFederatedPost ? federatedProfilePath() : `/profile/${post.user_profiles?.username}`); }}
             >
               <span className="font-bold text-foreground truncate">{authorDisplayName}</span>
-              {post.user_profiles?.verified && (
+              {authorProfile.verified && (
                 <VerifiedTick className="w-4 h-4 text-primary flex-shrink-0" />
               )}
               {isAuthorPremium && (
