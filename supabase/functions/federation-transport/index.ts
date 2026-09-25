@@ -6,7 +6,7 @@ export const AP_CONTEXT = [
   "https://w3id.org/security/v1",
 ];
 
-export const AP_TYPES = new Set(["Create", "Update", "Delete", "Undo", "Follow", "Accept", "Reject", "Like", "Announce", "Block", "Move", "Add", "Remove", "Flag", "QuoteRequest"]);
+export const AP_TYPES = new Set(["Create", "Update", "Delete", "Undo", "Follow", "Accept", "Reject", "Like", "Announce", "EmojiReact", "Block", "Move", "Add", "Remove", "Flag", "QuoteRequest"]);
 
 export function asArray<T = unknown>(value: T | T[] | null | undefined): T[] {
   if (value == null) return [];
