@@ -270,7 +270,7 @@ export default function PostThreadPage() {
                 <div className="flex gap-3">
                   <button className="w-9 h-9 rounded-full bg-muted overflow-hidden shrink-0 ring-1 ring-border" aria-label={username ? 'Open @' + username : 'Open profile'} onClick={() => username && navigate('/profile/' + username)}>
                     {author?.avatar_url ? <img src={author.avatar_url} alt={displayName} className="w-full h-full object-cover" loading="lazy" /> : <span className="w-full h-full flex items-center justify-center text-xs font-bold text-muted-foreground">{initial}</span>}
-                  </div>
+                  </button>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-1.5 min-w-0"><button onClick={() => username && navigate('/profile/' + username)} className="text-sm font-semibold truncate hover:underline">{displayName}</button>{author?.verified && <VerifiedTick className="w-3.5 h-3.5 text-primary shrink-0" />}<span className="text-xs text-muted-foreground truncate">{safeHandle}</span></div>
                     <button onClick={() => navigate('/post/' + postId + '/reply/' + reply.id)} className="block text-left w-full"><p className="text-sm mt-1 whitespace-pre-wrap break-words">{reply.content}</p></button>
