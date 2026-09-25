@@ -75,6 +75,46 @@ export async function createReply(postId: string, content: string, parentReplyId
   return backendCapabilities.createReply(postId, content, parentReplyId);
 }
 
+export async function getReplyChain(replyId: string, limit = 100): Promise<ReplyItem[]> {
+  if (!replyId) return [];
+  const { data, error } = await supabase.rpc('testagram_reply_chain', {
+    p_reply_id: replyId,
+    p_limit: Math.min(500, Math.max(1, Math.floor(limit))),
+  });
+  if (error) throw error;
+  const rows = Array.isArray(data) ? data : [];
+  if (!rows.length) return [];
+
+  const userIds = [...new Set(rows.map((row: any) => row.user_id).filter(Boolean))];
+  let profiles: any[] = [];
+  if (userIds.length) {
+    const { data: profileRows, error: profileError } = await supabase
+      .from('profiles')
+      .select('id,username,display_name,full_name,avatar_url,cover_url,bio,website,website_url,location,verified,verified_tier,follower_count,following_count,posts_count,account_type,visibility,creator_tier,is_creator,created_at')
+      .in('id', userIds);
+    if (profileError) console.warn('[replies] chain profile enrichment failed', profileError);
+    profiles = profileRows ?? [];
+  }
+  const byId = new Map(profiles.map((profile: any) => [profile.id, profile]));
+  return rows.map((row: any) => {
+    const profile = byId.get(row.user_id) ?? null;
+    return {
+      id: String(row.id),
+      user_id: String(row.user_id),
+      post_id: String(row.post_id),
+      parent_reply_id: row.parent_reply_id ?? null,
+      content: String(row.content ?? ''),
+      created_at: String(row.created_at),
+      updated_at: String(row.updated_at ?? row.created_at),
+      profile: profile ? {
+        ...profile,
+        username: String(profile.username ?? '').replace(/^@/, ''),
+        display_name: profile.display_name ?? profile.full_name ?? profile.username ?? null,
+      } : null,
+    };
+  });
+}
+
 export async function listProfileReplies(userId: string, limit = 50): Promise<ReplyItem[]> {
   const { data, error } = await supabase
     .from('replies')
