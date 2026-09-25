@@ -233,13 +233,15 @@ if(path==="/interaction-counts"&&method==="GET"){
       admin.from("federated_bookmarks").select("id",{count:"exact",head:true}).eq("object_uri",target)
     ]);
     const remote = object.data ?? {};
-    let remoteLikes=0, remoteReposts=0;
-    try {
-      const rr=await transport({user_id:u?.id||null,operation:"inspect",target});
-      const d=rr.data();
-      remoteLikes=Number(d?.counts?.likes||0);
-      remoteReposts=Number(d?.counts?.reposts||0);
-    } catch {}
+    let remoteLikes=Number(remote.like_count||0), remoteReposts=Number(remote.announce_count||0);
+    if (!object.data) {
+      try {
+        const rr=await transport({user_id:u?.id||null,operation:"inspect",target});
+        const d=rr.data();
+        remoteLikes=Math.max(remoteLikes,Number(d?.counts?.likes||0));
+        remoteReposts=Math.max(remoteReposts,Number(d?.counts?.reposts||0));
+      } catch {}
+    }
     let likes=remoteLikes, reposts=remoteReposts, viewerLiked=false, viewerReposted=false;
     for(const row of ledger.data||[]){
       if(row.active&&row.interaction_type==="like"){likes++; viewerLiked=true;}
