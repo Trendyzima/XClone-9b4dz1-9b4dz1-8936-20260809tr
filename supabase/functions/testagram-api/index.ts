@@ -223,10 +223,10 @@ if(path==="/interaction-counts"&&method==="GET"){
   if(!target)return json({error:"post_id required"},400);
 
   if(/^https:\/\//i.test(target)){
-    const [object,ledger,reactions,replies,quotes,views,bookmarks] = await Promise.all([
+    const [object,ledger,reactions,replies,quotes,views,bookmarks,viewerBookmark] = await Promise.all([
       admin.from("federated_objects").select("like_count,announce_count,reply_count,quote_count,view_count").eq("uri",target).maybeSingle(),
-      admin.from("federated_interactions").select("interaction_type,active").eq("object_uri",target),
-      admin.from("federated_emoji_reactions").select("emoji").eq("object_uri",target),
+      admin.from("federated_interactions").select("interaction_type,active,user_id").eq("object_uri",target),
+      admin.from("federated_emoji_reactions").select("emoji,user_id").eq("object_uri",target),
       admin.from("federated_replies").select("id",{count:"exact",head:true}).eq("object_uri",target),
       admin.from("federated_quotes").select("id",{count:"exact",head:true}).eq("object_uri",target),
       admin.from("federated_post_views").select("id",{count:"exact",head:true}).eq("object_uri",target),
