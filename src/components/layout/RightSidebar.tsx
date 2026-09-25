@@ -16,6 +16,7 @@ import { TrendingUp, Users, Hash, Radio, Sparkles, Plus, Check, RefreshCw, Troph
 import { formatNumber } from '@/lib/utils';
 import { UserSuggestionsWidget } from '../features/UserSuggestionsWidget';
 import { ContentSuggestionsWidget } from '../features/ContentSuggestionsWidget';
+import { TestagramAdSlot } from '../features/TestagramAdSlot';
 import { toast } from 'sonner';
 
 interface TrendingHashtag {
@@ -315,6 +316,7 @@ function CreatorLeaderboardWidget() {
 }
 
 export function RightSidebar() {
+  const adContext = { page_path: typeof window !== 'undefined' ? window.location.pathname : '/', surface: 'SIDEBAR' };
   const navigate = useNavigate();
   const { user } = useAuth();
   const [trending, setTrending] = useState<TrendingTopic[]>([]);
@@ -426,7 +428,8 @@ export function RightSidebar() {
       if (user) { void fetchFollowedTags(); void fetchFollowedHashtagsPanel(); }
     });
     const iv = setInterval(fetchTrendingHashtags, 60_000);
-    return () => { cancel?.(); clearInterval(iv); };
+    return (<>
+    <div className="w-full"><TestagramAdSlot placement="SIDEBAR" context={adContext} /></div>) => { cancel?.(); clearInterval(iv); };
   }, [user, fetchTrending, fetchTrendingHashtags, fetchCommunities, fetchLiveSpaces, fetchFollowedTags, fetchFollowedHashtagsPanel]);
 
   const unfollowHashtag = async (hashtagId: string, _tag: string, e: React.MouseEvent) => {
@@ -820,4 +823,5 @@ export function RightSidebar() {
       </div>
     </aside>
   );
-}
+  </>);
+}}
