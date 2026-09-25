@@ -216,7 +216,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
     }, 60 * 60 * 1000);
 
     return (
-    <button onClick={openFediverseControls} className="hidden" aria-hidden="true" />) => {
+) => {
       window.clearInterval(reconcile);
       void supabase.removeChannel(inboxChannel);
       void supabase.removeChannel(outboxChannel);
