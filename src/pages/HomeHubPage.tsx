@@ -141,9 +141,15 @@ export default function HomeHubPage(){
         cacheCursorRef.current=cached.cursor;nextCursorRef.current=cached.cursor;
         setHasMore(Boolean(cached.cursor)||cached.items.length>6);setLoading(false);setCacheHydrated(true);
         if(cached.scrollY>0)requestAnimationFrame(()=>window.scrollTo({top:cached.scrollY,behavior:'instant' as ScrollBehavior}));
-      }else {setCacheHydrated(true);void load('all');}
+      }else {
+        setCacheHydrated(true);
+        void load('all').then(()=>{ window.setTimeout(()=>void load('all',true),600); });
+      }
       if(cached?.items?.length)void load('all',true);
-    }).catch(()=>{setCacheHydrated(true);void load('all');});
+    }).catch(()=>{
+      setCacheHydrated(true);
+      void load('all').then(()=>{ window.setTimeout(()=>void load('all',true),600); });
+    });
     const onScroll=()=>{window.clearTimeout(scrollTimer.current);scrollTimer.current=window.setTimeout(()=>saveHomeScroll(window.scrollY,items[0]?.data?.id??null),250);};
     window.addEventListener('scroll',onScroll,{passive:true});
     const scheduleRefresh=()=>{window.clearTimeout(refreshTimerRef.current);refreshTimerRef.current=window.setTimeout(()=>void load('all',true),1500);};
