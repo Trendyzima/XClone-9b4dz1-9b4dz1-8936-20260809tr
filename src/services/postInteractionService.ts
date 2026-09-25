@@ -89,16 +89,17 @@ export async function getFederatedReactionCounts(postId: string): Promise<Record
   return data.counts as Record<string, number>;
 }
 
-export type InteractionCounts = { likes: number; reposts: number; replies: number; quotes: number; views: number };
+export type InteractionCounts = { likes: number; reposts: number; replies: number; quotes: number; views: number; shares: number; bookmarks: number; reaction_total: number; reactions: Record<string, number>; is_liked: boolean; is_reposted: boolean; is_bookmarked: boolean; user_reactions: string[] };
 
 export async function getInteractionCounts(postId: string): Promise<InteractionCounts> {
-  if (!postId) return { likes: 0, reposts: 0, replies: 0, quotes: 0, views: 0 };
+  const empty: InteractionCounts = { likes: 0, reposts: 0, replies: 0, quotes: 0, views: 0, shares: 0, bookmarks: 0, reaction_total: 0, reactions: {}, is_liked: false, is_reposted: false, is_bookmarked: false, user_reactions: [] };
+  if (!postId) return empty;
   const { data, error } = await supabase.functions.invoke('testagram-api', {
     body: { path: '/interaction-counts', method: 'GET', params: { post_id: postId } },
   });
   if (error) {
     console.warn('[engagement] interaction counts unavailable', error);
-    return { likes: 0, reposts: 0, replies: 0, quotes: 0, views: 0 };
+    return empty;
   }
   return {
     likes: Math.max(0, Number(data?.likes ?? 0)),
@@ -106,7 +107,24 @@ export async function getInteractionCounts(postId: string): Promise<InteractionC
     replies: Math.max(0, Number(data?.replies ?? 0)),
     quotes: Math.max(0, Number(data?.quotes ?? 0)),
     views: Math.max(0, Number(data?.views ?? 0)),
+    shares: Math.max(0, Number(data?.shares ?? 0)),
+    bookmarks: Math.max(0, Number(data?.bookmarks ?? 0)),
+    reaction_total: Math.max(0, Number(data?.reaction_total ?? 0)),
+    reactions: data?.reactions && typeof data.reactions === 'object' ? data.reactions as Record<string, number> : {},
+    is_liked: Boolean(data?.is_liked),
+    is_reposted: Boolean(data?.is_reposted),
+    is_bookmarked: Boolean(data?.is_bookmarked),
+    user_reactions: Array.isArray(data?.user_reactions) ? data.user_reactions.filter((x: unknown): x is string => typeof x === 'string') : [],
   };
+}
+
+export async function recordPostShare(postId: string): Promise<number> {
+  if (!postId || isRemoteStatus(postId)) return 0;
+  const { data, error } = await supabase.functions.invoke('testagram-api', {
+    body: { path: '/record-post-share', method: 'POST', body: { post_id: postId } },
+  });
+  if (error) throw error;
+  return Math.max(0, Number(data?.shares ?? 0));
 }
 
 export async function recordPostView(postId: string): Promise<number> {
