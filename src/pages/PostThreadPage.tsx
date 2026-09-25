@@ -125,11 +125,12 @@ export default function PostThreadPage() {
     setReplyLoading(true);
     try {
       if (/^https:\/\//i.test(postId)) {
-        const remote = await federation.getFederatedObject(postId);
-        const object = remote?.object ?? remote;
-        const remoteReplies = await resolveFederatedReplies(object?.replies, federation.getFederatedObject);
-        setReplies(remoteReplies.map((r: any) => federatedReplyToItem(r, postId)) as ReplyItem[]);
-        setCounts(prev => ({ ...prev, replies: remoteReplies.length || Number(object?.replies?.totalItems ?? 0) }));
+        const [result, liveCounts] = await Promise.all([
+          listReplies(postId, 20),
+          getInteractionCounts(postId),
+        ]);
+        setReplies(result.items ?? []);
+        setCounts(liveCounts);
       } else {
         const [result, liveCounts] = await Promise.all([listReplies(postId, 20), getInteractionCounts(postId)]);
         setReplies(result.items ?? []);

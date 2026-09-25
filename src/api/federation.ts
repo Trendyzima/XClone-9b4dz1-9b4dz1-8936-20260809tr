@@ -95,7 +95,12 @@ export async function getFederatedObject(objectUri: string): Promise<any> {
   if (!/^https:\/\//i.test(objectUri)) throw new Error('Federated object must be an ActivityPub URI');
   return api('/federated-object', 'GET', undefined, { object_uri: objectUri });
 }
-export async function reply(payload: { postId: string; content: string }): Promise<any> { return api('/reply', 'POST', { post_id: payload.postId, content: payload.content }); }
+export async function reply(payload: { postId: string; content: string }): Promise<any> { return api('/reply', 'POST', { post_id: payload.postId, content: payload.content }); }\nexport async function getFederatedReplies(objectUri: string): Promise<any[]> {
+  if (!/^https:\/\//i.test(objectUri)) throw new Error('Federated reply target must be an ActivityPub URI');
+  const result = await api<{items?: any[]}>('/federated-replies', 'GET', undefined, { object_uri: objectUri });
+  return Array.isArray(result?.items) ? result.items : [];
+}
+
 export async function getNotifications(params: TimelineParams = {}): Promise<any[]> { return api('/notifications', 'GET', undefined, params as any); }
 export async function clearNotifications(): Promise<void> { return api('/notifications', 'DELETE'); }
 export async function search(q: string, type: 'users' | 'posts' | 'hashtags' | 'instances' = 'users'): Promise<any[]> {

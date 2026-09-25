@@ -369,7 +369,16 @@ if(path==="/federated-replies"&&method==="GET"){
   if(!/^https:\/\//i.test(target))return json({error:"object_uri must be a remote ActivityPub object"},400);
   const r=await admin.from("federated_replies").select("id,user_id,object_uri,parent_uri,content,activity_uri,delivery_state,created_at,updated_at").eq("object_uri",target).order("created_at",{ascending:false}).limit(100);
   if(r.error)return json({error:r.error.message},400);
-  return json({items:r.data||[]},200);
+  const rows=r.data||[];
+  const userIds=[...new Set(rows.map((row:any)=>row.user_id).filter(Boolean))];
+  let profiles:any[]=[];
+  if(userIds.length){
+    const p=await admin.from("profiles").select("id,username,display_name,full_name,avatar_url,verified").in("id",userIds);
+    if(p.error)return json({error:p.error.message},400);
+    profiles=p.data||[];
+  }
+  const profileById=new Map(profiles.map((profile:any)=>[String(profile.id),profile]));
+  return json({items:rows.map((row:any)=>({...row,profile:profileById.get(String(row.user_id))||null}))},200);
 }
 if(path==="/reply"&&method==="POST")return replyOp(body,auth);
 if(path==="/quote"&&method==="POST"){
