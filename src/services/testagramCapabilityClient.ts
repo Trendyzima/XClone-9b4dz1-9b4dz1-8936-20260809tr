@@ -151,7 +151,7 @@ export class TestagramCapabilityClient{
   const input={q,kind,limit:limit(n)};
   const token=await this.token();
   if(!token) throw new CapabilityClientError("Authentication required",{code:"AUTH_REQUIRED",status:401});
-  const directUrl=`${supabaseUrl.replace(/\\/$/,"")}/rest/v1/rpc/testagram_search_unified`;
+  const directUrl=`${supabaseUrl.replace(/\/$/,"")}/rest/v1/rpc/testagram_search_unified`;
   const directHeaders={apikey:supabasePublishableKey,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Accept:"application/json"};
   let directFailure:unknown=null;
   try{
