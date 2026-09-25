@@ -107,34 +107,38 @@ export default function DiscoverPage({ section, standalone = false }: { section?
   const loadFediverse = useCallback(async () => {
     setLoading(true);
     try {
-      const [remoteA, remoteB] = await Promise.all([
-        Promise.resolve({ data: [] as any[], error: null }),
-        supabase.from('federated_actors').select('id,preferred_username,display_name,summary,uri,created_at,discoverable,suspended').eq('discoverable', true).eq('suspended', false).order('created_at', { ascending: false }).limit(40),
-      ]);
-      const merged: SuggestedUser[] = [];
-      const seen = new Set<string>();
-      for (const row of remoteA.data ?? []) {
-        const actor = (row as any).actor ?? {};
-        const key = String((row as any).actor_url ?? (row as any).id);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        merged.push({ id: 'fed:' + key, username: String((row as any).username ?? actor.preferredUsername ?? 'user'), avatar_url: actor.icon?.url ?? actor.icon?.href ?? null, bio: actor.summary ?? actor.bio ?? null, follower_count: Number(actor.followersCount ?? 0), verified: Boolean(actor.verified), origin: 'fediverse', actor_uri: (row as any).actor_url ?? null, acct: (row as any).acct ?? null, domain: (row as any).domain ?? null });
-      }
-      for (const row of remoteB.data ?? []) {
-        const key = String((row as any).uri ?? (row as any).id);
-        if (seen.has(key)) continue;
-        seen.add(key);
-        merged.push({ id: 'fed:' + key, username: String((row as any).preferred_username ?? 'user'), avatar_url: null, bio: (row as any).summary ?? null, follower_count: 0, verified: false, origin: 'fediverse', actor_uri: (row as any).uri ?? null, acct: (row as any).preferred_username ?? null });
-      }
+      // Discovery must read the actual federated_actors contract. This table
+      // stores actor_uri/username/domain/display_name/bio/avatar_url; it does
+      // not use the old Mastodon serializer fields (uri/preferred_username).
+      const { data, error } = await supabase
+        .from('federated_actors')
+        .select('id, actor_uri, username, domain, display_name, bio, avatar_url, raw_actor, created_at')
+        .order('created_at', { ascending: false })
+        .limit(40);
+
+      if (error) throw error;
+
+      const merged: SuggestedUser[] = (data ?? []).map((row: any) => ({
+        id: 'fed:' + row.actor_uri,
+        username: String(row.username ?? row.display_name ?? 'Fediverse user'),
+        avatar_url: row.avatar_url ?? row.raw_actor?.icon?.url ?? row.raw_actor?.icon?.href ?? null,
+        bio: row.bio ?? row.raw_actor?.summary ?? null,
+        follower_count: Number(row.raw_actor?.followersCount ?? row.raw_actor?.followers_count ?? 0),
+        verified: Boolean(row.raw_actor?.verified),
+        origin: 'fediverse' as const,
+        actor_uri: row.actor_uri,
+        acct: row.domain ? `${row.username}@${row.domain}` : row.username,
+        domain: row.domain,
+      }));
+
       setUsers(merged);
     } catch (error) {
-      console.warn('[discover] fediverse discovery failed', error);
+      console.error('[discover] fediverse discovery failed', error);
       setUsers([]);
     } finally {
       setLoading(false);
     }
   }, []);
-
   const loadSuggested = useCallback(async () => {
     if (!user) { await loadPopular(); return; }
     const { data } = await supabase
