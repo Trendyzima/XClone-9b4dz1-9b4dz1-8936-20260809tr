@@ -180,7 +180,16 @@ if((path==="/federated/reactions"||path==="/federated-reaction")&&method==="POST
       user_id:u.id,object_id:object.data.id,object_uri:target,reaction_type:"reaction",content:emoji,delivered:false,updated_at:new Date().toISOString()
     },{onConflict:"user_id,object_uri,reaction_type,content"}).select("id,user_id,object_id,object_uri,reaction_type,content,delivered,delivery_error,created_at,updated_at").single();
     if(r.error)return json({error:"Failed to persist federated emoji reaction",details:r.error.message},500);
-    return json({ok:true,active:true,reaction:r.data},200);
+    try{
+      const transportResult=await transport({user_id:u.id,operation:"deliver",target,activity:{type:"EmojiReact",object:target,content:emoji}});
+      const data=transportResult.data();
+      const delivered=data?.delivery?.status==="delivered"||data?.delivery?.status==="queued"||data?.accepted===true;
+      await admin.from("federated_reactions").update({delivered,delivery_error:delivered?null:String(data?.error||"")||null,updated_at:new Date().toISOString()}).eq("id",r.data.id);
+      return json({ok:true,active:true,delivered,reaction:r.data},200);
+    }catch(error){
+      await admin.from("federated_reactions").update({delivered:false,delivery_error:error instanceof Error?error.message:"Remote reaction delivery pending",updated_at:new Date().toISOString()}).eq("id",r.data.id);
+      return json({ok:true,active:true,delivered:false,pending:true,reaction:r.data},200);
+    }
   }
   const r=await admin.from("federated_reactions").delete().eq("user_id",u.id).eq("object_uri",target).eq("reaction_type","reaction").eq("content",emoji);
   if(r.error)return json({error:"Failed to remove federated emoji reaction",details:r.error.message},500);
@@ -243,14 +252,15 @@ if(path==="/interaction-counts"&&method==="GET"){
   if(!target)return json({error:"post_id required"},400);
 
   if(/^https:\/\//i.test(target)){
-    const [object,ledger,reactions,replies,quotes,views,bookmarks] = await Promise.all([
+    const [object,ledger,reactions,replies,quotes,views,bookmarks,replyShares] = await Promise.all([
       admin.from("federated_objects").select("like_count,announce_count,reply_count,quote_count,view_count").eq("uri",target).maybeSingle(),
       admin.from("federated_interactions").select("interaction_type,active,user_id").eq("object_uri",target),
       admin.from("federated_reactions").select("content,user_id").eq("object_uri",target).eq("reaction_type","reaction"),
       admin.from("federated_replies").select("id",{count:"exact",head:true}).eq("object_uri",target),
       admin.from("federated_quotes").select("id",{count:"exact",head:true}).eq("object_uri",target),
       admin.from("federated_post_views").select("id",{count:"exact",head:true}).eq("object_uri",target),
-      admin.from("federated_bookmarks").select("id",{count:"exact",head:true}).eq("object_uri",target)
+      admin.from("federated_bookmarks").select("id,user_id",{count:"exact"}).eq("object_uri",target),
+      admin.from("federated_reply_shares").select("id",{count:"exact",head:true}).eq("object_uri",target)
     ]);
     const remote = object.data ?? {};
     let remoteLikes=Number(remote.like_count||0), remoteReposts=Number(remote.announce_count||0);
@@ -275,13 +285,13 @@ if(path==="/interaction-counts"&&method==="GET"){
       replies:Math.max(Number(replies.count||0),Number(remote.reply_count||0)),
       quotes:Math.max(Number(quotes.count||0),Number(remote.quote_count||0)),
       views:Math.max(Number(views.count||0),Number(remote.view_count||0)),
-      shares:0,
+      shares:Number(replyShares.count||0),
       bookmarks:Number(bookmarks.count||0),
       reactions:reactionCounts,
       reaction_total:Object.values(reactionCounts).reduce((sum:number,n:any)=>sum+Number(n||0),0),
       is_liked:viewerLiked,
       is_reposted:viewerReposted,
-      is_bookmarked:false,
+      is_bookmarked:Boolean(u && (bookmarks.data||[]).some((row:any)=>String(row.user_id)===String(u.id))),
       user_reactions:userReactions
     },200);
   }
@@ -367,6 +377,24 @@ if(path==="/bookmark-state"&&method==="GET"){
   const r=await admin.from("federated_bookmarks").select("id").eq("user_id",u.id).eq("object_uri",target).maybeSingle();
   if(r.error)return json({error:r.error.message},400);
   return json({bookmarked:Boolean(r.data)});
+}
+if(path==="/federated-reply-share"&&method==="POST"){
+  const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
+  const target=String(body.object_uri||body.objectUri||body.reply_id||body.replyId||"").trim();
+  if(!/^https:\/\//i.test(target))return json({error:"Remote reply share requires an ActivityPub object URI"},400);
+  const r=await admin.from("federated_reply_shares").upsert({user_id:u.id,object_uri:target},{onConflict:"user_id,object_uri"}).select("id,object_uri,created_at").single();
+  if(r.error)return json({error:"Failed to persist reply share",details:r.error.message},500);
+  const count=await admin.from("federated_reply_shares").select("id",{count:"exact",head:true}).eq("object_uri",target);
+  return json({ok:true,active:true,shares:Number(count.count||0),share:r.data},200);
+}
+if(path==="/federated-reply-share"&&method==="DELETE"){
+  const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
+  const target=String(params.object_uri||params.objectUri||"").trim();
+  if(!/^https:\/\//i.test(target))return json({error:"Remote reply share requires an ActivityPub object URI"},400);
+  const r=await admin.from("federated_reply_shares").delete().eq("user_id",u.id).eq("object_uri",target);
+  if(r.error)return json({error:r.message},400);
+  const count=await admin.from("federated_reply_shares").select("id",{count:"exact",head:true}).eq("object_uri",target);
+  return json({ok:true,active:false,shares:Number(count.count||0)},200);
 }
 if(path==="/federated-replies"&&method==="GET"){
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);

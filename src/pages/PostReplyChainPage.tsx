@@ -25,10 +25,27 @@ export default function PostReplyChainPage(){
        ? await federation.getFederatedObject(String(replyId))
        : null;
      const selectedObject = selectedRemote?.object ?? selectedRemote ?? object;
-     const remoteReplies = await resolveFederatedReplies(selectedObject?.replies, federation.getFederatedObject);
+     const [remoteReplies, ledgerReplies] = await Promise.all([
+       resolveFederatedReplies(selectedObject?.replies, federation.getFederatedObject),
+       /^https:\/\//i.test(String(replyId||'')) ? federation.getFederatedReplies(String(replyId)) : Promise.resolve([]),
+     ]);
      const selectedItem = selectedObject?.id ? [federatedReplyToItem(selectedObject, postId) as ReplyItem] : [];
-     const childItems = remoteReplies.map((r:any)=>federatedReplyToItem(r, postId)) as ReplyItem[];
-     const items = [...selectedItem, ...childItems];
+     const childRemoteItems = remoteReplies.map((r:any)=>federatedReplyToItem(r, postId)) as ReplyItem[];
+     const childLedgerItems = (ledgerReplies||[]).map((r:any)=>({
+       id:String(r.activity_uri||r.id),
+       user_id:String(r.user_id||''),
+       post_id:postId,
+       content:String(r.content||''),
+       created_at:String(r.created_at||new Date().toISOString()),
+       updated_at:String(r.updated_at||r.created_at||new Date().toISOString()),
+       parent_reply_id:String(r.parent_uri||replyId),
+       profile:r.profile??null,
+       remote:true,
+       delivery_state:r.delivery_state,
+     })) as ReplyItem[];
+     const byId=new Map<string,ReplyItem>();
+     for(const item of [...selectedItem,...childRemoteItems,...childLedgerItems]) if(item.id) byId.set(item.id,item);
+     const items=[...byId.values()].sort((a,b)=>new Date(a.created_at).getTime()-new Date(b.created_at).getTime());
      const [liveCounts] = await Promise.all([getInteractionCounts(String(replyId))]);
      setReplies(items); setCounts(liveCounts);
      return;

@@ -17,14 +17,14 @@ export async function getReplyEngagement(replyId:string):Promise<ReplyEngagement
    return {
      likes:Number(countsData?.likes??0),
      reposts:Number(countsData?.reposts??0),
-     bookmarks:0,
-     shares:0,
+     bookmarks:Number(countsData?.bookmarks??0),
+     shares:Number(countsData?.shares??0),
      replies:Number(countsData?.replies??0),
      quotes:Number(countsData?.quotes??0),
      reaction_total:reactions.length,
      is_liked:Boolean(stateData?.like),
      is_reposted:Boolean(stateData?.repost),
-     is_bookmarked:false,
+     is_bookmarked:Boolean(countsData?.is_bookmarked),
      user_reactions:reactions,
    };
  }
@@ -34,6 +34,18 @@ export async function getReplyEngagement(replyId:string):Promise<ReplyEngagement
 }
 async function toggle(name:string,replyId:string){
  if(/^https:\/\//i.test(replyId)){
+   if(name==='testagram_toggle_reply_bookmark'){
+     const before=await getReplyEngagement(replyId);
+     const path=before.is_bookmarked?'unbookmark':'bookmark';
+     const { data, error } = await supabase.functions.invoke('testagram-api',{body:{path,method:'POST',body:{post_id:replyId}}});
+     if(error) throw error; if(data?.error) throw new Error(String(data.error));
+     return {active:!before.is_bookmarked,count:Math.max(0,before.bookmarks+(before.is_bookmarked?-1:1))};
+   }
+   if(name==='testagram_toggle_reply_share'){
+     const { data, error } = await supabase.functions.invoke('testagram-api',{body:{path:'federated-reply-share',method:'POST',body:{object_uri:replyId}}});
+     if(error) throw error; if(data?.error) throw new Error(String(data.error));
+     return {active:true,count:Number(data?.shares??0)};
+   }
    if(name==='testagram_toggle_reply_like'){
      const before=await getReplyEngagement(replyId); const result=await togglePostLike(replyId,before.is_liked);
      return {active:Boolean(result.is_liked),count:Number(result.likes_count??0)};
@@ -48,8 +60,22 @@ async function toggle(name:string,replyId:string){
 export const toggleReplyLike=(id:string)=>toggle('testagram_toggle_reply_like',id);
 export const toggleReplyRepost=(id:string)=>toggle('testagram_toggle_reply_repost',id);
 export const toggleReplyBookmark=(id:string)=>toggle('testagram_toggle_reply_bookmark',id);
-export async function recordReplyShare(id:string){const {data,error}=await supabase.rpc('testagram_record_reply_share',{p_reply_id:id});if(error)throw error;return Number(data?.count??0);}
-export async function toggleReplyReaction(id:string,emoji:string){const {data,error}=await supabase.rpc('testagram_toggle_reply_reaction',{p_reply_id:id,p_emoji:emoji});if(error)throw error;return {active:Boolean(data?.active),count:Number(data?.count??0)};}
+export async function recordReplyShare(id:string){
+ if(/^https:\/\//i.test(id)){
+   const {data,error}=await supabase.functions.invoke('testagram-api',{body:{path:'federated-reply-share',method:'POST',body:{object_uri:id}}});
+   if(error)throw error; if(data?.error)throw new Error(String(data.error)); return Number(data?.shares??0);
+ }
+ const {data,error}=await supabase.rpc('testagram_record_reply_share',{p_reply_id:id});if(error)throw error;return Number(data?.count??0);
+}
+export async function toggleReplyReaction(id:string,emoji:string){
+ if(/^https:\/\//i.test(id)){
+   const current=await getReplyEngagement(id); const active=!current.user_reactions.includes(emoji);
+   const {data,error}=await supabase.functions.invoke('testagram-api',{body:{path:'federated/reactions',method:'POST',body:{post_id:id,emoji,enabled:active}}});
+   if(error)throw error; if(data?.error)throw new Error(String(data.error));
+   return {active,count:Number(data?.count??0)};
+ }
+ const {data,error}=await supabase.rpc('testagram_toggle_reply_reaction',{p_reply_id:id,p_emoji:emoji});if(error)throw error;return {active:Boolean(data?.active),count:Number(data?.count??0)};
+}
 export async function createReplyQuote(id:string,content:string){
  if(/^https:\/\//i.test(id)){
    const {data,error}=await supabase.functions.invoke('testagram-api',{body:{path:'/quote',method:'POST',body:{post_id:id,content}}});
