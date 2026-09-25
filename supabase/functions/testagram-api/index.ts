@@ -404,9 +404,11 @@ if(path==="/federated-replies"&&method==="GET"){
   if(!/^https:\/\//i.test(target))return json({error:"object_uri must be a remote ActivityPub object"},400);
   const parentUri=String(params.parent_uri||params.parentUri||"").trim();
   const replyUri=String(params.reply_object_uri||params.replyObjectUri||"").trim();
+  const activityUri=String(params.activity_uri||params.activityUri||"").trim();
   let query=admin.from("federated_replies").select("id,user_id,object_uri,parent_uri,reply_object_uri,content,activity_uri,delivery_state,created_at,updated_at").order("created_at",{ascending:false}).limit(100);
   if(parentUri) query=query.eq("parent_uri",parentUri);
   else if(replyUri) query=query.eq("reply_object_uri",replyUri);
+  else if(activityUri) query=query.eq("activity_uri",activityUri);
   else query=query.eq("object_uri",target);
   if(r.error)return json({error:r.error.message},400);
   const rows=r.data||[];
