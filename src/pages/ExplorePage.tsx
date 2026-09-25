@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from 'react';
-import { FederatedOrganicInjection } from '@/components/features/FederatedOrganicDiscovery';
+import { FederatedOrganicInjection, FederatedHashtagDiscovery } from '@/components/features/FederatedOrganicDiscovery';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { useNavigate } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
@@ -1111,6 +1111,7 @@ export default function ExplorePage() {
       </div>
 
       <FederatedOrganicInjection surface="explore" />
+          <FederatedHashtagDiscovery surface="explore" />
 
       {/* ── Inline Mixed Search Results ──────────────────────────── */}
       {(inlineSearchLoading || inlineSearchResults) && searchQuery.trim().length >= 2 && (
