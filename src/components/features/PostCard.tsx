@@ -326,7 +326,8 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     const { data: reactData } = await supabase
       .from('post_reactions')
       .select('emoji')
-      .eq('post_id', post.id);
+      .eq('post_id', post.id)
+      .eq('emoji', '❤️');
     const emojiList: string[] = [];
     const countList: number[] = [];
     for (const row of (reactData ?? [])) {
