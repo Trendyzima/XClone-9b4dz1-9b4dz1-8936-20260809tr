@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { Globe, UserPlus, Sparkles } from 'lucide-react';
 import * as federation from '@/api/federation';
 import { toast } from 'sonner';
+import { formatDistanceToNow } from 'date-fns';
 
 function stripHtml(value: unknown) { return String(value ?? '').replace(/<[^>]*>/g,' ').replace(/\s+/g,' ').trim(); }
 function actorFrom(item:any) {
@@ -50,6 +51,7 @@ export function FederatedOrganicInjection({ surface = 'home' }: { surface?: stri
 export function FederatedHashtagDiscovery({ limit = 8, surface = 'discovery' }: { limit?: number; surface?: string }) {
   const navigate = useNavigate();
   const [tags, setTags] = useState<Array<{ tag: string; count: number }>>([]);
+  const [syncStatus, setSyncStatus] = useState<any>(null);
 
   useEffect(() => {
     let active = true;
@@ -81,8 +83,18 @@ export function FederatedHashtagDiscovery({ limit = 8, surface = 'discovery' }: 
         if (active) setTags([]);
       }
     };
+    const loadSyncStatus = async () => {
+      try {
+        const { data, error } = await supabase.rpc('get_fediverse_ingestion_status');
+        if (!active || error) return;
+        setSyncStatus(data ?? null);
+      } catch {
+        if (active) setSyncStatus(null);
+      }
+    };
     void load();
-    const timer = window.setInterval(load, 120000);
+    void loadSyncStatus();
+    const timer = window.setInterval(() => { void load(); void loadSyncStatus(); }, 120000);
     return () => { active = false; window.clearInterval(timer); };
   }, [limit, surface]);
 
@@ -95,7 +107,15 @@ export function FederatedHashtagDiscovery({ limit = 8, surface = 'discovery' }: 
           <p className="text-xs font-bold">Fediverse hashtags</p>
           <p className="text-[10px] text-muted-foreground">Topics discovered from ingested federated posts</p>
         </div>
-        <span className="text-[10px] text-muted-foreground">Live cache</span>
+        <span className="text-[10px] text-muted-foreground text-right">
+          {syncStatus?.last_run?.completed_at
+            ? syncStatus.last_run.status === 'succeeded'
+              ? `Synced ${formatDistanceToNow(new Date(syncStatus.last_run.completed_at), { addSuffix: true })} · ${Number(syncStatus.last_run.objects_upserted ?? 0)} posts`
+              : syncStatus.last_run.status === 'partial'
+                ? `Partial sync ${formatDistanceToNow(new Date(syncStatus.last_run.completed_at), { addSuffix: true })} · ${Number(syncStatus.last_run.objects_upserted ?? 0)} posts`
+                : `Last sync failed ${formatDistanceToNow(new Date(syncStatus.last_run.completed_at), { addSuffix: true })}`
+            : 'Waiting for first sync'}
+        </span>
       </div>
       <div className="flex gap-2 overflow-x-auto scrollbar-hide">
         {tags.map(({ tag, count }) => (
