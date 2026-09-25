@@ -53,7 +53,7 @@ export default function HomeHubPage(){
 
     if(target==='all'){
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const params = new URLSearchParams({ limit: '6', includeFederated: pageNum > 0 || Boolean(cursorOverride) ? '1' : '0' });
+      const params = new URLSearchParams({ limit: '6', includeFederated: background || pageNum > 0 || Boolean(cursorOverride) ? '1' : '0' });
       if (cursorOverride) params.set('before', cursorOverride);
       const response = await fetch('/api/home-feed?'+params.toString(), {
         headers: token ? { Authorization: 'Bearer '+token } : {},
