@@ -46,9 +46,54 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
       if (!actorUrl && !handle && !suppliedUsername) { setLoading(false); return; }
       setLoading(true);
       try {
-        const result = actorUrl
-          ? await federation.resolveRemoteActor(actorUrl)
-          : (handle ? await federation.getUser(handle) : (suppliedUsername ? await federation.getUser(suppliedUsername) : null));
+        let result: any = null;
+        if (actorUrl) {
+          try {
+            result = await federation.resolveRemoteActor(actorUrl);
+          } catch {
+            // Older ingested posts may still contain the remote web-profile URL.
+            // Recover the canonical ActivityPub actor from the cached raw account
+            // before giving up, then resolve that canonical actor.
+            const { data: cached } = await supabase
+              .from('federated_objects')
+              .select('actor_uri, raw_object')
+              .eq('actor_uri', actorUrl)
+              .is('deleted_at', null)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            const account = cached?.raw_object?.account;
+            const canonicalActor = account?.uri || account?.id || cached?.actor_uri || '';
+            if (canonicalActor && canonicalActor !== actorUrl) {
+              try { result = await federation.resolveRemoteActor(canonicalActor); } catch {}
+            }
+            if (!result && account) {
+              result = {
+                ...account,
+                actor_uri: canonicalActor || actorUrl,
+                actor_url: canonicalActor || actorUrl,
+                preferredUsername: account.username,
+                username: account.username,
+                name: account.display_name || account.username,
+                display_name: account.display_name || account.username,
+                summary: account.note || '',
+                bio: account.note || '',
+                avatar_url: account.avatar || null,
+                icon: account.avatar ? { url: account.avatar } : null,
+                header_url: account.header || null,
+                url: account.url || actorUrl,
+                followers: account.followers_count || 0,
+                following: account.following_count || 0,
+                fields: Array.isArray(account.fields) ? account.fields : [],
+                cached: true,
+              };
+            }
+          }
+        } else {
+          result = handle
+            ? await federation.getUser(handle)
+            : (suppliedUsername ? await federation.getUser(suppliedUsername) : null);
+        }
         if (cancelled) return;
         const actorDoc = result?.actor ?? result;
         const normalizedProfile = actorDoc ? {
