@@ -334,7 +334,7 @@ export default function NotificationsPage() {
     const actorName = String(n.account?.display_name ?? n.account?.name ?? n.account?.preferredUsername ?? n.account?.username ?? '').trim();
     const actorUsername = String(n.account?.preferredUsername ?? n.account?.username ?? n.account?.acct ?? '').replace(/^@/, '').trim();
     const actorDomain = String(n.account?.domain ?? '').trim();
-    const actorLabel = actorName || actorUsername || (actor ? actor.replace(/^https?:\\/\\//, '').split('/').filter(Boolean).pop() : '') || 'Profile';
+    const actorLabel = actorName || actorUsername || (actor ? (actor.split('://')[1] || actor).split('/').filter(Boolean).pop() : '') || 'Profile';
     const actorHandle = actorUsername ? `@${actorUsername}${actorDomain ? `@${actorDomain}` : ''}` : '';
     const identity = actorHandle ? `${actorLabel} ${actorHandle}` : actorLabel;
     const type = (n.activity_type ?? n.type ?? '').toLowerCase();
