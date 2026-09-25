@@ -221,8 +221,8 @@ jobs:
             local max_attempts=4
             while true; do
               echo "Deploying Supabase Edge Function $name (attempt $attempt/$max_attempts)"
-              if [[ -n "$flags" ]]; then
-                if supabase functions deploy "$name" --use-api --project-ref "$PROJECT_REF" $flags; then
+              if [[ "$flags" == "--no-verify-jwt" ]]; then
+                if supabase functions deploy "$name" --use-api --project-ref "$PROJECT_REF" --no-verify-jwt; then
                   return 0
                 fi
               elif supabase functions deploy "$name" --use-api --project-ref "$PROJECT_REF"; then
