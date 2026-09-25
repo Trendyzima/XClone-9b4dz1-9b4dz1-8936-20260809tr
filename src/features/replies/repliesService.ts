@@ -48,7 +48,7 @@ export async function listReplies(postId: string, limit = 50): Promise<{ items: 
   if (ids.length) {
     const { data: profileRows, error: profileError } = await supabase
       .from('profiles')
-      .select('id,username,display_name,full_name,avatar_url,cover_url,bio,website,website_url,location,verified,verified_tier,follower_count,following_count,posts_count,account_type,visibility,creator_tier,is_creator,created_at')
+      .select('id,username,display_name,avatar_url,cover_url,bio,website_url,location,verified_tier,follower_count,following_count,posts_count,account_type,visibility,creator_tier,is_creator,created_at')
       .in('id', ids);
     if (profileError) console.warn('[replies] profile enrichment failed', profileError);
     profiles = profileRows ?? [];
@@ -90,7 +90,7 @@ export async function getReplyChain(replyId: string, limit = 100): Promise<Reply
   if (userIds.length) {
     const { data: profileRows, error: profileError } = await supabase
       .from('profiles')
-      .select('id,username,display_name,full_name,avatar_url,cover_url,bio,website,website_url,location,verified,verified_tier,follower_count,following_count,posts_count,account_type,visibility,creator_tier,is_creator,created_at')
+      .select('id,username,display_name,avatar_url,cover_url,bio,website_url,location,verified_tier,follower_count,following_count,posts_count,account_type,visibility,creator_tier,is_creator,created_at')
       .in('id', userIds);
     if (profileError) console.warn('[replies] chain profile enrichment failed', profileError);
     profiles = profileRows ?? [];
@@ -150,7 +150,7 @@ export async function listProfileReplies(userId: string, limit = 50): Promise<Re
   if (authorIds.length) {
     const { data, error: profilesError } = await supabase
       .from('profiles')
-      .select('id,username,full_name,display_name,avatar_url,verified')
+      .select('id,username,display_name,avatar_url,verified')
       .in('id', authorIds);
     if (profilesError) console.warn('[replies] parent-author enrichment failed', profilesError);
     profiles = data ?? [];
@@ -192,7 +192,7 @@ export async function listProfileRepliesPage(userId: string, limit = 20, cursor?
   const profileIds = [...new Set([...authorIds, ...parentAuthorIds])];
   let profiles: any[] = [];
   if (profileIds.length) {
-    const { data: profileData, error: profileError } = await supabase.from('profiles').select('id,username,display_name,full_name,avatar_url,verified,bio,website,location,created_at').in('id', profileIds);
+    const { data: profileData, error: profileError } = await supabase.from('profiles').select('id,username,display_name,avatar_url,bio,location,created_at').in('id', profileIds);
     if (profileError) console.warn('[replies] profile enrichment failed', profileError); else profiles = profileData ?? [];
   }
   const profileById = new Map(profiles.map((profile: any) => [profile.id, profile]));
