@@ -753,19 +753,6 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
           {/* Embeds — YouTube, Spotify, SoundCloud, etc. */}
           {!post.is_video && <EmbedRenderer content={post.content} />}
 
-          {/* Reaction bubbles */}
-          {false && (
-            <div className="flex gap-1.5 mt-2 flex-wrap" onClick={e => e.stopPropagation()}>
-              {REACTIONS.filter(e => getReactionCount(e) > 0).map(emoji => (
-                <button
-                  key={emoji}
-                  onClick={(e) => handleReact(emoji, e)}
-                  className={cn(
-                    'flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs border transition-all duration-100 hover:scale-105 active:scale-95',
-                    userReaction === emoji
-                      ? 'bg-primary/10 border-primary/30 text-primary font-semibold'
-                      : 'bg-muted/50 border-border text-muted-foreground hover:border-primary/20 hover:bg-primary/5'
-                  )}
                 >
                   <span>{emoji}</span>
                   <span className="font-medium">{formatNumber(getReactionCount(emoji))}</span>
