@@ -24,7 +24,7 @@ export default function PostReplyChainPage(){
      return;
    }
    const [p,r,c]=await Promise.all([
-     supabase.from('posts').select('id,content,created_at,user_id,author_id,profiles!posts_author_id_fkey(id,username,display_name,full_name,avatar_url,cover_url,bio,website,website_url,location,verified,verified_tier,follower_count,following_count,posts_count,account_type,visibility,creator_tier,is_creator,created_at)').eq('id',postId).maybeSingle(),
+     supabase.from('posts').select('id,content,created_at,user_id,author_id,profiles!posts_author_id_fkey(id,username,display_name,avatar_url,cover_url,bio,website_url,location,verified_tier,follower_count,following_count,posts_count,account_type,visibility,creator_tier,is_creator,created_at)').eq('id',postId).maybeSingle(),
      getInteractionCounts(postId)
    ]);
    if(p.error)throw p.error;
