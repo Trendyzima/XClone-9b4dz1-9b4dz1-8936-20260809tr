@@ -65,7 +65,7 @@ async function syncDomain(instance:any){
   const instanceRow=instance.id;
   const rows=statuses.map((s:any)=>{
     const acct=s.account||{};
-    const actor=String(acct.uri||acct.url||`https://${domain}/users/${acct.username||"unknown"}`);
+    const actor=String(acct.uri||acct.id||acct.url||`https://${domain}/users/${acct.username||"unknown"}`);
     const uri=String(s.uri||s.url||"");
     if(!uri)return null;
     return {
@@ -97,7 +97,7 @@ async function syncDomain(instance:any){
     last_error:null,objects_fetched:statuses.length,objects_upserted:upsertedCount,duration_ms:Date.now()-started,updated_at:successAt
   },{onConflict:"domain"});
   const actorUpsert = await db.from("federated_actors").upsert(statuses.map((s:any)=>s.account||{}).map((a:any)=>{
-    const actorUri=String(a.uri||a.url||""); if(!actorUri)return null;
+    const actorUri=String(a.uri||a.id||a.url||""); if(!actorUri)return null;
     return {actor_uri:actorUri,username:String(a.username||"unknown"),domain,display_name:a.display_name||a.username||"unknown",bio:a.note||null,avatar_url:a.avatar||null,raw_actor:a,fetched_at:successAt,updated_at:successAt};
   }).filter(Boolean),{onConflict:"actor_uri",ignoreDuplicates:false});
   if(actorUpsert.error) console.warn("[federation-inbound] actor index update failed",actorUpsert.error.message);
