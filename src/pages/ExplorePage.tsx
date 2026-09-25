@@ -206,6 +206,7 @@ const RANK_MEDAL = ['🥇','🥈','🥉'];
 
 // Rank badge colors pre-computed (esbuild guard: plain arrays, no inline ternary chains in render)
 const RANK_COLORS = ['text-yellow-400','text-slate-300','text-amber-600','text-muted-foreground'];
+const DISCOVERY_SUPPRESSED_TAGS = new Set(['nsfw','porn','pornography','nude','nudes','nudity','boobs','tits','titties','amateurporn','fansly','onlyfans','lewd','sexy','spicy','thickthighs']);
 
 // Reaction emojis — module-level (esbuild guard)
 const REACTION_EMOJIS = ['❤️'];
@@ -846,7 +847,9 @@ export default function ExplorePage() {
     ]);
     setTrending(trendingData.status === 'fulfilled' ? (trendingData.value?.items ?? []) : []);
     if (hashtagRes.status === 'fulfilled' && hashtagRes.value.data) {
-      setTrendingHashtags((hashtagRes.value.data as any[]).map((h: any) => ({ ...h, daily_posts: Number(h.federated_post_count ?? 0) + Number(h.post_count ?? h.usage_count ?? 0) })));
+      setTrendingHashtags((hashtagRes.value.data as any[])
+        .filter((h: any) => !DISCOVERY_SUPPRESSED_TAGS.has(String(h.tag ?? '').replace(/^#/, '').toLowerCase()))
+        .map((h: any) => ({ ...h, daily_posts: Number(h.federated_post_count ?? 0) + Number(h.post_count ?? h.usage_count ?? 0) })));
     }
     if (whoRes.status === 'fulfilled' && whoRes.value.data) {
       let suggestions = whoRes.value.data;
