@@ -1000,7 +1000,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
               <div className="p-2 rounded-full group-hover:bg-blue-500/10 transition-colors">
                 <Quote className="w-4 h-4" />
               </div>
-              {quoteCount > 0 && <span className="text-sm tabular-nums">{formatNumber(quoteCount)}</span>}
+              <span className="text-sm tabular-nums">{formatNumber(quoteCount)}</span>
             </button>
 
             <button
@@ -1010,12 +1010,12 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
               <div className="p-2 rounded-full group-hover:bg-primary/10 transition-colors">
                 <Share className="w-5 h-5" />
               </div>
-              {shareCount > 0 && <span className="text-sm tabular-nums">{formatNumber(shareCount)}</span>}
+              <span className="text-sm tabular-nums">{formatNumber(shareCount)}</span>
             </button>
 
             <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-0.5">
-              <BookmarkButton postId={interactionPostId} />
-              {bookmarksCount > 0 && <span className="text-sm tabular-nums">{formatNumber(bookmarksCount)}</span>}
+              <BookmarkButton postId={interactionPostId} onChange={(bookmarked) => setBookmarksCount(prev => Math.max(0, prev + (bookmarked ? 1 : -1)))} />
+              <span className="text-sm tabular-nums">{formatNumber(bookmarksCount)}</span>
               {user && !isFederatedPost && post.user_id !== user.id && (post as any).user_id && (
                 <TipButton
                   postId={post.id}
