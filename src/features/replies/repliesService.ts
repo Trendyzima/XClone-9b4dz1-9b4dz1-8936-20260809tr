@@ -1,5 +1,6 @@
 import { backendCapabilities } from '@/services/backendClient';
 import { supabase } from '@/lib/supabase';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 
 export type ReplyItem = {
   id: string;
@@ -15,8 +16,18 @@ export type ReplyItem = {
 const boundedLimit = (limit = 50) => Math.min(100, Math.max(1, Number.isFinite(limit) ? Math.floor(limit) : 50));
 
 export async function listReplies(postId: string, limit = 50): Promise<{ items: ReplyItem[]; next_cursor: string | null }> {
-  // Reads are intentionally direct and RLS-backed so public interaction pages do not
-  // depend on the authenticated-only capability. Creation remains capability-gated.
+  // Keep the reply read path compatible with both authenticated capability reads
+  // and public/RLS reads. The capability response is the canonical source for
+  // identity (display name + avatar); the direct query preserves parent_reply_id
+  // and remains the fallback for guests or transient gateway failures.
+  let capabilityItems: any[] = [];
+  try {
+    const capabilityPage = await backendCapabilities.listReplies(postId, boundedLimit(limit));
+    capabilityItems = capabilityPage?.items ?? [];
+  } catch (error) {
+    console.warn('[replies] capability identity enrichment unavailable', error);
+  }
+
   const { data, error } = await supabase
     .from('replies')
     .select('id,user_id,post_id,parent_reply_id,content,created_at,updated_at')
@@ -27,37 +38,40 @@ export async function listReplies(postId: string, limit = 50): Promise<{ items: 
   if (error) throw error;
 
   const rows = data ?? [];
+  if (!rows.length) return { items: [], next_cursor: null };
+
+  const capabilityById = new Map(
+    capabilityItems.map((item: any) => [String(item.id), item.profile ?? null]),
+  );
+
   const ids = [...new Set(rows.map((row: any) => row.user_id).filter(Boolean))];
-  if (!ids.length) return { items: [], next_cursor: null };
+  let profiles: any[] = [];
+  if (ids.length) {
+    const { data: profileRows, error: profileError } = await supabase
+      .from('profiles')
+      .select('id,username,display_name,full_name,avatar_url,verified')
+      .in('id', ids);
+    if (profileError) console.warn('[replies] profile enrichment failed', profileError);
+    profiles = profileRows ?? [];
+  }
 
-  const { data: profiles, error: profileError } = await supabase
-    .from('profiles')
-    .select('id,username,display_name,full_name,avatar_url,verified')
-    .in('id', ids);
-
-  if (profileError) console.warn('[replies] profile enrichment failed', profileError);
-
-  const byId = new Map((profiles ?? []).map((profile: any) => [profile.id, profile]));
+  const byId = new Map(profiles.map((profile: any) => [profile.id, profile]));
   return {
     items: rows.map((row: any) => {
-      const profile = byId.get(row.user_id) as {
-        id?: string;
-        username?: string | null;
-        display_name?: string | null;
-        full_name?: string | null;
-        avatar_url?: string | null;
-        verified?: boolean | null;
-      } | null;
-      return { ...row, profile: profile ? {
-        ...profile,
-        username: String(profile.username ?? '').replace(/^@/, ''),
-        display_name: profile.display_name ?? profile.full_name ?? profile.username ?? null,
-      } : null };
+      const capabilityProfile = capabilityById.get(String(row.id));
+      const profile = capabilityProfile ?? byId.get(row.user_id) ?? null;
+      return {
+        ...row,
+        profile: profile ? {
+          ...profile,
+          username: String(profile.username ?? profile.preferredUsername ?? profile.acct ?? '').replace(/^@/, ''),
+          display_name: profile.display_name ?? profile.full_name ?? profile.name ?? profile.username ?? null,
+        } : null,
+      };
     }),
     next_cursor: null,
   };
 }
-
 export async function createReply(postId: string, content: string, parentReplyId?: string) {
   return backendCapabilities.createReply(postId, content, parentReplyId);
 }
