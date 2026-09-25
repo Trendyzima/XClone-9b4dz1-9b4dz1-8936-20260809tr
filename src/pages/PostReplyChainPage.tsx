@@ -7,7 +7,7 @@ import { getInteractionCounts } from '@/services/postInteractionService';
 import { ReplyActions } from '@/components/features/ReplyActions';
 import { useAuth } from '@/hooks/useAuth';
 import * as federation from '@/api/federation';
-import { federatedObjectToPost, resolveFederatedReplies } from '@/features/federation/federatedPostAdapter';
+import { federatedObjectToPost, resolveFederatedReplies, federatedReplyToItem } from '@/features/federation/federatedPostAdapter';
 
 export default function PostReplyChainPage(){
  const {postId,replyId}=useParams(); const navigate=useNavigate(); const {user}=useAuth();
@@ -19,7 +19,7 @@ export default function PostReplyChainPage(){
      const normalized = await federatedObjectToPost(object, federation.getFederatedObject);
      setPost(normalized);
      const remoteReplies = await resolveFederatedReplies(object.replies, federation.getFederatedObject);
-     const items = remoteReplies.map((r:any)=>({id:String(r.id),content:String(r.content??r.name??r.summary??''),created_at:r.published??r.created??new Date().toISOString(),parent_reply_id:undefined,profile:{username:typeof r.attributedTo==='string'?r.attributedTo.split('/').filter(Boolean).pop()||'':String(r.attributedTo?.preferredUsername??r.attributedTo?.acct??'').replace(/^@/,''),display_name:typeof r.attributedTo==='object'?(r.attributedTo?.name??r.attributedTo?.displayName):undefined,avatar_url:typeof r.attributedTo==='object'?(r.attributedTo?.icon?.url??r.attributedTo?.icon):undefined}}));
+     const items = remoteReplies.map((r:any)=>federatedReplyToItem(r, postId)) as ReplyItem[];
      setReplies(items); setCounts({likes:Number(object.likes?.totalItems??0),reposts:Number(object.shares?.totalItems??0),replies:items.length||Number(object.replies?.totalItems??0),quotes:0,views:0});
      return;
    }

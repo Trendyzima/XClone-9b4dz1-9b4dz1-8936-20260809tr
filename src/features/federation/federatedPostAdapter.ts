@@ -49,8 +49,79 @@ export async function resolveFederatedReplies(repliesRef: any, getObject: (uri: 
   const uri = typeof repliesRef === 'string' ? repliesRef : repliesRef?.id ?? repliesRef?.url ?? '';
   if (!uri) return [];
   try {
-    const result = await getObject(uri); const collection = result?.object ?? result;
-    const entries = Array.isArray(collection?.orderedItems) ? collection.orderedItems : Array.isArray(collection?.items) ? collection.items : [];
-    return entries.map((entry: any) => typeof entry === 'string' ? { id: entry } : entry).filter((x: any) => x?.id);
+    const result = await getObject(uri);
+    let collection = result?.object ?? result;
+    let entries = Array.isArray(collection?.orderedItems)
+      ? collection.orderedItems
+      : Array.isArray(collection?.items)
+        ? collection.items
+        : [];
+    // Many fediverse servers return a paged collection (or compact reply IDs).
+    // Follow the first page when the collection itself contains no members, then
+    // hydrate compact IDs into full ActivityPub objects before rendering them.
+    if (!entries.length) {
+      const first = typeof collection?.first === 'string'
+        ? collection.first
+        : collection?.first?.id ?? collection?.first?.url ?? '';
+      if (first) {
+        try {
+          const firstResult = await getObject(first);
+          collection = firstResult?.object ?? firstResult;
+          entries = Array.isArray(collection?.orderedItems)
+            ? collection.orderedItems
+            : Array.isArray(collection?.items)
+              ? collection.items
+              : [];
+        } catch {}
+      }
+    }
+    const hydrated = await Promise.all(entries.slice(0, 50).map(async (entry: any) => {
+      const id = typeof entry === 'string' ? entry : entry?.id ?? entry?.url ?? '';
+      if (!id) return null;
+      const hasContent = typeof entry === 'object' && Boolean(entry?.content ?? entry?.name ?? entry?.summary);
+      if (hasContent && typeof entry?.attributedTo === 'object') return entry;
+      try {
+        const fetched = await getObject(id);
+        return fetched?.object ?? fetched ?? entry;
+      } catch {
+        return entry;
+      }
+    }));
+    return hydrated.filter((x: any) => x?.id);
   } catch { return []; }
+}
+
+export function federatedReplyToItem(reply: any, parentPostId: string) {
+  const actorRef = reply?.attributedTo;
+  const actorUri = typeof actorRef === 'string' ? actorRef : actorRef?.id ?? actorRef?.url ?? '';
+  const username = String(typeof actorRef === 'object'
+    ? (actorRef?.preferredUsername ?? actorRef?.username ?? actorRef?.acct ?? '')
+    : '').replace(/^@/, '') || actorUri.split('/').filter(Boolean).pop() || '';
+  const displayName = String(typeof actorRef === 'object'
+    ? (actorRef?.name ?? actorRef?.displayName ?? actorRef?.preferredUsername ?? username)
+    : username).trim();
+  const avatar = firstUrl(typeof actorRef === 'object' ? actorRef?.icon : undefined);
+  let domain = '';
+  try { domain = actorUri ? new URL(actorUri).hostname : ''; } catch {}
+  return {
+    id: String(reply?.id ?? ''),
+    user_id: String(actorUri || ''),
+    post_id: parentPostId,
+    content: String(reply?.content ?? reply?.name ?? reply?.summary ?? ''),
+    created_at: String(reply?.published ?? reply?.created ?? new Date().toISOString()),
+    updated_at: String(reply?.updated ?? reply?.published ?? reply?.created ?? new Date().toISOString()),
+    parent_reply_id: undefined,
+    profile: {
+      id: actorUri,
+      username,
+      preferredUsername: username,
+      display_name: displayName,
+      name: displayName,
+      avatar_url: avatar,
+      actor_uri: actorUri,
+      domain,
+      verified: false,
+    },
+    remote: true,
+  };
 }

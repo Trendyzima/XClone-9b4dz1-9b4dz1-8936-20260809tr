@@ -16,7 +16,7 @@ import { ReplyActions } from '@/components/features/ReplyActions';
 import { useAuth } from '@/hooks/useAuth';
 
 import { PageAdBanner } from '@/components/features/AdSenseAd';
-import { federatedObjectToPost, resolveFederatedReplies } from '@/features/federation/federatedPostAdapter';
+import { federatedObjectToPost, resolveFederatedReplies, federatedReplyToItem } from '@/features/federation/federatedPostAdapter';
 
 function PostThreadAdBanner() { return <PageAdBanner />; }
 
@@ -87,21 +87,7 @@ export default function PostThreadPage() {
         const normalized = await federatedObjectToPost(object, federation.getFederatedObject);
         setPost(normalized);
         const remoteReplies = await resolveFederatedReplies(object.replies, federation.getFederatedObject);
-        setReplies(remoteReplies.map((r: any) => ({
-          id: String(r.id),
-          content: String(r.content ?? r.name ?? r.summary ?? ''),
-          created_at: r.published ?? r.created ?? new Date().toISOString(),
-          parent_reply_id: undefined,
-          profile: {
-            username: typeof r.attributedTo === 'string'
-              ? r.attributedTo.split('/').filter(Boolean).pop() || ''
-              : String(r.attributedTo?.preferredUsername ?? r.attributedTo?.acct ?? '').replace(/^@/, ''),
-            display_name: typeof r.attributedTo === 'object'
-              ? (r.attributedTo?.name ?? r.attributedTo?.displayName)
-              : undefined,
-            avatar_url: typeof r.attributedTo === 'object' ? (r.attributedTo?.icon?.url ?? r.attributedTo?.icon) : undefined,
-          },
-        })) as ReplyItem[]);
+        setReplies(remoteReplies.map((r: any) => federatedReplyToItem(r, postId)) as ReplyItem[]);
         setCounts(prev => ({ ...prev, replies: remoteReplies.length || Number(object.replies?.totalItems ?? 0) }));
         // Remote ActivityPub objects are complete at this point. Never fall through
         // into the local UUID-backed posts query: doing so turns a valid remote post
@@ -135,12 +121,20 @@ export default function PostThreadPage() {
   }, [postId]);
 
   const loadReplies = useCallback(async () => {
-    if (!postId || /^https:\/\//i.test(postId)) return;
+    if (!postId) return;
     setReplyLoading(true);
     try {
-      const [result, liveCounts] = await Promise.all([listReplies(postId, 20), getInteractionCounts(postId)]);
-      setReplies(result.items ?? []);
-      setCounts(liveCounts);
+      if (/^https:\/\//i.test(postId)) {
+        const remote = await federation.getFederatedObject(postId);
+        const object = remote?.object ?? remote;
+        const remoteReplies = await resolveFederatedReplies(object?.replies, federation.getFederatedObject);
+        setReplies(remoteReplies.map((r: any) => federatedReplyToItem(r, postId)) as ReplyItem[]);
+        setCounts(prev => ({ ...prev, replies: remoteReplies.length || Number(object?.replies?.totalItems ?? 0) }));
+      } else {
+        const [result, liveCounts] = await Promise.all([listReplies(postId, 20), getInteractionCounts(postId)]);
+        setReplies(result.items ?? []);
+        setCounts(liveCounts);
+      }
     } catch (error) {
       console.warn('[post-thread] replies unavailable', error);
     } finally {
@@ -246,7 +240,7 @@ export default function PostThreadPage() {
           </div>
           <button onClick={openReplies} className="text-xs font-semibold text-primary">Open all replies</button>
         </div>
-        {user && !/^https:\/\//i.test(postId ?? '') && (
+        {user && (
           <div className="px-4 pb-3 space-y-2"><div className="flex gap-2">{replyingTo && <button onClick={()=>setReplyingTo(undefined)} className="text-xs text-muted-foreground">Replying to another reply · Cancel</button>}</div><div className="flex gap-2">
             <input value={replyText} onChange={e => setReplyText(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void submitReply(); } }}
