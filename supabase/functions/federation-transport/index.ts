@@ -743,20 +743,21 @@ async function handle(request: Request) {
       // Match Mastodon's addressing model: address the original author and preserve the original audience.
       const originalTo = Array.isArray(remoteObject?.to) ? remoteObject.to : (remoteObject?.to ? [remoteObject.to] : []);
       const originalCc = Array.isArray(remoteObject?.cc) ? remoteObject.cc : (remoteObject?.cc ? [remoteObject.cc] : []);
-      const replyTo = Array.from(new Set([...(Array.isArray(note.to) ? note.to : []), ...originalTo, recipient]));
+      const replyTo = Array.from(new Set([...(Array.isArray(note.to) ? note.to : []), ...originalTo, ...(note.inReplyTo ? [recipient] : [])]));
       const replyCc = Array.from(new Set([...(Array.isArray(note.cc) ? note.cc : []), ...originalCc]));
+      const replyObject = {
+        ...note,
+        id: noteId,
+        attributedTo: note.attributedTo || local.actor_url,
+        to: replyTo,
+        cc: replyCc.length ? replyCc : undefined,
+        ...(note.inReplyTo ? { inReplyTo: note.inReplyTo } : {})
+      };
       activityWithId = {
         ...activityWithId,
         to: replyTo,
         cc: replyCc.length ? replyCc : undefined,
-        object: {
-          ...note,
-          id: noteId,
-          attributedTo: note.attributedTo || local.actor_url,
-          inReplyTo: note.inReplyTo || target,
-          to: replyTo,
-          cc: replyCc.length ? replyCc : undefined
-        }
+        object: replyObject
       };
     }
     const queued = await queue(local, userId, remote.inbox, activityWithId);
