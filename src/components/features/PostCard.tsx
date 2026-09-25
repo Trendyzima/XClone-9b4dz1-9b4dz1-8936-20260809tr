@@ -25,8 +25,8 @@ import {
 import { VideoMonetizationAd } from './VideoMonetizationAd';
 import { EmbedRenderer, PostContentEmbeds } from './EmbedRenderer';
 import { updateInterestSignal } from '@/services/recommendations';
-import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts, getFederatedReplies, getInteractionCounts, recordPostView } from '@/services/postInteractionService';
-import { toggleFederatedEmojiReaction, getFederatedEmojiReactionState, getFederatedEmojiReactionCounts } from '@/features/federatedReactions/federatedReactionsService';
+import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts, getFederatedReplies, getInteractionCounts, recordPostView, recordPostShare } from '@/services/postInteractionService';
+import { toggleFederatedEmojiReaction } from '@/features/federatedReactions/federatedReactionsService';
 import { backendCapabilities } from '@/services/backendClient';
 import * as federation from '@/api/federation';
 // Canonical social interaction reads/writes stay behind backend capabilities.
@@ -62,7 +62,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const [isReposted, setIsReposted] = useState(false);
   const [likesCount, setLikesCount] = useState(post.likes_count);
   const [repostsCount, setRepostsCount] = useState(post.reposts_count);
-  const [quoteCount, setQuoteCount] = useState(0);
+  const [quoteCount, setQuoteCount] = useState((post as any).quote_count ?? 0);
   const [viewsCount, setViewsCount] = useState(post.views_count ?? 0);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -71,7 +71,8 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const [showBoostDialog, setShowBoostDialog] = useState(false);
   const [showOneClickBoost, setShowOneClickBoost] = useState(false);
   const [showRewardedBoost, setShowRewardedBoost] = useState(false);
-  const [shareCount, setShareCount] = useState(0);
+  const [shareCount, setShareCount] = useState((post as any).shares_count ?? 0);
+  const [bookmarksCount, setBookmarksCount] = useState((post as any).bookmarks_count ?? 0);
   // Engagement tooltip
   const [showEngagement, setShowEngagement] = useState(false);
   const [analytics, setAnalytics] = useState<any>(null);
@@ -120,32 +121,24 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
 
   const fetchReactions = useCallback(async () => {
-    if (isFederatedPost) {
-      const [counts, mine] = await Promise.all([
-        getFederatedEmojiReactionCounts(interactionPostId),
-        getFederatedEmojiReactionState(interactionPostId),
-      ]);
-      const emojis = Object.keys(counts);
-      setReactionEmojis(emojis);
-      setReactionNums(emojis.map(emoji => Number(counts[emoji] ?? 0)));
-      setUserReactions(mine);
-      setUserReaction(mine[0] ?? null);
-      return;
-    }
-    const { data, error } = await supabase.rpc('testagram_local_reaction_state', { p_post_id: post.id });
-    if (!error && data) {
-      const counts = (data.counts ?? {}) as Record<string, number>;
-      const emojis = Object.keys(counts);
-      const nums = emojis.map(emoji => Number(counts[emoji] ?? 0));
-      const myReaction: string | null = typeof data.emoji === 'string' ? data.emoji : null;
-      setReactionEmojis(emojis);
-      setReactionNums(nums);
-      setUserReaction(myReaction);
-      setUserReactions(myReaction ? [myReaction] : []);
-    }
-  }, [post.id, user?.id, isFederatedPost, interactionPostId]);
+    const counts = await getInteractionCounts(interactionPostId);
+    const emojis = Object.keys(counts.reactions || {});
+    setReactionEmojis(emojis);
+    setReactionNums(emojis.map(emoji => Number(counts.reactions[emoji] ?? 0)));
+    setUserReactions(counts.user_reactions);
+    setUserReaction(counts.user_reactions[0] ?? null);
+    setIsLiked(counts.is_liked);
+    setIsReposted(counts.is_reposted);
+    setLikesCount(counts.likes);
+    setRepostsCount(counts.reposts);
+    setRepliesCount(counts.replies);
+    setQuoteCount(counts.quotes);
+    setViewsCount(counts.views);
+    setShareCount(counts.shares);
+    setBookmarksCount(counts.bookmarks);
+  }, [interactionPostId, user?.id]);
 
-  useEffect(() => { fetchReactions(); }, [fetchReactions]);
+  useEffect(() => { void fetchReactions(); }, [fetchReactions]);
 
   const handleReact = async (emoji: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -527,46 +520,6 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   }, [post.id]);
 
   useEffect(() => {
-    if (!user) return;
-    const checkUserInteractions = async () => {
-      try {
-        if (isFederatedPost) {
-          const [state, counts, reactions] = await Promise.all([
-            getFederatedInteractionState(interactionPostId),
-            getFederatedInteractionCounts(interactionPostId),
-            getFederatedEmojiReactionState(interactionPostId),
-          ]);
-          setIsLiked(state.is_liked);
-          setIsReposted(state.is_reposted);
-          setUserReactions(reactions);
-          setUserReaction(reactions[0] ?? null);
-          setLikesCount(counts.likes);
-          setRepostsCount(counts.reposts);
-          setRepliesCount(counts.replies);
-          setQuoteCount(counts.quotes);
-          setViewsCount(counts.views);
-        } else {
-          const [likeResult, repostResult, counts] = await Promise.all([
-            backendCapabilities.getLikeState(post.id),
-            backendCapabilities.getRepostState(post.id),
-            getInteractionCounts(post.id),
-          ]);
-          setIsLiked(likeResult.state.is_liked);
-          setIsReposted(repostResult.state.is_reposted);
-          setLikesCount(counts.likes);
-          setRepostsCount(counts.reposts);
-          setRepliesCount(counts.replies);
-          setQuoteCount(counts.quotes);
-          setViewsCount(counts.views);
-        }
-      } catch (error) {
-        console.error('Error checking user interactions:', error);
-      }
-    };
-    checkUserInteractions();
-  }, [user, post.id, interactionPostId, isFederatedPost]);
-
-  useEffect(() => {
     let cancelled = false;
     const key = 'testagram:viewed:' + interactionPostId;
     try {
@@ -634,18 +587,19 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     e.stopPropagation();
     const url = `${window.location.origin}/post/${post.id}`;
     const shareText = `${post.content.slice(0, 150)}${post.content.length > 150 ? '\u2026' : ''}`;
-    const trackShare = () => {
-      setShareCount(c => c + 1);
-      supabase.from('post_analytics').select('id, shares').eq('post_id', post.id).maybeSingle().then(({ data }) => {
-        if (isFederatedPost) return;
-      if (data?.id) supabase.from('post_analytics').update({ shares: (data.shares || 0) + 1 }).eq('id', data.id).catch(() => {});
-        else supabase.from('post_analytics').insert({ post_id: post.id, shares: 1 }).catch(() => {});
-      });
+    const trackShare = async () => {
+      if (isFederatedPost) return;
+      try {
+        const count = await recordPostShare(post.id);
+        setShareCount(count);
+      } catch (error) {
+        console.warn('[engagement] share record failed', error);
+      }
     };
     if (navigator.share) {
       try {
         await navigator.share({ title: `@${post.user_profiles?.username} on Tsocial`, text: shareText, url });
-        trackShare();
+        void trackShare();
       } catch (err: any) {
         if (err?.name !== 'AbortError') setShowShareDialog(true);
       }
@@ -1046,7 +1000,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
               <div className="p-2 rounded-full group-hover:bg-blue-500/10 transition-colors">
                 <Quote className="w-4 h-4" />
               </div>
-              {quoteCount > 0 && <span className="text-sm tabular-nums">{formatNumber(quoteCount)}</span>}
+              <span className="text-sm tabular-nums">{formatNumber(quoteCount)}</span>
             </button>
 
             <button
@@ -1056,11 +1010,12 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
               <div className="p-2 rounded-full group-hover:bg-primary/10 transition-colors">
                 <Share className="w-5 h-5" />
               </div>
-              {shareCount > 0 && <span className="text-sm tabular-nums">{shareCount}</span>}
+              <span className="text-sm tabular-nums">{formatNumber(shareCount)}</span>
             </button>
 
-            <div onClick={(e) => e.stopPropagation()}>
-              <BookmarkButton postId={interactionPostId} />
+            <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-0.5">
+              <BookmarkButton postId={interactionPostId} onChange={(bookmarked) => setBookmarksCount(prev => Math.max(0, prev + (bookmarked ? 1 : -1)))} />
+              <span className="text-sm tabular-nums">{formatNumber(bookmarksCount)}</span>
               {user && !isFederatedPost && post.user_id !== user.id && (post as any).user_id && (
                 <TipButton
                   postId={post.id}

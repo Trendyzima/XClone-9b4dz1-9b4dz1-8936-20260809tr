@@ -8,9 +8,10 @@ import { bookmarkRemote, unbookmarkRemote, remoteBookmarkState } from '@/api/fed
 
 interface BookmarkButtonProps {
   postId: string;
+  onChange?: (bookmarked: boolean) => void;
 }
 
-export function BookmarkButton({ postId }: BookmarkButtonProps) {
+export function BookmarkButton({ postId, onChange }: BookmarkButtonProps) {
   const { user } = useAuth();
   const [isBookmarked, setIsBookmarked] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -47,11 +48,13 @@ export function BookmarkButton({ postId }: BookmarkButtonProps) {
       if (previous) {
         if (/^https:\/\//i.test(postId)) await unbookmarkRemote(postId);
         else await backendCapabilities.removeBookmark(postId);
+        onChange?.(false);
         toast.success('Removed from bookmarks');
       } else {
         if (/^https:\/\//i.test(postId)) await bookmarkRemote(postId);
         else await backendCapabilities.bookmarkPost(postId);
         toast.success('Added to bookmarks');
+        onChange?.(true);
         updateInterestSignal(user.id, postId, 'bookmark').catch(() => {});
       }
     } catch (error: any) {
