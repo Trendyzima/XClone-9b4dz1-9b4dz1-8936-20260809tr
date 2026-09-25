@@ -1,5 +1,43 @@
 import type { Post } from '@/types/app-types';
 
+function normalizeFederatedText(value: unknown): string {
+  const source = String(value ?? '');
+  if (!source) return '';
+
+  // ActivityPub content is commonly HTML (and Mastodon may include spans that
+  // are intentionally invisible to browsers). Never expose those tags/classes
+  // as literal text in Testagram's reply/post UI.
+  if (typeof DOMParser !== 'undefined') {
+    try {
+      const doc = new DOMParser().parseFromString(source, 'text/html');
+      doc.querySelectorAll('script,style,noscript').forEach(node => node.remove());
+      doc.querySelectorAll('.invisible').forEach(node => node.remove());
+      doc.querySelectorAll('br').forEach(node => node.replaceWith('\n'));
+      doc.querySelectorAll('p,div,li').forEach(node => node.appendChild(doc.createTextNode('\n')));
+      return (doc.body.textContent ?? '')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/ *\n */g, '\n')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    } catch {
+      // Fall through to the dependency-free sanitizer below.
+    }
+  }
+
+  return source
+    .replace(/<script[\\s\\S]*?<\\/script>/gi, '')
+    .replace(/<style[\\s\\S]*?<\\/style>/gi, '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/[ \\t]+/g, ' ')
+    .trim();
+}
+
 function firstUrl(value: unknown): string | null {
   if (typeof value === 'string') return value;
   if (value && typeof value === 'object') {
@@ -33,7 +71,7 @@ export async function federatedObjectToPost(object: any, getObject: (uri: string
   const media = extractFederatedMedia(object);
   const published = object.published ?? object.created ?? new Date().toISOString();
   return {
-    id: object.id, content: object.content ?? object.name ?? object.summary ?? '', created_at: published,
+    id: object.id, content: normalizeFederatedText(object.content ?? object.name ?? object.summary ?? ''), created_at: published,
     updated_at: object.updated ?? published, user_id: actor.uri, author_id: actor.uri,
     user_profiles: {
       id: actor.uri, username: actor.username, email: '', display_name: actor.displayName,
@@ -108,7 +146,7 @@ export function federatedReplyToItem(reply: any, parentPostId: string) {
     id: String(reply?.id ?? ''),
     user_id: String(actorUri || ''),
     post_id: parentPostId,
-    content: String(reply?.content ?? reply?.name ?? reply?.summary ?? ''),
+    content: normalizeFederatedText(reply?.content ?? reply?.name ?? reply?.summary ?? ''),
     created_at: String(reply?.published ?? reply?.created ?? new Date().toISOString()),
     updated_at: String(reply?.updated ?? reply?.published ?? reply?.created ?? new Date().toISOString()),
     parent_reply_id: undefined,
