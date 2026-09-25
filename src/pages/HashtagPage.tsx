@@ -55,8 +55,16 @@ export default function HashtagPage() {
   // duplicate failing requests/toasts during initial navigation.
   useEffect(() => {
     if (!tag) return;
-    fetchHashtagAndPosts();
-    fetchRelatedSuggestions(tag);
+    let cancelled = false;
+    void fetchHashtagAndPosts();
+    void fetchRelatedSuggestions(tag);
+    const normalized = String(tag).replace(/^#/,'').trim().toLowerCase();
+    const channel = supabase.channel(`hashtag-live:${normalized}`)
+      .on('postgres_changes',{event:'*',schema:'public',table:'post_hashtags'},()=>{if(!cancelled)void fetchHashtagAndPosts();})
+      .on('postgres_changes',{event:'*',schema:'public',table:'federated_hashtag_mentions'},()=>{if(!cancelled)void fetchHashtagAndPosts();})
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'federated_objects'},()=>{if(!cancelled)void fetchHashtagAndPosts();})
+      .subscribe();
+    return () => { cancelled=true; void supabase.removeChannel(channel); };
   }, [tag]);
 
   // Follow state is the only part of this page that depends on auth.
@@ -193,7 +201,7 @@ export default function HashtagPage() {
       if (remoteIds.length) {
         const { data: remoteObjects, error: remoteObjectsError } = await supabase
           .from('federated_objects')
-          .select('id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,object_type,url,deleted_at,tombstone')
+          .select('id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,object_type,url,deleted_at,tombstone,remote_account')
           .in('id', remoteIds)
           .is('deleted_at', null)
           .eq('tombstone', false);
@@ -213,7 +221,7 @@ export default function HashtagPage() {
         created_at: p.published_at ?? p.updated_at,
         content: p.content ?? p.summary ?? '',
         remote_status_uri: p.uri,
-        user_profiles: { actor_uri: p.actor_uri, username: p.actor_uri?.split('/').pop() ?? 'unknown', display_name: 'Fediverse account', avatar_url: null },
+        user_profiles: p.remote_account ?? { actor_uri: p.actor_uri, username: p.actor_uri?.split('/').pop() ?? 'unknown', display_name: p.actor_uri?.split('/').pop() ?? 'Fediverse account', avatar_url: null },
         is_federated: true,
       })));
       fetchTopPosts(hashtagData.id);
