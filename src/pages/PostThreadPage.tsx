@@ -4,7 +4,7 @@ import { TopBar } from '@/components/layout/TopBar';
 import { PostCard } from '@/components/features/PostCard';
 import { supabase } from '@/lib/supabase';
 import { Post } from '@/types/app-types';
-import { Loader2, Twitter, Facebook, Link2, MessageCircle, Send } from 'lucide-react';
+import { Loader2, Twitter, Facebook, Link2, MessageCircle, Send, Heart, Repeat2, Quote } from 'lucide-react';
 import { VerifiedTick } from '@/components/ui/VerifiedTick';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
@@ -37,7 +37,7 @@ export default function PostThreadPage() {
   const [replyingTo, setReplyingTo] = useState<string | undefined>();
   const [replySending, setReplySending] = useState(false);
   const [replyLoading, setReplyLoading] = useState(false);
-  const [counts, setCounts] = useState({ likes: 0, replies: 0, reposts: 0, quotes: 0, views: 0 });
+  const [counts, setCounts] = useState({ likes: 0, replies: 0, reposts: 0, quotes: 0, views: 0, shares: 0, bookmarks: 0, reaction_total: 0, reactions: {} as Record<string, number>, is_liked: false, is_reposted: false, is_bookmarked: false, user_reactions: [] as string[] });
 
   // Dynamic SEO — injected once post loads, upgrades to og-image edge function card
   useSEO({
@@ -124,18 +124,49 @@ export default function PostThreadPage() {
     if (!postId) return;
     setReplyLoading(true);
     try {
-      if (/^https:\/\//i.test(postId)) {
-        const [result, liveCounts] = await Promise.all([
-          listReplies(postId, 20),
-          getInteractionCounts(postId),
-        ]);
-        setReplies(result.items ?? []);
-        setCounts(liveCounts);
-      } else {
-        const [result, liveCounts] = await Promise.all([listReplies(postId, 20), getInteractionCounts(postId)]);
-        setReplies(result.items ?? []);
-        setCounts(liveCounts);
+      const [result, liveCounts] = await Promise.all([
+        listReplies(postId, 20),
+        getInteractionCounts(postId),
+      ]);
+      const nextReplies = result.items ?? [];
+      // The immediate post page is a preview surface, so it must use the same
+      // canonical reply collection as the standalone Replies page. For remote
+      // ActivityPub posts this includes the persisted federation ledger, even
+      // when the origin server's replies collection is empty/stale.
+      let fallbackReplies: ReplyItem[] = [];
+      if (/^https:\/\//i.test(postId) && !nextReplies.length) {
+        try {
+          const ledgerItems = await federation.getFederatedReplies(postId);
+          fallbackReplies = ledgerItems.map((row: any) => ({
+            id: String(row.activity_uri || row.id),
+            user_id: String(row.user_id || ''),
+            post_id: postId,
+            content: String(row.content || ''),
+            created_at: String(row.created_at || new Date().toISOString()),
+            updated_at: String(row.updated_at || row.created_at || new Date().toISOString()),
+            parent_reply_id: null,
+            profile: row.profile ?? null,
+            remote: true,
+          })) as ReplyItem[];
+        } catch (fallbackError) {
+          console.warn('[post-thread] federated reply fallback unavailable', fallbackError);
+        }
       }
+      const mergedReplies = [...nextReplies, ...fallbackReplies].filter((item, index, all) =>
+        item?.id && all.findIndex(other => other.id === item.id) === index
+      );
+      setReplies(mergedReplies);
+      setCounts(prev => ({
+        ...prev,
+        ...liveCounts,
+        // Never let a stale interaction-count endpoint hide replies that were
+        // actually returned by the canonical reply collection.
+        replies: Math.max(
+          Number(prev.replies || 0),
+          Number(liveCounts.replies || 0),
+          mergedReplies.length,
+        ),
+      }));
     } catch (error) {
       console.warn('[post-thread] replies unavailable', error);
     } finally {
@@ -232,6 +263,36 @@ export default function PostThreadPage() {
       <PostThreadAdBanner />
 
       <PostCard post={post} onUpdate={() => { void loadReplies(); }} />
+
+      <section className="border-b border-border bg-background">
+        <div className="px-4 py-3">
+          <h2 className="font-bold">Post activity</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Recent engagement on this post</p>
+        </div>
+        <div className="grid grid-cols-4 border-t border-border">
+          {[
+            { label: 'Likes', value: counts.likes, icon: Heart, path: 'likes' },
+            { label: 'Replies', value: counts.replies, icon: MessageCircle, path: 'replies' },
+            { label: 'Reposts', value: counts.reposts, icon: Repeat2, path: 'reposts' },
+            { label: 'Quotes', value: counts.quotes, icon: Quote, path: 'quotes' },
+          ].map(({ label, value, icon: ActivityIcon, path }) => (
+            <button key={path} onClick={() => navigate('/post/' + postId + '/' + path)} className="px-2 py-3 border-r border-border last:border-r-0 hover:bg-muted/30 text-center">
+              <ActivityIcon className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
+              <span className="block text-sm font-semibold">{value}</span>
+              <span className="block text-[11px] text-muted-foreground">{label}</span>
+            </button>
+          ))}
+        </div>
+        {Object.keys(counts.reactions ?? {}).length > 0 && (
+          <div className="px-4 py-3 border-t border-border flex flex-wrap gap-2">
+            {Object.entries(counts.reactions).map(([emoji, count]) => (
+              <span key={emoji} className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/20 px-2.5 py-1 text-xs">
+                <span>{emoji}</span><span className="font-semibold">{Number(count)}</span>
+              </span>
+            ))}
+          </div>
+        )}
+      </section>
 
       <section className="border-b border-border bg-background">
         <div className="px-4 py-3 flex items-center justify-between">
