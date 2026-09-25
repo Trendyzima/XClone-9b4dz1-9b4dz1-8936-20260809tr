@@ -90,7 +90,8 @@ async function remoteDiscover(db: any, rawQuery: string, kind: string, limit: nu
   const domainsForHandle = exactHandle ? [exactHandle.split("@").pop()!] : [];
   const { data: actorMatches } = await db.from("federated_actors").select("domain,actor_uri,username").ilike("username", `%${token.split("@")[0]}%`).limit(30);
   const actorDomains = (actorMatches ?? []).map((r: any) => String(r.domain ?? "")).filter(Boolean);
-  const { data: instances } = await db.from("federated_instances").select("domain,software,public_timeline_available,last_success_at,backoff_until").not("domain","is",null).or("backoff_until.is.null,backoff_until.lt.now()").order("last_success_at",{ascending:false,nullsFirst:false}).limit(80);
+  const nowIso = new Date().toISOString();
+  const { data: instances } = await db.from("federated_instances").select("domain,software,public_timeline_available,last_success_at,backoff_until").not("domain","is",null).or(`backoff_until.is.null,backoff_until.lt.${nowIso}`).order("last_success_at",{ascending:false,nullsFirst:false}).limit(80);
   const candidates = new Map<string, any>();
   for (const row of instances ?? []) {
     const domain = String(row.domain ?? "").toLowerCase().trim();
