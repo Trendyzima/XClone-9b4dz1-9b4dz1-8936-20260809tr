@@ -103,10 +103,10 @@ export default function PostInteractionPage({kind}:{kind:Kind}){
 }
 
 function InteractionRow({item,kind,onOpenProfile,onOpenPost,onOpenReplyChain}:{item:any;kind:Kind;onOpenProfile:(u:string)=>void;onOpenPost:(id:string)=>void;onOpenReplyChain:(id:string)=>void}){
- const profile=item.profile??item.profiles??item.user_profiles??item.posts?.profiles??{}; const quote=item.quote; const username=profile.username??profile.preferredUsername??profile.acct??''; const displayName=profile.display_name??profile.full_name??profile.name??username??'Profile';
+ const profile=item.profile??item.profiles??item.user_profiles??item.posts?.profiles??{}; const quote=item.quote; const username=profile.username??profile.preferredUsername??profile.acct??''; const displayName=profile.display_name??profile.full_name??profile.name??username??'Profile'; const initial=String(displayName).trim().slice(0,1).toUpperCase()||'P';
  return <div className="p-4 border-b border-border">
   <div className="flex gap-3">
-   <button onClick={()=>onOpenProfile(username)} aria-label={'Open @'+username}><img src={profile.avatar_url??''} alt="" className="w-10 h-10 rounded-full bg-muted object-cover"/></button>
+   <button onClick={()=>onOpenProfile(username)} aria-label={'Open @'+username}><div className="w-10 h-10 rounded-full bg-muted overflow-hidden flex items-center justify-center shrink-0">{profile.avatar_url?<img src={profile.avatar_url} alt={displayName} className="w-full h-full object-cover" loading="lazy"/>:<span className="text-xs font-bold text-muted-foreground">{initial}</span>}</div></button>
    <div className="min-w-0 flex-1">
     <button onClick={()=>onOpenProfile(username)} className="font-bold text-sm hover:underline">{displayName}{username&&<span className="ml-1 font-normal text-muted-foreground">@{String(username).replace(/^@/,'')}</span>}</button>
     {kind==='replies'&&<button onClick={()=>onOpenReplyChain(item.id)} className="mt-1 text-left w-full text-sm whitespace-pre-wrap break-words hover:bg-muted/30 rounded-lg p-1">{item.content}<span className="block text-[11px] text-primary mt-2">Open reply chain →</span></button>}
