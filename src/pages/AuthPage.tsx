@@ -60,15 +60,31 @@ export default function AuthPage() {
 
   const applyPendingReferral = async () => {
     const code = window.localStorage.getItem('testagram-referral-code');
-    if (!code) return;
+    if (!code) return false;
     try {
       const { error: applyError } = await supabase.rpc('apply_referral_code', { p_code: code });
-      if (applyError && !applyError.message.includes('REFERRAL_ALREADY_APPLIED')) throw applyError;
-      const { error: completeError } = await supabase.rpc('complete_referral');
-      if (completeError && !completeError.message.includes('NO_PENDING_REFERRAL')) throw completeError;
+      if (applyError && !applyError.message.includes('REFERRAL_ALREADY_APPLIED')) {
+        window.localStorage.removeItem('testagram-referral-code');
+        toast({ title: 'Referral link could not be applied', description: 'Your account was created successfully. The referral link was invalid or expired.' });
+        return false;
+      }
+
+      const { data: completion, error: completeError } = await supabase.rpc('complete_referral');
+      if (completeError && !completeError.message.includes('NO_PENDING_REFERRAL')) {
+        toast({ title: 'Referral reward is pending', description: 'Your account is ready. We could not finish the crediting step yet.' });
+        return false;
+      }
+
       window.localStorage.removeItem('testagram-referral-code');
+      if (completion?.completed) {
+        toast({ title: 'Referral reward added', description: 'You and your friend received 100 credits.' });
+        return true;
+      }
+      return false;
     } catch {
       // Referral processing must never block account creation or sign-in.
+      toast({ title: 'Referral reward is pending', description: 'Your account is ready. We could not finish the referral step yet.' });
+      return false;
     }
   };
 
