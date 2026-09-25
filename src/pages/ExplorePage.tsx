@@ -277,30 +277,32 @@ function CategoryTabContent({
     setRxCountEmojis([]);
     setRxCounts([]);
     (async () => {
+      // Each category owns its own query. Never fall back to the global
+      // trending feed: a sparse category should stay sparse rather than
+      // displaying unrelated posts that belong to another surface.
       const since7d = new Date(Date.now() - 7 * 86400000).toISOString();
-      // Build OR filter from keywords
       const orFilter = keywords.map(k => `content.ilike.%${k}%`).join(',');
-      const { data } = await supabase
+      let query = supabase
         .from('posts')
         .select('id, content, image_url, video_url, is_video, views_count, likes_count, reposts_count, replies_count, created_at, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
         .or(orFilter)
         .is('community_id', null)
-        .gte('created_at', since7d)
-        .order('views_count', { ascending: false })
-        .limit(30);
+        .is('deleted_at', null)
+        .gte('created_at', since7d);
+
+      // Distinct editorial intent per surface:
+      // News = recency, Sports = conversation velocity, Entertainment = engagement/media.
+      if (activeTab === 'News') {
+        query = query.order('created_at', { ascending: false });
+      } else if (activeTab === 'Sports') {
+        query = query.order('likes_count', { ascending: false });
+      } else {
+        query = query.order('views_count', { ascending: false });
+      }
+
+      const { data } = await query.limit(30);
       if (!cancelled) {
-        let finalPosts = data ?? [];
-        // Also fetch general trending posts if no category matches
-        if (finalPosts.length < 5) {
-          const { data: fallback } = await supabase
-            .from('posts')
-            .select('id, content, image_url, video_url, is_video, views_count, likes_count, reposts_count, replies_count, created_at, user_profiles:profiles!posts_author_id_fkey(id, username, avatar_url, verified_tier)')
-            .is('community_id', null)
-            .gte('created_at', since7d)
-            .order('views_count', { ascending: false })
-            .limit(30);
-          finalPosts = fallback ?? [];
-        }
+        const finalPosts = data ?? [];
         setPosts(finalPosts);
         setLoading(false);
         // Fetch reactions for these posts
