@@ -17,14 +17,15 @@ export function extractFederatedMedia(object: any) {
 }
 export async function resolveFederatedActor(actorRef: any, getObject: (uri: string) => Promise<any>) {
   const uri = typeof actorRef === 'string' ? actorRef : actorRef?.id ?? actorRef?.url ?? '';
-  if (!uri) return { uri: '', username: 'Fediverse user', displayName: 'Fediverse user', avatar: undefined };
+  if (!uri) return { uri: '', username: '', displayName: '', avatar: undefined };
   const embedded = typeof actorRef === 'object' ? actorRef : null;
   let actor = embedded;
   if (!actor && /^https:\/\//i.test(uri)) {
     try { const result = await getObject(uri); actor = result?.object ?? result; } catch { /* actor enrichment is best-effort */ }
   }
-  const username = actor?.preferredUsername ?? actor?.name ?? uri.split('/').filter(Boolean).pop() ?? 'Fediverse user';
-  return { uri, username, displayName: actor?.name ?? username, avatar: firstUrl(actor?.icon) };
+  const username = String(actor?.preferredUsername ?? actor?.username ?? actor?.acct ?? '').replace(/^@/, '') || uri.split('/').filter(Boolean).pop() || '';
+  const displayName = String(actor?.name ?? actor?.displayName ?? actor?.preferredUsername ?? username).trim();
+  return { uri, username, displayName, avatar: firstUrl(actor?.icon) };
 }
 export async function federatedObjectToPost(object: any, getObject: (uri: string) => Promise<any>): Promise<Post> {
   if (!object?.id) throw new Error('Remote ActivityPub object not found');
