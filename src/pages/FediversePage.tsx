@@ -209,10 +209,11 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
     // Hourly reconciliation is the fallback for missed Realtime events.
     // Realtime federation events still surface new content immediately.
     const reconcile = window.setInterval(() => {
-      void fetchInbox();
-      void fetchOutboxLog();
       void fetchFederatedFeed({ incremental: true });
-    }, 60 * 60 * 1000);
+      if (tab === 'inbox') void fetchInbox();
+      if (tab === 'relay') void fetchOutboxLog();
+    }, 30 * 1000);
+    void fetchFederatedFeed({ incremental: true });
 
     return (
 ) => {
