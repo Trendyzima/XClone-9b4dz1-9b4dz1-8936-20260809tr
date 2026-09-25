@@ -8,6 +8,7 @@ import { bookmarkRemote, unbookmarkRemote, remoteBookmarkState } from '@/api/fed
 
 interface BookmarkButtonProps {
   postId: string;
+  onChange?: (bookmarked: boolean) => void;
 }
 
 export function BookmarkButton({ postId, onChange }: BookmarkButtonProps) {
