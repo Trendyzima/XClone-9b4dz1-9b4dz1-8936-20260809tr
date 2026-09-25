@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -13,7 +13,6 @@ import { Radio, Mic, MicOff, Users, X, Loader2, Headphones } from 'lucide-react'
 import { formatNumber } from '@/lib/utils';
 import { LiveAudioBroadcaster } from './LiveAudioBroadcaster';
 import { LiveAudioPlayer } from './LiveAudioPlayer';
-import { useEffect as useRoomEffect, useRef as useRoomRef } from 'react';
 import { SpaceRecordingsPlaylist } from './SpaceRecordingsPlaylist';
 
 interface JoinSpaceDialogProps {
@@ -66,8 +65,8 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
   };
 
 
-  const liveKitRef = useRoomRef<any>(null);
-  useRoomEffect(() => {
+  const liveKitRef = useRef<any>(null);
+  useEffect(() => {
     if (!joined || !space?.is_live || !spaceId) return;
     let cancelled = false;
     let room: any = null;
