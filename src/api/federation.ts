@@ -126,7 +126,7 @@ export async function getFollowers(acct: string, params: TimelineParams = {}): P
 export interface FederatedDiscoveryResult { users: any[]; posts: any[]; hashtags: any[]; communities: any[]; items: any[]; next_cursor?: string | null; }
 
 /** Unified federated discovery contract used by the standalone Discover surface. */
-export async function searchFederatedDiscovery(q: string, limit = 20, cursor?: string, mode: 'search' | 'suggest' = 'search', kind: 'all' | 'people' | 'posts' | 'hashtags' | 'mentions' | 'media' | 'conversations' | 'instances' = 'all'): Promise<FederatedDiscoveryResult> {
+export async function searchFederatedDiscovery(q: string, limit = 20, cursor?: string, mode: 'search' | 'suggest' = 'search', kind: 'all' | 'people' | 'posts' | 'hashtags' | 'mentions' | 'media' | 'conversations' | 'instances' | 'fediverse' = 'all'): Promise<FederatedDiscoveryResult> {
   const token = await getToken();
   const { data, error } = await supabase.functions.invoke('search-discovery', {
     method: 'POST', body: { q, limit: Math.min(Math.max(limit, 1), 50), cursor, mode, kind },
