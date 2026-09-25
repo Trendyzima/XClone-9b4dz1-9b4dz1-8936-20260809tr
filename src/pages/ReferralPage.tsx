@@ -34,6 +34,7 @@ interface ReferralRecord {
   id: string;
   invited_user: string;
   credits_awarded: number;
+  status: 'pending' | 'completed' | string;
   created_at: string;
   profile: {
     username: string;
@@ -69,6 +70,7 @@ export default function ReferralPage() {
   const [leaderboard, setLeaderboard] = useState<LeaderEntry[]>([]);
   const [leaderLoading, setLeaderLoading] = useState(true);
   const [referralCode, setReferralCode] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const referralLink = user && referralCode
     ? `${window.location.origin}/auth?ref=${encodeURIComponent(referralCode)}`
@@ -76,8 +78,8 @@ export default function ReferralPage() {
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
-    loadReferrals();
-    loadLeaderboard();
+    void loadReferrals();
+    void loadLeaderboard();
   }, [user]);
 
   const buildChart = (rows: ReferralRecord[]) => {
@@ -106,45 +108,78 @@ export default function ReferralPage() {
 
   const loadReferrals = async () => {
     if (!user) return;
-    await supabase.rpc('ensure_referral_code');
-    const [{ data: statusData, error: statusError }, { data: listData, error: listError }] = await Promise.all([
-      supabase.rpc('get_referral_status'),
-      supabase.rpc('list_referrals'),
-    ]);
-    if (!statusError && statusData?.code) setReferralCode(String(statusData.code));
-    const list = !listError && Array.isArray(listData?.items) ? listData.items as ReferralRecord[] : [];
-    setReferrals(list);
-    setTotalCredits(Number(statusData?.earned_credits ?? list.reduce((sum, row) => sum + Number(row.credits_awarded ?? 0), 0)));
-    buildChart(list);
-    setLoading(false);
+    setLoading(true);
+    setError(null);
+    try {
+      const { data: code, error: codeError } = await supabase.rpc('ensure_referral_code');
+      if (codeError) throw codeError;
+      if (code) setReferralCode(String(code));
+
+      const [{ data: statusData, error: statusError }, { data: listData, error: listError }] = await Promise.all([
+        supabase.rpc('get_referral_status'),
+        supabase.rpc('list_referrals'),
+      ]);
+      if (statusError) throw statusError;
+      if (listError) throw listError;
+
+      const list = Array.isArray(listData?.items) ? listData.items as ReferralRecord[] : [];
+      setReferrals(list);
+      setTotalCredits(Number(statusData?.earned_credits ?? 0));
+      buildChart(list);
+    } catch (err: any) {
+      setError(err?.message || 'We could not load your referral data.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const loadLeaderboard = async () => {
     setLeaderLoading(true);
-    const { data, error } = await supabase.rpc('referral_leaderboard');
-    if (!error && Array.isArray(data?.items)) setLeaderboard(data.items);
+    const { data, error: leaderboardError } = await supabase.rpc('referral_leaderboard');
+    if (!leaderboardError && Array.isArray(data?.items)) setLeaderboard(data.items);
     else setLeaderboard([]);
     setLeaderLoading(false);
   };
 
   const copyLink = async () => {
     if (!referralLink) return;
-    await navigator.clipboard.writeText(referralLink);
-    setCopied(true);
-    toast.success('Link copied to clipboard!');
-    setTimeout(() => setCopied(false), 2500);
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(referralLink);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = referralLink;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        textarea.remove();
+      }
+      setCopied(true);
+      toast.success('Referral link copied');
+      window.setTimeout(() => setCopied(false), 2500);
+    } catch {
+      toast.error('Could not copy the link. Press and hold the link to copy it.');
+    }
   };
 
   const shareLink = async () => {
-    if (navigator.share) {
-      await navigator.share({
-        title: 'Join me on TSocial!',
-        text: "Hey! I'm inviting you to TSocial. Sign up using my link and we both earn 100 credits!",
-        url: referralLink,
-      });
-    } else {
-      copyLink();
+    if (!referralLink) return;
+    const shareData = {
+      title: 'Join me on Testagram',
+      text: 'Join me on Testagram. Sign up with my referral link and we both earn 100 credits!',
+      url: referralLink,
+    };
+    try {
+      if (navigator.share && (!navigator.canShare || navigator.canShare(shareData))) {
+        await navigator.share(shareData);
+        return;
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return;
     }
+    await copyLink();
   };
 
   const steps = [
@@ -226,7 +261,17 @@ export default function ReferralPage() {
           </div>
         )}
 
-        {/* Stats hero */}
+        {error && (
+        <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4 flex items-center gap-3">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-semibold">Referral data could not load</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Your credits are safe. Try loading the referral data again.</p>
+          </div>
+          <Button variant="outline" size="sm" onClick={() => void loadReferrals()}>Retry</Button>
+        </div>
+      )}
+
+      {/* Stats hero */}
         <div className="rounded-2xl bg-gradient-to-br from-primary/15 via-purple-500/10 to-blue-500/5 border border-primary/20 p-5 relative overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-primary/10 rounded-full -translate-y-8 translate-x-8" />
           <div className="absolute bottom-0 left-0 w-16 h-16 bg-purple-500/10 rounded-full translate-y-6 -translate-x-4" />
@@ -251,6 +296,7 @@ export default function ReferralPage() {
                 </div>
                 <p className="text-2xl font-bold">{referrals.length}</p>
                 <p className="text-xs text-muted-foreground">Friends invited</p>
+                {referrals.some((r) => r.status === 'pending') && <p className="text-[10px] text-amber-500 mt-0.5">Includes pending</p>}
               </div>
               <div className="text-center p-2 rounded-xl bg-background/60">
                 <div className="flex items-center justify-center gap-1 mb-1">
@@ -462,11 +508,12 @@ export default function ReferralPage() {
                 <p className="text-xs text-muted-foreground">
                   Joined {new Date(r.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
                 </p>
+                {r.status === 'pending' && <span className="inline-flex mt-1 text-[10px] font-semibold text-amber-600 bg-amber-500/10 px-1.5 py-0.5 rounded-full">Pending reward</span>}
               </div>
 
               <div className="flex items-center gap-1 text-amber-500 font-bold text-sm flex-shrink-0">
                 <Coins className="w-3.5 h-3.5" />
-                +{r.credits_awarded ?? 100}
+                +{r.credits_awarded ?? 0}
               </div>
             </div>
           ))
