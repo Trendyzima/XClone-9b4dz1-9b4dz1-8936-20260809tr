@@ -34,7 +34,6 @@ export async function getReplyEngagement(replyId:string):Promise<ReplyEngagement
 }
 async function toggle(name:string,replyId:string){
  if(/^https:\/\//i.test(replyId)){
-   const currentlyActive=name==='testagram_toggle_reply_like'?false:name==='testagram_toggle_reply_repost'?false:false;
    if(name==='testagram_toggle_reply_like'){
      const before=await getReplyEngagement(replyId); const result=await togglePostLike(replyId,before.is_liked);
      return {active:Boolean(result.is_liked),count:Number(result.likes_count??0)};
