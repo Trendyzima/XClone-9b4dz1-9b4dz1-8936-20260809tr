@@ -37,25 +37,21 @@ export default function HistoryPage() {
     try {
       const { data, error } = await supabase
         .from('browsing_history')
-        .select(`
-          *,
-          posts (
-            *,
-            profiles (*)
-          )
-        `)
+        .select('id, entity_type, entity_id, metadata, created_at')
         .eq('user_id', user.id)
-        .eq('view_type', 'post')
+        .eq('entity_type', 'post')
         .order('created_at', { ascending: false })
         .limit(50);
 
       if (error) throw error;
 
       setHistory(data || []);
-      const viewedPosts = (data || [])
-        .map((item: any) => item.posts)
-        .filter(Boolean);
-      setPosts(viewedPosts);
+      const postIds = (data || []).map((item: any) => item.entity_id).filter(Boolean);
+      if (postIds.length) {
+        const { data: viewedPosts } = await supabase.from('posts').select('*, profiles(*)').in('id', postIds).is('deleted_at', null);
+        const byId = new Map((viewedPosts || []).map((post: any) => [post.id, post]));
+        setPosts(postIds.map((id: string) => byId.get(id)).filter(Boolean) as Post[]);
+      } else setPosts([]);
     } catch (error) {
       console.error('Error fetching history:', error);
     } finally {
