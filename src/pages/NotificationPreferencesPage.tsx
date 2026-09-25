@@ -128,6 +128,10 @@ export default function NotificationPreferencesPage() {
   const [testing, setTesting] = useState(false);
   const [pushStatus, setPushStatus] = useState<NotificationPermission | 'unsupported'>('unsupported');
   const [pushBusy, setPushBusy] = useState(false);
+  const [expandedGroup, setExpandedGroup] = useState('Social');
+  const enabledCount = Object.values(prefs).filter(p => p.in_app || p.push || p.email).length;
+  const pushEnabledCount = Object.values(prefs).filter(p => p.push).length;
+  const emailEnabledCount = Object.values(prefs).filter(p => p.email).length;
 
   useEffect(() => {
     if (!user) { navigate('/auth'); return; }
@@ -146,6 +150,7 @@ export default function NotificationPreferencesPage() {
         map[row.notif_type] = { notif_type: row.notif_type, in_app: row.in_app, push: row.push, email: row.email };
       });
       setPrefs(map);
+      setMasterMute(ALL_TYPES.length > 0 && ALL_TYPES.every(type => !map[type]?.push));
     } finally {
       setLoading(false);
     }
@@ -157,8 +162,15 @@ export default function NotificationPreferencesPage() {
     const current = prefs[type] ?? { notif_type: type, in_app: true, push: false, email: false };
     const updated = { ...current, [channel]: !current[channel] };
     setPrefs(prev => ({ ...prev, [type]: updated }));
-    await backendCapabilities.upsertNotificationPreference({ notif_type: type, in_app: updated.in_app, push: updated.push, email: updated.email });
-    setSaving('');
+    try {
+      await backendCapabilities.upsertNotificationPreference({ notif_type: type, in_app: updated.in_app, push: updated.push, email: updated.email });
+      toast.success(`${type} ${channel.replace('_', ' ')} ${updated[channel] ? 'enabled' : 'disabled'}`);
+    } catch (error) {
+      setPrefs(prev => ({ ...prev, [type]: current }));
+      toast.error(error instanceof Error ? error.message : 'Could not save notification preference');
+    } finally {
+      setSaving('');
+    }
   };
 
   const enablePush = async () => {
@@ -202,7 +214,8 @@ export default function NotificationPreferencesPage() {
     }));
     await Promise.all(rows.map(row => backendCapabilities.upsertNotificationPreference({ notif_type: row.notif_type, in_app: row.in_app, push: row.push, email: row.email })));
     setSaving('');
-    toast.success('Notification preferences saved!');
+    setMasterMute(ALL_TYPES.length > 0 && ALL_TYPES.every(type => !prefs[type]?.push));
+    toast.success('Notification preferences saved');
   };
 
   const handleTestNotification = async () => {
@@ -225,47 +238,45 @@ export default function NotificationPreferencesPage() {
         </div>
       ) : (
         <div className="max-w-2xl mx-auto p-4 space-y-5">
-          {/* Master controls */}
-          <div className="bg-gradient-to-br from-primary/8 via-primary/4 to-transparent border border-primary/15 rounded-2xl p-4">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                <Volume2 className="w-5 h-5 text-primary" />
+          {/* Notification overview */}
+          <section className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/12 via-background to-purple-500/10 p-5">
+            <div className="pointer-events-none absolute -right-12 -top-12 h-36 w-36 rounded-full bg-primary/15 blur-3xl" />
+            <div className="relative">
+              <div className="flex items-start gap-3">
+                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20"><Bell className="h-6 w-6" /></div>
+                <div className="min-w-0 flex-1"><p className="text-lg font-black">Notification Controls</p><p className="mt-1 text-sm text-muted-foreground">Choose what reaches you and where it appears.</p></div>
               </div>
-              <div className="flex-1">
-                <p className="font-bold">Notification Controls</p>
-                <p className="text-xs text-muted-foreground">Manage all notification channels at once</p>
+              <div className="mt-5 grid grid-cols-3 gap-2">
+                <div className="rounded-2xl border border-border/70 bg-background/60 p-3"><p className="text-[10px] text-muted-foreground">Categories</p><p className="mt-1 text-xl font-black">{enabledCount}/{ALL_TYPES.length}</p></div>
+                <div className="rounded-2xl border border-border/70 bg-background/60 p-3"><p className="text-[10px] text-muted-foreground">Push on</p><p className="mt-1 text-xl font-black">{pushEnabledCount}</p></div>
+                <div className="rounded-2xl border border-border/70 bg-background/60 p-3"><p className="text-[10px] text-muted-foreground">Email on</p><p className="mt-1 text-xl font-black">{emailEnabledCount}</p></div>
+              </div>
+              <div className="mt-4 grid grid-cols-2 gap-2">
+                <button onClick={toggleMasterMute} className={`flex items-center justify-center gap-2 rounded-xl border px-3 py-3 text-sm font-bold ${masterMute ? 'border-destructive/40 bg-destructive/10 text-destructive' : 'border-border bg-background/70 hover:bg-muted'}`}><BellRing className="h-4 w-4" />{masterMute ? 'Push muted' : 'Mute push'}</button>
+                <button onClick={saveAll} disabled={saving === 'all'} className="flex items-center justify-center gap-2 rounded-xl bg-primary px-3 py-3 text-sm font-bold text-primary-foreground hover:opacity-90 disabled:opacity-60">{saving === 'all' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}Save changes</button>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 mb-2">
-              <button onClick={toggleMasterMute}
-                className={`flex items-center gap-2 px-4 py-3 rounded-xl border-2 font-semibold text-sm transition-all ${masterMute ? 'border-destructive/40 bg-destructive/10 text-destructive' : 'border-border hover:border-primary/30 hover:bg-primary/5'}`}>
-                <BellRing className="w-4 h-4" />
-                {masterMute ? 'Push Muted' : 'Mute Push'}
-              </button>
-              <button onClick={saveAll} disabled={saving === 'all'}
-                className="flex items-center gap-2 px-4 py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm transition-all hover:opacity-90 disabled:opacity-60">
-                {saving === 'all' ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                Save All
-              </button>
-            </div>
-            {/* Send Test Notification */}
-            <button
-              onClick={handleTestNotification}
-              disabled={testing}
-              className="w-full flex items-center justify-center gap-2 py-2.5 mt-1 border border-border rounded-xl font-semibold text-sm hover:bg-muted transition-colors disabled:opacity-60"
-            >
-              {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 text-primary" />}
-              {testing ? 'Sending test\u2026' : 'Send Test Notification'}
-            </button>
-          </div>
+          </section>
 
-          <div className="bg-muted/30 border border-border rounded-2xl p-4">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center"><Smartphone className="w-5 h-5 text-primary" /></div>
-              <div className="flex-1"><p className="font-bold">This device</p><p className="text-xs text-muted-foreground">Receive notifications even when Testagram is closed.</p></div>
-              {pushStatus === 'granted' ? <button onClick={disablePush} disabled={pushBusy} className="px-3 py-2 rounded-xl border border-border text-sm font-semibold disabled:opacity-60">{pushBusy ? 'Working…' : 'Disable'}</button> : <button onClick={enablePush} disabled={pushBusy || pushStatus === 'unsupported'} className="px-3 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-semibold disabled:opacity-60">{pushBusy ? 'Enabling…' : 'Enable'}</button>}
+          {/* Device permission */}
+          <section className="overflow-hidden rounded-3xl border border-border bg-card">
+            <div className="flex items-center gap-3 border-b border-border p-4">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10"><Smartphone className="h-5 w-5 text-primary" /></div>
+              <div className="min-w-0 flex-1"><p className="font-bold">This device</p><p className="mt-0.5 text-xs text-muted-foreground">Receive Testagram alerts when the site is in the background.</p></div>
+              <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${pushStatus === 'granted' ? 'bg-green-500/10 text-green-600' : pushStatus === 'denied' ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}`}>{pushStatus === 'granted' ? 'Enabled' : pushStatus === 'denied' ? 'Blocked' : pushStatus === 'unsupported' ? 'Unavailable' : 'Not enabled'}</span>
             </div>
-          </div>
+            <div className="flex items-center justify-between gap-3 p-4">
+              <p className="text-xs text-muted-foreground">{pushStatus === 'denied' ? 'Browser permission is blocked. Allow notifications for Testagram in your browser settings, then return here.' : 'Push requires browser permission and an active service worker.'}</p>
+              {pushStatus === 'granted' ? <button onClick={disablePush} disabled={pushBusy} className="shrink-0 rounded-xl border border-border px-3 py-2 text-sm font-bold disabled:opacity-60">{pushBusy ? 'Working…' : 'Disable'}</button> : <button onClick={enablePush} disabled={pushBusy || pushStatus === 'unsupported' || pushStatus === 'denied'} className="shrink-0 rounded-xl bg-primary px-3 py-2 text-sm font-bold text-primary-foreground disabled:opacity-60">{pushBusy ? 'Enabling…' : 'Enable'}</button>}
+            </div>
+          </section>
+
+          {/* Test notification */}
+          <section className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10"><Zap className="h-5 w-5 text-primary" /></div>
+            <div className="min-w-0 flex-1"><p className="text-sm font-bold">Test your notifications</p><p className="mt-0.5 text-xs text-muted-foreground">Send a real test through Testagram's push pipeline.</p></div>
+            <button onClick={handleTestNotification} disabled={testing || pushStatus !== 'granted'} className="shrink-0 rounded-xl border border-border px-3 py-2 text-sm font-bold hover:bg-muted disabled:opacity-50">{testing ? 'Sending…' : 'Send test'}</button>
+          </section>
 
           {/* Groups */}
           {NOTIF_GROUPS.map(group => (
