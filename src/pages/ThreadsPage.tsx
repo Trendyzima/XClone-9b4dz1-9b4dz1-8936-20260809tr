@@ -99,7 +99,7 @@ export default function ThreadsPage() {
 
   const loadThreads=useCallback(async(reset=true)=>{
     const cacheKey=`${tab}:${user?.id??'anon'}`;
-    if(reset){setRefreshing(true);setCursor(null);setHasMore(true); const cached=threadsCache.get(cacheKey)??readThreadsCache(cacheKey); if(cached){setThreads(cached.threads??[]);setMixedItems(cached.mixed??[]);setCursor(cached.cursor??null);setHasMore(cached.hasMore!==false); setRefreshing(false);}}
+    if(reset){setRefreshing(true);setCursor(null);setHasMore(true); const cached=threadsCache.get(cacheKey)??readThreadsCache(cacheKey); if(cached){setThreads(cached.threads??[]);setMixedItems(cached.mixed??[]);setCursor(cached.cursor??null);setHasMore(cached.hasMore!==false); setLoading(false); setRefreshing(false);}}
     else {if(loadingMore||!hasMore)return;setLoadingMore(true);}
     try{
       let ids:string[]|null=null;
@@ -116,7 +116,7 @@ export default function ThreadsPage() {
         if(!ids.length){setThreads([]);setMixedItems([]);setHasMore(false);return;}
       }
 
-      const pageSize=20;
+      const pageSize=6;
       // For the default For-you surface, start independent network reads together.
       // Following/Saved still need their user-specific ID lists before querying.
       const parallelNetworkPromise = tab === 'For you'
@@ -138,6 +138,17 @@ export default function ThreadsPage() {
       const profiles:Profile[]=ownerIds.length?(((await supabase.from('profiles').select('id, username, avatar_url, verified, display_name').in('id',ownerIds)).data ?? []) as Profile[]):[];
       const byId=new Map(profiles.map((p:any)=>[p.id,p]));
       const normalizedThreads=rows.map(r=>({...r,media_urls:Array.isArray(r.media_urls)?r.media_urls:[],profiles:byId.get(r.owner_id)}));
+      // Render the first thread slice immediately. Posts/Fediverse are secondary
+      // discovery sources and must not block the primary Threads surface.
+      const initialThreadItems:MixedItem[]=normalizedThreads.map(data=>({kind:'thread' as const,data}));
+      if(reset){
+        setThreads(normalizedThreads);
+        setMixedItems(initialThreadItems);
+        setLoading(false);
+      }else{
+        setThreads(prev=>[...prev,...normalizedThreads]);
+        setMixedItems(prev=>[...prev,...initialThreadItems.filter(next=>!prev.some(old=>old.kind==='thread'&&old.data.id===next.data.id))]);
+      }
 
       const postQueryBase=supabase.from('posts')
         .select('id, content, image_url, video_url, media_urls, is_video, views_count, likes_count, reposts_count, replies_count, created_at, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,verified_tier)')
