@@ -1,14 +1,17 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
 import { PostCard } from '@/components/features/PostCard';
 import { supabase } from '@/lib/supabase';
 import { Post } from '@/types/app-types';
-import { Loader2, Twitter, Facebook, Link2, MessageCircle } from 'lucide-react';
+import { Loader2, Twitter, Facebook, Link2, MessageCircle, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
 import { useSEO, buildOgImageUrl } from '@/hooks/useSEO';
 import * as federation from '@/api/federation';
+import { listReplies, createReply, type ReplyItem } from '@/features/replies/repliesService';
+import { getInteractionCounts } from '@/services/postInteractionService';
+import { useAuth } from '@/hooks/useAuth';
 
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 
@@ -19,12 +22,18 @@ export default function PostThreadPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const { user } = useAuth();
 
   const [post, setPost] = useState(null as Post | null);
   // useSEO — placed after ALL useState/useRef declarations below
 
   const [loading, setLoading] = useState(true);
   const [copySuccess, setCopySuccess] = useState(false);
+  const [replies, setReplies] = useState<ReplyItem[]>([]);
+  const [replyText, setReplyText] = useState('');
+  const [replySending, setReplySending] = useState(false);
+  const [replyLoading, setReplyLoading] = useState(false);
+  const [counts, setCounts] = useState({ likes: 0, replies: 0, reposts: 0, quotes: 0, views: 0 });
 
   // Dynamic SEO — injected once post loads, upgrades to og-image edge function card
   useSEO({
@@ -137,12 +146,39 @@ export default function PostThreadPage() {
     if (postId) void fetchPost();
   }, [postId]);
 
-  // Deep links such as /post/:id?replies=1 open the standalone conversation
-  // immediately, so shared reply links never strand the user on a summary page.
-  useEffect(() => {
-    if (post && searchParams.get('replies') === '1') {
-      openReplies();
+  const loadReplies = useCallback(async () => {
+    if (!postId || /^https:\/\//i.test(postId)) return;
+    setReplyLoading(true);
+    try {
+      const [result, liveCounts] = await Promise.all([listReplies(postId, 20), getInteractionCounts(postId)]);
+      setReplies(result.items ?? []);
+      setCounts(liveCounts);
+    } catch (error) {
+      console.warn('[post-thread] replies unavailable', error);
+    } finally {
+      setReplyLoading(false);
     }
+  }, [postId]);
+
+  useEffect(() => { void loadReplies(); }, [loadReplies]);
+
+  const submitReply = async () => {
+    if (!postId || !user || !replyText.trim()) return;
+    setReplySending(true);
+    try {
+      await createReply(postId, replyText.trim());
+      setReplyText('');
+      await loadReplies();
+      toast({ title: 'Reply posted' });
+    } catch (error) {
+      toast({ title: 'Reply failed', description: error instanceof Error ? error.message : 'Could not post reply', variant: 'destructive' });
+    } finally {
+      setReplySending(false);
+    }
+  };
+
+  useEffect(() => {
+    if (post && searchParams.get('replies') === '1') openReplies();
   }, [post?.id, searchParams]);
 
   const openReplies = () => {
@@ -211,20 +247,50 @@ export default function PostThreadPage() {
       <TopBar title="Post" showBack />
       <PostThreadAdBanner />
 
-      <div className="border-b border-border p-4 bg-muted/5">
-        <button
-          onClick={openReplies}
-          className="w-full flex items-center justify-between gap-3 rounded-2xl border border-border bg-background px-4 py-3 text-left hover:bg-muted/40 transition-colors"
-        >
+      <PostCard post={post} onUpdate={() => { void loadReplies(); }} />
+
+      <section className="border-b border-border bg-background">
+        <div className="px-4 py-3 flex items-center justify-between">
           <div>
-            <p className="font-semibold">Replies</p>
-            <p className="text-sm text-muted-foreground">
-              View {post.replies_count ?? 0} {post.replies_count === 1 ? 'reply' : 'replies'} · Join the conversation
-            </p>
+            <h2 className="font-bold">Replies</h2>
+            <p className="text-xs text-muted-foreground">{counts.replies} {counts.replies === 1 ? 'reply' : 'replies'}</p>
           </div>
-          <MessageCircle className="w-5 h-5 text-muted-foreground shrink-0" />
-        </button>
-      </div>
+          <button onClick={openReplies} className="text-xs font-semibold text-primary">Open all replies</button>
+        </div>
+        {user && !/^https:\/\//i.test(postId ?? '') && (
+          <div className="px-4 pb-3 flex gap-2">
+            <input value={replyText} onChange={e => setReplyText(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); void submitReply(); } }}
+              placeholder="Write a reply…" aria-label="Write a reply"
+              className="flex-1 rounded-2xl border border-border bg-muted/30 px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary/20" />
+            <button onClick={() => void submitReply()} disabled={!replyText.trim() || replySending}
+              className="rounded-full bg-primary text-primary-foreground px-4 disabled:opacity-40">
+              {replySending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            </button>
+          </div>
+        )}
+        {replyLoading ? (
+          <div className="py-8 flex justify-center"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div>
+        ) : replies.length === 0 ? (
+          <div className="px-4 py-8 text-center text-sm text-muted-foreground">No replies yet. Be the first to reply.</div>
+        ) : (
+          <div>{replies.slice(0, 3).map(reply => (
+            <button key={reply.id} onClick={() => navigate('/post/' + postId + '/reply/' + reply.id)}
+              className="w-full text-left px-4 py-3 border-t border-border hover:bg-muted/20">
+              <div className="flex gap-3">
+                <div className="w-8 h-8 rounded-full bg-muted overflow-hidden shrink-0">
+                  {reply.profile?.avatar_url && <img src={reply.profile.avatar_url} alt="" className="w-full h-full object-cover" />}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">@{reply.profile?.username ?? 'user'}</p>
+                  <p className="text-sm mt-1 whitespace-pre-wrap break-words">{reply.content}</p>
+                </div>
+              </div>
+            </button>
+          ))}</div>
+        )}
+        {replies.length > 3 && <button onClick={openReplies} className="w-full py-3 text-sm font-semibold text-primary border-t border-border">View all {counts.replies} replies</button>}
+      </section>
     </div>
   );
 }
