@@ -754,13 +754,6 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
           {/* Embeds — YouTube, Spotify, SoundCloud, etc. */}
           {!post.is_video && <EmbedRenderer content={post.content} />}
 
-                >
-                  <span>{emoji}</span>
-                  <span className="font-medium">{formatNumber(getReactionCount(emoji))}</span>
-                </button>
-              ))}
-            </div>
-          )}
 
           {/* Views count with Engagement Tooltip */}
           <div className="relative inline-block mt-2">
