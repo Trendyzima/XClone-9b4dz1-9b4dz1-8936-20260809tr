@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Loader2, Send } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { getReplyChain, createReply, type ReplyItem } from '@/features/replies/repliesService';
