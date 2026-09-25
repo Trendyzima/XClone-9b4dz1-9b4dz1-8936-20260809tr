@@ -78,6 +78,7 @@ function GlobalSearchResults({data,navigate}:{data:any;navigate:any}) {
  const groups=[
   ['People',data.users||[],(x:any)=>navigate('/profile/'+x.username)],
   ['Hashtags',data.hashtags||[],(x:any)=>navigate('/hashtag/'+x.tag)],
+  ['Threads',data.threads||[],(x:any)=>navigate('/thread/'+x.id)],
   ['Communities',data.communities||[],(x:any)=>navigate('/c/'+(x.slug||x.name))],
   ['Spaces',data.spaces||[],(x:any)=>navigate('/spaces/'+x.id)],
   ['Trending',data.trending||[],(x:any)=>navigate('/trending/'+encodeURIComponent(x.topic))]
