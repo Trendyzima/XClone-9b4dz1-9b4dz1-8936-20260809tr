@@ -110,3 +110,28 @@ as $$
 $$;
 revoke all on function public.get_federated_posts_for_hashtag(uuid,integer) from public;
 grant execute on function public.get_federated_posts_for_hashtag(uuid,integer) to anon, authenticated;
+
+create or replace function public.get_federated_posts_for_hashtag_json(
+  p_hashtag_id uuid,
+  p_limit integer default 30
+)
+returns jsonb
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select coalesce(jsonb_agg(to_jsonb(x) order by x.published_at desc nulls last, x.created_at desc), '[]'::jsonb)
+  from (
+    select fo.*
+    from public.federated_hashtag_mentions hm
+    join public.federated_objects fo on fo.id = hm.object_id
+    where hm.hashtag_id = p_hashtag_id
+      and fo.deleted_at is null
+      and fo.tombstone = false
+    order by fo.published_at desc nulls last, fo.created_at desc
+    limit least(greatest(coalesce(p_limit,30),1),100)
+  ) x;
+$$;
+revoke all on function public.get_federated_posts_for_hashtag_json(uuid,integer) from public;
+grant execute on function public.get_federated_posts_for_hashtag_json(uuid,integer) to anon, authenticated;
