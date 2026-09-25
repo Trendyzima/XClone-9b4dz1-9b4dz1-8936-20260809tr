@@ -87,6 +87,10 @@ export async function boost(postId: string): Promise<any> { return api('/boost',
 export async function unboost(postId: string): Promise<any> { return api('/unboost', 'POST', { post_id: postId }); }
 export async function favorite(postId: string): Promise<any> { return api('/favorite', 'POST', { post_id: postId }); }
 export async function unfavorite(postId: string): Promise<any> { return api('/unfavorite', 'POST', { post_id: postId }); }
+export async function resolveRemoteActor(actorUri: string): Promise<any> {
+  if (!/^https?:\/\//i.test(actorUri)) throw new Error('Remote actor must be an ActivityPub URL');
+  return api('/federated-actor', 'GET', undefined, { actor_uri: actorUri });
+}
 export async function getFederatedObject(objectUri: string): Promise<any> {
   if (!/^https:\/\//i.test(objectUri)) throw new Error('Federated object must be an ActivityPub URI');
   return api('/federated-object', 'GET', undefined, { object_uri: objectUri });
