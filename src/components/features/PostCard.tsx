@@ -605,7 +605,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     };
     if (navigator.share) {
       try {
-        await navigator.share({ title: `@${post.user_profiles?.username} on Tsocial`, text: shareText, url });
+        await navigator.share({ title: `@${authorUsername} on Tsocial`, text: shareText, url });
         void trackShare();
       } catch (err: any) {
         if (err?.name !== 'AbortError') setShowShareDialog(true);
@@ -622,9 +622,9 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   };
 
   const federatedProfilePath = () => {
-    const actor = (post as any).actor_uri || (post as any).remote_account?.actor_uri || (post.user_profiles as any)?.actor_uri || '';
+    const actor = (post as any).actor_uri || (post as any).remote_account?.actor_uri || authorProfile.actor_uri || '';
     // Merge cached/local identity with the remote account so partial remote data never erases fields already present on the post.
-    const profile = { ...((post.user_profiles as any) || {}), ...((post as any).remote_account || {}) };
+    const profile = { ...authorProfile, ...((post as any).remote_account || {}) };
     const username = String(profile.preferredUsername || profile.username || profile.acct || '').replace(/^@/, '');
     let domain = String(profile.domain || '');
     if (!domain && actor) {
@@ -680,10 +680,10 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       <div className="flex space-x-3">
         <div
           className="w-10 h-10 rounded-full bg-muted flex-shrink-0 overflow-hidden cursor-pointer"
-          onClick={(e) => { e.stopPropagation(); navigate(isFederatedPost ? federatedProfilePath() : `/profile/${post.user_profiles?.username}`); }}
+          onClick={(e) => { e.stopPropagation(); navigate(isFederatedPost ? federatedProfilePath() : `/profile/${authorUsername}`); }}
         >
           {authorAvatarUrl ? (
-            <img src={post.user_profiles.avatar_url} alt={authorDisplayName || authorUsername || 'User'} className="w-full h-full object-cover" />
+            <img src={authorAvatarUrl} alt={authorDisplayName || authorUsername || 'User'} className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-sm font-semibold">
               {authorDisplayName[0]?.toUpperCase() || authorUsername[0]?.toUpperCase() || '?'}
@@ -1141,7 +1141,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
               <div className="w-10 h-10 rounded-full overflow-hidden bg-muted">
                 {post.user_profiles?.avatar_url
                   ? <img src={post.user_profiles.avatar_url} alt="" className="w-full h-full object-cover" />
-                  : <div className="w-full h-full flex items-center justify-center font-bold text-sm">{post.user_profiles?.username?.[0]?.toUpperCase()}</div>}
+                  : <div className="w-full h-full flex items-center justify-center font-bold text-sm">{authorUsername?.[0]?.toUpperCase() || '?'}</div>}
               </div>
               <div>
                 <p className="font-bold">Tip @{post.user_profiles?.username}</p>
