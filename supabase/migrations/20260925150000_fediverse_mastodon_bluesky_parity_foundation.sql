@@ -1,4 +1,16 @@
--- Shared timestamp trigger used by Fediverse preference tables.\ncreate or replace function public.set_updated_at()\nreturns trigger\nlanguage plpgsql\nset search_path = public\nas $$\nbegin\n  new.updated_at = now();\n  return new;\nend;\n$$;\n\ncreate table if not exists public.fediverse_domain_blocks (
+-- Shared timestamp trigger used by Fediverse preference tables.
+create or replace function public.set_updated_at()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+create table if not exists public.fediverse_domain_blocks (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
   domain text not null,
