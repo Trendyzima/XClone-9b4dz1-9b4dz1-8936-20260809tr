@@ -15,6 +15,7 @@ import { FeedAdCard } from '@/components/features/FeedAdCard';
 import { DynamicAd } from '@/components/features/DynamicAd';
 import * as federation from '@/api/federation';
 import { FederatedHashtagDiscovery } from '@/components/features/FederatedOrganicDiscovery';
+import { FederatedHashtagDiscovery } from '@/components/features/FederatedOrganicDiscovery';
 import { toggleThreadLike, getThreadLikeStates } from '@/features/threadLikes/threadLikesService';
 import { toggleThreadRepost, getThreadRepostStates } from '@/features/threadReposts/threadRepostsService';
 
