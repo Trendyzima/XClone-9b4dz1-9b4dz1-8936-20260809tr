@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useSEO } from '@/hooks/useSEO';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -15,7 +15,6 @@ import {
   TrendingUp,
   Calendar,
   Trophy,
-  Crown,
   Loader2,
   BadgeCheck,
 } from 'lucide-react';
