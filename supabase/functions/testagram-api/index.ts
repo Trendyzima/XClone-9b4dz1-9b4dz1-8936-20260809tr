@@ -243,14 +243,15 @@ if(path==="/interaction-counts"&&method==="GET"){
   if(!target)return json({error:"post_id required"},400);
 
   if(/^https:\/\//i.test(target)){
-    const [object,ledger,reactions,replies,quotes,views,bookmarks] = await Promise.all([
+    const [object,ledger,reactions,replies,quotes,views,bookmarks,replyShares] = await Promise.all([
       admin.from("federated_objects").select("like_count,announce_count,reply_count,quote_count,view_count").eq("uri",target).maybeSingle(),
       admin.from("federated_interactions").select("interaction_type,active,user_id").eq("object_uri",target),
       admin.from("federated_reactions").select("content,user_id").eq("object_uri",target).eq("reaction_type","reaction"),
       admin.from("federated_replies").select("id",{count:"exact",head:true}).eq("object_uri",target),
       admin.from("federated_quotes").select("id",{count:"exact",head:true}).eq("object_uri",target),
       admin.from("federated_post_views").select("id",{count:"exact",head:true}).eq("object_uri",target),
-      admin.from("federated_bookmarks").select("id",{count:"exact",head:true}).eq("object_uri",target)
+      admin.from("federated_bookmarks").select("id",{count:"exact",head:true}).eq("object_uri",target),
+      admin.from("federated_reply_shares").select("id",{count:"exact",head:true}).eq("object_uri",target)
     ]);
     const remote = object.data ?? {};
     let remoteLikes=Number(remote.like_count||0), remoteReposts=Number(remote.announce_count||0);
@@ -275,7 +276,7 @@ if(path==="/interaction-counts"&&method==="GET"){
       replies:Math.max(Number(replies.count||0),Number(remote.reply_count||0)),
       quotes:Math.max(Number(quotes.count||0),Number(remote.quote_count||0)),
       views:Math.max(Number(views.count||0),Number(remote.view_count||0)),
-      shares:0,
+      shares:Number(replyShares.count||0),
       bookmarks:Number(bookmarks.count||0),
       reactions:reactionCounts,
       reaction_total:Object.values(reactionCounts).reduce((sum:number,n:any)=>sum+Number(n||0),0),
@@ -367,6 +368,24 @@ if(path==="/bookmark-state"&&method==="GET"){
   const r=await admin.from("federated_bookmarks").select("id").eq("user_id",u.id).eq("object_uri",target).maybeSingle();
   if(r.error)return json({error:r.error.message},400);
   return json({bookmarked:Boolean(r.data)});
+}
+if(path==="/federated-reply-share"&&method==="POST"){
+  const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
+  const target=String(body.object_uri||body.objectUri||body.reply_id||body.replyId||"").trim();
+  if(!/^https:\/\//i.test(target))return json({error:"Remote reply share requires an ActivityPub object URI"},400);
+  const r=await admin.from("federated_reply_shares").upsert({user_id:u.id,object_uri:target},{onConflict:"user_id,object_uri"}).select("id,object_uri,created_at").single();
+  if(r.error)return json({error:"Failed to persist reply share",details:r.error.message},500);
+  const count=await admin.from("federated_reply_shares").select("id",{count:"exact",head:true}).eq("object_uri",target);
+  return json({ok:true,active:true,shares:Number(count.count||0),share:r.data},200);
+}
+if(path==="/federated-reply-share"&&method==="DELETE"){
+  const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
+  const target=String(params.object_uri||params.objectUri||"").trim();
+  if(!/^https:\/\//i.test(target))return json({error:"Remote reply share requires an ActivityPub object URI"},400);
+  const r=await admin.from("federated_reply_shares").delete().eq("user_id",u.id).eq("object_uri",target);
+  if(r.error)return json({error:r.message},400);
+  const count=await admin.from("federated_reply_shares").select("id",{count:"exact",head:true}).eq("object_uri",target);
+  return json({ok:true,active:false,shares:Number(count.count||0)},200);
 }
 if(path==="/federated-replies"&&method==="GET"){
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
