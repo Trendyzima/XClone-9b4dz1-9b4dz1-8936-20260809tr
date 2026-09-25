@@ -12,7 +12,7 @@ import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import * as federation from '@/api/federation';
 import { Loader2, Sparkles, Users, ShoppingBag, BarChart3, RefreshCw, ArrowRight } from 'lucide-react';
 import { readHomeFeedCache, writeHomeFeedCache, saveHomeScroll, mergeHomeFeedItems } from '@/lib/homeFeedCache';
-import { FederatedOrganicCard } from '@/components/features/FederatedOrganicDiscovery';
+import { FederatedOrganicCard, FederatedOrganicInjection } from '@/components/features/FederatedOrganicDiscovery';
 
 type Tab = 'all'|'following'|'explore'|'media'|'communities'|'polls'|'shopping'|'federated';
 type Item = { type:'post'|'thread'|'community'|'poll'|'product'|'fedpost'; data:any };
@@ -33,7 +33,7 @@ export default function HomeHubPage(){
 
   useSEO({title:'Home — Testagram',description:'One home feed for posts, videos, communities, polls, shopping and the Fediverse on Testagram.',url:'/',type:'website'});
 
-  const fetchTab=useCallback(async(target:Tab,pageNum=0,cursorOverride: string|null = null):Promise<Item[]>=>{
+  const fetchTab=useCallback(async(target:Tab,pageNum=0,cursorOverride: string|null = null,includeFederated=true):Promise<Item[]>=>{
     const offset=pageNum*12;
     if(target==='communities'){
       const {data,error}=await supabase.from('communities').select('*').order('member_count',{ascending:false}).range(0,11);
@@ -53,7 +53,7 @@ export default function HomeHubPage(){
 
     if(target==='all'){
       const token = (await supabase.auth.getSession()).data.session?.access_token;
-      const params = new URLSearchParams({ limit: '6' });
+      const params = new URLSearchParams({ limit: '6', includeFederated: includeFederated ? '1' : '0' });
       if (cursorOverride) params.set('before', cursorOverride);
       const response = await fetch('/api/home-feed?'+params.toString(), {
         headers: token ? { Authorization: 'Bearer '+token } : {},
@@ -112,7 +112,7 @@ export default function HomeHubPage(){
       return;
     }
     try{
-      const next=await fetchTab('all',0);
+      const next=await fetchTab('all',0,null,background);
       const previous=feedBufferRef.current;
       const previousIds=new Set(previous.map(x=>String(x.data?.id??x.data?.uri??'')));
       const fresh=next.filter(x=>!previousIds.has(String(x.data?.id??x.data?.uri??'')));
@@ -141,9 +141,15 @@ export default function HomeHubPage(){
         cacheCursorRef.current=cached.cursor;nextCursorRef.current=cached.cursor;
         setHasMore(Boolean(cached.cursor)||cached.items.length>6);setLoading(false);setCacheHydrated(true);
         if(cached.scrollY>0)requestAnimationFrame(()=>window.scrollTo({top:cached.scrollY,behavior:'instant' as ScrollBehavior}));
-      }else {setCacheHydrated(true);void load('all');}
+      }else {
+        setCacheHydrated(true);
+        void load('all').then(()=>{ window.setTimeout(()=>void load('all',true),600); });
+      }
       if(cached?.items?.length)void load('all',true);
-    }).catch(()=>{setCacheHydrated(true);void load('all');});
+    }).catch(()=>{
+      setCacheHydrated(true);
+      void load('all').then(()=>{ window.setTimeout(()=>void load('all',true),600); });
+    });
     const onScroll=()=>{window.clearTimeout(scrollTimer.current);scrollTimer.current=window.setTimeout(()=>saveHomeScroll(window.scrollY,items[0]?.data?.id??null),250);};
     window.addEventListener('scroll',onScroll,{passive:true});
     const scheduleRefresh=()=>{window.clearTimeout(refreshTimerRef.current);refreshTimerRef.current=window.setTimeout(()=>void load('all',true),1500);};
@@ -209,6 +215,7 @@ export default function HomeHubPage(){
         {item.type==='community'&&<CommunityCard community={item.data} onOpen={()=>navigate('/c/'+item.data.name)}/>}
         {item.type==='poll'&&<PollCard poll={item.data} onOpen={()=>navigate('/polls')}/>}
         {item.type==='product'&&<ProductCard product={item.data} onOpen={()=>navigate('/p/'+item.data.id)}/>}
+        {tab==='all'&&i>0&&i%4===0&&<FederatedOrganicInjection surface="home" />}
       </div>)}
       {loadingMore&&<div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary"/></div>}
       {!loadingMore&&!hasMore&&<div className="py-10 text-center text-xs text-muted-foreground">You’re all caught up.</div>}</div>}
