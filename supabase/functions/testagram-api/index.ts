@@ -235,7 +235,7 @@ if(path==="/interaction-counts"&&method==="GET"){
     const remote = object.data ?? {};
     let remoteLikes=0, remoteReposts=0;
     try {
-      const rr=await transport({user_id:u.id,operation:"inspect",target});
+      const rr=await transport({user_id:u?.id||null,operation:"inspect",target});
       const d=rr.data();
       remoteLikes=Number(d?.counts?.likes||0);
       remoteReposts=Number(d?.counts?.reposts||0);
@@ -246,7 +246,7 @@ if(path==="/interaction-counts"&&method==="GET"){
       if(row.active&&row.interaction_type==="repost"){reposts++; viewerReposted=true;}
     }
     const reactionCounts:any={}; const userReactions:string[]=[];
-    for(const row of reactions.data||[]){const k=String(row.emoji||"");if(k)reactionCounts[k]=(reactionCounts[k]||0)+1;if(String(row.user_id)===String(u.id)&&k)userReactions.push(k);}
+    for(const row of reactions.data||[]){const k=String(row.emoji||"");if(k)reactionCounts[k]=(reactionCounts[k]||0)+1;if(u && String(row.user_id)===String(u.id)&&k)userReactions.push(k);}
     return json({
       likes:Math.max(likes,Number(remote.like_count||0)),
       reposts:Math.max(reposts,Number(remote.announce_count||0)),
@@ -275,7 +275,7 @@ if(path==="/interaction-counts"&&method==="GET"){
     admin.from("post_analytics").select("shares").eq("post_id",target).maybeSingle()
   ]);
   const reactionCounts:any={}; const userReactions:string[]=[];
-  for(const row of reactions.data||[]){const k=String(row.emoji||"");if(k)reactionCounts[k]=(reactionCounts[k]||0)+1;if(String(row.user_id)===String(u.id)&&k)userReactions.push(k);}
+  for(const row of reactions.data||[]){const k=String(row.emoji||"");if(k)reactionCounts[k]=(reactionCounts[k]||0)+1;if(u && String(row.user_id)===String(u.id)&&k)userReactions.push(k);}
   const heartCount=Number(reactionCounts["❤️"]||0);
   const repostCount=Number(reposts.data?.length||0);
   const quoteFromReposts=(reposts.data||[]).filter((r:any)=>Boolean(r.quote)).length;
