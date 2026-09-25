@@ -57,6 +57,7 @@ export async function resolveFederatedReplies(repliesRef: any, getObject: (uri: 
         ? collection.items
         : [];
     // Many fediverse servers return a paged collection (or compact reply IDs).
+    // Keep this hydration bounded so a single post cannot fan out unbounded requests.
     // Follow the first page when the collection itself contains no members, then
     // hydrate compact IDs into full ActivityPub objects before rendering them.
     if (!entries.length) {
