@@ -13,6 +13,7 @@ import { Radio, Mic, MicOff, Users, X, Loader2, Headphones } from 'lucide-react'
 import { formatNumber } from '@/lib/utils';
 import { LiveAudioBroadcaster } from './LiveAudioBroadcaster';
 import { LiveAudioPlayer } from './LiveAudioPlayer';
+import { useEffect as useRoomEffect, useRef as useRoomRef } from 'react';
 import { SpaceRecordingsPlaylist } from './SpaceRecordingsPlaylist';
 
 interface JoinSpaceDialogProps {
@@ -63,6 +64,30 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
       setLoading(false);
     }
   };
+
+
+  const liveKitRef = useRoomRef<any>(null);
+  useRoomEffect(() => {
+    if (!joined || !space?.is_live || !spaceId) return;
+    let cancelled = false;
+    let room: any = null;
+    const connect = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('livekit-space-token', { body: { space_id: spaceId } });
+        if (error || !data?.ok || !data?.data?.token) throw error || new Error(data?.error?.message || 'Live audio connection unavailable');
+        const mod = await import('livekit-client');
+        room = new mod.Room({ adaptiveStream: true, dynacast: true });
+        await room.connect(data.data.url, data.data.token);
+        if (cancelled) { await room.disconnect(); return; }
+        liveKitRef.current = room;
+      } catch (e) {
+        console.error('LiveKit connection failed', e);
+        if (!cancelled) toast({ title: 'Audio connection unavailable', description: 'You are still joined; retrying audio is available when the room is ready.', variant: 'destructive' });
+      }
+    };
+    void connect();
+    return () => { cancelled = true; void room?.disconnect(); liveKitRef.current = null; };
+  }, [joined, space?.is_live, spaceId]);
 
   const handleJoin = async () => {
     if (!user || !spaceId) return;
