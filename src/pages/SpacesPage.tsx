@@ -19,6 +19,7 @@ import { ManageSpaceDialog } from '@/components/features/ManageSpaceDialog';
 import { toast } from 'sonner';
 import { useSEO } from '@/hooks/useSEO';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
+import { CommunitySpotlightStrip } from '@/components/features/CommunitySpotlightStrip';
 function SpacesAdBanner() { return <PageAdBanner />; }
 
 // Module-level constants — esbuild-safe
