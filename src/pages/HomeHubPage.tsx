@@ -12,7 +12,7 @@ import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import * as federation from '@/api/federation';
 import { Loader2, Sparkles, Users, ShoppingBag, BarChart3, RefreshCw, ArrowRight } from 'lucide-react';
 import { readHomeFeedCache, writeHomeFeedCache, saveHomeScroll, mergeHomeFeedItems } from '@/lib/homeFeedCache';
-import { FederatedOrganicCard } from '@/components/features/FederatedOrganicDiscovery';
+import { FederatedOrganicCard, FederatedOrganicInjection } from '@/components/features/FederatedOrganicDiscovery';
 
 type Tab = 'all'|'following'|'explore'|'media'|'communities'|'polls'|'shopping'|'federated';
 type Item = { type:'post'|'thread'|'community'|'poll'|'product'|'fedpost'; data:any };
@@ -209,6 +209,7 @@ export default function HomeHubPage(){
         {item.type==='community'&&<CommunityCard community={item.data} onOpen={()=>navigate('/c/'+item.data.name)}/>}
         {item.type==='poll'&&<PollCard poll={item.data} onOpen={()=>navigate('/polls')}/>}
         {item.type==='product'&&<ProductCard product={item.data} onOpen={()=>navigate('/p/'+item.data.id)}/>}
+        {tab==='all'&&i>0&&i%4===0&&<FederatedOrganicInjection surface="home" />}
       </div>)}
       {loadingMore&&<div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary"/></div>}
       {!loadingMore&&!hasMore&&<div className="py-10 text-center text-xs text-muted-foreground">You’re all caught up.</div>}</div>}
