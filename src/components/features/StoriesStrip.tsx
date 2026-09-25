@@ -645,10 +645,11 @@ export function StoriesStrip() {
   const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? []);
     if (!user || files.length === 0) return;
+    if (files.length > 10) { toast.error('You can add up to 10 story files at once.'); e.target.value = ''; return; }
     const invalid = files.find(file => !file.type.startsWith('image/') && !file.type.startsWith('video/'));
     if (invalid) { toast.error(`Unsupported media type: ${invalid.name}`); e.target.value = ''; return; }
-    const tooLarge = files.find(file => file.size > 500 * 1024 * 1024);
-    if (tooLarge) { toast.error(`${tooLarge.name} is larger than 500 MiB`); e.target.value = ''; return; }
+    const tooLarge = files.find(file => file.size > 20 * 1024 * 1024);
+    if (tooLarge) { toast.error(`${tooLarge.name} is larger than 20 MiB`); e.target.value = ''; return; }
 
     if (pendingPreviewUrl) URL.revokeObjectURL(pendingPreviewUrl);
     setPendingFiles(files);
