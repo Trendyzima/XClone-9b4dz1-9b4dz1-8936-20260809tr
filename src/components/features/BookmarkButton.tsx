@@ -47,12 +47,14 @@ export function BookmarkButton({ postId, onChange }: BookmarkButtonProps) {
       if (previous) {
         if (/^https:\/\//i.test(postId)) await unbookmarkRemote(postId);
         else await backendCapabilities.removeBookmark(postId);
-        onChange?.(false);\n        toast.success('Removed from bookmarks');
+        onChange?.(false);
+        toast.success('Removed from bookmarks');
       } else {
         if (/^https:\/\//i.test(postId)) await bookmarkRemote(postId);
         else await backendCapabilities.bookmarkPost(postId);
         toast.success('Added to bookmarks');
-        onChange?.(true);\n        updateInterestSignal(user.id, postId, 'bookmark').catch(() => {});
+        onChange?.(true);
+        updateInterestSignal(user.id, postId, 'bookmark').catch(() => {});
       }
     } catch (error: any) {
       setIsBookmarked(previous);
