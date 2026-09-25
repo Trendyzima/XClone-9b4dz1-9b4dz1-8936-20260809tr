@@ -37,7 +37,6 @@ export default function ProfileSectionPage({section: sectionProp}: {section?: Se
     }catch(e){if(!cancelled){setError(e instanceof Error?e.message:'Unable to load this section');setItems([]);setLoading(false);}}
   })();return()=>{cancelled=true}},[username,section,retryKey]);
 
-  if(loading)return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-7 h-7 animate-spin text-primary"/></div>;
   const loadMoreReplies=useCallback(async()=>{
     if(section!=='replies'||!profile?.id||!nextCursor||loadingMore)return;
     setLoadingMore(true);
@@ -46,6 +45,8 @@ export default function ProfileSectionPage({section: sectionProp}: {section?: Se
     finally{setLoadingMore(false);}
   },[section,profile?.id,nextCursor,loadingMore]);
   useEffect(()=>{if(section!=='replies'||!nextCursor||!loadMoreRef.current)return;const el=loadMoreRef.current;const observer=new IntersectionObserver(entries=>{if(entries[0]?.isIntersecting)void loadMoreReplies()},{rootMargin:'500px'});observer.observe(el);return()=>observer.disconnect();},[section,nextCursor,loadMoreReplies]);
+
+  if(loading)return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-7 h-7 animate-spin text-primary"/></div>;
 
   if(!profile)return <div className="p-8 text-center text-muted-foreground">{error??'Profile not found'}</div>;
   const base='/profile/'+encodeURIComponent(profile.username);
