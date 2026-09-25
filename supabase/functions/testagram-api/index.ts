@@ -198,6 +198,18 @@ if(path==="/federated-reaction-counts"&&method==="GET"){
   const counts:any={}; for(const row of r.data||[]){const k=String(row.content||""); if(k)counts[k]=(counts[k]||0)+1;}
   return json({counts},200);
 }
+if(path==="/federated-actor"&&method==="GET"){
+  const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
+  const target=String(params.actor_uri||params.actorUri||"").trim();
+  if(!/^https?:\/\//i.test(target))return json({error:"actor_uri must be an ActivityPub actor URL"},400);
+  try{
+    const r=await transport({user_id:u.id,operation:"resolve",target});
+    const data=r.data();
+    return json(data,r.status);
+  }catch(error){
+    return json({ok:false,error:error instanceof Error?error.message:"Remote actor unavailable"},502);
+  }
+}
 if(path==="/federated-object"&&method==="GET"){
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
   const target=String(params.object_uri||params.objectUri||"").trim();
