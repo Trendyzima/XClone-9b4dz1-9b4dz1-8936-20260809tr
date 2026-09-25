@@ -190,7 +190,7 @@ if((path==="/federated/reactions"||path==="/federated-reaction-state")&&method==
 if(path==="/federated-reaction-counts"&&method==="GET"){
   const target=String(params.object_uri||params.objectUri||"").trim();
   if(!/^https:\/\//i.test(target))return json({error:"object_uri must be a remote ActivityPub object"},400);
-  const r=await admin.from("federated_emoji_reactions").select("emoji").eq("object_uri",target);
+  const r=await admin.from("federated_emoji_reactions").select("emoji,user_id").eq("object_uri",target);
   if(r.error)return json({error:r.error.message},400);
   const counts:any={}; for(const row of r.data||[]){const k=String(row.emoji||""); if(k)counts[k]=(counts[k]||0)+1;}
   return json({counts},200);
@@ -245,8 +245,8 @@ if(path==="/interaction-counts"&&method==="GET"){
       if(row.active&&row.interaction_type==="like"){likes++; viewerLiked=true;}
       if(row.active&&row.interaction_type==="repost"){reposts++; viewerReposted=true;}
     }
-    const reactionCounts:any={};
-    for(const row of reactions.data||[]){const k=String(row.emoji||"");if(k)reactionCounts[k]=(reactionCounts[k]||0)+1;}
+    const reactionCounts:any={}; const userReactions:string[]=[];
+    for(const row of reactions.data||[]){const k=String(row.emoji||"");if(k)reactionCounts[k]=(reactionCounts[k]||0)+1;if(String(row.user_id)===String(u.id)&&k)userReactions.push(k);}
     return json({
       likes:Math.max(likes,Number(remote.like_count||0)),
       reposts:Math.max(reposts,Number(remote.announce_count||0)),
@@ -259,27 +259,27 @@ if(path==="/interaction-counts"&&method==="GET"){
       reaction_total:Object.values(reactionCounts).reduce((sum:number,n:any)=>sum+Number(n||0),0),
       is_liked:viewerLiked,
       is_reposted:viewerReposted,
-      is_bookmarked:false
+      is_bookmarked:false,
+      user_reactions:userReactions
     },200);
   }
 
   if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(target))return json({error:"post_id must be a local UUID or remote ActivityPub URI"},400);
   const [post,reactions,reposts,replies,quotes,bookmarks,analytics] = await Promise.all([
     admin.from("posts").select("views_count,likes_count,reposts_count,replies_count,quoted_post_id").eq("id",target).maybeSingle(),
-    admin.from("post_reactions").select("emoji").eq("post_id",target),
+    admin.from("post_reactions").select("emoji,user_id").eq("post_id",target),
     admin.from("reposts").select("id,quote").eq("post_id",target),
     admin.from("replies").select("id",{count:"exact",head:true}).eq("post_id",target),
     admin.from("posts").select("id",{count:"exact",head:true}).eq("quoted_post_id",target),
     admin.from("bookmarks").select("id",{count:"exact",head:true}).eq("post_id",target),
     admin.from("post_analytics").select("shares").eq("post_id",target).maybeSingle()
   ]);
-  const reactionCounts:any={};
-  for(const row of reactions.data||[]){const k=String(row.emoji||"");if(k)reactionCounts[k]=(reactionCounts[k]||0)+1;}
+  const reactionCounts:any={}; const userReactions:string[]=[];
+  for(const row of reactions.data||[]){const k=String(row.emoji||"");if(k)reactionCounts[k]=(reactionCounts[k]||0)+1;if(String(row.user_id)===String(u.id)&&k)userReactions.push(k);}
   const heartCount=Number(reactionCounts["❤️"]||0);
   const repostCount=Number(reposts.data?.length||0);
   const quoteFromReposts=(reposts.data||[]).filter((r:any)=>Boolean(r.quote)).length;
   const quoteCount=Math.max(Number(quotes.count||0),quoteFromReposts);
-  const viewerLiked=(reactions.data||[]).some((r:any)=>r.emoji==="❤️" && false);
   const viewerLikeRow=await admin.from("post_reactions").select("id").eq("post_id",target).eq("user_id",u.id).eq("emoji","❤️").maybeSingle();
   const viewerRepostRow=await admin.from("reposts").select("id").eq("post_id",target).eq("user_id",u.id).maybeSingle();
   const viewerBookmarkRow=await admin.from("bookmarks").select("id").eq("post_id",target).eq("user_id",u.id).maybeSingle();
@@ -295,7 +295,8 @@ if(path==="/interaction-counts"&&method==="GET"){
     reaction_total:Object.values(reactionCounts).reduce((sum:number,n:any)=>sum+Number(n||0),0),
     is_liked:Boolean(viewerLikeRow.data),
     is_reposted:Boolean(viewerRepostRow.data),
-    is_bookmarked:Boolean(viewerBookmarkRow.data)
+    is_bookmarked:Boolean(viewerBookmarkRow.data),
+    user_reactions:userReactions
   },200);
 }
 if(path==="/federated-interaction-counts"&&method==="GET"){
