@@ -103,7 +103,10 @@ export default function PostThreadPage() {
           },
         })) as ReplyItem[]);
         setCounts(prev => ({ ...prev, replies: remoteReplies.length || Number(object.replies?.totalItems ?? 0) }));
-
+        // Remote ActivityPub objects are complete at this point. Never fall through
+        // into the local UUID-backed posts query: doing so turns a valid remote post
+        // into the misleading "Failed to load post" error.
+        return;
       }
 
       const { data: postData, error: postError } = await supabase
