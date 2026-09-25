@@ -85,8 +85,6 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
   const [followingActorUrls, setFollowingActorUrls] = useState<string[]>([]);
   const openFediverseControls = () => navigate('/fediverse/controls');
 
-  <button onClick={openFediverseControls} className="sr-only" aria-label="Fediverse controls" />
-
   // ── Mastodon tab state ───────────────────────────────────────────────────
   const [mastodonInstance, setMastodonInstance] = useState('mastodon.social');
   const [mastodonPosts, setMastodonPosts] = useState<any[]>([]);
@@ -217,7 +215,8 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
       void fetchFederatedFeed({ incremental: true });
     }, 60 * 60 * 1000);
 
-    return () => {
+    return (
+    <button onClick={openFediverseControls} className="hidden" aria-hidden="true" />) => {
       window.clearInterval(reconcile);
       void supabase.removeChannel(inboxChannel);
       void supabase.removeChannel(outboxChannel);
