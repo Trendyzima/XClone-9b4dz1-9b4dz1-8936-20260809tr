@@ -60,12 +60,12 @@ export function VideoRevenueRateCard({ userId }: { userId: string }) {
     Promise.all([
       supabase.from('video_revenue_rates').select('*').eq('user_id', userId).maybeSingle(),
       supabase.from('posts')
-        .select('id,views_count,content,fund_earnings_paid')
+        .select('id,views_count,content')
         .eq('user_id', userId).eq('is_video', true)
         .order('views_count', { ascending: false }).limit(10),
       supabase.from('creator_earnings')
         .select('amount,created_at')
-        .eq('user_id', userId)
+        .eq('creator_id', userId)
         .gte('created_at', since30.toISOString())
         .order('created_at', { ascending: true }),
     ]).then(([{ data: rateData }, { data: videosData }, { data: earningsData }]) => {
@@ -718,7 +718,7 @@ export default function CreatorMonetizationHub({ userId }: { userId: string }) {
     const [monRes, tiersRes, earningsRes, tipsRes, subsRes] = await Promise.all([
       supabase.from('user_monetization').select('*').eq('user_id', userId).maybeSingle(),
       supabase.from('creator_subscription_tiers').select('*').eq('creator_id', userId).order('price_usd'),
-      supabase.from('creator_earnings').select('*').eq('user_id', userId)
+      supabase.from('creator_earnings').select('*').eq('creator_id', userId)
         .order('created_at', { ascending: false }).limit(50),
       supabase.from('tips').select('*, from_user:user_profiles!tips_from_user_id_fkey(username,avatar_url)')
         .eq('to_user_id', userId).order('created_at', { ascending: false }).limit(20),
@@ -753,7 +753,7 @@ export default function CreatorMonetizationHub({ userId }: { userId: string }) {
     const totalTips     = tips.reduce((s, t) => s + Number(t.amount), 0);
     const totalSubs     = subs.reduce((s, sub) => s + Number(sub.price ?? 0), 0);
     const bySource: { [k: string]: number } = {};
-    earnings.forEach(e => { bySource[e.source] = (bySource[e.source] ?? 0) + Number(e.amount); });
+    earnings.forEach(e => { bySource[e.source_type] = (bySource[e.source_type] ?? 0) + Number(e.amount); });
     const monthlyData = Object.entries(bySource).map(([name, value], i) => ({
       name: name.replace(/_/g, ' '),
       value: parseFloat(value.toFixed(4)),
@@ -901,7 +901,7 @@ export default function CreatorMonetizationHub({ userId }: { userId: string }) {
                 {earnings.slice(0, 8).map(e => (
                   <div key={e.id} className="flex items-center justify-between px-4 py-3">
                     <div>
-                      <p className="font-semibold text-xs capitalize">{e.source.replace(/_/g, ' ')}</p>
+                      <p className="font-semibold text-xs capitalize">{e.source_type.replace(/_/g, ' ')}</p>
                       <p className="text-[10px] text-muted-foreground">{new Date(e.created_at).toLocaleDateString()}</p>
                     </div>
                     <div className="text-right">
