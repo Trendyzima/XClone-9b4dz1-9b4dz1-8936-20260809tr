@@ -26,6 +26,13 @@ Deno.serve(async req=>{
   const u=new URL(req.url), n=limit(u.searchParams.get("limit")), surface=u.searchParams.get("surface")||"home", cursor=decodeCursor(u.searchParams.get("cursor"));
   const rel=await admin.from("federated_follow_relationships").select("remote_actor_uri").eq("local_user_id",uid).in("state",["pending","accepted","active"]);
   if(rel.error)throw rel.error;
+  const moderation = await Promise.all([
+    admin.from("fediverse_domain_blocks").select("domain").eq("user_id",uid),
+    admin.from("fediverse_content_filters").select("phrase,action,expires_at").eq("user_id",uid)
+  ]);
+  const blockedDomains = new Set<string>((moderation[0]?.data || []).map((r:any)=>String(r.domain||"").toLowerCase().trim()).filter(Boolean));
+  const activeFilters = (moderation[1]?.data || []).filter((r:any)=>!r.expires_at || new Date(r.expires_at).getTime()>Date.now());
+  const moderationAllowed=(row:any)=>{let domain="";try{domain=new URL(String(row.actor_uri||"")).hostname.toLowerCase()}catch{};if(domain&&blockedDomains.has(domain))return false;const body=String(row.content||"").replace(/<[^>]*>/g," ").toLowerCase();return !activeFilters.some((f:any)=>{const phrase=String(f.phrase||"").trim().toLowerCase();return phrase&&body.includes(phrase)})};
   const followed=new Set((rel.data||[]).map((r:any)=>String(r.remote_actor_uri||"")).filter(Boolean));
   const seen=await admin.from("federated_discovery_impressions").select("object_id").eq("user_id",uid).eq("surface",surface).order("shown_at",{ascending:false}).limit(500);
   if(seen.error)throw seen.error;
@@ -34,7 +41,7 @@ Deno.serve(async req=>{
   if(cursor) q=q.lt("published_at",cursor.ts);
   const fetched=await q; if(fetched.error)throw fetched.error;
   const now=Date.now();
-  const candidates=(fetched.data||[]).filter((r:any)=>r.actor_uri&&!followed.has(String(r.actor_uri))&&!seenIds.has(String(r.id))&&!r.sensitive&&!r.content_warning).map((r:any)=>({...r,_score:score(r,now,surface)})).sort((a:any,b:any)=>b._score-a._score);
+  const candidates=(fetched.data||[]).filter((r:any)=>r.actor_uri&&!followed.has(String(r.actor_uri))&&!seenIds.has(String(r.id))&&!r.sensitive&&!r.content_warning&&moderationAllowed(r)).map((r:any)=>({...r,_score:score(r,now,surface)})).sort((a:any,b:any)=>b._score-a._score);
   const chosen:any[]=[];const actors=new Set<string>();const domains=new Set<string>();
   for(const r of candidates){let domain="";try{domain=new URL(String(r.actor_uri)).hostname}catch{};if(actors.has(String(r.actor_uri)))continue;if(domain&&domains.has(domain)&&chosen.length>=Math.ceil(n*0.6))continue;chosen.push(r);actors.add(String(r.actor_uri));if(domain)domains.add(domain);if(chosen.length>=n)break}
   const ids=chosen.map(r=>r.id);
