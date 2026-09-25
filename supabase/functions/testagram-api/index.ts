@@ -36,8 +36,13 @@ async function replyOp(body:any,auth:string|null){
     if(count.data) await admin.from("posts").update({replies_count:Number(count.data.replies_count||0)+1,updated_at:new Date().toISOString()}).eq("id",target);
     return json({reply_id:r.data?.id,created:true,replies_count:Number(count.data?.replies_count||0)+1},200);
   }
+  // target is the thread root. When replying to another remote reply, the
+  // parent ActivityPub object is the delivery target and inReplyTo. Keeping
+  // object_uri on the ledger equal to the parent URI makes nested replies
+  // independently readable through the same federated-replies endpoint.
+  const parentUri=parentReplyId || target;
   const localReply=await admin.from("federated_replies").insert({
-    user_id:u.id, object_uri:target, parent_uri:target, content, delivery_state:"pending"
+    user_id:u.id, object_uri:parentUri, parent_uri:parentUri, content, delivery_state:"pending"
   }).select("id,object_uri,parent_uri,content,created_at,delivery_state").single();
   if(localReply.error)return json({error:"Failed to persist federated reply",details:localReply.error.message},500);
   const activity:any={
@@ -46,12 +51,12 @@ async function replyOp(body:any,auth:string|null){
     object:{
       type:"Note",
       content,
-      inReplyTo:target,
+      inReplyTo:parentUri,
       to:["https://www.w3.org/ns/activitystreams#Public"]
     }
   };
   try {
-    const r=await transport({user_id:u.id,operation:"deliver",target,activity});
+    const r=await transport({user_id:u.id,operation:"deliver",target:parentUri,activity});
     const data=r.data();
     const activityId=data?.activity?.id ?? data?.activity?.object?.id ?? null;
     await admin.from("federated_replies").update({

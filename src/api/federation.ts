@@ -95,7 +95,13 @@ export async function getFederatedObject(objectUri: string): Promise<any> {
   if (!/^https:\/\//i.test(objectUri)) throw new Error('Federated object must be an ActivityPub URI');
   return api('/federated-object', 'GET', undefined, { object_uri: objectUri });
 }
-export async function reply(payload: { postId: string; content: string }): Promise<any> { return api('/reply', 'POST', { post_id: payload.postId, content: payload.content }); }
+export async function reply(payload: { postId: string; content: string; parentReplyId?: string }): Promise<any> {
+  return api('/reply', 'POST', {
+    post_id: payload.postId,
+    content: payload.content,
+    ...(payload.parentReplyId ? { parent_reply_id: payload.parentReplyId } : {}),
+  });
+}
 export async function getFederatedReplies(objectUri: string): Promise<any[]> {
   if (!/^https:\/\//i.test(objectUri)) throw new Error('Federated reply target must be an ActivityPub URI');
   const result = await api<{items?: any[]}>('/federated-replies', 'GET', undefined, { object_uri: objectUri });
