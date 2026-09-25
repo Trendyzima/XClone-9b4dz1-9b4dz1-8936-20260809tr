@@ -45,7 +45,7 @@ export default function SearchPageV3(){
    next.users=[...(next.users??[]),...remoteRows.filter((a:any)=>{const name=String(a.username??a.preferredUsername??'').toLowerCase();return name&&!seen.has(name)}).map((a:any)=>({...a,origin:'fediverse'}))].slice(0,8);
   }
  }catch(e){console.debug('[fediverse-suggest]',e)}
-}}setSuggest(next)}catch(e){console.debug('[search-suggest]',e)}finally{setSuggestLoading(false)}};
+}setSuggest(next)}catch(e){console.debug('[search-suggest]',e)}finally{setSuggestLoading(false)}};
 const run=async(q=query,nextTab=tab,append=false)=>{if(!q.trim())return;const clean=q.trim();if(!append){saveRecent(clean);setLoading(true);setHasMore(true);setData({users:[],hashtags:[],posts:[],communities:[],next_cursor:null});setFediverse([]);setFediversePosts([]);setThreadResults([]);setReplyResults([]);setParams({q:clean,tab:nextTab})}else setLoadingMore(true);
   try{
    const kindMap:any={Top:'all',Latest:'latest',People:'people',Media:'media',Hashtags:'hashtags',Replies:'replies',Threads:'threads',Communities:'communities',Fediverse:'fediverse',Instances:'people'};
