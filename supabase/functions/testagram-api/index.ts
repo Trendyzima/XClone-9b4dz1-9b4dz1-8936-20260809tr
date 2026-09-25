@@ -250,7 +250,7 @@ if(path==="/interaction-counts"&&method==="GET"){
       admin.from("federated_replies").select("id",{count:"exact",head:true}).eq("object_uri",target),
       admin.from("federated_quotes").select("id",{count:"exact",head:true}).eq("object_uri",target),
       admin.from("federated_post_views").select("id",{count:"exact",head:true}).eq("object_uri",target),
-      admin.from("federated_bookmarks").select("id",{count:"exact",head:true}).eq("object_uri",target),
+      admin.from("federated_bookmarks").select("id,user_id",{count:"exact"}).eq("object_uri",target),
       admin.from("federated_reply_shares").select("id",{count:"exact",head:true}).eq("object_uri",target)
     ]);
     const remote = object.data ?? {};
@@ -282,7 +282,7 @@ if(path==="/interaction-counts"&&method==="GET"){
       reaction_total:Object.values(reactionCounts).reduce((sum:number,n:any)=>sum+Number(n||0),0),
       is_liked:viewerLiked,
       is_reposted:viewerReposted,
-      is_bookmarked:false,
+      is_bookmarked:Boolean(u && (bookmarks.data||[]).some((row:any)=>String(row.user_id)===String(u.id))),
       user_reactions:userReactions
     },200);
   }
