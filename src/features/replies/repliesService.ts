@@ -40,7 +40,14 @@ export async function listReplies(postId: string, limit = 50): Promise<{ items: 
   const byId = new Map((profiles ?? []).map((profile: any) => [profile.id, profile]));
   return {
     items: rows.map((row: any) => {
-      const profile = byId.get(row.user_id) ?? null;
+      const profile = byId.get(row.user_id) as {
+        id?: string;
+        username?: string | null;
+        display_name?: string | null;
+        full_name?: string | null;
+        avatar_url?: string | null;
+        verified?: boolean | null;
+      } | null;
       return { ...row, profile: profile ? {
         ...profile,
         username: String(profile.username ?? '').replace(/^@/, ''),
