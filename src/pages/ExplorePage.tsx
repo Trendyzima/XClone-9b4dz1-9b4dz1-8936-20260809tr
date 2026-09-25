@@ -206,7 +206,7 @@ const RANK_MEDAL = ['🥇','🥈','🥉'];
 const RANK_COLORS = ['text-yellow-400','text-slate-300','text-amber-600','text-muted-foreground'];
 
 // Reaction emojis — module-level (esbuild guard)
-const REACTION_EMOJIS = ['❤️', '🔥', '😮', '👏'];
+const REACTION_EMOJIS = ['❤️'];
 
 // ── PostReactionBar: extracted as module-level component (esbuild guard: no IIFE in render)
 function PostReactionBar({
