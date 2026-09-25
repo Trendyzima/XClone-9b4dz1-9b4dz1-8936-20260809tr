@@ -822,6 +822,5 @@ export function RightSidebar() {
         <p>© 2025 T Social</p>
       </div>
     </aside>
-  </aside>
   </>);
 }
