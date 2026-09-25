@@ -46,11 +46,32 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
       if (!actorUrl && !handle && !suppliedUsername) { setLoading(false); return; }
       setLoading(true);
       try {
-        const result = handle ? await federation.getUser(handle) : (actorUrl ? await federation.getActor(actorUrl) : null);
+        const result = actorUrl
+          ? await federation.resolveRemoteActor(actorUrl)
+          : (handle ? await federation.getUser(handle) : (suppliedUsername ? await federation.getUser(suppliedUsername) : null));
         if (cancelled) return;
-        setProfile(result);
+        const actorDoc = result?.actor ?? result;
+        const normalizedProfile = actorDoc ? {
+          ...result,
+          actor_uri: actorDoc.id ?? result?.actor_uri ?? result?.actor_url ?? actorUrl,
+          actor_url: actorDoc.id ?? result?.actor_url ?? result?.actor_uri ?? actorUrl,
+          preferredUsername: actorDoc.preferredUsername ?? result?.preferredUsername ?? result?.username,
+          username: actorDoc.preferredUsername ?? result?.username ?? result?.preferredUsername,
+          name: actorDoc.name ?? result?.name ?? result?.display_name,
+          display_name: actorDoc.name ?? result?.display_name ?? result?.name,
+          summary: actorDoc.summary ?? result?.summary ?? result?.bio ?? '',
+          bio: actorDoc.summary ?? result?.bio ?? result?.summary ?? '',
+          avatar_url: actorDoc.icon?.url ?? result?.avatar_url ?? result?.avatar ?? null,
+          icon: actorDoc.icon ?? result?.icon ?? null,
+          header_url: actorDoc.image?.url ?? result?.header_url ?? result?.header ?? null,
+          url: actorDoc.url ?? result?.url ?? actorDoc.id ?? actorUrl,
+          followers: result?.followers ?? actorDoc.followers ?? 0,
+          following: result?.following ?? actorDoc.following ?? 0,
+          fields: result?.fields ?? [],
+        } : null;
+        setProfile(normalizedProfile);
 
-        const resolvedActorUri = (result?.actor_uri ?? result?.actor_url ?? result?.uri ?? actorUrl) || '';
+        const resolvedActorUri = (result?.actor_uri ?? result?.actor_url ?? result?.actor?.id ?? result?.id ?? actorUrl) || '';
         if (user && resolvedActorUri) {
           // federation-transport persists remote follows in the canonical
           // federated_follow_relationships table. Read that same source on every
