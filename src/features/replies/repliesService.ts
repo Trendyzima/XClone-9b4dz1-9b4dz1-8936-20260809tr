@@ -1,5 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { backendCapabilities } from '@/services/backendClient';
+import * as federation from '@/api/federation';
+import { federatedReplyToItem, resolveFederatedReplies } from '@/features/federation/federatedPostAdapter';
 
 export type ReplyItem = {
   id: string;
@@ -15,6 +17,13 @@ export type ReplyItem = {
 const boundedLimit = (limit = 50) => Math.min(100, Math.max(1, Number.isFinite(limit) ? Math.floor(limit) : 50));
 
 export async function listReplies(postId: string, limit = 50): Promise<{ items: ReplyItem[]; next_cursor: string | null }> {
+  if (/^https:\/\//i.test(postId)) {
+    const remote = await federation.getFederatedObject(postId);
+    const object = remote?.object ?? remote;
+    const rawReplies = await resolveFederatedReplies(object?.replies, federation.getFederatedObject);
+    const items = rawReplies.filter((reply: any) => reply?.id).slice(0, boundedLimit(limit)).map((reply: any) => federatedReplyToItem(reply, postId)) as ReplyItem[];
+    return { items, next_cursor: null };
+  }
   // Keep the reply read path compatible with both authenticated capability reads
   // and public/RLS reads. The capability response is the canonical source for
   // identity (display name + avatar); the direct query preserves parent_reply_id
@@ -72,6 +81,10 @@ export async function listReplies(postId: string, limit = 50): Promise<{ items: 
   };
 }
 export async function createReply(postId: string, content: string, parentReplyId?: string) {
+  if (/^https:\/\//i.test(postId)) {
+    if (parentReplyId) throw new Error('Replying to a remote reply chain is not supported yet');
+    return federation.reply({ postId, content });
+  }
   return backendCapabilities.createReply(postId, content, parentReplyId);
 }
 
