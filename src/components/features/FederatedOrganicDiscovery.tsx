@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { Globe, UserPlus, Sparkles } from 'lucide-react';
@@ -67,7 +67,7 @@ export function FederatedHashtagDiscovery({ limit = 8, surface = 'discovery' }: 
           for (const raw of Array.isArray(row?.tags) ? row.tags : []) {
             const value = typeof raw === 'string' ? raw : raw?.name ?? raw?.tag;
             const normalized = String(value ?? '').replace(/^#/, '').trim().toLowerCase();
-            if (!normalized || !/^[\\p{L}\\p{N}_-]+$/u.test(normalized)) continue;
+            if (!normalized || !/^[\p{L}\p{N}_-]+$/u.test(normalized)) continue;
             counts.set(normalized, (counts.get(normalized) ?? 0) + 1);
           }
         }
