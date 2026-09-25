@@ -12,6 +12,8 @@ export interface AuthUser {
 export interface UserProfile {
   id: string;
   username: string;
+  /** Human-readable profile name shown above the handle. */
+  display_name?: string;
   email: string;
   avatar_url?: string;
   bio?: string;
