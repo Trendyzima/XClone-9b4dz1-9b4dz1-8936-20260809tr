@@ -180,25 +180,15 @@ export default function HashtagPage() {
         .filter(Boolean)
         .sort((a: any, b: any) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')));
       setPosts(formattedPosts);
-      // Fetch the indexed ActivityPub objects through the actual foreign-key
-      // relationship in one request. The previous two-step object lookup could
-      // produce a valid hashtag count from federated_hashtag_mentions while the
-      // second client-side .in(id, ...) query returned no rows, leaving the page
-      // in the contradictory "12 posts / No posts found" state.
-      const { data: remoteMentions, error: remoteMentionsError } = await supabase
-        .from('federated_hashtag_mentions')
-        .select('object_id, created_at, federated_objects!federated_hashtag_mentions_object_id_fkey(id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,object_type,url,deleted_at,tombstone,remote_account)')
-        .eq('hashtag_id', hashtagData.id)
-        .order('created_at', { ascending: false })
-        .limit(30);
-      if (remoteMentionsError) {
-        console.warn('Federated hashtag index unavailable; continuing with local posts:', remoteMentionsError);
+      // Query the indexed relationship through a database function rather than
+      // relying on PostgREST's nested FK embedding. This makes the hashtag page
+      // deterministic even when relationship metadata/cache differs between
+      // environments, while preserving the same public-read visibility rules.
+      const { data: remoteRows, error: remotePostsError } = await supabase
+        .rpc('get_federated_posts_for_hashtag', { p_hashtag_id: hashtagData.id, p_limit: 30 });
+      if (remotePostsError) {
+        console.warn('Federated hashtag index unavailable; continuing with local posts:', remotePostsError);
       }
-      // The FK embed preserves the exact index -> object relationship and lets
-      // PostgREST apply the federated_objects read policy to the embedded rows.
-      const remoteRows = (remoteMentions ?? [])
-        .map((mention: any) => mention.federated_objects)
-        .filter((post: any) => post && !post.deleted_at && post.tombstone === false);
 
       setFederatedPosts((remoteRows ?? []).map((p: any) => ({
         ...p,
