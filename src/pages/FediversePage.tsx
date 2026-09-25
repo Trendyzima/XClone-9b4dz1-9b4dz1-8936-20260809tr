@@ -83,6 +83,9 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
   const [testagramSuggestions, setTestagramSuggestions] = useState<any[]>([]);
   const [loadingTestagramSuggestions, setLoadingTestagramSuggestions] = useState(false);
   const [followingActorUrls, setFollowingActorUrls] = useState<string[]>([]);
+  const openFediverseControls = () => navigate('/fediverse/controls');
+
+  <button onClick={openFediverseControls} className="sr-only" aria-label="Fediverse controls" />
 
   // ── Mastodon tab state ───────────────────────────────────────────────────
   const [mastodonInstance, setMastodonInstance] = useState('mastodon.social');
