@@ -52,6 +52,7 @@ export default function AuthPage() {
   const [username, setUsername] = useState('');
   const [pendingUserId, setPendingUserId] = useState<string | null>(null);
   const [verificationPurpose, setVerificationPurpose] = useState<'otp' | 'signup'>('otp');
+  const [pendingReferralSignup, setPendingReferralSignup] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
   const authUser = useAuthStore((state) => state.user);
@@ -180,6 +181,7 @@ export default function AuthPage() {
       }
       setLoading(false);
       setVerificationPurpose('signup');
+      setPendingReferralSignup(true);
       setOtp('');
       if (result.identifierKind === 'phone') {
         setPhone(result.identifier);
@@ -234,7 +236,10 @@ export default function AuthPage() {
     event.preventDefault();
     setLoading(true);
     try {
-      await finishLogin(await authService.verifyEmailOtp(email, otp));
+      const user = await authService.verifyEmailOtp(email, otp);
+      await finishLogin(user);
+      if (pendingReferralSignup) await applyPendingReferral();
+      setPendingReferralSignup(false);
     } catch (error: any) {
       setLoading(false);
       toast({ title: 'Email verification error', description: error?.message || 'Invalid email code.', variant: 'destructive' });
@@ -245,7 +250,10 @@ export default function AuthPage() {
     event.preventDefault();
     setLoading(true);
     try {
-      await finishLogin(await authService.verifyPhoneOtp(phone, otp));
+      const user = await authService.verifyPhoneOtp(phone, otp);
+      await finishLogin(user);
+      if (pendingReferralSignup) await applyPendingReferral();
+      setPendingReferralSignup(false);
     } catch (error: any) {
       setLoading(false);
       toast({ title: 'Phone verification error', description: error?.message || 'Invalid phone code.', variant: 'destructive' });
