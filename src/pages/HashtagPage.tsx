@@ -180,45 +180,25 @@ export default function HashtagPage() {
         .filter(Boolean)
         .sort((a: any, b: any) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')));
       setPosts(formattedPosts);
-      // Mix cached ActivityPub objects that advertise the same hashtag. The
-      // cache is populated by inbound federation and followed-actor hydration,
-      // so the hashtag page can surface remote and local conversations together.
-      const { data: remoteHashtag } = await supabase
-        .from('hashtags')
-        .select('id')
-        .eq('id', hashtagData.id)
-        .maybeSingle();
-      const remoteHashtagId = remoteHashtag?.id ?? hashtagData.id;
+      // Fetch the indexed ActivityPub objects through the actual foreign-key
+      // relationship in one request. The previous two-step object lookup could
+      // produce a valid hashtag count from federated_hashtag_mentions while the
+      // second client-side .in(id, ...) query returned no rows, leaving the page
+      // in the contradictory "12 posts / No posts found" state.
       const { data: remoteMentions, error: remoteMentionsError } = await supabase
         .from('federated_hashtag_mentions')
-        .select('object_id, created_at')
-        .eq('hashtag_id', remoteHashtagId)
+        .select('object_id, created_at, federated_objects!federated_hashtag_mentions_object_id_fkey(id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,object_type,url,deleted_at,tombstone,remote_account)')
+        .eq('hashtag_id', hashtagData.id)
         .order('created_at', { ascending: false })
         .limit(30);
       if (remoteMentionsError) {
         console.warn('Federated hashtag index unavailable; continuing with local posts:', remoteMentionsError);
       }
-      const remoteIds = (remoteMentions ?? []).map((m: any) => m.object_id).filter(Boolean);
-      let remoteRows: any[] = [];
-      if (remoteIds.length) {
-        const { data: remoteObjects, error: remoteObjectsError } = await supabase
-          .from('federated_objects')
-          .select('id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,object_type,url,deleted_at,tombstone,remote_account')
-          .in('id', remoteIds)
-          .is('deleted_at', null)
-          .eq('tombstone', false);
-        if (remoteObjectsError) {
-          console.warn('Federated hashtag objects unavailable; continuing with local posts:', remoteObjectsError);
-        } else {
-          const byId = new Map((remoteObjects ?? []).map((p: any) => [p.id, p]));
-          remoteRows = remoteIds.map((id: string) => byId.get(id)).filter(Boolean);
-        }
-      }
-      // The indexed hashtag mention table is the fast path. Do not scan the entire
-      // federated_objects corpus on first paint; that made a single hashtag page
-      // proportional to the size of the federation cache. The index is refreshed by
-      // federation ingestion and the live subscription above keeps this surface fresh.
-      const wantedTag = normalizedTag.toLowerCase();
+      // The FK embed preserves the exact index -> object relationship and lets
+      // PostgREST apply the federated_objects read policy to the embedded rows.
+      const remoteRows = (remoteMentions ?? [])
+        .map((mention: any) => mention.federated_objects)
+        .filter((post: any) => post && !post.deleted_at && post.tombstone === false);
 
       setFederatedPosts((remoteRows ?? []).map((p: any) => ({
         ...p,
