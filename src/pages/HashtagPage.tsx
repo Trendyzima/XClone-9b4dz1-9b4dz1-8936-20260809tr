@@ -184,13 +184,45 @@ export default function HashtagPage() {
       // relying on PostgREST's nested FK embedding. This makes the hashtag page
       // deterministic even when relationship metadata/cache differs between
       // environments, while preserving the same public-read visibility rules.
-      const { data: remoteRows, error: remotePostsError } = await supabase
-        .rpc('get_federated_posts_for_hashtag', { p_hashtag_id: hashtagData.id, p_limit: 30 });
+      let remoteRows: any[] = [];
+      const { data: remoteJson, error: remotePostsError } = await supabase
+        .rpc('get_federated_posts_for_hashtag_json', { p_hashtag_id: hashtagData.id, p_limit: 30 });
       if (remotePostsError) {
-        console.warn('Federated hashtag index unavailable; continuing with local posts:', remotePostsError);
+        console.warn('Federated hashtag RPC unavailable; trying direct indexed fallback:', remotePostsError);
+        const { data: mentions, error: mentionError } = await supabase
+          .from('federated_hashtag_mentions')
+          .select('object_id')
+          .eq('hashtag_id', hashtagData.id)
+          .limit(30);
+        if (!mentionError && mentions?.length) {
+          const ids = mentions.map((m: any) => m.object_id).filter(Boolean);
+          const { data: objects, error: objectError } = await supabase
+            .from('federated_objects')
+            .select('*')
+            .in('id', ids)
+            .is('deleted_at', null)
+            .eq('tombstone', false);
+          if (!objectError) remoteRows = objects ?? [];
+        }
+      } else {
+        try {
+          remoteRows = Array.isArray(remoteJson) ? remoteJson : [];
+        } catch {
+          remoteRows = [];
+        }
       }
 
-      setFederatedPosts((remoteRows ?? []).map((p: any) => ({
+      // A non-zero indexed count with an empty response is a retrieval failure,
+      // not an empty hashtag. Keep the page truthful and surface a diagnostic.
+      if (remoteRows.length === 0 && Number(hashtagData.federated_post_count ?? 0) > 0) {
+        console.warn('Federated hashtag count/rows mismatch', {
+          tag: normalizedTag,
+          hashtagId: hashtagData.id,
+          expected: hashtagData.federated_post_count,
+        });
+      }
+
+      setFederatedPosts(remoteRows.map((p: any) => ({
         ...p,
         id: p.id ?? p.uri,
         uri: p.uri,
