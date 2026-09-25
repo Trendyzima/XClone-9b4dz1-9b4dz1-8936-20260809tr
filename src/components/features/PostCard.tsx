@@ -853,16 +853,14 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
               <span onClick={(e) => { e.stopPropagation(); isFederatedPost ? navigate(federatedProfilePath()) : navigate(`/post/${interactionPostId}/reposts`); }} className="text-sm cursor-pointer">{formatNumber(repostsCount)}</span>
             </button>
 
-            {/* Reaction button + picker */}
+            {/* Single canonical reaction: heart like */}
             <div className="relative">
               <button
                 onClick={handleLike}
-                onMouseEnter={() => { if (!isFederatedPost) setShowReactionPicker(true); }}
-                onMouseLeave={() => { if (!isFederatedPost) setShowReactionPicker(false); }}
                 className={cn('flex items-center space-x-1.5 transition-colors group', userReaction ? 'text-pink-600' : 'text-muted-foreground hover:text-pink-600')}
               >
                 <div className="p-2 rounded-full group-hover:bg-pink-600/10 transition-colors">
-                  {userReaction ? <span className="text-base leading-none">{userReaction}</span> : <Heart className="w-5 h-5" />}
+                  <Heart className="w-5 h-5" fill={isLiked ? 'currentColor' : 'none'} />
                 </div>
                 <span className="text-sm">{formatNumber(likesCount)}</span>
               </button>
