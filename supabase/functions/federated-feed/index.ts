@@ -47,6 +47,8 @@ Deno.serve(async (request) => {
     const userId = await getUserId(request);
 
     let followedActorUris: string[] = [];
+    let followedHashtagIds: string[] = [];
+    let followedHashtagTags: string[] = [];
     if (userId) {
       const { data: relationships } = await admin
         .from("federated_follow_relationships")
@@ -57,6 +59,26 @@ Deno.serve(async (request) => {
       followedActorUris = [...new Set((relationships || [])
         .map((r: any) => String(r.remote_actor_uri || "").trim())
         .filter(Boolean))];
+
+      const { data: hashtagFollows, error: hashtagFollowError } = await admin
+        .from("hashtag_follows")
+        .select("hashtag_id")
+        .eq("user_id", userId);
+      if (hashtagFollowError) throw hashtagFollowError;
+      followedHashtagIds = [...new Set((hashtagFollows || [])
+        .map((r: any) => String(r.hashtag_id || "").trim())
+        .filter(Boolean))];
+
+      if (followedHashtagIds.length) {
+        const { data: followedHashtags, error: hashtagError } = await admin
+          .from("hashtags")
+          .select("id,tag")
+          .in("id", followedHashtagIds);
+        if (hashtagError) throw hashtagError;
+        followedHashtagTags = (followedHashtags || [])
+          .map((r: any) => String(r.tag || "").replace(/^#/, "").trim().toLowerCase())
+          .filter(Boolean);
+      }
     }
 
     const moderation = userId ? await Promise.all([
@@ -261,7 +283,7 @@ Deno.serve(async (request) => {
       return query;
     };
 
-    let followedItems: any[] = [];
+    let followedActorItems: any[] = [];
     if (followedActorUris.length) {
       let followedQuery = admin
         .from("federated_objects")
@@ -278,13 +300,68 @@ Deno.serve(async (request) => {
       if (before) followedQuery = followedQuery.lt("published_at", new Date(before).toISOString());
       const { data, error } = await followedQuery;
       if (error) throw error;
-      followedItems = (data || []).filter(moderationAllowed).filter(feedMatches).map((item: any) => ({
+      followedActorItems = (data || []).filter(moderationAllowed).filter(feedMatches).map((item: any) => ({
         ...item,
-        feed_source: "following",
+        feed_source: "following_actor",
         remote_account: item.remote_account ?? hydratedActorProfiles.get(String(item.actor_uri)) ?? null,
       }));
     }
 
+    let followedHashtagItems: any[] = [];
+    if (followedHashtagIds.length) {
+      const { data: mentions, error: mentionError } = await admin
+        .from("federated_hashtag_mentions")
+        .select("object_id,hashtag_id")
+        .in("hashtag_id", followedHashtagIds)
+        .limit(Math.min(200, Math.max(50, limit * 12)));
+      if (mentionError) throw mentionError;
+
+      const objectIds = [...new Set((mentions || []).map((m: any) => String(m.object_id || "")).filter(Boolean))];
+      if (objectIds.length) {
+        const { data: hashtagObjects, error: hashtagObjectsError } = await admin
+          .from("federated_objects")
+          .select(baseSelect)
+          .is("deleted_at", null)
+          .eq("tombstone", false)
+          .in("object_type", ["Note", "Article", "Question", "Video", "Image"])
+          .gte("published_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+          .in("id", objectIds)
+          .order("published_at", { ascending: false, nullsFirst: false })
+          .order("id", { ascending: false })
+          .limit(limit * 3);
+
+        if (hashtagObjectsError) throw hashtagObjectsError;
+        const followedObjectSet = new Set(objectIds);
+        const hashtagIdsByObject = new Map<string, string[]>();
+        for (const mention of mentions || []) {
+          const objectId = String(mention.object_id || "");
+          if (!objectId) continue;
+          const ids = hashtagIdsByObject.get(objectId) || [];
+          ids.push(String(mention.hashtag_id || ""));
+          hashtagIdsByObject.set(objectId, ids);
+        }
+
+        followedHashtagItems = (hashtagObjects || [])
+          .filter(moderationAllowed)
+          .filter(feedMatches)
+          .map((item: any) => {
+            const matchedIds = hashtagIdsByObject.get(String(item.id)) || [];
+            const matchedTags = matchedIds.map((id) => {
+              const index = followedHashtagIds.indexOf(id);
+              return index >= 0 ? followedHashtagTags[index] : "";
+            }).filter(Boolean);
+            return {
+              ...item,
+              feed_source: "following_hashtag",
+              followed_hashtags: [...new Set(matchedTags)],
+              remote_account: item.remote_account ?? hydratedActorProfiles.get(String(item.actor_uri)) ?? null,
+            };
+          });
+      }
+    }
+
+    const followedItems = [...followedActorItems, ...followedHashtagItems];
+    const followedObjectIds = new Set(followedItems.map((item: any) => String(item.id || "")).filter(Boolean));
     const suggestedNeeded = Math.max(0, limit - followedItems.length);
     let suggestedItems: any[] = [];
 
@@ -294,7 +371,7 @@ Deno.serve(async (request) => {
       if (error) throw error;
       const followedSet = new Set(hydratedActorAliases);
       suggestedItems = (data || [])
-        .filter((item: any) => !followedSet.has(String(item.actor_uri || "")) && moderationAllowed(item) && feedMatches(item))
+        .filter((item: any) => !followedSet.has(String(item.actor_uri || "")) && !followedObjectIds.has(String(item.id || "")) && moderationAllowed(item) && feedMatches(item))
         .slice(0, suggestedNeeded)
         .map((item: any) => ({
           ...item,
@@ -306,8 +383,12 @@ Deno.serve(async (request) => {
     const enrichedItems = await enrichRemoteAccounts([...followedItems, ...suggestedItems]);
     const items = enrichedItems
       .sort((a, b) => {
-        const aFollowing = a.feed_source === "following" ? 1 : 0;
-        const bFollowing = b.feed_source === "following" ? 1 : 0;
+        const sourcePriority = (source: string) =>
+          source === "following_actor" ? 3 :
+          source === "following_hashtag" ? 2 :
+          source === "suggested" ? 1 : 0;
+        const aFollowing = sourcePriority(a.feed_source);
+        const bFollowing = sourcePriority(b.feed_source);
         if (aFollowing !== bFollowing) return bFollowing - aFollowing;
         return new Date(b.published_at || 0).getTime() - new Date(a.published_at || 0).getTime();
       })
@@ -321,6 +402,10 @@ Deno.serve(async (request) => {
       pagination: { limit, hasMore, nextCursor },
       personalization: {
         followingCount: followedActorUris.length,
+        followedHashtagCount: followedHashtagIds.length,
+        followedHashtags: followedHashtagTags,
+        followedActorPosts: followedActorItems.length,
+        followedHashtagPosts: followedHashtagItems.length,
         followedPosts: followedItems.length,
         suggestedPosts: suggestedItems.length,
       },
