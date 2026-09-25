@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { backendCapabilities } from '@/services/backendClient';
 import * as federation from '@/api/federation';
-import { federatedReplyToItem, resolveFederatedReplies } from '@/features/federation/federatedPostAdapter';
+import { federatedReplyToItem, normalizeFederatedText, resolveFederatedReplies } from '@/features/federation/federatedPostAdapter';
 
 export type ReplyItem = {
   id: string;
@@ -36,7 +36,7 @@ export async function listReplies(postId: string, limit = 50): Promise<{ items: 
       id: String(row.activity_uri || row.id),
       user_id: String(row.user_id || ''),
       post_id: postId,
-      content: String(row.content || ''),
+      content: normalizeFederatedText(row.content || ''),
       created_at: String(row.created_at || new Date().toISOString()),
       updated_at: String(row.updated_at || row.created_at || new Date().toISOString()),
       parent_reply_id: null,
@@ -144,7 +144,7 @@ export async function getReplyChain(replyId: string, limit = 100): Promise<Reply
       user_id: String(row.user_id),
       post_id: String(row.post_id),
       parent_reply_id: row.parent_reply_id ?? null,
-      content: String(row.content ?? ''),
+      content: normalizeFederatedText(row.content ?? ''),
       created_at: String(row.created_at),
       updated_at: String(row.updated_at ?? row.created_at),
       profile: profile ? {
