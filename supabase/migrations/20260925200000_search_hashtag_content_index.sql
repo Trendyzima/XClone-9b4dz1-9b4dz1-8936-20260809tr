@@ -62,7 +62,7 @@ begin
     into vh
     from (
       select coalesce(l.tag,r.tag) tag,
-             coalesce(l.id,('00000000-0000-0000-0000-'||substr(md5(coalesce(l.tag,r.tag)),1,12))::uuid) id,
+             coalesce(l.id,('00000000-0000-0000-0000-'||substr(md5(coalesce(l.tag,r.tag)),1,12))::uuid::text) id,
              coalesce(l.usage_count,0) usage_count,
              coalesce(l.post_count,0) post_count,
              coalesce(l.follower_count,0) follower_count,
