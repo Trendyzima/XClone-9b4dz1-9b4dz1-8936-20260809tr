@@ -122,7 +122,7 @@ export default function HashtagPage() {
       .select('post_id, posts(*, user_profiles:profiles!posts_author_id_fkey(*))')
       .eq('hashtag_id', hashtagId);
     if (!data) return;
-    const allPosts = data.map((item: any) => item.posts).filter(Boolean);
+    const allPosts = data.map((item: any) => item.posts).filter(Boolean).slice(0, 30);
     const sorted = [...allPosts].sort((a, b) => {
       const scoreA = (a.likes_count || 0) + (a.reposts_count || 0) + (a.replies_count || 0);
       const scoreB = (b.likes_count || 0) + (b.reposts_count || 0) + (b.replies_count || 0);
@@ -171,7 +171,8 @@ export default function HashtagPage() {
       const { data: postsData, error: postsError } = await supabase
         .from('post_hashtags')
         .select('post_id, posts(*, user_profiles:profiles!posts_author_id_fkey(*))')
-        .eq('hashtag_id', hashtagData.id);
+        .eq('hashtag_id', hashtagData.id)
+        .range(0, 29);
       if (postsError) throw postsError;
       const formattedPosts = (postsData || [])
         .map((item: any) => item.posts)
@@ -192,7 +193,7 @@ export default function HashtagPage() {
         .select('object_id, created_at')
         .eq('hashtag_id', remoteHashtagId)
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(30);
       if (remoteMentionsError) {
         console.warn('Federated hashtag index unavailable; continuing with local posts:', remoteMentionsError);
       }
@@ -212,25 +213,11 @@ export default function HashtagPage() {
           remoteRows = remoteIds.map((id: string) => byId.get(id)).filter(Boolean);
         }
       }
-      // Do not depend solely on the optional federated_hashtag_mentions index.
-      // Remote ActivityPub objects carry their own Hashtag tags; use that canonical
-      // object metadata as a live fallback so a remote hashtag is never invisible.
-      const { data: recentRemoteObjects } = await supabase
-        .from('federated_objects')
-        .select('id,uri,actor_uri,content,summary,published_at,updated_at,attachments,tags,like_count,announce_count,reply_count,object_type,url,deleted_at,tombstone,remote_account')
-        .is('deleted_at', null)
-        .eq('tombstone', false)
-        .order('published_at', { ascending: false })
-        .limit(200);
+      // The indexed hashtag mention table is the fast path. Do not scan the entire
+      // federated_objects corpus on first paint; that made a single hashtag page
+      // proportional to the size of the federation cache. The index is refreshed by
+      // federation ingestion and the live subscription above keeps this surface fresh.
       const wantedTag = normalizedTag.toLowerCase();
-      const indexedUris = new Set((remoteRows ?? []).map((p: any) => p.uri));
-      const directRemoteRows = (recentRemoteObjects ?? []).filter((p: any) =>
-        Array.isArray(p.tags) && p.tags.some((x: any) => {
-          const name = String(x?.name ?? x?.tag ?? '').replace(/^#/, '').trim().toLowerCase();
-          return name === wantedTag;
-        })
-      );
-      remoteRows = [...remoteRows, ...directRemoteRows.filter((p: any) => !indexedUris.has(p.uri))];
 
       setFederatedPosts((remoteRows ?? []).map((p: any) => ({
         ...p,
@@ -244,7 +231,7 @@ export default function HashtagPage() {
         user_profiles: p.remote_account ?? { actor_uri: p.actor_uri, username: p.actor_uri?.split('/').pop() ?? 'unknown', display_name: p.actor_uri?.split('/').pop() ?? 'Fediverse account', avatar_url: null },
         is_federated: true,
       })));
-      fetchTopPosts(hashtagData.id);
+      setLoading(false);
     } catch (error) {
       console.error('Error fetching hashtag data:', error);
       toast.error('Failed to load hashtag');
@@ -260,6 +247,10 @@ export default function HashtagPage() {
       .eq('user_id', user.id).eq('hashtag_id', hashtag.id).maybeSingle();
     setIsFollowing(!!data);
   };
+
+  useEffect(() => {
+    if (sortMode === 'top' && hashtag?.id) void fetchTopPosts(hashtag.id);
+  }, [sortMode, hashtag?.id]);
 
   const handleFollow = async () => {
     if (!user) { navigate('/auth'); return; }
