@@ -43,6 +43,7 @@ Deno.serve(async (request) => {
     const url = new URL(request.url);
     const limit = parseLimit(url.searchParams.get("limit"));
     const before = url.searchParams.get("before");
+    const feedId = url.searchParams.get("feed_id");
     const userId = await getUserId(request);
 
     let followedActorUris: string[] = [];
@@ -70,6 +71,10 @@ Deno.serve(async (request) => {
       const text = String(item.content||"").replace(/<[^>]*>/g," ").toLowerCase();
       return !activeFilters.some((f:any)=>{ const phrase=String(f.phrase||"").trim().toLowerCase(); return phrase && text.includes(phrase); });
     };
+
+    let customFeed:any=null;
+    if(feedId && userId){ const fr=await admin.from("federated_custom_discovery_feeds").select("id,user_id,query,mode").eq("id",feedId).eq("user_id",userId).maybeSingle(); if(fr.error)throw fr.error; customFeed=fr.data||null; }
+    const feedMatches=(item:any)=>{ if(!customFeed)return true; const mode=String(customFeed.mode||"all"); const body=String(item.content||"").replace(/<[^>]*>/g," ").toLowerCase(); const q=String(customFeed.query||"").trim().toLowerCase(); if(mode==="media" && !(Array.isArray(item.attachments)&&item.attachments.length))return false; if(mode==="people" && !item.actor_uri)return false; if(mode==="hashtags" && !Array.isArray(item.tags))return false; if(mode==="mentions" && !body.includes("@"))return false; if(mode==="conversations" && !item.in_reply_to_uri)return false; if(mode==="instances" && !item.actor_uri)return false; if(q){ const terms=q.split(/[,\\s]+/).map((x:string)=>x.replace(/^#/, "").trim()).filter(Boolean); if(terms.length&&!terms.some((term:string)=>body.includes(term)||JSON.stringify(item.tags||[]).toLowerCase().includes(term)||String(item.actor_uri||"").toLowerCase().includes(term)))return false; } return true; };
 
     const baseSelect = "id,uri,object_type,actor_uri,instance_id,url,content,summary,published_at,updated_at,sensitive,in_reply_to_uri,quote_uri,language_code,attachments,tags,like_count,announce_count,reply_count,quote_count,view_count,content_warning,raw_object";
 
@@ -271,7 +276,7 @@ Deno.serve(async (request) => {
       if (before) followedQuery = followedQuery.lt("published_at", new Date(before).toISOString());
       const { data, error } = await followedQuery;
       if (error) throw error;
-      followedItems = (data || []).filter(moderationAllowed).map((item: any) => ({
+      followedItems = (data || []).filter(moderationAllowed).filter(feedMatches).map((item: any) => ({
         ...item,
         feed_source: "following",
         remote_account: item.remote_account ?? hydratedActorProfiles.get(String(item.actor_uri)) ?? null,
@@ -287,7 +292,7 @@ Deno.serve(async (request) => {
       if (error) throw error;
       const followedSet = new Set(hydratedActorAliases);
       suggestedItems = (data || [])
-        .filter((item: any) => !followedSet.has(String(item.actor_uri || "")) && moderationAllowed(item))
+        .filter((item: any) => !followedSet.has(String(item.actor_uri || "")) && moderationAllowed(item) && feedMatches(item))
         .slice(0, suggestedNeeded)
         .map((item: any) => ({
           ...item,
