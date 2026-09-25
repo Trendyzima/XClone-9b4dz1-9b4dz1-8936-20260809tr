@@ -413,19 +413,25 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
       let videoUrl = null;
 
       if (images.length > 0) {
-        sonnerToast.loading(`Uploading ${images.length} image(s) to secure media storage...`);
-        for (let i = 0; i < images.length; i++) {
-          try {
-            const media = await uploadTestagramMedia(images[i],null,null,publishAccessToken);
+        sonnerToast.loading(`Uploading ${images.length} image(s) in parallel…`);
+        try {
+          // Upload the selected images concurrently. The composer already caps
+          // selection at four files, so this removes unnecessary serial waiting
+          // without creating unbounded browser/network fan-out.
+          const uploadedImages = await Promise.all(
+            images.map(file => uploadTestagramMedia(file, null, null, publishAccessToken)),
+          );
+          for (const media of uploadedImages) {
             if (!media.public_url) throw new Error('The media service did not return a usable file URL.');
             imageUrls.push(media.public_url);
             uploadedMediaIds.push(String(media.media_id || (media as any).id || ''));
-          } catch (uploadError: any) {
-            sonnerToast.dismiss();
-            sonnerToast.error(uploadError?.message ?? 'Could not upload the image. Please try again.');
-            setLoading(false);
-            return;
           }
+        } catch (uploadError: any) {
+          sonnerToast.dismiss();
+          await Promise.allSettled(uploadedMediaIds.map(mediaId => deleteTestagramMedia(mediaId, publishAccessToken)));
+          sonnerToast.error(uploadError?.message ?? 'Could not upload the selected images. Please try again.');
+          setLoading(false);
+          return;
         }
         sonnerToast.dismiss();
         if (imageUrls.length > 0) sonnerToast.loading(`${imageUrls.length} image(s) uploaded — publishing post…`);
