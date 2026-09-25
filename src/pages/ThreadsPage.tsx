@@ -26,6 +26,11 @@ type MixedItem =
   | { kind:'post'; data:any }
   | { kind:'fed'; data:any };
 const TABS:Tab[]=['For you','Following','Saved'];
+const THREADS_CACHE_TTL=45_000;
+const threadsCache=new Map<string,{at:number,threads:Thread[],mixed:MixedItem[],cursor:string|null,hasMore:boolean}>();
+const readThreadsCache=(key:string)=>{try{const raw=sessionStorage.getItem(`threads-cache:${key}`);if(!raw)return null;const v=JSON.parse(raw);return v&&Date.now()-v.at<THREADS_CACHE_TTL?v:null}catch{return null}};
+const writeThreadsCache=(key:string,value:any)=>{try{sessionStorage.setItem(`threads-cache:${key}`,JSON.stringify({at:Date.now(),...value}));}catch{}};
+
 
 function mediaUrl(value:any){return typeof value==='string'?value:value?.url||'';}
 
@@ -93,7 +98,9 @@ export default function ThreadsPage() {
   useSEO({title:'Threads — Testagram',description:'Join conversations on Testagram. Share thoughts, reply, repost and discover people you follow.',url:'/threads',type:'website',keywords:'threads, conversations, social, Testagram'});
 
   const loadThreads=useCallback(async(reset=true)=>{
-    if(reset){setRefreshing(true);setCursor(null);setHasMore(true);} else {if(loadingMore||!hasMore)return;setLoadingMore(true);}
+    const cacheKey=`${tab}:${user?.id??'anon'}`;
+    if(reset){setRefreshing(true);setCursor(null);setHasMore(true); const cached=threadsCache.get(cacheKey)??readThreadsCache(cacheKey); if(cached){setThreads(cached.threads??[]);setMixedItems(cached.mixed??[]);setCursor(cached.cursor??null);setHasMore(cached.hasMore!==false); setRefreshing(false);}}
+    else {if(loadingMore||!hasMore)return;setLoadingMore(true);}
     try{
       let ids:string[]|null=null;
       if(tab==='Following'){
@@ -160,6 +167,7 @@ export default function ThreadsPage() {
       const nextCursor=rows.at(-1)?.created_at??null;
       setCursor(nextCursor);
       setHasMore(rows.length>=pageSize || Boolean(fedRes.pagination?.hasMore) || postItems.length>=8);
+      const cacheValue={threads:reset?normalizedThreads:[...normalizedThreads],mixed,cursor:nextCursor,hasMore:rows.length>=pageSize||Boolean(fedRes.pagination?.hasMore)||postItems.length>=8}; threadsCache.set(cacheKey,{at:Date.now(),...cacheValue}); writeThreadsCache(cacheKey,cacheValue);
 
       if(user&&rows.length){
         const ids2=rows.map(r=>r.id);
