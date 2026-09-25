@@ -186,7 +186,7 @@ const TRENDING_FILTER_KEYWORDS = {
   Politics:      ['politic', 'election', 'vote', 'govern', 'president', 'parliament', 'policy', 'law', 'kenya', 'nairobi'],
 };
 
-type ExploreTab = 'Explore' | 'Trending' | 'News' | 'Sports' | 'Entertainment' | 'Marketplace';
+type ExploreTab = 'Explore' | 'Trending' | 'News' | 'Sports' | 'Entertainment' | 'Communities' | 'Spaces' | 'Fediverse' | 'Marketplace';
 // ── Search history storage key (module-level — esbuild guard) ─────────────
 const SEARCH_HISTORY_KEY = 'ts-explore-search-history';
 
@@ -240,6 +240,22 @@ function PostReactionBar({
       )}
     </div>
   );
+}
+
+function ExploreCommunities({ navigate }: { navigate: (path: string) => void }) {
+  const [rows,setRows]=useState<any[]>([]); const [loading,setLoading]=useState(true);
+  useEffect(()=>{let dead=false;(async()=>{const {data}=await supabase.from('communities').select('id,name,display_name,description,icon_url,banner_url,member_count,post_count,is_private').order('member_count',{ascending:false}).limit(24);if(!dead)setRows(data??[]);setLoading(false)})();return()=>{dead=true}},[]);
+  return <section className="px-4 py-5"><div className="flex items-end justify-between mb-4"><div><h2 className="text-xl font-black">Communities</h2><p className="text-sm text-muted-foreground">Find active communities and join the conversations that interest you.</p></div><button className="text-sm font-bold text-primary" onClick={()=>navigate('/communities')}>See all</button></div>
+  {loading?<div className="py-12 text-center"><Loader2 className="mx-auto animate-spin"/></div>:<div className="grid gap-3 sm:grid-cols-2">{rows.map(c=><button key={c.id} onClick={()=>navigate('/c/'+encodeURIComponent(c.name))} className="text-left rounded-2xl border bg-card p-4 hover:border-primary/40 transition-colors"><div className="flex gap-3"><div className="w-12 h-12 rounded-xl bg-muted overflow-hidden shrink-0">{c.icon_url?<img src={c.icon_url} alt="" loading="lazy" className="w-full h-full object-cover"/>:<UsersIcon className="w-6 h-6 m-3 text-muted-foreground"/>}</div><div className="min-w-0"><h3 className="font-bold truncate">{c.display_name||c.name}</h3><p className="text-xs text-muted-foreground line-clamp-2">{c.description||'Community on Testagram'}</p><p className="text-xs mt-2">{formatNumber(c.member_count??0)} members · {formatNumber(c.post_count??0)} posts</p></div></div></button>)}</div>}</section>;
+}
+function ExploreSpaces({ navigate }: { navigate: (path: string) => void }) {
+  const [rows,setRows]=useState<any[]>([]); const [loading,setLoading]=useState(true);
+  useEffect(()=>{let dead=false;(async()=>{const {data}=await supabase.from('spaces').select('id,title,description,category,listener_count,is_live,artwork_url,host:user_profiles!spaces_host_id_fkey(username,avatar_url)').eq('is_live',true).order('listener_count',{ascending:false}).limit(20);if(!dead)setRows(data??[]);setLoading(false)})();return()=>{dead=true}},[]);
+  return <section className="px-4 py-5"><div className="flex items-end justify-between mb-4"><div><h2 className="text-xl font-black">Live Audio Spaces</h2><p className="text-sm text-muted-foreground">Join conversations happening right now.</p></div><button className="text-sm font-bold text-primary" onClick={()=>navigate('/spaces')}>Open Spaces</button></div>
+  {loading?<div className="py-12 text-center"><Loader2 className="mx-auto animate-spin"/></div>:rows.length===0?<div className="rounded-2xl border p-8 text-center text-muted-foreground">No live spaces right now. Check upcoming episodes in Spaces.</div>:<div className="grid gap-3 sm:grid-cols-2">{rows.map(s=><button key={s.id} onClick={()=>navigate('/spaces/'+s.id)} className="text-left rounded-2xl border bg-card p-4 hover:border-primary/40 transition-colors"><div className="flex gap-3"><div className="w-14 h-14 rounded-xl bg-muted overflow-hidden shrink-0">{s.artwork_url?<img src={s.artwork_url} alt="" loading="lazy" className="w-full h-full object-cover"/>:<span className="flex items-center justify-center h-full text-2xl">🎙️</span>}</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"/><span className="text-[10px] font-bold text-red-500 uppercase">Live</span><span className="ml-auto text-xs">{formatNumber(s.listener_count??0)} listening</span></div><h3 className="font-bold mt-1 truncate">{s.title}</h3><p className="text-xs text-muted-foreground truncate">Hosted by @{s.host?.username??'creator'}</p></div></div></button>)}</div>}</section>;
+}
+function ExploreFediverse({ navigate }: { navigate: (path: string) => void }) {
+  return <section className="px-4 py-5"><div className="rounded-3xl border bg-gradient-to-br from-primary/10 via-card to-purple-500/10 p-5 mb-5"><div className="flex items-center gap-2"><Globe className="w-5 h-5 text-primary"/><h2 className="text-xl font-black">Fediverse Discovery</h2></div><p className="text-sm text-muted-foreground mt-1">Discover posts, creators and hashtags from connected Fediverse servers.</p><div className="flex gap-2 mt-4 flex-wrap"><button onClick={()=>navigate('/search?q=%23')} className="rounded-full bg-primary text-primary-foreground px-4 py-2 text-sm font-bold">Explore hashtags</button><button onClick={()=>navigate('/search?q=%40')} className="rounded-full border px-4 py-2 text-sm font-bold">Find creators</button><button onClick={()=>navigate('/fediverse/discover')} className="rounded-full border px-4 py-2 text-sm font-bold">Open Fediverse</button></div></div><FederatedOrganicInjection surface="explore"/><FederatedHashtagDiscovery surface="explore"/></section>;
 }
 
 function CategoryTabContent({
@@ -684,7 +700,7 @@ export default function ExplorePage() {
 
   const ALL_CATEGORIES = ['News', 'Sports', 'Entertainment', 'Politics', 'Technology', 'Music', 'Science', 'Business'];
   const COUNTRIES = ['Kenya', 'Nigeria', 'USA', 'UK', 'India', 'South Africa', 'Tanzania', 'Uganda'];
-  const tabs: ExploreTab[] = ['Explore', 'Trending', 'News', 'Sports', 'Entertainment', 'Marketplace'];
+  const tabs: ExploreTab[] = ['Explore', 'Trending', 'News', 'Sports', 'Entertainment', 'Communities', 'Spaces', 'Fediverse', 'Marketplace'];
 
   useEffect(() => {
     let cancelled = false;
@@ -1698,6 +1714,9 @@ export default function ExplorePage() {
         </div>
       )}
 
+      {activeTab === 'Communities' && !inlineSearchResults && <ExploreCommunities navigate={navigate} />}
+      {activeTab === 'Spaces' && !inlineSearchResults && <ExploreSpaces navigate={navigate} />}
+      {activeTab === 'Fediverse' && !inlineSearchResults && <ExploreFediverse navigate={navigate} />}
       {activeTab === 'Marketplace' && !inlineSearchResults && (
         <ExploreMarketplace searchQuery={searchQuery} navigate={navigate} />
       )}
