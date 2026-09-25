@@ -65,7 +65,14 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
   const [activeRemoteProfile, setActiveRemoteProfile] = useState<any | null>(null);
   const [following, setFollowing] = useState(false);
   const [remotePosts, setRemotePosts] = useState<any[]>([]);
+  // Feed is cache-first + stale-while-revalidate. A cached page is always
+  // rendered immediately; network refreshes never take the feed offline or
+  // show a blocking spinner over existing content.
   const [loadingFeed, setLoadingFeed] = useState(false);
+  const [loadingMoreFeed, setLoadingMoreFeed] = useState(false);
+  const [feedCursor, setFeedCursor] = useState<string | null>(null);
+  const [hasMoreFeed, setHasMoreFeed] = useState(true);
+  const feedSentinelRef = useRef<HTMLDivElement | null>(null);
   const [cachedAt, setCachedAt] = useState<Date | null>(null);
   const [isStale, setIsStale] = useState(false);
   const [federatedFollowing, setFederatedFollowing] = useState<any[]>([]);
@@ -130,10 +137,11 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
 
   // (AdSense push handled internally by PageAdBanner / FediverseAdBanner component)
 
-  // Init on mount
+  // Init on mount. Hydrate from the local database cache first, then refresh
+  // remotely in the background so returning users never wait on Mastodon.
   useEffect(() => {
     checkGateway();
-    fetchFederatedFeed();
+    void hydrateFederatedFeed();
     fetchFedTrendingTags();
     if (user) {
       fetchFederationStats();
@@ -206,15 +214,13 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
       })
       .subscribe();
 
-    // Reconciliation is a short fallback for missed Realtime events.
+    // Background refresh is a slow reconciliation fallback for missed Realtime events.
     // Realtime federation events still surface new content immediately.
     const reconcile = window.setInterval(() => {
-      void fetchFederatedFeed({ incremental: true });
+      void refreshFederatedFeed();
       if (tab === 'inbox') void fetchInbox();
       if (tab === 'relay') void fetchOutboxLog();
     }, 30 * 1000);
-    void fetchFederatedFeed({ incremental: true });
-
     return () => {
       window.clearInterval(reconcile);
       void supabase.removeChannel(inboxChannel);
@@ -358,58 +364,118 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
     await supabase.from('federated_objects').upsert(rows, { onConflict: 'uri', ignoreDuplicates: false })
       .then(() => setCachedAt(new Date())).catch(() => {});
   };
-  const fetchFederatedFeed = async ({ incremental = false }: { incremental?: boolean } = {}) => {
-    // Incremental reconciliation must not replace the existing feed: replacing
-    // the array causes visible jumps and can discard content loaded below the
-    // fold. Instead, merge the newest page by canonical URI and keep ordering.
-    if (!incremental) setLoadingFeed(true);
+  const mergeFederatedFeedItems = useCallback((current: any[], incoming: any[]) => {
+    const byUri = new Map<string, any>();
+
+    for (const item of current) {
+      const key = String(item?.uri ?? item?.object_url ?? item?.id ?? '');
+      if (key) byUri.set(key, item);
+    }
+
+    for (const item of incoming) {
+      const key = String(item?.uri ?? item?.object_url ?? item?.id ?? '');
+      if (!key) continue;
+      byUri.set(key, { ...(byUri.get(key) ?? {}), ...item });
+    }
+
+    return [...byUri.values()]
+      .filter(item => !item?.deleted_at && !item?.tombstone)
+      .sort((a, b) => new Date(b?.published_at ?? b?.created_at ?? 0).getTime() - new Date(a?.published_at ?? a?.created_at ?? 0).getTime());
+  }, []);
+
+  const hydrateFederatedFeed = useCallback(async () => {
+    // The database-backed federated_objects table is our durable local cache.
+    // Never put the initial empty state behind a loading spinner.
+    const { data: cached, error } = await supabase
+      .from('federated_objects')
+      .select('*')
+      .order('published_at', { ascending: false })
+      .limit(30);
+
+    if (!error && cached && cached.length > 0) {
+      setRemotePosts(cached);
+      setCachedAt(new Date());
+      setLoadingFeed(false);
+    }
+
+    // Revalidate silently after the cached copy has been painted.
+    void refreshFederatedFeed();
+  }, []);
+
+  const refreshFederatedFeed = useCallback(async () => {
+    // This is intentionally not tied to loadingFeed. Existing cached content
+    // must remain visible while the remote source is refreshed.
+    setIsStale(true);
+
     try {
-      const page = await federation.getFederatedTimelinePage({ limit: 30 });
+      const page = await federation.getFederatedTimelinePage({ limit: 20 });
       const fresh = Array.isArray(page?.items) ? page.items : [];
+      const nextCursor = page?.pagination?.nextCursor ?? null;
+
+      setFeedCursor(nextCursor);
+      setHasMoreFeed(page?.pagination?.hasMore !== false && Boolean(nextCursor));
+
       if (fresh.length > 0) {
-        setRemotePosts(prev => {
-          if (!incremental) return fresh;
-          const byUri = new Map<string, any>();
-          for (const item of prev) {
-            const key = String(item?.uri ?? item?.id ?? '');
-            if (key) byUri.set(key, item);
-          }
-          for (const item of fresh) {
-            const key = String(item?.uri ?? item?.id ?? '');
-            if (key) byUri.set(key, { ...(byUri.get(key) ?? {}), ...item });
-          }
-          return [...byUri.values()]
-            .filter(item => !item?.deleted_at && !item?.tombstone)
-            .sort((a, b) => new Date(b?.published_at ?? 0).getTime() - new Date(a?.published_at ?? 0).getTime())
-            .slice(0, 100);
-        });
+        setRemotePosts(prev => mergeFederatedFeedItems(prev, fresh));
+        // Upsert is the cache replacement step: changed remote objects replace
+        // their previous cached representation by canonical URI.
         void cacheFederatedPosts(fresh);
         setCachedAt(new Date());
-      } else if (!incremental) {
-        const { data: cached } = await supabase
-          .from('federated_objects')
-          .select('*')
-          .order('published_at', { ascending: false })
-          .limit(30);
-        setRemotePosts(cached ?? []);
-        if ((cached ?? []).length > 0) setCachedAt(new Date());
       }
     } catch {
-      if (!incremental) {
-        const { data: cached } = await supabase
-          .from('federated_objects')
-          .select('*')
-          .order('published_at', { ascending: false })
-          .limit(30);
-        setRemotePosts(cached ?? []);
-        if ((cached ?? []).length > 0) setCachedAt(new Date());
-        console.log('[FediversePage] Personalized feed unavailable, serving from cache');
-      }
+      // Cache remains the source of truth for the current render. A remote
+      // failure must never clear already-visible federated posts.
     } finally {
-      if (!incremental) setLoadingFeed(false);
+      setLoadingFeed(false);
       setIsStale(false);
     }
-  };
+  }, [mergeFederatedFeedItems]);
+
+  const loadMoreFederatedFeed = useCallback(async () => {
+    if (loadingMoreFeed || !hasMoreFeed || !feedCursor) return;
+
+    setLoadingMoreFeed(true);
+    try {
+      const page = await federation.getFederatedTimelinePage({
+        limit: 20,
+        before: feedCursor,
+      });
+      const items = Array.isArray(page?.items) ? page.items : [];
+      const nextCursor = page?.pagination?.nextCursor ?? null;
+
+      if (items.length > 0) {
+        setRemotePosts(prev => mergeFederatedFeedItems(prev, items));
+        void cacheFederatedPosts(items);
+        setCachedAt(new Date());
+      }
+
+      setFeedCursor(nextCursor);
+      setHasMoreFeed(page?.pagination?.hasMore !== false && Boolean(nextCursor));
+    } catch {
+      // Keep already-rendered pages and allow a later intersection to retry.
+    } finally {
+      setLoadingMoreFeed(false);
+    }
+  }, [feedCursor, hasMoreFeed, loadingMoreFeed, mergeFederatedFeedItems]);
+
+  // Prefetch the next page before the reader reaches the bottom. The
+  // IntersectionObserver is silent: only the small "loading more" affordance
+  // at the feed boundary changes, never the whole feed.
+  useEffect(() => {
+    if (tab !== 'feed') return;
+    const sentinel = feedSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      entries => {
+        if (entries.some(entry => entry.isIntersecting)) void loadMoreFederatedFeed();
+      },
+      { rootMargin: '900px 0px 900px 0px' }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [tab, loadMoreFederatedFeed]);
 
   const fetchFederationStats = async () => {
     if (!user) return;
@@ -964,7 +1030,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
           {cachedAt && (
             <div className="flex items-center gap-2 px-4 py-1.5 bg-muted/30 border-b border-border text-xs text-muted-foreground">
               {isStale
-                ? <><Loader2 className="w-3 h-3 animate-spin text-primary" />Refreshing local cache…</>
+                ? <><span className="w-2 h-2 rounded-full bg-primary/70 animate-pulse" />Cached feed · updating silently in background</>
                 : <><CheckCircle className="w-3 h-3 text-green-500" />Local cache updated {formatDistanceToNow(cachedAt, { addSuffix: true })} · remote sync runs every 2 min</>}
             </div>
           )}
@@ -1005,18 +1071,26 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
               {loadingTestagramSuggestions ? <div className="px-4 pb-4 space-y-2">{[0,1,2].map(i => <div key={i} className="h-24 rounded-xl bg-muted animate-pulse" />)}</div> : <div className="divide-y divide-border">{testagramSuggestions.slice(0, 6).map((post: any) => <PostCard key={post.id} post={post} />)}</div>}
             </section>
           )}
-          {loadingFeed ? (
-            <div className="flex items-center justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-          ) : remotePosts.length === 0 ? (
+          {remotePosts.length === 0 ? (
             <div className="text-center py-16 text-muted-foreground px-6">
               <Globe className="w-12 h-12 mx-auto mb-3 opacity-30" />
               <p className="font-semibold mb-1">No federated posts yet</p>
               <p className="text-sm">Follow people on Mastodon or Misskey to see their posts here</p>
             </div>
           ) : (
-            <div className="divide-y divide-border">
-              {remotePosts.map((p: any, i: number) => <RemotePostRow key={p.id ?? p.object_url ?? i} p={p} />)}
-            </div>
+            <>
+              <div className="divide-y divide-border">
+                {remotePosts.map((p: any, i: number) => <RemotePostRow key={p.uri ?? p.id ?? p.object_url ?? i} p={p} />)}
+              </div>
+              <div ref={feedSentinelRef} className="min-h-10" aria-hidden="true">
+                {loadingMoreFeed && hasMoreFeed && (
+                  <div className="flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading more federated posts…
+                  </div>
+                )}
+                {!loadingMoreFeed && hasMoreFeed && <div className="h-4" />}
+              </div>
+            </>
           )}
         </div>
       )}
