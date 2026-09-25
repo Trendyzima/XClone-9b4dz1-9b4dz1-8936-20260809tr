@@ -50,7 +50,7 @@ begin
       or new.image_url is distinct from old.image_url
       or new.video_url is distinct from old.video_url
       or new.media_urls is distinct from old.media_urls
-      or new.visibility is distinct from old.visibility
+     
       or new.edited_at is distinct from old.edited_at
       or new.deleted_at is distinct from old.deleted_at
     ) then
@@ -209,7 +209,7 @@ select
 from public.posts p
 join public.activitypub_actors aa on aa.user_id=p.author_id
 where p.deleted_at is null
-  and p.visibility='public'
+ 
 on conflict (uri) do nothing;
 
 insert into public.activitypub_outbox(
