@@ -21,9 +21,10 @@ export default function PostReplyChainPage(){
      // A remote reply is itself an ActivityPub object. Open its object directly
      // so nested replies are loaded from the selected reply's replies collection
      // instead of incorrectly treating every reply as a root-level child.
-     const selectedObject = /^https:\/\//i.test(String(replyId||''))
-       ? ((await federation.getFederatedObject(String(replyId)))?.object ?? await federation.getFederatedObject(String(replyId)))
-       : object;
+     const selectedRemote = /^https:\/\//i.test(String(replyId||''))
+       ? await federation.getFederatedObject(String(replyId))
+       : null;
+     const selectedObject = selectedRemote?.object ?? selectedRemote ?? object;
      const remoteReplies = await resolveFederatedReplies(selectedObject?.replies, federation.getFederatedObject);
      const selectedItem = selectedObject?.id ? [federatedReplyToItem(selectedObject, postId) as ReplyItem] : [];
      const childItems = remoteReplies.map((r:any)=>federatedReplyToItem(r, postId)) as ReplyItem[];
