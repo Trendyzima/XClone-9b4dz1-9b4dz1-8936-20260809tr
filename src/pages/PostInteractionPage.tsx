@@ -8,6 +8,7 @@ import { listLikes } from '@/features/likes/likesService';
 import { listReplies, createReply } from '@/features/replies/repliesService';
 import { listReposts } from '@/features/reposts/repostsService';
 import { listQuotes, quotePost } from '@/features/quotes/quotesService';
+import { ReplyActions } from '@/components/features/ReplyActions';
 import { listQuoteLikes } from '@/features/quoteLikes/quoteLikesService';
 
 type Kind='likes'|'replies'|'reposts'|'quotes'|'quote-likes';
@@ -109,7 +110,7 @@ function InteractionRow({item,kind,onOpenProfile,onOpenPost,onOpenReplyChain}:{i
    <button onClick={()=>onOpenProfile(username)} aria-label={'Open @'+username}><div className="w-10 h-10 rounded-full bg-muted overflow-hidden flex items-center justify-center shrink-0">{profile.avatar_url?<img src={profile.avatar_url} alt={displayName} className="w-full h-full object-cover" loading="lazy"/>:<span className="text-xs font-bold text-muted-foreground">{initial}</span>}</div></button>
    <div className="min-w-0 flex-1">
     <button onClick={()=>onOpenProfile(username)} className="font-bold text-sm hover:underline">{displayName}{username&&<span className="ml-1 font-normal text-muted-foreground">@{String(username).replace(/^@/,'')}</span>}</button>
-    {kind==='replies'&&<button onClick={()=>onOpenReplyChain(item.id)} className="mt-1 text-left w-full text-sm whitespace-pre-wrap break-words hover:bg-muted/30 rounded-lg p-1">{item.content}<span className="block text-[11px] text-primary mt-2">Open reply chain →</span></button>}
+    {kind==='replies'&&<><button onClick={()=>onOpenReplyChain(item.id)} className="mt-1 text-left w-full text-sm whitespace-pre-wrap break-words hover:bg-muted/30 rounded-lg p-1">{item.content}<span className="block text-[11px] text-primary mt-2">Open reply chain →</span></button><ReplyActions replyId={item.id} onReply={()=>onOpenReplyChain(item.id)} /></>}
     {kind==='quotes'&&<><p className="mt-1 text-sm whitespace-pre-wrap break-words">{item.content}</p><button onClick={()=>onOpenPost(item.id)} className="mt-2 w-full text-left rounded-xl border border-border p-3 text-xs text-muted-foreground">Quoted post</button></>}
     {kind==='quote-likes'&&<><p className="text-xs text-muted-foreground mt-1">liked a quote post</p>{quote?.content&&<button onClick={()=>onOpenPost(quote.id)} className="mt-2 w-full text-left rounded-xl border border-border p-3 text-sm">{quote.content}</button>}</>}
     {(kind==='likes'||kind==='reposts')&&<p className="text-xs text-muted-foreground mt-1">{kind==='likes'?'liked':'reposted'} this post</p>}
