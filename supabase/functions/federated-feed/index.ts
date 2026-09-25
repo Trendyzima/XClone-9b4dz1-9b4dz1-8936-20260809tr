@@ -86,7 +86,7 @@ Deno.serve(async (request) => {
       const state = await admin.from("fediverse_instance_sync_state").select("domain,last_synced_at").in("domain",domains);
       const stateMap = new Map((state.data||[]).map((r:any)=>[String(r.domain),Date.parse(r.last_synced_at||"1970-01-01")]));
       const now=Date.now();
-      const due=domains.filter((d:string)=>now-(stateMap.get(d)||0)>45_000);
+      const due=domains.filter((d:string)=>now-(stateMap.get(d)||0)>15_000);
       await Promise.allSettled(due.map(async(domain:string)=>{
         try{
           const res=await fetch(`https://${domain}/api/v1/timelines/public?limit=30&local=true`,{headers:{Accept:"application/json","User-Agent":"Testagram-Federation/4.0"},signal:AbortSignal.timeout(7000)});
@@ -103,6 +103,8 @@ Deno.serve(async (request) => {
       }));
     };
     await refreshLiveInstances();
+    // Always reconcile the public instances on a user request; the per-instance state
+    // gate above prevents hammering any server more often than the freshness window.
 
     const baseSelect = "id,uri,object_type,actor_uri,instance_id,url,content,summary,published_at,updated_at,sensitive,in_reply_to_uri,quote_uri,language_code,attachments,tags,like_count,announce_count,reply_count,quote_count,view_count,content_warning,raw_object";
 
