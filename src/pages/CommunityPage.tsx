@@ -39,7 +39,7 @@ const NFT_TIERS = [
   { min: 5,  tier: 'epic',      emoji: '🔮', label: 'Epic',      color: 'from-purple-500/20 to-violet-500/20', border: 'border-purple-500/30' },
   { min: 1,  tier: 'rare',      emoji: '🏅', label: 'Rare',      color: 'from-amber-500/20 to-yellow-500/20', border: 'border-amber-500/30' },
 ] as const;
-const CHAT_EMOJIS = ['❤️', '🔥', '😂', '👏', '🎉', '💯'] as const;
+const CHAT_EMOJIS = ['❤️'] as const;
 const COMM_TAB_LIST = ['posts', 'members', 'chat', 'events'] as const;
 type CommPageTab = typeof COMM_TAB_LIST[number];
 const GIF_URL_RE = /^https:\/\/(media\.tenor|c\.tenor|media1\.tenor|media\.giphy|i\.giphy)\.com\//;
