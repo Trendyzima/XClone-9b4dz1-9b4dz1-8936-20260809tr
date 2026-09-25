@@ -39,7 +39,7 @@ const SPACE_TABS = ['live', 'recordings', 'upcoming', 'playlists'] as const;
 type SpaceTab = typeof SPACE_TABS[number];
 
 // Live reaction emojis at module scope (esbuild guard)
-const LIVE_EMOJIS = ['❤️', '🔥', '🎉', '👏', '🤣', '💯'] as const;
+const LIVE_EMOJIS = ['❤️'] as const;
 
 // Tab definitions at module scope (esbuild guard)
 const SPACE_TAB_DEFS = [
