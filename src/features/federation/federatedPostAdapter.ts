@@ -54,3 +54,38 @@ export async function resolveFederatedReplies(repliesRef: any, getObject: (uri: 
     return entries.map((entry: any) => typeof entry === 'string' ? { id: entry } : entry).filter((x: any) => x?.id);
   } catch { return []; }
 }
+
+export function federatedReplyToItem(reply: any, parentPostId: string) {
+  const actorRef = reply?.attributedTo;
+  const actorUri = typeof actorRef === 'string' ? actorRef : actorRef?.id ?? actorRef?.url ?? '';
+  const username = String(typeof actorRef === 'object'
+    ? (actorRef?.preferredUsername ?? actorRef?.username ?? actorRef?.acct ?? '')
+    : '').replace(/^@/, '') || actorUri.split('/').filter(Boolean).pop() || '';
+  const displayName = String(typeof actorRef === 'object'
+    ? (actorRef?.name ?? actorRef?.displayName ?? actorRef?.preferredUsername ?? username)
+    : username).trim();
+  const avatar = firstUrl(typeof actorRef === 'object' ? actorRef?.icon : undefined);
+  let domain = '';
+  try { domain = actorUri ? new URL(actorUri).hostname : ''; } catch {}
+  return {
+    id: String(reply?.id ?? ''),
+    user_id: String(actorUri || ''),
+    post_id: parentPostId,
+    content: String(reply?.content ?? reply?.name ?? reply?.summary ?? ''),
+    created_at: String(reply?.published ?? reply?.created ?? new Date().toISOString()),
+    updated_at: String(reply?.updated ?? reply?.published ?? reply?.created ?? new Date().toISOString()),
+    parent_reply_id: undefined,
+    profile: {
+      id: actorUri,
+      username,
+      preferredUsername: username,
+      display_name: displayName,
+      name: displayName,
+      avatar_url: avatar,
+      actor_uri: actorUri,
+      domain,
+      verified: false,
+    },
+    remote: true,
+  };
+}
