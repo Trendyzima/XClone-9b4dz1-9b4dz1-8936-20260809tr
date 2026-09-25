@@ -221,13 +221,18 @@ if(path==="/interaction-counts"&&method==="GET"){
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
   const target=String(params.post_id||params.postId||params.object_uri||params.objectUri||"").trim();
   if(!target)return json({error:"post_id required"},400);
+
   if(/^https:\/\//i.test(target)){
-    const [ledger,replies,quotes,views] = await Promise.all([
+    const [object,ledger,reactions,replies,quotes,views,bookmarks] = await Promise.all([
+      admin.from("federated_objects").select("like_count,announce_count,reply_count,quote_count,view_count").eq("uri",target).maybeSingle(),
       admin.from("federated_interactions").select("interaction_type,active").eq("object_uri",target),
+      admin.from("federated_emoji_reactions").select("emoji").eq("object_uri",target),
       admin.from("federated_replies").select("id",{count:"exact",head:true}).eq("object_uri",target),
       admin.from("federated_quotes").select("id",{count:"exact",head:true}).eq("object_uri",target),
-      admin.from("federated_post_views").select("id",{count:"exact",head:true}).eq("object_uri",target)
+      admin.from("federated_post_views").select("id",{count:"exact",head:true}).eq("object_uri",target),
+      admin.from("federated_bookmarks").select("id",{count:"exact",head:true}).eq("object_uri",target)
     ]);
+    const remote = object.data ?? {};
     let remoteLikes=0, remoteReposts=0;
     try {
       const rr=await transport({user_id:u.id,operation:"inspect",target});
@@ -235,29 +240,63 @@ if(path==="/interaction-counts"&&method==="GET"){
       remoteLikes=Number(d?.counts?.likes||0);
       remoteReposts=Number(d?.counts?.reposts||0);
     } catch {}
-    let localLikes=0, localReposts=0;
+    let likes=remoteLikes, reposts=remoteReposts, viewerLiked=false, viewerReposted=false;
     for(const row of ledger.data||[]){
-      if(row.active&&row.interaction_type==="like")localLikes++;
-      if(row.active&&row.interaction_type==="repost")localReposts++;
+      if(row.active&&row.interaction_type==="like"){likes++; viewerLiked=true;}
+      if(row.active&&row.interaction_type==="repost"){reposts++; viewerReposted=true;}
     }
-    const result={
-      likes:Math.max(localLikes,remoteLikes),
-      reposts:Math.max(localReposts,remoteReposts),
-      replies:Number(replies.count||0),
-      quotes:Number(quotes.count||0),
-      views:Number(views.count||0)
-    };
-    return json(result,200);
+    const reactionCounts:any={};
+    for(const row of reactions.data||[]){const k=String(row.emoji||"");if(k)reactionCounts[k]=(reactionCounts[k]||0)+1;}
+    return json({
+      likes:Math.max(likes,Number(remote.like_count||0)),
+      reposts:Math.max(reposts,Number(remote.announce_count||0)),
+      replies:Math.max(Number(replies.count||0),Number(remote.reply_count||0)),
+      quotes:Math.max(Number(quotes.count||0),Number(remote.quote_count||0)),
+      views:Math.max(Number(views.count||0),Number(remote.view_count||0)),
+      shares:0,
+      bookmarks:Number(bookmarks.count||0),
+      reactions:reactionCounts,
+      reaction_total:Object.values(reactionCounts).reduce((sum:number,n:any)=>sum+Number(n||0),0),
+      is_liked:viewerLiked,
+      is_reposted:viewerReposted,
+      is_bookmarked:false
+    },200);
   }
+
   if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(target))return json({error:"post_id must be a local UUID or remote ActivityPub URI"},400);
-  const [likes,reposts,replies,quotes,post]=await Promise.all([
-    admin.from("post_reactions").select("id",{count:"exact",head:true}).eq("post_id",target).eq("emoji","❤️"),
-    admin.from("reposts").select("id",{count:"exact",head:true}).eq("post_id",target),
+  const [post,reactions,reposts,replies,quotes,bookmarks,analytics] = await Promise.all([
+    admin.from("posts").select("views_count,likes_count,reposts_count,replies_count,quoted_post_id").eq("id",target).maybeSingle(),
+    admin.from("post_reactions").select("emoji").eq("post_id",target),
+    admin.from("reposts").select("id,quote").eq("post_id",target),
     admin.from("replies").select("id",{count:"exact",head:true}).eq("post_id",target),
-    admin.from("reposts").select("id",{count:"exact",head:true}).eq("post_id",target).not("quote","is",null),
-    admin.from("posts").select("views_count").eq("id",target).maybeSingle()
+    admin.from("posts").select("id",{count:"exact",head:true}).eq("quoted_post_id",target),
+    admin.from("bookmarks").select("id",{count:"exact",head:true}).eq("post_id",target),
+    admin.from("post_analytics").select("shares").eq("post_id",target).maybeSingle()
   ]);
-  return json({likes:Number(likes.count||0),reposts:Number(reposts.count||0),replies:Number(replies.count||0),quotes:Number(quotes.count||0),views:Number(post.data?.views_count||0)},200);
+  const reactionCounts:any={};
+  for(const row of reactions.data||[]){const k=String(row.emoji||"");if(k)reactionCounts[k]=(reactionCounts[k]||0)+1;}
+  const heartCount=Number(reactionCounts["❤️"]||0);
+  const repostCount=Number(reposts.data?.length||0);
+  const quoteFromReposts=(reposts.data||[]).filter((r:any)=>Boolean(r.quote)).length;
+  const quoteCount=Math.max(Number(quotes.count||0),quoteFromReposts);
+  const viewerLiked=(reactions.data||[]).some((r:any)=>r.emoji==="❤️" && false);
+  const viewerLikeRow=await admin.from("post_reactions").select("id").eq("post_id",target).eq("user_id",u.id).eq("emoji","❤️").maybeSingle();
+  const viewerRepostRow=await admin.from("reposts").select("id").eq("post_id",target).eq("user_id",u.id).maybeSingle();
+  const viewerBookmarkRow=await admin.from("bookmarks").select("id").eq("post_id",target).eq("user_id",u.id).maybeSingle();
+  return json({
+    likes:Math.max(heartCount,Number(post.data?.likes_count||0)),
+    reposts:Math.max(repostCount,Number(post.data?.reposts_count||0)),
+    replies:Math.max(Number(replies.count||0),Number(post.data?.replies_count||0)),
+    quotes:quoteCount,
+    views:Math.max(Number(post.data?.views_count||0),0),
+    shares:Number(analytics.data?.shares||0),
+    bookmarks:Number(bookmarks.count||0),
+    reactions:reactionCounts,
+    reaction_total:Object.values(reactionCounts).reduce((sum:number,n:any)=>sum+Number(n||0),0),
+    is_liked:Boolean(viewerLikeRow.data),
+    is_reposted:Boolean(viewerRepostRow.data),
+    is_bookmarked:Boolean(viewerBookmarkRow.data)
+  },200);
 }
 if(path==="/federated-interaction-counts"&&method==="GET"){
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
@@ -273,6 +312,14 @@ if(path==="/federated-interaction-counts"&&method==="GET"){
   for(const row of ledger.data||[]){if(row.active&&row.interaction_type==="like")likes++;if(row.active&&row.interaction_type==="repost")reposts++;}
   try{const rr=await transport({user_id:u.id,operation:"inspect",target});const d=rr.data();likes=Math.max(likes,Number(d?.counts?.likes||0));reposts=Math.max(reposts,Number(d?.counts?.reposts||0));}catch{}
   return json({likes,reposts,replies:Number(replies.count||0),quotes:Number(quotes.count||0),views:Number(views.count||0)},200);
+}
+if(path==="/record-post-share"&&method==="POST"){
+  const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
+  const target=String(body.post_id||body.postId||"").trim();
+  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(target))return json({error:"post_id must be a local UUID"},400);
+  const r=await admin.rpc("testagram_record_post_share",{p_post_id:target});
+  if(r.error)return json({error:r.error.message},400);
+  return json({ok:true,shares:Number(r.data||0)},200);
 }
 if(path==="/record-post-view"&&method==="POST"){
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
