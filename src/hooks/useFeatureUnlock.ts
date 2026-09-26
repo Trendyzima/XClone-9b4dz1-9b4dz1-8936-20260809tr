@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useGovernance } from '@/lib/governance';
 
 // The platform regulator username — esbuild-safe module constant
-const REGULATOR_USERNAME = 'Shee';
-const REGULATOR_ID = '6be4eec2-0fc6-408d-94fd-cce7bc901930';
+// Legacy regulator access is now backed by the Testagram governance owner record.
 
 // All available platform feature keys — module scope (esbuild guard)
 export const FEATURE_KEYS = [
@@ -35,10 +35,9 @@ export const FEATURE_LABELS: { [k: string]: string } = {
 };
 
 export function useIsRegulator() {
-  const { user } = useAuth();
-  return user?.username === REGULATOR_USERNAME || user?.id === REGULATOR_ID;
+  const { governance } = useGovernance();
+  return governance.is_owner;
 }
-
 // Features are UNLOCKED BY DEFAULT — only returns false if regulator has explicitly locked the feature
 export function useFeatureUnlock(featureKey: FeatureKey): boolean {
   const { user } = useAuth();
