@@ -50,6 +50,8 @@ export default function TvStudioPage() {
   const [saving, setSaving] = useState(false);
   const [recordingHint, setRecordingHint] = useState('Record locally on this device. Testagram never uploads the finished video.');
   const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [cameraPermission, setCameraPermission] = useState<PermissionState | 'unsupported'>('unsupported');
+  const [microphonePermission, setMicrophonePermission] = useState<PermissionState | 'unsupported'>('unsupported');
   const [deviceReady, setDeviceReady] = useState(false);
   const broadcastTitle = searchParams.get('title')?.trim().slice(0, 100) || 'Testagram TV Live';
   const broadcastDescription = searchParams.get('description')?.trim().slice(0, 500) || 'Live from Testagram TV Studio';
@@ -105,6 +107,14 @@ export default function TvStudioPage() {
   };
 
   const getCamera = async () => {
+    await refreshPermissionState();
+    if (!window.isSecureContext) throw new Error('Camera and microphone require HTTPS. Open https://testagram.site/spaces in a secure browser tab.');
+    if (cameraPermission === 'denied' || microphonePermission === 'denied') {
+      const denied = [cameraPermission === 'denied' ? 'camera' : '', microphonePermission === 'denied' ? 'microphone' : ''].filter(Boolean).join(' and ');
+      const message = `Browser permission for ${denied} is blocked for Testagram. Open this site’s permissions, set ${denied} to Allow, then reload the page. The browser will not show a permission prompt while it remains blocked.`;
+      setPermissionError(message);
+      throw new Error(message);
+    }
     if (!navigator.mediaDevices?.getUserMedia) throw new Error('This browser does not support camera/microphone capture. Use current Chrome, Edge, Firefox, or Safari over HTTPS.');
     const preset = VIDEO_PRESETS[quality];
     try {
@@ -115,6 +125,7 @@ export default function TvStudioPage() {
       cameraStreamRef.current = s;
       setDeviceReady(true);
       setPermissionError(null);
+      await refreshPermissionState();
       return s;
     } catch (error) {
       setDeviceReady(false);
