@@ -1,4 +1,4 @@
-import {useEffect,useMemo,useState} from 'react';
+import {useEffect,useMemo,useRef,useState} from 'react';
 import {ExternalLink,Newspaper,X} from 'lucide-react';
 import {supabase} from '@/lib/supabase';
 
@@ -18,12 +18,14 @@ async function getFeed(category:string){
 function allowed(id:string){try{return !(localStorage.getItem(dismissedKey)||'').split(',').includes(id)}catch{return true}}
 function dismiss(id:string){try{const s=new Set((localStorage.getItem(dismissedKey)||'').split(',').filter(Boolean));s.add(id);localStorage.setItem(dismissedKey,[...s].slice(-100).join(','))}catch{}}
 export function InlineRssSuggestion({content,seed,type='post'}:{content:string;seed:string;type?:'post'|'thread'}){
- const [item,setItem]=useState<FeedItem|null>(null);const [hidden,setHidden]=useState(false);
+ const hostRef=useRef<HTMLDivElement>(null); const [nearViewport,setNearViewport]=useState(false); const [item,setItem]=useState<FeedItem|null>(null);const [hidden,setHidden]=useState(false);
  const eligible=useMemo(()=>{let h=0;for(let i=0;i<seed.length;i++)h=(h*31+seed.charCodeAt(i))>>>0;return h%6===0},[seed]);
- useEffect(()=>{if(!eligible||hidden||!content)return;let live=true;const category=topicFor(content);void getFeed(category).then(items=>{if(!live)return;const words=clean(content).split(/\s+/).filter(x=>x.length>3).slice(0,18);const ranked=items.map(x=>{const hay=clean(x.title+' '+(x.excerpt||''));let score=0;for(const w of words)if(hay.includes(w))score+=2; if(x.country_code==='KE'&&/kenya|nairobi|mombasa|africa/.test(clean(content)))score+=4; if(x.category===category)score+=2;return{x,score}}).sort((a,b)=>b.score-a.score);const pick=ranked.find(x=>x.score>2)?.x||items[0];if(pick&&allowed(seed))setItem(pick)});return()=>{live=false}},[content,eligible,hidden,seed]);
- if(!eligible||hidden||!item)return null;
+ useEffect(()=>{if(!eligible||hidden)return;const el=hostRef.current;if(!el||typeof IntersectionObserver==='undefined'){setNearViewport(true);return;}const observer=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)){setNearViewport(true);observer.disconnect();}},{rootMargin:'700px 0px'});observer.observe(el);return()=>observer.disconnect();},[eligible,hidden]);
+ useEffect(()=>{if(!eligible||hidden||!content||!nearViewport)return;let live=true;const category=topicFor(content);void getFeed(category).then(items=>{if(!live)return;const words=clean(content).split(/\s+/).filter(x=>x.length>3).slice(0,18);const ranked=items.map(x=>{const hay=clean(x.title+' '+(x.excerpt||''));let score=0;for(const w of words)if(hay.includes(w))score+=2; if(x.country_code==='KE'&&/kenya|nairobi|mombasa|africa/.test(clean(content)))score+=4; if(x.category===category)score+=2;return{x,score}}).sort((a,b)=>b.score-a.score);const pick=ranked.find(x=>x.score>2)?.x||items[0];if(pick&&allowed(seed))setItem(pick)});return()=>{live=false}},[content,eligible,hidden,seed]);
+ if(!eligible||hidden)return null;
+ if(!item)return <div ref={hostRef} className='mt-3 min-h-1' aria-hidden='true'/>;
  const close=()=>{setHidden(true);dismiss(seed)};
- return <div className='mt-3 rounded-2xl border border-border bg-muted/20 p-3' onClick={e=>e.stopPropagation()}>
+ return <div ref={hostRef} className='mt-3 rounded-2xl border border-border bg-muted/20 p-3' onClick={e=>e.stopPropagation()}>
   <div className='flex gap-3'>
    {item.image_url?<img src={item.image_url} alt='' loading='lazy' className='h-16 w-24 rounded-xl object-cover shrink-0'/>:<div className='h-16 w-24 rounded-xl bg-background flex items-center justify-center shrink-0'><Newspaper className='h-5 w-5 text-primary'/></div>}
    <div className='min-w-0 flex-1'><div className='flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground'><Newspaper className='h-3 w-3'/>Suggested from {item.testagram_rss_source_profiles?.display_name||'RSS feed'}</div><div className='font-bold text-sm mt-0.5 line-clamp-2'>{item.title}</div><div className='text-[11px] text-muted-foreground mt-1'>{item.country_code||'International'} · {item.category}</div></div>
