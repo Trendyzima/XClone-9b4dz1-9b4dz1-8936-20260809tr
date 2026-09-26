@@ -678,6 +678,41 @@ async function handle(request: Request) {
     if (!body.target) return json({ error: "target required" }, 400);
     return json({ ok: true, ...await resolve(local, body.target) });
   }
+  if (body.operation === "profile") {
+    if (!body.target) return json({ error: "target required" }, 400);
+    const actor = await resolve(local, String(body.target));
+    const outboxUrl = idOf(actor.actor?.outbox);
+    if (!outboxUrl) return json({ ok: true, actor: actor.actor, items: [] }, 200);
+    const maxItems = Math.min(Math.max(Number(body.limit || 60), 1), 100);
+    const items: any[] = [];
+    const seen = new Set<string>();
+    let nextUrl: string | null = outboxUrl;
+    let first = true;
+    while (nextUrl && items.length < maxItems && seen.size < 4) {
+      if (seen.has(nextUrl)) break;
+      seen.add(nextUrl);
+      const response = await signedFetch(local, nextUrl, "GET");
+      const text = await response.text();
+      if (!response.ok) throw Error(`Remote outbox ${response.status}: ${text.slice(0, 1200)}`);
+      let page: any;
+      try { page = JSON.parse(text); } catch { throw Error("Remote outbox is not valid ActivityPub JSON"); }
+      const entries = asArray(page?.orderedItems ?? page?.items);
+      for (const entry of entries) {
+        const object = entry?.object && typeof entry.object === "object" ? entry.object : entry;
+        if (!object || typeof object !== "object" || object.type === "Delete") continue;
+        const id = idOf(object);
+        if (!id || items.some((x) => x.id === id)) continue;
+        items.push(object);
+        if (items.length >= maxItems) break;
+      }
+      const next = idOf(page?.next);
+      if (next) nextUrl = next;
+      else if (first && idOf(page?.first) && idOf(page?.first) !== nextUrl) nextUrl = idOf(page?.first);
+      else nextUrl = null;
+      first = false;
+    }
+    return json({ ok: true, actor: actor.actor, items: items.slice(0, maxItems) }, 200);
+  }
   if (body.operation === "fetch") {
     if (!body.target) return json({ error: "target required" }, 400);
     const remoteObject = await fetchRemoteObject(local, String(body.target));
