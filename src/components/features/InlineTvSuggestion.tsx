@@ -1,4 +1,4 @@
-import {useEffect,useMemo,useState} from 'react';
+import {useEffect,useMemo,useRef,useState} from 'react';
 import {Radio,ChevronRight,X,Play} from 'lucide-react';
 import {useNavigate} from 'react-router-dom';
 import {TV_SOURCES,dedupeTvChannels,loadTvSource,type TvChannel} from '@/services/tvChannelCatalog';
@@ -38,13 +38,15 @@ function allowed(id:string){try{const raw=localStorage.getItem(dismissedKey);ret
 function dismiss(id:string){try{const raw=localStorage.getItem(dismissedKey);const next=new Set((raw||'').split(',').filter(Boolean));next.add(id);localStorage.setItem(dismissedKey,[...next].slice(-100).join(','));}catch{}}
 
 export function InlineTvSuggestion({content,seed,type='post'}:{content:string;seed:string;type?:'post'|'thread'}){
- const nav=useNavigate(); const [channel,setChannel]=useState<TvChannel|null>(null); const [playing,setPlaying]=useState(false); const [hidden,setHidden]=useState(false);
+ const nav=useNavigate(); const hostRef=useRef<HTMLDivElement>(null); const [nearViewport,setNearViewport]=useState(false); const [channel,setChannel]=useState<TvChannel|null>(null); const [playing,setPlaying]=useState(false); const [hidden,setHidden]=useState(false);
  const eligible=useMemo(()=>{let h=0;for(let i=0;i<seed.length;i++)h=(h*31+seed.charCodeAt(i))>>>0;return h%5===0;},[seed]);
- useEffect(()=>{if(!eligible||hidden||!content)return;let live=true;const topic=topicFor(content);void getPool(topic).then(pool=>{if(!live)return;const ranked=pool.map(c=>({c,s:scoreChannel(c,content)})).sort((a,b)=>b.s-a.s||b.c.priority-a.c.priority);const pick=ranked.find(x=>x.s>=5)?.c||ranked[0]?.c;if(pick&&allowed(seed))setChannel(pick);});return()=>{live=false;};},[content,eligible,hidden,seed]);
- if(!eligible||hidden||!channel)return null;
+ useEffect(()=>{if(!eligible||hidden)return;const el=hostRef.current;if(!el||typeof IntersectionObserver==='undefined'){setNearViewport(true);return;}const observer=new IntersectionObserver(entries=>{if(entries.some(e=>e.isIntersecting)){setNearViewport(true);observer.disconnect();}},{rootMargin:'700px 0px'});observer.observe(el);return()=>observer.disconnect();},[eligible,hidden]);
+ useEffect(()=>{if(!eligible||hidden||!content||!nearViewport)return;let live=true;const topic=topicFor(content);void getPool(topic).then(pool=>{if(!live)return;const ranked=pool.map(c=>({c,s:scoreChannel(c,content)})).sort((a,b)=>b.s-a.s||b.c.priority-a.c.priority);const pick=ranked.find(x=>x.s>=5)?.c||ranked[0]?.c;if(pick&&allowed(seed))setChannel(pick);});return()=>{live=false;};},[content,eligible,hidden,seed]);
+ if(!eligible||hidden)return null;
+ if(!channel)return <div ref={hostRef} className='mt-3 min-h-1' aria-hidden='true'/>;
  const close=()=>{setHidden(true);dismiss(seed);setPlaying(false);};
  if(playing)return <div className='mt-3' onClick={e=>e.stopPropagation()}><TvChannelPlayer channel={channel} active={true} onVisible={()=>{}}/><button onClick={close} className='mt-1 text-xs text-muted-foreground hover:text-foreground'>Hide TV suggestion</button></div>;
- return <div className='mt-3 rounded-2xl border border-border bg-muted/20 p-3' onClick={e=>e.stopPropagation()}>
+ return <div ref={hostRef} className='mt-3 rounded-2xl border border-border bg-muted/20 p-3' onClick={e=>e.stopPropagation()}>
   <div className='flex items-start gap-3'>
    <div className='h-11 w-11 shrink-0 rounded-xl bg-background border flex items-center justify-center overflow-hidden'>{channel.logo?<img src={channel.logo} alt='' loading='lazy' className='max-h-8 max-w-[80%] object-contain'/>:<Radio className='h-5 w-5 text-red-500'/>}</div>
    <div className='min-w-0 flex-1'><div className='flex items-center gap-1.5 text-[11px] font-semibold text-muted-foreground'><Radio className='h-3 w-3 text-red-500'/>Suggested live TV</div><div className='font-bold text-sm truncate mt-0.5'>{channel.name}</div><div className='text-[11px] text-muted-foreground truncate mt-0.5'>{channel.country||'International'} · {channel.source}</div><p className='text-xs text-muted-foreground mt-1'>This live channel may be relevant to this conversation.</p></div>
