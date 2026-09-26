@@ -2,7 +2,7 @@ export type TvChannel = { id:string; name:string; url:string; logo?:string; coun
 export type TvSource = { id:string; label:string; url:string; country?:string; priority:number };
 export const TV_SOURCES: TvSource[] = [
 {id:'iptv-org-ke',label:'IPTV.org · Kenya',url:'https://iptv-org.github.io/iptv/countries/ke.m3u',country:'KE',priority:100},
-{id:'iptv-org-int',label:'IPTV.org · International',url:'https://iptv-org.github.io/iptv/regions/ww.m3u',country:'INT',priority:95},
+{id:'iptv-org-int',label:'IPTV.org · International',url:'https://iptv-org.github.io/iptv/regions/ssa.m3u',country:'INT',priority:95},
 {id:'iptv-org-us',label:'IPTV.org · United States',url:'https://iptv-org.github.io/iptv/countries/us.m3u',country:'US',priority:90},
 {id:'iptv-org-gb',label:'IPTV.org · United Kingdom',url:'https://iptv-org.github.io/iptv/countries/gb.m3u',country:'GB',priority:88},
 {id:'iptv-org-za',label:'IPTV.org · South Africa',url:'https://iptv-org.github.io/iptv/countries/za.m3u',country:'ZA',priority:86},
