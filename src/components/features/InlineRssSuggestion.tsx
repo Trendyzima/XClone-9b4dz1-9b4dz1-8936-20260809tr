@@ -12,9 +12,7 @@ function topicFor(text:string){const t=clean(text);if(/breaking|news|headline|el
 async function getFeed(category:string){
  if(cache.has(category))return cache.get(category)!;
  if(pending.has(category))return pending.get(category)!;
- const p=supabase.functions.invoke('testagram-rss-feed',{body:undefined}).then(()=>[] as FeedItem[]).catch(()=>[] as FeedItem[]);
- const url=supabase.functions.invoke('testagram-rss-feed',{body:undefined});
- const q=url.then(async()=>{const {data,error}=await supabase.functions.invoke('testagram-rss-feed',{method:'GET'} as any);if(error)throw error;const items=(data?.items||[]) as FeedItem[];cache.set(category,items);return items;}).catch(()=>[]);
+ const q=supabase.functions.invoke('testagram-rss-feed',{body:{category,limit:12}}).then(({data,error})=>{if(error)throw error;const items=(data?.items||[]) as FeedItem[];cache.set(category,items);pending.delete(category);return items}).catch(()=>{pending.delete(category);return [] as FeedItem[]});
  pending.set(category,q);return q;
 }
 function allowed(id:string){try{return !(localStorage.getItem(dismissedKey)||'').split(',').includes(id)}catch{return true}}
