@@ -42,8 +42,8 @@ export async function getGovernanceForUser(userId: string) {
   return data as { is_owner?: boolean; is_admin?: boolean; role?: string | null };
 }
 
-export async function appointAdministrator(userId: string, role: string) {
-  const { data, error } = await supabase.rpc('testagram_appoint_admin', { p_user_id: userId, p_role_name: role });
+export async function appointAdministrator(userId: string, role: string, allowPermissions: string[] = [], denyPermissions: string[] = []) {
+  const { data, error } = await supabase.rpc('testagram_appoint_admin_v2', { p_user_id: userId, p_role_name: role, p_allow_permissions: allowPermissions, p_deny_permissions: denyPermissions });
   if (error) throw error;
   return data;
 }
@@ -90,3 +90,9 @@ export const GOVERNANCE_ROLES = [
   { value: 'operations_admin', label: 'Operations Admin', description: 'Platform, live and system operations' },
   { value: 'super_admin', label: 'Super Admin', description: 'Broad operational administration' },
 ] as const;
+
+export async function listGovernancePermissions() {
+  const { data, error } = await supabase.rpc('testagram_list_governance_permissions');
+  if (error) throw error;
+  return (data ?? []) as Array<{ key: string; description: string }>;
+}
