@@ -48,6 +48,7 @@ export default function TvStudioPage() {
   const [audioLevel, setAudioLevel] = useState(0);
   const [status, setStatus] = useState<'idle' | 'preview' | 'recording' | 'live'>('idle');
   const [saving, setSaving] = useState(false);
+  const [recordingHint, setRecordingHint] = useState('Record locally on this device. Testagram never uploads the finished video.');
   const broadcastTitle = searchParams.get('title')?.trim().slice(0, 100) || 'Testagram TV Live';
   const broadcastDescription = searchParams.get('description')?.trim().slice(0, 500) || 'Live from Testagram TV Studio';
   const broadcastCategory = searchParams.get('category')?.trim().slice(0, 50) || 'general';
