@@ -4,7 +4,7 @@ import { Globe2, Radio, RefreshCw } from 'lucide-react';
 import { TV_SOURCES, loadTvSource, type TvChannel } from '@/services/tvChannelCatalog';
 import { supabaseUrl } from '@/lib/supabase';
 
-const loadTvPlayer = () => import('@/components/features/TvChannelPlayer').then(module => module.TvChannelPlayer);
+const loadTvPlayer = () => import('@/components/features/TvChannelPlayer').then(module => ({ default: module.TvChannelPlayer }));
 const TvChannelPlayer = lazy(loadTvPlayer);
 
 const MAX_POSTS = 8;
@@ -54,7 +54,6 @@ async function warmTvRuntime() {
   return runtimeWarmPromise;
 }
 
-const MAX_POSTS = 8;
 const HIDDEN = /^\/(auth|admin|settings|wallet|messages|notifications|help|premium|create-ad|my-ads|ad-|rewards|verify|privacy|terms|policy|regulator|sessions|blocked|appeals|payouts|revenue|analytics|news\/|tv)(?:\/|$)/;
 
 let pool: TvChannel[] = [];
