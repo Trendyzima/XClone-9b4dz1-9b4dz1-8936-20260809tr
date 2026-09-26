@@ -22,7 +22,8 @@ export function TvPostStream() {
   const [nearViewport, setNearViewport] = useState(false);
   const [items, setItems] = useState<TvChannel[]>([]);
   const [loading, setLoading] = useState(false);
-  const [done, setDone] = useState(false);\n  const [active, setActive] = useState('');
+  const [done, setDone] = useState(false);
+  const [active, setActive] = useState('');
   useEffect(() => {
     if (HIDDEN.test(pathname)) return;
     const el = hostRef.current;
