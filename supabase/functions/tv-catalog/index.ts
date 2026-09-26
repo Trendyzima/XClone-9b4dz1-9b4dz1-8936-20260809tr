@@ -202,7 +202,9 @@ Deno.serve(async(req)=>{
       channels,
       meta:{
         generated_at:new Date().toISOString(),
-        channel_count:channels.length,\n        live_only:true,\n        health_checked:true,
+        channel_count:channels.length,
+        live_only:true,
+        health_checked:true,
         auto_discovery:sourceId==="iptv-org-global",
         storage:"stream_urls_only"
       }
