@@ -1,4 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import Hls from 'hls.js';
+
 import {
   Heart, MessageCircle, Repeat2, Share, Volume2, VolumeX,
   Play, DollarSign, Crown, BadgeCheck, X, Send, Loader2,
@@ -12,6 +14,7 @@ import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { VideoMonetizationAd } from './VideoMonetizationAd';
 import { usePremium } from '@/hooks/usePremium';
+import { UniversalVideoPlayer } from './UniversalVideoPlayer';
 
 interface VideoPlayerProps {
   post: Post;
@@ -606,19 +609,20 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
         </div>
       )}
 
-      {/* ── Video element ────────────────────────────────────────────────── */}
-      <video
+      {/* ── Universal video engine ──────────────────────────────────────── */}
+      <UniversalVideoPlayer
         ref={videoRef}
         src={cancelPreload ? '' : (post.video_url || '')}
-        loop
-        playsInline
-        muted={isMuted}
+        active={isActive}
         preload={shouldPreload ? 'auto' : 'metadata'}
+        muted={isMuted}
+        loop
         className="h-full w-full object-cover"
         style={{ maxWidth: '100vw' }}
-        onTimeUpdate={handleTimeUpdate}
         onClick={handleVideoTap}
-        onTouchEnd={handleVideoTap}
+        onTimeUpdate={handleTimeUpdate}
+        onPlaying={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
       />
 
       {/* ── Long-press 2× speed overlay ────────────────────────────────── */}
