@@ -46,27 +46,16 @@ export default function StartStreamPage() {
     }
 
     setLoading(true);
-
     try {
-      const { data, error } = await supabase
-        .from('live_streams')
-        .insert({
-          user_id: user.id,
-          title: title.trim(),
-          description: description.trim(),
-          category,
-          is_live: true,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      toast.success('Stream started!');
-      navigate(`/stream/${data.id}`);
+      const params = new URLSearchParams({
+        title: title.trim(),
+        description: description.trim(),
+        category,
+      });
+      toast.success('Opening TV Studio…');
+      navigate('/tv-studio?' + params.toString());
     } catch (error: any) {
-      console.error('Error starting stream:', error);
-      toast.error(error.message || 'Failed to start stream');
+      toast.error(error.message || 'Could not open TV Studio');
     } finally {
       setLoading(false);
     }
@@ -181,7 +170,7 @@ export default function StartStreamPage() {
               <li>• Enable notifications so followers know you're live</li>
               <li>• Engage with your viewers in the chat</li>
               <li>• Keep your stream title clear and descriptive</li>
-              <li>• Streams are automatically recorded for 24 hours</li>
+              <li>• Live video is not stored by Testagram</li>
             </ul>
           </div>
 
@@ -229,9 +218,9 @@ export default function StartStreamPage() {
           </div>
           <div className="bg-muted/30 p-4 rounded-lg">
             <Radio className="w-8 h-8 text-primary mb-2" />
-            <h3 className="font-semibold mb-1">Auto Recording</h3>
+            <h3 className="font-semibold mb-1">Ephemeral live</h3>
             <p className="text-sm text-muted-foreground">
-              Streams saved for 24 hours automatically
+              Only the live signal is delivered; recordings stay on your device if you choose to record locally
             </p>
           </div>
         </div>
