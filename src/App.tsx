@@ -208,6 +208,7 @@ const PodcastSearchPage = lazy(() => import('@/pages/PodcastSearchPage'));
 const RegulatorPanel = lazy(() => import('@/pages/RegulatorPanel'));
 const PodcastAnalyticsPage = lazy(() => import('@/pages/PodcastAnalyticsPage'));
 const TeamChatPage = lazy(() => import('@/pages/TeamChatPage'));
+const CallPage = lazy(() => import('@/pages/CallPage'));
 const AppealsPage = lazy(() => import('@/pages/AppealsPage'));
 const CreatorLeaderboardPage = lazy(() => import('@/pages/CreatorLeaderboardPage'));
 const StoryAnalyticsDashboard = lazy(() => import('@/pages/StoryAnalyticsDashboard'));
@@ -258,7 +259,7 @@ function AppInner(){useCreatorTierAlert();useEffect(()=>{applyAppearance(getStor
 <Route path="/discover" element={<DiscoverSuggestedPage/>}/>
 <Route path="/discover/suggested" element={<DiscoverSuggestedPage/>}/>
 <Route path="/discover/popular" element={<DiscoverPopularPage/>}/>
-<Route path="/discover/fediverse" element={<DiscoverFediversePage/>}/><Route path="/notifications" element={<NotificationsPage/>}/><Route path="/messages" element={<MessagesPage/>}/><Route path="/spaces" element={<SpacesPage/>}/><Route path="/profile/:username" element={<ProfilePage/>}/>
+<Route path="/discover/fediverse" element={<DiscoverFediversePage/>}/><Route path="/notifications" element={<NotificationsPage/>}/><Route path="/messages" element={<MessagesPage/>}/><Route path="/call/:callId" element={<CallPage/>}/><Route path="/spaces" element={<SpacesPage/>}/><Route path="/profile/:username" element={<ProfilePage/>}/>
 <Route path="/profile/:username/posts" element={<ProfilePostsPage/>}/>
 <Route path="/profile/:username/threads" element={<ProfileThreadsPage/>}/>
 <Route path="/profile/:username/replies" element={<ProfileRepliesPage/>}/>
