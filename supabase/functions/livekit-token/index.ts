@@ -118,7 +118,7 @@ Deno.serve(async req => {
 
   return json({
     ok: true,
-    data: { token, url: livekitUrl, room_name: call.room_name, call_id: call.id, kind: call.kind },
+    data: { token, url: livekitUrl, room_name: call.room_name, call_id: call.id, kind: call.kind, conversation_id: call.conversation_id },
     error: null,
   });
 });
