@@ -51,10 +51,10 @@ export function Sidebar() {
 
   // Check employee status for team-chat link visibility
   useEffect(() => {
-    if (!user || isReg) { setIsEmployee(isReg); return; }
+    if (!user || isReg || governance.is_owner) { setIsEmployee(isReg || governance.is_owner); return; }
     return runWhenIdle(() => { supabase.from('employee_assignments').select('id').eq('user_id', user.id).eq('is_active', true).maybeSingle()
       .then(({ data }) => setIsEmployee(!!data)); });
-  }, [user?.id, isReg]);
+  }, [user?.id, isReg, governance.is_owner]);
 
   // ── Unread counts ────────────────────────────────────────────────────────
   const [unreadNotifs, setUnreadNotifs] = useState(0);
@@ -263,8 +263,8 @@ export function Sidebar() {
   ];
 
   // Team chat — employees & regulator only
-  const staffItems = governance.is_admin && !governance.is_owner ? [
-    { icon: ShieldCheck, label: 'Staff Workspace', path: '/staff', requireAuth: true },
+  const staffItems = (governance.is_admin || governance.is_owner) ? [
+    { icon: ShieldCheck, label: governance.is_owner ? 'Owner Workspace' : 'Staff Workspace', path: '/staff', requireAuth: true },
   ] : [];
   const teamItems = isEmployee ? [
     { icon: MessageSquare, label: 'Team Chat', path: '/team-chat', requireAuth: true },
@@ -354,7 +354,7 @@ export function Sidebar() {
               })}
 
               {/* Staff Workspace — governance assignment */}
-              {staffItems.map((item) => { const Icon = item.icon; const isActive = location.pathname === item.path; return <button key={item.path} onClick={() => handleNavClick(item.path, item.requireAuth)} className={`flex items-center space-x-3 px-4 py-2 rounded-lg transition-colors w-full text-left text-sm ${isActive ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted text-foreground'}`}><Icon className="w-4 h-4 text-primary"/><span>{item.label}</span><span className="ml-auto text-[9px] bg-primary/10 text-primary font-bold px-1.5 py-0.5 rounded-full">{governance.role ?? 'Staff'}</span></button>; })}
+              {staffItems.map((item) => { const Icon = item.icon; const isActive = location.pathname === item.path; return <button key={item.path} onClick={() => handleNavClick(item.path, item.requireAuth)} className={`flex items-center space-x-3 px-4 py-2 rounded-lg transition-colors w-full text-left text-sm ${isActive ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted text-foreground'}`}><Icon className="w-4 h-4 text-primary"/><span>{item.label}</span><span className="ml-auto text-[9px] bg-primary/10 text-primary font-bold px-1.5 py-0.5 rounded-full">{governance.is_owner ? 'Owner' : (governance.role ?? 'Staff')}</span></button>; })}
 
               {/* Team Chat — employees only */}
               {teamItems.map((item) => {
