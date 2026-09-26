@@ -5,8 +5,8 @@ import { TopBar } from '@/components/layout/TopBar';
 import { useGovernance, GOVERNANCE_ROLES } from '@/lib/governance';
 
 const CAPABILITIES: Record<string,{label:string;icon:any;description:string;path:string}>= {
- 'content.moderate':{label:'Content moderation',icon:ShieldCheck,description:'Review and enforce content policy.',path:'/admin/overview'},
- 'reports.manage':{label:'Reports',icon:ClipboardList,description:'Review and resolve platform reports.',path:'/admin/overview'},
+ 'content.moderate':{label:'Content moderation',icon:ShieldCheck,description:'Review and enforce content policy.',path:'/regulator/moderation'},
+ 'reports.manage':{label:'Reports',icon:ClipboardList,description:'Review and resolve platform reports.',path:'/regulator/reports'},
  'users.restrict':{label:'User restrictions',icon:Users,description:'Apply authorized account restrictions.',path:'/admin/users'},
  'support.manage':{label:'Support operations',icon:MessageSquare,description:'Handle platform support workflows.',path:'/team-chat'},
  'finance.read':{label:'Finance visibility',icon:Wallet,description:'View financial administration data.',path:'/admin/revenue'},
@@ -16,7 +16,7 @@ const CAPABILITIES: Record<string,{label:string;icon:any;description:string;path
  'live.manage':{label:'Live/media operations',icon:Radio,description:'Operate live and media controls.',path:'/tv-studio'},
  'system.read':{label:'System operations',icon:Activity,description:'View platform operational state.',path:'/analytics'},
  'system.manage':{label:'System management',icon:Activity,description:'Manage authorized platform configuration.',path:'/regulator/platform'},
- 'security.manage':{label:'Security controls',icon:LockKeyhole,description:'Manage privileged security controls.',path:'/wallet/security'},
+ 'security.manage':{label:'Security controls',icon:LockKeyhole,description:'Manage privileged security controls.',path:'/regulator/platform'},
  'governance.audit.read':{label:'Audit history',icon:ClipboardList,description:'Review governance audit records.',path:'/regulator/audit'},
  'governance.admins.read':{label:'Staff directory',icon:Users,description:'View administrator assignments.',path:'/admin/governance'},
 };
