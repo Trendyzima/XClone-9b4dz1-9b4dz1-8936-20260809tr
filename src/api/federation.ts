@@ -91,6 +91,11 @@ export async function resolveRemoteActor(actorUri: string): Promise<any> {
   if (!/^https?:\/\//i.test(actorUri)) throw new Error('Remote actor must be an ActivityPub URL');
   return api('/federated-actor', 'GET', undefined, { actor_uri: actorUri });
 }
+export async function getRemoteProfile(actorUri: string, limit = 60): Promise<any> {
+  if (!/^https?:\\/\\//i.test(actorUri)) throw new Error('Remote actor must be an ActivityPub URL');
+  return api('/federated-profile', 'GET', undefined, { actor_uri: actorUri, limit: Math.min(Math.max(limit, 1), 100) });
+}
+
 export async function getFederatedObject(objectUri: string): Promise<any> {
   if (!/^https:\/\//i.test(objectUri)) throw new Error('Federated object must be an ActivityPub URI');
   return api('/federated-object', 'GET', undefined, { object_uri: objectUri });
