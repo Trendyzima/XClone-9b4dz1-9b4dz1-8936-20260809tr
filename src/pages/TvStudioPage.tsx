@@ -297,7 +297,7 @@ export default function TvStudioPage() {
         <div className="grid lg:grid-cols-[1fr_330px] gap-4">
           <section className="rounded-2xl overflow-hidden border border-white/10 bg-black shadow-2xl">
             <div className="aspect-video relative flex items-center justify-center">
-              {!cameraStreamRef.current && <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500"><Radio className="w-12 h-12 mb-2" /><span>Studio preview</span></div>}
+              {status === 'idle' && <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500"><Radio className="w-12 h-12 mb-2" /><span>Studio preview</span><span className="text-xs mt-1">Tap Preview to start the camera and microphone</span></div>}
               <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-contain" />
               <div className="absolute top-3 left-3 flex gap-2 pointer-events-none">
                 {live && <span className="px-2.5 py-1 rounded-full bg-red-600/90 text-xs font-bold">● LIVE</span>}
