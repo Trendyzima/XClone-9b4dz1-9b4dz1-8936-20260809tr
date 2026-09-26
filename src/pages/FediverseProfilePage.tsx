@@ -114,6 +114,8 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
           followers: result?.followers ?? actorDoc.followers ?? 0,
           following: result?.following ?? actorDoc.following ?? 0,
           fields: result?.fields ?? [],
+          tags: actorDoc.tag ?? result?.tags ?? [],
+          raw_actor: actorDoc,
         } : null;
         setProfile(normalizedProfile);
 
