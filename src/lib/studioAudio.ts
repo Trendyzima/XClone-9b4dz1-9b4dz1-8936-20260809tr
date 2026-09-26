@@ -5,6 +5,7 @@ export interface StudioAudioPipeline {
   lowPass: BiquadFilterNode;
   compressor: DynamicsCompressorNode;
   analyser: AnalyserNode;
+  getLevel: () => number;
   gate: GainNode;
   destination: MediaStreamAudioDestinationNode;
   stream: MediaStream;
@@ -87,6 +88,15 @@ export async function createStudioAudioPipeline(input: MediaStream): Promise<Stu
   return {
     context, source, highPass, lowPass, compressor, analyser, gate, destination,
     stream: destination.stream,
+    getLevel: () => {
+      const values = new Float32Array(analyser.fftSize);
+      analyser.getFloatTimeDomainData(values);
+      let sum = 0;
+      for (let i = 0; i < values.length; i++) sum += values[i] * values[i];
+      const rms = Math.sqrt(sum / values.length);
+      const db = 20 * Math.log10(Math.max(rms, 0.00001));
+      return Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
+    },
     stop: async () => {
       cancelAnimationFrame(raf);
       try { source.disconnect(); highPass.disconnect(); lowPass.disconnect(); compressor.disconnect(); analyser.disconnect(); gate.disconnect(); destination.disconnect(); } catch {}
