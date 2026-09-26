@@ -170,11 +170,15 @@ export default function TvStudioPage() {
     setLive(false);
     if (!recording) setStatus(cameraStreamRef.current ? 'preview' : 'idle');
     if (activeStreamId) {
-      // The broadcast row is disposable control-plane state. The actual audio/video lived only in LiveKit.
-      // Remove it when the host goes offline so ended broadcasts cannot become a stored video catalog.
-      await supabase.from('live_streams').delete().eq('id', activeStreamId).eq('user_id', user?.id ?? '');
+      // Keep only broadcast metadata. End the control-plane record and remove the LiveKit locator;
+      // no recording/blob/video URL is persisted by this studio.
+      await supabase.from('live_streams').update({
+        is_live: false,
+        ended_at: new Date().toISOString(),
+        stream_url: null,
+      }).eq('id', activeStreamId).eq('user_id', user?.id ?? '');
       setActiveStreamId(null);
-      setStream(null);
+      setStream((prev: any) => prev ? { ...prev, is_live: false, ended_at: new Date().toISOString(), stream_url: null } : null);
     }
   };
 
@@ -183,7 +187,13 @@ export default function TvStudioPage() {
       await ensureStudio();
       const program = rebuildProgramStream();
       const preset = VIDEO_PRESETS[quality];
-      const mime = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'].find(x => MediaRecorder.isTypeSupported(x)) ?? '';
+      const mime = [
+        'video/webm;codecs=vp9,opus',
+        'video/webm;codecs=vp8,opus',
+        'video/webm',
+        'video/mp4;codecs=h264,aac',
+        'video/mp4',
+      ].find(x => MediaRecorder.isTypeSupported(x)) ?? '';
       const recorder = new MediaRecorder(program, {
         ...(mime ? { mimeType: mime } : {}),
         videoBitsPerSecond: preset.bitrate,
@@ -195,14 +205,15 @@ export default function TvStudioPage() {
         void (async () => {
           const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'video/webm' });
           const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-          const name = `Testagram-TV-${stamp}.webm`;
+          const extension = recorder.mimeType.includes('mp4') ? 'mp4' : 'webm';
+          const name = `Testagram-TV-${stamp}.${extension}`;
           setSaving(true);
           try {
             const picker = (window as any).showSaveFilePicker;
             if (typeof picker === 'function') {
               const handle = await picker({
                 suggestedName: name,
-                types: [{ description: 'Testagram TV recording', accept: { 'video/webm': ['.webm'] } }],
+                types: [{ description: 'Testagram TV recording', accept: extension === 'mp4' ? { 'video/mp4': ['.mp4'] } : { 'video/webm': ['.webm'] } }],
               });
               const writable = await handle.createWritable();
               await writable.write(blob);
@@ -217,6 +228,7 @@ export default function TvStudioPage() {
               a.remove();
             }
             setSavedName(name);
+            setRecordingHint('Saved locally. To reuse it on Testagram, choose the saved file yourself — it is not kept on Testagram servers.');
             toast.success('Recording saved to your device. Testagram did not upload or publish it.');
           } catch (saveError: any) {
             if (saveError?.name !== 'AbortError') toast.error(saveError?.message || 'Could not save the local recording');
@@ -233,6 +245,7 @@ export default function TvStudioPage() {
       setStatus('recording');
       setElapsed(0);
     } catch (e: any) {
+      setRecordingHint('This browser cannot record the current studio format. Try Chrome/Android or another browser with MediaRecorder support.');
       toast.error(e?.message || 'Local recording is not supported on this device');
     }
   };
@@ -294,10 +307,11 @@ export default function TvStudioPage() {
             <div className="flex items-center gap-2 flex-wrap">
               <Clapperboard className="w-6 h-6" />
               <h1 className="text-2xl font-bold">Testagram TV Studio</h1>
+              {!recording ? <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" disabled={saving} onClick={() => void startRecording()}><Circle className="w-4 h-4 mr-1" />REC to device</Button> : <Button size="sm" variant="destructive" onClick={stopRecording}><Square className="w-4 h-4 mr-1" />STOP & SAVE</Button>}
               {live && <span className="px-2 py-1 rounded-full bg-red-600 text-xs font-bold animate-pulse">LIVE</span>}
               {recording && <span className="px-2 py-1 rounded-full bg-white/10 text-xs font-bold">REC {fmt(elapsed)}</span>}
             </div>
-            <p className="text-sm text-zinc-400 mt-1">Broadcast to Testagram while your finished production stays on your device.</p>
+            <p className="text-sm text-zinc-400 mt-1">Broadcast live to Testagram. Finished recordings stay on your phone/computer — never in Testagram storage.</p>
           </div>
           <Button variant="outline" onClick={() => nav('/spaces')}>Exit</Button>
         </header>
@@ -343,7 +357,7 @@ export default function TvStudioPage() {
             <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
               <Download className="w-5 h-5 mb-2 text-emerald-400" />
               <div className="flex items-center justify-between gap-2"><p className="font-semibold">Device-only recording</p>{saving && <span className="text-[10px] text-emerald-400 animate-pulse">SAVING…</span>}</div>
-              <p className="text-xs text-zinc-400 mt-1">Recorded media is assembled in the browser and downloaded locally. It is never uploaded as a recording asset.</p>
+              <p className="text-xs text-zinc-400 mt-1">{recordingHint}</p>
               {savedName && <p className="text-xs text-emerald-400 mt-2 break-all">{savedName}</p>}
             </div>
           </aside>
