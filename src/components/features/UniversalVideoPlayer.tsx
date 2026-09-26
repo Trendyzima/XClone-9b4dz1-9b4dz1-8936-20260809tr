@@ -164,9 +164,9 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    const waiting = () => { setRecovering(true); onWaiting?.(new Event('waiting')); recover(); };
-    const stalled = () => { setRecovering(true); onStalled?.(new Event('stalled')); recover(); };
-    const playing = (e: Event) => { setRecovering(false); retryCountRef.current = 0; onPlaying?.(e); };
+    const waiting = () => { setRecovering(true); recover(); };
+    const stalled = () => { setRecovering(true); recover(); };
+    const playing = () => { setRecovering(false); retryCountRef.current = 0; };
     const online = () => { retryCountRef.current = 0; if (active) void play(); };
     const offline = () => setRecovering(true);
     video.addEventListener('waiting', waiting);
