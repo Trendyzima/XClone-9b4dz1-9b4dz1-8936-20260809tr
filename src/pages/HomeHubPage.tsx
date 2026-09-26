@@ -13,10 +13,21 @@ import * as federation from '@/api/federation';
 import { Loader2, Sparkles, Users, ShoppingBag, BarChart3, RefreshCw, ArrowRight } from 'lucide-react';
 import { readHomeFeedCache, writeHomeFeedCache, saveHomeScroll, mergeHomeFeedItems } from '@/lib/homeFeedCache';
 import { FederatedOrganicCard, FederatedOrganicInjection, FederatedHashtagDiscovery } from '@/components/features/FederatedOrganicDiscovery';
-import { PublisherFeedStream } from '@/components/features/PublisherFeedStream';
+import { loadPublisherFeed, PublisherFeedCard, type FeedItem } from '@/components/features/PublisherFeedStream';
 
 type Tab = 'all'|'following'|'explore'|'media'|'communities'|'polls'|'shopping'|'federated';
-type Item = { type:'post'|'thread'|'community'|'poll'|'product'|'fedpost'; data:any };
+type Item = { type:'post'|'thread'|'community'|'poll'|'product'|'fedpost'|'publisher'; data:any };
+
+function blendPublisherItems(nativeItems: Item[], publishers: FeedItem[], seed: string|null): Item[] {
+  if (!nativeItems.length || !publishers.length) return nativeItems;
+  const hash = Array.from(seed ?? 'home').reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 7);
+  const slot = Math.min(nativeItems.length, 3 + (hash % 3));
+  const publisher = publishers[hash % publishers.length];
+  if (!publisher) return nativeItems;
+  const existing = new Set(nativeItems.filter(item => item.type === 'publisher').map(item => String(item.data?.id)));
+  if (existing.has(String(publisher.id))) return nativeItems;
+  return [...nativeItems.slice(0, slot), { type:'publisher' as const, data:publisher }, ...nativeItems.slice(slot)];
+}
 const TABS: {id:Tab;label:string}[] = [
   {id:'all',label:'For you'},{id:'following',label:'Following'},{id:'explore',label:'Explore'},
   {id:'media',label:'Media'},{id:'communities',label:'Communities'},{id:'polls',label:'Polls'},
@@ -66,7 +77,11 @@ export default function HomeHubPage(){
         setNextCursor(payload?.nextCursor ?? null); nextCursorRef.current=payload?.nextCursor ?? null;
         setHasMore(Boolean(payload?.hasMore) && next.length > 0);
       }
-      return next.map((item:any)=>({ type:item.type, data:item.data }));
+      const nativeItems = next.map((item:any)=>({ type:item.type, data:item.data })) as Item[];
+      try {
+        const publisherItems = await loadPublisherFeed();
+        return blendPublisherItems(nativeItems, publisherItems, cursorOverride);
+      } catch { return nativeItems; }
     }
 
     let query=supabase.from('posts').select('*, '+profileSelect).is('community_id',null).is('deleted_at',null);
