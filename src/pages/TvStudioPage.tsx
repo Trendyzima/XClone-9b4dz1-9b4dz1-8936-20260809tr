@@ -49,9 +49,24 @@ export default function TvStudioPage() {
   const [status, setStatus] = useState<'idle' | 'preview' | 'recording' | 'live'>('idle');
   const [saving, setSaving] = useState(false);
   const [recordingHint, setRecordingHint] = useState('Record locally on this device. Testagram never uploads the finished video.');
+  const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [deviceReady, setDeviceReady] = useState(false);
   const broadcastTitle = searchParams.get('title')?.trim().slice(0, 100) || 'Testagram TV Live';
   const broadcastDescription = searchParams.get('description')?.trim().slice(0, 500) || 'Live from Testagram TV Studio';
   const broadcastCategory = searchParams.get('category')?.trim().slice(0, 50) || 'general';
+
+  const explainMediaError = (error: any) => {
+    const name = error?.name;
+    if (!window.isSecureContext) return 'Camera and microphone require a secure HTTPS connection.';
+    if (name === 'NotAllowedError' || name === 'PermissionDeniedError') return 'Browser permission for camera/microphone was denied. Open the Testagram site permissions, allow Camera and Microphone, then return and tap Preview again.';
+    if (name === 'NotFoundError') return 'No usable camera or microphone was found. Connect a device and try again.';
+    if (name === 'NotReadableError' || name === 'TrackStartError') return 'Camera or microphone is already being used by another app or tab. Close it and try again.';
+    if (name === 'OverconstrainedError') return 'The selected capture settings are not supported by this device. Try 720p.';
+    return error?.message || 'Could not start the studio camera and microphone.';
+  };
+
+  const showPermissionHelp = () => setPermissionError('Android Chrome: tap the lock/tune icon beside testagram.site → Permissions → Camera and Microphone → Allow, then return to Testagram and tap Preview.');
+
 
   useEffect(() => {
     if (!streamId) return;
@@ -90,13 +105,23 @@ export default function TvStudioPage() {
   };
 
   const getCamera = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error('This browser does not support camera/microphone capture. Use current Chrome, Edge, Firefox, or Safari over HTTPS.');
     const preset = VIDEO_PRESETS[quality];
-    const s = await navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: preset.width }, height: { ideal: preset.height }, frameRate: { ideal: preset.fps, max: preset.fps }, facingMode: 'user' },
-      audio: { channelCount: { ideal: 1 }, sampleRate: { ideal: 48000 }, sampleSize: { ideal: 24 }, echoCancellation: true, noiseSuppression: true, autoGainControl: false },
-    });
-    cameraStreamRef.current = s;
-    return s;
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({
+        video: { width: { ideal: preset.width }, height: { ideal: preset.height }, frameRate: { ideal: preset.fps, max: preset.fps }, facingMode: 'user' },
+        audio: { channelCount: { ideal: 1 }, sampleRate: { ideal: 48000 }, sampleSize: { ideal: 24 }, echoCancellation: true, noiseSuppression: true, autoGainControl: false },
+      });
+      cameraStreamRef.current = s;
+      setDeviceReady(true);
+      setPermissionError(null);
+      return s;
+    } catch (error) {
+      setDeviceReady(false);
+      const message = explainMediaError(error);
+      setPermissionError(message);
+      throw new Error(message);
+    }
   };
 
   const ensureStudio = async () => {
@@ -160,7 +185,9 @@ export default function TvStudioPage() {
       void cameraStream;
       toast.success('TV broadcast is live');
     } catch (e: any) {
-      toast.error(e?.message || 'Unable to start live broadcast');
+      const message = e?.message || 'Unable to start live broadcast';
+      setPermissionError(message);
+      toast.error(message);
     }
   };
 
@@ -246,8 +273,10 @@ export default function TvStudioPage() {
       setStatus('recording');
       setElapsed(0);
     } catch (e: any) {
-      setRecordingHint('This browser cannot record the current studio format. Try Chrome/Android or another browser with MediaRecorder support.');
-      toast.error(e?.message || 'Local recording is not supported on this device');
+      const message = explainMediaError(e);
+      setPermissionError(message);
+      setRecordingHint(message);
+      toast.error(message);
     }
   };
 
@@ -318,6 +347,16 @@ export default function TvStudioPage() {
         </header>
 
         <div className="grid lg:grid-cols-[1fr_330px] gap-4">
+          {permissionError && (
+            <div className="mb-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-100">
+              <div className="font-semibold">Camera / microphone access needs attention</div>
+              <p className="mt-1 text-xs text-amber-200/80">{permissionError}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <Button size="sm" onClick={() => void ensureStudio().then(() => setStatus('preview')).catch(() => undefined)}>Try again</Button>
+                <Button size="sm" variant="outline" onClick={showPermissionHelp}>How to allow access</Button>
+              </div>
+            </div>
+          )}
           <section className="rounded-2xl overflow-hidden border border-white/10 bg-black shadow-2xl">
             <div className="aspect-video relative flex items-center justify-center">
               {status === 'idle' && <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500"><Radio className="w-12 h-12 mb-2" /><span>Studio preview</span><span className="text-xs mt-1">Tap Preview to start the camera and microphone</span></div>}
@@ -350,7 +389,7 @@ export default function TvStudioPage() {
                 <div className="rounded-lg bg-black/30 p-2"><Users className="w-3.5 h-3.5 mb-1 text-blue-400" /><span>{viewerCount}</span><p className="text-zinc-500">live viewers</p></div>
                 <div className="rounded-lg bg-black/30 p-2"><ShieldCheck className="w-3.5 h-3.5 mb-1 text-emerald-400" /><span>Local</span><p className="text-zinc-500">recording storage</p></div>
               </div>
-              <div className="mt-4 flex items-center justify-between text-[10px] text-zinc-500"><span>Studio signal</span><span className="uppercase tracking-wider">{status}</span></div>
+              <div className="mt-4 flex items-center justify-between text-[10px] text-zinc-500"><span>Studio signal</span><span className="uppercase tracking-wider">{deviceReady ? status : 'waiting for device'}</span></div>
               <div className="mt-1 h-2 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-emerald-400 transition-all" style={{ width: `${Math.min(100, audioLevel)}%` }} /></div>
               <p className="text-[10px] text-zinc-500 mt-1">Microphone level • browser noise suppression + studio gate/compressor</p>
             </div>
