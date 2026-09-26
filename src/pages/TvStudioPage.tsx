@@ -21,7 +21,7 @@ export default function TvStudioPage(){
  useEffect(()=>()=>{ recorderRef.current?.stop(); localStreamRef.current?.getTracks().forEach(t=>t.stop()); roomRef.current?.disconnect(); },[]);
  useEffect(()=>{ if(!recording&&!live)return; const t=setInterval(()=>setElapsed(x=>x+1),1000); return()=>clearInterval(t)},[recording,live]);
 
- const token=async()=>{ const id=activeStreamId; if(!id)throw new Error('Broadcast id missing'); const {data,error}=await supabase.functions.invoke('livekit-tv-token',{body:{stream_id:id}}); if(error||!data?.data)throw new Error(data?.error?.message||error?.message||'Could not connect to live broadcast'); return data.data; };
+ const token=async(requestedId?: string)=>{ const id=requestedId ?? activeStreamId; if(!id)throw new Error('Broadcast id missing'); const {data,error}=await supabase.functions.invoke('livekit-tv-token',{body:{stream_id:id}}); if(error||!data?.data)throw new Error(data?.error?.message||error?.message||'Could not connect to live broadcast'); return data.data; };
  const startCamera=async()=>{
    if(localStreamRef.current)return;
    const s=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:30,max:30},facingMode:'user'},audio:{channelCount:1,sampleRate:48000,echoCancellation:true,noiseSuppression:true,autoGainControl:false}});
@@ -32,7 +32,7 @@ export default function TvStudioPage(){
     if(!user)throw new Error('Sign in to broadcast');
     let id=activeStreamId;
     if(!id){ const {data,error}=await supabase.from('live_streams').insert({user_id:user.id,title:'Testagram TV Live',description:'Live from Testagram TV Studio',category:'general',is_live:true}).select('id,title').single(); if(error||!data)throw new Error(error?.message||'Could not create broadcast'); id=data.id; setActiveStreamId(id); setStream(data); }
-    await startCamera(); const info=await token(); const room=new Room({adaptiveStream:true,dynacast:true}); roomRef.current=room;
+    await startCamera(); const info=await token(id); const room=new Room({adaptiveStream:true,dynacast:true}); roomRef.current=room;
     await room.connect(info.url,info.token); const tracks=await createLocalTracks({video:false,audio:false});
     const stream=localStreamRef.current; if(!stream)throw new Error('Camera unavailable');
     const v=stream.getVideoTracks()[0],a=stream.getAudioTracks()[0];
