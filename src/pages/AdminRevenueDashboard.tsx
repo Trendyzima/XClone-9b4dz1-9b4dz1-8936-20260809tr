@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSEO } from '@/hooks/useSEO';
 import { useAuth } from '@/hooks/useAuth';
+import { useGovernance } from '@/lib/governance';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { TopBar } from '@/components/layout/TopBar';
@@ -31,6 +32,7 @@ interface TopCreator {
 
 export default function AdminRevenueDashboard() {
   const { user } = useAuth();
+  const { governance, loading: governanceLoading } = useGovernance();
   useSEO({ noindex: true, title: 'Admin — Revenue Dashboard', url: '/admin/revenue' });
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
@@ -43,22 +45,13 @@ export default function AdminRevenueDashboard() {
       navigate('/auth');
       return;
     }
-    checkAdmin();
-  }, [user, timeRange]);
-
-  const checkAdmin = async () => {
-    const { data } = await supabase
-      .from('admin_users')
-      .select('id')
-      .eq('user_id', user!.id)
-      .single();
-
-    if (!data) {
-      navigate('/');
+    if (governanceLoading) return;
+    if (!governance.is_owner) {
+      navigate('/admin/governance');
       return;
     }
     fetchRevenueStats();
-  };
+  }, [user?.id, governanceLoading, governance.is_owner, timeRange]);
 
   const fetchRevenueStats = async () => {
     setLoading(true);
