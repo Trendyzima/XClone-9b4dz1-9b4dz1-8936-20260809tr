@@ -410,6 +410,13 @@ export default function SpacesPage() {
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
+              className="hidden sm:flex rounded-full border-border text-foreground hover:bg-muted"
+              onClick={() => navigate('/tv')}
+            >
+              <Radio className="w-4 h-4 mr-1.5" />Watch TV
+            </Button>
+            <Button
+              variant="outline"
               className="rounded-full border-red-500/30 text-red-600 hover:bg-red-500/10"
               onClick={() => navigate('/tv-studio')}
             >
