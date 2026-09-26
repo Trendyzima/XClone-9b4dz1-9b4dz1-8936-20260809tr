@@ -277,7 +277,7 @@ function AppInner(){useCreatorTierAlert();const location=useLocation();const sho
 <Route path="/creator-studio/analytics" element={<CreatorAnalyticsPage/>}/>
 <Route path="/creator-studio/videos" element={<CreatorVideosPage/>}/>
 <Route path="/creator-studio/earnings" element={<CreatorEarningsPage/>}/>
-<Route path="/creator-studio/revenue" element={<CreatorRevenuePage/>}/><Route path="/premium" element={<PremiumPage/>}/><Route path="/stream/:streamId" element={<LiveStreamPage/>}/><Route path="/start-stream" element={<StartStreamPage/>}/><Route path="/tv-studio" element={<TvStudioPage/>}/><Route path="/tv-studio/:streamId" element={<TvStudioPage/>}/><Route path="/tv" element={<TvChannelsPage/>}/><Route path="/tv/channels" element={<TvChannelsPage/>}/><Route path="/settings" element={<SettingsPage/>}/>
+<Route path="/creator-studio/revenue" element={<CreatorRevenuePage/>}/><Route path="/premium" element={<PremiumPage/>}/><Route path="/stream/:streamId" element={<LiveStreamPage/>}/><Route path="/start-stream" element={<StartStreamPage/>}/><Route path="/tv-studio" element={<TvStudioPage/>}/><Route path="/tv-studio/:streamId" element={<TvStudioPage/>}/><Route path="/tv" element={<TvChannelsPage/>}/><Route path="/tv/channels" element={<TvChannelsPage/>}/><Route path="/tv/reels" element={<TvChannelsPage/>}/><Route path="/settings" element={<SettingsPage/>}/>
 <Route path="/settings/account" element={<SettingsAccountPage/>}/>
 <Route path="/settings/appearance" element={<SettingsAppearancePage/>}/>
 <Route path="/settings/connections" element={<SettingsConnectionsPage/>}/>
