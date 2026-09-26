@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { Room, RoomEvent, Track } from 'livekit-client';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { useSEO } from '@/hooks/useSEO';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -49,6 +50,8 @@ export default function LiveStreamPage() {
   const chatRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<any>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const tvMediaRef = useRef<HTMLDivElement>(null);
+  const tvRoomRef = useRef<Room | null>(null);
   const adPushedRef = useRef(false);
 
   const [floatReactions, setFloatReactions] = useState<FloatReaction[]>([]);
@@ -111,6 +114,70 @@ export default function LiveStreamPage() {
     keywords: 'live stream, testagram, creator live, watch now, streaming',
     structuredData: streamJsonLd,
   });
+
+  useEffect(() => {
+    const locator = typeof stream?.stream_url === 'string' ? stream.stream_url : '';
+    if (!stream?.is_live || !locator.startsWith('livekit://tv/')) return;
+    let cancelled = false;
+    const connectTv = async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('livekit-tv-token', { body: { stream_id: stream.id } });
+        if (cancelled || error || !data?.data) return;
+        const room = new Room({ adaptiveStream: true, dynacast: true });
+        tvRoomRef.current = room;
+        const updateCount = () => setViewerCount(room.remoteParticipants.size);
+        room.on(RoomEvent.ParticipantConnected, updateCount);
+        room.on(RoomEvent.ParticipantDisconnected, updateCount);
+        room.on(RoomEvent.TrackSubscribed, (track: any) => {
+          if (cancelled) return;
+          if (track.kind === Track.Kind.Video && videoRef.current) {
+            track.attach(videoRef.current);
+            void videoRef.current.play().catch(() => {});
+          } else if (track.kind === Track.Kind.Audio && tvMediaRef.current) {
+            const audio = document.createElement('audio');
+            audio.autoplay = true;
+            audio.playsInline = true;
+            audio.dataset.tvTrackSid = track.sid;
+            tvMediaRef.current.appendChild(audio);
+            track.attach(audio);
+            void audio.play().catch(() => {});
+          }
+        });
+        room.on(RoomEvent.TrackUnsubscribed, (track: any) => {
+          try { track.detach(); } catch {}
+        });
+        await room.connect(data.data.url, data.data.token);
+        if (cancelled) { await room.disconnect(); return; }
+        room.remoteParticipants.forEach(participant => {
+          participant.trackPublications.forEach(publication => {
+            if (publication.track) {
+              const track: any = publication.track;
+              if (track.kind === Track.Kind.Video && videoRef.current) track.attach(videoRef.current);
+              if (track.kind === Track.Kind.Audio && tvMediaRef.current) {
+                const audio = document.createElement('audio');
+                audio.autoplay = true;
+                audio.playsInline = true;
+                audio.dataset.tvTrackSid = track.sid;
+                tvMediaRef.current.appendChild(audio);
+                track.attach(audio);
+              }
+            }
+          });
+        });
+        updateCount();
+      } catch (error) {
+        console.warn('[tv-live-viewer] ephemeral connection failed', error);
+      }
+    };
+    void connectTv();
+    return () => {
+      cancelled = true;
+      tvRoomRef.current?.disconnect();
+      tvRoomRef.current = null;
+      if (tvMediaRef.current) tvMediaRef.current.replaceChildren();
+      if (videoRef.current) videoRef.current.srcObject = null;
+    };
+  }, [stream?.id, stream?.is_live, stream?.stream_url]);
 
   // AdSense web banner on mount
   useEffect(() => {
@@ -299,7 +366,11 @@ export default function LiveStreamPage() {
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden h-screen">
         {/* Video Player */}
         <div className="relative flex-1 bg-black flex items-center justify-center min-h-[40vh] md:min-h-0" onClick={handleVideoTap}>
-          {stream.stream_url ? (
+          {stream.stream_url?.startsWith('livekit://tv/') ? (
+            <div ref={tvMediaRef} className="absolute inset-0 flex items-center justify-center">
+              <video ref={videoRef} controls autoPlay muted={muted} playsInline className="w-full h-full object-contain max-h-screen" />
+            </div>
+          ) : stream.stream_url ? (
             <video ref={videoRef} src={stream.stream_url} controls autoPlay muted={muted} playsInline className="w-full h-full object-contain max-h-screen" />
           ) : (
             <div className="text-center p-8">
