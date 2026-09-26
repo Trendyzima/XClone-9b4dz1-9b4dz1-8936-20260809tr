@@ -19,7 +19,7 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
  const hls=useRef<Hls|null>(null);
  const retryRef=useRef(0);
  const retryTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
- const [muted,setMuted]=useState(false);
+ const [muted,setMuted]=useState(true);
  const [error,setError]=useState(false);
  const [starting,setStarting]=useState(false);
  const [needsGesture,setNeedsGesture]=useState(false);
@@ -53,11 +53,16 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
 
  const start=useCallback(()=>{
   const video=ref.current;if(!video||!active)return;
-  cleanup();setStarting(true);setError(false);setNeedsGesture(false);
+  cleanup();setStarting(true);
+  // A single global playback lease prevents two live channels from consuming
+  // audio/network at the same time, even while IntersectionObservers overlap.
+  window.dispatchEvent(new CustomEvent('testagram-tv-play', { detail: channel.id }));setError(false);setNeedsGesture(false);
   video.playsInline=true;
   video.autoplay=true;
-  video.muted=muted;
+  // Start silently so mobile autoplay is deterministic. Sound is always opt-in.
+  video.muted=true;
   const play=()=>{
+   window.dispatchEvent(new CustomEvent('testagram-tv-play', { detail: channel.id }));
    void video.play().then(markHealthy).catch((e:any)=>{
     setStarting(false);
     if(e?.name==='NotAllowedError'){
@@ -106,7 +111,7 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
    return;
   }
   setStarting(false);setError(true);onHealth?.(channel.id,false);
- },[active,channel.url,cleanup,markHealthy,muted,retry,onHealth]);
+ },[active,channel.id,channel.url,cleanup,markHealthy,muted,retry,onHealth]);
 
  useEffect(()=>{
   retryRef.current=0;
@@ -114,6 +119,19 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
   start();
   return cleanup;
  },[active,channel.url,start,cleanup]);
+
+ useEffect(()=>{
+  const stopOther=(event:Event)=>{
+   const id=(event as CustomEvent<string>).detail;
+   if(id===channel.id)return;
+   const video=ref.current;
+   if(video && !video.paused){video.pause();video.removeAttribute('src');video.load();}
+   if(hls.current){hls.current.destroy();hls.current=null;}
+   setStarting(false);
+  };
+  window.addEventListener('testagram-tv-play',stopOther);
+  return()=>window.removeEventListener('testagram-tv-play',stopOther);
+ },[channel.id]);
 
  const toggle=()=>{
   const video=ref.current;if(!video)return;
