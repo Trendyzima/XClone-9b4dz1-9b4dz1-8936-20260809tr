@@ -54,8 +54,31 @@ jobs:
             exit 1
           fi
           printf '::add-mask::%s\n' "${SUPABASE_ACCESS_TOKEN}"
-          supabase projects list >/tmp/supabase-projects.txt
-          grep -F "${SUPABASE_PROJECT_ID}" /tmp/supabase-projects.txt >/dev/null
+          response_file="/tmp/supabase-projects.json"
+          http_status="$(curl --silent --show-error --output "${response_file}" --write-out '%{http_code}' \
+            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
+            -H "Accept: application/json" \
+            "https://api.supabase.com/v1/projects")"
+          case "${http_status}" in
+            200) ;;
+            401)
+              echo "::error::Supabase Management API rejected SUPABASE_ACCESS_TOKEN (HTTP 401 Unauthorized). Refresh/replace the token in the GitHub production environment."
+              exit 1
+              ;;
+            403)
+              echo "::error::Supabase Management API denied this token (HTTP 403 Forbidden). Check token scope/account access."
+              exit 1
+              ;;
+            *)
+              echo "::error::Supabase Management API returned HTTP ${http_status}."
+              cat "${response_file}" || true
+              exit 1
+              ;;
+          esac
+          if ! jq -e --arg ref "${SUPABASE_PROJECT_ID}" '.[] | select(.ref == $ref)' "${response_file}" >/dev/null; then
+            echo "::error::Authenticated successfully, but target project ${SUPABASE_PROJECT_ID} was not returned for this Supabase account."
+            exit 1
+          fi
           echo "Supabase Management API authentication: OK"
           echo "Target project: ${SUPABASE_PROJECT_ID}"
 
