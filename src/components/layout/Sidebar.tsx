@@ -209,6 +209,7 @@ export function Sidebar() {
 
   const creatorTools = [
     { icon: Briefcase, label: 'Creator Studio', path: '/creator-studio', requireAuth: true },
+    { icon: Radio, label: 'TV Production Studio', path: '/tv-studio', requireAuth: true },
     { icon: BarChart3, label: 'Analytics', path: '/analytics', requireAuth: true },
     { icon: DollarSign, label: 'Monetization', path: '/monetization', requireAuth: true },
     { icon: ShoppingBag, label: 'Products', path: '/products', requireAuth: true },
