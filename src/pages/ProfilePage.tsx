@@ -673,16 +673,54 @@ export default function ProfilePage() {
 
   const handleCreateHighlight = async () => {
     if (!currentUser || !highlightTitle.trim()) return;
-    setCreatingHighlight(true);
-    const autoCover = selectedStoryIds.length > 0 ? (availableStories.find((s: any) => s.id === selectedStoryIds[0])?.media_url ?? null) : null;
-    const { error } = await supabase.from('user_highlights').insert({ user_id: currentUser.id, title: highlightTitle.trim(), cover_url: highlightCoverUrl ?? autoCover, story_ids: selectedStoryIds });
-    if (error) { toast.error('Failed to create highlight'); }
-    else {
-      toast.success('Highlight created!');
-      setShowCreateHighlight(false); setHighlightTitle(''); setHighlightCoverUrl(null); setSelectedStoryIds([]);
-      fetchHighlights(currentUser.id);
+    if (selectedStoryIds.length === 0) {
+      toast.error('Select at least one story before creating a highlight');
+      return;
     }
-    setCreatingHighlight(false);
+    setCreatingHighlight(true);
+    try {
+      const title = highlightTitle.trim();
+      if (title.length > 30) {
+        toast.error('Highlight name must be 30 characters or fewer');
+        return;
+      }
+      const selectedStories = selectedStoryIds
+        .map(id => availableStories.find((story: any) => story.id === id))
+        .filter(Boolean);
+      if (selectedStories.length !== selectedStoryIds.length) {
+        toast.error('One or more selected stories are no longer available. Refresh and try again.');
+        return;
+      }
+      const autoCover = selectedStories[0]?.media_url ?? null;
+      const nextSortOrder = highlights.length;
+      const { error } = await supabase.from('user_highlights').insert({
+        user_id: currentUser.id,
+        title,
+        cover_url: highlightCoverUrl ?? autoCover,
+        story_ids: selectedStoryIds,
+        sort_order: nextSortOrder,
+      });
+      if (error) {
+        console.error('[profile/highlights] create failed', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+        throw error;
+      }
+      toast.success('Highlight created!');
+      setShowCreateHighlight(false);
+      setHighlightTitle('');
+      setHighlightCoverUrl(null);
+      setSelectedStoryIds([]);
+      await fetchHighlights(currentUser.id);
+    } catch (error: any) {
+      const message = error?.message || 'Failed to create highlight';
+      toast.error(message);
+    } finally {
+      setCreatingHighlight(false);
+    }
   };
 
   const handleDeleteHighlight = async (id: string) => {
