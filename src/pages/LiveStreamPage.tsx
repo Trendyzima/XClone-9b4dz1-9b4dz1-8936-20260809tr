@@ -32,7 +32,7 @@ interface FloatReaction {
 }
 
 // esbuild guard: module-level plain array (no 'as const')
-const REACTION_EMOJIS: string[] = ['❤️', '🔥', '😂', '👏', '😮', '🎉'];
+const REACTION_EMOJIS: string[] = ['❤️'];
 
 function LiveStreamAdBanner() { return <PageAdBanner />; }
 
