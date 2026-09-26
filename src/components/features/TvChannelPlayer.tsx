@@ -37,7 +37,7 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
     if(looksLikeFile) void video.play().catch((e:any)=>{if(e?.name!=='NotAllowedError')retry();else{setNeedsGesture(true);setStarting(false);}});
     return;
   }
-  if(Hls.isSupported()&&!looksLikeFile){const h=new Hls({enableWorker:true,lowLatencyMode:true,backBufferLength:4,maxBufferLength:8,maxMaxBufferLength:16,liveSyncDurationCount:3,liveMaxLatencyDurationCount:6,manifestLoadingMaxRetry:2,levelLoadingMaxRetry:3,fragLoadingMaxRetry:3});hls.current=h;h.loadSource(playbackUrlRef.current);h.attachMedia(video);h.on(Hls.Events.MANIFEST_PARSED,play);h.on(Hls.Events.FRAG_BUFFERED,healthy);h.on(Hls.Events.ERROR,(_,d)=>{if(!d.fatal)return;if(d.type===Hls.ErrorTypes.MEDIA_ERROR&&playbackUrlRef.current!==channel.url){try{h.recoverMediaError();return;}catch{}}retry();});return;}
+  if(Hls.isSupported()&&!looksLikeFile){const h=new Hls({enableWorker:true,lowLatencyMode:true,startFragPrefetch:true,backBufferLength:6,maxBufferLength:18,maxMaxBufferLength:36,maxBufferSize:60*1024*1024,maxBufferHole:0.25,highBufferWatchdogPeriod:2,nudgeOffset:0.15,nudgeMaxRetry:4,liveSyncDurationCount:4,liveMaxLatencyDurationCount:9,manifestLoadingMaxRetry:4,levelLoadingMaxRetry:5,fragLoadingMaxRetry:5,fragLoadingRetryDelay:1000,fragLoadingMaxRetryTimeout:8000});hls.current=h;h.loadSource(playbackUrlRef.current);h.attachMedia(video);h.on(Hls.Events.MANIFEST_PARSED,play);h.on(Hls.Events.FRAG_BUFFERED,healthy);h.on(Hls.Events.ERROR,(_,d)=>{if(!d.fatal)return;if(d.type===Hls.ErrorTypes.MEDIA_ERROR&&playbackUrlRef.current!==channel.url){try{h.recoverMediaError();return;}catch{}}retry();});return;}
   if(!looksLikeHls){video.src=directUrl;video.addEventListener('canplay',healthy,{once:true});video.addEventListener('error',retry,{once:true});void video.play().catch(()=>{});return;}
   setStarting(false);setError(true);onHealth?.(channel.id,false);
  },[active,channel.id,channel.url,cleanup,healthy,retry,onHealth]);
@@ -45,6 +45,8 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
 
  useEffect(()=>{retryRef.current=0;playbackUrlRef.current=channel.url;if(active){start();return cleanup;}cleanup();setError(false);setStarting(false);setNeedsGesture(false);},[active,channel.url,start,cleanup]);
 
+ useEffect(()=>{const onOnline=()=>{retryRef.current=0;if(active)startRef.current?.();};const onOffline=()=>setStarting(true);window.addEventListener('online',onOnline);window.addEventListener('offline',onOffline);return()=>{window.removeEventListener('online',onOnline);window.removeEventListener('offline',onOffline);};},[active]);
+ useEffect(()=>{const video=ref.current;if(!video)return;const recoverable=()=>{if(active&&!starting)setStarting(true);retry();};video.addEventListener('waiting',recoverable);video.addEventListener('stalled',recoverable);return()=>{video.removeEventListener('waiting',recoverable);video.removeEventListener('stalled',recoverable);};},[active,retry,starting]);
  useEffect(()=>{const stop=(e:Event)=>{if((e as CustomEvent<string>).detail===channel.id)return;cleanup();setStarting(false);};window.addEventListener('testagram-tv-play',stop);return()=>window.removeEventListener('testagram-tv-play',stop);},[channel.id,cleanup]);
 
  const toggle=()=>{const v=ref.current;if(!v)return;const next=!muted;v.muted=next;setMuted(next);if(!next)void v.play().catch(()=>setNeedsGesture(true));};
