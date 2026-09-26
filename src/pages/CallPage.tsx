@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Camera, Mic, PhoneOff, ShieldCheck, Video, VideoOff, MicOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { Room, RoomEvent, Track, type RemoteTrack, type RemoteTrackPublication, type RemoteParticipant } from 'livekit-client';
+import { ExternalE2EEKeyProvider, Room, RoomEvent, Track, type RemoteTrack, type RemoteTrackPublication, type RemoteParticipant } from 'livekit-client';
 import { useAuth } from '@/hooks/useAuth';
 import { communicationService } from '@/services/communicationService';
+import { communicationCrypto } from '@/services/communicationCrypto';
 
 export default function CallPage() {
   const { callId } = useParams<{ callId: string }>();
@@ -45,13 +46,18 @@ export default function CallPage() {
     try {
       await communicationService.joinCall(callId);
       const credentials = await communicationService.getLiveKitToken(callId);
-      const room = new Room({ adaptiveStream: true, dynacast: true, disconnectOnPageLeave: true });
+      const key = await communicationCrypto.ensureConversationKey(credentials.conversation_id);
+      const sharedKey = await communicationCrypto.exportConversationKey(credentials.conversation_id, key.epoch);
+      const keyProvider = new ExternalE2EEKeyProvider();
+      await keyProvider.setKey(sharedKey);
+      const room = new Room({ adaptiveStream: true, dynacast: true, disconnectOnPageLeave: true, encryption: { keyProvider, worker: new Worker(new URL('livekit-client/e2ee-worker', import.meta.url)) } });
       room.on(RoomEvent.TrackSubscribed, attachRemoteTrack);
       room.on(RoomEvent.TrackUnsubscribed, removeRemoteTrack);
       room.on(RoomEvent.ParticipantConnected, () => setParticipantCount(room.remoteParticipants.size + 1));
       room.on(RoomEvent.ParticipantDisconnected, () => setParticipantCount(Math.max(1, room.remoteParticipants.size + 1)));
       room.on(RoomEvent.Disconnected, () => { setConnected(false); setParticipantCount(1); });
       await room.connect(credentials.url, credentials.token);
+      await room.setE2EEEnabled(true);
       roomRef.current = room;
       setParticipantCount(room.remoteParticipants.size + 1);
       if (kind === 'video') await room.localParticipant.enableCameraAndMicrophone();
