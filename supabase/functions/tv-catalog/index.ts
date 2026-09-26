@@ -2,6 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
 type Source = { id: string; label: string; url: string; country?: string; priority: number };
 
+const NEXUS = "https://dearbulut.github.io/iptv/api/v1";
+
 const SOURCES: Record<string, Source> = {
   "iptv-org-global": { id:"iptv-org-global", label:"IPTV-ORG · Global public", url:"https://iptv-org.github.io/iptv/index.m3u", country:"INT", priority:135 },
   "iptv-org-news": { id:"iptv-org-news", label:"IPTV-ORG · News", url:"https://iptv-org.github.io/iptv/categories/news.m3u", country:"INT", priority:128 },
@@ -19,7 +21,6 @@ const SOURCES: Record<string, Source> = {
   "nexus-entertainment": { id:"nexus-entertainment", label:"IPTV Nexus · Entertainment · health checked", url:NEXUS+"/by-category/entertainment.json", country:"INT", priority:152 },
 };
 
-const NEXUS = "https://dearbulut.github.io/iptv/api/v1";
 const cors = {
   "Access-Control-Allow-Origin":"*",
   "Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type",
