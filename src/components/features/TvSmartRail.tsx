@@ -3,7 +3,7 @@ import {useLocation,useNavigate} from 'react-router-dom';
 import {Radio,ChevronRight,RefreshCw} from 'lucide-react';
 import {TV_SOURCES,loadTvSource,type TvChannel} from '@/services/tvChannelCatalog';
 
-const HIDE=/^(\/auth|\/admin|\/settings|\/wallet|\/messages|\/notifications|\/help|\/premium|\/create-ad|\/my-ads|\/ad-|\/rewards|\/verify|\/privacy|\/terms|\/policy|\/regulator|\/sessions|\/blocked|\/appeals|\/payouts|\/revenue|\/analytics)/;
+const HIDE=/^(\/auth)(?:\/|$)|^(\/tv)(?:\/|$)/;
 let tvCache:{at:number;items:TvChannel[]}={at:0,items:[]};
 let pending:Promise<TvChannel[]>|null=null;
 
@@ -11,7 +11,7 @@ async function loadRail(){
   if(tvCache.items.length&&Date.now()-tvCache.at<60000)return tvCache.items;
   if(pending)return pending;
   pending=Promise.all(
-    TV_SOURCES.slice(0,2).map(s=>loadTvSource(s).catch(()=>[] as TvChannel[]))
+    TV_SOURCES.slice(0,4).map(s=>loadTvSource(s).catch(()=>[] as TvChannel[]))
   ).then(rows=>{
     const seen=new Set<string>();
     const items=rows.flat().filter(c=>{const key=c.url.toLowerCase();if(seen.has(key))return false;seen.add(key);return true;}).slice(0,8);
@@ -29,7 +29,7 @@ export function TvSmartRail(){
  if(!items.length&&!loading)return null;
  return <section aria-label='Live TV' className='mx-auto w-full border-y bg-background py-3'>
    <div className='px-3 flex items-center justify-between mb-2'>
-    <div><div className='flex items-center gap-2 font-semibold'><Radio className='w-4 h-4 text-red-500'/>Live TV</div><p className='text-[11px] text-muted-foreground'>Public live channels · loaded on demand</p></div>
+    <div><div className='flex items-center gap-2 font-semibold'><Radio className='w-4 h-4 text-red-500'/>Live TV</div><p className='text-[11px] text-muted-foreground'>Verified public live channels · offline links are filtered before display</p></div>
     <button onClick={()=>nav('/tv')} className='text-xs font-semibold flex items-center gap-1'>View all<ChevronRight className='w-3 h-3'/></button>
    </div>
    {loading&&!items.length?<div className='px-3 py-2 text-xs text-muted-foreground flex items-center gap-2'><RefreshCw className='w-3.5 h-3.5 animate-spin'/>Finding live channels…</div>:
