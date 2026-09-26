@@ -2,8 +2,57 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Globe2, Radio, RefreshCw } from 'lucide-react';
 import { TV_SOURCES, loadTvSource, type TvChannel } from '@/services/tvChannelCatalog';
+import { supabaseUrl } from '@/lib/supabase';
 
-const TvChannelPlayer = lazy(() => import('@/components/features/TvChannelPlayer').then(module => ({ default: module.TvChannelPlayer })));
+const loadTvPlayer = () => import('@/components/features/TvChannelPlayer').then(module => module.TvChannelPlayer);
+const TvChannelPlayer = lazy(loadTvPlayer);
+
+const MAX_POSTS = 8;
+const PREWARM_CONCURRENCY = 2;
+const PREWARM_TIMEOUT_MS = 5000;
+let runtimeWarmPromise: Promise<void> | null = null;
+let prewarmedUrls = new Set<string>();
+
+function proxyUrl(url: string) {
+  return supabaseUrl + '/functions/v1/tv-stream-proxy?url=' + encodeURIComponent(url);
+}
+
+async function prewarmUrl(url: string) {
+  if (prewarmedUrls.has(url)) return;
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), PREWARM_TIMEOUT_MS);
+  try {
+    const response = await fetch(proxyUrl(url), {
+      method: 'GET',
+      headers: { Range: 'bytes=0-4095', Accept: 'application/vnd.apple.mpegurl,application/x-mpegURL,video/*,*/*;q=0.5' },
+      cache: 'no-store',
+      signal: controller.signal,
+    });
+    if (response.ok || response.status === 206) prewarmedUrls.add(url);
+  } catch {
+    // Background warming is best-effort; playback performs its own retries/fallbacks.
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+async function warmTvRuntime() {
+  if (runtimeWarmPromise) return runtimeWarmPromise;
+  runtimeWarmPromise = (async () => {
+    // Start downloading the player chunk before the first TV card enters view.
+    void loadTvPlayer().catch(() => undefined);
+    const items = await loadLivePool();
+    let cursor = 0;
+    const worker = async () => {
+      while (cursor < items.length) {
+        const item = items[cursor++];
+        await prewarmUrl(item.url);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(PREWARM_CONCURRENCY, items.length) }, worker));
+  })().finally(() => { runtimeWarmPromise = null; });
+  return runtimeWarmPromise;
+}
 
 const MAX_POSTS = 8;
 const HIDDEN = /^\/(auth|admin|settings|wallet|messages|notifications|help|premium|create-ad|my-ads|ad-|rewards|verify|privacy|terms|policy|regulator|sessions|blocked|appeals|payouts|revenue|analytics|news\/|tv)(?:\/|$)/;
@@ -62,6 +111,11 @@ async function loadLivePool(signal?: AbortSignal): Promise<TvChannel[]> {
 
 export function TvPostStream({ index = 0 }: { index?: number }) {
   const { pathname } = useLocation();
+
+  useEffect(() => {
+    if (HIDDEN.test(pathname)) return;
+    void warmTvRuntime();
+  }, [pathname]);
   const hostRef = useRef<HTMLElement>(null);
   const [nearViewport, setNearViewport] = useState(false);
   const [channel, setChannel] = useState<TvChannel | null>(null);
