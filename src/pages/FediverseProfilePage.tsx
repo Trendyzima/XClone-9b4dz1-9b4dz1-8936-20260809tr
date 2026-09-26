@@ -182,6 +182,8 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                 url: remoteActor.url ?? current.url,
                 followers: remoteActor.followers?.totalItems ?? current.followers ?? 0,
                 following: remoteActor.following?.totalItems ?? current.following ?? 0,
+                tags: remoteActor.tag ?? current.tags ?? [],
+                raw_actor: remoteActor,
               } : current);
             }
           } catch {
