@@ -76,7 +76,7 @@ Deno.serve(async req => {
   if (!callId) return json({ ok: false, error: { code: "CALL_ID_REQUIRED", message: "call_id is required" } }, 400);
 
   const { data: call, error: callError } = await db
-    .from("call_sessions")
+    .from("calls")
     .select("id,room_name,status,kind,conversation_id")
     .eq("id", callId)
     .maybeSingle();
