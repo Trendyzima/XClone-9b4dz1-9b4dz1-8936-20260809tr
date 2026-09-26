@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Room, RoomEvent, LocalAudioTrack, LocalVideoTrack } from 'livekit-client';
 import { Camera, Mic, MonitorUp, Circle, Square, Radio, Users, Download, Clapperboard, Settings2, Activity, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -20,6 +20,7 @@ const VIDEO_PRESETS: Record<Quality, { width: number; height: number; fps: numbe
 export default function TvStudioPage() {
   const { streamId } = useParams();
   const nav = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -47,6 +48,9 @@ export default function TvStudioPage() {
   const [audioLevel, setAudioLevel] = useState(0);
   const [status, setStatus] = useState<'idle' | 'preview' | 'recording' | 'live'>('idle');
   const [saving, setSaving] = useState(false);
+  const broadcastTitle = searchParams.get('title')?.trim().slice(0, 100) || 'Testagram TV Live';
+  const broadcastDescription = searchParams.get('description')?.trim().slice(0, 500) || 'Live from Testagram TV Studio';
+  const broadcastCategory = searchParams.get('category')?.trim().slice(0, 50) || 'general';
 
   useEffect(() => {
     if (!streamId) return;
@@ -129,8 +133,8 @@ export default function TvStudioPage() {
 
       if (!id) {
         const { data, error } = await supabase.from('live_streams').insert({
-          user_id: user.id, title: 'Testagram TV Live', description: 'Live from Testagram TV Studio',
-          category: 'general', is_live: true,
+          user_id: user.id, title: broadcastTitle, description: broadcastDescription,
+          category: broadcastCategory, is_live: true,
         }).select('id,title').single();
         if (error || !data) throw new Error(error?.message || 'Could not create broadcast');
         id = data.id;
@@ -166,7 +170,11 @@ export default function TvStudioPage() {
     setLive(false);
     if (!recording) setStatus(cameraStreamRef.current ? 'preview' : 'idle');
     if (activeStreamId) {
-      await supabase.from('live_streams').update({ is_live: false, ended_at: new Date().toISOString() }).eq('id', activeStreamId);
+      // The broadcast row is disposable control-plane state. The actual audio/video lived only in LiveKit.
+      // Remove it when the host goes offline so ended broadcasts cannot become a stored video catalog.
+      await supabase.from('live_streams').delete().eq('id', activeStreamId).eq('user_id', user?.id ?? '');
+      setActiveStreamId(null);
+      setStream(null);
     }
   };
 
