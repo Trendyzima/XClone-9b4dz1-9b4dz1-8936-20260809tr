@@ -636,7 +636,7 @@ export default function TeamChatPage() {
                                 >
                                   <Pin className="w-3.5 h-3.5" />Pin
                                 </button>
-                               : null}
+                               ) : null}
                               <button onClick={() => handleDelete(msg.id)}
                                 className="w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-destructive/10 text-destructive">
                                 <Trash2 className="w-3.5 h-3.5" />Delete
