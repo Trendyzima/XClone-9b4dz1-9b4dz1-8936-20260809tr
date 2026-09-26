@@ -10,6 +10,7 @@ import { formatNumber } from '@/lib/utils';
 import { useSEO } from '@/hooks/useSEO';
 import { toast } from 'sonner';
 import { FeedAdCard } from '@/components/features/FeedAdCard';
+import { InlineTvSuggestion } from '@/components/features/InlineTvSuggestion';
 import { DynamicAd } from '@/components/features/DynamicAd';
 import { getThreadLikeState,toggleThreadLike } from '@/features/threadLikes/threadLikesService';
 import { toggleThreadRepost, getThreadRepostState } from '@/features/threadReposts/threadRepostsService';
@@ -34,7 +35,7 @@ export default function ThreadDetailPage(){
  return <div className="min-h-screen bg-background pb-20 md:pb-0"><TopBar title="Thread" showBack/><main>
   <article className="px-4 py-5"><div className="flex gap-3"><button onClick={()=>navigate('/profile/'+(thread.profiles?.username||''))}><Avatar profile={thread.profiles}/></button><div className="min-w-0 flex-1">
    <div className="flex items-start gap-2"><button onClick={()=>navigate('/profile/'+(thread.profiles?.username||''))} className="text-left"><div className="flex items-center gap-1.5"><span className="font-bold">{thread.profiles?.display_name||thread.profiles?.username||'Profile'}</span>{thread.profiles?.verified&&<Check className="h-4 w-4 rounded-full bg-primary p-0.5 text-primary-foreground"/>}</div><span className="text-xs text-muted-foreground">{thread.profiles?.username ? '@'+String(thread.profiles.username).replace(/^@/,'') : ''}</span></button><span className="pt-0.5 text-xs text-muted-foreground">· {formatDistanceToNow(new Date(thread.created_at),{addSuffix:true})}</span><button className="ml-auto rounded-full p-1.5 hover:bg-muted" aria-label="More"><MoreHorizontal className="h-4 w-4"/></button></div>
-   <p className="mt-4 whitespace-pre-wrap break-words text-[16px] leading-7">{thread.body}</p><Media items={thread.media_urls}/>
+   <p className="mt-4 whitespace-pre-wrap break-words text-[16px] leading-7">{thread.body}</p><InlineTvSuggestion content={thread.body} seed={thread.id} type="thread"/><Media items={thread.media_urls}/>
    <div className="mt-5 grid grid-cols-6 items-center text-muted-foreground">
     <button onClick={()=>navigate('/thread/'+thread.id+'/replies')} className="flex items-center gap-1.5 rounded-full p-2 hover:text-primary"><MessageCircle className="h-5 w-5"/>{formatNumber(thread.replies_count)}</button>
     <button onClick={()=>void repost()} className={'flex items-center gap-1.5 rounded-full p-2 '+(reposted?'text-green-600':'hover:text-green-600')}><Repeat2 className="h-5 w-5"/>{formatNumber(thread.reposts_count)}</button>
