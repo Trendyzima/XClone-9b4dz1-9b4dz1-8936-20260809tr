@@ -2,7 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { Mic, Square, Play, Pause, Loader2 } from 'lucide-react';
+import { Mic, Square, Play, Pause, Loader2, SlidersHorizontal } from 'lucide-react';
+import { createStudioAudioPipeline, requestStudioMicrophone, chooseAudioMimeType, type StudioAudioPipeline } from '@/lib/studioAudio';
 
 interface AudioRecorderProps {
   spaceId: string;
@@ -21,22 +22,28 @@ export function AudioRecorder({ spaceId, onRecordingComplete }: AudioRecorderPro
   const audioChunksRef = useRef<Blob[]>([]);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<number | null>(null);
+  const pipelineRef = useRef<StudioAudioPipeline | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
   useEffect(() => {
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
       }
-      if (mediaRecorderRef.current && isRecording) {
-        mediaRecorderRef.current.stop();
-      }
+      if (mediaRecorderRef.current && isRecording) mediaRecorderRef.current.stop();
+      streamRef.current?.getTracks().forEach(track => track.stop());
+      void pipelineRef.current?.stop();
     };
   }, []);
 
   const startRecording = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
+      const stream = await requestStudioMicrophone();
+      streamRef.current = stream;
+      const pipeline = await createStudioAudioPipeline(stream);
+      pipelineRef.current = pipeline;
+      const mimeType = chooseAudioMimeType();
+      const mediaRecorder = new MediaRecorder(pipeline.stream, mimeType ? { mimeType, audioBitsPerSecond: 192000 } : { audioBitsPerSecond: 192000 });
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
 
@@ -45,15 +52,17 @@ export function AudioRecorder({ spaceId, onRecordingComplete }: AudioRecorderPro
       };
 
       mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType || 'audio/webm' });
         const url = URL.createObjectURL(audioBlob);
         setAudioUrl(url);
         
         // Upload to storage
         await uploadAudio(audioBlob);
         
-        // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
+        streamRef.current = null;
+        await pipeline.stop();
+        pipelineRef.current = null;
       };
 
       mediaRecorder.start();
@@ -224,7 +233,7 @@ export function AudioRecorder({ spaceId, onRecordingComplete }: AudioRecorderPro
       </div>
 
       <p className="text-xs text-center text-muted-foreground">
-        Note: Recordings are stored for 24 hours and then automatically deleted
+        Studio mode uses browser noise suppression plus a mastered voice chain. Use headphones when monitoring live audio for the cleanest result.
       </p>
     </div>
   );
