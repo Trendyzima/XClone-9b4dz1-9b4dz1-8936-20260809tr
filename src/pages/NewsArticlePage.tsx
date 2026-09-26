@@ -1,6 +1,6 @@
 import {useEffect,useState} from 'react';
 import {useNavigate,useParams} from 'react-router-dom';
-import {ArrowLeft,Clock,Newspaper} from 'lucide-react';
+import {ArrowLeft,Clock,ExternalLink,Newspaper} from 'lucide-react';
 import {supabaseUrl} from '@/lib/supabase';
 
 type Item={id:string;title:string;excerpt?:string|null;canonical_url:string;image_url?:string|null;favicon_url?:string|null;published_at:string;category:string;author?:string|null;testagram_rss_source_profiles?:{display_name:string;avatar_url?:string|null}};
@@ -32,6 +32,11 @@ export default function NewsArticlePage(){
      {item.author?<div className='mt-2 text-xs text-muted-foreground'>By {item.author}</div>:null}
      {item.excerpt?<p className='mt-6 whitespace-pre-wrap text-[15px] leading-7'>{item.excerpt}</p>:<p className='mt-6 text-sm text-muted-foreground'>The publisher did not provide an article excerpt in its RSS feed.</p>}
      <div className='mt-7 rounded-xl bg-muted/60 p-3 text-xs text-muted-foreground'>This is a live publisher feed surfaced inside Testagram. The story remains on its publisher’s site; Testagram does not copy or permanently store the article.</div>
+     <div className='mt-4 border-t pt-4'>
+      <a href={item.canonical_url} target='_blank' rel='noopener noreferrer' className='inline-flex items-center gap-2 text-sm font-semibold text-primary underline-offset-4 hover:underline' aria-label={'More information from '+(item.testagram_rss_source_profiles?.display_name??'the publisher')}>
+       More information from {item.testagram_rss_source_profiles?.display_name??'the publisher'} <ExternalLink className='h-4 w-4'/>
+      </a>
+     </div>
     </div>
    </article>:null}
  </main>;
