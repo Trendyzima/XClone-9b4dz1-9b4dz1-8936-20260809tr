@@ -9,7 +9,7 @@ export default function TvChannelsPage(){
  const nav=useNavigate(); const {pathname}=useLocation(); const reelsMode=pathname==='/tv/reels'; const [channels,setChannels]=useState<TvChannel[]>([]); const [active,setActive]=useState(''); const [loading,setLoading]=useState(true); const [sourceIndex,setSourceIndex]=useState(0); const [filter,setFilter]=useState(''); const [query,setQuery]=useState(''); const [notice,setNotice]=useState(''); const [dead,setDead]=useState<Set<string>>(new Set()); const loaded=useRef(new Set<string>());
  const loadSources=useCallback(async(ids:string[])=>{const targets=TV_SOURCES.filter(s=>ids.includes(s.id)&&!loaded.current.has(s.id));if(!targets.length)return;setLoading(true);const results=await Promise.allSettled(targets.map(s=>loadTvSource(s)));const good=results.flatMap(r=>r.status==='fulfilled'?r.value:[]);targets.forEach(s=>loaded.current.add(s.id));setChannels(prev=>dedupeTvChannels([...prev,...good]));const failed=results.filter(r=>r.status==='rejected').length;if(failed)setNotice(failed+' source(s) could not be reached; other live sources remain available.');setLoading(false);},[]);
  useEffect(()=>{void loadSources(TV_SOURCES.slice(0,3).map(s=>s.id));},[loadSources]);
- const filtered=useMemo(()=>{const q=query.trim().toLowerCase();return channels.filter(c=>!dead.has(c.id)).filter(c=>{const text=(c.name+' '+(c.group||'')+' '+(c.language||'')).toLowerCase();const country=filter==='AF'?['KE','ZA','NG','GH','UG','TZ','RW','ZM','ZW','BW'].includes(c.country||''):filter?c.country===filter||text.includes(filter.toLowerCase()):true;return country&&(!q||text.includes(q));});},[channels,filter,query]);
+ const filtered=useMemo(()=>{const q=query.trim().toLowerCase();return channels.filter(c=>!dead.has(c.id)).filter(c=>{const text=(c.name+' '+(c.group||'')+' '+(c.language||'')).toLowerCase();const country=filter==='AF'?['KE','ZA','NG','GH','UG','TZ','RW','ZM','ZW','BW'].includes(c.country||''):filter?c.country===filter||text.includes(filter.toLowerCase()):true;return country&&(!q||text.includes(q));}).sort((a,b)=>Number(/not 24\/7/i.test(a.name))-Number(/not 24\/7/i.test(b.name)));},[channels,filter,query]);
  useEffect(()=>{if(!active&&filtered[0])setActive(filtered[0].id);},[active,filtered]);
  const visible=(id:string,v:boolean)=>{if(v)setActive(id);};
  const health=(id:string,healthy:boolean)=>{
@@ -17,7 +17,7 @@ export default function TvChannelsPage(){
    setDead(prev=>{if(!prev.has(id))return prev;const next=new Set(prev);next.delete(id);return next;});
   }else{
    setDead(prev=>{const next=new Set(prev);next.add(id);return next;});
-   setActive(current=>current===id?'':current);
+   setActive(current=>current===id ? (filtered.find(c=>c.id!==id && !dead.has(c.id))?.id || '') : current);
   }
  };
  const loadMore=async()=>{const next=TV_SOURCES[sourceIndex+3];if(next){setSourceIndex(i=>i+3);await loadSources(TV_SOURCES.slice(sourceIndex+3,sourceIndex+6).map(s=>s.id));}};
