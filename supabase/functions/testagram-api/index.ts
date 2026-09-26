@@ -217,7 +217,7 @@ if(path==="/federated-reaction-counts"&&method==="GET"){
 if(path==="/federated-profile"&&method==="GET"){
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
   const target=String(params.actor_uri||params.actorUri||"").trim();
-  if(!/^https?:\\/\\//i.test(target))return json({error:"actor_uri must be an ActivityPub actor URL"},400);
+  if(!/^https?:\/\//i.test(target))return json({error:"actor_uri must be an ActivityPub actor URL"},400);
   try{
     const r=await transport({user_id:u.id,operation:"profile",target,limit:Math.min(Math.max(Number(params.limit||60),1),100)});
     return json(r.data(),r.status);
