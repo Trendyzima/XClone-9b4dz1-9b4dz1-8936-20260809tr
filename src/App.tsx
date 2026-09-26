@@ -1,6 +1,6 @@
 import { Analytics, StatusBar, Style, Capacitor } from '@/lib/capacitor-stub';
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from '@/components/layout/AuthProvider';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { RightSidebar } from '@/components/layout/RightSidebar';
@@ -14,6 +14,7 @@ import { Toaster as Sonner } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { InterestOnboardingSheet } from '@/components/features/InterestOnboardingSheet';
 import { SiteAdInjector } from '@/components/features/SiteAdInjector';
+import { TvSmartRail } from '@/components/features/TvSmartRail';
 import { supabase } from '@/lib/supabase';
 import { startTestagramHeartbeat } from '@/services/heartbeatClient';
 import { applyAppearance, getStoredAppearance } from '@/theme/themes';
@@ -89,6 +90,7 @@ const PremiumPage = lazy(() => import('@/pages/PremiumPage'));
 const LiveStreamPage = lazy(() => import('@/pages/LiveStreamPage'));
 const StartStreamPage = lazy(() => import('@/pages/StartStreamPage'));
 const TvStudioPage = lazy(() => import('@/pages/TvStudioPage'));
+const TvChannelsPage = lazy(() => import('@/pages/TvChannelsPage'));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
 const SettingsAccountPage = lazy(() => import('@/pages/settings/SettingsAccountPage'));
 const SettingsAppearancePage = lazy(() => import('@/pages/settings/SettingsAppearancePage'));
@@ -244,7 +246,7 @@ function AppearanceBootstrap() {
 
   return null;
 }
-function AppInner(){useCreatorTierAlert();useEffect(()=>{applyAppearance(getStoredAppearance());const mq=window.matchMedia('(prefers-color-scheme: dark)');const handler=()=>{const a=getStoredAppearance();if(a.mode==='system')applyAppearance(a)};mq.addEventListener('change',handler);return()=>mq.removeEventListener('change',handler)},[]);useEffect(()=>startTestagramHeartbeat('web-v1'),[]);useEffect(()=>{if(!Capacitor.isNativePlatform())return;(async()=>{try{await StatusBar.setOverlaysWebView({overlay:true});await StatusBar.setStyle({style:Style.Dark});try{await StatusBar.setBackgroundColor({color:'#00000000'})}catch{}}catch{try{await StatusBar.hide()}catch{}}})()},[]);return <AuthProvider><AppearanceBootstrap/><div className="flex min-h-screen bg-background overflow-x-hidden pb-20"><Sidebar/><main className="flex-1 max-w-2xl w-full border-x border-border overflow-x-hidden"><Suspense fallback={<PageLoader/>}><SiteAdInjector/><LiveSpacesDiscoveryStrip/><Routes><Route path="/" element={<HomePage/>}/><Route path="/auth" element={<AuthPage/>}/><Route path="/videos" element={<VideosPage/>}/><Route path="/shorts" element={<FastPixShortsPage/>}/><Route path="/explore" element={<ExplorePage/>}/>
+function AppInner(){useCreatorTierAlert();const location=useLocation();const showTvRail=['/','/explore','/search','/discover'].includes(location.pathname);useEffect(()=>{applyAppearance(getStoredAppearance());const mq=window.matchMedia('(prefers-color-scheme: dark)');const handler=()=>{const a=getStoredAppearance();if(a.mode==='system')applyAppearance(a)};mq.addEventListener('change',handler);return()=>mq.removeEventListener('change',handler)},[]);useEffect(()=>startTestagramHeartbeat('web-v1'),[]);useEffect(()=>{if(!Capacitor.isNativePlatform())return;(async()=>{try{await StatusBar.setOverlaysWebView({overlay:true});await StatusBar.setStyle({style:Style.Dark});try{await StatusBar.setBackgroundColor({color:'#00000000'})}catch{}}catch{try{await StatusBar.hide()}catch{}}})()},[]);return <AuthProvider><AppearanceBootstrap/><div className="flex min-h-screen bg-background overflow-x-hidden pb-20"><Sidebar/><main className="flex-1 max-w-2xl w-full border-x border-border overflow-x-hidden"><Suspense fallback={<PageLoader/>}><SiteAdInjector/>{showTvRail&&<TvSmartRail/>}<LiveSpacesDiscoveryStrip/><Routes><Route path="/" element={<HomePage/>}/><Route path="/auth" element={<AuthPage/>}/><Route path="/videos" element={<VideosPage/>}/><Route path="/shorts" element={<FastPixShortsPage/>}/><Route path="/explore" element={<ExplorePage/>}/>
 <Route path="/discover" element={<DiscoverSuggestedPage/>}/>
 <Route path="/discover/suggested" element={<DiscoverSuggestedPage/>}/>
 <Route path="/discover/popular" element={<DiscoverPopularPage/>}/>
@@ -275,7 +277,7 @@ function AppInner(){useCreatorTierAlert();useEffect(()=>{applyAppearance(getStor
 <Route path="/creator-studio/analytics" element={<CreatorAnalyticsPage/>}/>
 <Route path="/creator-studio/videos" element={<CreatorVideosPage/>}/>
 <Route path="/creator-studio/earnings" element={<CreatorEarningsPage/>}/>
-<Route path="/creator-studio/revenue" element={<CreatorRevenuePage/>}/><Route path="/premium" element={<PremiumPage/>}/><Route path="/stream/:streamId" element={<LiveStreamPage/>}/><Route path="/start-stream" element={<StartStreamPage/>}/><Route path="/tv-studio" element={<TvStudioPage/>}/><Route path="/tv-studio/:streamId" element={<TvStudioPage/>}/><Route path="/tv" element={<TvStudioPage/>}/><Route path="/settings" element={<SettingsPage/>}/>
+<Route path="/creator-studio/revenue" element={<CreatorRevenuePage/>}/><Route path="/premium" element={<PremiumPage/>}/><Route path="/stream/:streamId" element={<LiveStreamPage/>}/><Route path="/start-stream" element={<StartStreamPage/>}/><Route path="/tv-studio" element={<TvStudioPage/>}/><Route path="/tv-studio/:streamId" element={<TvStudioPage/>}/><Route path="/tv" element={<TvChannelsPage/>}/><Route path="/tv/channels" element={<TvChannelsPage/>}/><Route path="/tv-studio" element={<TvStudioPage/>}/><Route path="/settings" element={<SettingsPage/>}/>
 <Route path="/settings/account" element={<SettingsAccountPage/>}/>
 <Route path="/settings/appearance" element={<SettingsAppearancePage/>}/>
 <Route path="/settings/connections" element={<SettingsConnectionsPage/>}/>
