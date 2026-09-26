@@ -142,65 +142,68 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
         }
 
         if (resolvedActorUri) {
-          // A remote profile is more than the locally cached feed. Fetch the
-          // actor's ActivityPub document and its outbox so a profile visit
-          // shows the account itself plus its current posts, even before inbox
-          // delivery has populated federated_objects.
+          // Remote ActivityPub outboxes are fetched server-side because browser
+          // CORS and HTTP-signature requirements vary across Fediverse servers.
           let remotePosts: any[] = [];
           try {
-            const actorRes = await fetch(resolvedActorUri, {
-              headers: { Accept: 'application/activity+json, application/ld+json' },
-            });
-            if (actorRes.ok) {
-              const actorDoc = await actorRes.json();
-              const outboxUrl = typeof actorDoc.outbox === 'string' ? actorDoc.outbox : actorDoc.outbox?.id;
-              if (outboxUrl) {
-                const outboxRes = await fetch(outboxUrl, {
-                  headers: { Accept: 'application/activity+json, application/ld+json' },
-                });
-                if (outboxRes.ok) {
-                  const outbox = await outboxRes.json();
-                  let entries = Array.isArray(outbox.orderedItems) ? outbox.orderedItems : Array.isArray(outbox.items) ? outbox.items : [];
-                  const firstPage = typeof outbox.first === 'string' ? outbox.first : outbox.first?.id;
-                  if (!entries.length && firstPage) {
-                    const firstRes = await fetch(firstPage, {
-                      headers: { Accept: 'application/activity+json, application/ld+json' },
-                    });
-                    if (firstRes.ok) {
-                      const page = await firstRes.json();
-                      entries = Array.isArray(page.orderedItems) ? page.orderedItems : Array.isArray(page.items) ? page.items : [];
-                    }
-                  }
-                  remotePosts = entries
-                    .map((entry: any) => entry?.object ?? entry)
-                    .filter((post: any) => post && typeof post === 'object' && post.type !== 'Delete')
-                    .filter((post: any) => ['Note', 'Article', 'Question', 'Video', 'Image'].includes(post.type))
-                    .slice(0, 30)
-                    .map((post: any) => ({
-                      ...post,
-                      uri: post.id ?? post.url,
-                      actor_uri: resolvedActorUri,
-                      content: post.content ?? post.name ?? '',
-                      published_at: post.published ?? post.updated ?? null,
-                      attachments: Array.isArray(post.attachment) ? post.attachment : [],
-                    }));
-                }
-              }
+            const remote = await federation.getRemoteProfile(resolvedActorUri, 80);
+            const remoteActor = remote?.actor ?? {};
+            const items = Array.isArray(remote?.items) ? remote.items : [];
+            remotePosts = items
+              .filter((post: any) => post && typeof post === 'object' && post.type !== 'Delete')
+              .map((post: any) => ({
+                ...post,
+                id: post.id ?? post.url,
+                uri: post.id ?? post.url,
+                url: post.url ?? post.id,
+                actor_uri: resolvedActorUri,
+                type: post.type ?? 'Note',
+                content: post.content ?? post.name ?? '',
+                published_at: post.published ?? post.updated ?? null,
+                in_reply_to_uri: post.inReplyTo ?? null,
+                attachments: Array.isArray(post.attachment) ? post.attachment : [],
+                raw_object: post,
+              }));
+            if (remoteActor && !cancelled) {
+              setProfile((current: any) => current ? {
+                ...current,
+                preferredUsername: remoteActor.preferredUsername ?? current.preferredUsername,
+                username: remoteActor.preferredUsername ?? current.username,
+                name: remoteActor.name ?? current.name,
+                display_name: remoteActor.name ?? current.display_name,
+                summary: remoteActor.summary ?? current.summary,
+                bio: remoteActor.summary ?? current.bio,
+                avatar_url: remoteActor.icon?.url ?? current.avatar_url,
+                icon: remoteActor.icon ?? current.icon,
+                header_url: remoteActor.image?.url ?? current.header_url,
+                url: remoteActor.url ?? current.url,
+                followers: remoteActor.followers?.totalItems ?? current.followers ?? 0,
+                following: remoteActor.following?.totalItems ?? current.following ?? 0,
+              } : current);
             }
           } catch {
-            // Fall back to Testagram's cache below when the remote server
-            // blocks browser ActivityPub requests.
+            // Fall back to the bounded ingestion cache when the remote server
+            // temporarily rejects a signed outbox request.
           }
 
           if (!remotePosts.length) {
             const { data } = await supabase
               .from('federated_objects')
               .select('*')
-              .in('actor_uri', [resolvedActorUri, result?.id ?? resolvedActorUri])
+              .eq('actor_uri', resolvedActorUri)
               .is('deleted_at', null)
               .order('published_at', { ascending: false })
-              .limit(30);
-            remotePosts = data ?? [];
+              .limit(80);
+            remotePosts = (data ?? []).map((post: any) => ({
+              ...post,
+              id: post.uri ?? post.id,
+              uri: post.uri ?? post.id,
+              url: post.url ?? post.uri,
+              type: post.object_type ?? post.raw_object?.type ?? 'Note',
+              in_reply_to_uri: post.in_reply_to_uri ?? post.raw_object?.inReplyTo ?? null,
+              attachments: Array.isArray(post.attachments) ? post.attachments : [],
+              published_at: post.published_at,
+            }));
           }
           if (!cancelled) setPosts(remotePosts);
         }
