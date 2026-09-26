@@ -60,7 +60,7 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
   retryRef.current+=1;
   const delay=900*Math.pow(2,retryRef.current-1);
   retryTimer.current=setTimeout(()=>{ if(active){setError(false);startRef.current?.();} },delay);
- },[active,channel.id,onHealth]);
+ },[active,channel.id,channel.url,onHealth,proxyUrl]);
 
  const start=useCallback(()=>{
   const video=ref.current;if(!video||!active)return;
@@ -115,8 +115,8 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
    h.on(Hls.Events.FRAG_BUFFERED,()=>markHealthy());
    h.on(Hls.Events.ERROR,(_,data)=>{
     if(!data.fatal)return;
-    if(data.type===Hls.ErrorTypes.MEDIA_ERROR){try{h.recoverMediaError();return;}catch{}}
-    if(data.type===Hls.ErrorTypes.NETWORK_ERROR){try{h.startLoad(-1);return;}catch{}}
+    if(data.type===Hls.ErrorTypes.MEDIA_ERROR && playbackUrlRef.current!==channel.url){try{h.recoverMediaError();return;}catch{}}
+    if(data.type===Hls.ErrorTypes.NETWORK_ERROR){retry();return;}
     retry();
    });
    return;
