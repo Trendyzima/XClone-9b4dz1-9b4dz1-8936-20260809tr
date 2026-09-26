@@ -62,6 +62,7 @@ const ThreadReplyLikesPage = lazy(() => import('@/pages/ThreadReplyLikesPage'));
 const CommunitiesPage = lazy(() => import('@/pages/CommunitiesPage'));
 const CommunityPage = lazy(() => import('@/pages/CommunityPage'));
 const HashtagPage = lazy(() => import('@/pages/HashtagPage'));
+const NewsArticlePage = lazy(() => import('@/pages/NewsArticlePage'));
 const AIBotSetup = lazy(() => import('@/pages/AIBotSetup'));
 const BookmarksPage = lazy(() => import('@/pages/BookmarksPage').then(m => ({ default: m.BookmarksPage })));
 const ListsPage = lazy(() => import('@/pages/ListsPage').then(m => ({ default: m.ListsPage })));
@@ -274,7 +275,7 @@ function AppInner(){useCreatorTierAlert();useEffect(()=>{applyAppearance(getStor
 <Route path="/c/:name/members" element={<CommunityMembersPage/>}/>
 <Route path="/c/:name/chat" element={<CommunityChatPage/>}/>
 <Route path="/c/:name/events" element={<CommunityEventsPage/>}/>
-<Route path="/c/:name/shop" element={<CommunityShopPage/>}/><Route path="/hashtag/:tag" element={<HashtagPage/>}/><Route path="/ai-bot-setup" element={<AIBotSetup/>}/><Route path="/bookmarks" element={<BookmarksPage/>}/><Route path="/lists" element={<ListsPage/>}/><Route path="/monetization" element={<MonetizationDashboard/>}/><Route path="/products" element={<ProductsPage/>}/><Route path="/scheduled" element={<ScheduledPostsPage/>}/><Route path="/creator-studio" element={<CreatorStudio/>}/>
+<Route path="/c/:name/shop" element={<CommunityShopPage/>}/><Route path="/hashtag/:tag" element={<HashtagPage/>}/><Route path="/news/:id" element={<NewsArticlePage/>}/><Route path="/ai-bot-setup" element={<AIBotSetup/>}/><Route path="/bookmarks" element={<BookmarksPage/>}/><Route path="/lists" element={<ListsPage/>}/><Route path="/monetization" element={<MonetizationDashboard/>}/><Route path="/products" element={<ProductsPage/>}/><Route path="/scheduled" element={<ScheduledPostsPage/>}/><Route path="/creator-studio" element={<CreatorStudio/>}/>
 <Route path="/creator-studio/overview" element={<CreatorOverviewPage/>}/>
 <Route path="/creator-studio/analytics" element={<CreatorAnalyticsPage/>}/>
 <Route path="/creator-studio/videos" element={<CreatorVideosPage/>}/>
