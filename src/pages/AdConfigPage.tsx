@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useGovernance } from '@/lib/governance';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { BarChart3, DollarSign, Loader2, Power, Plus, Settings, Target, Megaphone } from 'lucide-react';
@@ -15,6 +16,7 @@ interface Creative { id: string; campaign_id: string; headline: string; body: st
 
 export default function AdConfigPage() {
   const { user } = useAuth();
+  const { governance, loading: governanceLoading } = useGovernance();
   const navigate = useNavigate();
   useSEO({ noindex: true, title: 'Admin — Testagram Ads', url: '/admin/ad-config' });
   const [loading, setLoading] = useState(true);
@@ -28,8 +30,8 @@ export default function AdConfigPage() {
 
   const load = async () => {
     if (!user) return;
-    const { data: admin } = await supabase.from('platform_admins').select('role').eq('user_id', user.id).maybeSingle();
-    if (!admin) { toast.error('Access denied: platform admin only'); navigate('/'); return; }
+    if (governanceLoading) return;
+    if (!governance.is_owner) { toast.error('Owner authorization required'); navigate('/admin/governance'); return; }
     const [{ data: c }, { data: s }, { data: cr }, { data: settings }] = await Promise.all([
       supabase.from('zenad_campaigns').select('id,name,status,priority,bid_cpm_micros,targeting').order('created_at', { ascending: false }),
       supabase.from('zenad_slots').select('id,code,kind,floor_cpm_micros,enabled').order('code'),
@@ -42,7 +44,7 @@ export default function AdConfigPage() {
     setLoading(false);
   };
 
-  useEffect(() => { if (!user) { navigate('/auth'); return; } void load(); }, [user]);
+  useEffect(() => { if (!user) { navigate('/auth'); return; } if (governanceLoading) return; void load(); }, [user?.id, governanceLoading, governance.is_owner]);
 
   const toggleCampaign = async (campaign: Campaign) => {
     const next = campaign.status === 'active' ? 'paused' : 'active';
