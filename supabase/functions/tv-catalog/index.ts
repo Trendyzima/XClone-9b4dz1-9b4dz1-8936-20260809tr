@@ -24,7 +24,7 @@ const cors = {
   "Access-Control-Allow-Origin":"*",
   "Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type",
   "Access-Control-Allow-Methods":"GET,OPTIONS",
-  "Cache-Control":"public, max-age=300, s-maxage=1800, stale-while-revalidate=3600",
+  "Cache-Control":"public, max-age=60, s-maxage=300, stale-while-revalidate=600",
   "Content-Type":"application/json; charset=utf-8"
 };
 
