@@ -89,6 +89,10 @@ export const GOVERNANCE_ROLES = [
   { value: 'trust_safety', label: 'Trust & Safety', description: 'Trust, safety and enforcement' },
   { value: 'operations_admin', label: 'Operations Admin', description: 'Platform, live and system operations' },
   { value: 'super_admin', label: 'Super Admin', description: 'Broad operational administration' },
+  { value: 'community_admin', label: 'Community Admin', description: 'Community governance and operations' },
+  { value: 'security_admin', label: 'Security Admin', description: 'Security and privileged-access controls' },
+  { value: 'audit_admin', label: 'Audit Admin', description: 'Read-only governance, finance and operations audit' },
+  { value: 'release_ops', label: 'Release Ops', description: 'Production and release operations' },
 ] as const;
 
 export async function listGovernancePermissions() {
