@@ -24,7 +24,9 @@ export function LiveSpacesDiscoveryStrip() {
     ]);
     const audio: LiveChannel[] = (spacesResult.data ?? []).map((s: any) => ({ ...s, kind: s.has_video ? 'video-space' : 'audio' }));
     const tv: LiveChannel[] = (tvResult.data ?? []).map((s: any) => ({ ...s, kind: 'tv' }));
-    setChannels([...audio, ...tv].sort((a, b) => Number(b.listener_count ?? b.viewer_count ?? 0) - Number(a.listener_count ?? a.viewer_count ?? 0)).slice(0, 10));
+    const all = [...audio, ...tv];
+    const audience = (item: LiveChannel) => item.kind === 'tv' ? Number(item.viewer_count ?? 0) : Number(item.listener_count ?? 0);
+    setChannels(all.sort((a, b) => audience(b) - audience(a)).slice(0, 10));
   }, []);
 
   useEffect(() => {
