@@ -32,7 +32,13 @@ async function fetchSource(source:any){
    return 0;
  }
  if(!res.ok)throw new Error("HTTP "+res.status);
- const xml=await res.text();
+ const length=Number(res.headers.get("content-length")||"0");
+ if(length>2_000_000)throw new Error("Feed exceeds 2 MB safety limit");
+ const reader=res.body?.getReader();
+ if(!reader)throw new Error("Feed response body unavailable");
+ const chunks:Uint8Array[]=[];let total=0;
+ while(true){const part=await reader.read();if(part.done)break;total+=part.value?.byteLength||0;if(total>2_000_000){await reader.cancel();throw new Error("Feed exceeds 2 MB safety limit")}if(part.value)chunks.push(part.value)}
+ const xml=new TextDecoder().decode(await (async()=>{const merged=new Uint8Array(total);let offset=0;for(const c of chunks){merged.set(c,offset);offset+=c.byteLength}return merged})());
  const nextEtag=res.headers.get("etag")||source.etag||null;
  const nextLastModified=res.headers.get("last-modified")||source.last_modified||null;
  const parsed=parser.parse(xml);
@@ -55,10 +61,10 @@ Deno.serve(async(req)=>{
  if(req.method!=="POST"&&req.method!=="GET")return new Response("Method not allowed",{status:405});
  try{
   const limit=Math.min(Math.max(Number(new URL(req.url).searchParams.get("limit")||"12"),1),25);
-  const {data:sources,error}=await db.from("testagram_rss_sources").select("id,profile_id,source_name,feed_url,category,country_code,language_code,refresh_minutes,etag,last_modified").eq("enabled",true).lte("next_fetch_at",new Date().toISOString()).order("next_fetch_at",{ascending:true}).limit(limit);
+  const {data:sources,error}=await db.from("testagram_rss_sources").select("id,profile_id,source_name,feed_url,category,country_code,language_code,refresh_minutes,etag,last_modified,consecutive_failures").eq("enabled",true).lte("next_fetch_at",new Date().toISOString()).order("next_fetch_at",{ascending:true}).limit(limit);
   if(error)throw error;
   let ok=0,items=0,failed=0;
-  for(const source of sources||[]){try{items+=await fetchSource(source);ok++}catch(e){failed++;await db.from("testagram_rss_sources").update({last_fetched_at:new Date().toISOString(),last_error:e instanceof Error?e.message:String(e),consecutive_failures:1,next_fetch_at:new Date(Date.now()+Math.min(720,Math.pow(2,Math.min(6,1)))*60*1000).toISOString(),updated_at:new Date().toISOString()}).eq("id",source.id)}}
+  for(const source of sources||[]){try{items+=await fetchSource(source);ok++}catch(e){failed++;await db.from("testagram_rss_sources").update({last_fetched_at:new Date().toISOString(),last_error:e instanceof Error?e.message:String(e),consecutive_failures:Math.min(8,(Number((source as any).consecutive_failures)||0)+1),next_fetch_at:new Date(Date.now()+Math.min(720,Math.pow(2,Math.min(8,(Number((source as any).consecutive_failures)||0)+1))*5)*60*1000).toISOString(),updated_at:new Date().toISOString()}).eq("id",source.id)}}
   const {data:deleted}=await db.rpc("cleanup_testagram_rss_items");
   return Response.json({ok:true,sources_attempted:(sources||[]).length,sources_succeeded:ok,sources_failed:failed,items_upserted:items,items_deleted:Number(deleted||0)});
  }catch(e){console.error("[testagram-rss-ingest]",e);return Response.json({ok:false,error:e instanceof Error?e.message:String(e)},{status:500})}
