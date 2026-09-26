@@ -18,7 +18,7 @@ export default function AdminGovernancePage() {
 
   const load = async () => {
     setLoadingData(true);
-    try { const [a, h] = await Promise.all([listAdministrators(), listGovernanceAudit(), governance.is_owner ? listGovernancePermissions() : Promise.resolve([])]); setAdmins(a); setAudit(h); setPermissions(p); }
+    try { const [a, h, p] = await Promise.all([listAdministrators(), listGovernanceAudit(), governance.is_owner ? listGovernancePermissions() : Promise.resolve([])]); setAdmins(a); setAudit(h); setPermissions(p); }
     catch (error: any) { toast.error(error?.message ?? 'Could not load governance data'); }
     finally { setLoadingData(false); }
   };
