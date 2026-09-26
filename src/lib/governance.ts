@@ -48,6 +48,30 @@ export async function appointAdministrator(userId: string, role: string, allowPe
   return data;
 }
 
+export async function inviteStaff(userId: string, role: string, note?: string) {
+  const { data, error } = await supabase.rpc('testagram_invite_admin', { p_user_id: userId, p_role_name: role, p_note: note ?? null });
+  if (error) throw error;
+  return data;
+}
+
+export async function terminateStaff(userId: string, reason?: string) {
+  const { data, error } = await supabase.rpc('testagram_terminate_staff', { p_user_id: userId, p_reason: reason ?? null });
+  if (error) throw error;
+  return data;
+}
+
+export async function listJobApplications(status?: string) {
+  const { data, error } = await supabase.rpc('testagram_list_job_applications', { p_status: status ?? null });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function reviewJobApplication(applicationId: string, status: string, note?: string) {
+  const { data, error } = await supabase.rpc('testagram_review_job_application', { p_application_id: applicationId, p_status: status, p_note: note ?? null });
+  if (error) throw error;
+  return data;
+}
+
 export async function updateAdministrator(userId: string, role: string, status: 'active' | 'suspended' | 'revoked', reason?: string) {
   const { data, error } = await supabase.rpc('testagram_update_admin', {
     p_user_id: userId, p_role_name: role, p_status: status, p_reason: reason ?? null,
