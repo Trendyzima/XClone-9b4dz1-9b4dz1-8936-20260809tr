@@ -3,6 +3,7 @@ import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useGovernance } from '@/lib/governance';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -83,6 +84,7 @@ export default function AdminPanel({ section = 'overview', standalone = false }:
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const { governance } = useGovernance();
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState(section);
   const [stats, setStats] = useState<PlatformStats>({
@@ -106,12 +108,15 @@ export default function AdminPanel({ section = 'overview', standalone = false }:
   useEffect(() => {
     if (!user) { navigate('/auth'); return; }
     checkAdmin();
-  }, [user]);
+  }, [user, governance.is_owner]);
 
   const checkAdmin = async () => {
     if (!user) return;
-    const { data } = await supabase.from('admin_users').select('*').eq('user_id', user.id).single();
-    if (!data) { toast.error('Access denied — admin only'); navigate('/'); return; }
+    if (!governance.is_owner) {
+      toast.error('The full command center is owner-only. Open Admin & Governance for delegated administration.');
+      navigate('/admin/governance');
+      return;
+    }
     setIsAdmin(true);
     await Promise.all([fetchStats(), fetchUserAds(), fetchUsers(), fetchFraudAlerts(), fetchReportedPosts()]);
     setLoading(false);
