@@ -1,379 +1,346 @@
-# T Social - World-Class Platform Features
+# Testagram
 
-## ✅ Recently Implemented
+A production-oriented social platform for short-form video, conversations, communities, live audio/video, creator tools, commerce, payments, federated discovery, publisher feeds, and support.
 
-### Multi-Image Posts
-- **Upload up to 4 images per post** with smart grid layouts
-  - 1 image: Full width
-  - 2 images: Side by side grid
-  - 3 images: Top image spans full width, bottom 2 side by side
-  - 4 images: 2x2 grid
-- **20MB per file limit** for both images and videos
-- **Individual image removal** before posting
-- **Real-time upload progress** with toast notifications
+> **Status:** Active development and production hardening
 
-### Enhanced Media Support
-- Videos up to 20MB (increased from 10MB)
-- Multiple image validation (type, size checks)
-- Optimized storage with unique file naming
-- CDN-ready public URLs via Supabase Storage
+## What is Testagram?
 
-### World-Class Sidebars
-Both sidebars are now properly integrated and visible on desktop (lg+) and xl screens:
+Testagram is a responsive social ecosystem built around user publishing and discovery. It brings together social posts and threads, short-form video, communities, live experiences, creator tools, monetization, wallet/payment flows, commerce, Fediverse discovery, publisher/RSS content, and an in-product Help Center.
 
-#### Left Sidebar (`Sidebar.tsx`)
-- ✓ Logo and branding
-- ✓ Main navigation (Home, Explore, Notifications, Messages, Spaces, AI)
-- ✓ User library (Bookmarks, Lists, History)
-- ✓ Creator tools (Creator Studio, Analytics, Monetization, Products, Scheduled)
-- ✓ Collapsible communities section
-  - Your communities with member counts
-  - Discover communities button
-- ✓ Trending communities section
-- ✓ Premium upgrade banner with gradient design
-- ✓ User profile dropdown with settings & logout
-- ✓ Sign in button for guests
+The repository is a React + TypeScript application using Vite, Tailwind CSS, Supabase, serverless integrations, and route-level lazy loading. Production changes are validated through automated quality and deployment workflows.
 
-#### Right Sidebar (`RightSidebar.tsx`)
-- ✓ Create Community card
-- ✓ Live Audio Spaces with real-time listener counts
-- ✓ Trending topics (top 5) with post counts
-- ✓ Popular communities with member counts
-- ✓ AI-powered features banner
-- ✓ Footer links (Terms, Privacy, Help, About)
-- ✓ All sections link to relevant pages
+## Product capabilities
 
-### Trending System
-- Real-time trending hashtag calculation
-- Hourly and daily post tracking
-- Trend score algorithm (weighted by recency)
-- Automated updates via database triggers
+### Social publishing
+- Posts, threads, replies, quote posts, reposts, likes, bookmarks, polls, hashtags, mentions, and post history.
+- Multi-image posts and video publishing.
+- Dedicated profile surfaces for posts, threads, replies, media, videos, likes, followers, and following.
+- Lists, history, notifications, direct messages, search, and discovery.
+- Responsive mobile navigation and desktop sidebars.
 
-## 🚀 Core Infrastructure (Already Built)
+### Video, live, audio & TV
+- Short-form video viewing.
+- Live streaming and live-stream discovery.
+- Live Audio Spaces.
+- TV Studio, TV channels, and channel profile experiences.
+- Dedicated live/recording viewing surfaces where supported.
 
-### Authentication & Security
-- ✅ Email/password authentication via Supabase
-- ✅ Google OAuth support (configurable)
-- ✅ Row Level Security (RLS) on all tables
-- ✅ JWT token management
-- ✅ Session persistence
+### Communities
+- Community discovery and community pages.
+- Community posts, members, chat, events, and shop experiences.
+- Trending topics and hashtag discovery.
 
-### Backend Integration
-- ✅ Supabase backend (PostgreSQL + Storage + Edge Functions)
-- ✅ Real-time database subscriptions for notifications
-- ✅ Serverless edge functions for AI bot
-- ✅ CDN-optimized media delivery
+### Fediverse
+- Federated discovery, profiles, feeds, identities, inbox, relay, analytics, and Mastodon-oriented surfaces.
+- Organic federated content can participate in the home discovery experience.
+- Federated content remains attributable to its originating service.
 
-### Responsive Design
-- ✅ Mobile-first approach with Tailwind CSS
-- ✅ Dark/light mode toggle
-- ✅ Adaptive layouts for all screen sizes
-- ✅ Bottom navigation for mobile
-- ✅ Floating action button for quick actions
-- ✅ Sidebar visibility breakpoints (lg for left, xl for right)
+### Publisher and RSS feeds
+- Publisher/RSS ingestion and article discovery.
+- Publisher stories are blended into the native home feed rather than forced into a separate top-of-page news rail.
+- Publisher cards can display publisher identity, favicon, category, imagery, excerpt, timestamp, and article context.
+- RSS requests use short-lived frontend caching to reduce repeated network traffic.
+- Transient external/live media is not automatically converted into permanent backend video storage.
+
+### Creator tools
+- Creator Studio and creator overview.
+- Creator analytics, videos, earnings, and revenue surfaces.
+- Post and story analytics.
+- Creator leaderboards and related discovery surfaces.
+- Monetization and advertising tools.
+
+### Payments, wallet & commerce
+- Wallet dashboard and transaction history.
+- Send/receive money, M-Pesa-related flows, referrals, savings, scheduled transfers, reminders, security, and currency conversion.
+- Premium subscriptions and verification workflows.
+- Payout and revenue surfaces.
+- Product tagging, marketplace, shopping mall, seller storefronts, orders, wishlists, and community shops.
+
+### Safety, trust & support
+- Reporting, blocking, appeals, verification, fraud/admin tooling, and moderation surfaces.
+- Content policy, community guidelines, privacy policy, and terms.
+- Active session and account-security surfaces.
+- Help Center with searchable articles, article feedback, support requests, authenticated ticket history, video-guide placeholders, and AI-assisted support.
+
+## Architecture
+
+~~~text
+Browser
+  |
+  +-- React 18 + TypeScript
+  +-- React Router
+  +-- Tailwind CSS + Radix/shadcn-style UI
+  +-- TanStack Query / application state
+  +-- Lazy-loaded route surfaces
+  |
+  +-- Supabase
+  |     +-- PostgreSQL
+  |     +-- Auth
+  |     +-- Storage
+  |     +-- Realtime
+  |     +-- Edge Functions
+  |
+  +-- Publisher/RSS services
+  +-- Fediverse integrations
+  +-- LiveKit live media
+  +-- Payment/monetization integrations
+  +-- Analytics/observability
+~~~
+
+The repository configuration and deployed environment are authoritative for the exact production topology.
+
+## Technology stack
+
+| Area | Technology |
+|---|---|
+| UI | React 18 + TypeScript |
+| Build | Vite |
+| Styling | Tailwind CSS |
+| UI primitives | Radix UI / shadcn-style components |
+| Routing | React Router |
+| Backend | Supabase |
+| Database | PostgreSQL |
+| Authentication | Supabase Auth |
+| Realtime | Supabase Realtime |
+| Storage | Supabase Storage |
+| Serverless | Supabase Edge Functions / API routes |
+| Live media | LiveKit Client |
+| Data fetching | TanStack Query |
+| Charts | Recharts / Chart.js |
+| Maps | Leaflet / React Leaflet |
+| Animation | Framer Motion |
+| Forms | React Hook Form + resolver integrations |
+| Analytics | PostHog integration |
+| Deployment | Vercel-oriented production pipeline |
+| Native shell | Capacitor configuration and Android project |
+
+## Repository layout
+
+~~~text
+.
+├── src/                 # React application
+│   ├── components/     # Shared UI, layout, and feature components
+│   ├── hooks/          # Reusable React hooks
+│   ├── lib/            # Clients and utilities
+│   ├── pages/          # Route-level product surfaces
+│   ├── services/       # Application services
+│   └── theme/          # Appearance/theme handling
+├── supabase/            # Migrations and Edge Functions
+├── api/                 # API/serverless handlers
+├── public/              # Static assets and public metadata
+├── android/             # Android/Capacitor project
+├── docs/                # Documentation
+├── ops/                 # Operational tooling
+├── repair/              # Recovery/repair tooling
+├── scripts/             # Build and maintenance scripts
+├── .github/workflows/   # CI and production workflows
+├── _build.cjs           # Production build wrapper
+├── vercel.json          # Vercel configuration
+├── vite.config.cjs      # Vite configuration
+├── tailwind.config.js   # Tailwind configuration
+├── tsconfig.json        # TypeScript configuration
+└── package.json         # Dependencies and scripts
+~~~
+
+## Getting started
+
+### Prerequisites
+
+Use a current Node.js LTS release and npm compatible with the repository lockfile.
+
+Install dependencies:
+
+~~~bash
+npm ci
+~~~
+
+Start development:
+
+~~~bash
+npm run dev
+~~~
+
+Run TypeScript validation:
+
+~~~bash
+npm run typecheck
+~~~
+
+Run lint:
+
+~~~bash
+npm run lint
+~~~
+
+Build for production:
+
+~~~bash
+npm run build
+~~~
+
+Preview the production build:
+
+~~~bash
+npm run preview
+~~~
+
+## Environment configuration
+
+The browser-facing example configuration is provided in .env.example.
+
+Typical client configuration:
+
+~~~env
+VITE_SUPABASE_URL=
+VITE_SUPABASE_PUBLISHABLE_KEY=
+VITE_POSTHOG_KEY=
+VITE_POSTHOG_HOST=https://us.i.posthog.com
+~~~
+
+A legacy VITE_SUPABASE_ANON_KEY variable may be supported during migration where documented by the application.
+
+**Never put service-role keys, payment secrets, private API credentials, or other privileged secrets into Vite client-side variables.**
+
+## Backend and data
+
+Supabase provides the primary backend services:
+
+- PostgreSQL database
+- Authentication
+- Row Level Security
+- Storage
+- Realtime subscriptions
+- Edge Functions
+
+Database changes should use migrations and be reviewed for authorization, ownership, indexes, performance, backward compatibility, and data retention.
+
+Privileged operations belong on trusted server-side infrastructure.
+
+## Production engineering standards
 
 ### Performance
-- ✅ Code splitting with React Router
-- ✅ Lazy loading for feeds
-- ✅ Infinite scroll with cursor-based pagination
-- ✅ Optimistic UI updates
-- ✅ Image/video optimization
+- Lazy load route-level pages.
+- Load secondary datasets only when they are needed.
+- Use cursor-based pagination for long feeds.
+- Cache short-lived external feed requests.
+- Optimize images and media delivery.
+- Avoid permanently storing transient live-stream media unless recording is explicitly required.
 
-## 🎨 User Interface & Experience
+### Reliability
+- Treat optional integrations as independently failure-prone.
+- Provide explicit loading, empty, success, and error states.
+- Do not turn backend failures into success-looking UI.
+- Retry safe transient operations.
+- Verify the exact commit SHA throughout CI and deployment.
+- Treat CI success and production deployment success as separate checks.
 
-### Rich Media
-- ✅ Multiple image uploads (up to 4 per post)
-- ✅ Video uploads with TikTok-style vertical player
-- ✅ GIF integration (Giphy/Tenor URLs)
-- ✅ Audio Spaces with live streaming
-- ✅ 24-hour recording storage
+### Security
+- Enforce authorization server-side and with RLS.
+- Validate untrusted input at trust boundaries.
+- Keep privileged credentials server-side.
+- Treat RSS, Fediverse, uploaded, and user-generated content as untrusted.
+- Safely handle external URLs and media.
+- Protect payment, moderation, administration, and account operations with appropriate authorization.
 
-### Interactive Elements
-- ✅ Likes with optimistic updates
-- ✅ Reposts/retweets
-- ✅ Threaded replies
-- ✅ Quote posts
-- ✅ Bookmarks
-- ✅ Lists (user-curated)
-- ✅ Polls with real-time voting
-- ✅ Post editing with history tracking
+### UX and accessibility
+- Mobile-first responsive design.
+- Keyboard/focus support and accessible labels.
+- Consistent touch targets and interactive states.
+- Clear destructive-action confirmation.
+- Useful loading, empty, and error states.
+- Internal product navigation stays inside Testagram wherever possible.
 
-### Navigation & Layout
-- ✅ Explore page (trending, categories)
-- ✅ Notifications with type filtering
-- ✅ Direct Messages
-- ✅ Communities (Reddit-style)
-- ✅ Hashtag pages with follow/unfollow
-- ✅ User profiles with tabs (Posts, Media, Likes, Reposts, Bookmarks)
-- ✅ Search with filters
+## Quality gates and deployment
 
-### Customization
-- ✅ Profile editing (avatar, bio, website, location, social links)
-- ✅ Cover images
-- ✅ Verification badges (3 premium tiers)
-- ✅ Theme switcher
-- ✅ Feed preferences
+Local validation:
 
-## 🤖 Advanced Features
+~~~bash
+npm run typecheck
+npm run lint
+npm run build
+~~~
 
-### AI-Powered
-- ✅ Content ranking algorithm (engagement-based)
-- ✅ User recommendations (friends-of-friends, shared interests)
-- ✅ Content recommendations (trending + personalized)
-- ✅ Automated AI news bot (posts 20 times daily)
-- ✅ Hashtag trending detection
-- 🔄 **New**: User interests tracking for personalization
-- 🔄 **New**: Trending score calculation
-- 📋 **Planned**: AI-generated summaries
-- 📋 **Planned**: Fact-checking tools
-- 📋 **Planned**: Spam/adult content moderation
+Production readiness requires more than a local build. Verify:
 
-### Polls & Interactivity
-- ✅ Multi-option polls
-- ✅ Expiration times
-- ✅ Real-time vote updates
-- ✅ Unique voting (one vote per user)
-- 📋 **Planned**: Live Q&A sessions
-- 📋 **Planned**: Quizzes
+1. The intended commit SHA is being tested.
+2. Typecheck passes.
+3. Lint passes.
+4. The production build passes.
+5. Relevant contract/quality workflows pass.
+6. Deployment reconciliation completes.
+7. The deployed application corresponds to the intended revision.
+8. A browser smoke test covers affected critical routes.
+9. Runtime console and chunk-loading errors are absent on affected flows.
 
-### Search & Discovery
-- ✅ Full-text search
-- ✅ Trending topics
-- ✅ Hashtag pages
-- ✅ User discovery
-- ✅ Community browsing
-- 📋 **Planned**: Advanced filters (date, media type, user)
-- 📋 **Planned**: Saved searches
+GitHub Actions in this repository provide automated quality and operational gates. Deployment status should always be checked against the exact revision being released.
 
-### Moderation
-- ✅ Admin panel
-- ✅ Report content
-- ✅ Block users
-- ✅ Community guidelines
-- ✅ Verification system
-- 📋 **Planned**: AI spam detection
-- 📋 **Planned**: Human moderation queue
-- 📋 **Planned**: Automated flagging
+## Data and content boundaries
 
-### Analytics
-- ✅ Post analytics (views, engagement rate)
-- ✅ User analytics (profile views, impressions)
-- ✅ Creator dashboard
-- ✅ Performance charts
-- ✅ Earnings tracking
-- 📋 **Planned**: Follower demographics
-- 📋 **Planned**: Engagement trends over time
+Testagram may display content from several sources: Testagram users, communities, federated services, and external publishers.
 
-## 💰 Monetization
+These sources have different ownership and trust boundaries. External publisher and federated material should remain clearly attributable to its origin and must not be represented as original Testagram-authored content.
 
-### Current Features
-- ✅ Premium verification (3 tiers: Basic $4.99, Premium $9.99, VIP $19.99)
-- ✅ Admin-controlled content sponsorship
-- ✅ Multiple ad networks (AdSense, Adsterra, Propeller, ExoClick)
-- ✅ Creator earnings tracking
-- ✅ Subscription system
-- ✅ Product tagging and shopping
-- ✅ Tips between users
+Live media has a different lifecycle from uploaded media: a broadcaster can provide content while online, while transient live content should not automatically become permanent backend storage.
 
-### Planned Enhancements
-- 📋 Stripe/PayPal integration
-- 📋 Super follows
-- 📋 Paid subscriptions for exclusive content
-- 📋 Revenue share program
-- 📋 NFT profile pictures
-- 📋 Crypto wallet tips
+## Help and support
 
-## 🌐 Ecosystem Features
+The in-product Help Center is available at:
 
-### Cross-Platform
-- ✅ Progressive Web App (PWA) ready
-- ✅ Responsive on all devices
-- ✅ Shareable post links
-- ✅ Social media meta tags (Open Graph, Twitter Card)
-- 📋 **Planned**: React Native mobile apps (iOS/Android)
-- 📋 **Planned**: Desktop app (Electron)
+/help
 
-### Integrations
-- ✅ Google OAuth
-- ✅ Supabase backend
-- ✅ Giphy/Tenor GIFs
-- ✅ News API (for AI bot)
-- 🔄 **New**: Voice notes support (database ready)
-- 🔄 **New**: Post translations (database ready)
-- 📋 **Planned**: Calendar events
-- 📋 **Planned**: Google Translate API
-- 📋 **Planned**: Web Speech API (voice-to-text)
-- 📋 **Planned**: Webhook integrations
+It provides:
+- Searchable help articles
+- Article feedback
+- Video-guide entry points
+- Support request submission
+- Authenticated support-ticket history
+- AI-assisted support
+- Links to privacy, terms, and community-policy resources
 
-### Unique Differentiators
-- ✅ Audio Spaces with video streaming
-- ✅ TikTok-style vertical video player
-- ✅ Reddit-style communities
-- ✅ AI-powered content ranking
-- ✅ Multi-image posts (up to 4)
-- 🔄 **New**: Voice notes (infrastructure ready)
-- 🔄 **New**: Post translations (infrastructure ready)
-- 📋 **Planned**: Voice-to-text posting
-- 📋 **Planned**: AI-generated replies
-- 📋 **Planned**: End-to-end encrypted DMs
-- 📋 **Planned**: Live shopping
+## Development workflow
 
-### SEO & Discoverability
-- ✅ robots.txt for crawler access
-- ✅ sitemap.xml for indexing
-- ✅ Meta tags (title, description, Open Graph)
-- ✅ Shareable post URLs
-- ✅ Schema.org markup
-- 📋 **Planned**: Google News integration
-- 📋 **Planned**: AMP pages for posts
+1. Reproduce the issue or define the intended behavior.
+2. Inspect the relevant route, component, service, database contract, and workflow.
+3. Fix the underlying cause rather than masking symptoms.
+4. Check for stale imports, dead UI, duplicate logic, broken navigation, and inconsistent states.
+5. Run typecheck, lint, and production build.
+6. Inspect CI against the exact commit SHA.
+7. Verify deployment status and revision lineage.
+8. Browser-test the affected user journey.
+9. Document meaningful architectural or operational changes.
 
-## 📊 Scalability & Testing
+## Product direction
 
-### Infrastructure
-- ✅ Supabase cloud hosting
-- ✅ PostgreSQL database
-- ✅ Object storage (S3-compatible)
-- ✅ Edge functions (serverless)
-- ✅ RLS for security
-- 📋 **Planned**: Docker containerization
-- 📋 **Planned**: Load balancing
-- 📋 **Planned**: Auto-scaling
+Current engineering priorities include:
 
-### Quality Assurance
-- ✅ Error boundaries
-- ✅ Toast notifications for user feedback
-- ✅ Loading states
-- ✅ Empty states
-- 📋 **Planned**: Jest unit tests
-- 📋 **Planned**: Integration tests
-- 📋 **Planned**: E2E tests (Cypress)
-- 📋 **Planned**: Beta testing program
-- 📋 **Planned**: Sentry error monitoring
+- Incremental and fast feed loading.
+- Reliable RSS/publisher and Fediverse ingestion.
+- Efficient live audio/video experiences.
+- Creator and monetization workflows.
+- Wallet, payment, and commerce reliability.
+- Strong privacy, safety, moderation, and support tooling.
+- Production-grade CI/CD and deployment verification.
+- Reducing unnecessary backend storage and external-service cost.
+- Maintaining a coherent UX as the product surface expands.
 
-## 🗺️ Implementation Roadmap
+## Contributing
 
-### Phase 1: Core Polish (Weeks 1-4) ✅ COMPLETE
-- ✅ Fix all authentication flows
-- ✅ Optimize database queries
-- ✅ Polish UI/UX
-- ✅ Multi-image uploads
-- ✅ Enhanced sidebars
-- ✅ Media upload improvements
+Before submitting changes:
 
-### Phase 2: Advanced Features (Weeks 5-8) 🔄 IN PROGRESS
-- 🔄 Voice notes implementation
-- 🔄 Post translation UI
-- 📋 AI-powered content moderation
-- 📋 Advanced search filters
-- 📋 Push notifications
-- 📋 PWA installation
+- Keep TypeScript clean and avoid unnecessary any types.
+- Reuse shared components and hooks.
+- Follow established Tailwind and UI conventions.
+- Keep route components lazy-loadable where appropriate.
+- Add loading, error, and empty states.
+- Never introduce client-side secrets.
+- Test affected flows on mobile and desktop.
+- Check the exact Git commit and deployment generated by the change.
 
-### Phase 3: Monetization (Weeks 9-12)
-- 📋 Stripe integration
-- 📋 Payment processing
-- 📋 Creator payouts
-- 📋 Subscription management
-- 📋 Ad serving optimization
+## License
 
-### Phase 4: Mobile Apps (Weeks 13-20)
-- 📋 React Native setup
-- 📋 iOS app development
-- 📋 Android app development
-- 📋 App Store submission
-- 📋 Google Play submission
-
-### Phase 5: Scale & Marketing (Weeks 21+)
-- 📋 Performance optimization
-- 📋 Load testing
-- 📋 Marketing campaigns
-- 📋 User acquisition
-- 📋 Community building
-- 📋 Partnership programs
-
-## 📈 Success Metrics
-
-### User Growth
-- Daily Active Users (DAU)
-- Monthly Active Users (MAU)
-- User retention rate
-- Sign-up conversion rate
-
-### Engagement
-- Posts per user per day
-- Time spent on platform
-- Interaction rate (likes, comments, shares)
-- Content creation rate
-
-### Monetization
-- Premium conversion rate
-- Average revenue per user (ARPU)
-- Creator earnings
-- Ad revenue
-
-### Technical
-- Page load time (<2s target)
-- API response time (<100ms target)
-- Uptime (99.9% target)
-- Error rate (<0.1% target)
-
-## 🎯 Competitive Advantages
-
-### vs X (Twitter)
-- ✅ Multi-image posts (up to 4 vs X's 4)
-- ✅ Larger file uploads (20MB vs X's 5MB free tier)
-- ✅ Communities (Reddit-style)
-- ✅ Audio Spaces with video
-- ✅ Lower premium pricing ($4.99 vs $8)
-- ✅ Open-source friendly
-
-### vs Threads
-- ✅ More features (polls, bookmarks, lists)
-- ✅ Better media support
-- ✅ Creator monetization
-- ✅ Community features
-- ✅ Audio/video streaming
-
-### vs Bluesky
-- ✅ More mature feature set
-- ✅ Monetization built-in
-- ✅ Richer media (videos, audio spaces)
-- ✅ AI-powered recommendations
-- ✅ Creator tools
-
-## 🔒 Privacy & Security
-
-### Current Implementation
-- ✅ End-to-end encryption for passwords
-- ✅ JWT token security
-- ✅ RLS policies
-- ✅ Secure storage URLs
-- ✅ HTTPS only
-
-### Planned Enhancements
-- 📋 Two-factor authentication (2FA)
-- 📋 End-to-end encrypted DMs
-- 📋 Data export (GDPR)
-- 📋 Account deletion
-- 📋 Privacy dashboard
-- 📋 Opt-out options for data collection
-
-## 💡 Innovation Areas
-
-1. **AI Integration**: Deeper than competitors with personalized feeds, content moderation, and smart recommendations
-2. **Hybrid Features**: Combines best of X (microblogging), Reddit (communities), TikTok (videos), Threads (conversations)
-3. **Creator First**: Built-in monetization, analytics, and tools from day one
-4. **Privacy Focused**: Transparent data policies, encryption, user control
-5. **Open Ecosystem**: API access, integrations, third-party apps
+No open-source license is currently declared in this repository. Unless a license is explicitly added, do not assume the source is freely redistributable or reusable.
 
 ---
 
-## Next Steps to Achieve World-Class Status
-
-1. **User Testing**: Beta launch with 100-1000 users for feedback
-2. **Performance Audit**: Lighthouse scores, load testing, optimization
-3. **Mobile Apps**: React Native development for App Store/Google Play
-4. **Marketing**: Viral campaigns, influencer partnerships, press releases
-5. **Community**: Build early adopter community, ambassador program
-6. **Iteration**: Weekly updates based on user feedback and analytics
-
-**Target**: 100K MAU within 6 months, 1M MAU within 12 months
+**Testagram — social publishing, communities, live experiences, creator tools, discovery, commerce, and support in one ecosystem.**
