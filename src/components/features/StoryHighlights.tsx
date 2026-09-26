@@ -70,7 +70,7 @@ export function StoryHighlights({ profileUserId, isOwnProfile }: StoryHighlights
     const { data } = await supabase
       .from('stories')
       .select('id, media_url, media_type, caption, created_at, views_count')
-      .eq('user_id', user.id)
+      .eq('owner_id', user.id)
       .order('created_at', { ascending: false })
       .limit(50);
     setUserStories((data as Story[]) ?? []);
