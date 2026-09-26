@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { TopBar } from '@/components/layout/TopBar';
 import { useIsRegulator, FEATURE_KEYS, FEATURE_LABELS, type FeatureKey } from '@/hooks/useFeatureUnlock';
+import { useGovernance } from '@/lib/governance';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import { Shield, Users, Unlock, Lock, Check, X, Loader2, Search,
   UserPlus, Briefcase, Trash2, Crown, Settings, ChevronRight,
@@ -92,6 +93,7 @@ export default function RegulatorPanel() {
   const navigate = useNavigate();
   const location = useLocation();
   const isReg = useIsRegulator();
+  const { loading: governanceLoading } = useGovernance();
   const activeTab = (() => {
     const section = location.pathname.split('/').filter(Boolean).pop()?.toLowerCase();
     const byPath: Record<string, RegTab> = {
@@ -101,6 +103,8 @@ export default function RegulatorPanel() {
     return byPath[section ?? ''] ?? 'employees';
   })();
   const [loading, setLoading] = useState(true);
+
+  if (governanceLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>;
 
   const [employees, setEmployees] = useState<any[]>([]);
   const [showHireDialog, setShowHireDialog] = useState(false);
@@ -186,11 +190,12 @@ export default function RegulatorPanel() {
   const [verifyingAd, setVerifyingAd] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isReg) { navigate('/'); return; }
+    if (governanceLoading) return;
+    if (!isReg) { navigate('/admin/governance', { replace: true }); return; }
     void fetchEmployees();
     void fetchPlatformStats();
     setLoading(false);
-  }, [isReg]);
+  }, [isReg, governanceLoading]);
 
   useEffect(() => {
     if (activeTab === 'wallets' && topWallets.length === 0) fetchTopWallets();
