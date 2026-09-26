@@ -1,4 +1,4 @@
-export type TvChannel = { id:string; name:string; url:string; logo?:string; country?:string; language?:string; group?:string; source:string };
+export type TvChannel = { id:string; name:string; url:string; logo?:string; country?:string; language?:string; group?:string; source:string; priority:number };
 export type TvSource = { id:string; label:string; url:string; country?:string; priority:number };
 export const TV_SOURCES: TvSource[] = [
 {id:'iptv-org-ke',label:'IPTV.org · Kenya',url:'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/ke.m3u',country:'KE',priority:100},
@@ -27,8 +27,8 @@ export function parseM3U(text:string,source:TvSource,max=180):TvChannel[]{
   const comma=info.indexOf(','); const name=clean(comma>=0?info.slice(comma+1):attr(info,'tvg-name'))||'Live TV';
   const logo=clean(attr(info,'tvg-logo')); const group=clean(attr(info,'group-title')); const country=clean(attr(info,'tvg-country'))||source.country; const language=clean(attr(info,'tvg-language'));
   const key=(name+'|'+line).toLowerCase(); const id=typeof btoa==='function'?btoa(unescape(encodeURIComponent(key))).replace(/[^a-z0-9]/gi,'').slice(0,80):key.slice(0,80);
-  out.push({id,name,url:line,logo,group,country,language,source:source.label}); info=null;
+  out.push({id,name,url:line,logo,group,country,language,source:source.label,priority:source.priority}); info=null;
  } return out;
 }
 export async function loadTvSource(source:TvSource,signal?:AbortSignal){ const response=await fetch(source.url,{signal,headers:{Accept:'application/vnd.apple.mpegurl,text/plain,*/*'}}); if(!response.ok) throw new Error(source.label+': HTTP '+response.status); return parseM3U(await response.text(),source); }
-export function dedupeTvChannels(channels:TvChannel[]){const seen=new Set<string>();return channels.filter(c=>{const key=c.url.toLowerCase();if(seen.has(key))return false;seen.add(key);return true;});}
+export function dedupeTvChannels(channels:TvChannel[]){const seen=new Set<string>();return [...channels].filter(c=>{const key=c.url.toLowerCase();if(seen.has(key))return false;seen.add(key);return true;}).sort((a,b)=>b.priority-a.priority);}
