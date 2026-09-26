@@ -1,13 +1,13 @@
 export type TvChannel = { id:string; name:string; url:string; logo?:string; country?:string; language?:string; group?:string; source:string; priority:number };
 export type TvSource = { id:string; label:string; url:string; country?:string; priority:number };
 export const TV_SOURCES: TvSource[] = [
-{id:'iptv-org-ke',label:'IPTV.org · Kenya',url:'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/ke.m3u',country:'KE',priority:100},
-{id:'iptv-org-int',label:'IPTV.org · International',url:'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/int.m3u',country:'INT',priority:95},
-{id:'iptv-org-us',label:'IPTV.org · United States',url:'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us.m3u',country:'US',priority:90},
-{id:'iptv-org-gb',label:'IPTV.org · United Kingdom',url:'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/gb.m3u',country:'GB',priority:88},
-{id:'iptv-org-za',label:'IPTV.org · South Africa',url:'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/za.m3u',country:'ZA',priority:86},
-{id:'iptv-org-ng',label:'IPTV.org · Nigeria',url:'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/ng.m3u',country:'NG',priority:84},
-{id:'iptv-org-gh',label:'IPTV.org · Ghana',url:'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/gh.m3u',country:'GH',priority:82},
+{id:'iptv-org-ke',label:'IPTV.org · Kenya',url:'https://iptv-org.github.io/iptv/countries/ke.m3u',country:'KE',priority:100},
+{id:'iptv-org-int',label:'IPTV.org · International',url:'https://iptv-org.github.io/iptv/regions/ww.m3u',country:'INT',priority:95},
+{id:'iptv-org-us',label:'IPTV.org · United States',url:'https://iptv-org.github.io/iptv/countries/us.m3u',country:'US',priority:90},
+{id:'iptv-org-gb',label:'IPTV.org · United Kingdom',url:'https://iptv-org.github.io/iptv/countries/gb.m3u',country:'GB',priority:88},
+{id:'iptv-org-za',label:'IPTV.org · South Africa',url:'https://iptv-org.github.io/iptv/countries/za.m3u',country:'ZA',priority:86},
+{id:'iptv-org-ng',label:'IPTV.org · Nigeria',url:'https://iptv-org.github.io/iptv/countries/ng.m3u',country:'NG',priority:84},
+{id:'iptv-org-gh',label:'IPTV.org · Ghana',url:'https://iptv-org.github.io/iptv/countries/gh.m3u',country:'GH',priority:82},
 {id:'fanmingming',label:'fanmingming/live',url:'https://raw.githubusercontent.com/fanmingming/live/main/tv/m3u/index.m3u',priority:75},
 {id:'iptv-cn',label:'IPTV-CN',url:'https://raw.githubusercontent.com/IPTV-CN/IPTV/master/index.m3u',priority:72},
 {id:'yuechan',label:'YueChan/Live',url:'https://raw.githubusercontent.com/YueChan/Live/main/IPTV.m3u',priority:70},
