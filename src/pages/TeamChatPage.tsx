@@ -70,7 +70,6 @@ export default function TeamChatPage() {
   const isReg = useIsRegulator();
   const { governance } = useGovernance();
   const isOwner = governance.is_owner;
-  const canAccessTeamChat = isOwner || isReg;
   const canModerateTeamChat = isOwner || isReg;
 
   const [loading, setLoading] = useState(true);
@@ -110,7 +109,7 @@ export default function TeamChatPage() {
   const typingTimeoutRef = useRef(null);
   const typingThrottleRef = useRef(null);
 
-  useEffect(() => { if (!user) return; checkAccess(); }, [user]);
+  useEffect(() => { if (!user) return; checkAccess(); }, [user, checkAccess]);
 
   const checkAccess = useCallback(async () => {
     if (!user) return;
@@ -364,7 +363,7 @@ export default function TeamChatPage() {
     setShowMsgMenu(null);
     localStorage.setItem('ts-teamchat-pinned', JSON.stringify({ id: msgId, by }));
     toast.success('Message pinned');
-  }, [user]);
+  }, [user, isOwner]);
 
   const handleUnpin = useCallback(() => {
     setPinnedMsgId('');
