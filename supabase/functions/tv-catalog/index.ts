@@ -96,6 +96,27 @@ async function fetchM3U(source:Source, signal:AbortSignal, max=300) {
   return parseM3U(await r.text(),source,max);
 }
 
+async function probeStream(url:string, signal:AbortSignal) {
+  const controller=new AbortController(); const timer=setTimeout(()=>controller.abort(),1800);
+  const abort=()=>controller.abort(); signal.addEventListener("abort",abort,{once:true});
+  try {
+    const head=await fetch(url,{method:"HEAD",redirect:"follow",signal:controller.signal,headers:{"User-Agent":"TestagramTV-Health/1.0","Accept":"*/*"}});
+    if(head.ok){const type=(head.headers.get("content-type")||"").toLowerCase();if(/mpegurl|m3u|video|audio|octet-stream/.test(type))return true;}
+  } catch {} finally {clearTimeout(timer);signal.removeEventListener("abort",abort);}
+  const c2=new AbortController(); const t2=setTimeout(()=>c2.abort(),1800); const a2=()=>c2.abort(); signal.addEventListener("abort",a2,{once:true});
+  try {
+    const r=await fetch(url,{method:"GET",redirect:"follow",signal:c2.signal,headers:{"User-Agent":"TestagramTV-Health/1.0","Accept":"application/vnd.apple.mpegurl,application/x-mpegURL,video/*,audio/*,*/*","Range":"bytes=0-2047"}});
+    if(!r.ok&&r.status!==206)return false; const type=(r.headers.get("content-type")||"").toLowerCase();
+    if(/mpegurl|m3u/.test(type)){const body=await r.text();return /#EXTM3U|#EXTINF|#EXT-X-/.test(body);}
+    return /video|audio|mpeg|mp2t|octet-stream/.test(type)||r.status===206;
+  } catch{return false} finally{clearTimeout(t2);signal.removeEventListener("abort",a2);}
+}
+async function onlyLiveChannels(channels:any[],signal:AbortSignal,max=60){
+  const candidates=channels.filter(c=>/^https:\/\//i.test(String(c?.url||""))).slice(0,max*2); const live:any[]=[]; let cursor=0;
+  const worker=async()=>{while(cursor<candidates.length&&live.length<max){const c=candidates[cursor++];if(await probeStream(c.url,signal))live.push({...c,live:true,live_checked_at:new Date().toISOString()});}};
+  await Promise.all(Array.from({length:12},()=>worker())); return live.slice(0,max);
+}
+
 async function githubDiscovery(signal:AbortSignal) {
   const token=Deno.env.get("GITHUB_TOKEN");
   const headers:any={Accept:"application/vnd.github+json","User-Agent":"TestagramTV-GitHub-Discovery"};
@@ -130,7 +151,7 @@ Deno.serve(async(req)=>{
   if(!source) return new Response(JSON.stringify({error:"Unknown TV source"}),{status:404,headers:cors});
 
   const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),12000);
+  const timer=setTimeout(()=>controller.abort(),10000);
   try {
     let channels:any[]=[];
     if(sourceId==="iptv-org-global") {
@@ -172,14 +193,16 @@ Deno.serve(async(req)=>{
       const key=String(c.url||"").toLowerCase();
       if(!key||seen.has(key)||blocked.test(c.name||"")) return false;
       seen.add(key); return true;
-    }).sort((a,b)=>b.priority-a.priority).slice(0,700);
+    }).sort((a,b)=>b.priority-a.priority).slice(0,160);
+    // Only publish streams that are currently reachable and recognizable as media/HLS.
+    channels=await onlyLiveChannels(channels,controller.signal,60);
 
     return new Response(JSON.stringify({
       source,
       channels,
       meta:{
         generated_at:new Date().toISOString(),
-        channel_count:channels.length,
+        channel_count:channels.length,\n        live_only:true,\n        health_checked:true,
         auto_discovery:sourceId==="iptv-org-global",
         storage:"stream_urls_only"
       }
