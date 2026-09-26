@@ -20,6 +20,7 @@ import { supabase } from '@/lib/supabase';
 import { startTestagramHeartbeat } from '@/services/heartbeatClient';
 import { applyAppearance, getStoredAppearance } from '@/theme/themes';
 import { useAuth } from '@/hooks/useAuth';
+import { OwnerOnlyAdminRoute } from '@/components/auth/OwnerOnlyAdminRoute';
 const HomePage = lazy(() => import('@/pages/HomePage'));
 const FederatedOrganicDiscoveryPage = lazy(() => import('@/pages/FederatedOrganicDiscoveryPage'));
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
