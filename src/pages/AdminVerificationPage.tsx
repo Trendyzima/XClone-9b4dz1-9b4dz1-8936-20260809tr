@@ -3,6 +3,7 @@ import { useSEO } from '@/hooks/useSEO';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
+import { useGovernance } from '@/lib/governance';
 import { TopBar } from '@/components/layout/TopBar';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -50,6 +51,7 @@ const TIER_CONFIG: Record<string, { label: string; color: string; bg: string; ic
 
 export default function AdminVerificationPage() {
   const { user } = useAuth();
+  const { governance, loading: governanceLoading } = useGovernance();
   useSEO({ noindex: true, title: 'Admin — Verifications', url: '/admin/verify' });
   const navigate = useNavigate();
   const [isAdmin, setIsAdmin] = useState(false);
@@ -63,13 +65,13 @@ export default function AdminVerificationPage() {
 
   useEffect(() => {
     if (!user) { navigate('/auth'); return; }
-    checkAdmin();
-  }, [user]);
+    if (governanceLoading) return;
+    void checkAdmin();
+  }, [user?.id, governanceLoading, governance.is_owner]);
 
   const checkAdmin = async () => {
     if (!user) return;
-    const { data } = await supabase.from('admin_users').select('*').eq('user_id', user.id).single();
-    if (!data) { toast.error('Admin access required'); navigate('/'); return; }
+    if (!governance.is_owner) { toast.error('Owner authorization required'); navigate('/admin/governance'); return; }
     setIsAdmin(true);
     await fetchRequests();
     setLoading(false);
