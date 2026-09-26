@@ -84,7 +84,7 @@ export default function AdminPanel({ section = 'overview', standalone = false }:
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
-  const { governance } = useGovernance();
+  const { governance, loading: governanceLoading } = useGovernance();
   const [isAdmin, setIsAdmin] = useState(false);
   const [activeTab, setActiveTab] = useState(section);
   const [stats, setStats] = useState<PlatformStats>({
@@ -107,8 +107,9 @@ export default function AdminPanel({ section = 'overview', standalone = false }:
 
   useEffect(() => {
     if (!user) { navigate('/auth'); return; }
-    checkAdmin();
-  }, [user, governance.is_owner]);
+    if (governanceLoading) return;
+    void checkAdmin();
+  }, [user?.id, governanceLoading, governance.is_owner]);
 
   const checkAdmin = async () => {
     if (!user) return;
