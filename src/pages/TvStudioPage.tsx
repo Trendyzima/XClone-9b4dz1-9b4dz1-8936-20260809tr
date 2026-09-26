@@ -102,6 +102,14 @@ export default function TvStudioPage() {
     void readPermissionState();
   }, []);
 
+  const token = async (requestedId?: string) => {
+    const id = requestedId ?? activeStreamId;
+    if (!id) throw new Error('Broadcast id missing');
+    const { data, error } = await supabase.functions.invoke('livekit-tv-token', { body: { stream_id: id } });
+    if (error || !data?.data) throw new Error(data?.error?.message || error?.message || 'Could not connect to live broadcast');
+    return data.data;
+  };
+
   const getCamera = async () => {
     const permission = await readPermissionState();
     if (!window.isSecureContext) throw new Error('Camera and microphone require a secure HTTPS connection.');
