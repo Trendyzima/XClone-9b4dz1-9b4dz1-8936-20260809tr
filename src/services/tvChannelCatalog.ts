@@ -4,7 +4,7 @@ export const TV_SOURCES: TvSource[] = [
 {id:'iptv-org-ke',label:'IPTV.org · Kenya',url:'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/ke.m3u',country:'KE',priority:100},
 {id:'iptv-org-int',label:'IPTV.org · International',url:'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/int.m3u',country:'INT',priority:95},
 {id:'iptv-org-us',label:'IPTV.org · United States',url:'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/us.m3u',country:'US',priority:90},
-{id:'iptv-org-gb',label:'IPTV.org · United Kingdom',url:'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/uk.m3u',country:'GB',priority:88},
+{id:'iptv-org-gb',label:'IPTV.org · United Kingdom',url:'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/gb.m3u',country:'GB',priority:88},
 {id:'iptv-org-za',label:'IPTV.org · South Africa',url:'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/za.m3u',country:'ZA',priority:86},
 {id:'iptv-org-ng',label:'IPTV.org · Nigeria',url:'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/ng.m3u',country:'NG',priority:84},
 {id:'iptv-org-gh',label:'IPTV.org · Ghana',url:'https://raw.githubusercontent.com/iptv-org/iptv/master/streams/gh.m3u',country:'GH',priority:82},
