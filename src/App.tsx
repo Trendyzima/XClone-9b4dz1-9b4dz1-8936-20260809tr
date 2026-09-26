@@ -88,6 +88,7 @@ const AdminFraudPage = lazy(() => import('@/pages/admin/AdminFraudPage'));
 const PremiumPage = lazy(() => import('@/pages/PremiumPage'));
 const LiveStreamPage = lazy(() => import('@/pages/LiveStreamPage'));
 const StartStreamPage = lazy(() => import('@/pages/StartStreamPage'));
+const TvStudioPage = lazy(() => import('@/pages/TvStudioPage'));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
 const SettingsAccountPage = lazy(() => import('@/pages/settings/SettingsAccountPage'));
 const SettingsAppearancePage = lazy(() => import('@/pages/settings/SettingsAppearancePage'));
@@ -274,7 +275,7 @@ function AppInner(){useCreatorTierAlert();useEffect(()=>{applyAppearance(getStor
 <Route path="/creator-studio/analytics" element={<CreatorAnalyticsPage/>}/>
 <Route path="/creator-studio/videos" element={<CreatorVideosPage/>}/>
 <Route path="/creator-studio/earnings" element={<CreatorEarningsPage/>}/>
-<Route path="/creator-studio/revenue" element={<CreatorRevenuePage/>}/><Route path="/premium" element={<PremiumPage/>}/><Route path="/stream/:streamId" element={<LiveStreamPage/>}/><Route path="/start-stream" element={<StartStreamPage/>}/><Route path="/settings" element={<SettingsPage/>}/>
+<Route path="/creator-studio/revenue" element={<CreatorRevenuePage/>}/><Route path="/premium" element={<PremiumPage/>}/><Route path="/stream/:streamId" element={<LiveStreamPage/>}/><Route path="/start-stream" element={<StartStreamPage/>}/><Route path="/tv-studio" element={<TvStudioPage/>}/><Route path="/tv-studio/:streamId" element={<TvStudioPage/>}/><Route path="/settings" element={<SettingsPage/>}/>
 <Route path="/settings/account" element={<SettingsAccountPage/>}/>
 <Route path="/settings/appearance" element={<SettingsAppearancePage/>}/>
 <Route path="/settings/connections" element={<SettingsConnectionsPage/>}/>
