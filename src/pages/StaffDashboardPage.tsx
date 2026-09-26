@@ -18,7 +18,11 @@ const CAPABILITIES: Record<string,{label:string;icon:any;description:string;path
  'system.manage':{label:'System management',icon:Activity,description:'Manage authorized platform configuration.',path:'/regulator/platform'},
  'security.manage':{label:'Security controls',icon:LockKeyhole,description:'Manage privileged security controls.',path:'/regulator/platform'},
  'governance.audit.read':{label:'Audit history',icon:ClipboardList,description:'Review governance audit records.',path:'/regulator/audit'},
+ 'governance.admins.manage':{label:'Administrator management',icon:Users,description:'Appoint, change, suspend, and revoke administrators.',path:'/admin/governance'},
  'governance.admins.read':{label:'Staff directory',icon:Users,description:'View administrator assignments.',path:'/admin/governance'},
+ 'governance.read':{label:'Governance status',icon:ShieldCheck,description:'View governance status and administration surfaces.',path:'/admin/governance'},
+ 'governance.roles.manage':{label:'Governance roles',icon:Crown,description:'Manage governance roles and permission mappings.',path:'/admin/governance'},
+ 'users.read':{label:'User administration',icon:Users,description:'View platform user records in administrative surfaces.',path:'/admin/users'},
 };
 export default function StaffDashboardPage(){
  const navigate=useNavigate(); const {governance,loading}=useGovernance();
