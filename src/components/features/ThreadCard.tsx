@@ -3,6 +3,7 @@ import { Heart, MessageCircle, Repeat2, Share2, Eye } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { InlineTvSuggestion } from './InlineTvSuggestion';
 
 interface ThreadCardProps {
   thread: any;
@@ -48,6 +49,7 @@ export function ThreadCard({ thread }: ThreadCardProps) {
           </div>
           {thread.title && <h3 className="font-bold mt-1">{thread.title}</h3>}
           {body && <p className="mt-1 whitespace-pre-wrap break-words text-[15px] leading-6">{body}</p>}
+          <InlineTvSuggestion content={body} seed={String(thread.id)} type="thread" />
           {media.length > 0 && (
             <div className="grid grid-cols-2 gap-2 mt-3">
               {media.map((url: string, i: number) => /\.(mp4|webm|mov|m4v|ogv)(?:[?#].*)?$/i.test(url)
