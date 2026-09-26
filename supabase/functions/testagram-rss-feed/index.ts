@@ -5,8 +5,8 @@ const key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||Deno.env.get("SUPABASE_SECR
 const db=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return new Response(null,{status:204,headers:{"Access-Control-Allow-Origin":"*"}});
- if(req.method!=="GET")return Response.json({error:"GET required"},{status:405});
- const u=new URL(req.url), limit=Math.min(Math.max(Number(u.searchParams.get("limit")||"8"),1),20), category=u.searchParams.get("category"), q=u.searchParams.get("q");
+ if(req.method!=="GET"&&req.method!=="POST")return Response.json({error:"GET or POST required"},{status:405});
+ const u=new URL(req.url); const body=req.method==="POST"?await req.json().catch(()=>({})):{}; const limit=Math.min(Math.max(Number(body.limit??u.searchParams.get("limit")??"8"),1),20), category=body.category??u.searchParams.get("category"), q=body.q??u.searchParams.get("q");
  try{
   let query=db.from("testagram_rss_items").select("id,source_id,profile_id,canonical_url,title,excerpt,author,image_url,category,country_code,language_code,published_at,metadata, testagram_rss_source_profiles!inner(handle,display_name,avatar_url,profile_url)");
   query=query.gt("expires_at",new Date().toISOString()).order("published_at",{ascending:false}).limit(limit);
