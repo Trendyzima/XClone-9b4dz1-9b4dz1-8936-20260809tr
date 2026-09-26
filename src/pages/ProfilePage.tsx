@@ -21,6 +21,7 @@ import { Post } from '@/types/app-types';
 import { listProfileLikes } from '@/features/likes/likesService';
 import { listProfileReplies } from '@/features/replies/repliesService';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
+import { ProfileGovernanceCard } from '@/components/features/ProfileGovernanceCard';
 import { AdvertiserSurface } from '@/components/features/AdvertiserSurface';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 
@@ -1481,6 +1482,8 @@ export default function ProfilePage() {
         </div>
       )}
       {profile && <div className="px-4 mt-1"><SubscriberBadge creatorId={profile.id} /></div>}
+
+      <ProfileGovernanceCard profileId={profile.id} username={profile.username} isOwnProfile={isOwnProfile} />
 
       {/* Tabs */}
       <div className="sticky top-14 z-30 bg-background border-b border-border">
