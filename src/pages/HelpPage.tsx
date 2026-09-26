@@ -117,7 +117,7 @@ const POSTS_TOPICS = [
       'Use 3–7 relevant hashtags for best reach — too many can look spammy.',
       'Follow hashtags from the Explore page to see all posts under that tag in your feed.',
       'Use hashtags and other discovery features according to the current product rules and eligibility shown in the app.',
-      'Trending hashtags appear on the Explore tab — using them boosts discoverability.',
+      'Trending hashtags appear on Explore and can help people discover relevant posts, but reach is never guaranteed.',
     ],
   },
   {
@@ -210,7 +210,7 @@ const SAFETY_TOPICS = [
     a: [
       'Go to Settings → Security → Two-Factor Authentication.',
       'Use the authentication and OTP options currently offered in Settings. Never share a verification code with anyone.',
-      'Every new login from an unrecognised device triggers an OTP verification step.',
+      'When additional verification is required, Testagram may ask you to complete an OTP or other security check.',
       'Do not share your OTP codes with anyone — Testagram staff will never ask for them.',
       'If you lose access to your email, contact support immediately to recover your account.',
     ],
@@ -229,7 +229,7 @@ const SAFETY_TOPICS = [
     q: 'Content guidelines',
     a: [
       'Testagram prohibits: hate speech, harassment, graphic violence, NSFW content, and spam.',
-      'Posts are reviewed by our AI moderation system and human regulators.',
+      'Content may be reviewed by automated systems and human moderators.',
       'Enforcement depends on the severity and context of the violation and may include content removal, warnings, temporary restrictions, or account suspension. Appeals are available where provided.',
       'You can appeal a ban via the Appeals page (/appeals).',
       'Read the full Content Policy at /content-policy.',
@@ -588,6 +588,7 @@ export default function HelpPage() {
   const [contactEmail, setContactEmail] = useState('');
   const [contactSending, setContactSending] = useState(false);
   const [contactSent, setContactSent] = useState(false);
+  const [contactError, setContactError] = useState('');
   // Video guide modal
   const [videoModalIdx, setVideoModalIdx] = useState(-1);
   // Ticket history — parallel arrays (esbuild guard: plain useState([]))
@@ -744,15 +745,20 @@ export default function HelpPage() {
   };
 
   const handleContactSubmit = async () => {
-    if (!contactMessage.trim()) { toast.error('Please write a message'); return; }
-    if (!contactEmail.trim()) { toast.error('Please provide your email'); return; }
+    const email = contactEmail.trim();
+    const message = contactMessage.trim();
+    setContactError('');
+    if (!email) { setContactError('Please provide your email address.'); return; }
+    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) { setContactError('Enter a valid email address.'); return; }
+    if (!message) { setContactError('Please describe the issue so our team can help.'); return; }
+    if (message.length > 1000) { setContactError('Please keep your message under 1,000 characters.'); return; }
     setContactSending(true);
     try {
       // Insert into platform_inbox for user record
       const { error } = await supabase.from('platform_inbox').insert({
         user_id: user?.id ?? null,
-        subject: `[Support] ${contactSubject}: from ${contactEmail}`,
-        body: `From: ${contactEmail}\nSubject: ${contactSubject}\n\n${contactMessage.trim()}`,
+        subject: `[Support] ${contactSubject}`,
+        body: `From: ${email}\nSubject: ${contactSubject}\n\n${message}`,
         type: 'news',
         icon_emoji: '📩',
         cta_label: 'View in Dashboard',
@@ -763,7 +769,7 @@ export default function HelpPage() {
       // Also post to team_chat_messages so staff see it in Team Chat immediately
       await supabase.from('team_chat_messages').insert({
         user_id: user?.id ?? null,
-        message: `📩 [SUPPORT TICKET] Subject: ${contactSubject}\nFrom: ${contactEmail}\n\n${contactMessage.trim()}`,
+        message: `📩 [SUPPORT TICKET] Subject: ${contactSubject}\nFrom: ${email}\n\n${message}`,
         department: 'Support',
       });
 
@@ -771,7 +777,9 @@ export default function HelpPage() {
       setContactMessage('');
       toast.success("Support request sent! We'll get back to you soon.");
     } catch (e: any) {
-      toast.error(e.message || 'Failed to send. Please try again.');
+      const message = e?.message || 'We could not send your request right now.';
+      setContactError(message);
+      toast.error(message);
     } finally {
       setContactSending(false);
     }
@@ -972,12 +980,17 @@ export default function HelpPage() {
       <div className="max-w-2xl mx-auto px-4 py-6 space-y-6">
 
         {/* Hero */}
-        <div className="text-center pt-2 pb-4">
-          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-            <HelpCircle className="w-8 h-8 text-primary" />
+        <div className="text-center pt-2 pb-2">
+          <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center mx-auto mb-4 shadow-sm">
+            <HelpCircle className="w-8 h-8 text-primary" aria-hidden="true" />
           </div>
-          <h1 className="text-2xl font-black mb-1">How can we help you?</h1>
-          <p className="text-sm text-muted-foreground">Search for answers or browse categories below</p>
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight mb-2">How can we help you?</h1>
+          <p className="text-sm text-muted-foreground max-w-md mx-auto">Search the Help Center for step-by-step answers, or browse a category below.</p>
+          <div className="flex flex-wrap justify-center gap-2 mt-4 text-[10px] font-semibold text-muted-foreground">
+            <span className="px-2.5 py-1 rounded-full bg-muted/60 border border-border">20+ guides</span>
+            <span className="px-2.5 py-1 rounded-full bg-muted/60 border border-border">Support tickets</span>
+            <span className="px-2.5 py-1 rounded-full bg-muted/60 border border-border">AI assistance</span>
+          </div>
         </div>
 
         {/* ── Video Guides ── */}
@@ -1051,13 +1064,15 @@ export default function HelpPage() {
 
         {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" aria-hidden="true" />
           <Input
             type="text"
             placeholder="Search help articles…"
             value={searchQuery}
             onChange={e => handleSearchChange(e.target.value)}
-            className="pl-10 h-11 rounded-xl"
+            className="pl-10 pr-10 h-12 rounded-xl shadow-sm"
+            aria-label="Search Help Center"
+            autoComplete="off"
           />
         </div>
 
@@ -1130,7 +1145,7 @@ export default function HelpPage() {
 
         {/* Search Results */}
         {hasSearch && (
-          <div className="border border-border rounded-2xl overflow-hidden">
+          <div className="border border-border rounded-2xl overflow-hidden" aria-live="polite">
             <div className="px-4 py-3 bg-muted/30 border-b border-border">
               <p className="text-xs font-bold text-muted-foreground uppercase tracking-wide">
                 {searchResultsLabel}
@@ -1138,8 +1153,15 @@ export default function HelpPage() {
             </div>
             {searchResults.length === 0 ? (
               <div className="px-4 py-8 text-center text-muted-foreground">
-                <p className="text-sm mb-1">No articles found</p>
-                <p className="text-xs">Try a different keyword or browse the categories below</p>
+                <p className="text-sm font-semibold mb-1">No articles found</p>
+                <p className="text-xs mb-4">Try another keyword, browse a category, or contact support if you still need help.</p>
+                <button
+                  type="button"
+                  onClick={() => document.getElementById('contact-support')?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary text-primary-foreground text-xs font-bold"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" /> Contact support
+                </button>
               </div>
             ) : (
               <div>
@@ -1290,12 +1312,16 @@ export default function HelpPage() {
                 <label className="text-xs font-bold text-muted-foreground mb-1.5 block uppercase tracking-wide">Message</label>
                 <textarea
                   value={contactMessage}
+                  maxLength={1000}
                   onChange={e => setContactMessage(e.target.value)}
                   placeholder="Describe your issue in detail. Include any relevant post IDs, transaction references, or error messages…"
                   rows={4}
                   className="w-full px-3 py-2.5 rounded-xl border border-border bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/30 leading-relaxed"
                 />
-                <p className="text-[10px] text-muted-foreground mt-1 text-right">{contactMessage.length}/1000</p>
+                <div className="flex items-center justify-between gap-3 mt-1">
+                {contactError ? <p role="alert" className="text-[10px] text-destructive">{contactError}</p> : <span />}
+                <p className="text-[10px] text-muted-foreground">{contactMessage.length}/1000</p>
+              </div>
               </div>
               <button
                 onClick={handleContactSubmit}
@@ -1538,6 +1564,7 @@ export default function HelpPage() {
             <input
               type="text"
               value={chatInput}
+              maxLength={500}
               onChange={e => setChatInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSend(); } }}
               placeholder="Ask a question…"
