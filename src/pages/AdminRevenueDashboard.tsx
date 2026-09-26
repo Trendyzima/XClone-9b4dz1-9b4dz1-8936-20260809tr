@@ -78,8 +78,8 @@ export default function AdminRevenueDashboard() {
 
       const creators = (creatorsData || []).map((c: any) => ({
         user_id: c.user_id,
-        username: c.user_profiles.username,
-        avatar_url: c.user_profiles.avatar_url,
+        username: c.profiles?.username ?? 'Unknown creator',
+        avatar_url: c.profiles?.avatar_url ?? '',
         total_earnings: c.total_earnings,
         impressions: 0 // Can be calculated from ad_impressions table
       }));
