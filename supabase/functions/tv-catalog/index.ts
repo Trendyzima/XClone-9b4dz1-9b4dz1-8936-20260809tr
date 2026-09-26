@@ -111,8 +111,8 @@ async function probeStream(url:string, signal:AbortSignal) {
     return /video|audio|mpeg|mp2t|octet-stream/.test(type)||r.status===206;
   } catch{return false} finally{clearTimeout(t2);signal.removeEventListener("abort",a2);}
 }
-async function onlyLiveChannels(channels:any[],signal:AbortSignal,max=60){
-  const candidates=channels.filter(c=>/^https:\/\//i.test(String(c?.url||""))).slice(0,max*2); const live:any[]=[]; let cursor=0;
+async function onlyLiveChannels(channels:any[],signal:AbortSignal,max=8){
+  const candidates=channels.filter(c=>/^https:\/\//i.test(String(c?.url||""))).slice(0,max*3); const live:any[]=[]; let cursor=0;
   const worker=async()=>{while(cursor<candidates.length&&live.length<max){const c=candidates[cursor++];if(await probeStream(c.url,signal))live.push({...c,live:true,live_checked_at:new Date().toISOString()});}};
   await Promise.all(Array.from({length:12},()=>worker())); return live.slice(0,max);
 }
@@ -195,7 +195,7 @@ Deno.serve(async(req)=>{
       seen.add(key); return true;
     }).sort((a,b)=>b.priority-a.priority).slice(0,160);
     // Only publish streams that are currently reachable and recognizable as media/HLS.
-    channels=await onlyLiveChannels(channels,controller.signal,60);
+    channels=await onlyLiveChannels(channels,controller.signal,8);
 
     return new Response(JSON.stringify({
       source,
