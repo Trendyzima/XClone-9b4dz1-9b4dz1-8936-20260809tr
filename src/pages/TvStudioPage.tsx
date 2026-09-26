@@ -45,6 +45,8 @@ export default function TvStudioPage() {
   const [quality, setQuality] = useState<Quality>('1080p');
   const [savedName, setSavedName] = useState<string | null>(null);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [status, setStatus] = useState<'idle' | 'preview' | 'recording' | 'live'>('idle');
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!streamId) return;
@@ -55,6 +57,7 @@ export default function TvStudioPage() {
     return () => {
       recorderRef.current?.stop();
       roomRef.current?.disconnect();
+      roomRef.current = null;
       screenStreamRef.current?.getTracks().forEach(t => t.stop());
       cameraStreamRef.current?.getTracks().forEach(t => t.stop());
       void audioPipelineRef.current?.stop();
@@ -147,6 +150,7 @@ export default function TvStudioPage() {
       setViewerCount(room.remoteParticipants.size);
       setLive(true);
       setMode('live');
+      setStatus('live');
       setElapsed(0);
       void cameraStream;
       toast.success('TV broadcast is live');
@@ -160,6 +164,7 @@ export default function TvStudioPage() {
     roomRef.current = null;
     setViewerCount(0);
     setLive(false);
+    if (!recording) setStatus(cameraStreamRef.current ? 'preview' : 'idle');
     if (activeStreamId) {
       await supabase.from('live_streams').update({ is_live: false, ended_at: new Date().toISOString() }).eq('id', activeStreamId);
     }
@@ -179,31 +184,45 @@ export default function TvStudioPage() {
       chunksRef.current = [];
       recorder.ondataavailable = e => { if (e.data.size) chunksRef.current.push(e.data); };
       recorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'video/webm' });
-        const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const name = `Testagram-TV-${stamp}.webm`;
-        try {
-          const picker = (window as any).showSaveFilePicker;
-          if (typeof picker === 'function') {
-            const handle = await picker({ suggestedName: name, types: [{ description: 'Testagram TV recording', accept: { 'video/webm': ['.webm'] } }] });
-            const writable = await handle.createWritable();
-            await writable.write(blob);
-            await writable.close();
-          } else {
-            const url = URL.createObjectURL(blob);
-            downloadUrlRef.current = url;
-            const a = document.createElement('a');
-            a.href = url; a.download = name; a.rel = 'noopener'; a.click();
+        void (async () => {
+          const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'video/webm' });
+          const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+          const name = `Testagram-TV-${stamp}.webm`;
+          setSaving(true);
+          try {
+            const picker = (window as any).showSaveFilePicker;
+            if (typeof picker === 'function') {
+              const handle = await picker({
+                suggestedName: name,
+                types: [{ description: 'Testagram TV recording', accept: { 'video/webm': ['.webm'] } }],
+              });
+              const writable = await handle.createWritable();
+              await writable.write(blob);
+              await writable.close();
+            } else {
+              const url = URL.createObjectURL(blob);
+              downloadUrlRef.current = url;
+              const a = document.createElement('a');
+              a.href = url; a.download = name; a.rel = 'noopener';
+              document.body.appendChild(a);
+              a.click();
+              a.remove();
+            }
+            setSavedName(name);
+            toast.success('Recording saved to your device. Testagram did not upload or publish it.');
+          } catch (saveError: any) {
+            if (saveError?.name !== 'AbortError') toast.error(saveError?.message || 'Could not save the local recording');
+          } finally {
+            setSaving(false);
+            chunksRef.current = [];
+            if (!live) setStatus(cameraStreamRef.current ? 'preview' : 'idle');
           }
-          setSavedName(name);
-          toast.success('Recording saved locally — Testagram did not upload or publish the video');
-        } catch (saveError: any) {
-          if (saveError?.name !== 'AbortError') throw saveError;
-        }
+        })();
       };
       recorder.start(1000);
       recorderRef.current = recorder;
       setRecording(true);
+      setStatus('recording');
       setElapsed(0);
     } catch (e: any) {
       toast.error(e?.message || 'Local recording is not supported on this device');
@@ -214,6 +233,7 @@ export default function TvStudioPage() {
     recorderRef.current?.stop();
     recorderRef.current = null;
     setRecording(false);
+    if (!live) setStatus(cameraStreamRef.current ? 'preview' : 'idle');
   };
 
   const toggleMic = () => {
@@ -285,11 +305,11 @@ export default function TvStudioPage() {
               </div>
             </div>
             <div className="p-3 border-t border-white/10 flex flex-wrap gap-2">
-              <Button size="sm" onClick={() => void ensureStudio()}><Camera className="w-4 h-4 mr-1" />Preview</Button>
+              <Button size="sm" disabled={saving} onClick={() => void ensureStudio().then(() => setStatus('preview'))}><Camera className="w-4 h-4 mr-1" />Preview</Button>
               <Button size="sm" variant={camera ? 'default' : 'destructive'} onClick={toggleCamera}><Camera className="w-4 h-4 mr-1" />{camera ? 'Camera' : 'Camera off'}</Button>
               <Button size="sm" variant={!muted ? 'default' : 'destructive'} onClick={toggleMic}><Mic className="w-4 h-4 mr-1" />{muted ? 'Mic off' : 'Mic'}</Button>
               <Button size="sm" variant={sharing ? 'secondary' : 'outline'} onClick={() => void shareScreen()}><MonitorUp className="w-4 h-4 mr-1" />{sharing ? 'Stop screen' : 'Screen'}</Button>
-              {!recording ? <Button size="sm" onClick={() => void startRecording()}><Circle className="w-4 h-4 mr-1" />Record locally</Button> : <Button size="sm" variant="destructive" onClick={stopRecording}><Square className="w-4 h-4 mr-1" />Stop & save</Button>}
+              {!recording ? <Button size="sm" disabled={saving} onClick={() => void startRecording()}><Circle className="w-4 h-4 mr-1" />Record locally</Button> : <Button size="sm" variant="destructive" onClick={stopRecording}><Square className="w-4 h-4 mr-1" />Stop & save</Button>}
               {!live ? <Button size="sm" className="bg-red-600 hover:bg-red-700" onClick={() => void startLive()}><Radio className="w-4 h-4 mr-1" />Go live</Button> : <Button size="sm" variant="destructive" onClick={() => void stopLive()}>End live</Button>}
             </div>
           </section>
@@ -307,13 +327,14 @@ export default function TvStudioPage() {
                 <div className="rounded-lg bg-black/30 p-2"><Users className="w-3.5 h-3.5 mb-1 text-blue-400" /><span>{viewerCount}</span><p className="text-zinc-500">live viewers</p></div>
                 <div className="rounded-lg bg-black/30 p-2"><ShieldCheck className="w-3.5 h-3.5 mb-1 text-emerald-400" /><span>Local</span><p className="text-zinc-500">recording storage</p></div>
               </div>
-              <div className="mt-4 h-2 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-emerald-400 transition-all" style={{ width: `${Math.min(100, audioLevel)}%` }} /></div>
+              <div className="mt-4 flex items-center justify-between text-[10px] text-zinc-500"><span>Studio signal</span><span className="uppercase tracking-wider">{status}</span></div>
+              <div className="mt-1 h-2 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-emerald-400 transition-all" style={{ width: `${Math.min(100, audioLevel)}%` }} /></div>
               <p className="text-[10px] text-zinc-500 mt-1">Microphone level • browser noise suppression + studio gate/compressor</p>
             </div>
 
             <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
               <Download className="w-5 h-5 mb-2 text-emerald-400" />
-              <p className="font-semibold">Device-only recording</p>
+              <div className="flex items-center justify-between gap-2"><p className="font-semibold">Device-only recording</p>{saving && <span className="text-[10px] text-emerald-400 animate-pulse">SAVING…</span>}</div>
               <p className="text-xs text-zinc-400 mt-1">Recorded media is assembled in the browser and downloaded locally. It is never uploaded as a recording asset.</p>
               {savedName && <p className="text-xs text-emerald-400 mt-2 break-all">{savedName}</p>}
             </div>
