@@ -83,6 +83,7 @@ const CommunityShopPage = lazy(() => import('@/pages/community/CommunityShopPage
 const DiscoverSuggestedPage = lazy(() => import('@/pages/discover/DiscoverSuggestedPage'));
 const DiscoverPopularPage = lazy(() => import('@/pages/discover/DiscoverPopularPage'));
 const DiscoverFediversePage = lazy(() => import('@/pages/discover/DiscoverFediversePage'));
+const AdminGovernancePage = lazy(() => import('@/pages/AdminGovernancePage'));
 const AdminOverviewPage = lazy(() => import('@/pages/admin/AdminOverviewPage'));
 const AdminAdsPage = lazy(() => import('@/pages/admin/AdminAdsPage'));
 const AdminUsersPage = lazy(() => import('@/pages/admin/AdminUsersPage'));
@@ -266,7 +267,7 @@ function AppInner(){useCreatorTierAlert();useEffect(()=>{applyAppearance(getStor
 <Route path="/profile/:username/series" element={<ProfilePage/>}/>
 <Route path="/profile/:username/tips" element={<ProfilePage/>}/>
 <Route path="/profile/:username/gifts" element={<ProfilePage/>}/>
-<Route path="/profile/:username/analytics" element={<ProfilePage/>}/><Route path="/profile-features" element={<ProfileFeaturesPage/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/ai" element={<AIPage/>}/><Route path="/analytics" element={<AnalyticsDashboard/>}/><Route path="/admin" element={<AdminPanel/>}/>
+<Route path="/profile/:username/analytics" element={<ProfilePage/>}/><Route path="/profile-features" element={<ProfileFeaturesPage/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/ai" element={<AIPage/>}/><Route path="/analytics" element={<AnalyticsDashboard/>}/><Route path="/admin" element={<AdminPanel/>}/><Route path="/admin/governance" element={<AdminGovernancePage/>}/>
 <Route path="/admin/overview" element={<AdminOverviewPage/>}/>
 <Route path="/admin/ads-management" element={<AdminAdsPage/>}/>
 <Route path="/admin/users" element={<AdminUsersPage/>}/>
