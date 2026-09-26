@@ -136,7 +136,6 @@ export default function LiveStreamPage() {
           } else if (track.kind === Track.Kind.Audio && tvMediaRef.current) {
             const audio = document.createElement('audio');
             audio.autoplay = true;
-            audio.playsInline = true;
             audio.dataset.tvTrackSid = track.sid;
             tvMediaRef.current.appendChild(audio);
             track.attach(audio);
@@ -156,7 +155,6 @@ export default function LiveStreamPage() {
               if (track.kind === Track.Kind.Audio && tvMediaRef.current) {
                 const audio = document.createElement('audio');
                 audio.autoplay = true;
-                audio.playsInline = true;
                 audio.dataset.tvTrackSid = track.sid;
                 tvMediaRef.current.appendChild(audio);
                 track.attach(audio);
