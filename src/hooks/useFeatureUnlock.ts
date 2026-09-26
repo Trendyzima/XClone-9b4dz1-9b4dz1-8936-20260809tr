@@ -38,6 +38,14 @@ export function useIsRegulator() {
   const { governance } = useGovernance();
   return governance.is_owner;
 }
+
+// Use this when a privileged page must distinguish "still resolving" from
+// "confirmed not owner". Without this, owner-only pages can redirect to Home
+// during the first render while the governance RPC is still loading.
+export function useRegulatorAccess() {
+  const { governance, loading } = useGovernance();
+  return { isRegulator: governance.is_owner, loading };
+}
 // Features are UNLOCKED BY DEFAULT — only returns false if regulator has explicitly locked the feature
 export function useFeatureUnlock(featureKey: FeatureKey): boolean {
   const { user } = useAuth();
