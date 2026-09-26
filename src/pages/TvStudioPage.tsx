@@ -68,6 +68,12 @@ export default function TvStudioPage() {
     return () => window.clearInterval(t);
   }, [recording, live]);
 
+  useEffect(() => {
+    if (!audioPipelineRef.current) return;
+    const id = window.setInterval(() => setAudioLevel(audioPipelineRef.current?.getLevel() ?? 0), 120);
+    return () => window.clearInterval(id);
+  }, [camera, muted, sharing, live, recording]);
+
   const token = async (requestedId?: string) => {
     const id = requestedId ?? activeStreamId;
     if (!id) throw new Error('Broadcast id missing');
