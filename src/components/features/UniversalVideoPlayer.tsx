@@ -192,6 +192,9 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
         controls={props.controls ?? false}
         onPause={onPause}
         onTimeUpdate={onTimeUpdate}
+        onPlaying={onPlaying}
+        onWaiting={onWaiting}
+        onStalled={onStalled}
       />
       {recovering && active && (
         <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/70 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">
