@@ -12,7 +12,7 @@ export default function TvStudioPage(){
  const {streamId}=useParams(); const nav=useNavigate(); const {user}=useAuth();
  const videoRef=useRef<HTMLVideoElement>(null); const programRef=useRef<HTMLVideoElement>(null); const roomRef=useRef<Room|null>(null);
  const localStreamRef=useRef<MediaStream|null>(null); const recorderRef=useRef<MediaRecorder|null>(null); const chunksRef=useRef<Blob[]>([]);
- const [stream,setStream]=useState<any>(null); const [mode,setMode]=useState<Mode>('studio'); const [recording,setRecording]=useState(false);
+ const [stream,setStream]=useState<any>(null); const [activeStreamId,setActiveStreamId]=useState<string|null>(streamId??null); const [mode,setMode]=useState<Mode>('studio'); const [recording,setRecording]=useState(false);
  const [live,setLive]=useState(false); const [muted,setMuted]=useState(false); const [camera,setCamera]=useState(true); const [sharing,setSharing]=useState(false);
  const [elapsed,setElapsed]=useState(0); const [viewerCount,setViewerCount]=useState(0); const [quality,setQuality]=useState('1080p');
  const [savedName,setSavedName]=useState<string|null>(null);
@@ -21,7 +21,7 @@ export default function TvStudioPage(){
  useEffect(()=>()=>{ recorderRef.current?.stop(); localStreamRef.current?.getTracks().forEach(t=>t.stop()); roomRef.current?.disconnect(); },[]);
  useEffect(()=>{ if(!recording&&!live)return; const t=setInterval(()=>setElapsed(x=>x+1),1000); return()=>clearInterval(t)},[recording,live]);
 
- const token=async()=>{ if(!streamId)throw new Error('Broadcast id missing'); const {data,error}=await supabase.functions.invoke('livekit-tv-token',{body:{stream_id:streamId}}); if(error||!data?.data)throw new Error(data?.error?.message||error?.message||'Could not connect to live broadcast'); return data.data; };
+ const token=async()=>{ const id=activeStreamId; if(!id)throw new Error('Broadcast id missing'); const {data,error}=await supabase.functions.invoke('livekit-tv-token',{body:{stream_id:id}}); if(error||!data?.data)throw new Error(data?.error?.message||error?.message||'Could not connect to live broadcast'); return data.data; };
  const startCamera=async()=>{
    if(localStreamRef.current)return;
    const s=await navigator.mediaDevices.getUserMedia({video:{width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:30,max:30},facingMode:'user'},audio:{channelCount:1,sampleRate:48000,echoCancellation:true,noiseSuppression:true,autoGainControl:false}});
@@ -29,6 +29,9 @@ export default function TvStudioPage(){
  };
  const startLive=async()=>{
    try{
+    if(!user)throw new Error('Sign in to broadcast');
+    let id=activeStreamId;
+    if(!id){ const {data,error}=await supabase.from('live_streams').insert({user_id:user.id,title:'Testagram TV Live',description:'Live from Testagram TV Studio',category:'general',is_live:true}).select('id,title').single(); if(error||!data)throw new Error(error?.message||'Could not create broadcast'); id=data.id; setActiveStreamId(id); setStream(data); }
     await startCamera(); const info=await token(); const room=new Room({adaptiveStream:true,dynacast:true}); roomRef.current=room;
     await room.connect(info.url,info.token); const tracks=await createLocalTracks({video:false,audio:false});
     const stream=localStreamRef.current; if(!stream)throw new Error('Camera unavailable');
@@ -38,7 +41,7 @@ export default function TvStudioPage(){
     setLive(true); setMode('live'); toast.success('TV broadcast is live');
    }catch(e:any){toast.error(e?.message||'Unable to start live broadcast')}
  };
- const stopLive=async()=>{await roomRef.current?.disconnect();roomRef.current=null;setLive(false); if(streamId)await supabase.from('live_streams').update({is_live:false,ended_at:new Date().toISOString()}).eq('id',streamId)};
+ const stopLive=async()=>{await roomRef.current?.disconnect();roomRef.current=null;setLive(false); if(activeStreamId)await supabase.from('live_streams').update({is_live:false,ended_at:new Date().toISOString()}).eq('id',activeStreamId)};
  const startRecording=async()=>{
    try{
     await startCamera(); const s=localStreamRef.current!; const type=['video/webm;codecs=vp9,opus','video/webm;codecs=vp8,opus','video/webm'].find(x=>MediaRecorder.isTypeSupported(x))||'';
