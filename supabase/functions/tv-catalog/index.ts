@@ -3,6 +3,12 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 type Source = { id:string; label:string; url:string; country?:string; priority:number };
 
 const SOURCES: Record<string,Source> = {
+  "iptv-org-global": {id:"iptv-org-global",label:"IPTV-ORG · Global public",url:"https://iptv-org.github.io/iptv/index.m3u",country:"INT",priority:120},
+  "iptv-org-news": {id:"iptv-org-news",label:"IPTV-ORG · News",url:"https://iptv-org.github.io/iptv/categories/news.m3u",country:"INT",priority:118},
+  "iptv-org-sports": {id:"iptv-org-sports",label:"IPTV-ORG · Sports",url:"https://iptv-org.github.io/iptv/categories/sports.m3u",country:"INT",priority:117},
+  "iptv-org-music": {id:"iptv-org-music",label:"IPTV-ORG · Music",url:"https://iptv-org.github.io/iptv/categories/music.m3u",country:"INT",priority:116},
+  "free-tv-global": {id:"free-tv-global",label:"Free-TV/IPTV · Global free TV",url:"https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8",country:"INT",priority:110},
+  "free-tv-ke": {id:"free-tv-ke",label:"Free-TV/IPTV · Kenya",url:"https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_kenya.m3u8",country:"KE",priority:109},
   "iptv-org-ke": {id:"iptv-org-ke",label:"IPTV.org · Kenya",url:"https://iptv-org.github.io/iptv/countries/ke.m3u",country:"KE",priority:100},
   "iptv-org-int": {id:"iptv-org-int",label:"IPTV.org · International",url:"https://iptv-org.github.io/iptv/regions/ssa.m3u",country:"INT",priority:95},
   "iptv-org-us": {id:"iptv-org-us",label:"IPTV.org · United States",url:"https://iptv-org.github.io/iptv/countries/us.m3u",country:"US",priority:90},
