@@ -350,22 +350,104 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
               </nav>
               )}
 
-              {['Posts', 'Threads', 'Replies'].includes(activeTab) && (
-                <div className="divide-y divide-border">
-                  {activeTab === 'Posts' && posts.length > 0 ? posts.map((post: any) => (
-                    <article key={post.id ?? post.uri} className="p-4">
-                      <div className="text-sm leading-6" dangerouslySetInnerHTML={{ __html: post.content ?? '' }} />
-                      <p className="mt-2 text-xs text-muted-foreground">{post.published_at ? new Date(post.published_at).toLocaleString() : ''}</p>
-                    </article>
-                  )) : <div className="py-14 px-5 text-center text-sm text-muted-foreground">No {activeTab.toLowerCase()} yet.</div>}
-                </div>
-              )}
+              {(() => {
+                const roots = posts.filter((post: any) => !post.in_reply_to_uri);
+                const replies = posts.filter((post: any) => Boolean(post.in_reply_to_uri));
+                const media = posts.filter((post: any) => Array.isArray(post.attachments) && post.attachments.length > 0);
+                const videos = posts.filter((post: any) =>
+                  String(post.type || '').toLowerCase() === 'video' ||
+                  post.attachments?.some((a: any) => String(a?.mediaType || a?.media_type || a?.type || '').toLowerCase().startsWith('video/'))
+                );
+                const audio = posts.filter((post: any) =>
+                  post.attachments?.some((a: any) => String(a?.mediaType || a?.media_type || a?.type || '').toLowerCase().startsWith('audio/'))
+                );
+                const visible = activeTab === 'Threads' ? roots :
+                  activeTab === 'Replies' ? replies :
+                  activeTab === 'Media' ? media :
+                  activeTab === 'Videos' ? videos :
+                  activeTab === 'Podcasts' ? audio :
+                  activeTab === 'Series' ? posts.filter((post: any) => ['Article', 'Page'].includes(String(post.type))) :
+                  activeTab === 'Posts' ? posts : [];
+                if (['Posts', 'Threads', 'Replies', 'Videos', 'Podcasts', 'Series'].includes(activeTab)) {
+                  return (
+                    <div className="divide-y divide-border">
+                      {visible.length > 0 ? visible.map((post: any) => (
+                        <article key={post.id ?? post.uri} className="p-4">
+                          <div className="text-sm leading-6" dangerouslySetInnerHTML={{ __html: post.content ?? '' }} />
+                          {post.attachments?.length > 0 && (
+                            <div className="mt-3 grid grid-cols-2 gap-2">
+                              {post.attachments.slice(0, 4).map((attachment: any, index: number) => {
+                                const mediaType = String(attachment?.mediaType || attachment?.media_type || attachment?.type || '').toLowerCase();
+                                const url = attachment?.url || attachment?.href;
+                                if (!url) return null;
+                                if (mediaType.startsWith('video/')) return <video key={index} src={url} controls playsInline preload="metadata" className="w-full rounded-xl bg-muted" />;
+                                if (mediaType.startsWith('audio/')) return <audio key={index} src={url} controls preload="metadata" className="w-full" />;
+                                return <img key={index} src={url} alt={attachment?.name || ''} loading="lazy" className="w-full aspect-square object-cover rounded-xl bg-muted" />;
+                              })}
+                            </div>
+                          )}
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            {post.published_at ? new Date(post.published_at).toLocaleString() : ''}
+                          </p>
+                        </article>
+                      )) : (
+                        <div className="py-14 px-5 text-center text-sm text-muted-foreground">
+                          No {activeTab.toLowerCase()} found in this remote account's public ActivityPub timeline.
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+                if (activeTab === 'Media') {
+                  return media.length === 0 ? (
+                    <div className="py-14 text-center text-sm text-muted-foreground">No media found in the public remote timeline.</div>
+                  ) : (
+                    <div className="grid grid-cols-3 gap-1 p-1">
+                      {media.map((post: any) => post.attachments.map((attachment: any, index: number) => {
+                        const url = attachment?.url || attachment?.href;
+                        const type = String(attachment?.mediaType || attachment?.media_type || attachment?.type || '').toLowerCase();
+                        return url && type.startsWith('video/') ? (
+                          <video key={`${post.id}-${index}`} src={url} controls playsInline preload="metadata" className="aspect-square w-full object-cover bg-muted" />
+                        ) : url ? (
+                          <img key={`${post.id}-${index}`} src={url} alt={attachment?.name || ''} loading="lazy" className="aspect-square w-full object-cover bg-muted" />
+                        ) : null;
+                      }))}
+                    </div>
+                  );
+                }
+                if (['Tips', 'Gifts'].includes(activeTab)) {
+                  return <div className="py-14 px-5 text-center text-sm text-muted-foreground">Tips and gifts are Testagram-native features and are not exposed as public Mastodon ActivityPub profile data.</div>;
+                }
+                if (['Likes'].includes(activeTab)) {
+                  return <div className="py-14 px-5 text-center text-sm text-muted-foreground">Mastodon does not expose another account's likes consistently through the public ActivityPub actor contract, so Testagram will not invent or mirror private likes.</div>;
+                }
+                if (['Followers', 'Following'].includes(activeTab)) {
+                  const count = activeTab === 'Followers' ? profile.followers : profile.following;
+                  return (
+                    <div className="py-14 px-5 text-center">
+                      <div className="text-3xl font-black">{count ?? 0}</div>
+                      <p className="mt-1 text-sm text-muted-foreground">{activeTab.toLowerCase()} reported by the remote actor</p>
+                      {(activeTab === 'Followers' ? profile.actor_url || profile.url : profile.actor_url || profile.url) && (
+                        <a href={activeTab === 'Followers' ? `${profile.actor_url || profile.url}/followers` : `${profile.actor_url || profile.url}/following`} target="_blank" rel="noreferrer" className="inline-block mt-4 text-sm font-semibold text-primary hover:underline">
+                          Open the remote {activeTab.toLowerCase()} list
+                        </a>
+                      )}
+                    </div>
+                  );
+                }
+                if (activeTab === 'Analytics') {
+                  return (
+                    <div className="grid grid-cols-2 gap-3 p-4">
+                      <div className="rounded-xl border border-border p-4"><div className="text-2xl font-black">{posts.length}</div><div className="text-xs text-muted-foreground">Public posts loaded</div></div>
+                      <div className="rounded-xl border border-border p-4"><div className="text-2xl font-black">{media.length}</div><div className="text-xs text-muted-foreground">Media posts</div></div>
+                      <div className="rounded-xl border border-border p-4"><div className="text-2xl font-black">{profile.followers ?? 0}</div><div className="text-xs text-muted-foreground">Followers reported</div></div>
+                      <div className="rounded-xl border border-border p-4"><div className="text-2xl font-black">{profile.following ?? 0}</div><div className="text-xs text-muted-foreground">Following reported</div></div>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
 
-              {activeTab === 'Media' && (mediaPosts.length === 0 ? <div className="py-14 text-center text-sm text-muted-foreground">No media yet</div> : <div className="grid grid-cols-3 gap-1 p-1">{mediaPosts.map((post: any) => <article key={post.id ?? post.uri} className="aspect-square bg-muted overflow-hidden">{post.attachments?.[0]?.url && <img src={post.attachments[0].url} alt="" className="w-full h-full object-cover" />}</article>)}</div>)}
-
-              {activeTab === 'Videos' && (videoPosts.length === 0 ? <div className="py-14 text-center text-sm text-muted-foreground">No videos yet</div> : <div className="divide-y divide-border">{videoPosts.map((post: any) => <article key={post.id ?? post.uri} className="p-4"><div className="text-sm leading-6" dangerouslySetInnerHTML={{ __html: post.content ?? '' }} /></article>)}</div>)}
-
-              {['Podcasts', 'Series', 'Likes', 'Tips', 'Gifts', 'Followers', 'Following', 'Analytics'].includes(activeTab) && <div className="py-14 px-5 text-center text-sm text-muted-foreground">No {activeTab.toLowerCase()} yet.</div>}
             </section>
           </>
         )}
