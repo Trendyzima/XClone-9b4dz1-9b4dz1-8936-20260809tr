@@ -67,55 +67,51 @@ export default function TvStudioPage() {
     return error?.message || 'Could not start the studio camera and microphone.';
   };
 
-  const showPermissionHelp = () => setPermissionError('Android Chrome: tap the lock/tune icon beside testagram.site → Permissions → Camera and Microphone → Allow, then return to Testagram and tap Preview.');
-
-
-  useEffect(() => {
-    if (!streamId) return;
-    void supabase.from('live_streams').select('*').eq('id', streamId).single().then(({ data }) => setStream(data));
-  }, [streamId]);
-
-  useEffect(() => {
-    return () => {
-      recorderRef.current?.stop();
-      roomRef.current?.disconnect();
-      roomRef.current = null;
-      screenStreamRef.current?.getTracks().forEach(t => t.stop());
-      cameraStreamRef.current?.getTracks().forEach(t => t.stop());
-      void audioPipelineRef.current?.stop();
-      if (downloadUrlRef.current) URL.revokeObjectURL(downloadUrlRef.current);
+  const readPermissionState = async () => {
+    const states: { camera: PermissionState | 'unsupported'; microphone: PermissionState | 'unsupported' } = {
+      camera: 'unsupported',
+      microphone: 'unsupported',
     };
-  }, []);
-
-  useEffect(() => {
-    if (!recording && !live) return;
-    const t = window.setInterval(() => setElapsed(x => x + 1), 1000);
-    return () => window.clearInterval(t);
-  }, [recording, live]);
-
-  useEffect(() => {
-    const id = window.setInterval(() => setAudioLevel(audioPipelineRef.current?.getLevel() ?? 0), 120);
-    return () => window.clearInterval(id);
-  }, [camera, muted, sharing, live, recording]);
-
-  const token = async (requestedId?: string) => {
-    const id = requestedId ?? activeStreamId;
-    if (!id) throw new Error('Broadcast id missing');
-    const { data, error } = await supabase.functions.invoke('livekit-tv-token', { body: { stream_id: id } });
-    if (error || !data?.data) throw new Error(data?.error?.message || error?.message || 'Could not connect to live broadcast');
-    return data.data;
+    if (!navigator.permissions?.query) return states;
+    for (const name of ['camera', 'microphone'] as const) {
+      try {
+        const result = await navigator.permissions.query({ name } as PermissionDescriptor);
+        states[name] = result.state;
+        (name === 'camera' ? setCameraPermission : setMicrophonePermission)(result.state);
+      } catch {
+        // Some browsers do not expose media permission state.
+      }
+    }
+    return states;
   };
 
+  const showPermissionHelp = () => {
+    const isAndroid = /Android/i.test(navigator.userAgent);
+    const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const isChrome = /Chrome|CriOS/i.test(navigator.userAgent) && !/Edg|OPR/i.test(navigator.userAgent);
+    if (isAndroid && isChrome) {
+      setPermissionError('Android Chrome: tap the tune/lock icon beside testagram.site → Permissions → Camera → Allow and Microphone → Allow. If blocked, open Site settings, reset the blocked permission, reload Testagram, then tap Preview.');
+    } else if (isIOS) {
+      setPermissionError('iPhone/iPad: open Settings → Safari (or your browser) → Camera and Microphone → Allow, then return to Testagram and reload the page.');
+    } else {
+      setPermissionError('Open browser site permissions for testagram.site and set Camera and Microphone to Allow. If blocked, reset the site permissions, reload Testagram, then tap Preview.');
+    }
+  };
+
+  useEffect(() => {
+    void readPermissionState();
+  }, []);
+
   const getCamera = async () => {
-    await refreshPermissionState();
-    if (!window.isSecureContext) throw new Error('Camera and microphone require HTTPS. Open https://testagram.site/spaces in a secure browser tab.');
-    if (cameraPermission === 'denied' || microphonePermission === 'denied') {
-      const denied = [cameraPermission === 'denied' ? 'camera' : '', microphonePermission === 'denied' ? 'microphone' : ''].filter(Boolean).join(' and ');
-      const message = `Browser permission for ${denied} is blocked for Testagram. Open this site’s permissions, set ${denied} to Allow, then reload the page. The browser will not show a permission prompt while it remains blocked.`;
+    const permission = await readPermissionState();
+    if (!window.isSecureContext) throw new Error('Camera and microphone require a secure HTTPS connection.');
+    if (permission.camera === 'denied' || permission.microphone === 'denied') {
+      const denied = [permission.camera === 'denied' ? 'camera' : '', permission.microphone === 'denied' ? 'microphone' : ''].filter(Boolean).join(' and ');
+      const message = `Browser permission for ${denied} is blocked for Testagram. Open this site’s permissions, set ${denied} to Allow, then reload the page.`;
       setPermissionError(message);
       throw new Error(message);
     }
-    if (!navigator.mediaDevices?.getUserMedia) throw new Error('This browser does not support camera/microphone capture. Use current Chrome, Edge, Firefox, or Safari over HTTPS.');
+    if (!navigator.mediaDevices?.getUserMedia) throw new Error('This browser does not support camera/microphone capture. Use a current browser over HTTPS.');
     const preset = VIDEO_PRESETS[quality];
     try {
       const s = await navigator.mediaDevices.getUserMedia({
@@ -125,7 +121,6 @@ export default function TvStudioPage() {
       cameraStreamRef.current = s;
       setDeviceReady(true);
       setPermissionError(null);
-      await refreshPermissionState();
       return s;
     } catch (error) {
       setDeviceReady(false);
