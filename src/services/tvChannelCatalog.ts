@@ -1,6 +1,6 @@
 import {supabaseUrl} from '@/lib/supabase';
 
-export type TvChannel = { id:string; name:string; url:string; logo?:string; country?:string; language?:string; group?:string; source:string; priority:number };
+export type TvChannel = { id:string; name:string; url:string; logo?:string; country?:string; language?:string; group?:string; source:string; priority:number; live?:boolean; live_checked_at?:string };
 export type TvSource = { id:string; label:string; url:string; country?:string; priority:number; enabled?:boolean; policy?:'public-free'|'community-unverified' };
 export const TV_SOURCES: TvSource[] = [
 {id:'nexus-ke',label:'IPTV Nexus · Kenya · health checked',url:'https://dearbulut.github.io/iptv/api/v1/by-country/ke.json',country:'KE',priority:160,enabled:true,policy:'public-free'},
@@ -35,6 +35,6 @@ export async function loadTvSource(source:TvSource,signal?:AbortSignal){
  const response=await fetch(endpoint,{signal,headers:{Accept:'application/json'}});
  if(!response.ok) throw new Error(source.label+': HTTP '+response.status);
  const payload=await response.json();
- return Array.isArray(payload?.channels)?payload.channels as TvChannel[]:[];
+ return Array.isArray(payload?.channels)?(payload.channels as TvChannel[]).filter(c=>c.live===true):[];
 }
 export function dedupeTvChannels(channels:TvChannel[]){const seen=new Set<string>();return [...channels].filter(c=>{const key=c.url.toLowerCase();if(seen.has(key))return false;seen.add(key);return true;}).sort((a,b)=>b.priority-a.priority);}
