@@ -4,6 +4,7 @@ import { ArrowLeft, Globe, UserPlus, UserMinus, Loader2, Users, Rss } from 'luci
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import * as federation from '@/api/federation';
+import { FediverseRichText } from '@/components/features/FediverseRichText';
 import { supabase } from '@/lib/supabase';
 
 type FediverseProfilePageProps = { initialTab?: string; standalone?: boolean };
@@ -312,13 +313,13 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                 </div>
                 <h2 className="mt-3 text-xl font-black">{profile.name || profile.display_name || profile.preferredUsername || profile.username}</h2>
                 <p className="text-sm text-muted-foreground">@{profile.preferredUsername || profile.username}{profile.url ? (() => { try { return '@' + new URL(profile.url).hostname; } catch { return ''; } })() : ''}</p>
-                {profile.summary && <div className="mt-3 text-sm leading-6" dangerouslySetInnerHTML={{ __html: profile.summary }} />}
+                {profile.summary && <FediverseRichText html={profile.summary} tags={profile.raw_actor?.tag ?? profile.tags ?? []} className="mt-3 text-sm leading-6" />}
                 {Array.isArray(profile.fields) && profile.fields.length > 0 && (
                   <div className="mt-4 space-y-2">
                     {profile.fields.slice(0, 8).map((field: any, i: number) => (
                       <div key={i} className="grid grid-cols-[auto_1fr] gap-3 rounded-xl bg-muted/50 px-3 py-2 text-xs">
                         <span className="font-semibold">{field.name}</span>
-                        <span className="text-muted-foreground break-words" dangerouslySetInnerHTML={{ __html: field.value }} />
+                        <FediverseRichText html={field.value} className="text-muted-foreground break-words" />
                       </div>
                     ))}
                   </div>
@@ -373,7 +374,7 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                     <div className="divide-y divide-border">
                       {visible.length > 0 ? visible.map((post: any) => (
                         <article key={post.id ?? post.uri} className="p-4">
-                          <div className="text-sm leading-6" dangerouslySetInnerHTML={{ __html: post.content ?? '' }} />
+                          <FediverseRichText html={post.content ?? ''} tags={post.raw_object?.tag ?? post.tags ?? []} className="text-sm leading-6" />
                           {post.attachments?.length > 0 && (
                             <div className="mt-3 grid grid-cols-2 gap-2">
                               {post.attachments.slice(0, 4).map((attachment: any, index: number) => {
