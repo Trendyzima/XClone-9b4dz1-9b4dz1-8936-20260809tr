@@ -72,6 +72,7 @@ export default function SpaceDetailPage() {
   };
 
   const [space, setSpace] = useState<any>(null);
+  const [channelHandle, setChannelHandle] = useState<string | null>(null);
   const [recordings, setRecordings] = useState<any[]>([]);
   const [participants, setParticipants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,6 +144,7 @@ export default function SpaceDetailPage() {
       .eq('id', id!)
       .single();
     setSpace(data);
+    if (data?.id) { const { data: channel } = await supabase.from('channel_profiles').select('handle').eq('channel_key', 'audio:' + data.id).maybeSingle(); setChannelHandle(channel?.handle ?? null); }
     setLoading(false);
   };
 
@@ -191,6 +193,7 @@ export default function SpaceDetailPage() {
           <Radio className="w-16 h-16 mx-auto mb-4 opacity-20" />
           <p className="font-bold text-xl mb-2">Space not found</p>
           <p className="text-sm mb-6">This space may have ended or been removed.</p>
+          {channelHandle && <Button variant="outline" size="sm" onClick={() => navigate('/channel/' + channelHandle)}>Channel profile</Button>}
           <Button onClick={() => navigate('/spaces')} className="rounded-full">
             <ArrowLeft className="w-4 h-4 mr-2" /> Back to Spaces
           </Button>
