@@ -133,6 +133,8 @@ export default function TvStudioPage() {
         id = data.id;
         setActiveStreamId(id);
         setStream(data);
+        // This is only a transport locator. It is never a video URL or stored recording.
+        await supabase.from('live_streams').update({ stream_url: `livekit://tv/${id}` }).eq('id', id);
       }
 
       const info = await token(id);
@@ -178,14 +180,26 @@ export default function TvStudioPage() {
       recorder.ondataavailable = e => { if (e.data.size) chunksRef.current.push(e.data); };
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType || 'video/webm' });
-        const url = URL.createObjectURL(blob);
-        downloadUrlRef.current = url;
         const stamp = new Date().toISOString().replace(/[:.]/g, '-');
         const name = `Testagram-TV-${stamp}.webm`;
-        const a = document.createElement('a');
-        a.href = url; a.download = name; a.rel = 'noopener'; a.click();
-        setSavedName(name);
-        toast.success('Recording saved to your device — no video was uploaded to Testagram');
+        try {
+          const picker = (window as any).showSaveFilePicker;
+          if (typeof picker === 'function') {
+            const handle = await picker({ suggestedName: name, types: [{ description: 'Testagram TV recording', accept: { 'video/webm': ['.webm'] } }] });
+            const writable = await handle.createWritable();
+            await writable.write(blob);
+            await writable.close();
+          } else {
+            const url = URL.createObjectURL(blob);
+            downloadUrlRef.current = url;
+            const a = document.createElement('a');
+            a.href = url; a.download = name; a.rel = 'noopener'; a.click();
+          }
+          setSavedName(name);
+          toast.success('Recording saved locally — Testagram did not upload or publish the video');
+        } catch (saveError: any) {
+          if (saveError?.name !== 'AbortError') throw saveError;
+        }
       };
       recorder.start(1000);
       recorderRef.current = recorder;
