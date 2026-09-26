@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { ExternalLink, Heart, Flame, Laugh, Newspaper, ThumbsUp } from 'lucide-react';
 import { supabaseUrl } from '@/lib/supabase';
 
-type FeedItem = {
+export type FeedItem = {
   id: string;
   title: string;
   excerpt?: string | null;
@@ -46,7 +46,7 @@ function writeReactions(value: Record<string, ReactionKey>) {
   try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(value)); } catch { /* private mode */ }
 }
 
-async function loadFeed(): Promise<FeedItem[]> {
+export async function loadPublisherFeed(): Promise<FeedItem[]> {
   if (cache.items.length && Date.now() - cache.at < CACHE_TTL) return cache.items;
   if (pending) return pending;
   pending = fetch(supabaseUrl + '/functions/v1/testagram-rss-feed?limit=12', {
@@ -74,6 +74,28 @@ function relativeDate(value: string) {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return hours + 'h ago';
   return Math.floor(hours / 24) + 'd ago';
+}
+
+export function PublisherFeedCard({ item }: { item: FeedItem }) {
+  const navigate = useNavigate();
+  const [reactions, setReactions] = useState<Record<string, ReactionKey>>(readReactions);
+  const selected = reactions[item.id];
+  const react = (emoji: ReactionKey) => setReactions(previous => {
+    const next = { ...previous };
+    if (next[item.id] === emoji) delete next[item.id]; else next[item.id] = emoji;
+    writeReactions(next); return next;
+  });
+  const publisher = item.testagram_rss_source_profiles?.display_name || 'Publisher';
+  return <article className='overflow-hidden rounded-2xl border border-border bg-card shadow-sm'>
+    <button type='button' onClick={() => navigate('/news/' + encodeURIComponent(item.id))} className='block w-full text-left'>
+      {item.image_url ? <img src={item.image_url} alt='' loading='lazy' className='h-40 w-full object-cover' /> : <div className='flex h-20 items-center gap-2 bg-muted px-4 text-xs text-muted-foreground'><Newspaper className='h-5 w-5' />Publisher story</div>}
+      <div className='p-3'><div className='flex items-center gap-2'>
+        {item.favicon_url ? <img src={item.favicon_url} alt='' loading='lazy' onError={e => { e.currentTarget.style.display='none'; }} className='h-5 w-5 rounded object-contain' /> : null}
+        <span className='truncate text-[11px] font-bold'>Feed from {publisher}</span><span className='text-[10px] text-muted-foreground'>· {item.category || 'news'}</span><span className='ml-auto shrink-0 text-[10px] text-muted-foreground'>{relativeDate(item.published_at)}</span>
+      </div><h3 className='mt-2 text-base font-bold leading-snug'>{item.title}</h3>{item.excerpt ? <p className='mt-1 line-clamp-3 text-xs leading-relaxed text-muted-foreground'>{item.excerpt}</p> : null}<div className='mt-2 flex items-center gap-1 text-[10px] font-semibold text-primary'>Read in Testagram <ExternalLink className='h-3 w-3 rotate-180' /></div></div>
+    </button>
+    <div className='flex items-center gap-1 border-t border-border px-3 py-2'>{REACTIONS.map(({key,label,Icon}) => <button key={key} type='button' aria-label={label+' reaction'} aria-pressed={selected===key} title={label} onClick={() => react(key)} className={'flex h-8 min-w-9 items-center justify-center rounded-full px-2 text-sm '+(selected===key?'bg-primary/10 text-primary ring-1 ring-primary/30':'hover:bg-muted')}><Icon className='h-4 w-4' /></button>)}<span className='ml-1 text-[10px] text-muted-foreground'>{selected?'Your temporary reaction':'React temporarily'}</span></div>
+  </article>;
 }
 
 export function PublisherFeedStream({ surface = 'global' }: { surface?: 'home' | 'global' }) {
@@ -107,7 +129,7 @@ export function PublisherFeedStream({ surface = 'global' }: { surface?: 'home' |
   useEffect(() => {
     if (hidden || (surface === 'global' && isHome) || !nearViewport) return;
     let alive = true;
-    void loadFeed().then(next => { if (alive) setItems(next); });
+    void loadPublisherFeed().then(next => { if (alive) setItems(next); });
     return () => { alive = false; };
   }, [hidden, surface, isHome, nearViewport]);
 
