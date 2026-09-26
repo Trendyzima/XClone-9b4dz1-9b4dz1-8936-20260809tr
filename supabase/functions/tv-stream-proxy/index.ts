@@ -1,5 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
+const PROXY_ENDPOINT = "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/tv-stream-proxy";
+
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "Range, Origin, Accept, Content-Type",
@@ -79,7 +81,7 @@ Deno.serve(async (req) => {
 
     if (isManifest && upstream.body) {
       const text = await upstream.text();
-      const rewritten = rewriteManifest(text, target.toString(), new URL(req.url).origin + new URL(req.url).pathname);
+      const rewritten = rewriteManifest(text, target.toString(), PROXY_ENDPOINT);
       return new Response(req.method === "HEAD" ? null : rewritten, {
         status: upstream.status,
         headers: {
