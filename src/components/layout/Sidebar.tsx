@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase';
 import { formatNumber } from '@/lib/utils';
 import { useFediversePolling } from '@/hooks/useFediversePolling';
 import { useIsRegulator } from '@/hooks/useFeatureUnlock';
+import { useGovernance } from '@/lib/governance';
 
 function runWhenIdle(task: () => void, timeout = 1200) {
   if (typeof window === 'undefined') return;
@@ -40,6 +41,7 @@ export function Sidebar() {
   const location = useLocation();
   const { user, logout } = useAuth();
   const isReg = useIsRegulator();
+  const { governance } = useGovernance();
   const [communities, setCommunities] = useState<Community[]>([]);
   const [trendingCommunities, setTrendingCommunities] = useState<Community[]>([]);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -234,6 +236,7 @@ export function Sidebar() {
   }, [user?.id]);
 
   const adminTools = [
+    { icon: Briefcase, label: 'Staff Recruitment', path: '/admin/staff-recruitment', requireAuth: true, badge: 0 },
     { icon: LineChart, label: 'Revenue Analytics', path: '/revenue-analytics', requireAuth: true, badge: 0 },
     { icon: TrendingUp, label: 'Admin Revenue', path: '/admin/revenue', requireAuth: true, badge: 0 },
     { icon: Megaphone, label: 'Ad Review', path: '/admin/ads-review', requireAuth: true, badge: pendingAdsBadge },
@@ -241,6 +244,7 @@ export function Sidebar() {
   ];
 
   const userTools = [
+    { icon: Briefcase, label: 'Testagram Jobs', path: '/jobs', requireAuth: true },
     { icon: Bookmark, label: 'Bookmarks', path: '/bookmarks', requireAuth: true },
     { icon: List, label: 'Lists', path: '/lists', requireAuth: true },
     { icon: History, label: 'History', path: '/history', requireAuth: true },
@@ -259,6 +263,9 @@ export function Sidebar() {
   ];
 
   // Team chat — employees & regulator only
+  const staffItems = governance.is_admin && !governance.is_owner ? [
+    { icon: ShieldCheck, label: 'Staff Workspace', path: '/staff', requireAuth: true },
+  ] : [];
   const teamItems = isEmployee ? [
     { icon: MessageSquare, label: 'Team Chat', path: '/team-chat', requireAuth: true },
   ] : [];
@@ -345,6 +352,9 @@ export function Sidebar() {
                   </button>
                 );
               })}
+
+              {/* Staff Workspace — governance assignment */}
+              {staffItems.map((item) => { const Icon = item.icon; const isActive = location.pathname === item.path; return <button key={item.path} onClick={() => handleNavClick(item.path, item.requireAuth)} className={`flex items-center space-x-3 px-4 py-2 rounded-lg transition-colors w-full text-left text-sm ${isActive ? 'bg-primary/10 text-primary font-medium' : 'hover:bg-muted text-foreground'}`}><Icon className="w-4 h-4 text-primary"/><span>{item.label}</span><span className="ml-auto text-[9px] bg-primary/10 text-primary font-bold px-1.5 py-0.5 rounded-full">{governance.role ?? 'Staff'}</span></button>; })}
 
               {/* Team Chat — employees only */}
               {teamItems.map((item) => {
