@@ -1,3 +1,5 @@
+import {supabaseUrl} from '@/lib/supabase';
+
 export type TvChannel = { id:string; name:string; url:string; logo?:string; country?:string; language?:string; group?:string; source:string; priority:number };
 export type TvSource = { id:string; label:string; url:string; country?:string; priority:number };
 export const TV_SOURCES: TvSource[] = [
@@ -30,5 +32,11 @@ export function parseM3U(text:string,source:TvSource,max=180):TvChannel[]{
   out.push({id,name,url:line,logo,group,country,language,source:source.label,priority:source.priority}); info=null;
  } return out;
 }
-export async function loadTvSource(source:TvSource,signal?:AbortSignal){ const response=await fetch(source.url,{signal,headers:{Accept:'application/vnd.apple.mpegurl,text/plain,*/*'}}); if(!response.ok) throw new Error(source.label+': HTTP '+response.status); return parseM3U(await response.text(),source); }
+export async function loadTvSource(source:TvSource,signal?:AbortSignal){
+ const endpoint=supabaseUrl+'/functions/v1/tv-catalog?source='+encodeURIComponent(source.id);
+ const response=await fetch(endpoint,{signal,headers:{Accept:'application/json'}});
+ if(!response.ok) throw new Error(source.label+': HTTP '+response.status);
+ const payload=await response.json();
+ return Array.isArray(payload?.channels)?payload.channels as TvChannel[]:[];
+}
 export function dedupeTvChannels(channels:TvChannel[]){const seen=new Set<string>();return [...channels].filter(c=>{const key=c.url.toLowerCase();if(seen.has(key))return false;seen.add(key);return true;}).sort((a,b)=>b.priority-a.priority);}
