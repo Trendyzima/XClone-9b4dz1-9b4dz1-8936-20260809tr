@@ -25,6 +25,7 @@ import {
 import { VideoMonetizationAd } from './VideoMonetizationAd';
 import { EmbedRenderer, PostContentEmbeds } from './EmbedRenderer';
 import { InlineTvSuggestion } from './InlineTvSuggestion';
+import { InlineRssSuggestion } from './InlineRssSuggestion';
 import { updateInterestSignal } from '@/services/recommendations';
 import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts, getFederatedReplies, getInteractionCounts, recordPostView, recordPostShare } from '@/services/postInteractionService';
 import { backendCapabilities } from '@/services/backendClient';
@@ -663,6 +664,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
           />
 
           <InlineTvSuggestion content={post.content || ''} seed={post.id} type="post" />
+          <InlineRssSuggestion content={post.content || ''} seed={`${post.id}-rss`} type="post" />
 
           {/* Translate button with multi-language picker */}
           {post.content && post.content.length > 20 && (
