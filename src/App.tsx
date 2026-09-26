@@ -85,6 +85,9 @@ const DiscoverSuggestedPage = lazy(() => import('@/pages/discover/DiscoverSugges
 const DiscoverPopularPage = lazy(() => import('@/pages/discover/DiscoverPopularPage'));
 const DiscoverFediversePage = lazy(() => import('@/pages/discover/DiscoverFediversePage'));
 const AdminGovernancePage = lazy(() => import('@/pages/AdminGovernancePage'));
+const JobsPage = lazy(() => import('@/pages/JobsPage'));
+const StaffDashboardPage = lazy(() => import('@/pages/StaffDashboardPage'));
+const StaffRecruitmentPage = lazy(() => import('@/pages/StaffRecruitmentPage'));
 const AdminOverviewPage = lazy(() => import('@/pages/admin/AdminOverviewPage'));
 const AdminAdsPage = lazy(() => import('@/pages/admin/AdminAdsPage'));
 const AdminUsersPage = lazy(() => import('@/pages/admin/AdminUsersPage'));
@@ -268,7 +271,7 @@ function AppInner(){useCreatorTierAlert();useEffect(()=>{applyAppearance(getStor
 <Route path="/profile/:username/series" element={<ProfilePage/>}/>
 <Route path="/profile/:username/tips" element={<ProfilePage/>}/>
 <Route path="/profile/:username/gifts" element={<ProfilePage/>}/>
-<Route path="/profile/:username/analytics" element={<ProfilePage/>}/><Route path="/profile-features" element={<ProfileFeaturesPage/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/ai" element={<AIPage/>}/><Route path="/analytics" element={<AnalyticsDashboard/>}/><Route path="/admin" element={<AdminPanel/>}/><Route path="/admin/governance" element={<AdminGovernancePage/>}/>
+<Route path="/profile/:username/analytics" element={<ProfilePage/>}/><Route path="/profile-features" element={<ProfileFeaturesPage/>}/><Route path="/search" element={<SearchPage/>}/><Route path="/ai" element={<AIPage/>}/><Route path="/analytics" element={<AnalyticsDashboard/>}/><Route path="/admin" element={<AdminPanel/>}/><Route path="/admin/governance" element={<AdminGovernancePage/>}/><Route path="/jobs" element={<JobsPage/>}/><Route path="/staff" element={<StaffDashboardPage/>}/><Route path="/admin/staff-recruitment" element={<OwnerOnlyAdminRoute><StaffRecruitmentPage/></OwnerOnlyAdminRoute>}/>
 <Route path="/admin/overview" element={<OwnerOnlyAdminRoute><AdminOverviewPage/></OwnerOnlyAdminRoute>}/>
 <Route path="/admin/ads-management" element={<OwnerOnlyAdminRoute><AdminAdsPage/></OwnerOnlyAdminRoute>}/>
 <Route path="/admin/users" element={<OwnerOnlyAdminRoute><AdminUsersPage/></OwnerOnlyAdminRoute>}/>
