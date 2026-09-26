@@ -123,12 +123,17 @@ export function TvPostStream() {
               <span className='text-[11px] font-bold truncate'>{channel.name}</span>
               <span className='ml-auto text-[10px] text-red-500 font-bold'>LIVE</span>
             </div>
-            <TvChannelPlayer
-              channel={channel}
-              active={false}
-              onVisible={() => {}}
-              onHealth={() => {}}
-            />
+            <Suspense fallback={<div className='aspect-video rounded-2xl border bg-muted animate-pulse' aria-label='Loading live TV post' />}>
+              <TvChannelPlayer
+                channel={channel}
+                active={active === channel.id}
+                onVisible={(id, visible) => {
+                  if (visible) setActive(id);
+                  else if (active === id) setActive('');
+                }}
+                onHealth={() => {}}
+              />
+            </Suspense>
             <div className='flex items-center gap-2 px-1 pt-2 text-[10px] text-muted-foreground'>
               <Globe2 className='h-3 w-3' />
               <span>{channel.country || 'International'}</span>
