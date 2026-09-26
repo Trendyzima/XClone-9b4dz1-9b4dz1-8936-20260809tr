@@ -7,24 +7,41 @@ const HIDE=/^(\/auth)(?:\/|$)|^(\/tv)(?:\/|$)/;
 let tvCache:{at:number;items:TvChannel[]}={at:0,items:[]};
 let pending:Promise<TvChannel[]>|null=null;
 
-async function loadRail(){
-  if(tvCache.items.length&&Date.now()-tvCache.at<60000)return tvCache.items;
-  if(pending)return pending;
-  pending=Promise.all(
-    TV_SOURCES.slice(0,4).map(s=>loadTvSource(s).catch(()=>[] as TvChannel[]))
-  ).then(rows=>{
-    const seen=new Set<string>();
-    const items=rows.flat().filter(c=>{const key=c.url.toLowerCase();if(seen.has(key))return false;seen.add(key);return true;}).slice(0,8);
-    tvCache={at:Date.now(),items};
-    pending=null;
-    return items;
-  }).catch(()=>{pending=null;return tvCache.items});
-  return pending;
+async function loadRail(onItem:(item:TvChannel)=>void, signal:AbortSignal){
+  if(tvCache.items.length&&Date.now()-tvCache.at<60000){
+    for(const item of tvCache.items){if(signal.aborted)return;onItem(item);await new Promise(r=>setTimeout(r,0));}
+    return;
+  }
+  const seen=new Set<string>();
+  for(const source of TV_SOURCES.slice(0,4)){
+    if(signal.aborted)return;
+    try{
+      const rows=await loadTvSource(source);
+      for(const item of rows){
+        if(signal.aborted)return;
+        const key=item.url.toLowerCase();
+        if(seen.has(key)||tvCache.items.some(c=>c.url.toLowerCase()===key))continue;
+        seen.add(key);
+        if(item.live!==true)continue;
+        tvCache.items=[...tvCache.items,item].slice(0,8);
+        tvCache.at=Date.now();
+        onItem(item);
+        await new Promise(r=>setTimeout(r,0));
+        if(tvCache.items.length>=8)return;
+      }
+    }catch{}
+  }
 }
 
 export function TvSmartRail(){
  const {pathname}=useLocation(); const nav=useNavigate(); const [items,setItems]=useState<TvChannel[]>([]); const [loading,setLoading]=useState(true);
- useEffect(()=>{if(HIDE.test(pathname)){setItems([]);setLoading(false);return;}let live=true;setLoading(true);void loadRail().then(next=>{if(live){setItems(next);setLoading(false);}});return()=>{live=false;};},[pathname]);
+ useEffect(()=>{
+   if(HIDE.test(pathname)){setItems([]);setLoading(false);return;}
+   const controller=new AbortController(); let live=true; setItems([]); setLoading(true);
+   void loadRail(next=>{if(live)setItems(current=>current.some(c=>c.id===next.id)?current:[...current,next]);},controller.signal)
+     .finally(()=>{if(live)setLoading(false);});
+   return()=>{live=false;controller.abort();};
+ },[pathname]);
  if(HIDE.test(pathname))return null;
  if(!items.length&&!loading)return null;
  return <section aria-label='Live TV' className='mx-auto w-full border-y bg-background py-3'>
