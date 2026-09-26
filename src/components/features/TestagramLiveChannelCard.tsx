@@ -9,6 +9,8 @@ type Props={stream:any};
 export function TestagramLiveChannelCard({stream}:Props){
  const nav=useNavigate(); const videoRef=useRef<HTMLVideoElement>(null); const audioHost=useRef<HTMLDivElement>(null); const roomRef=useRef<Room|null>(null);
  const [muted,setMuted]=useState(true); const [connected,setConnected]=useState(false); const [error,setError]=useState(false); const [viewers,setViewers]=useState(Number(stream.viewer_count||0));
+ const [channelHandle,setChannelHandle]=useState<string|null>(null);
+ useEffect(()=>{void (async()=>{const {data}=await supabase.from('channel_profiles').select('handle').eq('channel_key','tv:'+stream.id).maybeSingle();setChannelHandle(data?.handle??null)})();},[stream.id]);
  useEffect(()=>{
   let cancelled=false;
   const connect=async()=>{
@@ -43,7 +45,7 @@ export function TestagramLiveChannelCard({stream}:Props){
   <div className="p-3">
    <div className="flex items-start gap-3">
     <div className="min-w-0 flex-1"><h2 className="font-bold line-clamp-2">{stream.title}</h2><p className="text-xs text-muted-foreground mt-1">{stream.description||'Live from Testagram TV Studio'}</p><div className="mt-2 flex items-center gap-3 text-[11px] text-muted-foreground"><span className="flex items-center gap-1"><Users className="w-3.5 h-3.5"/>{viewers} watching</span><span className="text-red-500 font-semibold">LIVE</span></div></div>
-    <div className="flex gap-1 shrink-0"><Button size="icon" variant="outline" onClick={toggle} aria-label={muted?'Unmute':'Mute'}>{muted?<VolumeX/>:<Volume2/>}</Button><Button size="icon" variant="outline" onClick={()=>videoRef.current?.requestFullscreen?.()} aria-label="Fullscreen"><Maximize2/></Button></div>
+    <div className="flex gap-1 shrink-0">{channelHandle&&<Button size="sm" variant="outline" onClick={()=>nav('/channel/'+channelHandle)} aria-label="Open channel profile">Profile</Button>}<Button size="icon" variant="outline" onClick={toggle} aria-label={muted?'Unmute':'Mute'}>{muted?<VolumeX/>:<Volume2/>}</Button><Button size="icon" variant="outline" onClick={()=>videoRef.current?.requestFullscreen?.()} aria-label="Fullscreen"><Maximize2/></Button></div>
    </div>
    <button onClick={()=>nav('/stream/'+stream.id)} className="mt-3 w-full rounded-xl border py-2 text-xs font-bold flex items-center justify-center gap-1.5 hover:bg-muted"><ExternalLink className="w-3.5 h-3.5"/>Open live room</button>
   </div>
