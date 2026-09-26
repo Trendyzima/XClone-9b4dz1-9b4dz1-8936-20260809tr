@@ -3,12 +3,10 @@ import { useLocation } from 'react-router-dom';
 import { Radio, Globe2, RefreshCw } from 'lucide-react';
 import { TvChannelPlayer } from '@/components/features/TvChannelPlayer';
 import { TV_SOURCES, loadTvSource, type TvChannel } from '@/services/tvChannelCatalog';
-
 const CACHE_TTL = 60_000;
 const MAX_POSTS = 8;
-const HIDDEN = /^(\\/(auth|admin|settings|wallet|messages|notifications|help|premium|create-ad|my-ads|ad-|rewards|verify|privacy|terms|policy|regulator|sessions|blocked|appeals|payouts|revenue|analytics|news\\/|tv)(?:\\/|$))/;
+const HIDDEN = /^\/(auth|admin|settings|wallet|messages|notifications|help|premium|create-ad|my-ads|ad-|rewards|verify|privacy|terms|policy|regulator|sessions|blocked|appeals|payouts|revenue|analytics|news\/|tv)(?:\/|$)/;
 let cache: { at: number; items: TvChannel[] } = { at: 0, items: [] };
-
 function sleep(signal: AbortSignal) {
   return new Promise<void>(resolve => {
     const id = window.setTimeout(resolve, 0);
@@ -18,7 +16,6 @@ function sleep(signal: AbortSignal) {
     }
   });
 }
-
 export function TvPostStream() {
   const { pathname } = useLocation();
   const hostRef = useRef<HTMLDivElement>(null);
@@ -26,7 +23,6 @@ export function TvPostStream() {
   const [items, setItems] = useState<TvChannel[]>([]);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);\n  const [active, setActive] = useState('');
-
   useEffect(() => {
     if (HIDDEN.test(pathname)) return;
     const el = hostRef.current;
@@ -43,17 +39,14 @@ export function TvPostStream() {
     observer.observe(el);
     return () => observer.disconnect();
   }, [pathname]);
-
   useEffect(() => {
     if (HIDDEN.test(pathname) || !nearViewport || items.length || loading) return;
     const controller = new AbortController();
     let alive = true;
-
     const run = async () => {
       setLoading(true);
       const seen = new Set<string>();
       const sources = TV_SOURCES.filter(source => source.enabled !== false);
-
       try {
         if (cache.items.length && Date.now() - cache.at < CACHE_TTL) {
           for (const item of cache.items.slice(0, MAX_POSTS)) {
@@ -64,7 +57,6 @@ export function TvPostStream() {
           setDone(true);
           return;
         }
-
         for (const source of sources) {
           if (!alive || controller.signal.aborted || items.length >= MAX_POSTS) break;
           try {
@@ -91,16 +83,13 @@ export function TvPostStream() {
         if (alive) setLoading(false);
       }
     };
-
     void run();
     return () => {
       alive = false;
       controller.abort();
     };
   }, [nearViewport, pathname]);
-
   if (HIDDEN.test(pathname)) return null;
-
   return (
     <section ref={hostRef} aria-label='Live TV posts' className='border-y border-border bg-background px-3 py-4'>
       <div className='mb-3 flex items-center gap-2'>
@@ -112,13 +101,11 @@ export function TvPostStream() {
           </p>
         </div>
       </div>
-
       {!items.length && loading ? (
         <div className='rounded-2xl border border-border bg-card p-4 text-xs text-muted-foreground flex items-center gap-2'>
           <RefreshCw className='h-3.5 w-3.5 animate-spin' /> Finding a live channel…
         </div>
       ) : null}
-
       <div role='feed' aria-busy={loading} className='space-y-3'>
         {items.map((channel, index) => (
           <article
@@ -151,13 +138,11 @@ export function TvPostStream() {
           </article>
         ))}
       </div>
-
       {loading && items.length > 0 ? (
         <div className='py-4 text-center text-[11px] text-muted-foreground flex items-center justify-center gap-2'>
           <RefreshCw className='h-3.5 w-3.5 animate-spin' /> Loading the next live post…
         </div>
       ) : null}
-
       {!loading && !done && !items.length ? (
         <div className='rounded-2xl border border-border bg-card p-4 text-xs text-muted-foreground'>
           Live TV is temporarily unavailable.
