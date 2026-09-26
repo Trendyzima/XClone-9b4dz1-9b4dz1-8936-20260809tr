@@ -12,3 +12,9 @@ verify_jwt = true
 
 [functions.megalodon-gateway]
 verify_jwt = true
+
+[functions.testagram-rss-feed]
+verify_jwt = false
+
+[functions.tv-catalog]
+verify_jwt = false
