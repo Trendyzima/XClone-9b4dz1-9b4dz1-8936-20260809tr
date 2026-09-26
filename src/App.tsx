@@ -14,8 +14,6 @@ import { Toaster as Sonner } from 'sonner';
 import { Loader2 } from 'lucide-react';
 import { InterestOnboardingSheet } from '@/components/features/InterestOnboardingSheet';
 import { SiteAdInjector } from '@/components/features/SiteAdInjector';
-import { TvPostStream } from '@/components/features/TvPostStream';
-import { PublisherFeedStream } from '@/components/features/PublisherFeedStream';
 import { supabase } from '@/lib/supabase';
 import { startTestagramHeartbeat } from '@/services/heartbeatClient';
 import { applyAppearance, getStoredAppearance } from '@/theme/themes';
