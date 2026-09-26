@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { ExternalLink, Heart, Flame, Laugh, Newspaper, ThumbsUp } from 'lucide-react';
 import { supabaseUrl } from '@/lib/supabase';
