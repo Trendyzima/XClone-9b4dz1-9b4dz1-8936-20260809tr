@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
 
 export interface UniversalVideoPlayerProps extends React.VideoHTMLAttributes<HTMLVideoElement> {
@@ -19,7 +19,11 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
   const lastSrcRef = useRef('');
   const [recovering, setRecovering] = useState(false);
 
-  useImperativeHandle(forwardedRef, () => videoRef.current as HTMLVideoElement, []);
+  const setVideoElement = useCallback((node: HTMLVideoElement | null) => {
+    videoRef.current = node;
+    if (typeof forwardedRef === 'function') forwardedRef(node);
+    else if (forwardedRef) forwardedRef.current = node;
+  }, [forwardedRef]);
 
   const isHls = useCallback((url: string) => {
     const clean = url.split('?')[0].split('#')[0].toLowerCase();
@@ -182,7 +186,7 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
   return (
     <div className="relative h-full w-full">
       <video
-        ref={videoRef}
+        ref={setVideoElement}
         {...props}
         playsInline
         controls={props.controls ?? false}
