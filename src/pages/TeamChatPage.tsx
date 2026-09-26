@@ -4,6 +4,7 @@ import { TopBar } from '@/components/layout/TopBar';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useIsRegulator } from '@/hooks/useFeatureUnlock';
+import { useGovernance } from '@/lib/governance';
 import {
   Send, Loader2, Lock, MessageSquare, Users,
   Crown, Briefcase, Hash, Reply, X, MoreVertical, Trash2,
@@ -67,6 +68,10 @@ export default function TeamChatPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const isReg = useIsRegulator();
+  const { governance } = useGovernance();
+  const isOwner = governance.is_owner;
+  const canAccessTeamChat = isOwner || isReg;
+  const canModerateTeamChat = isOwner || isReg;
 
   const [loading, setLoading] = useState(true);
   const [isEmployee, setIsEmployee] = useState(false);
@@ -109,8 +114,9 @@ export default function TeamChatPage() {
 
   const checkAccess = useCallback(async () => {
     if (!user) return;
-    // Regulators always have access
-    if (isReg) { setIsEmployee(true); setLoading(false); fetchAll(); return; }
+    // System owner and legacy regulator roles always have access.
+    // Owner access is authoritative and must not depend on an employee_assignment row.
+    if (governance.is_owner || isReg) { setIsEmployee(true); setMyJobInfo(null); setLoading(false); fetchAll(); return; }
     const { data } = await supabase.from('employee_assignments')
       .select('id, job_title, department, permissions')
       .eq('user_id', user.id).eq('is_active', true).maybeSingle();
@@ -122,7 +128,7 @@ export default function TeamChatPage() {
       setIsEmployee(false);
     }
     setLoading(false);
-  }, [user, isReg]);
+  }, [user, isReg, governance.is_owner]);
 
   const fetchAll = useCallback(async () => {
     const [msgsRes, empsRes] = await Promise.all([
@@ -229,7 +235,7 @@ export default function TeamChatPage() {
     const { error } = await supabase.from('team_chat_messages').insert({
       user_id: user.id,
       message: replyInfo ? `[↩ @${replyInfo.username}: "${replyInfo.text.slice(0, 40)}…"] ${text}` : text,
-      department: myJobInfo?.department ?? (isReg ? 'Regulator' : null),
+      department: myJobInfo?.department ?? (isOwner ? 'System Owner' : (isReg ? 'Regulator' : null)),
       reply_to_id: replyInfo?.id ?? null,
     });
     if (error) toast.error(error.message);
@@ -270,7 +276,7 @@ export default function TeamChatPage() {
       await supabase.from('team_chat_messages').insert({
         user_id: user.id,
         message: `[↩ TICKET REPLY to ${replyTicketEmail}]: ${replyTicketReplyText.trim()}`,
-        department: myJobInfo?.department ?? (isReg ? 'Regulator' : 'Support'),
+        department: myJobInfo?.department ?? (isOwner ? 'System Owner' : (isReg ? 'Regulator' : 'Support')),
       });
       toast.info('Reply posted to team chat — user not found by email, follow up manually.');
     } else {
@@ -352,7 +358,7 @@ export default function TeamChatPage() {
   }, [handleSend]);
 
   const handlePin = useCallback((msgId: string) => {
-    const by = user?.username ?? 'Regulator';
+    const by = user?.username ?? (isOwner ? 'System Owner' : 'Regulator');
     setPinnedMsgId(msgId);
     setPinnedBy(by);
     setShowMsgMenu(null);
@@ -376,12 +382,12 @@ export default function TeamChatPage() {
   }, []);
 
   const handleDelete = useCallback(async (msgId: string) => {
-    if (!isReg) return;
+    if (!canModerateTeamChat) return;
     await supabase.from('team_chat_messages').delete().eq('id', msgId);
     setMessages(prev => prev.filter(m => m.id !== msgId));
     setShowMsgMenu(null);
     toast.success('Message deleted');
-  }, [isReg]);
+  }, [canModerateTeamChat]);
 
   // Pinned message — all values computed before JSX to avoid complex inline expressions in render
   const pinnedMsg = messages.find(m => m.id === pinnedMsgId) ?? null;
@@ -410,11 +416,11 @@ export default function TeamChatPage() {
           </div>
           <h2 className="text-xl font-black mb-2">Employees Only</h2>
           <p className="text-sm text-muted-foreground max-w-xs">
-            Team Chat is restricted to Testagram employees. Contact the platform regulator (@Shee) to be hired as an employee.
+            Team Chat is restricted to Testagram employees. If you are not yet assigned to staff, apply through Jobs & applications or contact Testagram staff.
           </p>
-          <button onClick={() => navigate('/profile/Shee')}
+          <button onClick={() => navigate(isOwner ? '/staff' : '/jobs')}
             className="mt-5 px-5 py-2.5 bg-primary text-primary-foreground rounded-full text-sm font-bold hover:opacity-90">
-            Contact @Shee
+            {isOwner ? 'Open Staff Workspace' : 'Open Jobs & applications'}
           </button>
         </div>
       </div>
@@ -449,10 +455,10 @@ export default function TeamChatPage() {
             <span className="text-[10px] text-muted-foreground">{myJobInfo.job_title}</span>
           </div>
         )}
-        {isReg && (
+        {canModerateTeamChat && (
           <div className="mt-2">
             <span className="flex items-center gap-1 px-2.5 py-1 rounded-full bg-gradient-to-r from-violet-600/15 to-primary/10 border border-violet-500/30 text-[10px] font-black text-violet-600 w-fit">
-              <Crown className="w-2.5 h-2.5" />Platform Regulator
+              <Crown className="w-2.5 h-2.5" />System Owner
             </span>
           </div>
         )}
@@ -495,7 +501,7 @@ export default function TeamChatPage() {
                 {pinnedText}
               </span>
             </div>
-            {isReg && (
+            {canModerateTeamChat && (
               <button onClick={handleUnpin} className="text-muted-foreground hover:text-foreground ml-1 shrink-0 p-0.5 hover:bg-muted rounded">
                 <X className="w-3 h-3" />
               </button>
@@ -608,7 +614,7 @@ export default function TeamChatPage() {
                       className="text-[10px] text-muted-foreground hover:text-primary font-semibold px-1">
                       <Reply className="w-3 h-3" />
                     </button>
-                    {(isReg || isOwn) && (
+                    {(canModerateTeamChat || isOwn) && (
                       <div className="relative">
                         <button onClick={() => setShowMsgMenu(p => p === msg.id ? null : msg.id)}
                           className="text-muted-foreground hover:text-foreground"><MoreVertical className="w-3 h-3" /></button>
@@ -624,7 +630,7 @@ export default function TeamChatPage() {
                                   <Pencil className="w-3.5 h-3.5" />Edit
                                 </button>
                               )}
-                              {isReg && (
+                              {isOwner ? (
                                 <button
                                   onClick={() => handlePin(msg.id)}
                                   className="w-full flex items-center gap-2 px-3 py-2.5 text-sm hover:bg-muted"
