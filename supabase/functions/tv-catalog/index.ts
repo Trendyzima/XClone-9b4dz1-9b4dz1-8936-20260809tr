@@ -11,6 +11,12 @@ const SOURCES: Record<string, Source> = {
   "free-tv-ke": { id:"free-tv-ke", label:"Free-TV/IPTV · Kenya", url:"https://raw.githubusercontent.com/Free-TV/IPTV/master/playlists/playlist_kenya.m3u8", country:"KE", priority:129 },
   "iptv-org-ke": { id:"iptv-org-ke", label:"IPTV-ORG · Kenya", url:"https://iptv-org.github.io/iptv/countries/ke.m3u", country:"KE", priority:145 },
   "iptv-org-int": { id:"iptv-org-int", label:"IPTV-ORG · Sub-Saharan Africa", url:"https://iptv-org.github.io/iptv/regions/ssa.m3u", country:"AF", priority:140 },
+  "nexus-ke": { id:"nexus-ke", label:"IPTV Nexus · Kenya · health checked", url:NEXUS+"/by-country/ke.json", country:"KE", priority:160 },
+  "nexus-news": { id:"nexus-news", label:"IPTV Nexus · News · health checked", url:NEXUS+"/by-category/news.json", country:"INT", priority:156 },
+  "nexus-sports": { id:"nexus-sports", label:"IPTV Nexus · Sports · health checked", url:NEXUS+"/by-category/sports.json", country:"INT", priority:155 },
+  "nexus-music": { id:"nexus-music", label:"IPTV Nexus · Music · health checked", url:NEXUS+"/by-category/music.json", country:"INT", priority:154 },
+  "nexus-kids": { id:"nexus-kids", label:"IPTV Nexus · Kids · health checked", url:NEXUS+"/by-category/kids.json", country:"INT", priority:153 },
+  "nexus-entertainment": { id:"nexus-entertainment", label:"IPTV Nexus · Entertainment · health checked", url:NEXUS+"/by-category/entertainment.json", country:"INT", priority:152 },
 };
 
 const NEXUS = "https://dearbulut.github.io/iptv/api/v1";
@@ -151,6 +157,12 @@ Deno.serve(async(req)=>{
       rows.forEach((r,i)=>{if(r.status==="fulfilled") channels.push(...fromNexus(r.value,"IPTV Nexus · "+countries[i].toUpperCase()+" · health checked",150));});
       const m3u=await fetchM3U(source,controller.signal,300).catch(()=>[]);
       channels.push(...m3u);
+    } else if (sourceId.startsWith("nexus-")) {
+      const endpoint = sourceId === "nexus-ke"
+        ? NEXUS+"/by-country/ke.json"
+        : NEXUS+"/by-category/"+sourceId.slice("nexus-".length)+".json";
+      const rows = await fetchJson(endpoint,controller.signal);
+      channels = fromNexus(rows,source.label,source.priority,sourceId === "nexus-ke" ? "KE" : undefined);
     } else {
       channels=await fetchM3U(source,controller.signal,300);
     }
