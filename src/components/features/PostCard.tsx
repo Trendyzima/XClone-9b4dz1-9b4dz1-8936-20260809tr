@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/dialog';
 import { VideoMonetizationAd } from './VideoMonetizationAd';
 import { EmbedRenderer, PostContentEmbeds } from './EmbedRenderer';
+import { InlineTvSuggestion } from './InlineTvSuggestion';
 import { updateInterestSignal } from '@/services/recommendations';
 import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts, getFederatedReplies, getInteractionCounts, recordPostView, recordPostShare } from '@/services/postInteractionService';
 import { backendCapabilities } from '@/services/backendClient';
@@ -660,6 +661,8 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
             dangerouslySetInnerHTML={{ __html: parseContent(showTranslation && translatedContent ? translatedContent : post.content) }}
             onClick={(e) => { const target = e.target as HTMLElement; if (target.tagName === 'A') e.stopPropagation(); }}
           />
+
+          <InlineTvSuggestion content={post.content || ''} seed={post.id} type="post" />
 
           {/* Translate button with multi-language picker */}
           {post.content && post.content.length > 20 && (
