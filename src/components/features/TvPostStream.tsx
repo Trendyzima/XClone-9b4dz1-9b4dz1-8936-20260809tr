@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Radio, Globe2, RefreshCw } from 'lucide-react';
-import { TvChannelPlayer } from '@/components/features/TvChannelPlayer';
+const TvChannelPlayer = lazy(() => import('@/components/features/TvChannelPlayer').then(module => ({ default: module.TvChannelPlayer })));
 import { TV_SOURCES, loadTvSource, type TvChannel } from '@/services/tvChannelCatalog';
 const CACHE_TTL = 60_000;
 const MAX_POSTS = 8;
