@@ -4,7 +4,6 @@ import {Radio,ChevronRight,RefreshCw} from 'lucide-react';
 import {TV_SOURCES,loadTvSource,type TvChannel} from '@/services/tvChannelCatalog';
 
 const HIDE=/^(\/auth|\/admin|\/settings|\/wallet|\/messages|\/notifications|\/help|\/premium|\/create-ad|\/my-ads|\/ad-|\/rewards|\/verify|\/privacy|\/terms|\/policy|\/regulator|\/sessions|\/blocked|\/appeals|\/payouts|\/revenue|\/analytics)/;
-const cache:{at:number;items:TvChannel[]}|null=null;
 let tvCache:{at:number;items:TvChannel[]}={at:0,items:[]};
 let pending:Promise<TvChannel[]>|null=null;
 
