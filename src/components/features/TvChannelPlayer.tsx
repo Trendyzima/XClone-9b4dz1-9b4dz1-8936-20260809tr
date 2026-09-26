@@ -25,8 +25,20 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
   const video=ref.current;if(!video||!active)return;cleanup();setStarting(true);setError(false);setNeedsGesture(false);
   window.dispatchEvent(new CustomEvent('testagram-tv-play',{detail:channel.id}));video.playsInline=true;video.autoplay=true;video.muted=true;
   const play=()=>{void video.play().then(healthy).catch((e:any)=>{if(e?.name==='NotAllowedError'){setNeedsGesture(true);setStarting(false);return;}retry();});};
-  if(video.canPlayType('application/vnd.apple.mpegurl')){video.src=playbackUrlRef.current;video.addEventListener('loadedmetadata',play,{once:true});video.addEventListener('error',retry,{once:true});return;}
-  if(Hls.isSupported()){const h=new Hls({enableWorker:true,lowLatencyMode:true,backBufferLength:4,maxBufferLength:8,maxMaxBufferLength:16,liveSyncDurationCount:3,liveMaxLatencyDurationCount:6,manifestLoadingMaxRetry:2,levelLoadingMaxRetry:3,fragLoadingMaxRetry:3});hls.current=h;h.loadSource(playbackUrlRef.current);h.attachMedia(video);h.on(Hls.Events.MANIFEST_PARSED,play);h.on(Hls.Events.FRAG_BUFFERED,healthy);h.on(Hls.Events.ERROR,(_,d)=>{if(!d.fatal)return;if(d.type===Hls.ErrorTypes.MEDIA_ERROR&&playbackUrlRef.current!==channel.url){try{h.recoverMediaError();return;}catch{}}retry();});return;}
+  const directUrl=playbackUrlRef.current;
+  const looksLikeHls=/\.m3u8(?:$|[?#])/i.test(directUrl);
+  const looksLikeFile=/\.(mp4|webm|ogg)(?:$|[?#])/i.test(directUrl);
+  if(video.canPlayType('application/vnd.apple.mpegurl')||looksLikeFile){
+    video.src=directUrl;
+    video.addEventListener('loadedmetadata',play,{once:true});
+    video.addEventListener('canplay',healthy,{once:true});
+    video.addEventListener('playing',healthy,{once:true});
+    video.addEventListener('error',retry,{once:true});
+    if(looksLikeFile) void video.play().catch((e:any)=>{if(e?.name!=='NotAllowedError')retry();else{setNeedsGesture(true);setStarting(false);}});
+    return;
+  }
+  if(Hls.isSupported()&&looksLikeHls){const h=new Hls({enableWorker:true,lowLatencyMode:true,backBufferLength:4,maxBufferLength:8,maxMaxBufferLength:16,liveSyncDurationCount:3,liveMaxLatencyDurationCount:6,manifestLoadingMaxRetry:2,levelLoadingMaxRetry:3,fragLoadingMaxRetry:3});hls.current=h;h.loadSource(playbackUrlRef.current);h.attachMedia(video);h.on(Hls.Events.MANIFEST_PARSED,play);h.on(Hls.Events.FRAG_BUFFERED,healthy);h.on(Hls.Events.ERROR,(_,d)=>{if(!d.fatal)return;if(d.type===Hls.ErrorTypes.MEDIA_ERROR&&playbackUrlRef.current!==channel.url){try{h.recoverMediaError();return;}catch{}}retry();});return;}
+  if(!looksLikeHls){video.src=directUrl;video.addEventListener('canplay',healthy,{once:true});video.addEventListener('error',retry,{once:true});void video.play().catch(()=>{});return;}
   setStarting(false);setError(true);onHealth?.(channel.id,false);
  },[active,channel.id,channel.url,cleanup,healthy,retry,onHealth]);
  startRef.current=start;
