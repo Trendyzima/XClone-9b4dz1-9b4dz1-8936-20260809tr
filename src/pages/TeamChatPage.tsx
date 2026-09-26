@@ -109,26 +109,6 @@ export default function TeamChatPage() {
   const typingTimeoutRef = useRef(null);
   const typingThrottleRef = useRef(null);
 
-  useEffect(() => { if (!user) return; checkAccess(); }, [user, checkAccess]);
-
-  const checkAccess = useCallback(async () => {
-    if (!user) return;
-    // System owner and legacy regulator roles always have access.
-    // Owner access is authoritative and must not depend on an employee_assignment row.
-    if (governance.is_owner || isReg) { setIsEmployee(true); setMyJobInfo(null); setLoading(false); fetchAll(); return; }
-    const { data } = await supabase.from('employee_assignments')
-      .select('id, job_title, department, permissions')
-      .eq('user_id', user.id).eq('is_active', true).maybeSingle();
-    if (data) {
-      setIsEmployee(true);
-      setMyJobInfo(data);
-      fetchAll();
-    } else {
-      setIsEmployee(false);
-    }
-    setLoading(false);
-  }, [user, isReg, governance.is_owner]);
-
   const fetchAll = useCallback(async () => {
     const [msgsRes, empsRes] = await Promise.all([
       supabase.from('team_chat_messages')
@@ -150,6 +130,25 @@ export default function TeamChatPage() {
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
   }, []);
 
+  const checkAccess = useCallback(async () => {
+    if (!user) return;
+    // System owner and legacy regulator roles always have access.
+    // Owner access is authoritative and must not depend on an employee_assignment row.
+    if (governance.is_owner || isReg) { setIsEmployee(true); setMyJobInfo(null); setLoading(false); fetchAll(); return; }
+    const { data } = await supabase.from('employee_assignments')
+      .select('id, job_title, department, permissions')
+      .eq('user_id', user.id).eq('is_active', true).maybeSingle();
+    if (data) {
+      setIsEmployee(true);
+      setMyJobInfo(data);
+      fetchAll();
+    } else {
+      setIsEmployee(false);
+    }
+    setLoading(false);
+  }, [user, isReg, governance.is_owner]);
+
+  useEffect(() => { if (!user) return; checkAccess(); }, [user, checkAccess]);
   // Keep ref in sync so realtime callback always reads fresh employee list
   useEffect(() => { employeesRef.current = employees; }, [employees]);
 
