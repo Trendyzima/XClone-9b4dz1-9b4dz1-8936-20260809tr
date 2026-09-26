@@ -232,6 +232,7 @@ export default function HomeHubPage(){
         {item.type==='community'&&<CommunityCard community={item.data} onOpen={()=>navigate('/c/'+item.data.name)}/>}
         {item.type==='poll'&&<PollCard poll={item.data} onOpen={()=>navigate('/polls')}/>}
         {item.type==='product'&&<ProductCard product={item.data} onOpen={()=>navigate('/p/'+item.data.id)}/>}
+        {item.type==='publisher'&&<PublisherFeedCard item={item.data as FeedItem}/>}
         {tab==='all'&&i>0&&i%4===0&&<FederatedOrganicInjection surface="home" />}
       </div>)}
       {loadingMore&&<div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary"/></div>}
