@@ -1,6 +1,4 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import Hls from 'hls.js';
-
 import {
   Heart, MessageCircle, Repeat2, Share, Volume2, VolumeX,
   Play, DollarSign, Crown, BadgeCheck, X, Send, Loader2,
