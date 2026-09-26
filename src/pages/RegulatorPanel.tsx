@@ -104,8 +104,6 @@ export default function RegulatorPanel() {
   })();
   const [loading, setLoading] = useState(true);
 
-  if (governanceLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>;
-
   const [employees, setEmployees] = useState<any[]>([]);
   const [showHireDialog, setShowHireDialog] = useState(false);
   const [hireSearch, setHireSearch] = useState('');
