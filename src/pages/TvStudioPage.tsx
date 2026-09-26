@@ -69,7 +69,6 @@ export default function TvStudioPage() {
   }, [recording, live]);
 
   useEffect(() => {
-    if (!audioPipelineRef.current) return;
     const id = window.setInterval(() => setAudioLevel(audioPipelineRef.current?.getLevel() ?? 0), 120);
     return () => window.clearInterval(id);
   }, [camera, muted, sharing, live, recording]);
