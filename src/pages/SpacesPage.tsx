@@ -407,11 +407,20 @@ export default function SpacesPage() {
             </h2>
             <p className="text-sm text-muted-foreground mt-0.5">Live podcasts, panels & conversations</p>
           </div>
-          {user && (
-            <Button className="rounded-full shadow-lg shadow-primary/20" onClick={handleStartSpace}>
-              <Mic className="w-4 h-4 mr-1.5" />Go Live
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              className="rounded-full border-red-500/30 text-red-600 hover:bg-red-500/10"
+              onClick={() => navigate('/tv-studio')}
+            >
+              <Video className="w-4 h-4 mr-1.5" />TV Studio
             </Button>
-          )}
+            {user && (
+              <Button className="rounded-full shadow-lg shadow-primary/20" onClick={handleStartSpace}>
+                <Mic className="w-4 h-4 mr-1.5" />Go Live
+              </Button>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-4 mt-3 text-xs text-muted-foreground flex-wrap">
           <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" /><strong className="text-foreground">{spaces.length}</strong> live now</span>
@@ -420,6 +429,32 @@ export default function SpacesPage() {
           <button onClick={() => { setRssUser(userProfile?.username ?? ''); setShowRssModal(true); }}
             className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-orange-500 transition-colors ml-auto">
             <Rss className="w-3.5 h-3.5" /> RSS
+          </button>
+        </div>
+      </div>
+
+      {/* Studio chooser: make the two creator studios discoverable from the Spaces hub. */}
+      <div className="px-4 py-3 border-b border-border bg-muted/20">
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setShowStartDialog(true)}
+            className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-left hover:bg-primary/10 transition-colors"
+          >
+            <div className="flex items-center gap-2 font-bold text-sm">
+              <Mic className="w-4 h-4 text-primary" /> Audio Studio
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">Live rooms, podcasts & panels</p>
+          </button>
+          <button
+            type="button"
+            onClick={() => navigate('/tv-studio')}
+            className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 text-left hover:bg-red-500/10 transition-colors"
+          >
+            <div className="flex items-center gap-2 font-bold text-sm">
+              <Video className="w-4 h-4 text-red-600" /> TV Production Studio
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-1">Camera, screen, local recording & live broadcast</p>
           </button>
         </div>
       </div>
