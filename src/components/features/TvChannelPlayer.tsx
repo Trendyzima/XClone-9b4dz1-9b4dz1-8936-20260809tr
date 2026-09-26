@@ -19,6 +19,7 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
  const hls=useRef<Hls|null>(null);
  const retryRef=useRef(0);
  const retryTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
+ const startRef=useRef<(()=>void)|null>(null);
  const [muted,setMuted]=useState(true);
  const [error,setError]=useState(false);
  const [starting,setStarting]=useState(false);
@@ -48,7 +49,7 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
   if(!active||retryRef.current>=RETRIES){setStarting(false);setError(true);onHealth?.(channel.id,false);return;}
   retryRef.current+=1;
   const delay=900*Math.pow(2,retryRef.current-1);
-  retryTimer.current=setTimeout(()=>{ if(active) setError(false); },delay);
+  retryTimer.current=setTimeout(()=>{ if(active){setError(false);startRef.current?.();} },delay);
  },[active,channel.id,onHealth]);
 
  const start=useCallback(()=>{
@@ -111,7 +112,8 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
    return;
   }
   setStarting(false);setError(true);onHealth?.(channel.id,false);
- },[active,channel.id,channel.url,cleanup,markHealthy,muted,retry,onHealth]);
+ },[active,channel.id,channel.url,cleanup,markHealthy,retry,onHealth]);
+ startRef.current=start;
 
  useEffect(()=>{
   retryRef.current=0;
