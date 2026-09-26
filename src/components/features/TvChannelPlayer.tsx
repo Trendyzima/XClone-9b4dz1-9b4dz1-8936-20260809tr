@@ -3,6 +3,7 @@ import Hls from 'hls.js';
 import {Volume2,VolumeX,Radio,Maximize2,RefreshCw} from 'lucide-react';
 import type {TvChannel} from '@/services/tvChannelCatalog';
 import {Button} from '@/components/ui/button';
+import {supabaseUrl} from '@/lib/supabase';
 
 type Props={
  channel:TvChannel;
@@ -18,6 +19,8 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
  const wrap=useRef<HTMLDivElement>(null);
  const hls=useRef<Hls|null>(null);
  const retryRef=useRef(0);
+ const playbackUrlRef=useRef(channel.url);
+ const proxyUrl=useCallback(()=>supabaseUrl+'/functions/v1/tv-stream-proxy?url='+encodeURIComponent(channel.url),[channel.url]);
  const retryTimer=useRef<ReturnType<typeof setTimeout>|null>(null);
  const startRef=useRef<(()=>void)|null>(null);
  const [muted,setMuted]=useState(true);
@@ -46,7 +49,14 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
  },[channel.id,onHealth]);
 
  const retry=useCallback(()=>{
-  if(!active||retryRef.current>=RETRIES){setStarting(false);setError(true);onHealth?.(channel.id,false);return;}
+  if(!active){setStarting(false);return;}
+  // Try the publisher directly first. If the browser cannot fetch/play the HLS
+  // manifest because of CORS, mixed content, or origin policy, switch once to
+  // Testagram's stateless streaming compatibility proxy. It does not store media.
+  if(playbackUrlRef.current===channel.url){
+   playbackUrlRef.current=proxyUrl();
+   retryRef.current=0;
+  }else if(retryRef.current>=RETRIES){setStarting(false);setError(true);onHealth?.(channel.id,false);return;}
   retryRef.current+=1;
   const delay=900*Math.pow(2,retryRef.current-1);
   retryTimer.current=setTimeout(()=>{ if(active){setError(false);startRef.current?.();} },delay);
@@ -75,7 +85,7 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
    });
   };
   if(video.canPlayType('application/vnd.apple.mpegurl')){
-   video.src=channel.url;
+   video.src=playbackUrlRef.current;
    const onMeta=()=>play();
    const onCanPlay=()=>markHealthy();
    const onError=()=>retry();
@@ -99,7 +109,7 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
     startLevel:-1,
    });
    hls.current=h;
-   h.loadSource(channel.url);
+   h.loadSource(playbackUrlRef.current);
    h.attachMedia(video);
    h.on(Hls.Events.MANIFEST_PARSED,()=>play());
    h.on(Hls.Events.FRAG_BUFFERED,()=>markHealthy());
@@ -117,6 +127,7 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
 
  useEffect(()=>{
   retryRef.current=0;
+  playbackUrlRef.current=channel.url;
   if(!active){cleanup();setError(false);setStarting(false);setNeedsGesture(false);return;}
   start();
   return cleanup;
