@@ -58,47 +58,64 @@ function candidateScore(item: any) {
     + Math.log1p(Math.max(0, Number(d.reposts_count ?? 0))) * 2.2
     + Math.log1p(Math.max(0, Number(d.views_count ?? 0))) * 0.2;
   const freshness = Math.exp(-ageHours / 36) * 12;
-  const sourceBoost = ['following-local','following-thread','following-federated'].includes(item.source) ? 40
-    : item.source === 'recommendation' ? 24 : item.source === 'thread' ? 4 : 0;
-  return sourceBoost + freshness + engagement + Number(d.recommendation_score ?? 0) * 5;
+  const sourceBoost = ['following-local','following-thread','following-federated'].includes(item.source) ? 12
+    : item.source === 'recommendation' ? 8 : item.source === 'thread' ? 3 : 0;
+  const federationBoost = item.source === 'following-federated' ? 3 : item.source === 'federated' ? 1 : 0;
+  return sourceBoost + federationBoost + freshness + engagement + Number(d.recommendation_score ?? 0) * 5;
 }
 
 function blend(items: any[], limit: number) {
-  const ranked = items.filter((x) => x?.data?.created_at).sort((a, b) =>
-    candidateScore(b) - candidateScore(a) ||
-    new Date(b.data.created_at).getTime() - new Date(a.data.created_at).getTime());
-  const used = new Set<string>(), out: any[] = [];
+  const ranked = items
+    .filter((x) => x?.data?.created_at)
+    .sort((a, b) =>
+      candidateScore(b) - candidateScore(a) ||
+      new Date(b.data.created_at).getTime() - new Date(a.data.created_at).getTime());
+
+  const used = new Set<string>();
+  const out: any[] = [];
   let lastSource = '';
+  let sameSourceStreak = 0;
+
   for (const item of ranked) {
     if (out.length >= limit) break;
     const key = sourceKey(item);
     if (used.has(key)) continue;
-    if (item.source === lastSource && ranked.some((x) => x.source !== lastSource && !used.has(sourceKey(x))) && out.length % 3 !== 2) continue;
+
+    // Soft diversity: source is considered, but never gets a reserved lane.
+    // A strong Fediverse item can beat a local item; we only avoid long runs
+    // from the same source when another unused source is available.
+    const source = String(item.source || 'local');
+    const hasAlternative = ranked.some((candidate) =>
+      !used.has(sourceKey(candidate)) &&
+      String(candidate.source || 'local') !== source
+    );
+    if (source === lastSource && sameSourceStreak >= 2 && hasAlternative) continue;
+
     used.add(key);
     out.push({ type: item.type, data: item.data });
-    lastSource = item.source;
+    if (source === lastSource) sameSourceStreak += 1;
+    else { lastSource = source; sameSourceStreak = 1; }
   }
+
   return out;
 }
 
 function injectFollowing(discovery: any[], following: any[], limit: number) {
-  const seen = new Set<string>(), out: any[] = [];
-  const reserve = Math.min(following.length, Math.max(1, Math.ceil(limit * 0.5)));
-  for (const item of [...following].sort((a, b) => candidateScore(b) - candidateScore(a))) {
-    if (out.length >= reserve) break;
+  // No fixed 50% reservation. Following content receives an affinity boost
+  // inside the same global ranking as local, recommended, and federated content.
+  // This makes federation organic rather than a separate lane.
+  const all = [...following, ...discovery];
+  const deduped: any[] = [];
+  const seen = new Set<string>();
+
+  for (const item of all) {
     const key = sourceKey(item);
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ type: item.type, data: item.data });
+    deduped.push(item);
   }
-  for (const item of blend(discovery, limit)) {
-    if (out.length >= limit) break;
-    const key = sourceKey(item);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(item);
-  }
-  return out;
+
+  return blend(deduped, limit);
 }
 
 export default async function handler(request: RequestLike) {
