@@ -77,7 +77,7 @@ export function drawTvGraphics(
       ctx.beginPath();
       ctx.roundRect(width - 190, 24, 160, 48, 12);
       ctx.fill();
-      ctx.fillStyle = '#fff';
+      ctx.fillStyle = '#e4e4e7';
       ctx.font = '700 20px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(g.text.slice(0, 18), width - 110, 55);
@@ -87,7 +87,7 @@ export function drawTvGraphics(
       ctx.save();
       ctx.fillStyle = 'rgba(0,0,0,.82)';
       ctx.fillRect(36, y, Math.min(width - 72, g.width ?? 760), 92);
-      ctx.fillStyle = '#fff';
+      ctx.fillStyle = '#e4e4e7';
       ctx.font = '700 30px sans-serif';
       ctx.fillText(g.text.slice(0, 54), 60, y + 38);
       if (g.secondary) {
@@ -103,7 +103,7 @@ export function drawTvGraphics(
       ctx.beginPath();
       ctx.rect(0, y, width, 56);
       ctx.clip();
-      ctx.fillStyle = '#fff';
+      ctx.fillStyle = '#e4e4e7';
       ctx.font = '600 22px sans-serif';
       const text = g.text || '';
       const measured = ctx.measureText(text).width;
@@ -116,7 +116,7 @@ export function drawTvGraphics(
       ctx.save();
       ctx.fillStyle = 'rgba(0,0,0,.88)';
       ctx.fillRect(0, 0, width, height);
-      ctx.fillStyle = '#fff';
+      ctx.fillStyle = '#e4e4e7';
       ctx.font = '700 54px sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText(g.text.slice(0, 42), width / 2, height / 2);
