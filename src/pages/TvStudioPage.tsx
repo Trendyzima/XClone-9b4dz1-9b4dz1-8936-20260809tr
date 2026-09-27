@@ -402,8 +402,8 @@ export default function TvStudioPage() {
       const ictx = incoming.getContext('2d')!;
       renderScene(ictx, activeProgram);
       if (previewCanvas && previewCtx) {
-        previewCanvas.width = canvas.width;
-        previewCanvas.height = canvas.height;
+        if (previewCanvas.width !== canvas.width) previewCanvas.width = canvas.width;
+        if (previewCanvas.height !== canvas.height) previewCanvas.height = canvas.height;
         previewCtx.fillStyle = '#000';
         previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
         renderScene(previewCtx, previewSceneRef.current);
