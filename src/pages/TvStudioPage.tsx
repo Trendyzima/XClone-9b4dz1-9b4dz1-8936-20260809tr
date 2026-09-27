@@ -18,6 +18,11 @@ const VIDEO_PRESETS: Record<Quality, { width: number; height: number; fps: numbe
   '720p': { width: 1280, height: 720, fps: 30, bitrate: 5_000_000 },
   '480p': { width: 854, height: 480, fps: 30, bitrate: 2_500_000 },
 };
+const CAMERA_CONSTRAINTS: Record<Quality, MediaTrackConstraints> = {
+  '1080p': { width: { min: 1280, ideal: 1920, max: 1920 }, height: { min: 720, ideal: 1080, max: 1080 }, aspectRatio: { ideal: 16 / 9 }, frameRate: { min: 24, ideal: 30, max: 30 }, facingMode: { ideal: 'environment' } },
+  '720p': { width: { min: 960, ideal: 1280, max: 1280 }, height: { min: 540, ideal: 720, max: 720 }, aspectRatio: { ideal: 16 / 9 }, frameRate: { min: 24, ideal: 30, max: 30 }, facingMode: { ideal: 'environment' } },
+  '480p': { width: { min: 640, ideal: 854, max: 854 }, height: { min: 360, ideal: 480, max: 480 }, aspectRatio: { ideal: 16 / 9 }, frameRate: { ideal: 30, max: 30 }, facingMode: { ideal: 'environment' } },
+};
 
 export default function TvStudioPage() {
   const { streamId } = useParams();
@@ -229,10 +234,23 @@ export default function TvStudioPage() {
     if (!navigator.mediaDevices?.getUserMedia) throw new Error('This browser does not support camera/microphone capture. Use a current browser over HTTPS.');
     const preset = VIDEO_PRESETS[quality];
     try {
-      const s = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: preset.width }, height: { ideal: preset.height }, frameRate: { ideal: preset.fps, max: preset.fps }, facingMode: 'user' },
-        audio: { channelCount: { ideal: 1 }, sampleRate: { ideal: 48000 }, sampleSize: { ideal: 24 }, echoCancellation: true, noiseSuppression: true, autoGainControl: false },
-      });
+      let s: MediaStream;
+      try {
+        s = await navigator.mediaDevices.getUserMedia({
+          video: CAMERA_CONSTRAINTS[quality],
+          audio: { channelCount: { ideal: 1 }, sampleRate: { ideal: 48000 }, sampleSize: { ideal: 24 }, echoCancellation: true, noiseSuppression: true, autoGainControl: false },
+        });
+      } catch (error) {
+        if ((error as DOMException)?.name !== 'OverconstrainedError') throw error;
+        s = await navigator.mediaDevices.getUserMedia({
+          video: { width: { ideal: preset.width }, height: { ideal: preset.height }, aspectRatio: { ideal: 16 / 9 }, frameRate: { ideal: preset.fps, max: preset.fps }, facingMode: { ideal: 'environment' } },
+          audio: { channelCount: { ideal: 1 }, sampleRate: { ideal: 48000 }, sampleSize: { ideal: 24 }, echoCancellation: true, noiseSuppression: true, autoGainControl: false },
+        });
+      }
+      const track = s.getVideoTracks()[0];
+      if (track) {
+        try { await track.applyConstraints({ aspectRatio: { ideal: 16 / 9 }, frameRate: { ideal: preset.fps, max: preset.fps } }); } catch {}
+      }
       cameraStreamRef.current = s;
       setDeviceReady(true);
       setPermissionError(null);
@@ -574,9 +592,10 @@ export default function TvStudioPage() {
         await ensureStudio(); await sourceVideoRef.current.play().catch(() => undefined);
         setSourceVideoPlaying(!sourceVideoRef.current.paused); setProductionSource('video');
       } else {
+        if (!navigator.mediaDevices?.getDisplayMedia) { toast.info('Screen sharing is not supported by this browser. Camera, video, guest and replay scenes remain available.'); return; }
         if (!screenStreamRef.current) {
           const preset = VIDEO_PRESETS[quality];
-          const ss = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: preset.fps, width: { ideal: preset.width }, height: { ideal: preset.height } }, audio: false });
+          const ss = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: preset.fps, max: preset.fps }, width: { ideal: preset.width, max: preset.width }, height: { ideal: preset.height, max: preset.height }, aspectRatio: { ideal: 16 / 9 } }, audio: false });
           screenStreamRef.current = ss;
           const track = ss.getVideoTracks()[0];
           track.onended = () => { screenStreamRef.current = null; setSharing(false); void activateScene('camera'); };
@@ -995,16 +1014,16 @@ export default function TvStudioPage() {
   const fmt = (n: number) => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-white">
+    <div className="min-h-screen bg-zinc-950 text-zinc-100">
       <div className="max-w-7xl mx-auto p-3 md:p-6">
         <header className="flex items-center justify-between mb-4 gap-3">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <Clapperboard className="w-6 h-6" />
               <h1 className="text-2xl font-bold">Testagram TV Studio</h1>
-              {!recording ? <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" disabled={saving} onClick={() => void startRecording()}><Circle className="w-4 h-4 mr-1" />REC to device</Button> : <Button size="sm" variant="destructive" onClick={stopRecording}><Square className="w-4 h-4 mr-1" />STOP & SAVE</Button>}
+              {!recording ? <Button size="sm" className="bg-red-600 hover:bg-red-700 text-zinc-100" disabled={saving} onClick={() => void startRecording()}><Circle className="w-4 h-4 mr-1" />REC to device</Button> : <Button size="sm" variant="destructive" onClick={stopRecording}><Square className="w-4 h-4 mr-1" />STOP & SAVE</Button>}
               {live && <span className="px-2 py-1 rounded-full bg-red-600 text-xs font-bold animate-pulse">LIVE</span>}{live && <Button size="sm" variant="outline" onClick={() => void shareLiveLink()}><Radio className="w-4 h-4 mr-1" />Share TV</Button>}
-              {recording && <span className="px-2 py-1 rounded-full bg-white/10 text-xs font-bold">REC {fmt(elapsed)}</span>}
+              {recording && <span className="px-2 py-1 rounded-full bg-zinc-700/50 text-xs font-bold">REC {fmt(elapsed)}</span>}
             </div>
             <p className="text-sm text-zinc-400 mt-1">Broadcast live to Testagram. Finished recordings stay on your phone/computer — never in Testagram storage.</p>
           </div>
@@ -1022,7 +1041,7 @@ export default function TvStudioPage() {
               </div>
             </div>
           )}
-          <section className="rounded-2xl overflow-hidden border border-white/10 bg-black shadow-2xl">
+          <section className="rounded-2xl overflow-hidden border border-zinc-800/80 bg-black shadow-2xl">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 bg-zinc-950 p-2">
               <div className="aspect-video relative rounded-lg overflow-hidden border border-blue-500/30 bg-black">
                 <canvas ref={previewCanvasRef} className="w-full h-full object-contain" />
@@ -1038,7 +1057,7 @@ export default function TvStudioPage() {
                 </div>
               </div>
             </div>
-            <div className="p-3 border-t border-white/10 flex flex-wrap gap-2">
+            <div className="p-3 border-t border-zinc-800/80 flex flex-wrap gap-2">
               <Button size="sm" disabled={saving} onClick={() => void activateScene('camera')}><Camera className="w-4 h-4 mr-1" />Preview</Button>
               <Button size="sm" variant={camera ? 'default' : 'destructive'} onClick={toggleCamera}><Camera className="w-4 h-4 mr-1" />{camera ? 'Camera' : 'Camera off'}</Button>
               <Button size="sm" variant={!muted ? 'default' : 'destructive'} onClick={toggleMic}><Mic className="w-4 h-4 mr-1" />{muted ? 'Mic off' : 'Mic'}</Button>
@@ -1144,7 +1163,7 @@ export default function TvStudioPage() {
               <div className="mt-2 text-[10px] text-zinc-500">Replay buffer: {replayBufferRef.current.frameCount} frames / {Math.round(replayBufferRef.current.durationMs / 1000)}s · Guest: {guestConnected ? 'ready' : 'offline'}</div>
               <div className="mt-1 text-[10px] text-zinc-500">Program: {programFps} FPS · dropped {programDropped}</div>
               <div className="mt-4 flex items-center justify-between text-[10px] text-zinc-500"><span>Studio signal</span><span className="uppercase tracking-wider">{deviceReady ? status : 'waiting for device'}</span></div>
-              <div className="mt-1 h-2 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-emerald-400 transition-all" style={{ width: `${Math.min(100, audioLevel)}%` }} /></div>
+              <div className="mt-1 h-2 rounded-full bg-zinc-700/50 overflow-hidden"><div className="h-full bg-emerald-400 transition-all" style={{ width: `${Math.min(100, audioLevel)}%` }} /></div>
               <p className="text-[10px] text-zinc-500 mt-1">Microphone level • browser noise suppression + studio gate/compressor</p>
             </div>
 
