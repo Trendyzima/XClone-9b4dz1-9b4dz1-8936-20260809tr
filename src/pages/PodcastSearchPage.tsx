@@ -289,8 +289,8 @@ export default function PodcastSearchPage() {
             const catMeta   = POD_CATEGORIES.find(c => c.id === catId);
             const artwork   = rec.spaces?.artwork_url ?? null;
             const tags: string[] = rec.spaces?.tags ?? [];
-            const hostName  = rec.user_profiles?.username ?? '';
-            const verified  = rec.user_profiles?.verified ?? false;
+            const hostName  = rec.profiles?.username ?? '';
+            const verified  = !!rec.profiles?.verified_tier;
             return (
               <div
                 key={rec.id}
@@ -320,8 +320,8 @@ export default function PodcastSearchPage() {
                   <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                     <div className="flex items-center gap-1">
                       <div className="w-4 h-4 rounded-full bg-muted overflow-hidden shrink-0">
-                        {rec.user_profiles?.avatar_url
-                          ? <img src={rec.user_profiles.avatar_url} className="w-full h-full object-cover" alt="" />
+                        {rec.profiles?.avatar_url
+                          ? <img src={rec.profiles.avatar_url} className="w-full h-full object-cover" alt="" />
                           : <div className="w-full h-full flex items-center justify-center text-[8px] font-bold">{hostName[0]?.toUpperCase()}</div>}
                       </div>
                       <span className="text-[10px] text-muted-foreground">@{hostName}</span>
