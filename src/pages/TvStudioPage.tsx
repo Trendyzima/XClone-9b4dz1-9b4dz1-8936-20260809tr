@@ -54,6 +54,14 @@ export default function TvStudioPage() {
   const productionAudioTrackRef = useRef<MediaStreamTrack | null>(null);
   const productionMasterGainRef = useRef<GainNode | null>(null);
   const productionGuestGainRef = useRef<GainNode | null>(null);
+  const productionMusicSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const productionMusicGainRef = useRef<GainNode | null>(null);
+  const productionSfxSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const productionSfxGainRef = useRef<GainNode | null>(null);
+  const musicAudioRef = useRef<HTMLAudioElement | null>(null);
+  const sfxAudioRef = useRef<HTMLAudioElement | null>(null);
+  const musicUrlRef = useRef<string | null>(null);
+  const sfxUrlRef = useRef<string | null>(null);
   const productionLimiterRef = useRef<DynamicsCompressorNode | null>(null);
   const productionCommentaryAnalyserRef = useRef<AnalyserNode | null>(null);
   const duckingTimerRef = useRef<number | null>(null);
@@ -70,6 +78,10 @@ export default function TvStudioPage() {
   const [programDropped, setProgramDropped] = useState(0);
   const programFrameRef = useRef({ last: 0, count: 0, dropped: 0 });
   const [guestConnected, setGuestConnected] = useState(false);
+  const [musicName, setMusicName] = useState<string | null>(null);
+  const [sfxName, setSfxName] = useState<string | null>(null);
+  const [musicLevel, setMusicLevel] = useState(0.5);
+  const [sfxLevel, setSfxLevel] = useState(0.7);
   const pipEnabledRef = useRef(true);
   const previewSceneRef = useRef<TvSceneId>('camera');
   const programSceneRef = useRef<TvSceneId>('camera');
@@ -434,6 +446,23 @@ export default function TvStudioPage() {
     }
     if (productionCommentaryGainRef.current) productionCommentaryGainRef.current.gain.value = muted ? 0 : commentaryLevel;
 
+    const wireLocalAudioBus = (
+      element: HTMLAudioElement | null,
+      sourceRef: React.MutableRefObject<MediaElementAudioSourceNode | null>,
+      gainRef: React.MutableRefObject<GainNode | null>,
+      level: number,
+    ) => {
+      if (!element) return;
+      if (!sourceRef.current) {
+        sourceRef.current = audioContext!.createMediaElementSource(element);
+        gainRef.current = audioContext!.createGain();
+        sourceRef.current.connect(gainRef.current).connect(productionMasterGainRef.current!);
+      }
+      gainRef.current!.gain.value = level;
+    };
+    wireLocalAudioBus(musicAudioRef.current, productionMusicSourceRef, productionMusicGainRef, musicLevel);
+    wireLocalAudioBus(sfxAudioRef.current, productionSfxSourceRef, productionSfxGainRef, sfxLevel);
+
     if (duckingTimerRef.current) window.clearInterval(duckingTimerRef.current);
     if (productionCommentaryAnalyserRef.current && productionSourceGainRef.current) {
       const data = new Uint8Array(productionCommentaryAnalyserRef.current.fftSize);
@@ -535,6 +564,42 @@ export default function TvStudioPage() {
       await createProductionProgram();
       setStatus('preview');
     } catch (e: any) { toast.error(e?.message || 'Could not prepare scene'); }
+  };
+
+  const loadLocalAudio = (kind: 'music' | 'sfx', file?: File) => {
+    if (!file || !file.type.startsWith('audio/')) { toast.error('Choose an audio file.'); return; }
+    const url = URL.createObjectURL(file);
+    if (kind === 'music') {
+      if (musicUrlRef.current) URL.revokeObjectURL(musicUrlRef.current);
+      musicUrlRef.current = url; setMusicName(file.name);
+      const el = musicAudioRef.current ?? new Audio();
+      el.loop = true; el.preload = 'auto'; el.src = url; el.volume = 1; musicAudioRef.current = el;
+      void el.play().catch(() => undefined);
+      if (productionAudioContextRef.current?.state === 'suspended') void productionAudioContextRef.current.resume();
+      if (productionAudioContextRef.current && productionMasterGainRef.current) {
+        if (!productionMusicSourceRef.current) productionMusicSourceRef.current = productionAudioContextRef.current.createMediaElementSource(el);
+        if (!productionMusicGainRef.current) {
+          productionMusicGainRef.current = productionAudioContextRef.current.createGain();
+          productionMusicSourceRef.current.connect(productionMusicGainRef.current).connect(productionMasterGainRef.current);
+        }
+        productionMusicGainRef.current.gain.value = musicLevel;
+      }
+    } else {
+      if (sfxUrlRef.current) URL.revokeObjectURL(sfxUrlRef.current);
+      sfxUrlRef.current = url; setSfxName(file.name);
+      const el = sfxAudioRef.current ?? new Audio();
+      el.preload = 'auto'; el.src = url; el.volume = 1; sfxAudioRef.current = el;
+      void el.play().catch(() => undefined);
+      if (productionAudioContextRef.current?.state === 'suspended') void productionAudioContextRef.current.resume();
+      if (productionAudioContextRef.current && productionMasterGainRef.current) {
+        if (!productionSfxSourceRef.current) productionSfxSourceRef.current = productionAudioContextRef.current.createMediaElementSource(el);
+        if (!productionSfxGainRef.current) {
+          productionSfxGainRef.current = productionAudioContextRef.current.createGain();
+          productionSfxSourceRef.current.connect(productionSfxGainRef.current).connect(productionMasterGainRef.current);
+        }
+        productionSfxGainRef.current.gain.value = sfxLevel;
+      }
+    }
   };
 
   const loadProductionVideo = async (file?: File) => {
@@ -834,6 +899,11 @@ export default function TvStudioPage() {
   }, [recording, live]);
 
   useEffect(() => {
+    if (productionMusicGainRef.current) productionMusicGainRef.current.gain.value = musicLevel;
+    if (productionSfxGainRef.current) productionSfxGainRef.current.gain.value = sfxLevel;
+  }, [musicLevel, sfxLevel]);
+
+  useEffect(() => {
     replayBufferRef.current = new TvReplayBuffer(replaySeconds * 1000, 500);
   }, [replaySeconds]);
 
@@ -961,6 +1031,15 @@ export default function TvStudioPage() {
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-[10px]">
                   {[15,30,60].map(seconds => <button key={seconds} className={`rounded bg-zinc-800 p-2 ${replaySeconds === seconds ? 'ring-1 ring-emerald-400' : ''}`} onClick={() => setReplaySeconds(seconds)}>{seconds}s Replay</button>)}
+                </div>
+                <div className="rounded-lg bg-black/30 p-2 space-y-2">
+                  <div className="text-xs font-semibold">AUDIO BUSES</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="rounded bg-zinc-800 p-2 text-[10px]">Music<input type="file" accept="audio/*" className="block w-full mt-1" onChange={e => loadLocalAudio('music', e.target.files?.[0])} /><span className="text-zinc-500">{musicName || 'none'}</span></label>
+                    <label className="rounded bg-zinc-800 p-2 text-[10px]">SFX<input type="file" accept="audio/*" className="block w-full mt-1" onChange={e => loadLocalAudio('sfx', e.target.files?.[0])} /><span className="text-zinc-500">{sfxName || 'none'}</span></label>
+                  </div>
+                  <div><span className="text-[10px] text-zinc-400">Music</span><input type="range" min="0" max="1" step="0.05" value={musicLevel} onChange={e => setMusicLevel(Number(e.target.value))} className="w-full" /></div>
+                  <div><span className="text-[10px] text-zinc-400">SFX</span><input type="range" min="0" max="1" step="0.05" value={sfxLevel} onChange={e => setSfxLevel(Number(e.target.value))} className="w-full" /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <Button size="sm" variant={multiview ? 'default' : 'outline'} onClick={() => setMultiview(v => !v)}>Multiview</Button>
