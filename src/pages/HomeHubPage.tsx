@@ -78,11 +78,7 @@ export default function HomeHubPage(){
         setNextCursor(payload?.nextCursor ?? null); nextCursorRef.current=payload?.nextCursor ?? null;
         setHasMore(Boolean(payload?.hasMore) && next.length > 0);
       }
-      const nativeItems = next.map((item:any)=>({ type:item.type, data:item.data })) as Item[];
-      try {
-        const publisherItems = await loadPublisherFeed();
-        return blendPublisherItems(nativeItems, publisherItems, cursorOverride);
-      } catch { return nativeItems; }
+      return next.map((item:any)=>({ type:item.type, data:item.data })) as Item[];
     }
 
     let query=supabase.from('posts').select('*, '+profileSelect).is('community_id',null).is('deleted_at',null);
@@ -104,6 +100,20 @@ export default function HomeHubPage(){
   const persistBuffer=useCallback(async()=>{
     await writeHomeFeedCache({key:'home',items:feedBufferRef.current,cursor:cacheCursorRef.current,updatedAt:Date.now(),scrollY:window.scrollY,anchorId:items[0]?.data?.id??null});
   },[items]);
+
+  const hydratePublisherLayer=useCallback(async(seed:string|null = null)=>{
+    try{
+      const publisherItems=await loadPublisherFeed();
+      if(!publisherItems.length)return;
+      setItems(prev=>{
+        const merged=blendPublisherItems(prev,publisherItems,seed);
+        if(merged===prev)return prev;
+        feedBufferRef.current=mergeHomeFeedItems(feedBufferRef.current,merged.filter(item=>item.type==='publisher'),80);
+        return merged;
+      });
+      await persistBuffer();
+    }catch(e){console.warn('[home-hub] publisher layer',e);}
+  },[persistBuffer]);
 
   const prefetchNext=useCallback(async()=>{
     if(tab!=='all'||prefetchingRef.current||!cacheCursorRef.current)return;
@@ -143,8 +153,9 @@ export default function HomeHubPage(){
       }
       setHasMore(Boolean(cacheCursorRef.current));
       await persistBuffer();
+      void hydratePublisherLayer(background ? nextCursorRef.current : null);
     }catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);setLoading(false);}}
-  },[fetchTab,persistBuffer]);
+  },[fetchTab,persistBuffer,hydratePublisherLayer]);
 
   useEffect(()=>{
     let active=true;
