@@ -128,7 +128,7 @@ function openSearchPerson(navigate:any, person:any) {
   const username = String(person?.username ?? person?.preferredUsername ?? '').replace(/^@/, '').trim();
   const domain = String(person?.domain ?? person?.acct?.split('@')?.[1] ?? '').replace(/^@/, '').trim();
   const handle = username && domain ? username + '@' + domain : username;
-  if (actor && /^https?:\\/\\//i.test(actor)) {
+  if (actor && /^https?:\/\//i.test(actor)) {
    navigate('/fediverse/profile?actor=' + encodeURIComponent(actor) + (handle ? '&handle=' + encodeURIComponent(handle) : ''));
   } else if (handle) {
    navigate('/fediverse/profile?handle=' + encodeURIComponent(handle));
