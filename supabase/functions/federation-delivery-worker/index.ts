@@ -61,8 +61,8 @@ async function signedPost(local:any,url:string,body:string,modern=false){
   const contentDigest=`sha-256=:${await digest(body)}:`;
   const components=["@method","@target-uri","content-digest"];
   const params=`(${components.map((component)=>`"${component}"`).join(" ")});created=${created};keyid="${String(local.key_id||local.actor_url+"#main-key")}";alg="rsa-v1_5-sha256"`;
-  const covered=`"@method": POST\n"@target-uri": ${u.toString()}\n"content-digest": ${contentDigest};
-  const sig=await sign(local,`${covered}\n"@signature-params": ${params}`);
+  const covered='"@method": POST\\n"@target-uri": '+u.toString()+'\\n"content-digest": '+contentDigest;
+  const sig=await sign(local,covered+'\\n"@signature-params": '+params);
   const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),10000);
   try{return await fetch(url,{method:"POST",headers:{Accept:'application/activity+json, application/ld+json;q=0.9',"Content-Type":'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',"Content-Digest":contentDigest,"Signature-Input":`sig1=${params}`,Signature:`sig1=:${sig}:`,"User-Agent":"Testagram-Federation/5.0"},body,signal:controller.signal})}finally{clearTimeout(timeout)}
 }
