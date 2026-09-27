@@ -68,6 +68,13 @@ async function signedPost(local:any,url:string,body:string,modern=false){
 }
 
 function backoff(attempt:number,retryAfter:string|null){const ra=retryAfter?Number.parseInt(retryAfter,10):NaN;if(Number.isFinite(ra)&&ra>=0)return Math.min(ra,86400);return Math.min(86400,30*Math.pow(2,Math.min(attempt,8)));}
+async function syncFollowRelationship(activityId:string, deliveryState:"delivered"|"retry"|"failed", error:string|null=null){
+  const now=new Date().toISOString();
+  const patch:any={delivery_state:deliveryState,updated_at:now};
+  if(error) patch.last_error=error.slice(0,2000); else if(deliveryState==="delivered") patch.last_error=null;
+  await getDb().from("federated_follow_relationships").update(patch).eq("follow_activity_uri",activityId).eq("direction","following");
+}
+
 async function processJob(job:any){
   const activity=job.activity_payload||{};
   const ar=await getDb().from("federated_activities").select("id,uri,actor_uri").eq("id",job.activity_id).maybeSingle();
@@ -108,6 +115,7 @@ async function processJob(job:any){
   if(response.ok){
     await getDb().from("federation_deliveries").update({status:"delivered",attempt_count:attempt,last_attempt_at:now,delivered_at:now,locked_at:null,next_attempt_at:null,last_status_code:response.status,last_error:null,updated_at:now}).eq("id",job.id).eq("status","in_flight");
     await getDb().from("activitypub_outbox").update({delivered:true,attempts:attempt,next_attempt_at:null,last_error:null,updated_at:now}).eq("activity_id",activityId);
+    await syncFollowRelationship(activityId,"delivered");
     if(activityRow?.id) await getDb().from("federated_activities").update({processing_state:"delivered",processing_attempts:attempt,processed_at:now,last_error:null,updated_at:now}).eq("id",activityRow.id);
     return {status:"delivered",activityId,remoteStatus:response.status};
   }
@@ -117,6 +125,7 @@ async function processJob(job:any){
   const message=(`Remote inbox ${response.status}: ${responseText}`).slice(0,2000);
   await getDb().from("federation_deliveries").update({status:state,attempt_count:attempt,last_attempt_at:now,locked_at:null,next_attempt_at:next,last_status_code:response.status,last_error:message,updated_at:now}).eq("id",job.id).eq("status","in_flight");
   await getDb().from("activitypub_outbox").update({attempts:attempt,next_attempt_at:next,last_error:message,updated_at:now}).eq("activity_id",activityId);
+  await syncFollowRelationship(activityId,permanent?"failed":"retry",message);
   if(activityRow?.id) await getDb().from("federated_activities").update({processing_state:state,processing_attempts:attempt,last_error:message,updated_at:now}).eq("id",activityRow.id);
   return {status:state,activityId,remoteStatus:response.status};
 }
@@ -150,6 +159,7 @@ async function main(req:Request){
       const message=e instanceof Error ? (e.stack || e.message) : String(e),attempt=Number(job.attempt_count||1),next=new Date(Date.now()+backoff(attempt,null)*1000).toISOString();
       await getDb().from("federation_deliveries").update({status:"retry",locked_at:null,next_attempt_at:next,last_error:message.slice(0,2000),updated_at:new Date().toISOString()}).eq("id",job.id).eq("status","in_flight");
       await getDb().from("activitypub_outbox").update({attempts:attempt,next_attempt_at:next,last_error:message.slice(0,2000),updated_at:new Date().toISOString()}).eq("activity_id",job.activity_id);
+      await syncFollowRelationship(String(job.activity_id||""),"retry",message);
       return {status:"retry",activityId:job.activity_id,error:message};
     })));
     results.push(...batchResults);
