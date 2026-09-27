@@ -119,6 +119,16 @@ export default function TvStudioPage() {
 
   useEffect(() => {
     void readPermissionState();
+    return () => {
+      if (sceneAnimationRef.current) cancelAnimationFrame(sceneAnimationRef.current);
+      sourceVideoRef.current?.pause();
+      if (sourceVideoUrlRef.current) URL.revokeObjectURL(sourceVideoUrlRef.current);
+      roomRef.current?.disconnect();
+      cameraStreamRef.current?.getTracks().forEach(track => track.stop());
+      screenStreamRef.current?.getTracks().forEach(track => track.stop());
+      productionVideoStreamRef.current?.getTracks().forEach(track => track.stop());
+      productionAudioContextRef.current?.close().catch(() => undefined);
+    };
   }, []);
 
   const token = async (requestedId?: string) => {
