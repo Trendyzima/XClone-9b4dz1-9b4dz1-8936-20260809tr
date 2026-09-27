@@ -212,6 +212,7 @@ Deno.serve(async (request) => {
             .eq("tombstone", false)
             .in("object_type", ["Note", "Article", "Question", "Video", "Image"])
             .in("actor_uri", [...hydratedActorAliases])
+            .gte("published_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
             .order("published_at", { ascending: false, nullsFirst: false })
             .order("id", { ascending: false })
             .limit(limit);
