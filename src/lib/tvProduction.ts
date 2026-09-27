@@ -38,22 +38,23 @@ export interface TvReplayFrame {
 export class TvReplayBuffer {
   private frames: TvReplayFrame[] = [];
   constructor(private readonly maxDurationMs = 30000, private readonly intervalMs = 500) {}
-  push(canvas: HTMLCanvasElement) {
+  push(canvas: HTMLCanvasElement, now = performance.now()) {
     const copy = document.createElement('canvas');
     copy.width = canvas.width;
     copy.height = canvas.height;
     copy.getContext('2d')?.drawImage(canvas, 0, 0);
-    const now = performance.now();
     this.frames.push({ timestamp: now, canvas: copy });
     const cutoff = now - this.maxDurationMs;
     while (this.frames.length && this.frames[0].timestamp < cutoff) this.frames.shift();
   }
-  latestCanvas(): HTMLCanvasElement | null { return this.frames[this.frames.length - 1]?.canvas ?? null; }
-  clear() { this.frames = []; }
-  get durationMs() {
-    if (this.frames.length < 2) return 0;
-    return this.frames[this.frames.length - 1].timestamp - this.frames[0].timestamp;
+  shouldCapture(now = performance.now()) {
+    const last = this.frames[this.frames.length - 1];
+    return !last || now - last.timestamp >= this.intervalMs;
   }
+  getFrames() { return this.frames.slice(); }
+  latestCanvas() { return this.frames[this.frames.length - 1]?.canvas ?? null; }
+  clear() { this.frames = []; }
+  get durationMs() { return this.frames.length < 2 ? 0 : this.frames[this.frames.length - 1].timestamp - this.frames[0].timestamp; }
   get frameCount() { return this.frames.length; }
 }
 
@@ -96,10 +97,16 @@ export function drawTvGraphics(
       ctx.save();
       ctx.fillStyle = 'rgba(0,0,0,.88)';
       ctx.fillRect(0, y, width, 56);
+      ctx.beginPath();
+      ctx.rect(0, y, width, 56);
+      ctx.clip();
       ctx.fillStyle = '#fff';
       ctx.font = '600 22px sans-serif';
       const text = g.text || '';
-      const x = width - (tickerOffset % Math.max(width + ctx.measureText(text).width, 1));
+      const measured = ctx.measureText(text).width;
+      const gap = 96;
+      const cycle = Math.max(width + measured + gap, 1);
+      const x = width - (tickerOffset % cycle);
       ctx.fillText(text, x, y + 36);
       ctx.restore();
     } else if (g.kind === 'fullscreen') {
@@ -120,5 +127,7 @@ export function makeDefaultGraphics(): TvGraphic[] {
     { id: 'station-bug', kind: 'bug', text: 'TESTAGRAM TV', visible: true, z: 100 },
     { id: 'lower-third', kind: 'lower-third', text: '', secondary: '', visible: false, z: 110 },
     { id: 'ticker', kind: 'ticker', text: '', visible: false, z: 120 },
+    { id: 'breaking-banner', kind: 'banner', text: '', visible: false, z: 130 },
+    { id: 'fullscreen', kind: 'fullscreen', text: '', visible: false, z: 200 },
   ];
 }
