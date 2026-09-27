@@ -103,6 +103,8 @@ export default function TvStudioPage() {
   const transitionStartedRef = useRef<number | null>(null);
   const replayBufferRef = useRef(new TvReplayBuffer(30_000, 500));
   const openingSlateUntilRef = useRef<number | null>(null);
+  const openingSlatePlayedRef = useRef(false);
+  const liveRef = useRef(false);
 
   const [stream, setStream] = useState<any>(null);
   const [activeStreamId, setActiveStreamId] = useState<string | null>(streamId ?? null);
@@ -457,7 +459,7 @@ export default function TvStudioPage() {
       }
 
       if (activeProgram !== 'replay' && activeProgram !== 'black') {
-        drawTvGraphics(ctx, canvas.width, canvas.height, graphics, now / 8, { live, watermark: true });
+        drawTvGraphics(ctx, canvas.width, canvas.height, graphics, now / 8, { live: liveRef.current, watermark: true });
         const slateUntil = openingSlateUntilRef.current;
         if (slateUntil && now < slateUntil) {
           drawTvOpeningSlate(ctx, canvas.width, canvas.height, 1 - ((slateUntil - now) / 2600));
@@ -607,7 +609,10 @@ export default function TvStudioPage() {
 
   const activateScene = async (scene: Scene, fromTake = false) => {
     try {
-      if (!fromTake && !openingSlateUntilRef.current) openingSlateUntilRef.current = performance.now() + 2600;
+      if (!fromTake && !openingSlatePlayedRef.current && !openingSlateUntilRef.current) {
+        openingSlatePlayedRef.current = true;
+        openingSlateUntilRef.current = performance.now() + 2600;
+      }
       if (scene === 'camera') {
         await ensureStudio();
         setProductionSource('camera');
@@ -786,6 +791,7 @@ export default function TvStudioPage() {
         }
       }
       setViewerCount(countRemoteViewers());
+      liveRef.current = true;
       setLive(true);
       setMode('live');
       setStatus('live');
@@ -838,6 +844,7 @@ export default function TvStudioPage() {
     setGuestConnected(false);
     setGuestInviteUrl(null);
     remoteGuestVideoRef.current?.pause(); remoteGuestVideoRef.current = null;
+    liveRef.current = false;
     setLive(false);
     if (!recording) setStatus(cameraStreamRef.current ? 'preview' : 'idle');
     productionVideoTrackRef.current = null;
