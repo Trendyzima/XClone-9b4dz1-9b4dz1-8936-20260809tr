@@ -123,16 +123,26 @@ async function main(req:Request){
   const now=new Date().toISOString();
   const q=await getDb().from("federation_deliveries").select("*").in("status",["pending","retry"]).lte("next_attempt_at",now).order("next_attempt_at",{ascending:true}).limit(limit);
   if(q.error)throw q.error;
-  const results=[];
+  const claimedJobs:any[]=[];
   for(const candidate of q.data||[]){
     const claim=await getDb().from("federation_deliveries").update({status:"in_flight",attempt_count:Number(candidate.attempt_count||0)+1,locked_at:now,last_attempt_at:now,updated_at:now}).eq("id",candidate.id).in("status",["pending","retry"]).select("*").maybeSingle();
     if(claim.error||!claim.data)continue;
-    results.push(await processJob({...claim.data,activity_payload:claim.data.activity_payload||candidate.activity_payload}).catch(async e=>{
-      const message=e instanceof Error ? (e.stack || e.message) : String(e),attempt=Number(claim.data.attempt_count||1),next=new Date(Date.now()+backoff(attempt,null)*1000).toISOString();
-      await getDb().from("federation_deliveries").update({status:"retry",locked_at:null,next_attempt_at:next,last_error:message.slice(0,2000),updated_at:new Date().toISOString()}).eq("id",claim.data.id).eq("status","in_flight");
-      await getDb().from("activitypub_outbox").update({attempts:attempt,next_attempt_at:next,last_error:message.slice(0,2000),updated_at:new Date().toISOString()}).eq("activity_id",claim.data.activity_id);
-      return {status:"retry",activityId:claim.data.activity_id,error:message};
-    }));
+    claimedJobs.push({...claim.data,activity_payload:claim.data.activity_payload||candidate.activity_payload});
+  }
+  // Remote inboxes are independent. Process a bounded batch concurrently so a
+  // slow federation server cannot consume the whole worker runtime and strand
+  // unrelated deliveries in in_flight.
+  const results:any[]=[];
+  const concurrency=5;
+  for(let i=0;i<claimedJobs.length;i+=concurrency){
+    const batch=claimedJobs.slice(i,i+concurrency);
+    const batchResults=await Promise.all(batch.map((job:any)=>processJob(job).catch(async e=>{
+      const message=e instanceof Error ? (e.stack || e.message) : String(e),attempt=Number(job.attempt_count||1),next=new Date(Date.now()+backoff(attempt,null)*1000).toISOString();
+      await getDb().from("federation_deliveries").update({status:"retry",locked_at:null,next_attempt_at:next,last_error:message.slice(0,2000),updated_at:new Date().toISOString()}).eq("id",job.id).eq("status","in_flight");
+      await getDb().from("activitypub_outbox").update({attempts:attempt,next_attempt_at:next,last_error:message.slice(0,2000),updated_at:new Date().toISOString()}).eq("activity_id",job.activity_id);
+      return {status:"retry",activityId:job.activity_id,error:message};
+    })));
+    results.push(...batchResults);
   }
   return json({ok:true,processed:results.length,results});
 }
