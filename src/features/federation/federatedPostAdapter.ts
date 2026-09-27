@@ -50,9 +50,12 @@ function firstUrl(value: unknown): string | null {
 export function extractFederatedMedia(object: any) {
   const attachments = Array.isArray(object?.attachment) ? object.attachment : [];
   const actorUrl = typeof object?.attributedTo === 'string' ? object.attributedTo : object?.attributedTo?.id ?? object?.attributedTo?.url ?? '';
-  const mediaUrls = attachments.map(firstUrl).filter((u): u is string => !!u).map(u => federatedMediaUrl(u, actorUrl) ?? u);
-  const image = mediaUrls.find(u => /image|\.(png|jpe?g|webp|gif)(\?|$)/i.test(u)) ?? null;
-  const video = mediaUrls.find(u => /video|\.(mp4|webm|mov)(\?|$)/i.test(u)) ?? null;
+  const originalUrls = attachments.map(firstUrl).filter((u): u is string => !!u);
+  const mediaUrls = originalUrls.map(u => federatedMediaUrl(u, actorUrl) ?? u);
+  const imageIndex = originalUrls.findIndex(u => /image|\.(png|jpe?g|webp|gif)(\?|$)/i.test(u));
+  const videoIndex = originalUrls.findIndex(u => /video|\.(mp4|webm|mov)(\?|$)/i.test(u));
+  const image = imageIndex >= 0 ? mediaUrls[imageIndex] : null;
+  const video = videoIndex >= 0 ? mediaUrls[videoIndex] : null;
   return { mediaUrls, image, video, isVideo: !!video };
 }
 export async function resolveFederatedActor(actorRef: any, getObject: (uri: string) => Promise<any>) {
