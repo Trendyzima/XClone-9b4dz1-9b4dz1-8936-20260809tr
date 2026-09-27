@@ -248,30 +248,19 @@ async function legacyHeaders(local: any, url: string, method: "GET" | "POST", bo
 }
 
 /** RFC9421 signer for newer Mastodon implementations. */
-async function rfc9421Headers(local: any, url: string, method: "GET" | "POST", body = "") {
-  const target = new URL(url);
-  const created = Math.floor(Date.now() / 1000);
-  const components = ["@method", "@target-uri", "host"];
-  const digest = body ? `sha-256=:${await sha256Base64(body)}:` : "";
-  if (body) components.push("content-digest");
-  const covered = components.map((component) => {
-    if (component === "@method") return `"@method": ${method}`;
-    if (component === "@target-uri") return `"@target-uri": ${target.toString()}`;
-    if (component === "host") return `"host": ${target.host}`;
+async function rfc9421Headers(local:any,url:string,method:"GET"|"POST",body=""){ 
+  const target=new URL(url),created=Math.floor(Date.now()/1000),digest=body?`sha-256=:${await sha256Base64(body)}:`:"";
+  const components=["@method","@target-uri",...(body?["content-digest"]:[])];
+  const covered=components.map((component)=>{
+    if(component==="@method")return `"@method": ${method}`;
+    if(component==="@target-uri")return `"@target-uri": ${target.toString()}`;
     return `"content-digest": ${digest}`;
   }).join("\n");
-  const signatureParams = `(${components.map((component) => `"${component}"`).join(" ")});created=${created};keyid="${local.actor_url}#main-key";alg="rsa-v1_5-sha256"`;
-  const signature = await rsaSign(local, `${covered}\n"@signature-params": ${signatureParams}`);
-  const headers: Record<string, string> = {
-    Accept: AP,
-    "User-Agent": "Testagram-Federation/4.0",
-    "Signature-Input": `sig1=${signatureParams}`,
-    Signature: `sig1=:${signature}:`,
-  };
-  if (body) {
-    headers["Content-Digest"] = digest;
-    headers["Content-Type"] = 'application/ld+json; profile="https://www.w3.org/ns/activitystreams"';
-  }
+  const keyId=String(local.key_id||local.actor_url+"#main-key");
+  const signatureParams=`(${components.map((component)=>`"${component}"`).join(" ")});created=${created};keyid="${keyId}";alg="rsa-v1_5-sha256"`;
+  const signature=await rsaSign(local,`${covered}\n"@signature-params": ${signatureParams}`);
+  const headers:any={Accept:AP,"User-Agent":"Testagram-Federation/4.0","Signature-Input":`sig1=${signatureParams}`,Signature:`sig1=:${signature}:`};
+  if(body){headers["Content-Digest"]=digest;headers["Content-Type"]='application/ld+json; profile="https://www.w3.org/ns/activitystreams"';}
   return headers;
 }
 
