@@ -127,7 +127,9 @@ export default function TvStudioPage() {
       cameraStreamRef.current?.getTracks().forEach(track => track.stop());
       screenStreamRef.current?.getTracks().forEach(track => track.stop());
       productionVideoStreamRef.current?.getTracks().forEach(track => track.stop());
+      audioPipelineRef.current?.stop().catch(() => undefined);
       productionAudioContextRef.current?.close().catch(() => undefined);
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
     };
   }, []);
 
@@ -172,7 +174,13 @@ export default function TvStudioPage() {
     if (!audioPipelineRef.current && cameraStreamRef.current) {
       audioPipelineRef.current = await createStudioAudioPipeline(cameraStreamRef.current);
     }
-    return cameraStreamRef.current!;
+    const cameraStream = cameraStreamRef.current!;
+    if (videoRef.current && !videoRef.current.srcObject && productionSource === 'camera') {
+      videoRef.current.srcObject = cameraStream;
+      videoRef.current.muted = true;
+      void videoRef.current.play().catch(() => undefined);
+    }
+    return cameraStream;
   };
 
   const rebuildProgramStream = () => {
@@ -320,6 +328,7 @@ export default function TvStudioPage() {
   };
 
   const startLive = async () => {
+    if (live || roomRef.current) return;
     try {
       if (!user) throw new Error('Sign in to broadcast');
       const cameraStream = await ensureStudio();
@@ -354,6 +363,17 @@ export default function TvStudioPage() {
       void cameraStream;
       toast.success('TV broadcast is live');
     } catch (e: any) {
+      await roomRef.current?.disconnect().catch(() => undefined);
+      roomRef.current = null;
+      setViewerCount(0);
+      setLive(false);
+      setMode('studio');
+      setStatus(cameraStreamRef.current ? 'preview' : 'idle');
+      const failedId = activeStreamId;
+      if (failedId && user) {
+        await supabase.from('live_streams').update({ is_live: false, ended_at: new Date().toISOString(), stream_url: null }).eq('id', failedId).eq('user_id', user.id);
+        setActiveStreamId(null);
+      }
       const message = e?.message || 'Unable to start live broadcast';
       setPermissionError(message);
       toast.error(message);
@@ -450,15 +470,21 @@ export default function TvStudioPage() {
   };
 
   const stopRecording = () => {
-    recorderRef.current?.stop();
+    const recorder = recorderRef.current;
+    if (!recorder) return;
+    if (recorder.state !== 'inactive') recorder.stop();
     recorderRef.current = null;
     setRecording(false);
     if (!live) setStatus(cameraStreamRef.current ? 'preview' : 'idle');
   };
 
   const toggleMic = () => {
-    const t = audioPipelineRef.current?.stream.getAudioTracks()[0];
-    if (t) { t.enabled = !t.enabled; setMuted(!t.enabled); }
+    const t = cameraStreamRef.current?.getAudioTracks()[0];
+    if (t) {
+      t.enabled = !t.enabled;
+      setMuted(!t.enabled);
+      if (productionCommentaryGainRef.current) productionCommentaryGainRef.current.gain.value = t.enabled ? commentaryLevel : 0;
+    }
   };
 
   const toggleCamera = () => {
@@ -468,6 +494,9 @@ export default function TvStudioPage() {
 
   const shareScreen = async () => {
     try {
+      if (productionSource === 'video') {
+        toast.info('Screen sharing replaces the video scene. Switch to Camera after stopping screen share to restore the uploaded-video scene.');
+      }
       if (sharing) {
         screenStreamRef.current?.getTracks().forEach(t => t.stop());
         screenStreamRef.current = null;
@@ -485,6 +514,7 @@ export default function TvStudioPage() {
         if (cameraStreamRef.current) rebuildProgramStream();
       };
       setSharing(true);
+      setProductionSource('camera');
       const program = rebuildProgramStream();
 
       const room = roomRef.current;
@@ -495,6 +525,22 @@ export default function TvStudioPage() {
       if (e?.name !== 'NotAllowedError') toast.error('Screen sharing could not start');
     }
   };
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
+      setElapsed(prev => (recording || live ? prev + 1 : 0));
+      const level = audioPipelineRef.current?.getLevel();
+      if (level != null) setAudioLevel(level);
+    }, 250);
+    return () => window.clearInterval(id);
+  }, [recording, live]);
+
+  useEffect(() => {
+    const sourceGain = productionSourceGainRef.current;
+    const commentaryGain = productionCommentaryGainRef.current;
+    if (sourceGain) sourceGain.gain.value = sourceVideoMuted ? 0 : programLevel;
+    if (commentaryGain) commentaryGain.gain.value = muted ? 0 : commentaryLevel;
+  }, [programLevel, commentaryLevel, muted, sourceVideoMuted]);
 
   const toggleLandscape = async () => {
     try {
