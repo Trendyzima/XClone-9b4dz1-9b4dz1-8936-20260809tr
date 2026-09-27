@@ -140,15 +140,31 @@ export default async function handler(request: RequestLike) {
     const fedQuery = new URLSearchParams({ limit: String(sourceLimit) });
     if (cursor.fed) fedQuery.set('before', cursor.fed);
 
-    const [postsResult, threadsResult] = await Promise.all([postsQuery, threadsQuery]);
-    const fedResponse = includeFederated
-      ? await fetch(SUPABASE_URL + '/functions/v1/federated-feed?' + fedQuery, {
-          headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + auth.token },
-        })
-      : null;
-    const fedResult = fedResponse?.ok
-      ? await fedResponse.json()
-      : { items: [], pagination: { hasMore: false, nextCursor: null } };
+    const federatedPromise = includeFederated
+      ? (async () => {
+          const controller = new AbortController();
+          const timer = setTimeout(() => controller.abort(), 2500);
+          try {
+            const response = await fetch(SUPABASE_URL + '/functions/v1/federated-feed?' + fedQuery, {
+              headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + auth.token },
+              signal: controller.signal,
+            });
+            if (!response.ok) return { items: [], pagination: { hasMore: false, nextCursor: null } };
+            return await response.json();
+          } catch (error) {
+            console.warn('[home-feed] federated source degraded', error);
+            return { items: [], pagination: { hasMore: false, nextCursor: null } };
+          } finally {
+            clearTimeout(timer);
+          }
+        })()
+      : Promise.resolve({ items: [], pagination: { hasMore: false, nextCursor: null } });
+
+    const [postsResult, threadsResult, fedResult] = await Promise.all([
+      postsQuery,
+      threadsQuery,
+      federatedPromise,
+    ]);
     // Organic discovery is intentionally outside the critical Home feed path.
     // Home renders the first local/following/federated page immediately; the reusable
     // discovery component loads one candidate after the shell has painted.
