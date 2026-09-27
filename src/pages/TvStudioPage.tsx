@@ -555,7 +555,7 @@ export default function TvStudioPage() {
       setElapsed(prev => (recording || live ? prev + 1 : 0));
       const level = audioPipelineRef.current?.getLevel();
       if (level != null) setAudioLevel(level);
-    }, 250);
+    }, 1000);
     return () => window.clearInterval(id);
   }, [recording, live]);
 
