@@ -743,6 +743,17 @@ export default function TvStudioPage() {
     }
   };
 
+  const shareLiveLink = async () => {
+    if (!activeStreamId) { toast.info('Go live first to create a shareable TV link.'); return; }
+    const url = `${window.location.origin}/tv/live/${activeStreamId}`;
+    try {
+      if (navigator.share) await navigator.share({ title: stream?.title || broadcastTitle || 'Testagram TV', text: 'Watch this Testagram TV broadcast live', url });
+      else { await navigator.clipboard.writeText(url); toast.success('Shareable TV link copied'); }
+    } catch (e: any) {
+      if (e?.name !== 'AbortError') { try { await navigator.clipboard.writeText(url); toast.success('Shareable TV link copied'); } catch { toast.error('Could not copy TV link'); } }
+    }
+  };
+
   const stopLive = async () => {
     await roomRef.current?.disconnect();
     roomRef.current = null;
@@ -957,7 +968,7 @@ export default function TvStudioPage() {
               <Clapperboard className="w-6 h-6" />
               <h1 className="text-2xl font-bold">Testagram TV Studio</h1>
               {!recording ? <Button size="sm" className="bg-red-600 hover:bg-red-700 text-white" disabled={saving} onClick={() => void startRecording()}><Circle className="w-4 h-4 mr-1" />REC to device</Button> : <Button size="sm" variant="destructive" onClick={stopRecording}><Square className="w-4 h-4 mr-1" />STOP & SAVE</Button>}
-              {live && <span className="px-2 py-1 rounded-full bg-red-600 text-xs font-bold animate-pulse">LIVE</span>}
+              {live && <span className="px-2 py-1 rounded-full bg-red-600 text-xs font-bold animate-pulse">LIVE</span>}{live && <Button size="sm" variant="outline" onClick={() => void shareLiveLink()}><Radio className="w-4 h-4 mr-1" />Share TV</Button>}
               {recording && <span className="px-2 py-1 rounded-full bg-white/10 text-xs font-bold">REC {fmt(elapsed)}</span>}
             </div>
             <p className="text-sm text-zinc-400 mt-1">Broadcast live to Testagram. Finished recordings stay on your phone/computer — never in Testagram storage.</p>
@@ -992,7 +1003,7 @@ export default function TvStudioPage() {
               <Button size="sm" variant={!muted ? 'default' : 'destructive'} onClick={toggleMic}><Mic className="w-4 h-4 mr-1" />{muted ? 'Mic off' : 'Mic'}</Button>
               <Button size="sm" variant={sharing ? 'secondary' : 'outline'} onClick={() => void shareScreen()}><MonitorUp className="w-4 h-4 mr-1" />{sharing ? 'Stop screen' : 'Screen'}</Button>
               {!recording ? <Button size="sm" disabled={saving} onClick={() => void startRecording()}><Circle className="w-4 h-4 mr-1" />Record locally</Button> : <Button size="sm" variant="destructive" onClick={stopRecording}><Square className="w-4 h-4 mr-1" />Stop & save</Button>}
-              {!live ? <Button size="sm" className="bg-red-600 hover:bg-red-700" onClick={() => void startLive()}><Radio className="w-4 h-4 mr-1" />Go live</Button> : <Button size="sm" variant="destructive" onClick={() => void stopLive()}>End live</Button>}
+              {!live ? <Button size="sm" className="bg-red-600 hover:bg-red-700" onClick={() => void startLive()}><Radio className="w-4 h-4 mr-1" />Go live</Button> : <><Button size="sm" variant="outline" onClick={() => void shareLiveLink()}><Radio className="w-4 h-4 mr-1" />Share TV</Button><Button size="sm" variant="destructive" onClick={() => void stopLive()}>End live</Button></>}
             </div>
           </section>
 
