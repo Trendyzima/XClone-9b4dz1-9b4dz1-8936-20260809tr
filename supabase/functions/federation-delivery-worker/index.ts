@@ -119,7 +119,7 @@ async function processJob(job:any){
     if(activityRow?.id) await getDb().from("federated_activities").update({processing_state:"delivered",processing_attempts:attempt,processed_at:now,last_error:null,updated_at:now}).eq("id",activityRow.id);
     return {status:"delivered",activityId,remoteStatus:response.status};
   }
-  const permanent=response.status===404||response.status===410||(response.status>=400&&response.status<500&&response.status!==401&&response.status!==403&&response.status!==429);
+  const permanent=response.status===404||response.status===410||(response.status>=400&&response.status<500&&response.status!==401&&response.status!==403&&response.status!==429)||(response.status===500&&/error[_ ]1101|worker[_ ]threw/i.test(responseText));
   const state=permanent?"dead_letter":"retry";
   const next=permanent?null:new Date(Date.now()+backoff(attempt,response.headers.get("retry-after"))*1000).toISOString();
   const message=(`Remote inbox ${response.status}: ${responseText}`).slice(0,2000);
