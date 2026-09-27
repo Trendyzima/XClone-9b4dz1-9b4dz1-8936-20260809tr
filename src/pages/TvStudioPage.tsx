@@ -47,7 +47,9 @@ export default function TvStudioPage() {
   const productionCameraVideoRef = useRef<HTMLVideoElement | null>(null);
   const productionKeyRef = useRef<string | null>(null);
   const productionCanvasStreamRef = useRef<MediaStream | null>(null);
+  const productionCanvasQualityRef = useRef<string | null>(null);
   const productionVideoTrackRef = useRef<MediaStreamTrack | null>(null);
+  const screenVideoRef = useRef<HTMLVideoElement | null>(null);
   const productionAudioTrackRef = useRef<MediaStreamTrack | null>(null);
   const pipEnabledRef = useRef(true);
 
@@ -135,6 +137,9 @@ export default function TvStudioPage() {
       cameraStreamRef.current?.getTracks().forEach(track => track.stop());
       screenStreamRef.current?.getTracks().forEach(track => track.stop());
       productionVideoStreamRef.current?.getTracks().forEach(track => track.stop());
+      productionCanvasStreamRef.current?.getTracks().forEach(track => track.stop());
+      screenVideoRef.current?.pause();
+      if (screenVideoRef.current) screenVideoRef.current.srcObject = null;
       audioPipelineRef.current?.stop().catch(() => undefined);
       productionAudioContextRef.current?.close().catch(() => undefined);
       if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
@@ -273,16 +278,13 @@ export default function TvStudioPage() {
           ctx.drawImage(camera, px, py, pw, ph);
         }
       } else if (activeScene === 'screen') {
-        const screenVideo = document.createElement('video');
+        const screenVideo = screenVideoRef.current ?? document.createElement('video');
         screenVideo.srcObject = screenStreamRef.current;
         screenVideo.muted = true;
         screenVideo.playsInline = true;
-        void screenVideo.play().catch(() => undefined);
-        // Keep the temporary element alive on the stream so Chromium continues
-        // delivering frames; the same element is replaced on the next render.
-        (screenVideo as any).__testagramAttached = true;
-        fit(screenVideo, true);
-        (canvas as any).__testagramScreenVideo = screenVideo;
+        screenVideoRef.current = screenVideo;
+        if (screenVideo.readyState >= 2) fit(screenVideo, true);
+        else void screenVideo.play().catch(() => undefined);
       } else {
         fit(camera, true);
       }
@@ -328,8 +330,10 @@ export default function TvStudioPage() {
       productionCommentaryGainRef.current.gain.value = muted ? 0 : commentaryLevel;
     }
 
-    if (!productionCanvasStreamRef.current) {
+    if (productionCanvasQualityRef.current !== quality) {
+      productionCanvasStreamRef.current?.getTracks().forEach(track => track.stop());
       productionCanvasStreamRef.current = canvas.captureStream(preset.fps);
+      productionCanvasQualityRef.current = quality;
       productionVideoTrackRef.current = productionCanvasStreamRef.current.getVideoTracks()[0] ?? null;
     }
     const audioTrack = destination.stream.getAudioTracks()[0];
@@ -359,6 +363,9 @@ export default function TvStudioPage() {
     }
     try {
       if (scene === 'camera') {
+        screenStreamRef.current?.getTracks().forEach(t => t.stop());
+        screenStreamRef.current = null;
+        setSharing(false);
         await ensureStudio();
         setProductionSource('camera');
       } else if (scene === 'video') {
@@ -366,6 +373,9 @@ export default function TvStudioPage() {
           videoFileInputRef.current?.click();
           return;
         }
+        screenStreamRef.current?.getTracks().forEach(t => t.stop());
+        screenStreamRef.current = null;
+        setSharing(false);
         await ensureStudio();
         setProductionSource('video');
         await sourceVideoRef.current.play().catch(() => undefined);
