@@ -286,9 +286,10 @@ export default function SpacesPage() {
       return;
     }
     setHostCapability(prev => ({ ...prev, loading: true }));
-    const [{ data: profile }, { data: capability, error: capabilityError }] = await Promise.all([
+    const [{ data: profile }, { data: capability, error: capabilityError }, { data: ownerFlag }] = await Promise.all([
       supabase.from('profiles').select('verified, subscriber_count, follower_count, creator_tier, username').eq('id', user.id).single(),
       supabase.rpc('get_audio_space_host_capability'),
+      supabase.rpc('testagram_is_owner'),
     ]);
     if (profile) setUserProfile(profile);
     if (!capabilityError && capability) {
@@ -300,10 +301,12 @@ export default function SpacesPage() {
         loading: false,
       });
     } else {
+      const isOwner = Boolean(ownerFlag);
+      const isVerified = Boolean(profile?.verified);
       setHostCapability({
-        canHost: Boolean(profile?.verified),
-        isOwner: false,
-        isVerified: Boolean(profile?.verified),
+        canHost: isOwner || isVerified,
+        isOwner,
+        isVerified,
         loading: false,
       });
     }
