@@ -692,7 +692,7 @@ export default function TvStudioPage() {
       roomRef.current = room;
       const wireGuestTrack = (track: any, publication: any, participant: any) => {
         const metadata = participant?.metadata || '';
-        const isGuest = metadata.includes('tv_guest') || metadata.includes('testagram_tv_guest');
+        const isGuest = metadata.includes('tv_guest') || metadata.includes('testagram_tv_guest') || metadata.includes('"role":"guest"');
         if (!isGuest || ![Track.Source.Camera, Track.Source.Microphone].includes(publication?.source)) return;
         const element = track.attach();
         if (track.kind === Track.Kind.Video) {
