@@ -497,7 +497,7 @@ async function follow(userId: string, local: any, target: string) {
   const remote = await resolve(local, target);
   const existing = await relationship(userId, remote.actorUrl);
   const activityId = existing?.follow_activity_uri || await stableActivityId(local.actor_url, remote.actorUrl, "follow");
-  if (existing?.state === "active" && existing?.delivery_state === "delivered") {
+  if (existing?.state === "active") {
     return { ok: true, idempotent: true, state: existing.state, actorUrl: remote.actorUrl, inbox: existing.remote_inbox_uri || remote.inbox, followActivityUri: activityId, deliveryState: existing.delivery_state || null };
   }
   const activity = { "@context": CTX, id: activityId, type: "Follow", actor: local.actor_url, object: remote.actorUrl };
