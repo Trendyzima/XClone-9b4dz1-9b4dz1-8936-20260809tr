@@ -43,6 +43,9 @@ export default function TvStudioPage() {
   const productionCommentaryGainRef = useRef<GainNode | null>(null);
   const productionVideoStreamRef = useRef<MediaStream | null>(null);
   const videoFileInputRef = useRef<HTMLInputElement | null>(null);
+  const productionCameraVideoRef = useRef<HTMLVideoElement | null>(null);
+  const productionKeyRef = useRef<string | null>(null);
+  const pipEnabledRef = useRef(true);
 
   const [stream, setStream] = useState<any>(null);
   const [activeStreamId, setActiveStreamId] = useState<string | null>(streamId ?? null);
@@ -197,6 +200,9 @@ export default function TvStudioPage() {
   const createProductionProgram = async () => {
     if (productionSource !== 'video' || !sourceVideoRef.current) return rebuildProgramStream();
     await ensureStudio();
+    const productionKey = quality + ':' + (sourceVideoUrlRef.current ?? '');
+    if (programStreamRef.current && productionKeyRef.current === productionKey) return programStreamRef.current;
+    if (sceneAnimationRef.current) cancelAnimationFrame(sceneAnimationRef.current);
     const sourceVideo = sourceVideoRef.current;
     if (sourceVideo.readyState < 2) {
       await new Promise<void>(resolve => {
@@ -212,11 +218,13 @@ export default function TvStudioPage() {
     const ctx = canvas.getContext('2d');
     if (!ctx) throw new Error('Could not create the production canvas.');
 
-    const camera = document.createElement('video');
+    const camera = productionCameraVideoRef.current ?? document.createElement('video');
     camera.muted = true;
     camera.playsInline = true;
     camera.srcObject = cameraStreamRef.current;
+    productionCameraVideoRef.current = camera;
     await camera.play().catch(() => undefined);
+    pipEnabledRef.current = pipEnabled;
 
     const draw = () => {
       const w = canvas.width, h = canvas.height;
@@ -229,7 +237,7 @@ export default function TvStudioPage() {
       else { dw = h * ratio; dx = (w - dw) / 2; }
       ctx.drawImage(sourceVideo, dx, dy, dw, dh);
 
-      if (pipEnabled && camera.readyState >= 2 && camera.videoWidth) {
+      if (pipEnabledRef.current && camera.readyState >= 2 && camera.videoWidth) {
         const pw = Math.round(w * 0.28);
         const ph = Math.round(pw * (camera.videoHeight / camera.videoWidth));
         const px = w - pw - 28, py = h - ph - 28;
@@ -283,6 +291,7 @@ export default function TvStudioPage() {
     const program = new MediaStream([canvasStream.getVideoTracks()[0], audioTrack]);
     productionVideoStreamRef.current = canvasStream;
     programStreamRef.current = program;
+    productionKeyRef.current = productionKey;
     if (videoRef.current) {
       videoRef.current.srcObject = program;
       videoRef.current.muted = true;
@@ -492,6 +501,13 @@ export default function TvStudioPage() {
     if (t) { t.enabled = !t.enabled; setCamera(t.enabled); }
   };
 
+  const replacePublishedVideoTrack = async (track: MediaStreamTrack) => {
+    const room = roomRef.current;
+    if (!room) return;
+    const publication = Array.from(room.localParticipant.videoTrackPublications.values()).find(p => p.trackName === 'program-video') ?? Array.from(room.localParticipant.videoTrackPublications.values())[0];
+    if (publication?.track) await publication.track.replaceTrack(track);
+  };
+
   const shareScreen = async () => {
     try {
       if (productionSource === 'video') {
@@ -501,7 +517,11 @@ export default function TvStudioPage() {
         screenStreamRef.current?.getTracks().forEach(t => t.stop());
         screenStreamRef.current = null;
         setSharing(false);
-        rebuildProgramStream();
+        const cameraTrack = cameraStreamRef.current?.getVideoTracks()[0];
+        if (cameraTrack) {
+          const program = rebuildProgramStream();
+          await replacePublishedVideoTrack(program.getVideoTracks()[0] ?? cameraTrack);
+        }
         return;
       }
       const preset = VIDEO_PRESETS[quality];
@@ -509,17 +529,20 @@ export default function TvStudioPage() {
       screenStreamRef.current = s;
       const track = s.getVideoTracks()[0];
       track.onended = () => {
-        screenStreamRef.current = null;
-        setSharing(false);
-        if (cameraStreamRef.current) rebuildProgramStream();
+        void (async () => {
+          screenStreamRef.current = null;
+          setSharing(false);
+          const cameraTrack = cameraStreamRef.current?.getVideoTracks()[0];
+          if (cameraTrack) {
+            const program = rebuildProgramStream();
+            await replacePublishedVideoTrack(program.getVideoTracks()[0] ?? cameraTrack);
+          }
+        })();
       };
       setSharing(true);
       setProductionSource('camera');
       const program = rebuildProgramStream();
-
-      const room = roomRef.current;
-      const publication = room?.localParticipant.videoTrackPublications.values().next().value;
-      if (publication?.track && room) await publication.track.replaceTrack?.(track);
+      await replacePublishedVideoTrack(program.getVideoTracks()[0] ?? track);
       void program;
     } catch (e: any) {
       if (e?.name !== 'NotAllowedError') toast.error('Screen sharing could not start');
@@ -607,8 +630,8 @@ export default function TvStudioPage() {
                           <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-3">
                 <div className="flex items-center gap-2 font-semibold text-sm"><Layers3 className="w-4 h-4" />Program / scenes</div>
                 <div className="grid grid-cols-2 gap-2">
-                  <Button size="sm" variant={productionSource === 'camera' ? 'default' : 'outline'} onClick={() => setProductionSource('camera')}><Camera className="w-4 h-4 mr-1" />Camera</Button>
-                  <Button size="sm" variant={productionSource === 'video' ? 'default' : 'outline'} onClick={() => videoFileInputRef.current?.click()}><Upload className="w-4 h-4 mr-1" />Video</Button>
+                  <Button size="sm" disabled={live || recording} variant={productionSource === 'camera' ? 'default' : 'outline'} onClick={() => { setProductionSource('camera'); if (sourceVideoRef.current) sourceVideoRef.current.pause(); }}><Camera className="w-4 h-4 mr-1" />Camera</Button>
+                  <Button size="sm" disabled={live || recording} variant={productionSource === 'video' ? 'default' : 'outline'} onClick={() => videoFileInputRef.current?.click()}><Upload className="w-4 h-4 mr-1" />Video</Button>
                 </div>
                 <input ref={videoFileInputRef} type="file" accept="video/*" className="hidden" onChange={e => void loadProductionVideo(e.target.files?.[0])} />
                 {uploadedVideoName && <div className="text-[11px] text-zinc-400 truncate">{uploadedVideoName}</div>}
