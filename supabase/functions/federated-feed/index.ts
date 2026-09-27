@@ -105,7 +105,6 @@ Deno.serve(async (request) => {
     // directly from their ActivityPub outbox so a newly-followed account can
     // contribute content to the personalized feed immediately.
     const hydratedActorAliases = new Set<string>(followedActorUris);
-    const hydratedActorProfiles = new Map<string, any>();
 
     const actorFallbackProfile = (actorUri: string, fallbackObject: any = null) => {
       const source = String(actorUri || fallbackObject?.attributedTo || fallbackObject?.actor || fallbackObject?.url || "").trim();
