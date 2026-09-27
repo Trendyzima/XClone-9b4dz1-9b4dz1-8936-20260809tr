@@ -48,23 +48,20 @@ async function resolveInbox(activity:any):Promise<{inbox:string,actor:string}>{
   return {inbox,actor:actorUrl};
 }
 async function signedPost(local:any,url:string,body:string,modern=false){
-  if(!url || typeof url!=="string") throw Error("signedPost received empty inbox URL");
-  let u:URL;
-  try { u=new URL(url); } catch(e) { throw Error("signedPost invalid inbox URL: "+String(url)); }
+  if(!url||typeof url!=="string")throw Error("signedPost received empty inbox URL");
+  let u:URL;try{u=new URL(url)}catch{throw Error("signedPost invalid inbox URL: "+String(url));}
   const date=new Date().toUTCString(),d="SHA-256="+await digest(body);
   if(!modern){
     const lines=[`(request-target): post ${u.pathname}${u.search}`,`host: ${u.host}`,`date: ${date}`,`digest: ${d}`];
-    const sig=await sign(local,lines.join("\n"));
-    try {
-    const controller=new AbortController(); const timeout=setTimeout(()=>controller.abort(),10000);
-    const response=await fetch(url,{method:"POST",headers:{Accept:'application/activity+json, application/ld+json;q=0.9', "Content-Type":'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',Date:date,Digest:d,Signature:`keyId="${local.actor_url}#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest",signature="${sig}"`,"User-Agent":"Testagram-Federation/5.0"},body,signal:controller.signal}); clearTimeout(timeout); return response;
-  } catch(e) { throw Error("signedPost legacy fetch failed: "+(e instanceof Error?e.message:String(e))); }
+    const sig=await sign(local,lines.join("\\n"));
+    const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),10000);
+    try{return await fetch(url,{method:"POST",headers:{Accept:'application/activity+json, application/ld+json;q=0.9',"Content-Type":'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',Date:date,Digest:d,Signature:`keyId="${local.actor_url}#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest",signature="${sig}"`,"User-Agent":"Testagram-Federation/5.0"},body,signal:controller.signal})}finally{clearTimeout(timeout)}
   }
-  const created=Math.floor(Date.now()/1000),params=`("@method" "@target-uri" "host" "content-digest");created=${created};keyid="${local.actor_url}#main-key";alg="rsa-v1_5-sha256"`;
-  const covered=`"@method": POST\n"@target-uri": ${u}\n"host": ${u.host}\n"content-digest": sha-256=:${await digest(body)}:`;
-  const sig=await sign(local,`${covered}\n"@signature-params": ${params}`);
-  return fetch(url,{method:"POST",headers:{Accept:'application/activity+json, application/ld+json;q=0.9',"Content-Type":'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',"Content-Digest":`sha-256=:${await digest(body)}:`,"Signature-Input":`sig1=${params}`,Signature:`sig1=:${sig}:`,"User-Agent":"Testagram-Federation/5.0"},body});
+  const created=Math.floor(Date.now()/1000),params=`("@method" "@target-uri" "host" "content-digest");created=${created};keyid="${local.actor_url}#main-key";alg="rsa-v1_5-sha256"`,covered=`"@method": POST\\n"@target-uri": ${u}\\n"host": ${u.host}\\n"content-digest": sha-256=:${await digest(body)}:`,sig=await sign(local,`${covered}\\n"@signature-params": ${params}`);
+  const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),10000);
+  try{return await fetch(url,{method:"POST",headers:{Accept:'application/activity+json, application/ld+json;q=0.9',"Content-Type":'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',"Content-Digest":`sha-256=:${await digest(body)}:`,"Signature-Input":`sig1=${params}`,Signature:`sig1=:${sig}:`,"User-Agent":"Testagram-Federation/5.0"},body,signal:controller.signal})}finally{clearTimeout(timeout)}
 }
+
 function backoff(attempt:number,retryAfter:string|null){const ra=retryAfter?Number.parseInt(retryAfter,10):NaN;if(Number.isFinite(ra)&&ra>=0)return Math.min(ra,86400);return Math.min(86400,30*Math.pow(2,Math.min(attempt,8)));}
 async function processJob(job:any){
   const activity=job.activity_payload||{};
@@ -95,9 +92,14 @@ async function processJob(job:any){
     await getDb().from("activitypub_outbox").update({attempts:attempt,next_attempt_at:next,last_error:message.slice(0,2000),updated_at:new Date().toISOString()}).eq("activity_id",activityId);
     return {status:"retry",activityId,error:message};
   }
-  const responseText=(await response.text()).slice(0,2000);
   const attempt=Number(job.attempt_count||1);
   const now=new Date().toISOString();
+  // Successful inbox responses need no response body. Avoid hanging on a remote
+  // server that returns 2xx but keeps the body stream open.
+  let responseText="";
+  if(!response.ok){
+    try{responseText=(await Promise.race([response.text(),new Promise<string>(resolve=>setTimeout(()=>resolve(""),2000))])).slice(0,2000)}catch{}
+  }
   if(response.ok){
     await getDb().from("federation_deliveries").update({status:"delivered",attempt_count:attempt,last_attempt_at:now,delivered_at:now,locked_at:null,next_attempt_at:null,last_status_code:response.status,last_error:null,updated_at:now}).eq("id",job.id).eq("status","in_flight");
     await getDb().from("activitypub_outbox").update({delivered:true,attempts:attempt,next_attempt_at:null,last_error:null,updated_at:now}).eq("activity_id",activityId);
@@ -121,6 +123,9 @@ async function main(req:Request){
   const body=await req.json().catch(()=>({}));
   const limit=Math.min(Math.max(Number(body.limit||20),1),50);
   const now=new Date().toISOString();
+  // Watchdog: any delivery left in_flight beyond the bounded remote timeout is
+  // reclaimed so deploys, crashes, or process termination cannot strand jobs.
+  await getDb().from("federation_deliveries").update({status:"retry",locked_at:null,next_attempt_at:now,last_error:"Recovered stale in-flight delivery by worker watchdog",updated_at:now}).eq("status","in_flight").lt("locked_at",new Date(Date.now()-120000).toISOString());
   const q=await getDb().from("federation_deliveries").select("*").in("status",["pending","retry"]).lte("next_attempt_at",now).order("next_attempt_at",{ascending:true}).limit(limit);
   if(q.error)throw q.error;
   const claimedJobs:any[]=[];
