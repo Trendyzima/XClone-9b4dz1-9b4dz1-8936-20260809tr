@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Room, RoomEvent, LocalAudioTrack, LocalVideoTrack } from 'livekit-client';
+import { Room, RoomEvent, Track, LocalAudioTrack, LocalVideoTrack } from 'livekit-client';
 import { Camera, Mic, MonitorUp, Circle, Square, Radio, Users, Download, Clapperboard, Settings2, Activity, ShieldCheck, Upload, PictureInPicture2, Layers3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
@@ -52,6 +52,21 @@ export default function TvStudioPage() {
   const productionVideoTrackRef = useRef<MediaStreamTrack | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
   const productionAudioTrackRef = useRef<MediaStreamTrack | null>(null);
+  const productionMasterGainRef = useRef<GainNode | null>(null);
+  const productionLimiterRef = useRef<DynamicsCompressorNode | null>(null);
+  const productionCommentaryAnalyserRef = useRef<AnalyserNode | null>(null);
+  const duckingTimerRef = useRef<number | null>(null);
+  const remoteGuestVideoRef = useRef<HTMLVideoElement | null>(null);
+  const remoteGuestAudioRef = useRef<HTMLAudioElement | null>(null);
+  const transitionFromCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const transitionFromSceneRef = useRef<TvSceneId>('camera');
+  const replayFramesRef = useRef<HTMLCanvasElement[]>([]);
+  const replayIndexRef = useRef(0);
+  const replayPlayingRef = useRef(false);
+  const multiviewCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [replayState, setReplayState] = useState<'ready' | 'playing'>('ready');
+  const [programFps, setProgramFps] = useState(0);
+  const [programDropped, setProgramDropped] = useState(0);
   const pipEnabledRef = useRef(true);
   const previewSceneRef = useRef<TvSceneId>('camera');
   const programSceneRef = useRef<TvSceneId>('camera');
@@ -148,6 +163,9 @@ export default function TvStudioPage() {
     void readPermissionState();
     return () => {
       if (sceneAnimationRef.current) cancelAnimationFrame(sceneAnimationRef.current);
+      if (duckingTimerRef.current) window.clearInterval(duckingTimerRef.current);
+      remoteGuestVideoRef.current?.pause();
+      remoteGuestAudioRef.current?.pause();
       sourceVideoRef.current?.pause();
       if (sourceVideoUrlRef.current) URL.revokeObjectURL(sourceVideoUrlRef.current);
       roomRef.current?.disconnect();
@@ -227,13 +245,17 @@ export default function TvStudioPage() {
   const createProductionProgram = async () => {
     await ensureStudio();
     const preset = VIDEO_PRESETS[quality];
+    const canvas = sceneCanvasRef.current ?? document.createElement('canvas');
+    canvas.width = preset.width;
+    canvas.height = preset.height;
+    sceneCanvasRef.current = canvas;
+    const ctx = canvas.getContext('2d', { alpha: false });
+    if (!ctx) throw new Error('Could not create the production canvas.');
 
-    if (activeScene === 'video' && !sourceVideoRef.current) {
-      throw new Error('Load a local video before switching to the Video scene.');
-    }
-    if (activeScene === 'screen' && !screenStreamRef.current) {
-      throw new Error('Start screen sharing before switching to the Screen scene.');
-    }
+    const camera = productionCameraVideoRef.current ?? document.createElement('video');
+    camera.muted = true; camera.playsInline = true; camera.srcObject = cameraStreamRef.current;
+    productionCameraVideoRef.current = camera;
+    await camera.play().catch(() => undefined);
 
     const sourceVideo = sourceVideoRef.current;
     if (sourceVideo && sourceVideo.readyState < 2) {
@@ -244,77 +266,119 @@ export default function TvStudioPage() {
       });
     }
 
-    const canvas = sceneCanvasRef.current ?? document.createElement('canvas');
-    canvas.width = preset.width;
-    canvas.height = preset.height;
-    sceneCanvasRef.current = canvas;
-    const ctx = canvas.getContext('2d', { alpha: false });
-    if (!ctx) throw new Error('Could not create the production canvas.');
+    const screenVideo = screenVideoRef.current ?? document.createElement('video');
+    screenVideo.muted = true; screenVideo.playsInline = true;
+    screenVideoRef.current = screenVideo;
+    if (screenStreamRef.current) screenVideo.srcObject = screenStreamRef.current;
 
-    const camera = productionCameraVideoRef.current ?? document.createElement('video');
-    camera.muted = true;
-    camera.playsInline = true;
-    camera.srcObject = cameraStreamRef.current;
-    productionCameraVideoRef.current = camera;
-    await camera.play().catch(() => undefined);
-
-    const fit = (media: HTMLVideoElement | null, contain = true) => {
+    const fit = (target: CanvasRenderingContext2D, media: HTMLVideoElement | null, contain = true) => {
       if (!media || media.readyState < 2 || !media.videoWidth || !media.videoHeight) return;
-      const w = canvas.width, h = canvas.height;
-      const ratio = media.videoWidth / media.videoHeight;
-      const target = w / h;
+      const w = canvas.width, h = canvas.height, ratio = media.videoWidth / media.videoHeight, targetRatio = w / h;
       let dw = w, dh = h, dx = 0, dy = 0;
       if (contain) {
-        if (ratio > target) { dh = w / ratio; dy = (h - dh) / 2; }
+        if (ratio > targetRatio) { dh = w / ratio; dy = (h - dh) / 2; }
         else { dw = h * ratio; dx = (w - dw) / 2; }
       } else {
-        if (ratio > target) { dw = h * ratio; dx = (w - dw) / 2; }
-        else { dh = w / ratio; dy = (h - dh) / 2; }
+        if (ratio > targetRatio) { dw = h * ratio; dx = (w - dw) / 2; }
+        else { dh = w * ratio; dy = (h - dh) / 2; }
       }
-      ctx.drawImage(media, dx, dy, dw, dh);
+      target.drawImage(media, dx, dy, dw, dh);
     };
 
-    pipEnabledRef.current = pipEnabled;
-    const draw = () => {
-      const w = canvas.width, h = canvas.height;
-      ctx.fillStyle = '#000';
-      ctx.fillRect(0, 0, w, h);
-
-      if (activeScene === 'video' && sourceVideo) {
-        fit(sourceVideo, true);
+    const renderScene = (target: CanvasRenderingContext2D, scene: TvSceneId) => {
+      target.fillStyle = '#000'; target.fillRect(0, 0, canvas.width, canvas.height);
+      if (scene === 'camera') {
+        fit(target, camera, true);
+      } else if (scene === 'video' && sourceVideo) {
+        fit(target, sourceVideo, true);
         if (pipEnabledRef.current && camera.readyState >= 2 && camera.videoWidth) {
-          const pw = Math.round(w * 0.28);
-          const ph = Math.round(pw * (camera.videoHeight / camera.videoWidth));
-          const px = w - pw - 28, py = h - ph - 28;
-          ctx.save();
-          ctx.shadowColor = 'rgba(0,0,0,.65)';
-          ctx.shadowBlur = 18;
-          ctx.fillStyle = '#000';
-          ctx.fillRect(px - 5, py - 5, pw + 10, ph + 10);
-          ctx.restore();
-          ctx.drawImage(camera, px, py, pw, ph);
+          const pw = Math.round(canvas.width * 0.28), ph = Math.round(pw * (camera.videoHeight / camera.videoWidth));
+          const px = canvas.width - pw - 28, py = canvas.height - ph - 28;
+          target.save(); target.shadowColor = 'rgba(0,0,0,.65)'; target.shadowBlur = 18;
+          target.fillStyle = '#000'; target.fillRect(px - 5, py - 5, pw + 10, ph + 10); target.restore();
+          target.drawImage(camera, px, py, pw, ph);
         }
-      } else if (activeScene === 'screen') {
-        const screenVideo = screenVideoRef.current ?? document.createElement('video');
-        screenVideo.srcObject = screenStreamRef.current;
-        screenVideo.muted = true;
-        screenVideo.playsInline = true;
-        screenVideoRef.current = screenVideo;
-        if (screenVideo.readyState >= 2) fit(screenVideo, true);
-        else void screenVideo.play().catch(() => undefined);
+      } else if (scene === 'screen') {
+        if (screenStreamRef.current) screenVideo.srcObject = screenStreamRef.current;
+        fit(target, screenVideo, true);
+      } else if (scene === 'guest') {
+        fit(target, remoteGuestVideoRef.current, true);
+      } else if (scene === 'replay') {
+        const frames = replayBufferRef.current.getFrames();
+        const frame = frames[Math.min(replayIndexRef.current, Math.max(frames.length - 1, 0))];
+        if (frame) target.drawImage(frame.canvas, 0, 0, canvas.width, canvas.height);
+      }
+    };
+
+    const renderMultiview = () => {
+      const mv = multiviewCanvasRef.current;
+      if (!mv || !multiview) return;
+      const mctx = mv.getContext('2d'); if (!mctx) return;
+      const w = mv.width, h = mv.height;
+      mctx.fillStyle = '#09090b'; mctx.fillRect(0, 0, w, h);
+      const cells: Array<[TvSceneId, number, number]> = [
+        ['camera',0,0],['video',w/2,0],['screen',0,h/2],['replay',w/2,h/2]
+      ];
+      for (const [scene,x,y] of cells) {
+        const cell = document.createElement('canvas'); cell.width = w/2; cell.height = h/2;
+        const cctx = cell.getContext('2d'); if (!cctx) continue;
+        cctx.fillStyle = '#000'; cctx.fillRect(0,0,cell.width,cell.height);
+        if (scene === 'camera') fit(cctx,camera,true);
+        else if (scene === 'video' && sourceVideo) fit(cctx,sourceVideo,true);
+        else if (scene === 'screen') fit(cctx,screenVideo,true);
+        else {
+          const frame = replayBufferRef.current.latestCanvas();
+          if (frame) cctx.drawImage(frame,0,0,cell.width,cell.height);
+        }
+        mctx.drawImage(cell,x,y);
+        mctx.fillStyle='#fff'; mctx.font='600 12px sans-serif'; mctx.fillText(scene.toUpperCase(),x+8,y+18);
+      }
+    };
+
+    const fromCanvas = transitionFromCanvasRef.current;
+    const draw = () => {
+      const now = performance.now();
+      const activeProgram = programSceneRef.current;
+      const transition = transitionRef.current;
+      let progress = 1;
+      if (transitionStartedRef.current != null && transition.type !== 'cut') {
+        progress = Math.min(1, (now - transitionStartedRef.current) / Math.max(transition.durationMs, 1));
+        if (progress >= 1) transitionStartedRef.current = null;
+      }
+      const incoming = document.createElement('canvas');
+      incoming.width = canvas.width; incoming.height = canvas.height;
+      const ictx = incoming.getContext('2d')!;
+      renderScene(ictx, activeProgram);
+
+      if (transitionStartedRef.current != null && transition.type !== 'cut' && fromCanvas) {
+        if (transition.type === 'fade') {
+          ctx.globalAlpha = 1; ctx.drawImage(fromCanvas,0,0);
+          ctx.globalAlpha = progress; ctx.drawImage(incoming,0,0); ctx.globalAlpha = 1;
+        } else {
+          const first = progress < 0.5 ? 1 - progress * 2 : 0;
+          const second = progress < 0.5 ? 0 : (progress - 0.5) * 2;
+          ctx.globalAlpha = first; ctx.drawImage(fromCanvas,0,0);
+          ctx.globalAlpha = second; ctx.drawImage(incoming,0,0); ctx.globalAlpha = 1;
+        }
       } else {
-        fit(camera, true);
+        ctx.drawImage(incoming,0,0);
       }
 
-      // Production graphics are rendered after the source scene so they remain
-      // attached to the PROGRAM output and local recording.
-      drawTvGraphics(ctx, w, h, graphics, performance.now() / 8);
-
-      // Keep a lightweight local rolling replay buffer. It never leaves this device.
-      if (Math.floor(performance.now() / 500) !== Math.floor((performance.now() - 16) / 500)) {
-        replayBufferRef.current.push(canvas);
+      if (replayPlayingRef.current) {
+        const frames = replayBufferRef.current.getFrames();
+        if (frames.length) {
+          replayIndexRef.current = Math.min(replayIndexRef.current + 1, frames.length - 1);
+          if (replayIndexRef.current >= frames.length - 1) {
+            replayPlayingRef.current = false; setReplayState('ready');
+            programSceneRef.current = transitionFromSceneRef.current;
+            setProgramScene(transitionFromSceneRef.current);
+          }
+        }
       }
 
+      drawTvGraphics(ctx, canvas.width, canvas.height, graphics, now / 8);
+      if (replayBufferRef.current.shouldCapture(now) && programSceneRef.current !== 'replay') replayBufferRef.current.push(canvas, now);
+      renderMultiview();
       sceneAnimationRef.current = requestAnimationFrame(draw);
     };
 
@@ -331,29 +395,47 @@ export default function TvStudioPage() {
     if (audioContext.state === 'suspended') await audioContext.resume();
 
     let destination = productionAudioDestinationRef.current;
-    if (!destination) {
-      destination = audioContext.createMediaStreamDestination();
-      productionAudioDestinationRef.current = destination;
+    if (!destination) destination = productionAudioDestinationRef.current = audioContext.createMediaStreamDestination();
+
+    if (!productionMasterGainRef.current) productionMasterGainRef.current = audioContext.createGain();
+    if (!productionLimiterRef.current) {
+      const limiter = audioContext.createDynamicsCompressor();
+      limiter.threshold.value = -1; limiter.knee.value = 0; limiter.ratio.value = 20; limiter.attack.value = 0.001; limiter.release.value = 0.08;
+      productionLimiterRef.current = limiter;
+      productionMasterGainRef.current.connect(limiter).connect(destination);
     }
 
     if (sourceVideo && !productionSourceAudioRef.current) {
       productionSourceAudioRef.current = audioContext.createMediaElementSource(sourceVideo);
       productionSourceGainRef.current = audioContext.createGain();
-      productionSourceAudioRef.current.connect(productionSourceGainRef.current).connect(destination);
+      productionSourceAudioRef.current.connect(productionSourceGainRef.current).connect(productionMasterGainRef.current);
     }
     if (productionSourceGainRef.current) {
-      productionSourceGainRef.current.gain.value =
-        activeScene === 'video' && !sourceVideoMuted ? programLevel : 0;
+      productionSourceGainRef.current.gain.value = activeProgram === 'video' && !sourceVideoMuted ? programLevel : 0;
     }
 
     if (audioPipelineRef.current && !productionCommentaryGainRef.current) {
       const commentary = audioContext.createMediaStreamSource(audioPipelineRef.current.stream);
       const commentaryGain = audioContext.createGain();
-      commentary.connect(commentaryGain).connect(destination);
+      const analyser = audioContext.createAnalyser();
+      analyser.fftSize = 512;
+      commentary.connect(analyser).connect(commentaryGain).connect(productionMasterGainRef.current);
       productionCommentaryGainRef.current = commentaryGain;
+      productionCommentaryAnalyserRef.current = analyser;
     }
-    if (productionCommentaryGainRef.current) {
-      productionCommentaryGainRef.current.gain.value = muted ? 0 : commentaryLevel;
+    if (productionCommentaryGainRef.current) productionCommentaryGainRef.current.gain.value = muted ? 0 : commentaryLevel;
+
+    if (duckingTimerRef.current) window.clearInterval(duckingTimerRef.current);
+    if (productionCommentaryAnalyserRef.current && productionSourceGainRef.current) {
+      const data = new Uint8Array(productionCommentaryAnalyserRef.current.fftSize);
+      duckingTimerRef.current = window.setInterval(() => {
+        if (!productionCommentaryAnalyserRef.current || !productionSourceGainRef.current) return;
+        productionCommentaryAnalyserRef.current.getByteTimeDomainData(data);
+        let sum = 0; for (const v of data) { const n=(v-128)/128; sum += n*n; }
+        const rms = Math.sqrt(sum / data.length);
+        const target = audioDucking && activeProgram === 'video' && rms > 0.035 ? programLevel * 0.28 : (activeProgram === 'video' && !sourceVideoMuted ? programLevel : 0);
+        productionSourceGainRef.current.gain.setTargetAtTime(target, audioContext!.currentTime, 0.045);
+      }, 40);
     }
 
     if (productionCanvasQualityRef.current !== quality) {
@@ -363,21 +445,14 @@ export default function TvStudioPage() {
       productionVideoTrackRef.current = productionCanvasStreamRef.current.getVideoTracks()[0] ?? null;
     }
     const audioTrack = destination.stream.getAudioTracks()[0];
-    if (!audioTrack) throw new Error('Could not create the mixed program audio.');
-    productionAudioTrackRef.current = audioTrack;
-
-    const existing = programStreamRef.current;
     const videoTrack = productionVideoTrackRef.current;
-    if (!videoTrack) throw new Error('Could not create the production video track.');
-    if (!existing || !existing.getTracks().includes(videoTrack) || !existing.getTracks().includes(audioTrack)) {
-      programStreamRef.current = new MediaStream([videoTrack, audioTrack]);
-    }
-    productionKeyRef.current = activeScene + ':' + quality;
+    if (!audioTrack || !videoTrack) throw new Error('Could not create the production A/V tracks.');
+    productionAudioTrackRef.current = audioTrack;
+    programStreamRef.current = new MediaStream([videoTrack, audioTrack]);
 
     if (videoRef.current) {
       videoRef.current.srcObject = programStreamRef.current;
-      videoRef.current.muted = true;
-      void videoRef.current.play().catch(() => undefined);
+      videoRef.current.muted = true; void videoRef.current.play().catch(() => undefined);
     }
     return programStreamRef.current;
   };
@@ -388,74 +463,69 @@ export default function TvStudioPage() {
   };
 
   const takeScene = async (scene: TvSceneId = previewScene) => {
-    const mapped = sceneToScene(scene);
-    if (!mapped) {
-      if (scene === 'replay') {
-        setProgramScene('replay');
-        programSceneRef.current = 'replay';
-        return;
-      }
-      if (scene === 'black') {
-        setProgramScene('black');
-        programSceneRef.current = 'black';
-        return;
-      }
-      toast.info('This source is not connected yet.');
+    if (scene === 'replay') {
+      const frames = replayBufferRef.current.getFrames();
+      if (!frames.length) { toast.info('Replay buffer is empty.'); return; }
+      transitionFromSceneRef.current = programSceneRef.current;
+      transitionFromCanvasRef.current = sceneCanvasRef.current ? (() => {
+        const c = document.createElement('canvas'); c.width = sceneCanvasRef.current!.width; c.height = sceneCanvasRef.current!.height;
+        c.getContext('2d')?.drawImage(sceneCanvasRef.current!,0,0); return c;
+      })() : null;
+      replayFramesRef.current = frames.map(f => f.canvas);
+      replayIndexRef.current = 0; replayPlayingRef.current = true; setReplayState('playing');
+      transitionRef.current = { type: transitionType, durationMs: transitionDuration };
+      transitionStartedRef.current = performance.now();
+      programSceneRef.current = 'replay'; setProgramScene('replay');
       return;
     }
-    setPreviewScene(scene);
-    previewSceneRef.current = scene;
+    const mapped = sceneToScene(scene);
+    if (!mapped && scene !== 'black') { toast.info('Guest is available when a marked TV guest publishes a camera track.'); return; }
+    if (scene === 'black') {
+      transitionFromSceneRef.current = programSceneRef.current;
+      transitionFromCanvasRef.current = sceneCanvasRef.current;
+      transitionRef.current = { type: transitionType, durationMs: transitionDuration };
+      transitionStartedRef.current = performance.now();
+      programSceneRef.current = 'black'; setProgramScene('black'); return;
+    }
+    if (scene === 'guest' && !remoteGuestVideoRef.current) { toast.info('No TV guest is connected.'); return; }
+    transitionFromSceneRef.current = programSceneRef.current;
+    transitionFromCanvasRef.current = sceneCanvasRef.current ? (() => {
+      const c = document.createElement('canvas'); c.width = sceneCanvasRef.current!.width; c.height = sceneCanvasRef.current!.height;
+      c.getContext('2d')?.drawImage(sceneCanvasRef.current!,0,0); return c;
+    })() : null;
+    if (mapped) await activateScene(mapped, true);
     transitionRef.current = { type: transitionType, durationMs: transitionDuration };
-    transitionStartedRef.current = performance.now();
-    await activateScene(mapped, true);
-    setProgramScene(scene);
-    programSceneRef.current = scene;
+    transitionStartedRef.current = transitionType === 'cut' ? null : performance.now();
+    programSceneRef.current = scene; setProgramScene(scene);
   };
 
   const activateScene = async (scene: Scene, fromTake = false) => {
-    if ((live || recording) && scene === 'video' && !sourceVideoRef.current) {
-      toast.error('Load a video before switching to the Video scene.');
-      return;
-    }
     try {
       if (scene === 'camera') {
-        screenStreamRef.current?.getTracks().forEach(t => t.stop());
-        screenStreamRef.current = null;
-        setSharing(false);
         await ensureStudio();
         setProductionSource('camera');
       } else if (scene === 'video') {
-        if (!sourceVideoRef.current) {
-          videoFileInputRef.current?.click();
-          return;
-        }
-        screenStreamRef.current?.getTracks().forEach(t => t.stop());
-        screenStreamRef.current = null;
-        setSharing(false);
-        await ensureStudio();
-        setProductionSource('video');
-        await sourceVideoRef.current.play().catch(() => undefined);
-        setSourceVideoPlaying(!sourceVideoRef.current.paused);
+        if (!sourceVideoRef.current) { videoFileInputRef.current?.click(); return; }
+        await ensureStudio(); await sourceVideoRef.current.play().catch(() => undefined);
+        setSourceVideoPlaying(!sourceVideoRef.current.paused); setProductionSource('video');
       } else {
         if (!screenStreamRef.current) {
           const preset = VIDEO_PRESETS[quality];
-          const ss = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: preset.fps }, audio: false });
+          const ss = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: preset.fps, width: { ideal: preset.width }, height: { ideal: preset.height } }, audio: false });
           screenStreamRef.current = ss;
           const track = ss.getVideoTracks()[0];
-          track.onended = () => { void activateScene('camera'); };
+          track.onended = () => { screenStreamRef.current = null; setSharing(false); void activateScene('camera'); };
           setSharing(true);
         }
       }
       setActiveScene(scene);
-      await createProductionProgram();
       if (!fromTake) {
-        setPreviewScene(scene);
-        previewSceneRef.current = scene;
+        const id = scene as TvSceneId;
+        setPreviewScene(id); previewSceneRef.current = id;
       }
+      await createProductionProgram();
       setStatus('preview');
-    } catch (e: any) {
-      toast.error(e?.message || 'Could not switch scene');
-    }
+    } catch (e: any) { toast.error(e?.message || 'Could not prepare scene'); }
   };
 
   const loadProductionVideo = async (file?: File) => {
