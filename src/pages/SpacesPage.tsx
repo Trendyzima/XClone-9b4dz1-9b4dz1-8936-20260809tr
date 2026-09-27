@@ -85,6 +85,7 @@ export default function SpacesPage() {
   const [showManageDialog, setShowManageDialog] = useState(false);
   const [selectedSpace, setSelectedSpace] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [hostCapability, setHostCapability] = useState({ canHost: false, isOwner: false, isVerified: false, loading: false });
   const [liveViewerCounts, setLiveViewerCounts] = useState<{ [id: string]: number }>({});
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -280,9 +281,32 @@ export default function SpacesPage() {
   }, [spaces]);
 
   const fetchUserProfile = async () => {
-    if (!user) return;
-    const { data } = await supabase.from('profiles').select('verified, subscriber_count, follower_count, creator_tier, username').eq('id', user.id).single();
-    if (data) setUserProfile(data);
+    if (!user) {
+      setHostCapability({ canHost: false, isOwner: false, isVerified: false, loading: false });
+      return;
+    }
+    setHostCapability(prev => ({ ...prev, loading: true }));
+    const [{ data: profile }, { data: capability, error: capabilityError }] = await Promise.all([
+      supabase.from('profiles').select('verified, subscriber_count, follower_count, creator_tier, username').eq('id', user.id).single(),
+      supabase.rpc('get_audio_space_host_capability'),
+    ]);
+    if (profile) setUserProfile(profile);
+    if (!capabilityError && capability) {
+      const row = Array.isArray(capability) ? capability[0] : capability;
+      setHostCapability({
+        canHost: Boolean(row?.can_host),
+        isOwner: Boolean(row?.is_owner),
+        isVerified: Boolean(row?.is_verified),
+        loading: false,
+      });
+    } else {
+      setHostCapability({
+        canHost: Boolean(profile?.verified),
+        isOwner: false,
+        isVerified: Boolean(profile?.verified),
+        loading: false,
+      });
+    }
   };
 
   const fetchFollowingHosts = async () => {
@@ -353,7 +377,11 @@ export default function SpacesPage() {
 
   const handleStartSpace = () => {
     if (!user) { navigate('/auth'); return; }
-    if (!userProfile?.verified) { toast.error('Only verified users can start Audio Spaces'); return; }
+    if (hostCapability.loading) { toast.info('Checking Space host access…'); return; }
+    if (!hostCapability.canHost) {
+      toast.error('Only verified accounts can start Audio Spaces');
+      return;
+    }
     setShowStartDialog(true);
   };
 
@@ -445,7 +473,7 @@ export default function SpacesPage() {
         <div className="grid grid-cols-2 gap-2">
           <button
             type="button"
-            onClick={() => setShowStartDialog(true)}
+            onClick={handleStartSpace}
             className="rounded-xl border border-primary/20 bg-primary/5 p-3 text-left hover:bg-primary/10 transition-colors"
           >
             <div className="flex items-center gap-2 font-bold text-sm">
@@ -506,7 +534,7 @@ export default function SpacesPage() {
       <SpacesAdBanner />
 
       {/* Verified badge info */}
-      {user && !userProfile?.verified && (
+      {user && !hostCapability.loading && !hostCapability.canHost && (
         <div className="mx-4 mt-4 flex items-center gap-3 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl">
           <Lock className="w-5 h-5 text-orange-500 flex-shrink-0" />
           <div>
