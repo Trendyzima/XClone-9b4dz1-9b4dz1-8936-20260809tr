@@ -37,7 +37,7 @@ const TABS: {id:Tab;label:string}[] = [
 const StoriesStrip = lazy(() => import('@/components/features/StoriesStrip').then(m => ({ default: m.StoriesStrip })));
 const profileSelect='user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)';
 
-function HomeFeedItem({item,index,lastElementRef,tab,onUpdate,onNavigate}:{item:Item;index:number;lastElementRef:(node:HTMLElement|null)=>void;tab:Tab;onUpdate:()=>void;onNavigate:(path:string)=>void}) {
+function HomeFeedItem({item,index,lastElementRef,tab,onUpdate,onNavigate}:{item:Item;index:number;lastElementRef:((node:HTMLElement|null)=>void)|null;tab:Tab;onUpdate:()=>void;onNavigate:(path:string)=>void}) {
   const hostRef=useRef<HTMLDivElement|null>(null);
   const [mounted,setMounted]=useState(false);
   useEffect(()=>{
@@ -52,7 +52,7 @@ function HomeFeedItem({item,index,lastElementRef,tab,onUpdate,onNavigate}:{item:
   },[]);
   const ref=(node:HTMLDivElement|null)=>{
     hostRef.current=node;
-    lastElementRef(node);
+    lastElementRef?.(node);
   };
   if(!mounted) return <div ref={ref} className="min-h-[180px] border-b border-border bg-background" aria-hidden="true"/>;
   return <div ref={ref}>
