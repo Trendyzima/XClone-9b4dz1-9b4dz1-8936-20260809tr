@@ -12,9 +12,11 @@ async function sign(p:Record<string,unknown>){const h=enc(JSON.stringify({alg:"H
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return json({ok:true}); if(req.method!=="POST")return json({ok:false,error:{code:"METHOD_NOT_ALLOWED",message:"POST required"}},405);
  const auth=req.headers.get("authorization");
+ if(!auth?.startsWith("Bearer "))return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Bearer authentication required"}},401);
  if(!supabaseUrl||!supabaseKey||!livekitUrl||!livekitApiKey||!livekitApiSecret)return json({ok:false,error:{code:"LIVEKIT_NOT_CONFIGURED",message:"Live broadcast service is not configured"}},503);
  const db=createClient(supabaseUrl,supabaseKey,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});
- const {data:u}=auth?.startsWith("Bearer ")?await db.auth.getUser():{data:{user:null}};
+ const {data:u,error:authError}=await db.auth.getUser();
+ if(authError||!u.user)return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Authentication required"}},401);
  let body:any={};try{body=await req.json()}catch{return json({ok:false,error:{code:"INVALID_JSON",message:"JSON required"}},400)}
  const streamId=typeof body.stream_id==="string"?body.stream_id:""; const role=body.role==="host"?"host":"viewer"; if(!streamId)return json({ok:false,error:{code:"STREAM_ID_REQUIRED",message:"stream_id is required"}},400);
  const {data:stream,error}=await db.from("live_streams").select("id,user_id,is_live,title").eq("id",streamId).maybeSingle();
