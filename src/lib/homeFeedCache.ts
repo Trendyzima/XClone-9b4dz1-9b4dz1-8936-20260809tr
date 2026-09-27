@@ -33,7 +33,7 @@ export async function readHomeFeedCache(key='home'):Promise<CachedFeed|null>{
 export async function writeHomeFeedCache(value:CachedFeed,key='home'){
   if(typeof indexedDB==='undefined')return;
   const db=await openFeedDb();
-  const items=filterFreshHomeFeedItems(value.items.filter(Boolean)).slice(0,MAX_ITEMS);
+  const items=filterFreshHomeFeedItems(value.items.filter(Boolean).filter((item:any)=>item?.type!=='fedpost')).slice(0,MAX_ITEMS);
   return new Promise<void>((resolve,reject)=>{
     const tx=db.transaction(STORE,'readwrite');
     tx.objectStore(STORE).put({...value,key,items});
