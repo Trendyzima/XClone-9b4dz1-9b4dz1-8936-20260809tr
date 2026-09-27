@@ -1,4 +1,5 @@
 import type { Post } from '@/types/app-types';
+import { federatedMediaUrl } from '@/features/federation/federatedMedia';
 
 export function normalizeFederatedText(value: unknown): string {
   const source = String(value ?? '');
@@ -48,7 +49,8 @@ function firstUrl(value: unknown): string | null {
 }
 export function extractFederatedMedia(object: any) {
   const attachments = Array.isArray(object?.attachment) ? object.attachment : [];
-  const mediaUrls = attachments.map(firstUrl).filter((u): u is string => !!u);
+  const actorUrl = typeof object?.attributedTo === 'string' ? object.attributedTo : object?.attributedTo?.id ?? object?.attributedTo?.url ?? '';
+  const mediaUrls = attachments.map(firstUrl).filter((u): u is string => !!u).map(u => federatedMediaUrl(u, actorUrl) ?? u);
   const image = mediaUrls.find(u => /image|\.(png|jpe?g|webp|gif)(\?|$)/i.test(u)) ?? null;
   const video = mediaUrls.find(u => /video|\.(mp4|webm|mov)(\?|$)/i.test(u)) ?? null;
   return { mediaUrls, image, video, isVideo: !!video };
