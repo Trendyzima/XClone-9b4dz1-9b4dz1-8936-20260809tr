@@ -72,6 +72,8 @@ export default function TvStudioPage() {
   const replayFramesRef = useRef<HTMLCanvasElement[]>([]);
   const replayIndexRef = useRef(0);
   const replayPlayingRef = useRef(false);
+  const replayPlaybackStartRef = useRef<number | null>(null);
+  const replayPlaybackBaseRef = useRef<number | null>(null);
   const multiviewCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [replayState, setReplayState] = useState<'ready' | 'playing'>('ready');
   const [programFps, setProgramFps] = useState(0);
@@ -366,6 +368,21 @@ export default function TvStudioPage() {
         progress = Math.min(1, (now - transitionStartedRef.current) / Math.max(transition.durationMs, 1));
         if (progress >= 1) transitionStartedRef.current = null;
       }
+      if (replayPlayingRef.current) {
+        const frames = replayBufferRef.current.getFrames();
+        if (frames.length) {
+          const started = replayPlaybackStartRef.current ?? now;
+          const base = replayPlaybackBaseRef.current ?? frames[0].timestamp;
+          const target = base + (now - started);
+          let idx = replayIndexRef.current;
+          while (idx + 1 < frames.length && frames[idx + 1].timestamp <= target) idx += 1;
+          replayIndexRef.current = idx;
+          if (idx >= frames.length - 1) {
+            replayPlayingRef.current = false; replayPlaybackStartRef.current = null; replayPlaybackBaseRef.current = null;
+            setReplayState('ready'); programSceneRef.current = transitionFromSceneRef.current; setProgramScene(transitionFromSceneRef.current);
+          }
+        }
+      }
       const incoming = document.createElement('canvas');
       incoming.width = canvas.width; incoming.height = canvas.height;
       const ictx = incoming.getContext('2d')!;
@@ -385,19 +402,7 @@ export default function TvStudioPage() {
         ctx.drawImage(incoming,0,0);
       }
 
-      if (replayPlayingRef.current) {
-        const frames = replayBufferRef.current.getFrames();
-        if (frames.length) {
-          replayIndexRef.current = Math.min(replayIndexRef.current + 1, frames.length - 1);
-          if (replayIndexRef.current >= frames.length - 1) {
-            replayPlayingRef.current = false; setReplayState('ready');
-            programSceneRef.current = transitionFromSceneRef.current;
-            setProgramScene(transitionFromSceneRef.current);
-          }
-        }
-      }
-
-      drawTvGraphics(ctx, canvas.width, canvas.height, graphics, now / 8);
+      if (activeProgram !== 'replay' && activeProgram !== 'black') drawTvGraphics(ctx, canvas.width, canvas.height, graphics, now / 8);
       if (replayBufferRef.current.shouldCapture(now) && programSceneRef.current !== 'replay') replayBufferRef.current.push(canvas, now);
       renderMultiview();
       sceneAnimationRef.current = requestAnimationFrame(draw);
@@ -511,6 +516,7 @@ export default function TvStudioPage() {
       })() : null;
       replayFramesRef.current = frames.map(f => f.canvas);
       replayIndexRef.current = 0; replayPlayingRef.current = true; setReplayState('playing');
+      replayPlaybackStartRef.current = performance.now(); replayPlaybackBaseRef.current = frames[0].timestamp;
       transitionRef.current = { type: transitionType, durationMs: transitionDuration };
       transitionStartedRef.current = performance.now();
       programSceneRef.current = 'replay'; setProgramScene('replay');
