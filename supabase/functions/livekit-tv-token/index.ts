@@ -16,12 +16,12 @@ Deno.serve(async req=>{
  const db=createClient(supabaseUrl,supabaseKey,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});
  const {data:u}=auth?.startsWith("Bearer ")?await db.auth.getUser():{data:{user:null}};
  let body:any={};try{body=await req.json()}catch{return json({ok:false,error:{code:"INVALID_JSON",message:"JSON required"}},400)}
- const streamId=typeof body.stream_id==="string"?body.stream_id:""; if(!streamId)return json({ok:false,error:{code:"STREAM_ID_REQUIRED",message:"stream_id is required"}},400);
+ const streamId=typeof body.stream_id==="string"?body.stream_id:""; const role=body.role==="host"?"host":"viewer"; if(!streamId)return json({ok:false,error:{code:"STREAM_ID_REQUIRED",message:"stream_id is required"}},400);
  const {data:stream,error}=await db.from("live_streams").select("id,user_id,is_live,title").eq("id",streamId).maybeSingle();
  if(error||!stream)return json({ok:false,error:{code:"STREAM_NOT_FOUND",message:"TV broadcast was not found"}},404);
  const host=Boolean(u.user&&stream.user_id===u.user.id);
- if(!host&&!stream.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is not live"}},409);
+ if(role==="host"){if(!host)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Authentication required for broadcasting"}},403);}else if(!stream.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is not live"}},409);
  const now=Math.floor(Date.now()/1000);
- const token=await sign({iss:livekitApiKey,sub:u.user?.id??`viewer-${crypto.randomUUID()}`,name:u.user?.user_metadata?.display_name??u.user?.email??"TV Viewer",metadata:JSON.stringify({role:host?"host":"viewer",streamId:stream.id}),iat:now,nbf:now,exp:now+60*60,video:{roomJoin:true,room:`tv-${stream.id}`,canPublish:host,canSubscribe:true,canPublishData:false}});
- return json({ok:true,data:{token,url:livekitUrl,room_name:`tv-${stream.id}`,stream_id:stream.id,role:host?"host":"viewer"},error:null});
+ const token=await sign({iss:livekitApiKey,sub:role==="host"?u.user!.id:`viewer-${crypto.randomUUID()}`,name:role==="host"?(u.user!.user_metadata?.display_name??u.user!.email??"Testagram Host"):"TV Viewer",metadata:JSON.stringify({role,streamId:stream.id}),iat:now,nbf:now,exp:now+60*60,video:{roomJoin:true,room:`tv-${stream.id}`,canPublish:role==="host",canSubscribe:true,canPublishData:false}});
+ return json({ok:true,data:{token,url:livekitUrl,room_name:`tv-${stream.id}`,stream_id:stream.id,role},error:null});
 });
