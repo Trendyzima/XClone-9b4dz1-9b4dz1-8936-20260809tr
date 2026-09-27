@@ -67,6 +67,8 @@ export default function TvStudioPage() {
   const [replayState, setReplayState] = useState<'ready' | 'playing'>('ready');
   const [programFps, setProgramFps] = useState(0);
   const [programDropped, setProgramDropped] = useState(0);
+  const programFrameRef = useRef({ last: 0, count: 0, dropped: 0 });
+  const [guestConnected, setGuestConnected] = useState(false);
   const pipEnabledRef = useRef(true);
   const previewSceneRef = useRef<TvSceneId>('camera');
   const programSceneRef = useRef<TvSceneId>('camera');
@@ -338,6 +340,12 @@ export default function TvStudioPage() {
     const fromCanvas = transitionFromCanvasRef.current;
     const draw = () => {
       const now = performance.now();
+      const frameStats = programFrameRef.current;
+      if (frameStats.last) {
+        const delta = now - frameStats.last;
+        if (delta > 55) frameStats.dropped += Math.max(0, Math.round(delta / 33.33) - 1);
+      }
+      frameStats.last = now; frameStats.count += 1;
       const activeProgram = programSceneRef.current;
       const transition = transitionRef.current;
       let progress = 1;
@@ -589,10 +597,48 @@ export default function TvStudioPage() {
       const info = await token(id);
       const room = new Room({ adaptiveStream: true, dynacast: true });
       roomRef.current = room;
+      const wireGuestTrack = (track: any, publication: any, participant: any) => {
+        const metadata = participant?.metadata || '';
+        const isGuest = metadata.includes('tv_guest') || metadata.includes('testagram_tv_guest');
+        if (!isGuest || publication?.source !== Track.Source.Camera) return;
+        const element = track.attach();
+        if (track.kind === Track.Kind.Video) {
+          remoteGuestVideoRef.current?.pause();
+          remoteGuestVideoRef.current = element as HTMLVideoElement;
+          remoteGuestVideoRef.current.muted = true;
+          remoteGuestVideoRef.current.playsInline = true;
+          void remoteGuestVideoRef.current.play().catch(() => undefined);
+          setGuestConnected(true);
+        } else if (track.kind === Track.Kind.Audio) {
+          const audioContext = productionAudioContextRef.current;
+          const master = productionMasterGainRef.current;
+          const native = (track as any).mediaStreamTrack;
+          if (audioContext && master && native) {
+            const guestSource = audioContext.createMediaStreamSource(new MediaStream([native]));
+            const guestGain = productionGuestGainRef.current ?? audioContext.createGain();
+            guestGain.gain.value = 1;
+            productionGuestGainRef.current = guestGain;
+            guestSource.connect(guestGain).connect(master);
+          }
+        }
+      };
+      room.on(RoomEvent.TrackSubscribed, wireGuestTrack);
+      room.on(RoomEvent.TrackUnsubscribed, (track: any, publication: any, participant: any) => {
+        if ((participant?.metadata || '').includes('tv_guest')) {
+          track.detach();
+          setGuestConnected(false);
+          remoteGuestVideoRef.current = null;
+        }
+      });
       room.on(RoomEvent.ParticipantConnected, () => setViewerCount(room.remoteParticipants.size));
       room.on(RoomEvent.ParticipantDisconnected, () => setViewerCount(room.remoteParticipants.size));
       await room.connect(info.url, info.token);
       await publishProgram(room, program);
+      for (const participant of room.remoteParticipants.values()) {
+        for (const publication of participant.trackPublications.values()) {
+          if (publication.isSubscribed && publication.track) wireGuestTrack(publication.track, publication, participant);
+        }
+      }
       setViewerCount(room.remoteParticipants.size);
       setLive(true);
       setMode('live');
@@ -621,6 +667,8 @@ export default function TvStudioPage() {
     await roomRef.current?.disconnect();
     roomRef.current = null;
     setViewerCount(0);
+    setGuestConnected(false);
+    remoteGuestVideoRef.current?.pause(); remoteGuestVideoRef.current = null;
     setLive(false);
     if (!recording) setStatus(cameraStreamRef.current ? 'preview' : 'idle');
     if (activeStreamId) {
@@ -830,6 +878,7 @@ export default function TvStudioPage() {
             <div className="aspect-video relative flex items-center justify-center">
               {status === 'idle' && <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500"><Radio className="w-12 h-12 mb-2" /><span>Studio preview</span><span className="text-xs mt-1">Tap Preview to start the camera and microphone</span></div>}
               <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-contain" />
+              {multiview && <canvas ref={multiviewCanvasRef} width={640} height={360} className="absolute inset-0 w-full h-full object-contain pointer-events-none" />}
               <div className="absolute top-3 left-3 flex gap-2 pointer-events-none">
                 {live && <span className="px-2.5 py-1 rounded-full bg-red-600/90 text-xs font-bold">● LIVE</span>}
                 {sharing && <span className="px-2.5 py-1 rounded-full bg-blue-600/90 text-xs font-bold">SCREEN</span>}
@@ -848,10 +897,11 @@ export default function TvStudioPage() {
           <aside className="space-y-3">
                           <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-3">
                 <div className="flex items-center gap-2 font-semibold text-sm"><Layers3 className="w-4 h-4" />Program / scenes</div>
-                <div className="grid grid-cols-3 gap-2">
-                  <Button size="sm" variant={activeScene === 'camera' ? 'default' : 'outline'} onClick={() => void activateScene('camera')}><Camera className="w-4 h-4 mr-1" />Camera</Button>
+                <div className="grid grid-cols-4 gap-2">
+                  <Button size="sm" variant={previewScene === 'camera' ? 'default' : 'outline'} onClick={() => void activateScene('camera')}><Camera className="w-4 h-4 mr-1" />Camera</Button>
                   <Button size="sm" variant={activeScene === 'video' ? 'default' : 'outline'} onClick={() => void activateScene('video')}><Upload className="w-4 h-4 mr-1" />Video</Button>
-                  <Button size="sm" variant={activeScene === 'screen' ? 'default' : 'outline'} onClick={() => void shareScreen()}><MonitorUp className="w-4 h-4 mr-1" />Screen</Button>
+                  <Button size="sm" variant={previewScene === 'screen' ? 'default' : 'outline'} onClick={() => void shareScreen()}><MonitorUp className="w-4 h-4 mr-1" />Screen</Button>
+                  <Button size="sm" variant={previewScene === 'guest' ? 'default' : 'outline'} disabled={!guestConnected} onClick={() => setPreviewScene('guest')}>Guest</Button>
                 </div>
                 <input ref={videoFileInputRef} type="file" accept="video/*" className="hidden" onChange={e => void loadProductionVideo(e.target.files?.[0])} />
                 {uploadedVideoName && <div className="text-[11px] text-zinc-400 truncate">{uploadedVideoName}</div>}
@@ -879,6 +929,7 @@ export default function TvStudioPage() {
                     <button className="rounded bg-zinc-800 p-2" onClick={() => { setPreviewScene('video'); previewSceneRef.current='video'; }}>Preview Video</button>
                     <button className="rounded bg-zinc-800 p-2" onClick={() => { setPreviewScene('screen'); previewSceneRef.current='screen'; }}>Preview Screen</button>
                     <button className="rounded bg-zinc-800 p-2" onClick={() => { setPreviewScene('replay'); previewSceneRef.current='replay'; }}>Preview Replay</button>
+                    <button className="rounded bg-zinc-800 p-2" disabled={!guestConnected} onClick={() => { setPreviewScene('guest'); previewSceneRef.current='guest'; }}>Preview Guest</button>
                   </div>
                 </div>
                 <div className="rounded-lg bg-black/30 p-2 space-y-2">
@@ -894,6 +945,7 @@ export default function TvStudioPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <Button size="sm" variant={multiview ? 'default' : 'outline'} onClick={() => setMultiview(v => !v)}>Multiview</Button>
+                  <Button size="sm" variant={replayState === 'playing' ? 'default' : 'outline'} disabled={!replayBufferRef.current.frameCount} onClick={() => void takeScene('replay')}>REPLAY</Button>
                   <Button size="sm" variant={audioDucking ? 'default' : 'outline'} onClick={() => setAudioDucking(v => !v)}>Auto ducking</Button>
                 </div>
               </div>
@@ -909,7 +961,8 @@ export default function TvStudioPage() {
                 <div className="rounded-lg bg-black/30 p-2"><Users className="w-3.5 h-3.5 mb-1 text-blue-400" /><span>{viewerCount}</span><p className="text-zinc-500">live viewers</p></div>
                 <div className="rounded-lg bg-black/30 p-2"><ShieldCheck className="w-3.5 h-3.5 mb-1 text-emerald-400" /><span>Local</span><p className="text-zinc-500">recording storage</p></div>
               </div>
-              <div className="mt-2 text-[10px] text-zinc-500">Replay buffer: {replayBufferRef.current.frameCount} frames / {Math.round(replayBufferRef.current.durationMs / 1000)}s</div>
+              <div className="mt-2 text-[10px] text-zinc-500">Replay buffer: {replayBufferRef.current.frameCount} frames / {Math.round(replayBufferRef.current.durationMs / 1000)}s · Guest: {guestConnected ? 'ready' : 'offline'}</div>
+              <div className="mt-1 text-[10px] text-zinc-500">Program: {programFps} FPS · dropped {programDropped}</div>
               <div className="mt-4 flex items-center justify-between text-[10px] text-zinc-500"><span>Studio signal</span><span className="uppercase tracking-wider">{deviceReady ? status : 'waiting for device'}</span></div>
               <div className="mt-1 h-2 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-emerald-400 transition-all" style={{ width: `${Math.min(100, audioLevel)}%` }} /></div>
               <p className="text-[10px] text-zinc-500 mt-1">Microphone level • browser noise suppression + studio gate/compressor</p>
