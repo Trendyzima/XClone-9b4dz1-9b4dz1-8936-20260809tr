@@ -65,6 +65,7 @@ export default function TvStudioPage() {
   const [sourceVideoMuted, setSourceVideoMuted] = useState(false);
   const [commentaryLevel, setCommentaryLevel] = useState(1);
   const [programLevel, setProgramLevel] = useState(0.85);
+  const [landscapeLocked, setLandscapeLocked] = useState(false);
   const [cameraPermission, setCameraPermission] = useState<PermissionState | 'unsupported'>('unsupported');
   const [microphonePermission, setMicrophonePermission] = useState<PermissionState | 'unsupported'>('unsupported');
   const [deviceReady, setDeviceReady] = useState(false);
@@ -472,6 +473,18 @@ export default function TvStudioPage() {
     }
   };
 
+  const toggleLandscape = async () => {
+    try {
+      const root = document.documentElement as any;
+      if (root.requestFullscreen && !document.fullscreenElement) await root.requestFullscreen();
+      const orientation = (screen as any).orientation;
+      if (orientation?.lock) await orientation.lock('landscape').catch(() => undefined);
+      setLandscapeLocked(true);
+    } catch {
+      toast.info('Use your device orientation controls to keep the TV production in landscape.');
+    }
+  };
+
   const fmt = (n: number) => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
 
   return (
@@ -488,7 +501,7 @@ export default function TvStudioPage() {
             </div>
             <p className="text-sm text-zinc-400 mt-1">Broadcast live to Testagram. Finished recordings stay on your phone/computer — never in Testagram storage.</p>
           </div>
-          <Button variant="outline" onClick={() => nav('/spaces')}>Exit</Button>
+          <div className="flex items-center gap-2"><Button size="sm" variant="outline" onClick={() => void toggleLandscape()}>Landscape</Button><Button variant="outline" onClick={() => nav('/spaces')}>Exit</Button></div>
         </header>
 
         <div className="grid lg:grid-cols-[1fr_330px] gap-4">
