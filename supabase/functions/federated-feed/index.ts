@@ -49,6 +49,9 @@ Deno.serve(async (request) => {
     let followedActorUris: string[] = [];
     let followedHashtagIds: string[] = [];
     let followedHashtagTags: string[] = [];
+    const blockedDomains = new Set<string>();
+    let activeFilters: any[] = [];
+
     if (userId) {
       const [relationshipResult, hashtagFollowResult, moderation] = await Promise.all([
         admin.from("federated_follow_relationships")
@@ -64,18 +67,22 @@ Deno.serve(async (request) => {
         ])
       ]);
 
+      if (relationshipResult.error) throw relationshipResult.error;
+      if (hashtagFollowResult.error) throw hashtagFollowResult.error;
+
       followedActorUris = [...new Set((relationshipResult.data || [])
         .map((r: any) => String(r.remote_actor_uri || "").trim())
         .filter(Boolean))];
 
-      if (hashtagFollowResult.error) throw hashtagFollowResult.error;
       followedHashtagIds = [...new Set((hashtagFollowResult.data || [])
         .map((r: any) => String(r.hashtag_id || "").trim())
         .filter(Boolean))];
 
-      const blockedDomains = new Set<string>((moderation[0]?.data || [])
-        .map((r:any)=>String(r.domain||"").toLowerCase().trim()).filter(Boolean));
-      const activeFilters = (moderation[1]?.data || [])
+      for (const row of moderation[0]?.data || []) {
+        const domain = String(row.domain || "").toLowerCase().trim();
+        if (domain) blockedDomains.add(domain);
+      }
+      activeFilters = (moderation[1]?.data || [])
         .filter((r:any)=>!r.expires_at || new Date(r.expires_at).getTime()>Date.now());
 
       if (followedHashtagIds.length) {
@@ -88,22 +95,8 @@ Deno.serve(async (request) => {
           .map((r: any) => String(r.tag || "").replace(/^#/, "").trim().toLowerCase())
           .filter(Boolean);
       }
-
-      const moderationAllowed = (item:any) => {
-        let domain = ""; try { domain = new URL(String(item.actor_uri||"")).hostname.toLowerCase(); } catch {}
-        if (domain && blockedDomains.has(domain)) return false;
-        const text = String(item.content||"").replace(/<[^>]*>/g," ").toLowerCase();
-        return !activeFilters.some((f:any)=>{ const phrase=String(f.phrase||"").trim().toLowerCase(); return f.action==='hide' && phrase && text.includes(phrase); });
-      };
-      const feedMatches=(item:any)=>{ if(!customFeed)return true; const mode=String(customFeed.mode||"all"); const body=String(item.content||"").replace(/<[^>]*>/g," ").toLowerCase(); const q=String(customFeed.query||"").trim().toLowerCase(); if(mode==="media" && !(Array.isArray(item.attachments)&&item.attachments.length))return false; if(mode==="people" && !item.actor_uri)return false; if(mode==="hashtags" && !Array.isArray(item.tags))return false; if(mode==="mentions" && !body.includes("@"))return false; if(mode==="conversations" && !item.in_reply_to_uri)return false; if(mode==="instances" && !item.actor_uri)return false; if(q){ const terms=q.split(/[,\s]+/).map((x:string)=>x.replace(/^#/, "").trim()).filter(Boolean); if(terms.length&&!terms.some((term:string)=>body.includes(term)||JSON.stringify(item.tags||[]).toLowerCase().includes(term)||String(item.actor_uri||"").toLowerCase().includes(term)))return false; } return true; };
-    } else {
-      const moderation = [];
-      const blockedDomains = new Set<string>();
-      const activeFilters: any[] = [];
     }
 
-    const blockedDomains = new Set<string>((moderation[0]?.data || []).map((r:any)=>String(r.domain||"").toLowerCase().trim()).filter(Boolean));
-    const activeFilters = (moderation[1]?.data || []).filter((r:any)=>!r.expires_at || new Date(r.expires_at).getTime()>Date.now());
     const moderationAllowed = (item:any) => {
       let domain = ""; try { domain = new URL(String(item.actor_uri||"")).hostname.toLowerCase(); } catch {}
       if (domain && blockedDomains.has(domain)) return false;
@@ -111,18 +104,6 @@ Deno.serve(async (request) => {
       return !activeFilters.some((f:any)=>{ const phrase=String(f.phrase||"").trim().toLowerCase(); return f.action==='hide' && phrase && text.includes(phrase); });
     };
 
-    const feedMatches=(item:any)=>{ if(!customFeed)return true; const mode=String(customFeed.mode||"all"); const body=String(item.content||"").replace(/<[^>]*>/g," ").toLowerCase(); const q=String(customFeed.query||"").trim().toLowerCase(); if(mode==="media" && !(Array.isArray(item.attachments)&&item.attachments.length))return false; if(mode==="people" && !item.actor_uri)return false; if(mode==="hashtags" && !Array.isArray(item.tags))return false; if(mode==="mentions" && !body.includes("@"))return false; if(mode==="conversations" && !item.in_reply_to_uri)return false; if(mode==="instances" && !item.actor_uri)return false; if(q){ const terms=q.split(/[,\s]+/).map((x:string)=>x.replace(/^#/, "").trim()).filter(Boolean); if(terms.length&&!terms.some((term:string)=>body.includes(term)||JSON.stringify(item.tags||[]).toLowerCase().includes(term)||String(item.actor_uri||"").toLowerCase().includes(term)))return false; } return true; };
-    const blockedDomains = new Set<string>((moderation[0]?.data || []).map((r:any)=>String(r.domain||"").toLowerCase().trim()).filter(Boolean));
-    const activeFilters = (moderation[1]?.data || []).filter((r:any)=>!r.expires_at || new Date(r.expires_at).getTime()>Date.now());
-    const moderationAllowed = (item:any) => {
-      let domain = ""; try { domain = new URL(String(item.actor_uri||"")).hostname.toLowerCase(); } catch {}
-      if (domain && blockedDomains.has(domain)) return false;
-      const text = String(item.content||"").replace(/<[^>]*>/g," ").toLowerCase();
-      return !activeFilters.some((f:any)=>{ const phrase=String(f.phrase||"").trim().toLowerCase(); return f.action==='hide' && phrase && text.includes(phrase); });
-    };
-
-    let customFeed:any=null;
-    if(feedId && userId){ const fr=await admin.from("federated_custom_discovery_feeds").select("id,user_id,query,mode").eq("id",feedId).eq("user_id",userId).maybeSingle(); if(fr.error)throw fr.error; customFeed=fr.data||null; }
     const feedMatches=(item:any)=>{ if(!customFeed)return true; const mode=String(customFeed.mode||"all"); const body=String(item.content||"").replace(/<[^>]*>/g," ").toLowerCase(); const q=String(customFeed.query||"").trim().toLowerCase(); if(mode==="media" && !(Array.isArray(item.attachments)&&item.attachments.length))return false; if(mode==="people" && !item.actor_uri)return false; if(mode==="hashtags" && !Array.isArray(item.tags))return false; if(mode==="mentions" && !body.includes("@"))return false; if(mode==="conversations" && !item.in_reply_to_uri)return false; if(mode==="instances" && !item.actor_uri)return false; if(q){ const terms=q.split(/[,\s]+/).map((x:string)=>x.replace(/^#/, "").trim()).filter(Boolean); if(terms.length&&!terms.some((term:string)=>body.includes(term)||JSON.stringify(item.tags||[]).toLowerCase().includes(term)||String(item.actor_uri||"").toLowerCase().includes(term)))return false; } return true; };
 
     const baseSelect = "id,uri,object_type,actor_uri,instance_id,url,content,summary,published_at,updated_at,sensitive,in_reply_to_uri,quote_uri,language_code,attachments,tags,like_count,announce_count,reply_count,quote_count,view_count,content_warning,raw_object";
