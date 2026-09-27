@@ -209,12 +209,8 @@ Deno.serve(async (request) => {
         .is("deleted_at", null)
         .eq("tombstone", false)
         .in("object_type", ["Note", "Article", "Question", "Video", "Image"])
-        .gte("published_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
         .in("actor_uri", [...hydratedActorAliases])
-        // Following content gets a longer retention window than discovery so a
-        // newly-followed account can immediately surface its recent history even
-        // when the account has not posted in the last 24 hours.
-        .gte("published_at", new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString())
+        // Following content gets a longer seven-day window than discovery.
         .order("published_at", { ascending: false, nullsFirst: false })
         .order("id", { ascending: false })
         .limit(limit);
