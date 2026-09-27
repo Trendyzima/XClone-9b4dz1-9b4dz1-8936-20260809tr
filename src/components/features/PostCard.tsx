@@ -660,13 +660,14 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
 
           <div
             className="post-content text-foreground mt-1 whitespace-pre-wrap break-words"
+            onClick={(e) => { const target = e.target as HTMLElement; if (target.tagName === 'A') e.stopPropagation(); }}
+          >
             {isFederatedPost ? (
               <FediverseRichText html={showTranslation && translatedContent ? translatedContent : post.content} tags={(post as any).tags ?? []} className="text-sm leading-relaxed break-words" />
             ) : (
               <div dangerouslySetInnerHTML={{ __html: parseContent(showTranslation && translatedContent ? translatedContent : post.content) }} />
             )}
-            onClick={(e) => { const target = e.target as HTMLElement; if (target.tagName === 'A') e.stopPropagation(); }}
-          />
+          </div>
 
           <InlineTvSuggestion content={post.content || ''} seed={post.id} type="post" />
           <InlineRssSuggestion content={post.content || ''} seed={`${post.id}-rss`} type="post" />
