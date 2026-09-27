@@ -50,24 +50,33 @@ Deno.serve(async (request) => {
     let followedHashtagIds: string[] = [];
     let followedHashtagTags: string[] = [];
     if (userId) {
-      const { data: relationships } = await admin
-        .from("federated_follow_relationships")
-        .select("remote_actor_uri")
-        .eq("local_user_id", userId)
-        .in("state", ["pending", "accepted", "active"]);
+      const [relationshipResult, hashtagFollowResult, moderation] = await Promise.all([
+        admin.from("federated_follow_relationships")
+          .select("remote_actor_uri")
+          .eq("local_user_id", userId)
+          .in("state", ["pending", "accepted", "active"]),
+        admin.from("hashtag_follows")
+          .select("hashtag_id")
+          .eq("user_id", userId),
+        Promise.all([
+          admin.from("fediverse_domain_blocks").select("domain").eq("user_id", userId),
+          admin.from("fediverse_content_filters").select("phrase,action,expires_at").eq("user_id", userId)
+        ])
+      ]);
 
-      followedActorUris = [...new Set((relationships || [])
+      followedActorUris = [...new Set((relationshipResult.data || [])
         .map((r: any) => String(r.remote_actor_uri || "").trim())
         .filter(Boolean))];
 
-      const { data: hashtagFollows, error: hashtagFollowError } = await admin
-        .from("hashtag_follows")
-        .select("hashtag_id")
-        .eq("user_id", userId);
-      if (hashtagFollowError) throw hashtagFollowError;
-      followedHashtagIds = [...new Set((hashtagFollows || [])
+      if (hashtagFollowResult.error) throw hashtagFollowResult.error;
+      followedHashtagIds = [...new Set((hashtagFollowResult.data || [])
         .map((r: any) => String(r.hashtag_id || "").trim())
         .filter(Boolean))];
+
+      const blockedDomains = new Set<string>((moderation[0]?.data || [])
+        .map((r:any)=>String(r.domain||"").toLowerCase().trim()).filter(Boolean));
+      const activeFilters = (moderation[1]?.data || [])
+        .filter((r:any)=>!r.expires_at || new Date(r.expires_at).getTime()>Date.now());
 
       if (followedHashtagIds.length) {
         const { data: followedHashtags, error: hashtagError } = await admin
@@ -79,12 +88,30 @@ Deno.serve(async (request) => {
           .map((r: any) => String(r.tag || "").replace(/^#/, "").trim().toLowerCase())
           .filter(Boolean);
       }
+
+      const moderationAllowed = (item:any) => {
+        let domain = ""; try { domain = new URL(String(item.actor_uri||"")).hostname.toLowerCase(); } catch {}
+        if (domain && blockedDomains.has(domain)) return false;
+        const text = String(item.content||"").replace(/<[^>]*>/g," ").toLowerCase();
+        return !activeFilters.some((f:any)=>{ const phrase=String(f.phrase||"").trim().toLowerCase(); return f.action==='hide' && phrase && text.includes(phrase); });
+      };
+      const feedMatches=(item:any)=>{ if(!customFeed)return true; const mode=String(customFeed.mode||"all"); const body=String(item.content||"").replace(/<[^>]*>/g," ").toLowerCase(); const q=String(customFeed.query||"").trim().toLowerCase(); if(mode==="media" && !(Array.isArray(item.attachments)&&item.attachments.length))return false; if(mode==="people" && !item.actor_uri)return false; if(mode==="hashtags" && !Array.isArray(item.tags))return false; if(mode==="mentions" && !body.includes("@"))return false; if(mode==="conversations" && !item.in_reply_to_uri)return false; if(mode==="instances" && !item.actor_uri)return false; if(q){ const terms=q.split(/[,\s]+/).map((x:string)=>x.replace(/^#/, "").trim()).filter(Boolean); if(terms.length&&!terms.some((term:string)=>body.includes(term)||JSON.stringify(item.tags||[]).toLowerCase().includes(term)||String(item.actor_uri||"").toLowerCase().includes(term)))return false; } return true; };
+    } else {
+      const moderation = [];
+      const blockedDomains = new Set<string>();
+      const activeFilters: any[] = [];
     }
 
-    const moderation = userId ? await Promise.all([
-      admin.from("fediverse_domain_blocks").select("domain").eq("user_id", userId),
-      admin.from("fediverse_content_filters").select("phrase,action,expires_at").eq("user_id", userId)
-    ]) : [];
+    const blockedDomains = new Set<string>((moderation[0]?.data || []).map((r:any)=>String(r.domain||"").toLowerCase().trim()).filter(Boolean));
+    const activeFilters = (moderation[1]?.data || []).filter((r:any)=>!r.expires_at || new Date(r.expires_at).getTime()>Date.now());
+    const moderationAllowed = (item:any) => {
+      let domain = ""; try { domain = new URL(String(item.actor_uri||"")).hostname.toLowerCase(); } catch {}
+      if (domain && blockedDomains.has(domain)) return false;
+      const text = String(item.content||"").replace(/<[^>]*>/g," ").toLowerCase();
+      return !activeFilters.some((f:any)=>{ const phrase=String(f.phrase||"").trim().toLowerCase(); return f.action==='hide' && phrase && text.includes(phrase); });
+    };
+
+    const feedMatches=(item:any)=>{ if(!customFeed)return true; const mode=String(customFeed.mode||"all"); const body=String(item.content||"").replace(/<[^>]*>/g," ").toLowerCase(); const q=String(customFeed.query||"").trim().toLowerCase(); if(mode==="media" && !(Array.isArray(item.attachments)&&item.attachments.length))return false; if(mode==="people" && !item.actor_uri)return false; if(mode==="hashtags" && !Array.isArray(item.tags))return false; if(mode==="mentions" && !body.includes("@"))return false; if(mode==="conversations" && !item.in_reply_to_uri)return false; if(mode==="instances" && !item.actor_uri)return false; if(q){ const terms=q.split(/[,\s]+/).map((x:string)=>x.replace(/^#/, "").trim()).filter(Boolean); if(terms.length&&!terms.some((term:string)=>body.includes(term)||JSON.stringify(item.tags||[]).toLowerCase().includes(term)||String(item.actor_uri||"").toLowerCase().includes(term)))return false; } return true; };
     const blockedDomains = new Set<string>((moderation[0]?.data || []).map((r:any)=>String(r.domain||"").toLowerCase().trim()).filter(Boolean));
     const activeFilters = (moderation[1]?.data || []).filter((r:any)=>!r.expires_at || new Date(r.expires_at).getTime()>Date.now());
     const moderationAllowed = (item:any) => {
@@ -157,8 +184,6 @@ Deno.serve(async (request) => {
         hydratedActorProfiles.set(String(row.actor_uri), profile);
       }
     };
-
-    await loadStoredActorProfiles(followedActorUris);
 
     const enrichRemoteAccounts = async (items: any[]) => {
       const actorUris = [...new Set(items.flatMap((item: any) => {
