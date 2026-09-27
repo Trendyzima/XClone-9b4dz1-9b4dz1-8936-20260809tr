@@ -1,7 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 import { DeleteObjectCommand, S3Client } from '@aws-sdk/client-s3';
 
-function env(name: string, fallback = '') { return process.env[name] ?? fallback; }
+function env(name: string, fallback = '') {
+  const value = process.env[name];
+  return value == null ? fallback : String(value).replace(/[\\r\\n\\t\\0]/g, '').trim();
+}
 
 function config() {
   return {
