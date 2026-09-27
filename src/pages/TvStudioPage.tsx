@@ -26,6 +26,7 @@ export default function TvStudioPage() {
   const { user } = useAuth();
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const roomRef = useRef<Room | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const programStreamRef = useRef<MediaStream | null>(null);
@@ -82,6 +83,9 @@ export default function TvStudioPage() {
   const [programDropped, setProgramDropped] = useState(0);
   const programFrameRef = useRef({ last: 0, count: 0, dropped: 0 });
   const [guestConnected, setGuestConnected] = useState(false);
+  const [guestInviteUrl, setGuestInviteUrl] = useState<string | null>(null);
+  const [bannerText, setBannerText] = useState('');
+  const [fullscreenText, setFullscreenText] = useState('');
   const [musicName, setMusicName] = useState<string | null>(null);
   const [sfxName, setSfxName] = useState<string | null>(null);
   const [musicLevel, setMusicLevel] = useState(0.5);
@@ -361,6 +365,8 @@ export default function TvStudioPage() {
     };
 
     const fromCanvas = transitionFromCanvasRef.current;
+    const previewCanvas = previewCanvasRef.current;
+    const previewCtx = previewCanvas?.getContext('2d');
     const draw = () => {
       const now = performance.now();
       const frameStats = programFrameRef.current;
@@ -395,6 +401,13 @@ export default function TvStudioPage() {
       incoming.width = canvas.width; incoming.height = canvas.height; transitionIncomingCanvasRef.current = incoming;
       const ictx = incoming.getContext('2d')!;
       renderScene(ictx, activeProgram);
+      if (previewCanvas && previewCtx) {
+        previewCanvas.width = canvas.width;
+        previewCanvas.height = canvas.height;
+        previewCtx.fillStyle = '#000';
+        previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+        renderScene(previewCtx, previewSceneRef.current);
+      }
 
       if (transitionStartedRef.current != null && transition.type !== 'cut' && fromCanvas) {
         if (transition.type === 'fade') {
@@ -710,8 +723,13 @@ export default function TvStudioPage() {
           remoteGuestVideoRef.current = null;
         }
       });
-      room.on(RoomEvent.ParticipantConnected, () => setViewerCount(room.remoteParticipants.size));
-      room.on(RoomEvent.ParticipantDisconnected, () => setViewerCount(room.remoteParticipants.size));
+      const countRemoteViewers = () => Array.from(room.remoteParticipants.values()).filter(p => {
+        try { return JSON.parse(p.metadata || '{}')?.role === 'viewer'; } catch { return false; }
+      }).length;
+      const refreshViewerCount = () => setViewerCount(countRemoteViewers());
+      room.on(RoomEvent.ParticipantConnected, refreshViewerCount);
+      room.on(RoomEvent.ParticipantDisconnected, refreshViewerCount);
+      room.on(RoomEvent.ParticipantMetadataChanged, refreshViewerCount);
       await room.connect(info.url, info.token);
       await publishProgram(room, program);
       for (const participant of room.remoteParticipants.values()) {
@@ -719,7 +737,7 @@ export default function TvStudioPage() {
           if (publication.isSubscribed && publication.track) wireGuestTrack(publication.track, publication, participant);
         }
       }
-      setViewerCount(room.remoteParticipants.size);
+      setViewerCount(countRemoteViewers());
       setLive(true);
       setMode('live');
       setStatus('live');
@@ -741,6 +759,17 @@ export default function TvStudioPage() {
       setPermissionError(message);
       toast.error(message);
     }
+  };
+
+  const createGuestInvite = async () => {
+    if (!activeStreamId || !live) { toast.info('Go live first, then invite a guest.'); return; }
+    try {
+      const { data, error } = await supabase.functions.invoke('livekit-tv-token', { body: { stream_id: activeStreamId, role: 'guest_invite' } });
+      if (error || !data?.data?.invite_token) throw new Error(data?.error?.message || error?.message || 'Could not create guest invitation');
+      const url = `${window.location.origin}/tv/guest/${activeStreamId}?invite=${encodeURIComponent(data.data.invite_token)}`;
+      setGuestInviteUrl(url);
+      try { await navigator.clipboard.writeText(url); toast.success('Guest invitation copied'); } catch { toast.success('Guest invitation created'); }
+    } catch (e: any) { toast.error(e?.message || 'Could not create guest invitation'); }
   };
 
   const shareLiveLink = async () => {
@@ -988,13 +1017,19 @@ export default function TvStudioPage() {
             </div>
           )}
           <section className="rounded-2xl overflow-hidden border border-white/10 bg-black shadow-2xl">
-            <div className="aspect-video relative flex items-center justify-center">
-              {status === 'idle' && <div className="absolute inset-0 flex flex-col items-center justify-center text-zinc-500"><Radio className="w-12 h-12 mb-2" /><span>Studio preview</span><span className="text-xs mt-1">Tap Preview to start the camera and microphone</span></div>}
-              <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-contain" />
-              {multiview && <canvas ref={multiviewCanvasRef} width={640} height={360} className="absolute inset-0 w-full h-full object-contain pointer-events-none" />}
-              <div className="absolute top-3 left-3 flex gap-2 pointer-events-none">
-                {live && <span className="px-2.5 py-1 rounded-full bg-red-600/90 text-xs font-bold">● LIVE</span>}
-                {sharing && <span className="px-2.5 py-1 rounded-full bg-blue-600/90 text-xs font-bold">SCREEN</span>}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 bg-zinc-950 p-2">
+              <div className="aspect-video relative rounded-lg overflow-hidden border border-blue-500/30 bg-black">
+                <canvas ref={previewCanvasRef} className="w-full h-full object-contain" />
+                <span className="absolute top-2 left-2 rounded bg-blue-600/90 px-2 py-1 text-[10px] font-bold tracking-wider">PREVIEW · {previewScene.toUpperCase()}</span>
+              </div>
+              <div className="aspect-video relative rounded-lg overflow-hidden border border-red-500/30 bg-black">
+                {status === 'idle' && <div className="absolute inset-0 z-10 flex flex-col items-center justify-center text-zinc-500"><Radio className="w-10 h-10 mb-2" /><span>Program monitor</span><span className="text-xs mt-1">Tap Preview to start the camera and microphone</span></div>}
+                <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-contain" />
+                {multiview && <canvas ref={multiviewCanvasRef} width={640} height={360} className="absolute inset-0 w-full h-full object-contain pointer-events-none" />}
+                <div className="absolute top-2 left-2 flex gap-2 pointer-events-none">
+                  <span className="rounded bg-red-600/90 px-2 py-1 text-[10px] font-bold tracking-wider">{live ? 'ON AIR' : 'PROGRAM'}</span>
+                  {sharing && <span className="rounded bg-blue-600/90 px-2 py-1 text-[10px] font-bold">SCREEN</span>}
+                </div>
               </div>
             </div>
             <div className="p-3 border-t border-white/10 flex flex-wrap gap-2">
@@ -1050,10 +1085,18 @@ export default function TvStudioPage() {
                   <input value={lowerThirdText} onChange={e => setLowerThirdText(e.target.value)} placeholder="Lower third name/title" className="w-full rounded bg-zinc-800 p-2 text-xs" />
                   <input value={lowerThirdSecondary} onChange={e => setLowerThirdSecondary(e.target.value)} placeholder="Lower third secondary" className="w-full rounded bg-zinc-800 p-2 text-xs" />
                   <input value={tickerText} onChange={e => setTickerText(e.target.value)} placeholder="Ticker / breaking news" className="w-full rounded bg-zinc-800 p-2 text-xs" />
-                  <div className="grid grid-cols-3 gap-1">
+                  <input value={bannerText} onChange={e => setBannerText(e.target.value)} placeholder="Breaking banner" className="w-full rounded bg-zinc-800 p-2 text-xs" />
+                  <input value={fullscreenText} onChange={e => setFullscreenText(e.target.value)} placeholder="Fullscreen title" className="w-full rounded bg-zinc-800 p-2 text-xs" />
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
                     <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'lower-third' ? { ...x, text: lowerThirdText, secondary: lowerThirdSecondary, visible: true } : x))}>Lower 3rd</Button>
+                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'lower-third' ? { ...x, visible: false } : x))}>Hide 3rd</Button>
                     <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'ticker' ? { ...x, text: tickerText, visible: true } : x))}>Ticker</Button>
+                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'ticker' ? { ...x, visible: false } : x))}>Hide ticker</Button>
                     <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'station-bug' ? { ...x, visible: !x.visible } : x))}>Bug</Button>
+                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'breaking-banner' ? { ...x, text: bannerText, visible: true } : x))}>Banner</Button>
+                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'breaking-banner' ? { ...x, visible: false } : x))}>Hide banner</Button>
+                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'fullscreen' ? { ...x, text: fullscreenText, visible: true } : x))}>Fullscreen</Button>
+                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'fullscreen' ? { ...x, visible: false } : x))}>Hide full</Button>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-[10px]">
@@ -1070,9 +1113,15 @@ export default function TvStudioPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <Button size="sm" variant={multiview ? 'default' : 'outline'} onClick={() => setMultiview(v => !v)}>Multiview</Button>
+                  <Button size="sm" variant="outline" onClick={() => void createGuestInvite()} disabled={!live}>Invite Guest</Button>
                   <Button size="sm" variant={replayState === 'playing' ? 'default' : 'outline'} disabled={!replayBufferRef.current.frameCount} onClick={() => void takeScene('replay')}>REPLAY</Button>
                   <Button size="sm" variant={audioDucking ? 'default' : 'outline'} onClick={() => setAudioDucking(v => !v)}>Auto ducking</Button>
                 </div>
+                {guestInviteUrl && <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-2 text-[10px]">
+                  <div className="font-semibold text-emerald-300">Guest invite ready · expires in 15 minutes</div>
+                  <div className="mt-1 break-all text-zinc-400">{guestInviteUrl}</div>
+                  <Button size="sm" className="mt-2" onClick={() => { void navigator.clipboard?.writeText(guestInviteUrl); toast.success('Guest invite copied'); }}>Copy invite</Button>
+                </div>}
               </div>
             <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4">
               <div className="flex items-center gap-2 font-semibold mb-3"><Settings2 className="w-4 h-4" />Production controls</div>
