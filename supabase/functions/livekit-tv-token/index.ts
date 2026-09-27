@@ -22,6 +22,6 @@ Deno.serve(async req=>{
  const host=stream.user_id===u.user.id;
  if(!host && !stream.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is not live"}},409);
  const now=Math.floor(Date.now()/1000);
- const token=await sign({iss:livekitApiKey,sub:u.user.id,name:u.user.user_metadata?.display_name??u.user.email??u.user.id,iat:now,nbf:now,exp:now+60*60,video:{roomJoin:true,room:`tv-${stream.id}`,canPublish:host,canSubscribe:true,canPublishData:true}});
+ const token=await sign({iss:livekitApiKey,sub:u.user.id,name:u.user.user_metadata?.display_name??u.user.email??u.user.id,iat:now,nbf:now,exp:now+60*60,video:{roomJoin:true,room:`tv-${stream.id}`,canPublish:host,canSubscribe:true,canPublishData:false}});
  return json({ok:true,data:{token,url:livekitUrl,room_name:`tv-${stream.id}`,stream_id:stream.id,role:host?"host":"viewer"},error:null});
 });
