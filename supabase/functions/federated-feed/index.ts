@@ -201,82 +201,86 @@ Deno.serve(async (request) => {
       return query;
     };
 
-    let followedActorItems: any[] = [];
-    if (followedActorUris.length) {
-      let followedQuery = admin
-        .from("federated_objects")
-        .select(baseSelect)
-        .is("deleted_at", null)
-        .eq("tombstone", false)
-        .in("object_type", ["Note", "Article", "Question", "Video", "Image"])
-        .in("actor_uri", [...hydratedActorAliases])
-        // Following content gets a longer seven-day window than discovery.
-        .order("published_at", { ascending: false, nullsFirst: false })
-        .order("id", { ascending: false })
-        .limit(limit);
+    const followedActorPromise = followedActorUris.length
+      ? (async () => {
+          let followedQuery = admin
+            .from("federated_objects")
+            .select(baseSelect)
+            .is("deleted_at", null)
+            .eq("tombstone", false)
+            .in("object_type", ["Note", "Article", "Question", "Video", "Image"])
+            .in("actor_uri", [...hydratedActorAliases])
+            .order("published_at", { ascending: false, nullsFirst: false })
+            .order("id", { ascending: false })
+            .limit(limit);
+          if (before) followedQuery = followedQuery.lt("published_at", new Date(before).toISOString());
+          const { data, error } = await followedQuery;
+          if (error) throw error;
+          return (data || []).filter(moderationAllowed).filter(feedMatches).map((item: any) => ({
+            ...item,
+            feed_source: "following_actor",
+            remote_account: item.remote_account ?? hydratedActorProfiles.get(String(item.actor_uri)) ?? null,
+          }));
+        })()
+      : Promise.resolve([]);
 
-      if (before) followedQuery = followedQuery.lt("published_at", new Date(before).toISOString());
-      const { data, error } = await followedQuery;
-      if (error) throw error;
-      followedActorItems = (data || []).filter(moderationAllowed).filter(feedMatches).map((item: any) => ({
-        ...item,
-        feed_source: "following_actor",
-        remote_account: item.remote_account ?? hydratedActorProfiles.get(String(item.actor_uri)) ?? null,
-      }));
-    }
+    const followedHashtagPromise = followedHashtagIds.length
+      ? (async () => {
+          const { data: mentions, error: mentionError } = await admin
+            .from("federated_hashtag_mentions")
+            .select("object_id,hashtag_id")
+            .in("hashtag_id", followedHashtagIds)
+            .limit(Math.min(200, Math.max(50, limit * 12)));
+          if (mentionError) throw mentionError;
 
-    let followedHashtagItems: any[] = [];
-    if (followedHashtagIds.length) {
-      const { data: mentions, error: mentionError } = await admin
-        .from("federated_hashtag_mentions")
-        .select("object_id,hashtag_id")
-        .in("hashtag_id", followedHashtagIds)
-        .limit(Math.min(200, Math.max(50, limit * 12)));
-      if (mentionError) throw mentionError;
+          const objectIds = [...new Set((mentions || []).map((m: any) => String(m.object_id || "")).filter(Boolean))];
+          if (!objectIds.length) return [];
 
-      const objectIds = [...new Set((mentions || []).map((m: any) => String(m.object_id || "")).filter(Boolean))];
-      if (objectIds.length) {
-        const { data: hashtagObjects, error: hashtagObjectsError } = await admin
-          .from("federated_objects")
-          .select(baseSelect)
-          .is("deleted_at", null)
-          .eq("tombstone", false)
-          .in("object_type", ["Note", "Article", "Question", "Video", "Image"])
-          .gte("published_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-          .in("id", objectIds)
-          .order("published_at", { ascending: false, nullsFirst: false })
-          .order("id", { ascending: false })
-          .limit(limit * 3);
+          const { data: hashtagObjects, error: hashtagObjectsError } = await admin
+            .from("federated_objects")
+            .select(baseSelect)
+            .is("deleted_at", null)
+            .eq("tombstone", false)
+            .in("object_type", ["Note", "Article", "Question", "Video", "Image"])
+            .gte("published_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+            .in("id", objectIds)
+            .order("published_at", { ascending: false, nullsFirst: false })
+            .order("id", { ascending: false })
+            .limit(limit * 3);
 
-        if (hashtagObjectsError) throw hashtagObjectsError;
-        const followedObjectSet = new Set(objectIds);
-        const hashtagIdsByObject = new Map<string, string[]>();
-        for (const mention of mentions || []) {
-          const objectId = String(mention.object_id || "");
-          if (!objectId) continue;
-          const ids = hashtagIdsByObject.get(objectId) || [];
-          ids.push(String(mention.hashtag_id || ""));
-          hashtagIdsByObject.set(objectId, ids);
-        }
+          if (hashtagObjectsError) throw hashtagObjectsError;
+          const hashtagIdsByObject = new Map<string, string[]>();
+          for (const mention of mentions || []) {
+            const objectId = String(mention.object_id || "");
+            if (!objectId) continue;
+            const ids = hashtagIdsByObject.get(objectId) || [];
+            ids.push(String(mention.hashtag_id || ""));
+            hashtagIdsByObject.set(objectId, ids);
+          }
 
-        followedHashtagItems = (hashtagObjects || [])
-          .filter(moderationAllowed)
-          .filter(feedMatches)
-          .map((item: any) => {
-            const matchedIds = hashtagIdsByObject.get(String(item.id)) || [];
-            const matchedTags = matchedIds.map((id) => {
-              const index = followedHashtagIds.indexOf(id);
-              return index >= 0 ? followedHashtagTags[index] : "";
-            }).filter(Boolean);
-            return {
-              ...item,
-              feed_source: "following_hashtag",
-              followed_hashtags: [...new Set(matchedTags)],
-              remote_account: item.remote_account ?? hydratedActorProfiles.get(String(item.actor_uri)) ?? null,
-            };
-          });
-      }
-    }
+          return (hashtagObjects || [])
+            .filter(moderationAllowed)
+            .filter(feedMatches)
+            .map((item: any) => {
+              const matchedIds = hashtagIdsByObject.get(String(item.id)) || [];
+              const matchedTags = matchedIds.map((id) => {
+                const index = followedHashtagIds.indexOf(id);
+                return index >= 0 ? followedHashtagTags[index] : "";
+              }).filter(Boolean);
+              return {
+                ...item,
+                feed_source: "following_hashtag",
+                followed_hashtags: [...new Set(matchedTags)],
+                remote_account: item.remote_account ?? hydratedActorProfiles.get(String(item.actor_uri)) ?? null,
+              };
+            });
+        })()
+      : Promise.resolve([]);
+
+    const [followedActorItems, followedHashtagItems] = await Promise.all([
+      followedActorPromise,
+      followedHashtagPromise,
+    ]);
 
     const followedItems = [...followedActorItems, ...followedHashtagItems];
     const followedObjectIds = new Set(followedItems.map((item: any) => String(item.id || "")).filter(Boolean));
