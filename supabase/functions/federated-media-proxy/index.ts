@@ -40,7 +40,28 @@ function hostAllowed(target: string, source: string) {
   const suffix = tParts.length >= 2 && sParts.length >= 2
     ? tParts.slice(-2).join(".") === sParts.slice(-2).join(".")
     : th === sh;
-  return th === sh || th.endsWith("." + sh) || suffix;
+
+  // Fediverse actors frequently publish media through a different CDN than
+  // their actor host. Keep the proxy closed to arbitrary hosts while explicitly
+  // supporting major federation/social media CDNs that commonly appear in
+  // ActivityPub attachments.
+  const trustedMediaHosts = [
+    "twimg.com",
+    "twitter.com",
+    "x.com",
+    "pbs.twimg.com",
+    "cdninstagram.com",
+    "fbcdn.net",
+    "fbsbx.com",
+    "cloudfront.net",
+    "fastly.net",
+    "amazonaws.com",
+  ];
+  const trustedMedia = trustedMediaHosts.some(domain =>
+    th === domain || th.endsWith("." + domain)
+  );
+
+  return th === sh || th.endsWith("." + sh) || suffix || trustedMedia;
 }
 
 function responseHeaders(upstream: Response) {
