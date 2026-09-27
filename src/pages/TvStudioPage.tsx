@@ -766,7 +766,7 @@ export default function TvStudioPage() {
     try {
       const { data, error } = await supabase.functions.invoke('livekit-tv-token', { body: { stream_id: activeStreamId, role: 'guest_invite' } });
       if (error || !data?.data?.invite_token) throw new Error(data?.error?.message || error?.message || 'Could not create guest invitation');
-      const url = `${window.location.origin}/tv/guest/${activeStreamId}?invite=${encodeURIComponent(data.data.invite_token)}`;
+      const url = `${window.location.origin}/tv/live/${activeStreamId}?guest=${encodeURIComponent(data.data.invite_token)}`;
       setGuestInviteUrl(url);
       try { await navigator.clipboard.writeText(url); toast.success('Guest invitation copied'); } catch { toast.success('Guest invitation created'); }
     } catch (e: any) { toast.error(e?.message || 'Could not create guest invitation'); }
