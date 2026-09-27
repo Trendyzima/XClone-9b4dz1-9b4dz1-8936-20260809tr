@@ -448,8 +448,8 @@ export default function TvStudioPage() {
 
     const wireLocalAudioBus = (
       element: HTMLAudioElement | null,
-      sourceRef: React.MutableRefObject<MediaElementAudioSourceNode | null>,
-      gainRef: React.MutableRefObject<GainNode | null>,
+      sourceRef: { current: MediaElementAudioSourceNode | null },
+      gainRef: { current: GainNode | null },
       level: number,
     ) => {
       if (!element) return;
