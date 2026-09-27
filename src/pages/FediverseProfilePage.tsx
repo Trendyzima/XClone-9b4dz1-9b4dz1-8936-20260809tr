@@ -42,6 +42,10 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
     } catch { return ''; }
   }, [actorUrl, suppliedHandle, suppliedUsername]);
 
+  // Canonical actor URI used by render-time media proxying. The loader has its own
+  // scoped value, so keep a component-level value for the JSX below as well.
+  const resolvedActorUri = profile?.actor_uri ?? profile?.actor_url ?? actorUrl;
+
   useEffect(() => {
     let cancelled = false;
     const load = async () => {
