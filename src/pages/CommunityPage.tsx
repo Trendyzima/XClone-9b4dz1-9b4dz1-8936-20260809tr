@@ -79,6 +79,7 @@ export default function CommunityPage({ section, standalone = false }: { section
 
   const [posts, setPosts] = useState<Post[]>([]);
   const [isMember, setIsMember] = useState(false);
+  const [memberStatus, setMemberStatus] = useState<'active' | 'pending' | null>(null);
   const [userRole, setUserRole] = useState<string>('member');
   const [members, setMembers] = useState<CommunityMember[]>([]);
 
@@ -352,11 +353,12 @@ export default function CommunityPage({ section, standalone = false }: { section
   useEffect(() => { if (section) setActiveTab(section); }, [section]);
 
   useEffect(() => {
-    if (activeTab === 'chat' && community) {
-      fetchChat();
-      chatPollingRef.current = setInterval(fetchChat, 5000);
-    } else { if (chatPollingRef.current) clearInterval(chatPollingRef.current); }
-    return () => { if (chatPollingRef.current) clearInterval(chatPollingRef.current); };
+    if (activeTab !== 'chat' || !community) return;
+    void fetchChat();
+    const channel = supabase.channel(`community-chat-${community.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'community_chat', filter: `community_id=eq.${community.id}` }, () => { void fetchChat(); })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); if (chatPollingRef.current) clearInterval(chatPollingRef.current); };
   }, [activeTab, community?.id]);
 
   useEffect(() => { if (activeTab === 'chat') chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages, activeTab]);
@@ -579,8 +581,9 @@ export default function CommunityPage({ section, standalone = false }: { section
       if (error) throw error;
       setCommunity(data);
       if (user) {
-        const { data: memberData } = await supabase.from('community_members').select('id, role').eq('community_id', data.id).eq('user_id', user.id).maybeSingle();
-        setIsMember(!!memberData);
+        const { data: memberData } = await supabase.from('community_members').select('id, role, status').eq('community_id', data.id).eq('user_id', user.id).maybeSingle();
+        setIsMember(memberData?.status === 'active');
+        setMemberStatus(memberData?.status === 'active' || memberData?.status === 'pending' ? memberData.status : null);
         if (memberData) setUserRole(memberData.role);
       }
       const { data: membersData } = await supabase.from('community_members').select('*, profiles(username, avatar_url, verified)').eq('community_id', data.id).order('role', { ascending: true }).limit(20);
@@ -611,12 +614,18 @@ export default function CommunityPage({ section, standalone = false }: { section
         const { error } = await supabase.rpc('leave_community', { p_community_id: community.id });
         if (error) throw error;
         setIsMember(false);
+        setMemberStatus(null);
+        setUserRole('member');
         toast({ title: 'Left community' });
       } else {
         const { error } = await supabase.rpc('join_community', { p_community_id: community.id });
         if (error) throw error;
-        setIsMember(true);
-        toast({ title: '✅ Joined community!' });
+        const { data: joinedMembership } = await supabase.from('community_members').select('status, role').eq('community_id', community.id).eq('user_id', user.id).maybeSingle();
+        const nextStatus = joinedMembership?.status === 'pending' ? 'pending' : 'active';
+        setMemberStatus(nextStatus);
+        setIsMember(nextStatus === 'active');
+        if (joinedMembership?.role) setUserRole(joinedMembership.role);
+        toast({ title: nextStatus === 'pending' ? 'Request sent' : '✅ Joined community!', description: nextStatus === 'pending' ? 'The community owner must approve your request.' : undefined });
       }
       fetchCommunity();
     } catch (error: any) {
@@ -698,8 +707,8 @@ export default function CommunityPage({ section, standalone = false }: { section
             </div>
           </div>
           {user && (
-            <Button onClick={handleJoinToggle} variant={isMember ? 'outline' : 'default'} className="rounded-full flex-shrink-0" size="sm">
-              {isMember ? 'Joined' : (<><UserPlus className="w-4 h-4 mr-1" />Join</>)}
+            <Button onClick={handleJoinToggle} variant={isMember || memberStatus === 'pending' ? 'outline' : 'default'} className="rounded-full flex-shrink-0" size="sm">
+              {memberStatus === 'pending' ? 'Requested' : isMember ? 'Joined' : (<><UserPlus className="w-4 h-4 mr-1" />Join</>)}
             </Button>
           )}
         </div>
