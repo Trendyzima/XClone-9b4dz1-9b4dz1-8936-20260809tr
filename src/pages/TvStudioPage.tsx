@@ -793,6 +793,7 @@ export default function TvStudioPage() {
     roomRef.current = null;
     setViewerCount(0);
     setGuestConnected(false);
+    setGuestInviteUrl(null);
     remoteGuestVideoRef.current?.pause(); remoteGuestVideoRef.current = null;
     setLive(false);
     if (!recording) setStatus(cameraStreamRef.current ? 'preview' : 'idle');
