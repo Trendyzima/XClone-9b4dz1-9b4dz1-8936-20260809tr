@@ -122,149 +122,62 @@ Deno.serve(async (request) => {
       username = username || String(fallbackObject?.preferredUsername || fallbackObject?.username || "").trim() || "unknown";
       return { id: source, actor_uri: source, url: source, profile_url: source, username, preferredUsername: username, display_name: String(fallbackObject?.name || username), domain, bio: typeof fallbackObject?.summary === "string" ? fallbackObject.summary : null, avatar_url: null, header_url: null, followers_url: null, following_url: null, inbox_url: null, outbox_url: null, published_at: null, fields: [], emojis: [], followers_count: 0, following_count: 0 };
     };
-    const hydrateActor = async (actorUri: string) => {
-      try {
-        const actorUrl = new URL(actorUri);
-        if (!["http:", "https:"].includes(actorUrl.protocol)) return;
-        const actorRes = await fetch(actorUrl.toString(), {
-          headers: { Accept: "application/activity+json, application/ld+json", "User-Agent": "Testagram-Federation/4.0" },
-        });
-        if (!actorRes.ok) return;
-        const actor = await actorRes.json();
-        const actorId = String(actor.id ?? actorUri);
-        hydratedActorAliases.add(actorId);
-        hydratedActorAliases.add(actorUri);
-        const actorHost = (() => { try { return new URL(actorId).hostname; } catch { return actorUrl.hostname; } })();
-        const remoteAccount = {
-          id: actorId,
-          actor_uri: actorId,
-          url: typeof actor.url === "string" ? actor.url : actorId,
-          username: String(actor.preferredUsername ?? actor.username ?? actorId.split("/").pop() ?? "unknown"),
-          preferredUsername: String(actor.preferredUsername ?? actor.username ?? actorId.split("/").pop() ?? "unknown"),
-          display_name: String(actor.name ?? actor.preferredUsername ?? actor.username ?? "unknown"),
-          domain: actorHost,
-          bio: typeof actor.summary === "string" ? actor.summary : null,
-          avatar_url: typeof actor.icon === "string" ? actor.icon : actor.icon?.url ?? actor.icon?.href ?? null,
-          header_url: typeof actor.image === "string" ? actor.image : actor.image?.url ?? actor.image?.href ?? null,
-          followers_url: typeof actor.followers === "string" ? actor.followers : actor.followers?.id ?? null,
-          following_url: typeof actor.following === "string" ? actor.following : actor.following?.id ?? null,
-          inbox_url: typeof actor.inbox === "string" ? actor.inbox : actor.inbox?.id ?? null,
-          outbox_url: typeof actor.outbox === "string" ? actor.outbox : actor.outbox?.id ?? null,
-          published_at: actor.published ?? null,
-          profile_url: typeof actor.url === "string" ? actor.url : actor.url?.href ?? actorId,
-          fields: Array.isArray(actor.attachment) ? actor.attachment.filter((x: any) => x?.type === "PropertyValue").map((x: any) => ({ name: String(x.name ?? ""), value: String(x.value ?? "") })) : [],
-          emojis: Array.isArray(actor.tag) ? actor.tag : [],
-          followers_count: Number(actor.followers?.totalItems ?? 0),
-          following_count: Number(actor.following?.totalItems ?? 0),
+    // Read path rule: never perform remote ActivityPub fetches or writes here.
+    // Remote actor/object hydration belongs to the federation ingestion workers.
+    // Keeping user reads database-only prevents N users from multiplying into
+    // outbound HTTP fan-out and write amplification.
+    const hydratedActorProfiles = new Map<string, any>();
+
+    const loadStoredActorProfiles = async (uris: string[]) => {
+      const uniqueUris = [...new Set(uris.map(String).filter(Boolean))];
+      if (!uniqueUris.length) return;
+      const { data, error } = await admin
+        .from("federated_actors")
+        .select("id,actor_uri,username,display_name,bio,avatar_url,header_url,profile_url,followers_count,following_count,fields,emojis")
+        .in("actor_uri", uniqueUris)
+        .limit(Math.min(uniqueUris.length, 100));
+      if (error) throw error;
+      for (const row of data ?? []) {
+        const profile = {
+          id: row.actor_uri,
+          actor_uri: row.actor_uri,
+          url: row.profile_url ?? row.actor_uri,
+          profile_url: row.profile_url ?? row.actor_uri,
+          username: row.username ?? "unknown",
+          preferredUsername: row.username ?? "unknown",
+          display_name: row.display_name ?? row.username ?? "unknown",
+          domain: (() => { try { return new URL(String(row.actor_uri)).hostname; } catch { return ""; } })(),
+          bio: row.bio ?? null,
+          avatar_url: row.avatar_url ?? null,
+          header_url: row.header_url ?? null,
+          fields: Array.isArray(row.fields) ? row.fields : [],
+          emojis: Array.isArray(row.emojis) ? row.emojis : [],
+          followers_count: Number(row.followers_count ?? 0),
+          following_count: Number(row.following_count ?? 0),
         };
-        hydratedActorProfiles.set(actorId, remoteAccount);
-        hydratedActorProfiles.set(actorUri, remoteAccount);
-        const outboxUrl = typeof actor.outbox === "string" ? actor.outbox : actor.outbox?.id;
-        if (!outboxUrl) return;
-
-        const fetchCollectionPage = async (collectionUrl: string) => {
-          const response = await fetch(collectionUrl, {
-            headers: { Accept: "application/activity+json, application/ld+json" },
-          });
-          if (!response.ok) return null;
-          return await response.json();
-        };
-
-        const outbox = await fetchCollectionPage(outboxUrl);
-        if (!outbox) return;
-
-        let entries = Array.isArray(outbox.orderedItems)
-          ? outbox.orderedItems
-          : Array.isArray(outbox.items)
-            ? outbox.items
-            : [];
-
-        // Mastodon/Fediverse servers commonly expose an OrderedCollection whose
-        // posts live on the first page rather than directly on the collection.
-        if (!entries.length) {
-          const firstPage = typeof outbox.first === "string"
-            ? outbox.first
-            : outbox.first?.id;
-          if (firstPage) {
-            const page = await fetchCollectionPage(firstPage);
-            entries = Array.isArray(page?.orderedItems)
-              ? page.orderedItems
-              : Array.isArray(page?.items)
-                ? page.items
-                : [];
-          }
-        }
-        const rawEntries = entries.slice(0, 30);
-        const objects = (await Promise.all(rawEntries.map(async (entry: any) => {
-          const candidate = entry?.object ?? entry;
-          if (candidate && typeof candidate === "object") return candidate;
-          if (typeof candidate === "string" && /^https?:\/\//i.test(candidate)) {
-            try {
-              const response = await fetchCollectionPage(candidate);
-              return response && typeof response === "object" ? response : null;
-            } catch { return null; }
-          }
-          return null;
-        })))
-          .filter((object: any) => object && object.type !== "Delete")
-          .filter((object: any) => ["Note", "Article", "Question", "Video", "Image"].includes(object.type))
-          .slice(0, 20);
-
-        if (!objects.length) return;
-        const rows = objects.map((object: any) => ({
-          uri: String(object.id ?? object.url ?? ""),
-          object_type: String(object.type ?? "Note"),
-          // Always store the fetched actor's canonical ID. The follow relationship
-          // may contain an alias/alternate actor URL, while Mastodon Notes commonly
-          // point at the actor ID. Keeping one canonical actor_uri prevents the
-          // personalized query from dropping otherwise valid posts.
-          actor_uri: actorId,
-          url: typeof object.url === "string" ? object.url : (object.url?.href ?? object.id ?? null),
-          content: String(object.content ?? object.name ?? ""),
-          summary: object.summary ?? null,
-          attachments: Array.isArray(object.attachment) ? object.attachment : [],
-          tags: Array.isArray(object.tag) ? object.tag : [],
-          like_count: Number(object.likes?.totalItems ?? 0),
-          announce_count: Number(object.shares?.totalItems ?? 0),
-          reply_count: Number(object.replies?.totalItems ?? 0),
-          published_at: object.published ?? object.updated ?? new Date().toISOString(),
-          raw_object: object,
-          remote_account: remoteAccount,
-        })).filter((row: any) => row.uri);
-
-        if (rows.length) {
-          await admin.from("federated_objects").upsert(rows, { onConflict: "uri", ignoreDuplicates: false });
-        }
-      } catch (error) {
-        const fallback = actorFallbackProfile(actorUri);
-        hydratedActorProfiles.set(actorUri, fallback);
-        hydratedActorAliases.add(actorUri);
-        console.warn("[federated-feed] actor hydration failed; using URI fallback", actorUri, error);
+        hydratedActorProfiles.set(String(row.actor_uri), profile);
       }
     };
 
-    if (followedActorUris.length) {
-      const hydrateQueue = followedActorUris.slice(0, 27);
-      const concurrency = 5;
-      for (let i = 0; i < hydrateQueue.length; i += concurrency) {
-        await Promise.all(hydrateQueue.slice(i, i + concurrency).map(hydrateActor));
-      }
-    }
+    await loadStoredActorProfiles(followedActorUris);
 
     const enrichRemoteAccounts = async (items: any[]) => {
       const actorUris = [...new Set(items.flatMap((item: any) => {
         const raw = item.raw_object?.attributedTo;
         const rawUri = typeof raw === "string" ? raw : raw?.id;
         return [item.actor_uri, rawUri].filter(Boolean).map(String);
-      }))];
-      await Promise.all(actorUris.slice(0, 30).map(async (uri) => {
-        if (!hydratedActorProfiles.has(uri)) await hydrateActor(uri);
-      }));
+      }))].slice(0, 100);
+
+      await loadStoredActorProfiles(actorUris);
+
       return items.map((item: any) => {
         const raw = item.raw_object?.attributedTo;
         const rawUri = typeof raw === "string" ? raw : raw?.id;
-        const profile = hydratedActorProfiles.get(String(item.actor_uri || "")) ?? hydratedActorProfiles.get(String(rawUri || "")) ?? actorFallbackProfile(String(item.actor_uri || rawUri || item.uri || ""), raw);
-        return { ...item, remote_account: profile, actor_uri: item.actor_uri || rawUri || profile.actor_uri };
+        const actorKey = String(item.actor_uri || rawUri || "");
+        const profile = hydratedActorProfiles.get(actorKey)
+          ?? hydratedActorProfiles.get(String(rawUri || ""))
+          ?? actorFallbackProfile(actorKey || String(item.uri || ""), item.raw_object);
+        return { ...item, remote_account: item.remote_account ?? profile, actor_uri: item.actor_uri || rawUri || profile.actor_uri };
       });
     };
 
