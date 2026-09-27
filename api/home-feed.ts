@@ -210,14 +210,24 @@ export default async function handler(request: RequestLike) {
     if (postsResult.error) console.error('[home-feed] posts', postsResult.error);
     if (threadsResult.error) console.error('[home-feed] threads', threadsResult.error);
 
-    const recommendationRows = Array.isArray(recommendationResult.data) ? recommendationResult.data : [];
-    const recommendedIds = [...new Set(recommendationRows.map((r: any) => String(r.recommended_post_id || '')).filter(Boolean))];
+    type RecommendationRow = {
+      recommended_post_id: string;
+      score?: number | null;
+      reason?: string | null;
+      source?: string | null;
+    };
+    const recommendationRows: RecommendationRow[] = Array.isArray(recommendationResult.data)
+      ? recommendationResult.data as RecommendationRow[]
+      : [];
+    const recommendedIds = [...new Set(recommendationRows.map((r) => String(r.recommended_post_id || '')).filter(Boolean))];
     const recommendedResult = recommendedIds.length
       ? await admin.from('posts')
         .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
         .in('id', recommendedIds).is('community_id', null).is('deleted_at', null).limit(sourceLimit)
       : { data: [], error: null };
-    const recommendationById = new Map(recommendationRows.map((r: any) => [String(r.recommended_post_id), r]));
+    const recommendationById = new Map<string, RecommendationRow>(
+      recommendationRows.map((r): [string, RecommendationRow] => [String(r.recommended_post_id), r])
+    );
     const recommendations = (recommendedResult.data || []).map((p: any) => {
       const r = recommendationById.get(String(p.id));
       return { type: 'post', source: 'recommendation', data: { ...p, is_federated: false,
