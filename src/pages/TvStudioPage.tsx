@@ -269,23 +269,13 @@ export default function TvStudioPage() {
       audioPipelineRef.current = await createStudioAudioPipeline(cameraStreamRef.current);
     }
     const cameraStream = cameraStreamRef.current!;
-    if (videoRef.current && !videoRef.current.srcObject && productionSource === 'camera') {
-      videoRef.current.srcObject = cameraStream;
-      videoRef.current.muted = true;
-      void videoRef.current.play().catch(() => undefined);
-    }
+    // Do not bind the raw camera track to the Program monitor. The Program
+    // monitor must always receive the landscape production canvas stream.
     return cameraStream;
   };
 
   const rebuildProgramStream = () => {
-    const source = screenStreamRef.current ?? cameraStreamRef.current;
-    const video = source?.getVideoTracks()[0];
-    const audio = audioPipelineRef.current?.stream.getAudioTracks()[0];
-    if (!video || !audio) throw new Error('Camera/microphone is not ready');
-    const program = new MediaStream([video, audio]);
-    programStreamRef.current = program;
-    if (videoRef.current) videoRef.current.srcObject = source ?? program;
-    return program;
+    return createProductionProgram();
   };
 
   const createProductionProgram = async () => {
@@ -317,9 +307,14 @@ export default function TvStudioPage() {
     screenVideoRef.current = screenVideo;
     if (screenStreamRef.current) screenVideo.srcObject = screenStreamRef.current;
 
+    // Every TV output is a true landscape 16:9 raster. Camera sources that
+    // arrive portrait are cropped into that raster instead of being letterboxed
+    // as a portrait video. This keeps both preview and program buses landscape.
     const fit = (target: CanvasRenderingContext2D, media: HTMLVideoElement | null, contain = true) => {
       if (!media || media.readyState < 2 || !media.videoWidth || !media.videoHeight) return;
-      const w = canvas.width, h = canvas.height, ratio = media.videoWidth / media.videoHeight, targetRatio = w / h;
+      const w = canvas.width, h = canvas.height;
+      const ratio = media.videoWidth / media.videoHeight;
+      const targetRatio = w / h;
       let dw = w, dh = h, dx = 0, dy = 0;
       if (contain) {
         if (ratio > targetRatio) { dh = w / ratio; dy = (h - dh) / 2; }
@@ -331,10 +326,28 @@ export default function TvStudioPage() {
       target.drawImage(media, dx, dy, dw, dh);
     };
 
+    const fitCameraLandscape = (target: CanvasRenderingContext2D, media: HTMLVideoElement | null) => {
+      if (!media || media.readyState < 2 || !media.videoWidth || !media.videoHeight) return;
+      const w = canvas.width, h = canvas.height;
+      const sourceRatio = media.videoWidth / media.videoHeight;
+      const targetRatio = w / h;
+      // Portrait camera tracks must never become a portrait TV frame. Crop the
+      // source to the 16:9 program raster while preserving its natural rotation.
+      let sx = 0, sy = 0, sw = media.videoWidth, sh = media.videoHeight;
+      if (sourceRatio < targetRatio) {
+        sw = media.videoHeight * targetRatio;
+        sx = (media.videoWidth - sw) / 2;
+      } else if (sourceRatio > targetRatio) {
+        sh = media.videoWidth / targetRatio;
+        sy = (media.videoHeight - sh) / 2;
+      }
+      target.drawImage(media, sx, sy, sw, sh, 0, 0, w, h);
+    };
+
     const renderScene = (target: CanvasRenderingContext2D, scene: TvSceneId) => {
       target.fillStyle = '#000'; target.fillRect(0, 0, canvas.width, canvas.height);
       if (scene === 'camera') {
-        fit(target, camera, true);
+        fitCameraLandscape(target, camera);
       } else if (scene === 'video' && sourceVideo) {
         fit(target, sourceVideo, true);
         if (pipEnabledRef.current && camera.readyState >= 2 && camera.videoWidth) {
@@ -370,7 +383,7 @@ export default function TvStudioPage() {
         cell.width = w/2; cell.height = h/2; multiviewCellCanvasRefs.current[(x ? 1 : 0) + (y ? 2 : 0)] = cell;
         const cctx = cell.getContext('2d'); if (!cctx) continue;
         cctx.fillStyle = '#000'; cctx.fillRect(0,0,cell.width,cell.height);
-        if (scene === 'camera') fit(cctx,camera,true);
+        if (scene === 'camera') fitCameraLandscape(cctx,camera);
         else if (scene === 'video' && sourceVideo) fit(cctx,sourceVideo,true);
         else if (scene === 'screen') fit(cctx,screenVideo,true);
         else {
