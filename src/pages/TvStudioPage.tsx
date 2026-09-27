@@ -53,6 +53,7 @@ export default function TvStudioPage() {
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
   const productionAudioTrackRef = useRef<MediaStreamTrack | null>(null);
   const productionMasterGainRef = useRef<GainNode | null>(null);
+  const productionGuestGainRef = useRef<GainNode | null>(null);
   const productionLimiterRef = useRef<DynamicsCompressorNode | null>(null);
   const productionCommentaryAnalyserRef = useRef<AnalyserNode | null>(null);
   const duckingTimerRef = useRef<number | null>(null);
@@ -600,7 +601,7 @@ export default function TvStudioPage() {
       const wireGuestTrack = (track: any, publication: any, participant: any) => {
         const metadata = participant?.metadata || '';
         const isGuest = metadata.includes('tv_guest') || metadata.includes('testagram_tv_guest');
-        if (!isGuest || publication?.source !== Track.Source.Camera) return;
+        if (!isGuest || ![Track.Source.Camera, Track.Source.Microphone].includes(publication?.source)) return;
         const element = track.attach();
         if (track.kind === Track.Kind.Video) {
           remoteGuestVideoRef.current?.pause();
@@ -814,12 +815,27 @@ export default function TvStudioPage() {
 
   useEffect(() => {
     const id = window.setInterval(() => {
+      const stats = programFrameRef.current;
+      setProgramFps(stats.count);
+      setProgramDropped(stats.dropped);
+      stats.count = 0;
+      stats.dropped = 0;
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, []);
+
+  useEffect(() => {
+    const id = window.setInterval(() => {
       setElapsed(prev => (recording || live ? prev + 1 : 0));
       const level = audioPipelineRef.current?.getLevel();
       if (level != null) setAudioLevel(level);
     }, 1000);
     return () => window.clearInterval(id);
   }, [recording, live]);
+
+  useEffect(() => {
+    replayBufferRef.current = new TvReplayBuffer(replaySeconds * 1000, 500);
+  }, [replaySeconds]);
 
   useEffect(() => {
     pipEnabledRef.current = pipEnabled;
@@ -942,6 +958,9 @@ export default function TvStudioPage() {
                     <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'ticker' ? { ...x, text: tickerText, visible: true } : x))}>Ticker</Button>
                     <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'station-bug' ? { ...x, visible: !x.visible } : x))}>Bug</Button>
                   </div>
+                </div>
+                <div className="grid grid-cols-3 gap-2 text-[10px]">
+                  {[15,30,60].map(seconds => <button key={seconds} className={`rounded bg-zinc-800 p-2 ${replaySeconds === seconds ? 'ring-1 ring-emerald-400' : ''}`} onClick={() => setReplaySeconds(seconds)}>{seconds}s Replay</button>)}
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <Button size="sm" variant={multiview ? 'default' : 'outline'} onClick={() => setMultiview(v => !v)}>Multiview</Button>
