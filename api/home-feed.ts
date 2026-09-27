@@ -50,49 +50,53 @@ function sourceKey(item: any) {
   return String(item.type) + ':' + String(item.data?.id ?? item.data?.uri ?? '');
 }
 
+function candidateScore(item: any) {
+  const d = item?.data || {};
+  const ageHours = Math.max(0, (Date.now() - new Date(d.created_at || 0).getTime()) / 3600000);
+  const engagement = Math.log1p(Math.max(0, Number(d.likes_count ?? 0))) * 1.8
+    + Math.log1p(Math.max(0, Number(d.replies_count ?? 0))) * 1.4
+    + Math.log1p(Math.max(0, Number(d.reposts_count ?? 0))) * 2.2
+    + Math.log1p(Math.max(0, Number(d.views_count ?? 0))) * 0.2;
+  const freshness = Math.exp(-ageHours / 36) * 12;
+  const sourceBoost = ['following-local','following-thread','following-federated'].includes(item.source) ? 40
+    : item.source === 'recommendation' ? 24 : item.source === 'thread' ? 4 : 0;
+  return sourceBoost + freshness + engagement + Number(d.recommendation_score ?? 0) * 5;
+}
+
 function blend(items: any[], limit: number) {
-  const sorted = items.filter((x) => x?.data?.created_at).sort((a, b) =>
-    new Date(b.data.created_at).getTime() - new Date(a.data.created_at).getTime()
-  );
-  const freshCut = Math.max(1, Math.ceil(sorted.length * 0.5));
-  const fresh = sorted.slice(0, freshCut);
-  const older = sorted.slice(freshCut);
-  const used = new Set<string>();
-  const out: any[] = [];
-  let fi = 0, oi = 0, lastSource = '';
+  const ranked = items.filter((x) => x?.data?.created_at).sort((a, b) =>
+    candidateScore(b) - candidateScore(a) ||
+    new Date(b.data.created_at).getTime() - new Date(a.data.created_at).getTime());
+  const used = new Set<string>(), out: any[] = [];
+  let lastSource = '';
+  for (const item of ranked) {
+    if (out.length >= limit) break;
+    const key = sourceKey(item);
+    if (used.has(key)) continue;
+    if (item.source === lastSource && ranked.some((x) => x.source !== lastSource && !used.has(sourceKey(x))) && out.length % 3 !== 2) continue;
+    used.add(key);
+    out.push({ type: item.type, data: item.data });
+    lastSource = item.source;
+  }
+  return out;
+}
 
-  while (out.length < limit && (fi < fresh.length || oi < older.length)) {
-    const preferOld = out.length > 0 && out.length % 3 !== 0 && oi < older.length;
-    const pool = preferOld ? older : fresh;
-    const start = preferOld ? oi : fi;
-    let candidate: any = null;
-    let candidateIndex = -1;
-
-    for (let i = start; i < pool.length; i++) {
-      const item = pool[i];
-      const key = sourceKey(item);
-      if (used.has(key)) continue;
-      if (item.source !== lastSource || !pool.some((x) => x.source !== lastSource && !used.has(sourceKey(x)))) {
-        candidate = item;
-        candidateIndex = i;
-        break;
-      }
-    }
-    if (!candidate) {
-      const fallback = pool.find((x) => !used.has(sourceKey(x)));
-      if (fallback) { candidate = fallback; candidateIndex = pool.indexOf(fallback); }
-    }
-    if (!candidate) {
-      if (preferOld) oi = older.length;
-      else fi = fresh.length;
-      continue;
-    }
-
-    used.add(sourceKey(candidate));
-    out.push({ type: candidate.type, data: candidate.data });
-    lastSource = candidate.source;
-    if (preferOld) oi = candidateIndex + 1;
-    else fi = candidateIndex + 1;
+function injectFollowing(discovery: any[], following: any[], limit: number) {
+  const seen = new Set<string>(), out: any[] = [];
+  const reserve = Math.min(following.length, Math.max(1, Math.ceil(limit * 0.5)));
+  for (const item of [...following].sort((a, b) => candidateScore(b) - candidateScore(a))) {
+    if (out.length >= reserve) break;
+    const key = sourceKey(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ type: item.type, data: item.data });
+  }
+  for (const item of blend(discovery, limit)) {
+    if (out.length >= limit) break;
+    const key = sourceKey(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
   }
   return out;
 }
@@ -136,6 +140,11 @@ export default async function handler(request: RequestLike) {
       .filter(Boolean))];
 
     const sourceLimit = Math.max(6, Math.ceil(limit * 2));
+    const recommendationQuery = admin.from('content_recommendations')
+      .select('recommended_post_id,score,reason,source')
+      .eq('user_id', auth.id).eq('shown', false)
+      .order('score', { ascending: false }).limit(sourceLimit);
+
     const postsQuery = admin.from('posts')
       .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
       .is('community_id', null).is('deleted_at', null)
@@ -186,7 +195,8 @@ export default async function handler(request: RequestLike) {
         })()
       : Promise.resolve({ items: [], pagination: { hasMore: false, nextCursor: null } });
 
-    const [postsResult, followingPostsResult, threadsResult, followingThreadsResult, fedResult] = await Promise.all([
+    const [recommendationResult, postsResult, followingPostsResult, threadsResult, followingThreadsResult, fedResult] = await Promise.all([
+      recommendationQuery,
       postsQuery,
       followingPostsQuery || Promise.resolve({ data: [], error: null }),
       threadsQuery,
@@ -199,6 +209,20 @@ export default async function handler(request: RequestLike) {
 
     if (postsResult.error) console.error('[home-feed] posts', postsResult.error);
     if (threadsResult.error) console.error('[home-feed] threads', threadsResult.error);
+
+    const recommendationRows = Array.isArray(recommendationResult.data) ? recommendationResult.data : [];
+    const recommendedIds = [...new Set(recommendationRows.map((r: any) => String(r.recommended_post_id || '')).filter(Boolean))];
+    const recommendedResult = recommendedIds.length
+      ? await admin.from('posts')
+        .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
+        .in('id', recommendedIds).is('community_id', null).is('deleted_at', null).limit(sourceLimit)
+      : { data: [], error: null };
+    const recommendationById = new Map(recommendationRows.map((r: any) => [String(r.recommended_post_id), r]));
+    const recommendations = (recommendedResult.data || []).map((p: any) => {
+      const r = recommendationById.get(String(p.id));
+      return { type: 'post', source: 'recommendation', data: { ...p, is_federated: false,
+        feed_reason: r?.reason || 'Recommended for you', recommendation_score: Number(r?.score || 0) } };
+    });
 
     const followingLocal = (followingPostsResult.data || []).map((p: any) => ({
       type: 'post', source: 'following-local',
@@ -233,14 +257,8 @@ export default async function handler(request: RequestLike) {
     }));
 
     const followed = [...followingLocal, ...followingThreads, ...fed.filter((item: any) => item.source === 'following-federated')];
-    const discovery = [...local, ...threads, ...fed.filter((item: any) => item.source !== 'following-federated')];
-    // Guarantee a visible following lane when followed content exists, then fill
-    // the remaining slots with discovery. This is deterministic and works for
-    // both local follows and ActivityPub follows.
-    const prioritized = followed.length
-      ? [...followed.slice(0, Math.max(1, Math.ceil(limit / 2))), ...blend(discovery, limit)]
-      : blend(discovery, limit);
-    const items = blend(prioritized, limit);
+    const discovery = [...recommendations, ...local, ...threads, ...fed.filter((item: any) => item.source !== 'following-federated')];
+    const items = injectFollowing(discovery, followed, limit);
     const lastPost = postsResult.data?.at(-1)?.created_at;
     const lastThread = threadsResult.data?.at(-1)?.created_at;
     const nextFed = fedResult?.pagination?.nextCursor ?? null;
@@ -257,7 +275,7 @@ export default async function handler(request: RequestLike) {
       hasMore,
       nextCursor,
       latencyMs: Date.now() - started,
-      algorithm: 'organic-cross-surface-v4-cursor-federated-discovery',
+      algorithm: 'follow-affinity-recommendation-v5-cross-surface',
     });
   } catch (error) {
     console.error('[home-feed]', error);
