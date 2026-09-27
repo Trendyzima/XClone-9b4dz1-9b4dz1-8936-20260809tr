@@ -58,13 +58,13 @@ async function signedPost(local:any,url:string,body:string,modern=false){
     try{return await fetch(url,{method:"POST",headers:{Accept:'application/activity+json, application/ld+json;q=0.9',"Content-Type":'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',Date:date,Digest:d,Signature:`keyId="${local.actor_url}#main-key",algorithm="rsa-sha256",headers="(request-target) host date digest",signature="${sig}"`,"User-Agent":"Testagram-Federation/5.0"},body,signal:controller.signal})}finally{clearTimeout(timeout)}
   }
   const created=Math.floor(Date.now()/1000);
-  const digest=`sha-256=:${await digest(body)}:`;
+  const contentDigest=`sha-256=:${await digest(body)}:`;
   const components=["@method","@target-uri","content-digest"];
   const params=`(${components.map((component)=>`"${component}"`).join(" ")});created=${created};keyid="${String(local.key_id||local.actor_url+"#main-key")}";alg="rsa-v1_5-sha256"`;
-  const covered=`"@method": POST\n"@target-uri": ${u.toString()}\n"content-digest": ${digest}`;
+  const covered=`"@method": POST\n"@target-uri": ${u.toString()}\n"content-digest": ${contentDigest};
   const sig=await sign(local,`${covered}\n"@signature-params": ${params}`);
   const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),10000);
-  try{return await fetch(url,{method:"POST",headers:{Accept:'application/activity+json, application/ld+json;q=0.9',"Content-Type":'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',"Content-Digest":digest,"Signature-Input":`sig1=${params}`,Signature:`sig1=:${sig}:`,"User-Agent":"Testagram-Federation/5.0"},body,signal:controller.signal})}finally{clearTimeout(timeout)}
+  try{return await fetch(url,{method:"POST",headers:{Accept:'application/activity+json, application/ld+json;q=0.9',"Content-Type":'application/ld+json; profile="https://www.w3.org/ns/activitystreams"',"Content-Digest":contentDigest,"Signature-Input":`sig1=${params}`,Signature:`sig1=:${sig}:`,"User-Agent":"Testagram-Federation/5.0"},body,signal:controller.signal})}finally{clearTimeout(timeout)}
 }
 
 function backoff(attempt:number,retryAfter:string|null){const ra=retryAfter?Number.parseInt(retryAfter,10):NaN;if(Number.isFinite(ra)&&ra>=0)return Math.min(ra,86400);return Math.min(86400,30*Math.pow(2,Math.min(attempt,8)));}
