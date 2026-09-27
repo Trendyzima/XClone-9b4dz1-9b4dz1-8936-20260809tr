@@ -37,6 +37,37 @@ const TABS: {id:Tab;label:string}[] = [
 const StoriesStrip = lazy(() => import('@/components/features/StoriesStrip').then(m => ({ default: m.StoriesStrip })));
 const profileSelect='user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)';
 
+function HomeFeedItem({item,index,lastElementRef,tab,onUpdate,onNavigate}:{item:Item;index:number;lastElementRef:(node:HTMLElement|null)=>void;tab:Tab;onUpdate:()=>void;onNavigate:(path:string)=>void}) {
+  const hostRef=useRef<HTMLDivElement|null>(null);
+  const [mounted,setMounted]=useState(false);
+  useEffect(()=>{
+    const node=hostRef.current;
+    if(!node){setMounted(true);return;}
+    if(typeof IntersectionObserver==='undefined'){setMounted(true);return;}
+    const observer=new IntersectionObserver(([entry])=>{
+      if(entry.isIntersecting){setMounted(true);observer.disconnect();}
+    },{rootMargin:'700px 0px'});
+    observer.observe(node);
+    return()=>observer.disconnect();
+  },[]);
+  const ref=(node:HTMLDivElement|null)=>{
+    hostRef.current=node;
+    lastElementRef(node);
+  };
+  if(!mounted) return <div ref={ref} className="min-h-[180px] border-b border-border bg-background" aria-hidden="true"/>;
+  return <div ref={ref}>
+    {item.type==='post'&&<PostCard post={item.data} onUpdate={onUpdate}/>}
+    {item.type==='thread'&&<ThreadCard thread={item.data}/>}
+    {item.type==='fedpost'&&(item.data?.is_federated_discovery?<FederatedOrganicCard item={item.data}/>:<PostCard post={item.data} onUpdate={onUpdate}/>)}
+    {item.type==='community'&&<CommunityCard community={item.data} onOpen={()=>onNavigate('/c/'+item.data.name)}/>}
+    {item.type==='poll'&&<PollCard poll={item.data} onOpen={()=>onNavigate('/polls')}/>}
+    {item.type==='product'&&<ProductCard product={item.data} onOpen={()=>onNavigate('/p/'+item.data.id)}/>}
+    {item.type==='publisher'&&<PublisherFeedCard item={item.data as FeedItem}/>}
+    {tab==='all'&&index>0&&index%3===0&&<TvPostStream index={Math.floor(index/3)-1}/>}
+    {tab==='all'&&index>0&&index%4===0&&<FederatedOrganicInjection surface="home"/>}
+  </div>;
+}
+
 export default function HomeHubPage(){
   const {user}=useAuth(); const navigate=useNavigate();
   const [tab,setTab]=useState<Tab>('all'); const [items,setItems]=useState<Item[]>([]);
@@ -182,7 +213,17 @@ export default function HomeHubPage(){
     });
     const onScroll=()=>{window.clearTimeout(scrollTimer.current);scrollTimer.current=window.setTimeout(()=>saveHomeScroll(window.scrollY,items[0]?.data?.id??null),250);};
     window.addEventListener('scroll',onScroll,{passive:true});
-    const scheduleRefresh=()=>{window.clearTimeout(refreshTimerRef.current);refreshTimerRef.current=window.setTimeout(()=>void load('all',true),1500);};
+    const scheduleRefresh=()=>{
+      window.clearTimeout(refreshTimerRef.current);
+      refreshTimerRef.current=window.setTimeout(()=>{
+        const active=document.activeElement;
+        if(active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement){
+          refreshTimerRef.current=window.setTimeout(scheduleRefresh,5000);
+          return;
+        }
+        void load('all',true);
+      },1500);
+    };
     const channel=supabase.channel('home-feed-live')
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'posts'},scheduleRefresh)
        .on('postgres_changes',{event:'INSERT',schema:'public',table:'threads'},scheduleRefresh)
@@ -190,7 +231,12 @@ export default function HomeHubPage(){
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'federated_objects'},scheduleRefresh)
       .on('postgres_changes',{event:'DELETE',schema:'public',table:'federated_objects'},scheduleRefresh)
       .subscribe();
-    const fallback=window.setInterval(()=>{if(document.visibilityState==='visible')void load('all',true);},20000);
+    const fallback=window.setInterval(()=>{
+      if(document.visibilityState!=='visible')return;
+      const active=document.activeElement;
+      if(active instanceof HTMLInputElement || active instanceof HTMLTextAreaElement)return;
+      void load('all',true);
+    },30000);
     return()=>{active=false;window.removeEventListener('scroll',onScroll);window.clearTimeout(refreshTimerRef.current);window.clearInterval(fallback);void supabase.removeChannel(channel);};
   },[tab]);
 
@@ -242,17 +288,7 @@ export default function HomeHubPage(){
     {!loading&&<button onClick={refresh} disabled={refreshing} className="w-full py-2 border-b border-border text-xs text-muted-foreground flex items-center justify-center gap-2"><RefreshCw className={'w-3 h-3 '+(refreshing?'animate-spin':'')}/>{refreshing?'Refreshing…':'Refresh feed'}</button>}
     {loading?<div className="py-20 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-primary"/></div>:
       items.length===0?<div className="py-20 text-center text-muted-foreground"><Sparkles className="w-10 h-10 mx-auto mb-3 opacity-30"/><p className="font-semibold">Nothing here yet</p><p className="text-sm mt-1">Explore another section or be the first to add content.</p></div>:
-      <div>{items.map((item,i)=><div key={item.type+'-'+(item.data?.id??i)} ref={i===items.length-1?lastElementRef:null}>
-        {item.type==='post'&&<PostCard post={item.data} onUpdate={()=>load(tab)}/>}
-        {item.type==='thread'&&<ThreadCard thread={item.data}/>}
-        {item.type==='fedpost'&&(item.data?.is_federated_discovery?<FederatedOrganicCard item={item.data}/>:<PostCard post={item.data} onUpdate={()=>load(tab)}/>)}
-        {item.type==='community'&&<CommunityCard community={item.data} onOpen={()=>navigate('/c/'+item.data.name)}/>}
-        {item.type==='poll'&&<PollCard poll={item.data} onOpen={()=>navigate('/polls')}/>}
-        {item.type==='product'&&<ProductCard product={item.data} onOpen={()=>navigate('/p/'+item.data.id)}/>}
-        {item.type==='publisher'&&<PublisherFeedCard item={item.data as FeedItem}/>}
-        {tab==='all' && i > 0 && i % 3 === 0 && <TvPostStream index={Math.floor(i / 3) - 1} />}
-        {tab==='all'&&i>0&&i%4===0&&<FederatedOrganicInjection surface="home" />}
-      </div>)}
+      <div>{items.map((item,i)=><HomeFeedItem key={item.type+'-'+(item.data?.id??i)} item={item} index={i} lastElementRef={i===items.length-1?lastElementRef:null} tab={tab} onUpdate={()=>load(tab)} onNavigate={navigate}/>)}
       {loadingMore&&<div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary"/></div>}
       {!loadingMore&&!hasMore&&<div className="py-10 text-center text-xs text-muted-foreground">You’re all caught up.</div>}</div>}
   </div>;
