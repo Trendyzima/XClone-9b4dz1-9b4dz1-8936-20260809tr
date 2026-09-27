@@ -203,6 +203,7 @@ export default function TvStudioPage() {
     const productionKey = quality + ':' + (sourceVideoUrlRef.current ?? '');
     if (programStreamRef.current && productionKeyRef.current === productionKey) return programStreamRef.current;
     if (sceneAnimationRef.current) cancelAnimationFrame(sceneAnimationRef.current);
+    productionVideoStreamRef.current?.getTracks().forEach(track => track.stop());
     const sourceVideo = sourceVideoRef.current;
     if (sourceVideo.readyState < 2) {
       await new Promise<void>(resolve => {
@@ -557,6 +558,10 @@ export default function TvStudioPage() {
     }, 250);
     return () => window.clearInterval(id);
   }, [recording, live]);
+
+  useEffect(() => {
+    pipEnabledRef.current = pipEnabled;
+  }, [pipEnabled]);
 
   useEffect(() => {
     const sourceGain = productionSourceGainRef.current;
