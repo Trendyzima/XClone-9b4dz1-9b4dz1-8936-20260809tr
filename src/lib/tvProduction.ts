@@ -40,9 +40,12 @@ export class TvReplayBuffer {
   constructor(private readonly maxDurationMs = 30000, private readonly intervalMs = 500) {}
   push(canvas: HTMLCanvasElement, now = performance.now()) {
     const copy = document.createElement('canvas');
-    copy.width = canvas.width;
-    copy.height = canvas.height;
-    copy.getContext('2d')?.drawImage(canvas, 0, 0);
+    const maxWidth = 640;
+    const maxHeight = 360;
+    const scale = Math.min(1, maxWidth / canvas.width, maxHeight / canvas.height);
+    copy.width = Math.max(1, Math.round(canvas.width * scale));
+    copy.height = Math.max(1, Math.round(canvas.height * scale));
+    copy.getContext('2d')?.drawImage(canvas, 0, 0, copy.width, copy.height);
     this.frames.push({ timestamp: now, canvas: copy });
     const cutoff = now - this.maxDurationMs;
     while (this.frames.length && this.frames[0].timestamp < cutoff) this.frames.shift();
