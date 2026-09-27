@@ -38,6 +38,9 @@ export default function TvStudioPage() {
   const sceneAnimationRef = useRef<number | null>(null);
   const productionAudioContextRef = useRef<AudioContext | null>(null);
   const productionAudioDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const productionSourceAudioRef = useRef<MediaElementAudioSourceNode | null>(null);
+  const productionSourceGainRef = useRef<GainNode | null>(null);
+  const productionCommentaryGainRef = useRef<GainNode | null>(null);
   const productionVideoStreamRef = useRef<MediaStream | null>(null);
   const videoFileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -226,25 +229,35 @@ export default function TvStudioPage() {
 
     const audioCtor = window.AudioContext || (window as any).webkitAudioContext;
     if (!audioCtor) throw new Error('This browser does not support live audio mixing.');
-    const audioContext: AudioContext = new audioCtor({ latencyHint: 'interactive', sampleRate: 48000 });
+    let audioContext = productionAudioContextRef.current;
+    if (!audioContext || audioContext.state === 'closed') {
+      audioContext = new audioCtor({ latencyHint: 'interactive', sampleRate: 48000 });
+      productionAudioContextRef.current = audioContext;
+    }
     if (audioContext.state === 'suspended') await audioContext.resume();
-    const destination = audioContext.createMediaStreamDestination();
 
-    const sourceAudio = audioContext.createMediaElementSource(sourceVideo);
-    const sourceGain = audioContext.createGain();
-    sourceGain.gain.value = sourceVideoMuted ? 0 : programLevel;
-    sourceAudio.connect(sourceGain).connect(destination);
-
-    if (audioPipelineRef.current) {
-      const commentary = audioContext.createMediaStreamSource(audioPipelineRef.current.stream);
-      const commentaryGain = audioContext.createGain();
-      commentaryGain.gain.value = muted ? 0 : commentaryLevel;
-      commentary.connect(commentaryGain).connect(destination);
+    let destination = productionAudioDestinationRef.current;
+    if (!destination) {
+      destination = audioContext.createMediaStreamDestination();
+      productionAudioDestinationRef.current = destination;
     }
 
-    productionAudioContextRef.current?.close().catch(() => undefined);
-    productionAudioContextRef.current = audioContext;
-    productionAudioDestinationRef.current = destination;
+    if (!productionSourceAudioRef.current) {
+      productionSourceAudioRef.current = audioContext.createMediaElementSource(sourceVideo);
+      productionSourceGainRef.current = audioContext.createGain();
+      productionSourceAudioRef.current.connect(productionSourceGainRef.current).connect(destination);
+    }
+    productionSourceGainRef.current!.gain.value = sourceVideoMuted ? 0 : programLevel;
+
+    if (audioPipelineRef.current && !productionCommentaryGainRef.current) {
+      const commentary = audioContext.createMediaStreamSource(audioPipelineRef.current.stream);
+      const commentaryGain = audioContext.createGain();
+      commentary.connect(commentaryGain).connect(destination);
+      productionCommentaryGainRef.current = commentaryGain;
+    }
+    if (productionCommentaryGainRef.current) {
+      productionCommentaryGainRef.current.gain.value = muted ? 0 : commentaryLevel;
+    }
 
     const canvasStream = canvas.captureStream(preset.fps);
     const audioTrack = destination.stream.getAudioTracks()[0];
