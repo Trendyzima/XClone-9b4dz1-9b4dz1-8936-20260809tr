@@ -605,6 +605,7 @@ export default function CommunityPage({ section, standalone = false }: { section
   const handleJoinToggle = async () => {
     if (!user) { navigate('/auth'); return; }
     if (!community) return;
+    if (memberStatus === 'pending') { toast({ title: 'Request pending', description: 'The community owner has not approved your request yet.' }); return; }
     try {
       if (isMember) {
         if (userRole === 'owner') {
