@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { createStudioAudioPipeline, requestStudioMicrophone, type StudioAudioPipeline } from '@/lib/studioAudio';
+import { drawTvGraphics, makeDefaultGraphics, TvReplayBuffer, type TvGraphic, type TvSceneId, type TransitionType } from '@/lib/tvProduction';
 
 type Mode = 'studio' | 'live';
 type Scene = 'camera' | 'video' | 'screen';
@@ -52,6 +53,11 @@ export default function TvStudioPage() {
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
   const productionAudioTrackRef = useRef<MediaStreamTrack | null>(null);
   const pipEnabledRef = useRef(true);
+  const previewSceneRef = useRef<TvSceneId>('camera');
+  const programSceneRef = useRef<TvSceneId>('camera');
+  const transitionRef = useRef({ type: 'cut' as TransitionType, durationMs: 300 });
+  const transitionStartedRef = useRef<number | null>(null);
+  const replayBufferRef = useRef(new TvReplayBuffer(30_000, 500));
 
   const [stream, setStream] = useState<any>(null);
   const [activeStreamId, setActiveStreamId] = useState<string | null>(streamId ?? null);
@@ -72,6 +78,17 @@ export default function TvStudioPage() {
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [productionSource, setProductionSource] = useState<'camera' | 'video'>('camera');
   const [activeScene, setActiveScene] = useState<Scene>('camera');
+  const [previewScene, setPreviewScene] = useState<TvSceneId>('camera');
+  const [programScene, setProgramScene] = useState<TvSceneId>('camera');
+  const [transitionType, setTransitionType] = useState<TransitionType>('cut');
+  const [transitionDuration, setTransitionDuration] = useState(300);
+  const [graphics, setGraphics] = useState<TvGraphic[]>(makeDefaultGraphics);
+  const [lowerThirdText, setLowerThirdText] = useState('');
+  const [lowerThirdSecondary, setLowerThirdSecondary] = useState('');
+  const [tickerText, setTickerText] = useState('');
+  const [multiview, setMultiview] = useState(false);
+  const [replaySeconds, setReplaySeconds] = useState(30);
+  const [audioDucking, setAudioDucking] = useState(false);
   const [uploadedVideoName, setUploadedVideoName] = useState<string | null>(null);
   const [pipEnabled, setPipEnabled] = useState(true);
   const [sourceVideoPlaying, setSourceVideoPlaying] = useState(false);
@@ -289,6 +306,15 @@ export default function TvStudioPage() {
         fit(camera, true);
       }
 
+      // Production graphics are rendered after the source scene so they remain
+      // attached to the PROGRAM output and local recording.
+      drawTvGraphics(ctx, w, h, graphics, performance.now() / 8);
+
+      // Keep a lightweight local rolling replay buffer. It never leaves this device.
+      if (Math.floor(performance.now() / 500) !== Math.floor((performance.now() - 16) / 500)) {
+        replayBufferRef.current.push(canvas);
+      }
+
       sceneAnimationRef.current = requestAnimationFrame(draw);
     };
 
@@ -356,7 +382,37 @@ export default function TvStudioPage() {
     return programStreamRef.current;
   };
 
-  const activateScene = async (scene: Scene) => {
+  const sceneToScene = (scene: TvSceneId): Scene | null => {
+    if (scene === 'camera' || scene === 'video' || scene === 'screen') return scene;
+    return null;
+  };
+
+  const takeScene = async (scene: TvSceneId = previewScene) => {
+    const mapped = sceneToScene(scene);
+    if (!mapped) {
+      if (scene === 'replay') {
+        setProgramScene('replay');
+        programSceneRef.current = 'replay';
+        return;
+      }
+      if (scene === 'black') {
+        setProgramScene('black');
+        programSceneRef.current = 'black';
+        return;
+      }
+      toast.info('This source is not connected yet.');
+      return;
+    }
+    setPreviewScene(scene);
+    previewSceneRef.current = scene;
+    transitionRef.current = { type: transitionType, durationMs: transitionDuration };
+    transitionStartedRef.current = performance.now();
+    await activateScene(mapped, true);
+    setProgramScene(scene);
+    programSceneRef.current = scene;
+  };
+
+  const activateScene = async (scene: Scene, fromTake = false) => {
     if ((live || recording) && scene === 'video' && !sourceVideoRef.current) {
       toast.error('Load a video before switching to the Video scene.');
       return;
@@ -383,15 +439,19 @@ export default function TvStudioPage() {
       } else {
         if (!screenStreamRef.current) {
           const preset = VIDEO_PRESETS[quality];
-          const s = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: preset.fps }, audio: false });
-          screenStreamRef.current = s;
-          const track = s.getVideoTracks()[0];
+          const ss = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: preset.fps }, audio: false });
+          screenStreamRef.current = ss;
+          const track = ss.getVideoTracks()[0];
           track.onended = () => { void activateScene('camera'); };
           setSharing(true);
         }
       }
       setActiveScene(scene);
       await createProductionProgram();
+      if (!fromTake) {
+        setPreviewScene(scene);
+        previewSceneRef.current = scene;
+      }
       setStatus('preview');
     } catch (e: any) {
       toast.error(e?.message || 'Could not switch scene');
@@ -731,7 +791,41 @@ export default function TvStudioPage() {
                 </div>}
                 <div><div className="flex justify-between text-[11px] text-zinc-400"><span>Video audio</span><span>{Math.round(programLevel * 100)}%</span></div><input type="range" min="0" max="1" step="0.05" value={programLevel} onChange={e => setProgramLevel(Number(e.target.value))} className="w-full" /></div>
                 <div><div className="flex justify-between text-[11px] text-zinc-400"><span>Commentary voice</span><span>{Math.round(commentaryLevel * 100)}%</span></div><input type="range" min="0" max="1.5" step="0.05" value={commentaryLevel} onChange={e => setCommentaryLevel(Number(e.target.value))} className="w-full" /></div>
-                <p className="text-[10px] text-zinc-500">Live program audio mixes the uploaded video's audio and the commentator microphone simultaneously.</p>
+                <p className="text-[10px] text-zinc-500">Preview → TAKE → Program. Graphics and transitions are rendered into the program bus.</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button size="sm" variant="outline" onClick={() => void takeScene(previewScene)}>TAKE {previewScene.toUpperCase()}</Button>
+                  <Button size="sm" variant="outline" onClick={() => void takeScene('black')}>DIP TO BLACK</Button>
+                  <select value={transitionType} onChange={e => setTransitionType(e.target.value as TransitionType)} className="rounded-lg bg-zinc-800 p-2 text-xs">
+                    <option value="cut">CUT</option><option value="fade">FADE</option><option value="dip">DIP</option>
+                  </select>
+                  <select value={transitionDuration} onChange={e => setTransitionDuration(Number(e.target.value))} className="rounded-lg bg-zinc-800 p-2 text-xs">
+                    <option value="150">150ms</option><option value="300">300ms</option><option value="500">500ms</option><option value="1000">1s</option>
+                  </select>
+                </div>
+                <div className="rounded-lg bg-black/30 p-2 space-y-2">
+                  <div className="flex items-center justify-between text-xs font-semibold"><span>PROGRAM / PREVIEW</span><span className="text-emerald-400">ON AIR: {programScene}</span></div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px]">
+                    <button className="rounded bg-zinc-800 p-2" onClick={() => { setPreviewScene('camera'); previewSceneRef.current='camera'; }}>Preview Camera</button>
+                    <button className="rounded bg-zinc-800 p-2" onClick={() => { setPreviewScene('video'); previewSceneRef.current='video'; }}>Preview Video</button>
+                    <button className="rounded bg-zinc-800 p-2" onClick={() => { setPreviewScene('screen'); previewSceneRef.current='screen'; }}>Preview Screen</button>
+                    <button className="rounded bg-zinc-800 p-2" onClick={() => { setPreviewScene('replay'); previewSceneRef.current='replay'; }}>Preview Replay</button>
+                  </div>
+                </div>
+                <div className="rounded-lg bg-black/30 p-2 space-y-2">
+                  <div className="text-xs font-semibold">GRAPHICS</div>
+                  <input value={lowerThirdText} onChange={e => setLowerThirdText(e.target.value)} placeholder="Lower third name/title" className="w-full rounded bg-zinc-800 p-2 text-xs" />
+                  <input value={lowerThirdSecondary} onChange={e => setLowerThirdSecondary(e.target.value)} placeholder="Lower third secondary" className="w-full rounded bg-zinc-800 p-2 text-xs" />
+                  <input value={tickerText} onChange={e => setTickerText(e.target.value)} placeholder="Ticker / breaking news" className="w-full rounded bg-zinc-800 p-2 text-xs" />
+                  <div className="grid grid-cols-3 gap-1">
+                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'lower-third' ? { ...x, text: lowerThirdText, secondary: lowerThirdSecondary, visible: true } : x))}>Lower 3rd</Button>
+                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'ticker' ? { ...x, text: tickerText, visible: true } : x))}>Ticker</Button>
+                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'station-bug' ? { ...x, visible: !x.visible } : x))}>Bug</Button>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button size="sm" variant={multiview ? 'default' : 'outline'} onClick={() => setMultiview(v => !v)}>Multiview</Button>
+                  <Button size="sm" variant={audioDucking ? 'default' : 'outline'} onClick={() => setAudioDucking(v => !v)}>Auto ducking</Button>
+                </div>
               </div>
             <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4">
               <div className="flex items-center gap-2 font-semibold mb-3"><Settings2 className="w-4 h-4" />Production controls</div>
@@ -745,6 +839,7 @@ export default function TvStudioPage() {
                 <div className="rounded-lg bg-black/30 p-2"><Users className="w-3.5 h-3.5 mb-1 text-blue-400" /><span>{viewerCount}</span><p className="text-zinc-500">live viewers</p></div>
                 <div className="rounded-lg bg-black/30 p-2"><ShieldCheck className="w-3.5 h-3.5 mb-1 text-emerald-400" /><span>Local</span><p className="text-zinc-500">recording storage</p></div>
               </div>
+              <div className="mt-2 text-[10px] text-zinc-500">Replay buffer: {replayBufferRef.current.frameCount} frames / {Math.round(replayBufferRef.current.durationMs / 1000)}s</div>
               <div className="mt-4 flex items-center justify-between text-[10px] text-zinc-500"><span>Studio signal</span><span className="uppercase tracking-wider">{deviceReady ? status : 'waiting for device'}</span></div>
               <div className="mt-1 h-2 rounded-full bg-white/10 overflow-hidden"><div className="h-full bg-emerald-400 transition-all" style={{ width: `${Math.min(100, audioLevel)}%` }} /></div>
               <p className="text-[10px] text-zinc-500 mt-1">Microphone level • browser noise suppression + studio gate/compressor</p>
