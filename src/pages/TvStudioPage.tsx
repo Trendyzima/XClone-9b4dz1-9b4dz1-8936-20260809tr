@@ -7,7 +7,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
 import { createStudioAudioPipeline, requestStudioMicrophone, type StudioAudioPipeline } from '@/lib/studioAudio';
-import { drawTvGraphics, makeDefaultGraphics, TvReplayBuffer, type TvGraphic, type TvSceneId, type TransitionType } from '@/lib/tvProduction';
+import { drawTvGraphics, drawTvOpeningSlate, makeDefaultGraphics, TvReplayBuffer, type TvGraphic, type TvSceneId, type TransitionType } from '@/lib/tvProduction';
 
 type Mode = 'studio' | 'live';
 type Scene = 'camera' | 'video' | 'screen';
@@ -91,6 +91,7 @@ export default function TvStudioPage() {
   const [guestInviteUrl, setGuestInviteUrl] = useState<string | null>(null);
   const [bannerText, setBannerText] = useState('');
   const [fullscreenText, setFullscreenText] = useState('');
+  const [nextText, setNextText] = useState('');
   const [musicName, setMusicName] = useState<string | null>(null);
   const [sfxName, setSfxName] = useState<string | null>(null);
   const [musicLevel, setMusicLevel] = useState(0.5);
@@ -101,6 +102,7 @@ export default function TvStudioPage() {
   const transitionRef = useRef({ type: 'cut' as TransitionType, durationMs: 300 });
   const transitionStartedRef = useRef<number | null>(null);
   const replayBufferRef = useRef(new TvReplayBuffer(30_000, 500));
+  const openingSlateUntilRef = useRef<number | null>(null);
 
   const [stream, setStream] = useState<any>(null);
   const [activeStreamId, setActiveStreamId] = useState<string | null>(streamId ?? null);
@@ -454,7 +456,15 @@ export default function TvStudioPage() {
         ctx.drawImage(incoming,0,0);
       }
 
-      if (activeProgram !== 'replay' && activeProgram !== 'black') drawTvGraphics(ctx, canvas.width, canvas.height, graphics, now / 8);
+      if (activeProgram !== 'replay' && activeProgram !== 'black') {
+        drawTvGraphics(ctx, canvas.width, canvas.height, graphics, now / 8, { live, watermark: true });
+        const slateUntil = openingSlateUntilRef.current;
+        if (slateUntil && now < slateUntil) {
+          drawTvOpeningSlate(ctx, canvas.width, canvas.height, 1 - ((slateUntil - now) / 2600));
+        } else if (slateUntil) {
+          openingSlateUntilRef.current = null;
+        }
+      }
       if (replayBufferRef.current.shouldCapture(now) && programSceneRef.current !== 'replay') replayBufferRef.current.push(canvas, now);
       renderMultiview();
       sceneAnimationRef.current = requestAnimationFrame(draw);
@@ -597,6 +607,7 @@ export default function TvStudioPage() {
 
   const activateScene = async (scene: Scene, fromTake = false) => {
     try {
+      if (!fromTake && !openingSlateUntilRef.current) openingSlateUntilRef.current = performance.now() + 2600;
       if (scene === 'camera') {
         await ensureStudio();
         setProductionSource('camera');
@@ -1033,7 +1044,10 @@ export default function TvStudioPage() {
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <Clapperboard className="w-6 h-6" />
-              <h1 className="text-2xl font-bold">Testagram TV Studio</h1>
+              <div>
+                <h1 className="text-2xl font-black tracking-tight">TESTAGRAM TV <span className="text-zinc-500 font-semibold">Studio</span></h1>
+                <div className="text-[10px] uppercase tracking-[0.28em] text-red-400 font-bold mt-0.5">Broadcast Control Room</div>
+              </div>
               {!recording ? <Button size="sm" className="bg-red-600 hover:bg-red-700 text-zinc-100" disabled={saving} onClick={() => void startRecording()}><Circle className="w-4 h-4 mr-1" />REC to device</Button> : <Button size="sm" variant="destructive" onClick={stopRecording}><Square className="w-4 h-4 mr-1" />STOP & SAVE</Button>}
               {live && <span className="px-2 py-1 rounded-full bg-red-600 text-xs font-bold animate-pulse">LIVE</span>}{live && <Button size="sm" variant="outline" onClick={() => void shareLiveLink()}><Radio className="w-4 h-4 mr-1" />Share TV</Button>}
               {recording && <span className="px-2 py-1 rounded-full bg-zinc-700/50 text-xs font-bold">REC {fmt(elapsed)}</span>}
@@ -1058,14 +1072,14 @@ export default function TvStudioPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 bg-zinc-950 p-2">
               <div className="aspect-video relative rounded-lg overflow-hidden border border-blue-500/30 bg-black">
                 <canvas ref={previewCanvasRef} className="w-full h-full object-contain" />
-                <span className="absolute top-2 left-2 rounded bg-blue-600/90 px-2 py-1 text-[10px] font-bold tracking-wider">PREVIEW · {previewScene.toUpperCase()}</span>
+                <span className="absolute top-2 left-2 rounded bg-zinc-950/90 border border-zinc-700/70 px-2 py-1 text-[10px] font-bold tracking-wider">TESTAGRAM TV · PREVIEW · {previewScene.toUpperCase()}</span>
               </div>
               <div className="aspect-video relative rounded-lg overflow-hidden border border-red-500/30 bg-black">
                 {status === 'idle' && <div className="absolute inset-0 z-10 flex flex-col items-center justify-center text-zinc-500"><Radio className="w-10 h-10 mb-2" /><span>Program monitor</span><span className="text-xs mt-1">Tap Preview to start the camera and microphone</span></div>}
                 <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-contain" />
                 {multiview && <canvas ref={multiviewCanvasRef} width={640} height={360} className="absolute inset-0 w-full h-full object-contain pointer-events-none" />}
                 <div className="absolute top-2 left-2 flex gap-2 pointer-events-none">
-                  <span className="rounded bg-red-600/90 px-2 py-1 text-[10px] font-bold tracking-wider">{live ? 'ON AIR' : 'PROGRAM'}</span>
+                  <span className="rounded bg-red-600/90 px-2 py-1 text-[10px] font-bold tracking-wider">{live ? '● LIVE · TESTAGRAM TV' : 'TESTAGRAM TV · PROGRAM'}</span>
                   {sharing && <span className="rounded bg-blue-600/90 px-2 py-1 text-[10px] font-bold">SCREEN</span>}
                 </div>
               </div>
@@ -1125,6 +1139,7 @@ export default function TvStudioPage() {
                   <input value={tickerText} onChange={e => setTickerText(e.target.value)} placeholder="Ticker / breaking news" className="w-full rounded bg-zinc-800 p-2 text-xs" />
                   <input value={bannerText} onChange={e => setBannerText(e.target.value)} placeholder="Breaking banner" className="w-full rounded bg-zinc-800 p-2 text-xs" />
                   <input value={fullscreenText} onChange={e => setFullscreenText(e.target.value)} placeholder="Fullscreen title" className="w-full rounded bg-zinc-800 p-2 text-xs" />
+                  <input value={nextText} onChange={e => setNextText(e.target.value)} placeholder="Coming up / next segment" className="w-full rounded bg-zinc-800 p-2 text-xs" />
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
                     <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'lower-third' ? { ...x, text: lowerThirdText, secondary: lowerThirdSecondary, visible: true } : x))}>Lower 3rd</Button>
                     <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'lower-third' ? { ...x, visible: false } : x))}>Hide 3rd</Button>
@@ -1135,6 +1150,8 @@ export default function TvStudioPage() {
                     <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'breaking-banner' ? { ...x, visible: false } : x))}>Hide banner</Button>
                     <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'fullscreen' ? { ...x, text: fullscreenText, visible: true } : x))}>Fullscreen</Button>
                     <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'fullscreen' ? { ...x, visible: false } : x))}>Hide full</Button>
+                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'next' ? { ...x, text: nextText, visible: true } : x))}>Next</Button>
+                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'next' ? { ...x, visible: false } : x))}>Hide next</Button>
                   </div>
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-[10px]">
