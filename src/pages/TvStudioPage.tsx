@@ -432,7 +432,7 @@ export default function TvStudioPage() {
       productionSourceAudioRef.current.connect(productionSourceGainRef.current).connect(productionMasterGainRef.current);
     }
     if (productionSourceGainRef.current) {
-      productionSourceGainRef.current.gain.value = activeProgram === 'video' && !sourceVideoMuted ? programLevel : 0;
+      productionSourceGainRef.current.gain.value = programSceneRef.current === 'video' && !sourceVideoMuted ? programLevel : 0;
     }
 
     if (audioPipelineRef.current && !productionCommentaryGainRef.current) {
@@ -471,7 +471,7 @@ export default function TvStudioPage() {
         productionCommentaryAnalyserRef.current.getByteTimeDomainData(data);
         let sum = 0; for (const v of data) { const n=(v-128)/128; sum += n*n; }
         const rms = Math.sqrt(sum / data.length);
-        const target = audioDucking && activeProgram === 'video' && rms > 0.035 ? programLevel * 0.28 : (activeProgram === 'video' && !sourceVideoMuted ? programLevel : 0);
+        const target = audioDucking && programSceneRef.current === 'video' && rms > 0.035 ? programLevel * 0.28 : (programSceneRef.current === 'video' && !sourceVideoMuted ? programLevel : 0);
         productionSourceGainRef.current.gain.setTargetAtTime(target, audioContext!.currentTime, 0.045);
       }, 40);
     }
