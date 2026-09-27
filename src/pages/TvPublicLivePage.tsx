@@ -40,7 +40,7 @@ export default function TvPublicLivePage() {
         const body = isGuest
           ? { stream_id: streamId, role: 'guest', invite_token: inviteToken }
           : { stream_id: streamId, role: 'viewer' };
-        const { data, error: tokenError } = await supabase.functions.invoke('livekit-tv-token', { body });
+        const { data, error: tokenError } = await supabase.functions.invoke('livekit-tv-guest-token', { body: { stream_id: streamId, mode: 'join', invite_token: inviteToken } });
         if (tokenError || !data?.data?.token || !data?.data?.url) {
           throw new Error(data?.error?.message || tokenError?.message || (isGuest ? 'Unable to join the guest session.' : 'Unable to connect to this TV broadcast.'));
         }
