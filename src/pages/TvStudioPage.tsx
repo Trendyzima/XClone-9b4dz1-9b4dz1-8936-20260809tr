@@ -187,7 +187,12 @@ export default function TvStudioPage() {
       remoteGuestAudioRef.current?.pause();
       sourceVideoRef.current?.pause();
       if (sourceVideoUrlRef.current) URL.revokeObjectURL(sourceVideoUrlRef.current);
+      if (musicUrlRef.current) URL.revokeObjectURL(musicUrlRef.current);
+      if (sfxUrlRef.current) URL.revokeObjectURL(sfxUrlRef.current);
+      if (downloadUrlRef.current) URL.revokeObjectURL(downloadUrlRef.current);
       roomRef.current?.disconnect();
+      musicAudioRef.current?.pause();
+      sfxAudioRef.current?.pause();
       cameraStreamRef.current?.getTracks().forEach(track => track.stop());
       screenStreamRef.current?.getTracks().forEach(track => track.stop());
       productionVideoStreamRef.current?.getTracks().forEach(track => track.stop());
@@ -746,6 +751,8 @@ export default function TvStudioPage() {
     remoteGuestVideoRef.current?.pause(); remoteGuestVideoRef.current = null;
     setLive(false);
     if (!recording) setStatus(cameraStreamRef.current ? 'preview' : 'idle');
+    productionVideoTrackRef.current = null;
+    productionAudioTrackRef.current = null;
     if (activeStreamId) {
       // Keep only broadcast metadata. End the control-plane record and remove the LiveKit locator;
       // no recording/blob/video URL is persisted by this studio.
