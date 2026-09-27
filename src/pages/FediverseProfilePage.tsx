@@ -139,7 +139,7 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
           if (!cancelled) {
             if (!relationshipError && relationship) {
               const state = relationship.state ?? null;
-              const confirmed = state === 'active' || (state === 'accepted' && relationship.delivery_state === 'delivered');
+              const confirmed = state === 'active' || state === 'accepted';
               setFollowState(confirmed ? state : null);
               setFollowing(confirmed);
             } else {
@@ -235,13 +235,11 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
     setWorking(true);
     try {
       const result = await federation.follow(target);
-      const confirmed = result?.state === 'active' ||
-        (result?.state === 'accepted' && result?.deliveryState === 'delivered') ||
-        result?.deliveryState === 'delivered';
-      if (!confirmed) throw new Error('Follow was not confirmed by federation delivery');
+      const confirmed = result?.state === 'active' || result?.state === 'accepted';
+      if (!confirmed) throw new Error('Follow was not persisted by federation');
       setFollowing(true);
       setFollowState(result?.state ?? 'active');
-      toast.success('Following — remote delivery confirmed');
+      toast.success(result?.deliveryState === 'delivered' ? 'Following — remote delivery confirmed' : 'Following — remote delivery queued');
     } catch (error: any) {
       setFollowing(false);
       setFollowState(null);
