@@ -18,3 +18,9 @@ verify_jwt = false
 
 [functions.tv-catalog]
 verify_jwt = false
+
+[functions.livekit-tv-token]
+verify_jwt = true
+
+[functions.livekit-tv-guest-token]
+verify_jwt = true
