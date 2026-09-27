@@ -466,115 +466,17 @@ async function queue(local: any, userId: string, inbox: string, activity: any) {
     return { status: "delivered", activityId: activityUri, outboxId: outbox.id, idempotent: true, remoteStatus: null };
   }
 
-  // Atomically claim the durable delivery job. Exactly one concurrent caller
-  // gets in_flight and performs the remote HTTP request; other callers return
-  // queued and the worker owns retry/recovery if the winner crashes.
-  const claimed = await db(`federation_deliveries?id=eq.${enc(delivery.id)}&status=in.(pending,retry)`, {
-    method: "PATCH",
-    headers: { Prefer: "return=representation" },
-    body: JSON.stringify({
-      status: "in_flight",
-      attempt_count: Number(delivery.attempt_count || 0) + 1,
-      last_attempt_at: now,
-      locked_at: now,
-      last_error: null,
-    }),
-  });
-  let claimedRows: any[] = [];
-  try { claimedRows = await claimed.json() as any[]; } catch {}
-  if (!claimed.ok) throw Error("Failed to claim federation delivery job");
-
-  if (claimedRows.length === 0) {
-    return {
-      status: "queued",
-      activityId: activityUri,
-      outboxId: outbox.id,
-      idempotent: true,
-      remoteStatus: null,
-    };
-  }
-
-  const attemptNumber = Number(claimedRows[0]?.attempt_count || delivery.attempt_count || 1);
-  const attemptResponse = await db(`activitypub_outbox?id=eq.${enc(outbox.id)}`, {
-    method: "PATCH",
-    headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({ attempts: attemptNumber, next_attempt_at: now, last_error: null }),
-  });
-  if (!attemptResponse.ok) throw Error("Failed to record ActivityPub delivery attempt");
-
-  const body = JSON.stringify(activity);
-  let response: Response;
-  try {
-    response = await signedFetch(local, inbox, "POST", body);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "network error";
-    const retryAt = new Date(Date.now()+5*60*1000).toISOString();
-    await db(`federation_deliveries?id=eq.${enc(delivery.id)}&status=eq.in_flight`, {
-      method: "PATCH",
-      headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ status: "retry", last_error: message.slice(0, 2000), next_attempt_at: retryAt, locked_at: null }),
-    }).catch(() => {});
-    await db(`activitypub_outbox?id=eq.${enc(outbox.id)}`, {
-      method: "PATCH",
-      headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ last_error: message.slice(0, 2000), next_attempt_at: retryAt }),
-    }).catch(() => {});
-    throw Error(`Federation delivery failed: ${message}`);
-  }
-
-  const responseText = await response.text();
-  if (!response.ok) {
-    const message = `Remote inbox ${response.status}: ${responseText.slice(0, 1200)}`;
-    const retryAt = new Date(Date.now()+5*60*1000).toISOString();
-    await db(`federation_deliveries?id=eq.${enc(delivery.id)}&status=eq.in_flight`, {
-      method: "PATCH",
-      headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ status: "retry", last_status_code: response.status, last_error: message, next_attempt_at: retryAt, locked_at: null }),
-    }).catch(() => {});
-    await db(`activitypub_outbox?id=eq.${enc(outbox.id)}`, {
-      method: "PATCH",
-      headers: { Prefer: "return=minimal" },
-      body: JSON.stringify({ last_error: message, next_attempt_at: retryAt }),
-    }).catch(() => {});
-    throw Error(message);
-  }
-
-  const deliveryAck = await db(`federation_deliveries?id=eq.${enc(delivery.id)}&status=eq.in_flight`, {
-    method: "PATCH",
-    headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({
-      status: "delivered",
-      last_status_code: response.status,
-      last_error: null,
-      delivered_at: new Date().toISOString(),
-      locked_at: null,
-      // federation_deliveries.next_attempt_at is NOT NULL. A delivered job
-      // no longer needs a retry deadline, but it must retain a valid timestamp
-      // so the acknowledgement cannot violate the database contract.
-      next_attempt_at: new Date().toISOString(),
-    }),
-  });
-  if (!deliveryAck.ok) throw Error("Remote delivery succeeded but durable delivery acknowledgement failed");
-
-  const patchResponse = await db(`activitypub_outbox?id=eq.${enc(outbox.id)}`, {
-    method: "PATCH",
-    headers: { Prefer: "return=minimal" },
-    body: JSON.stringify({
-      delivered: true,
-      next_attempt_at: null,
-      last_error: null,
-      expires_at: new Date(Date.now()+86400000).toISOString(),
-      payload: {},
-    }),
-  });
-  if (!patchResponse.ok) throw Error("ActivityPub delivery succeeded but outbox acknowledgement failed");
-
+  // Queue-first invariant: the API must never make the user's follow/like/reply
+  // request depend on the remote server's availability. The durable worker owns
+  // the actual HTTP delivery and retries transient failures independently.
   return {
-    status: "delivered",
+    status: "queued",
     activityId: activityUri,
     outboxId: outbox.id,
-    remoteStatus: response.status,
+    idempotent: false,
+    remoteStatus: null,
   };
+
 }
 async function relationship(userId: string, actorUrl: string) {
   const response = await db(`federated_follow_relationships?local_user_id=eq.${enc(userId)}&remote_actor_uri=eq.${enc(actorUrl)}&direction=eq.following&select=*`);
