@@ -19,6 +19,23 @@ function decodeCursor(value: unknown) { if (typeof value !== "string" || !value)
 function encodeCursor(value: number) { return btoa(String(value)); }
 function cleanQuery(value: unknown) { const q = typeof value === "string" ? value.trim().replace(/[,%()]/g, " ").replace(/\s+/g, " ") : ""; if (q.length > 120) throw new Error("INVALID_QUERY"); return q; }
 
+function searchDisplayText(value: unknown): string {
+  const source = String(value ?? '');
+  if (!source) return '';
+  return source
+    .replace(/<script[^>]*>[\\s\\S]*?<\\/script>/gi, '')
+    .replace(/<style[^>]*>[\\s\\S]*?<\\/style>/gi, '')
+    .replace(/<br\\s*\\/?>(?=.)/gi, ' ')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\\s+/g, ' ')
+    .trim();
+}
 function normalizeRemoteStatus(status: any, domain: string) {
   const account = status?.account ?? {};
   const uri = status?.uri ?? status?.url ?? status?.id;
@@ -59,7 +76,7 @@ function normalizeRemoteAccount(account: any, domain: string) {
     username: account?.username ?? account?.acct?.split("@")[0] ?? "user",
     display_name: account?.display_name ?? account?.username ?? "Fediverse user",
     avatar_url: account?.avatar ?? account?.avatar_static ?? null,
-    bio: account?.note ?? account?.bio ?? "",
+    bio: searchDisplayText(account?.note ?? account?.bio ?? ""),
     acct: account?.acct ?? account?.username ?? null,
     domain,
     verified: Boolean(account?.verified),
@@ -203,7 +220,7 @@ Deno.serve(async (req) => {
       const remotePosts = remote.posts;
       const remoteHashtags = remote.hashtags;
       const normalizedHashtags = (hashtagsRes.data ?? []).map((h: any) => ({ ...h, total_posts: Number(h.usage_count ?? 0) + Number(h.federated_post_count ?? 0), origin: Number(h.federated_post_count ?? 0) > 0 ? "mixed" : "testagram" }));
-      const fedUsers = [...(fedUsersRes.data ?? []), ...remoteUsers].map((r: any) => ({ id: `fed:${r.actor_uri ?? r.id}`, username: r.username ?? "user", display_name: r.display_name ?? r.username ?? "Fediverse user", avatar_url: r.avatar_url ?? null, bio: r.bio ?? "", verified: false, origin: "fediverse", actor_uri: r.actor_uri, acct: r.domain ? `${r.username}@${r.domain}` : r.username, domain: r.domain ?? null }));
+      const fedUsers = [...(fedUsersRes.data ?? []), ...remoteUsers].map((r: any) => ({ id: `fed:${r.actor_uri ?? r.id}`, username: r.username ?? "user", display_name: r.display_name ?? r.username ?? "Fediverse user", avatar_url: r.avatar_url ?? null, bio: searchDisplayText(r.bio ?? ""), verified: false, origin: "fediverse", actor_uri: r.actor_uri, acct: r.domain ? `${r.username}@${r.domain}` : r.username, domain: r.domain ?? null }));
       const fedPosts = [...(fedPostsRes.data ?? []), ...remotePosts].map((p: any) => ({ ...p, origin: "fediverse", is_federated: true, author_id: p.author_id ?? p.actor_uri, user_id: p.user_id ?? p.actor_uri, created_at: p.created_at ?? p.published_at ?? p.updated_at, remote_status_uri: p.remote_status_uri ?? p.uri }));
       const users = [...(usersRes.data ?? []), ...fedUsers];
       const posts = [...(postsRes.data ?? []), ...fedPosts].slice(0, limit);
