@@ -6,6 +6,7 @@ import { useAuth } from '@/hooks/useAuth';
 import * as federation from '@/api/federation';
 import { FediverseRichText } from '@/components/features/FediverseRichText';
 import { supabase } from '@/lib/supabase';
+import { federatedMediaUrl } from '@/features/federation/federatedMedia';
 
 type FediverseProfilePageProps = { initialTab?: string; standalone?: boolean };
 
@@ -297,12 +298,12 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
           <>
             <section className="border-b border-border">
               <div className="h-32 bg-gradient-to-br from-purple-500/20 via-primary/10 to-background overflow-hidden">
-                {(profile.header_url || profile.header) && <img src={profile.header_url || profile.header} alt="" className="w-full h-full object-cover" />}
+                {(profile.header_url || profile.header) && <img src={federatedMediaUrl(profile.header_url || profile.header, profile.actor_uri || profile.actor_url) || profile.header_url || profile.header} alt="" className="w-full h-full object-cover" />}
               </div>
               <div className="px-4 pb-5">
                 <div className="flex items-end justify-between -mt-10">
                   <img
-                    src={profile.icon?.url || profile.avatar || profile.avatar_url}
+                    src={federatedMediaUrl(profile.icon?.url || profile.avatar || profile.avatar_url, profile.actor_uri || profile.actor_url) || profile.icon?.url || profile.avatar || profile.avatar_url}
                     alt={profile.name || profile.preferredUsername || profile.username || 'Fediverse profile'}
                     className="w-20 h-20 rounded-full object-cover bg-muted border-4 border-background"
                   />
@@ -383,7 +384,8 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                             <div className="mt-3 grid grid-cols-2 gap-2">
                               {post.attachments.slice(0, 4).map((attachment: any, index: number) => {
                                 const mediaType = String(attachment?.mediaType || attachment?.media_type || attachment?.type || '').toLowerCase();
-                                const url = attachment?.url || attachment?.href;
+                                const remoteUrl = attachment?.url || attachment?.href;
+                                const url = federatedMediaUrl(remoteUrl, resolvedActorUri) || remoteUrl;
                                 if (!url) return null;
                                 if (mediaType.startsWith('video/')) return <video key={index} src={url} controls playsInline preload="metadata" className="w-full rounded-xl bg-muted" />;
                                 if (mediaType.startsWith('audio/')) return <audio key={index} src={url} controls preload="metadata" className="w-full" />;
@@ -409,7 +411,8 @@ export default function FediverseProfilePage({ initialTab = 'Posts', standalone 
                   ) : (
                     <div className="grid grid-cols-3 gap-1 p-1">
                       {media.map((post: any) => post.attachments.map((attachment: any, index: number) => {
-                        const url = attachment?.url || attachment?.href;
+                        const remoteUrl = attachment?.url || attachment?.href;
+                        const url = federatedMediaUrl(remoteUrl, post.actor_uri || resolvedActorUri) || remoteUrl;
                         const type = String(attachment?.mediaType || attachment?.media_type || attachment?.type || '').toLowerCase();
                         return url && type.startsWith('video/') ? (
                           <video key={`${post.id}-${index}`} src={url} controls playsInline preload="metadata" className="aspect-square w-full object-cover bg-muted" />
