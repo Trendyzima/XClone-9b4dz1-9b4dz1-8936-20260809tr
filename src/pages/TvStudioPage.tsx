@@ -75,6 +75,8 @@ export default function TvStudioPage() {
   const replayPlaybackStartRef = useRef<number | null>(null);
   const replayPlaybackBaseRef = useRef<number | null>(null);
   const multiviewCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const transitionIncomingCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const multiviewCellCanvasRefs = useRef<HTMLCanvasElement[]>([]);
   const [replayState, setReplayState] = useState<'ready' | 'playing'>('ready');
   const [programFps, setProgramFps] = useState(0);
   const [programDropped, setProgramDropped] = useState(0);
@@ -185,7 +187,12 @@ export default function TvStudioPage() {
       remoteGuestAudioRef.current?.pause();
       sourceVideoRef.current?.pause();
       if (sourceVideoUrlRef.current) URL.revokeObjectURL(sourceVideoUrlRef.current);
+      if (musicUrlRef.current) URL.revokeObjectURL(musicUrlRef.current);
+      if (sfxUrlRef.current) URL.revokeObjectURL(sfxUrlRef.current);
+      if (downloadUrlRef.current) URL.revokeObjectURL(downloadUrlRef.current);
       roomRef.current?.disconnect();
+      musicAudioRef.current?.pause();
+      sfxAudioRef.current?.pause();
       cameraStreamRef.current?.getTracks().forEach(track => track.stop());
       screenStreamRef.current?.getTracks().forEach(track => track.stop());
       productionVideoStreamRef.current?.getTracks().forEach(track => track.stop());
@@ -337,7 +344,8 @@ export default function TvStudioPage() {
         ['camera',0,0],['video',w/2,0],['screen',0,h/2],['replay',w/2,h/2]
       ];
       for (const [scene,x,y] of cells) {
-        const cell = document.createElement('canvas'); cell.width = w/2; cell.height = h/2;
+        const cell = multiviewCellCanvasRefs.current[(x ? 1 : 0) + (y ? 2 : 0)] ?? document.createElement('canvas');
+        cell.width = w/2; cell.height = h/2; multiviewCellCanvasRefs.current[(x ? 1 : 0) + (y ? 2 : 0)] = cell;
         const cctx = cell.getContext('2d'); if (!cctx) continue;
         cctx.fillStyle = '#000'; cctx.fillRect(0,0,cell.width,cell.height);
         if (scene === 'camera') fit(cctx,camera,true);
@@ -383,8 +391,8 @@ export default function TvStudioPage() {
           }
         }
       }
-      const incoming = document.createElement('canvas');
-      incoming.width = canvas.width; incoming.height = canvas.height;
+      const incoming = transitionIncomingCanvasRef.current ?? document.createElement('canvas');
+      incoming.width = canvas.width; incoming.height = canvas.height; transitionIncomingCanvasRef.current = incoming;
       const ictx = incoming.getContext('2d')!;
       renderScene(ictx, activeProgram);
 
@@ -743,6 +751,8 @@ export default function TvStudioPage() {
     remoteGuestVideoRef.current?.pause(); remoteGuestVideoRef.current = null;
     setLive(false);
     if (!recording) setStatus(cameraStreamRef.current ? 'preview' : 'idle');
+    productionVideoTrackRef.current = null;
+    productionAudioTrackRef.current = null;
     if (activeStreamId) {
       // Keep only broadcast metadata. End the control-plane record and remove the LiveKit locator;
       // no recording/blob/video URL is persisted by this studio.
