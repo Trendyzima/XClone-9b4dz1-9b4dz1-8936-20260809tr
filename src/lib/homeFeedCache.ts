@@ -1,6 +1,13 @@
 const DB_NAME='testagram-feed-cache-v2';
 const STORE='home-feed';
 const MAX_ITEMS=80;
+const FEDERATED_MAX_AGE_MS=24*60*60*1000;
+function isFreshHomeItem(item:any,now=Date.now()){
+  if(item?.type!=='fedpost' && item?.data?.is_federated!==true)return true;
+  const ts=Date.parse(String(item?.data?.created_at??item?.data?.published_at??item?.data?.published??''));
+  return Number.isFinite(ts)&&ts>=now-FEDERATED_MAX_AGE_MS;
+}
+export function filterFreshHomeFeedItems(items:any[],now=Date.now()){return items.filter(item=>isFreshHomeItem(item,now));}
 
 export type CachedFeed={key:string;items:any[];cursor:string|null;updatedAt:number;scrollY:number;anchorId:string|null};
 
@@ -26,7 +33,7 @@ export async function readHomeFeedCache(key='home'):Promise<CachedFeed|null>{
 export async function writeHomeFeedCache(value:CachedFeed,key='home'){
   if(typeof indexedDB==='undefined')return;
   const db=await openFeedDb();
-  const items=value.items.filter(Boolean).slice(0,MAX_ITEMS);
+  const items=filterFreshHomeFeedItems(value.items.filter(Boolean)).slice(0,MAX_ITEMS);
   return new Promise<void>((resolve,reject)=>{
     const tx=db.transaction(STORE,'readwrite');
     tx.objectStore(STORE).put({...value,key,items});
@@ -38,7 +45,7 @@ export async function writeHomeFeedCache(value:CachedFeed,key='home'){
 export function mergeHomeFeedItems(existing:any[],incoming:any[],max=MAX_ITEMS){
   const seen=new Set<string>();
   const out:any[]=[];
-  for(const item of [...incoming,...existing]){
+  for(const item of filterFreshHomeFeedItems([...incoming,...existing])){
     const key=String(item?.type??'')+':'+String(item?.data?.id??item?.data?.uri??'');
     if(!key.endsWith(':')&&!seen.has(key)){seen.add(key);out.push(item);}
   }
