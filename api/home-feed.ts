@@ -121,20 +121,46 @@ export default async function handler(request: RequestLike) {
     }
 
     const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
-    const sourceLimit = Math.max(4, Math.ceil(limit / 2));
+
+    // Following is a first-class feed lane. A successful local or federated follow
+    // must immediately influence what the user sees; it must not wait for a
+    // recommendation batch or a model refresh.
+    const { data: localFollowRows, error: localFollowError } = await admin
+      .from('follows')
+      .select('following_id,status')
+      .eq('follower_id', auth.id);
+    if (localFollowError) console.warn('[home-feed] local follows', localFollowError);
+    const followedLocalIds = [...new Set((localFollowRows || [])
+      .filter((row: any) => !row.status || ['accepted','active','following'].includes(String(row.status).toLowerCase()))
+      .map((row: any) => String(row.following_id || ''))
+      .filter(Boolean))];
+
+    const sourceLimit = Math.max(6, Math.ceil(limit * 2));
     const postsQuery = admin.from('posts')
       .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
       .is('community_id', null).is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(sourceLimit);
+    const followingPostsQuery = followedLocalIds.length
+      ? admin.from('posts')
+        .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
+        .is('community_id', null).is('deleted_at', null)
+        .in('author_id', followedLocalIds)
+        .order('created_at', { ascending: false })
+        .limit(sourceLimit)
+      : null;
     const threadsQuery = admin.from('threads')
       .select('*')
       .eq('visibility', 'public').is('deleted_at', null)
       .order('created_at', { ascending: false })
       .limit(sourceLimit);
+    const followingThreadsQuery = followedLocalIds.length
+      ? admin.from('threads').select('*').eq('visibility','public').is('deleted_at',null)
+        .in('owner_id', followedLocalIds).order('created_at',{ascending:false}).limit(sourceLimit)
+      : null;
 
-    if (cursor.post) postsQuery.lt('created_at', cursor.post);
-    if (cursor.thread) threadsQuery.lt('created_at', cursor.thread);
+    if (cursor.post) { postsQuery.lt('created_at', cursor.post); followingPostsQuery?.lt('created_at', cursor.post); }
+    if (cursor.thread) { threadsQuery.lt('created_at', cursor.thread); followingThreadsQuery?.lt('created_at', cursor.thread); }
 
     const includeFederated = url.searchParams.get('includeFederated') !== '0';
     const fedQuery = new URLSearchParams({ limit: String(sourceLimit) });
@@ -160,9 +186,11 @@ export default async function handler(request: RequestLike) {
         })()
       : Promise.resolve({ items: [], pagination: { hasMore: false, nextCursor: null } });
 
-    const [postsResult, threadsResult, fedResult] = await Promise.all([
+    const [postsResult, followingPostsResult, threadsResult, followingThreadsResult, fedResult] = await Promise.all([
       postsQuery,
+      followingPostsQuery || Promise.resolve({ data: [], error: null }),
       threadsQuery,
+      followingThreadsQuery || Promise.resolve({ data: [], error: null }),
       federatedPromise,
     ]);
     // Organic discovery is intentionally outside the critical Home feed path.
@@ -172,18 +200,24 @@ export default async function handler(request: RequestLike) {
     if (postsResult.error) console.error('[home-feed] posts', postsResult.error);
     if (threadsResult.error) console.error('[home-feed] threads', threadsResult.error);
 
-    const local = (postsResult.data || []).map((p: any) => ({
-      type: 'post', source: 'local',
-      data: { ...p, is_federated: false },
+    const followingLocal = (followingPostsResult.data || []).map((p: any) => ({
+      type: 'post', source: 'following-local',
+      data: { ...p, is_federated: false, feed_reason: 'From someone you follow' },
     }));
-    const threads = (threadsResult.data || []).map((t: any) => ({
-      type: 'thread', source: 'thread',
-      data: { ...t, is_federated: false },
+    const local = (postsResult.data || [])
+      .filter((p: any) => !followedLocalIds.includes(String(p.author_id || p.user_id || '')))
+      .map((p: any) => ({ type: 'post', source: 'local', data: { ...p, is_federated: false } }));
+    const followingThreads = (followingThreadsResult.data || []).map((t: any) => ({
+      type: 'thread', source: 'following-thread',
+      data: { ...t, is_federated: false, feed_reason: 'From someone you follow' },
     }));
+    const threads = (threadsResult.data || [])
+      .filter((t: any) => !followedLocalIds.includes(String(t.owner_id || '')))
+      .map((t: any) => ({ type: 'thread', source: 'thread', data: { ...t, is_federated: false } }));
     const fedItems = Array.isArray(fedResult?.items) ? fedResult.items : [];
 
     const fed = fedItems.map((p: any) => ({
-      type: 'fedpost', source: 'federated',
+      type: 'fedpost', source: p.feed_source === 'following_actor' || p.feed_source === 'following_hashtag' ? 'following-federated' : 'federated',
       data: {
         ...p,
         id: p.id ?? p.uri,
@@ -198,7 +232,15 @@ export default async function handler(request: RequestLike) {
       },
     }));
 
-    const items = blend([...local, ...threads, ...fed], limit);
+    const followed = [...followingLocal, ...followingThreads, ...fed.filter((item: any) => item.source === 'following-federated')];
+    const discovery = [...local, ...threads, ...fed.filter((item: any) => item.source !== 'following-federated')];
+    // Guarantee a visible following lane when followed content exists, then fill
+    // the remaining slots with discovery. This is deterministic and works for
+    // both local follows and ActivityPub follows.
+    const prioritized = followed.length
+      ? [...followed.slice(0, Math.max(1, Math.ceil(limit / 2))), ...blend(discovery, limit)]
+      : blend(discovery, limit);
+    const items = blend(prioritized, limit);
     const lastPost = postsResult.data?.at(-1)?.created_at;
     const lastThread = threadsResult.data?.at(-1)?.created_at;
     const nextFed = fedResult?.pagination?.nextCursor ?? null;
