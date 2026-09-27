@@ -103,6 +103,9 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
   const [mentionResults, setMentionResults] = useState([]);
   const [mentionIdx, setMentionIdx] = useState(0);
   const mentionSearchRef = useRef(null as string | null);
+  const mentionSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hashtagSearchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const inputRevisionRef = useRef(0);
   const [hashtagQuery, setHashtagQuery] = useState(null as string | null);
   const [hashtagResults, setHashtagResults] = useState<any[]>([]);
   const [hashtagIdx, setHashtagIdx] = useState(0);
@@ -119,10 +122,10 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
     } catch { /* ignore */ }
   }, []);
 
-  // Auto-save draft every 5s while typing
+  // Persist drafts without creating/tearing down a timer on every keystroke.
   useEffect(() => {
-    if (!content.trim()) return;
     if (draftAutoSaveRef.current) clearInterval(draftAutoSaveRef.current);
+    if (!content.trim()) return;
     draftAutoSaveRef.current = setInterval(() => {
       try {
         const nowIso = new Date().toISOString();
@@ -130,7 +133,9 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
         setDraftSavedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
       } catch { /* ignore */ }
     }, 5000);
-    return () => { if (draftAutoSaveRef.current) clearInterval(draftAutoSaveRef.current); };
+    return () => {
+      if (draftAutoSaveRef.current) clearInterval(draftAutoSaveRef.current);
+    };
   }, [content]);
 
   const restoreDraft = () => {
@@ -149,65 +154,120 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
     setHasDraft(false);
   };
 
-  const handleContentChange = useCallback(async (val: string) => {
+  // Keep keystrokes on the main thread. Network-backed mention/hashtag
+  // lookups are deliberately debounced and never awaited from onChange.
+  // Awaiting a search for every character can queue many promises, rerender
+  // suggestion state repeatedly, and make low-memory mobile Chrome unresponsive.
+  const handleContentChange = useCallback((val: string) => {
     setContent(val);
-    // Link preview detection (first URL) — detect embed type
+
+    const revision = ++inputRevisionRef.current;
+    if (mentionSearchTimerRef.current) clearTimeout(mentionSearchTimerRef.current);
+    if (hashtagSearchTimerRef.current) clearTimeout(hashtagSearchTimerRef.current);
+
     const urlMatch = val.match(/https?:\/\/[^\s]+/);
-    if (urlMatch) {
-      const isEmbed = !!detectEmbed(urlMatch[0]);
-      setLinkPreview({ url: urlMatch[0], isEmbed });
-    } else {
-      setLinkPreview(null);
-    }
+    setLinkPreview(urlMatch
+      ? { url: urlMatch[0], isEmbed: !!detectEmbed(urlMatch[0]) }
+      : null);
+
     const ta = textareaRef.current;
     const pos = ta?.selectionStart ?? val.length;
     const before = val.slice(0, pos);
-    const atMatch = before.match(/@(\\w*)$/);
-    const hashMatch = before.match(/(^|\\s)#([\\w-]*)$/);
+    const atMatch = before.match(/@(\w*)$/);
+    const hashMatch = before.match(/(^|\s)#([\w-]*)$/);
+
+    setMentionResults([]);
+    setHashtagResults([]);
+
     if (atMatch) {
-      setHashtagQuery(null); setHashtagResults([]);
       const q = atMatch[1];
-      setMentionQuery(q); setMentionIdx(0); mentionSearchRef.current = q;
-      if (q.length === 0) { setMentionResults([]); return; }
-      try {
-        const local = await backendCapabilities.searchUsers(q, 5);
-        let items: any[] = local.items as any[];
-        if (q.includes('@') || items.length === 0) {
+      mentionSearchRef.current = q;
+      setHashtagQuery(null);
+      setMentionQuery(q);
+      setMentionIdx(0);
+
+      // Showing an empty popup for a bare '@' is unnecessary work.
+      if (q.length < 2) return;
+
+      mentionSearchTimerRef.current = setTimeout(() => {
+        void (async () => {
           try {
-            const remote = await federation.search('@' + q, 'users');
-            const remoteItems = (remote ?? []).slice(0, 5).map((a: any) => ({
-              id: 'fed:' + String(a.uri ?? a.id ?? a.url),
-              username: a.username ?? a.preferredUsername ?? 'user',
-              display_name: a.display_name ?? a.displayName ?? a.username ?? 'Fediverse user',
-              avatar_url: a.avatar ?? a.icon?.url ?? null,
-              origin: 'fediverse', actor_uri: a.uri ?? a.actor_uri ?? a.url ?? null, acct: a.acct ?? null,
-            }));
-            const seen = new Set<string>();
-            items = [...items, ...remoteItems].filter((item: any) => {
-              const key = String(item.acct ?? item.username).toLowerCase();
-              if (seen.has(key)) return false; seen.add(key); return true;
-            }).slice(0, 5);
-          } catch {}
-        }
-        if (mentionSearchRef.current === q) setMentionResults(items);
-      } catch { if (mentionSearchRef.current === q) setMentionResults([]); }
+            const local = await backendCapabilities.searchUsers(q, 5);
+            if (revision !== inputRevisionRef.current || mentionSearchRef.current !== q) return;
+
+            let items: any[] = local.items as any[];
+            // Federation search is much more expensive than local search.
+            // Only invoke it when local search has no useful matches.
+            if (items.length === 0) {
+              try {
+                const remote = await federation.search('@' + q, 'users');
+                if (revision !== inputRevisionRef.current || mentionSearchRef.current !== q) return;
+                const remoteItems = (remote ?? []).slice(0, 5).map((a: any) => ({
+                  id: 'fed:' + String(a.uri ?? a.id ?? a.url),
+                  username: a.username ?? a.preferredUsername ?? 'user',
+                  display_name: a.display_name ?? a.displayName ?? a.username ?? 'Fediverse user',
+                  avatar_url: a.avatar ?? a.icon?.url ?? null,
+                  origin: 'fediverse',
+                  actor_uri: a.uri ?? a.actor_uri ?? a.url ?? null,
+                  acct: a.acct ?? null,
+                }));
+                const seen = new Set<string>();
+                items = [...items, ...remoteItems].filter((item: any) => {
+                  const key = String(item.acct ?? item.username).toLowerCase();
+                  if (seen.has(key)) return false;
+                  seen.add(key);
+                  return true;
+                }).slice(0, 5);
+              } catch {
+                // Remote autocomplete is optional; typing must never depend on it.
+              }
+            }
+            if (revision === inputRevisionRef.current && mentionSearchRef.current === q) {
+              setMentionResults(items);
+            }
+          } catch {
+            if (revision === inputRevisionRef.current && mentionSearchRef.current === q) {
+              setMentionResults([]);
+            }
+          }
+        })();
+      }, 250);
       return;
     }
-    setMentionQuery(null); setMentionResults([]);
-    if (!hashMatch) { setHashtagQuery(null); setHashtagResults([]); return; }
+
+    setMentionQuery(null);
+    if (!hashMatch) {
+      setHashtagQuery(null);
+      return;
+    }
+
     const q = hashMatch[2].toLowerCase();
-    setHashtagQuery(q); setHashtagIdx(0); hashtagSearchRef.current = q;
-    if (q.length === 0) { setHashtagResults([]); return; }
-    try {
-      const { data } = await supabase.from('hashtags')
-        .select('id,tag,usage_count,post_count,federated_post_count')
-        .ilike('tag', q + '%')
-        .order('usage_count', { ascending: false })
-        .order('federated_post_count', { ascending: false })
-        .limit(8);
-      if (hashtagSearchRef.current === q) setHashtagResults(data ?? []);
-    } catch { if (hashtagSearchRef.current === q) setHashtagResults([]); }
-  }, [linkPreview]);
+    hashtagSearchRef.current = q;
+    setHashtagQuery(q);
+    setHashtagIdx(0);
+
+    if (q.length < 2) return;
+
+    hashtagSearchTimerRef.current = setTimeout(() => {
+      void (async () => {
+        try {
+          const { data } = await supabase.from('hashtags')
+            .select('id,tag,usage_count,post_count,federated_post_count')
+            .ilike('tag', q + '%')
+            .order('usage_count', { ascending: false })
+            .order('federated_post_count', { ascending: false })
+            .limit(8);
+          if (revision === inputRevisionRef.current && hashtagSearchRef.current === q) {
+            setHashtagResults(data ?? []);
+          }
+        } catch {
+          if (revision === inputRevisionRef.current && hashtagSearchRef.current === q) {
+            setHashtagResults([]);
+          }
+        }
+      })();
+    }, 250);
+  }, []);
 
   const insertMention = useCallback((username: string) => {
     const ta = textareaRef.current;
