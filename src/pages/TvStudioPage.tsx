@@ -339,11 +339,18 @@ export default function TvStudioPage() {
       // source to the 16:9 program raster while preserving its natural rotation.
       let sx = 0, sy = 0, sw = media.videoWidth, sh = media.videoHeight;
       if (sourceRatio < targetRatio) {
-        sw = media.videoHeight * targetRatio;
-        sx = (media.videoWidth - sw) / 2;
-      } else if (sourceRatio > targetRatio) {
+        // Portrait source (e.g. 1080x1920): keep the full sensor width and
+        // crop its height to exactly the 16:9 raster. The previous calculation
+        // expanded sw beyond videoWidth, which could produce an incorrectly
+        // oriented/partially sampled recording on mobile browsers.
+        sw = media.videoWidth;
         sh = media.videoWidth / targetRatio;
         sy = (media.videoHeight - sh) / 2;
+      } else if (sourceRatio > targetRatio) {
+        // Landscape source wider than 16:9: keep full height and crop width.
+        sh = media.videoHeight;
+        sw = media.videoHeight * targetRatio;
+        sx = (media.videoWidth - sw) / 2;
       }
       target.drawImage(media, sx, sy, sw, sh, 0, 0, w, h);
     };
@@ -547,7 +554,11 @@ export default function TvStudioPage() {
 
     if (productionCanvasQualityRef.current !== quality) {
       productionCanvasStreamRef.current?.getTracks().forEach(track => track.stop());
+      // Capture only the fixed landscape production raster. Never hand the
+      // raw camera MediaStream to MediaRecorder or the live transport.
       productionCanvasStreamRef.current = canvas.captureStream(preset.fps);
+      const capturedTrack = productionCanvasStreamRef.current.getVideoTracks()[0];
+      if (capturedTrack) capturedTrack.contentHint = 'motion';
       productionCanvasQualityRef.current = quality;
       productionVideoTrackRef.current = productionCanvasStreamRef.current.getVideoTracks()[0] ?? null;
     }
