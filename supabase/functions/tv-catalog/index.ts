@@ -69,23 +69,34 @@ async function fetchJson(url:string, signal:AbortSignal) {
   return await r.json();
 }
 
-function fromNexus(rows:any[], label:string, priority:number, countryOverride?:string) {
+function normalizeNexusRows(payload:unknown):any[] {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== "object") return [];
+  const value = payload as Record<string, unknown>;
+  for (const key of ["channels","items","data","results","stations"]) {
+    if (Array.isArray(value[key])) return value[key] as any[];
+  }
+  return [];
+}
+
+function fromNexus(payload:unknown, label:string, priority:number, countryOverride?:string) {
   const out:any[]=[];
-  for(const c of rows||[]) {
-    if(c?.is_nsfw || !c?.online || blocked.test(c?.name||"")) continue;
-    const stream=(c.streams||[]).find((s:any)=>s?.health?.status==="online" && s?.url);
+  for(const c of normalizeNexusRows(payload)) {
+    if(!c || typeof c !== "object") continue;
+    if(c?.is_nsfw || c?.online === false || blocked.test(String(c?.name||""))) continue;
+    const streams = Array.isArray(c?.streams) ? c.streams : [];
+    const stream = streams.find((s:any)=>s && s?.health?.status==="online" && typeof s?.url==="string");
     if(!stream?.url) continue;
     const quality=String(stream.quality||c.best_quality||"");
     out.push({
-      id:String(c.id||idFor(c.name,stream.url)),
+      id:String(c.id||idFor(String(c.name||stream.title||"Live TV"),stream.url)),
       name:String(c.name||stream.title||"Live TV"),
       url:String(stream.url),
-      logo:c.logo||undefined,
-      country:countryOverride||c.country||"INT",
+      logo:typeof c.logo==="string" ? c.logo : undefined,
+      country:countryOverride||String(c.country||"INT"),
       language:Array.isArray(c.languages)?c.languages[0]:undefined,
       group:Array.isArray(c.categories)?c.categories[0]:undefined,
-      source:label,
-      priority:priority + (Number.parseInt(quality)||0)/1000
+      source:label, priority:priority + (Number.parseInt(quality)||0)/1000
     });
   }
   return out;
