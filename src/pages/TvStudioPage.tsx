@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Room, RoomEvent, LocalAudioTrack, LocalVideoTrack } from 'livekit-client';
-import { Camera, Mic, MonitorUp, Circle, Square, Radio, Users, Download, Clapperboard, Settings2, Activity, ShieldCheck } from 'lucide-react';
+import { Camera, Mic, MonitorUp, Circle, Square, Radio, Users, Download, Clapperboard, Settings2, Activity, ShieldCheck, Upload, PictureInPicture2, Layers3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -32,6 +32,14 @@ export default function TvStudioPage() {
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const downloadUrlRef = useRef<string | null>(null);
+  const sourceVideoRef = useRef<HTMLVideoElement | null>(null);
+  const sourceVideoUrlRef = useRef<string | null>(null);
+  const sceneCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const sceneAnimationRef = useRef<number | null>(null);
+  const productionAudioContextRef = useRef<AudioContext | null>(null);
+  const productionAudioDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null);
+  const productionVideoStreamRef = useRef<MediaStream | null>(null);
+  const videoFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [stream, setStream] = useState<any>(null);
   const [activeStreamId, setActiveStreamId] = useState<string | null>(streamId ?? null);
@@ -50,6 +58,13 @@ export default function TvStudioPage() {
   const [saving, setSaving] = useState(false);
   const [recordingHint, setRecordingHint] = useState('Record locally on this device. Testagram never uploads the finished video.');
   const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [productionSource, setProductionSource] = useState<'camera' | 'video'>('camera');
+  const [uploadedVideoName, setUploadedVideoName] = useState<string | null>(null);
+  const [pipEnabled, setPipEnabled] = useState(true);
+  const [sourceVideoPlaying, setSourceVideoPlaying] = useState(false);
+  const [sourceVideoMuted, setSourceVideoMuted] = useState(false);
+  const [commentaryLevel, setCommentaryLevel] = useState(1);
+  const [programLevel, setProgramLevel] = useState(0.85);
   const [cameraPermission, setCameraPermission] = useState<PermissionState | 'unsupported'>('unsupported');
   const [microphonePermission, setMicrophonePermission] = useState<PermissionState | 'unsupported'>('unsupported');
   const [deviceReady, setDeviceReady] = useState(false);
@@ -157,6 +172,122 @@ export default function TvStudioPage() {
     return program;
   };
 
+  const createProductionProgram = async () => {
+    if (productionSource !== 'video' || !sourceVideoRef.current) return rebuildProgramStream();
+    await ensureStudio();
+    const sourceVideo = sourceVideoRef.current;
+    if (sourceVideo.readyState < 2) {
+      await new Promise<void>(resolve => {
+        const done = () => resolve();
+        sourceVideo.addEventListener('loadeddata', done, { once: true });
+      });
+    }
+    const preset = VIDEO_PRESETS[quality];
+    const canvas = sceneCanvasRef.current ?? document.createElement('canvas');
+    canvas.width = preset.width;
+    canvas.height = preset.height;
+    sceneCanvasRef.current = canvas;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('Could not create the production canvas.');
+
+    const camera = document.createElement('video');
+    camera.muted = true;
+    camera.playsInline = true;
+    camera.srcObject = cameraStreamRef.current;
+    await camera.play().catch(() => undefined);
+
+    const draw = () => {
+      const w = canvas.width, h = canvas.height;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, w, h);
+      const ratio = sourceVideo.videoWidth && sourceVideo.videoHeight ? sourceVideo.videoWidth / sourceVideo.videoHeight : 16 / 9;
+      const target = w / h;
+      let dw = w, dh = h, dx = 0, dy = 0;
+      if (ratio > target) { dh = w / ratio; dy = (h - dh) / 2; }
+      else { dw = h * ratio; dx = (w - dw) / 2; }
+      ctx.drawImage(sourceVideo, dx, dy, dw, dh);
+
+      if (pipEnabled && camera.readyState >= 2 && camera.videoWidth) {
+        const pw = Math.round(w * 0.28);
+        const ph = Math.round(pw * (camera.videoHeight / camera.videoWidth));
+        const px = w - pw - 28, py = h - ph - 28;
+        ctx.save();
+        ctx.shadowColor = 'rgba(0,0,0,.6)';
+        ctx.shadowBlur = 18;
+        ctx.fillStyle = '#000';
+        ctx.fillRect(px - 4, py - 4, pw + 8, ph + 8);
+        ctx.restore();
+        ctx.drawImage(camera, px, py, pw, ph);
+      }
+      sceneAnimationRef.current = requestAnimationFrame(draw);
+    };
+    draw();
+
+    const audioCtor = window.AudioContext || (window as any).webkitAudioContext;
+    if (!audioCtor) throw new Error('This browser does not support live audio mixing.');
+    const audioContext: AudioContext = new audioCtor({ latencyHint: 'interactive', sampleRate: 48000 });
+    if (audioContext.state === 'suspended') await audioContext.resume();
+    const destination = audioContext.createMediaStreamDestination();
+
+    const sourceAudio = audioContext.createMediaElementSource(sourceVideo);
+    const sourceGain = audioContext.createGain();
+    sourceGain.gain.value = sourceVideoMuted ? 0 : programLevel;
+    sourceAudio.connect(sourceGain).connect(destination);
+
+    if (audioPipelineRef.current) {
+      const commentary = audioContext.createMediaStreamSource(audioPipelineRef.current.stream);
+      const commentaryGain = audioContext.createGain();
+      commentaryGain.gain.value = muted ? 0 : commentaryLevel;
+      commentary.connect(commentaryGain).connect(destination);
+    }
+
+    productionAudioContextRef.current?.close().catch(() => undefined);
+    productionAudioContextRef.current = audioContext;
+    productionAudioDestinationRef.current = destination;
+
+    const canvasStream = canvas.captureStream(preset.fps);
+    const audioTrack = destination.stream.getAudioTracks()[0];
+    if (!audioTrack) throw new Error('Could not create the mixed program audio.');
+    const program = new MediaStream([canvasStream.getVideoTracks()[0], audioTrack]);
+    productionVideoStreamRef.current = canvasStream;
+    programStreamRef.current = program;
+    if (videoRef.current) {
+      videoRef.current.srcObject = program;
+      videoRef.current.muted = true;
+      void videoRef.current.play().catch(() => undefined);
+    }
+    return program;
+  };
+
+  const loadProductionVideo = async (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('video/')) { toast.error('Choose a video file.'); return; }
+    if (file.size > 2 * 1024 * 1024 * 1024) { toast.error('Video exceeds the 2 GB browser production limit.'); return; }
+    if (sourceVideoUrlRef.current) URL.revokeObjectURL(sourceVideoUrlRef.current);
+    const url = URL.createObjectURL(file);
+    sourceVideoUrlRef.current = url;
+    const video = sourceVideoRef.current ?? document.createElement('video');
+    video.src = url;
+    video.preload = 'auto';
+    video.playsInline = true;
+    video.muted = false;
+    sourceVideoRef.current = video;
+    setUploadedVideoName(file.name);
+    setProductionSource('video');
+    await video.play().catch(() => undefined);
+    setSourceVideoPlaying(!video.paused);
+    setStatus('preview');
+    toast.success('Video loaded locally. It will be sent through the live program, not stored on Testagram.');
+  };
+
+  const toggleProductionVideo = async () => {
+    const video = sourceVideoRef.current;
+    if (!video) return;
+    if (video.paused) await video.play().catch(() => undefined);
+    else video.pause();
+    setSourceVideoPlaying(!video.paused);
+  };
+
   const publishProgram = async (room: Room, program: MediaStream) => {
     const video = program.getVideoTracks()[0];
     const audio = program.getAudioTracks()[0];
@@ -168,7 +299,7 @@ export default function TvStudioPage() {
     try {
       if (!user) throw new Error('Sign in to broadcast');
       const cameraStream = await ensureStudio();
-      const program = rebuildProgramStream();
+      const program = await createProductionProgram();
       let id = activeStreamId;
 
       if (!id) {
@@ -227,7 +358,7 @@ export default function TvStudioPage() {
   const startRecording = async () => {
     try {
       await ensureStudio();
-      const program = rebuildProgramStream();
+      const program = await createProductionProgram();
       const preset = VIDEO_PRESETS[quality];
       const mime = [
         'video/webm;codecs=vp9,opus',
@@ -391,6 +522,22 @@ export default function TvStudioPage() {
           </section>
 
           <aside className="space-y-3">
+                          <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-3">
+                <div className="flex items-center gap-2 font-semibold text-sm"><Layers3 className="w-4 h-4" />Program / scenes</div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button size="sm" variant={productionSource === 'camera' ? 'default' : 'outline'} onClick={() => setProductionSource('camera')}><Camera className="w-4 h-4 mr-1" />Camera</Button>
+                  <Button size="sm" variant={productionSource === 'video' ? 'default' : 'outline'} onClick={() => videoFileInputRef.current?.click()}><Upload className="w-4 h-4 mr-1" />Video</Button>
+                </div>
+                <input ref={videoFileInputRef} type="file" accept="video/*" className="hidden" onChange={e => void loadProductionVideo(e.target.files?.[0])} />
+                {uploadedVideoName && <div className="text-[11px] text-zinc-400 truncate">{uploadedVideoName}</div>}
+                {productionSource === 'video' && sourceVideoRef.current && <div className="grid grid-cols-2 gap-2">
+                  <Button size="sm" variant="outline" onClick={() => void toggleProductionVideo()}>{sourceVideoPlaying ? 'Pause video' : 'Play video'}</Button>
+                  <Button size="sm" variant="outline" onClick={() => setPipEnabled(v => !v)}><PictureInPicture2 className="w-4 h-4 mr-1" />PiP {pipEnabled ? 'on' : 'off'}</Button>
+                </div>}
+                <div><div className="flex justify-between text-[11px] text-zinc-400"><span>Video audio</span><span>{Math.round(programLevel * 100)}%</span></div><input type="range" min="0" max="1" step="0.05" value={programLevel} onChange={e => setProgramLevel(Number(e.target.value))} className="w-full" /></div>
+                <div><div className="flex justify-between text-[11px] text-zinc-400"><span>Commentary voice</span><span>{Math.round(commentaryLevel * 100)}%</span></div><input type="range" min="0" max="1.5" step="0.05" value={commentaryLevel} onChange={e => setCommentaryLevel(Number(e.target.value))} className="w-full" /></div>
+                <p className="text-[10px] text-zinc-500">Live program audio mixes the uploaded video's audio and the commentator microphone simultaneously.</p>
+              </div>
             <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4">
               <div className="flex items-center gap-2 font-semibold mb-3"><Settings2 className="w-4 h-4" />Production controls</div>
               <label className="text-xs text-zinc-400">Capture quality</label>
