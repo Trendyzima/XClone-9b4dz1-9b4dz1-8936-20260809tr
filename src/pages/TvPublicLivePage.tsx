@@ -58,8 +58,16 @@ export default function TvPublicLivePage() {
             void audioRef.current.play().catch(() => undefined);
           }
         };
-        room.on(RoomEvent.TrackSubscribed, track => { if (!isGuest) attach(track); });
-        room.on(RoomEvent.TrackUnsubscribed, track => track.detach());
+        room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
+          if (isGuest) return;
+          try {
+            const role = JSON.parse(participant.metadata || '{}')?.role;
+            if (role === 'host' && (publication.trackName === 'program-video' || publication.trackName === 'program-audio')) attach(track);
+          } catch { /* Ignore malformed participant metadata. */ }
+        });
+        room.on(RoomEvent.TrackUnsubscribed, (track, publication) => {
+          if (publication.trackName === 'program-video' || publication.trackName === 'program-audio') track.detach();
+        });
         const refreshCount = () => setViewers(countViewers(room));
         room.on(RoomEvent.ParticipantConnected, refreshCount);
         room.on(RoomEvent.ParticipantDisconnected, refreshCount);
@@ -77,7 +85,11 @@ export default function TvPublicLivePage() {
           }
         } else {
           for (const participant of room.remoteParticipants.values()) {
+            let role = '';
+            try { role = JSON.parse(participant.metadata || '{}')?.role || ''; } catch {}
+            if (role !== 'host') continue;
             for (const publication of participant.trackPublications.values()) {
+              if (publication.trackName !== 'program-video' && publication.trackName !== 'program-audio') continue;
               if (!publication.isSubscribed) await publication.setSubscribed(true);
               if (publication.track) attach(publication.track);
             }
