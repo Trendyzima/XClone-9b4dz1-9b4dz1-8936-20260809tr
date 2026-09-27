@@ -212,7 +212,7 @@ export default function TvStudioPage() {
   const token = async (requestedId?: string) => {
     const id = requestedId ?? activeStreamId;
     if (!id) throw new Error('Broadcast id missing');
-    const { data, error } = await supabase.functions.invoke('livekit-tv-token', { body: { stream_id: id } });
+    const { data, error } = await supabase.functions.invoke('livekit-tv-token', { body: { stream_id: id, role: 'host' } });
     if (error || !data?.data) throw new Error(data?.error?.message || error?.message || 'Could not connect to live broadcast');
     return data.data;
   };
