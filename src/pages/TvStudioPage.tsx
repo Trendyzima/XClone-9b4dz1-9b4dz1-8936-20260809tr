@@ -75,6 +75,8 @@ export default function TvStudioPage() {
   const replayPlaybackStartRef = useRef<number | null>(null);
   const replayPlaybackBaseRef = useRef<number | null>(null);
   const multiviewCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const transitionIncomingCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const multiviewCellCanvasRefs = useRef<HTMLCanvasElement[]>([]);
   const [replayState, setReplayState] = useState<'ready' | 'playing'>('ready');
   const [programFps, setProgramFps] = useState(0);
   const [programDropped, setProgramDropped] = useState(0);
@@ -337,7 +339,8 @@ export default function TvStudioPage() {
         ['camera',0,0],['video',w/2,0],['screen',0,h/2],['replay',w/2,h/2]
       ];
       for (const [scene,x,y] of cells) {
-        const cell = document.createElement('canvas'); cell.width = w/2; cell.height = h/2;
+        const cell = multiviewCellCanvasRefs.current[(x ? 1 : 0) + (y ? 2 : 0)] ?? document.createElement('canvas');
+        cell.width = w/2; cell.height = h/2; multiviewCellCanvasRefs.current[(x ? 1 : 0) + (y ? 2 : 0)] = cell;
         const cctx = cell.getContext('2d'); if (!cctx) continue;
         cctx.fillStyle = '#000'; cctx.fillRect(0,0,cell.width,cell.height);
         if (scene === 'camera') fit(cctx,camera,true);
@@ -383,8 +386,8 @@ export default function TvStudioPage() {
           }
         }
       }
-      const incoming = document.createElement('canvas');
-      incoming.width = canvas.width; incoming.height = canvas.height;
+      const incoming = transitionIncomingCanvasRef.current ?? document.createElement('canvas');
+      incoming.width = canvas.width; incoming.height = canvas.height; transitionIncomingCanvasRef.current = incoming;
       const ictx = incoming.getContext('2d')!;
       renderScene(ictx, activeProgram);
 
