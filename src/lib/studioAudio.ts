@@ -7,6 +7,7 @@ export interface StudioAudioPipeline {
   analyser: AnalyserNode;
   getLevel: () => number;
   gate: GainNode;
+  limiter: DynamicsCompressorNode;
   destination: MediaStreamAudioDestinationNode;
   stream: MediaStream;
   stop: () => Promise<void>;
@@ -51,13 +52,21 @@ export async function createStudioAudioPipeline(input: MediaStream): Promise<Stu
   const gate = context.createGain();
   gate.gain.value = 1;
 
+  const limiter = context.createDynamicsCompressor();
+  limiter.threshold.value = -3;
+  limiter.knee.value = 3;
+  limiter.ratio.value = 12;
+  limiter.attack.value = 0.002;
+  limiter.release.value = 0.08;
+
   const destination = context.createMediaStreamDestination();
   source.connect(highPass);
   highPass.connect(lowPass);
   lowPass.connect(compressor);
   compressor.connect(analyser);
   analyser.connect(gate);
-  gate.connect(destination);
+  gate.connect(limiter);
+  limiter.connect(destination);
 
   const data = new Float32Array(analyser.fftSize);
   let raf = 0;
@@ -86,7 +95,7 @@ export async function createStudioAudioPipeline(input: MediaStream): Promise<Stu
   tick();
 
   return {
-    context, source, highPass, lowPass, compressor, analyser, gate, destination,
+    context, source, highPass, lowPass, compressor, analyser, gate, limiter, destination,
     stream: destination.stream,
     getLevel: () => {
       const values = new Float32Array(analyser.fftSize);
@@ -99,7 +108,7 @@ export async function createStudioAudioPipeline(input: MediaStream): Promise<Stu
     },
     stop: async () => {
       cancelAnimationFrame(raf);
-      try { source.disconnect(); highPass.disconnect(); lowPass.disconnect(); compressor.disconnect(); analyser.disconnect(); gate.disconnect(); destination.disconnect(); } catch {}
+      try { source.disconnect(); highPass.disconnect(); lowPass.disconnect(); compressor.disconnect(); analyser.disconnect(); gate.disconnect(); limiter.disconnect(); destination.disconnect(); } catch {}
       if (context.state !== 'closed') await context.close();
     },
   };
