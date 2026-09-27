@@ -123,6 +123,7 @@ export default function TvStudioPage() {
   const [saving, setSaving] = useState(false);
   const [recordingHint, setRecordingHint] = useState('Record locally on this device. Testagram never uploads the finished video.');
   const [permissionError, setPermissionError] = useState<string | null>(null);
+  const [broadcastError, setBroadcastError] = useState<string | null>(null);
   const [productionSource, setProductionSource] = useState<'camera' | 'video'>('camera');
   const [activeScene, setActiveScene] = useState<Scene>('camera');
   const [previewScene, setPreviewScene] = useState<TvSceneId>('camera');
@@ -764,6 +765,7 @@ export default function TvStudioPage() {
 
   const startLive = async () => {
     if (live || roomRef.current) return;
+    setBroadcastError(null);
     try {
       if (!user) throw new Error('Sign in to broadcast');
       await ensureStudio();
@@ -844,6 +846,7 @@ export default function TvStudioPage() {
       setMode('live');
       setStatus('live');
       setElapsed(0);
+      setBroadcastError(null);
       toast.success('TV broadcast is live');
     } catch (e: any) {
       await roomRef.current?.disconnect().catch(() => undefined);
@@ -858,7 +861,7 @@ export default function TvStudioPage() {
         setActiveStreamId(null);
       }
       const message = e?.message || 'Unable to start live broadcast';
-      setPermissionError(message);
+      setBroadcastError(message);
       toast.error(message);
     }
   };
@@ -1121,6 +1124,13 @@ export default function TvStudioPage() {
                 <Button size="sm" onClick={() => void ensureStudio().then(() => setStatus('preview')).catch(() => undefined)}>Try again</Button>
                 <Button size="sm" variant="outline" onClick={showPermissionHelp}>How to allow access</Button>
               </div>
+            </div>
+          )}
+          {broadcastError && (
+            <div className="mb-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-100">
+              <div className="font-semibold">Broadcast connection failed</div>
+              <p className="mt-1 text-xs text-red-200/80">{broadcastError}</p>
+              <div className="mt-2"><Button size="sm" onClick={() => void startLive()}>Try broadcast again</Button></div>
             </div>
           )}
           <section className="rounded-2xl overflow-hidden border border-zinc-800/80 bg-black shadow-2xl">
