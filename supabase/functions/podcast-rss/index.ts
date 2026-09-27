@@ -4,9 +4,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 serve(async (req) => {
   const url = new URL(req.url);
   // Expect /podcast-rss?username=johndoe  OR  /podcast-rss/johndoe
-  const username = url.searchParams.get('username') || url.pathname.split('/').pop();
+  const username = (url.searchParams.get('username') || url.pathname.split('/').pop() || '').trim().replace(/^@/, '');
+  const community = (url.searchParams.get('community') || '').trim();
 
-  if (!username) {
+  if (!username && !community) {
     return new Response('Missing username', { status: 400 });
   }
 
@@ -17,7 +18,7 @@ serve(async (req) => {
 
   // Fetch user profile
   const { data: profile } = await supabase
-    .from('user_profiles')
+    .from('profiles')
     .select('id, username, bio, avatar_url')
     .eq('username', username)
     .maybeSingle();
@@ -30,7 +31,7 @@ serve(async (req) => {
   const { data: recordings } = await supabase
     .from('space_recordings')
     .select('*, spaces(title, description, category, artwork_url, episode_number)')
-    .eq('user_id', profile.id)
+     .eq('user_id', profile.id)
     .order('created_at', { ascending: false })
     .limit(50);
 
