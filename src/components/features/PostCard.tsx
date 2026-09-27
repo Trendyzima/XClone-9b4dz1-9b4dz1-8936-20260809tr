@@ -25,6 +25,7 @@ import {
 import { VideoMonetizationAd } from './VideoMonetizationAd';
 import { EmbedRenderer, PostContentEmbeds } from './EmbedRenderer';
 import { InlineTvSuggestion } from './InlineTvSuggestion';
+import { FediverseRichText } from './FediverseRichText';
 import { InlineRssSuggestion } from './InlineRssSuggestion';
 import { updateInterestSignal } from '@/services/recommendations';
 import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts, getFederatedReplies, getInteractionCounts, recordPostView, recordPostShare } from '@/services/postInteractionService';
@@ -659,7 +660,11 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
 
           <div
             className="post-content text-foreground mt-1 whitespace-pre-wrap break-words"
-            dangerouslySetInnerHTML={{ __html: parseContent(showTranslation && translatedContent ? translatedContent : post.content) }}
+            {isFederatedPost ? (
+              <FediverseRichText html={showTranslation && translatedContent ? translatedContent : post.content} tags={(post as any).tags ?? []} className="text-sm leading-relaxed break-words" />
+            ) : (
+              <div dangerouslySetInnerHTML={{ __html: parseContent(showTranslation && translatedContent ? translatedContent : post.content) }} />
+            )}
             onClick={(e) => { const target = e.target as HTMLElement; if (target.tagName === 'A') e.stopPropagation(); }}
           />
 
