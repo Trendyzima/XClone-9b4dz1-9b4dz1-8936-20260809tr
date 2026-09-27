@@ -163,11 +163,12 @@ export default function HomeHubPage(){
     void readHomeFeedCache().then(cached=>{
       if(!active)return;
       if(cached?.items?.length){
-        feedBufferRef.current=cached.items;
+        const freshCached=cached.items.filter((item:any)=>item?.type!=='fedpost'||Date.parse(String(item?.data?.created_at??item?.data?.published_at??item?.data?.published??''))>=Date.now()-24*60*60*1000);
+        feedBufferRef.current=freshCached;
         feedBufferOffsetRef.current=Math.min(6,cached.items.length);
-        setItems(cached.items.slice(0,6));
+        setItems(freshCached.slice(0,6));
         cacheCursorRef.current=cached.cursor;nextCursorRef.current=cached.cursor;
-        setHasMore(Boolean(cached.cursor)||cached.items.length>6);setLoading(false);setCacheHydrated(true);
+        setHasMore(Boolean(cached.cursor)||freshCached.length>6);setLoading(false);setCacheHydrated(true);
         if(cached.scrollY>0)requestAnimationFrame(()=>window.scrollTo({top:cached.scrollY,behavior:'instant' as ScrollBehavior}));
       }else {
         setCacheHydrated(true);
@@ -183,9 +184,12 @@ export default function HomeHubPage(){
     const scheduleRefresh=()=>{window.clearTimeout(refreshTimerRef.current);refreshTimerRef.current=window.setTimeout(()=>void load('all',true),1500);};
     const channel=supabase.channel('home-feed-live')
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'posts'},scheduleRefresh)
-      .on('postgres_changes',{event:'INSERT',schema:'public',table:'threads'},scheduleRefresh)
+       .on('postgres_changes',{event:'INSERT',schema:'public',table:'threads'},scheduleRefresh)
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'federated_objects'},scheduleRefresh)
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'federated_objects'},scheduleRefresh)
+      .on('postgres_changes',{event:'DELETE',schema:'public',table:'federated_objects'},scheduleRefresh)
       .subscribe();
-    const fallback=window.setInterval(()=>{if(document.visibilityState==='visible')void load('all',true);},60000);
+    const fallback=window.setInterval(()=>{if(document.visibilityState==='visible')void load('all',true);},20000);
     return()=>{active=false;window.removeEventListener('scroll',onScroll);window.clearTimeout(refreshTimerRef.current);window.clearInterval(fallback);void supabase.removeChannel(channel);};
   },[tab]);
 
