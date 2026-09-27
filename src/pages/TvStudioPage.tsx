@@ -221,8 +221,40 @@ export default function TvStudioPage() {
   const token = async (requestedId?: string) => {
     const id = requestedId ?? activeStreamId;
     if (!id) throw new Error('Broadcast id missing');
-    const { data, error } = await supabase.functions.invoke('livekit-tv-token', { body: { stream_id: id, role: 'host' } });
-    if (error || !data?.data) throw new Error(data?.error?.message || error?.message || 'Could not connect to live broadcast');
+
+    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError) throw new Error('Your Testagram session could not be read. Sign in again and retry.');
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) throw new Error('Your Testagram session has expired. Sign in again before going live.');
+
+    const { data, error } = await supabase.functions.invoke('livekit-tv-token', {
+      body: { stream_id: id, role: 'host' },
+      headers: { Authorization: 'Bearer ' + accessToken },
+    });
+
+    if (error) {
+      let detail = '';
+      const context = (error as any)?.context;
+      try {
+        if (context instanceof Response) {
+          const payload = await context.clone().json();
+          detail = payload?.error?.message || payload?.message || '';
+        } else if (typeof context === 'string') {
+          const payload = JSON.parse(context);
+          detail = payload?.error?.message || payload?.message || context;
+        } else if (context?.body) {
+          const payload = typeof context.body === 'string' ? JSON.parse(context.body) : context.body;
+          detail = payload?.error?.message || payload?.message || '';
+        }
+      } catch {
+        // Preserve the stable fallback when the response body is not JSON.
+      }
+      throw new Error(detail || error.message || 'Could not connect to the live broadcast service.');
+    }
+
+    if (!data?.data) {
+      throw new Error(data?.error?.message || 'Live broadcast service returned no connection credentials.');
+    }
     return data.data;
   };
 
