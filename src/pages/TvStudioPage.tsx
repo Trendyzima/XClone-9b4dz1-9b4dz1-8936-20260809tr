@@ -733,8 +733,13 @@ export default function TvStudioPage() {
       await room.connect(info.url, info.token);
       await publishProgram(room, program);
       for (const participant of room.remoteParticipants.values()) {
+        const metadata = participant.metadata || '';
+        const isGuest = metadata.includes('tv_guest') || (() => { try { return JSON.parse(metadata)?.role === 'guest'; } catch { return false; } })();
+        if (!isGuest) continue;
         for (const publication of participant.trackPublications.values()) {
-          if (publication.isSubscribed && publication.track) wireGuestTrack(publication.track, publication, participant);
+          if (![Track.Source.Camera, Track.Source.Microphone].includes(publication.source)) continue;
+          if (!publication.isSubscribed) await publication.setSubscribed(true);
+          if (publication.track) wireGuestTrack(publication.track, publication, participant);
         }
       }
       setViewerCount(countRemoteViewers());
