@@ -13,13 +13,20 @@ const EVENTS = new Set(["click", "viewable", "video_start", "video_first_quartil
 
 async function currentUser(req: Request) {
   const authorization = req.headers.get("Authorization") ?? "";
-  const token = authorization.replace(/^Bearer\s+/i, "");
+  const token = authorization.replace(/^Bearer\\s+/i, "");
   if (!token || !ANON) return null;
-  const client = createClient(URL, ANON, { global: { headers: { Authorization: authorization } }, auth: { persistSession: false, autoRefreshToken: false } });
-  const { data } = await client.auth.getUser(token);
-  return data.user ?? null;
+  try {
+    const client = createClient(URL, ANON, {
+      global: { headers: { Authorization: authorization } },
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+    const { data, error } = await client.auth.getUser(token);
+    if (error || !data.user) return null;
+    return data.user;
+  } catch {
+    return null;
+  }
 }
-
 function b64url(bytes: Uint8Array) {
   let s = "";
   for (const x of bytes) s += String.fromCharCode(x);
