@@ -11,9 +11,12 @@ export function FloatingActionButton() {
 
   if (!user) return null;
 
-  // Don't show on auth page, messages page, or AI page (they have their own input areas)
+  // Live-stream pages have a persistent chat composer at the bottom.
+  // Keep the global FAB out of that interaction zone so it cannot cover
+  // the message field/send control on mobile.
+  const isLiveStreamPage = location.pathname.startsWith('/stream/');
   const hiddenRoutes = ['/auth', '/messages', '/ai'];
-  if (hiddenRoutes.some(r => location.pathname.startsWith(r))) return null;
+  if (isLiveStreamPage || hiddenRoutes.some(r => location.pathname.startsWith(r))) return null;
 
   const actions = [
     {
