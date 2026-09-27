@@ -77,95 +77,43 @@ async function processJob(job:any){
   const key=await getDb().from("activitypub_keys").select("private_key_pem,key_id").eq("user_id",localUser.data.user_id).maybeSingle();
   if(!key.data?.private_key_pem)throw Error("local signing key missing");
   const local={actor_url:actorUri,private_key_pem:key.data.private_key_pem,key_id:key.data.key_id};
-  // Public standalone Create activities are already addressed to the remote
-  // follower represented by this delivery row. They do not have an
-  // inReplyTo target, so they must be delivered directly to job.target_inbox.
-  // Replies/interactions retain the transport path because they need remote
-  // object/actor resolution.
-  const target = activity?.type==="Follow" ? activity?.object : (activity?.type==="Create" ? activity?.object?.inReplyTo : activity?.object);
-  if(activity?.type==="Create" && !target && job.target_inbox){
-    const body=JSON.stringify(activity);
-    let response=await signedPost(local,String(job.target_inbox),body,false);
-    if((response.status===400||response.status===401)&&response.status!==404) response=await signedPost(local,String(job.target_inbox),body,true);
-    const responseText=(await response.text()).slice(0,1200);
-    const attempt=Number(job.attempt_count||1);
-    if(response.ok){
-      const now=new Date().toISOString();
-      await getDb().from("federation_deliveries").update({status:"delivered",attempt_count:attempt,last_attempt_at:now,delivered_at:now,locked_at:null,next_attempt_at:null,last_status_code:response.status,last_error:null,updated_at:now}).eq("id",job.id).eq("status","in_flight");
-      await getDb().from("activitypub_outbox").update({delivered:true,attempts:attempt,next_attempt_at:null,last_error:null,updated_at:now}).eq("activity_id",activityId);
-      if(activityRow?.id) await getDb().from("federated_activities").update({processing_state:"delivered",processing_attempts:attempt,processed_at:now,last_error:null,updated_at:now}).eq("id",activityRow.id);
-      return {status:"delivered",activityId,remoteStatus:response.status};
-    }
-    const permanent=response.status===404||response.status===410||(response.status>=400&&response.status<500&&response.status!==401&&response.status!==403&&response.status!==429);
-    const next=new Date(Date.now()+backoff(attempt,response.headers.get("retry-after"))*1000).toISOString();
-    const state=permanent?"dead_letter":"retry";
-    const now=new Date().toISOString();
-    await getDb().from("federation_deliveries").update({status:state,attempt_count:attempt,last_attempt_at:now,locked_at:null,next_attempt_at:permanent?null:next,last_status_code:response.status,last_error:(`Remote inbox ${response.status}: ${responseText}`).slice(0,2000),updated_at:now}).eq("id",job.id).eq("status","in_flight");
-    await getDb().from("activitypub_outbox").update({attempts:attempt,next_attempt_at:permanent?null:next,last_error:(`Remote inbox ${response.status}: ${responseText}`).slice(0,2000),updated_at:now}).eq("activity_id",activityId);
-    if(activityRow?.id) await getDb().from("federated_activities").update({processing_state:state,processing_attempts:attempt,last_error:(`Remote inbox ${response.status}: ${responseText}`).slice(0,2000),updated_at:now}).eq("id",activityRow.id);
-    return {status:state,activityId,remoteStatus:response.status};
-  }
-  if(typeof target!=="string" || !target.startsWith("https://")) throw Error("federation delivery has no valid remote ActivityPub target");
-  const internalOrigin=Deno.env.get("SUPABASE_PUBLIC_URL")||"https://ffrhglgkukgsuhxenena.supabase.co";
-  const controller=new AbortController(); const timeout=setTimeout(()=>controller.abort(),12000);
-  let transportResponse:Response;
-  try {
-    transportResponse=await fetch(internalOrigin+"/functions/v1/federation-transport",{
-      method:"POST",
-      headers:{"Content-Type":"application/json","Authorization":"Bearer "+SERVICE,"x-federation-internal":SERVICE},
-      body:JSON.stringify({operation:"deliver",user_id:localUser.data.user_id,target,activity}),
-      signal:controller.signal
-    });
-  } catch(e) {
-    clearTimeout(timeout);
-    throw Error("federation-transport invocation failed: "+(e instanceof Error?e.message:String(e)));
-  }
-  clearTimeout(timeout);
-  const transportText=(await transportResponse.text()).slice(0,4000);
-  let transport:any={}; try{transport=JSON.parse(transportText);}catch{}
-  if(!transportResponse.ok || transport?.ok===false) throw Error("federation-transport rejected delivery: "+transportText.slice(0,1200));
-  const queueStatus=transport?.delivery?.queue?.status||transport?.delivery?.status||"queued";
-  if(queueStatus==="delivered") {
-    const now=new Date().toISOString();
-    await getDb().from("federation_deliveries").update({status:"delivered",delivered_at:now,locked_at:null,next_attempt_at:null,last_error:null,last_status_code:200,updated_at:now}).eq("id",job.id).eq("status","in_flight");
-    await getDb().from("activitypub_outbox").update({delivered:true,attempts:Number(job.attempt_count||1),next_attempt_at:null,last_error:null}).eq("activity_id",activityId);
-    if(activityRow?.id) await getDb().from("federated_activities").update({processing_state:"delivered",processing_attempts:Number(job.attempt_count||1),processed_at:now,last_error:null}).eq("id",activityRow.id);
-    return {status:"delivered",activityId,remoteStatus:200};
-  }
-  const outboxCheck=await getDb().from("activitypub_outbox").select("delivered,attempts").eq("activity_id",activityId).maybeSingle();
-  if(outboxCheck.data?.delivered===true){
-    const now=new Date().toISOString();
-    await getDb().from("federation_deliveries").update({status:"delivered",delivered_at:now,locked_at:null,next_attempt_at:null,last_error:null,last_status_code:200,updated_at:now}).eq("id",job.id).eq("status","in_flight");
-    if(activityRow?.id) await getDb().from("federated_activities").update({processing_state:"delivered",processing_attempts:Number(outboxCheck.data.attempts||job.attempt_count||1),processed_at:now,last_error:null}).eq("id",activityRow.id);
-    return {status:"delivered",activityId,transport:queueStatus};
-  }
-  const retryAt=new Date(Date.now()+15000).toISOString(), now=new Date().toISOString();
-  await getDb().from("federation_deliveries").update({status:"retry",locked_at:null,next_attempt_at:retryAt,last_error:"transport queued: "+queueStatus,updated_at:now}).eq("id",job.id).eq("status","in_flight");
-  return {status:"retry",activityId,transport:queueStatus};
-  let inbox=job.target_inbox;
-  let remoteActor="";
-  if(!inbox){const r=await resolveInbox(activity);inbox=r.inbox;remoteActor=r.actor;await getDb().from("federation_deliveries").update({target_inbox:inbox,instance_domain:new URL(inbox).hostname,updated_at:new Date().toISOString()}).eq("id",job.id);}
+  const inbox=String(job.target_inbox||"");
+  if(!inbox.startsWith("https://"))throw Error("federation delivery has no valid HTTPS target inbox");
   const body=JSON.stringify(activity);
-  let response=await signedPost(local,inbox,body,false);
-  if((response.status===400||response.status===401)&&response.status!==404)response=await signedPost(local,inbox,body,true);
-  const responseText=(await response.text()).slice(0,1200);
-  const attempt=Number(job.attempt_count||0)+1;
+  let response:Response;
+  try {
+    const controller=new AbortController();
+    const timeout=setTimeout(()=>controller.abort(),12000);
+    response=await signedPost(local,inbox,body,false);
+    clearTimeout(timeout);
+    if((response.status===400||response.status===401)&&response.status!==404) response=await signedPost(local,inbox,body,true);
+  } catch(e) {
+    const message=e instanceof Error?e.message:String(e);
+    const attempt=Number(job.attempt_count||1);
+    const next=new Date(Date.now()+backoff(attempt,null)*1000).toISOString();
+    await getDb().from("federation_deliveries").update({status:"retry",locked_at:null,next_attempt_at:next,last_error:message.slice(0,2000),updated_at:new Date().toISOString()}).eq("id",job.id).eq("status","in_flight");
+    await getDb().from("activitypub_outbox").update({attempts:attempt,next_attempt_at:next,last_error:message.slice(0,2000),updated_at:new Date().toISOString()}).eq("activity_id",activityId);
+    return {status:"retry",activityId,error:message};
+  }
+  const responseText=(await response.text()).slice(0,2000);
+  const attempt=Number(job.attempt_count||1);
+  const now=new Date().toISOString();
   if(response.ok){
-    const now=new Date().toISOString();
     await getDb().from("federation_deliveries").update({status:"delivered",attempt_count:attempt,last_attempt_at:now,delivered_at:now,locked_at:null,next_attempt_at:null,last_status_code:response.status,last_error:null,updated_at:now}).eq("id",job.id).eq("status","in_flight");
     await getDb().from("activitypub_outbox").update({delivered:true,attempts:attempt,next_attempt_at:null,last_error:null,updated_at:now}).eq("activity_id",activityId);
-    if(activityRow?.id)await getDb().from("federated_activities").update({processing_state:"delivered",processing_attempts:attempt,processed_at:now,last_error:null,updated_at:now}).eq("id",activityRow.id);
+    if(activityRow?.id) await getDb().from("federated_activities").update({processing_state:"delivered",processing_attempts:attempt,processed_at:now,last_error:null,updated_at:now}).eq("id",activityRow.id);
     return {status:"delivered",activityId,remoteStatus:response.status};
   }
   const permanent=response.status===404||response.status===410||(response.status>=400&&response.status<500&&response.status!==401&&response.status!==403&&response.status!==429);
-  const next=new Date(Date.now()+backoff(attempt,response.headers.get("retry-after"))*1000).toISOString();
   const state=permanent?"dead_letter":"retry";
-  const now=new Date().toISOString();
-  await getDb().from("federation_deliveries").update({status:state,attempt_count:attempt,last_attempt_at:now,locked_at:null,next_attempt_at:permanent?null:next,last_status_code:response.status,last_error:(`Remote inbox ${response.status}: ${responseText}`).slice(0,2000),updated_at:now}).eq("id",job.id).eq("status","in_flight");
-  await getDb().from("activitypub_outbox").update({attempts:attempt,next_attempt_at:permanent?null:next,last_error:(`Remote inbox ${response.status}: ${responseText}`).slice(0,2000),updated_at:now}).eq("activity_id",activityId);
-  if(activityRow?.id)await getDb().from("federated_activities").update({processing_state:state,processing_attempts:attempt,last_error:(`Remote inbox ${response.status}: ${responseText}`).slice(0,2000),updated_at:now}).eq("id",activityRow.id);
+  const next=permanent?null:new Date(Date.now()+backoff(attempt,response.headers.get("retry-after"))*1000).toISOString();
+  const message=(`Remote inbox ${response.status}: ${responseText}`).slice(0,2000);
+  await getDb().from("federation_deliveries").update({status:state,attempt_count:attempt,last_attempt_at:now,locked_at:null,next_attempt_at:next,last_status_code:response.status,last_error:message,updated_at:now}).eq("id",job.id).eq("status","in_flight");
+  await getDb().from("activitypub_outbox").update({attempts:attempt,next_attempt_at:next,last_error:message,updated_at:now}).eq("activity_id",activityId);
+  if(activityRow?.id) await getDb().from("federated_activities").update({processing_state:state,processing_attempts:attempt,last_error:message,updated_at:now}).eq("id",activityRow.id);
   return {status:state,activityId,remoteStatus:response.status};
 }
+
 async function main(req:Request){
   const token=req.headers.get("x-federation-worker-token")||"";
   const check=await getDb().rpc("verify_federation_worker_token",{candidate:token});
