@@ -717,7 +717,7 @@ export default function TvStudioPage() {
       };
       room.on(RoomEvent.TrackSubscribed, wireGuestTrack);
       room.on(RoomEvent.TrackUnsubscribed, (track: any, publication: any, participant: any) => {
-        if ((participant?.metadata || '').includes('tv_guest')) {
+        if ((participant?.metadata || '').includes('tv_guest') || (participant?.metadata || '').includes('"role":"guest"')) {
           track.detach();
           setGuestConnected(false);
           remoteGuestVideoRef.current = null;
