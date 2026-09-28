@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { Room, RoomEvent, Track, LocalAudioTrack, LocalVideoTrack } from 'livekit-client';
+import { TestagramMediaSession } from '@/lib/testagramMedia';
 import { Camera, Mic, MonitorUp, Circle, Square, Radio, Users, Download, Clapperboard, Settings2, Activity, ShieldCheck, Upload, PictureInPicture2, Layers3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
@@ -32,7 +32,7 @@ export default function TvStudioPage() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
-  const roomRef = useRef<Room | null>(null);
+  const roomRef = useRef<TestagramMediaSession | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const programStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
@@ -226,7 +226,7 @@ export default function TvStudioPage() {
       if (musicUrlRef.current) URL.revokeObjectURL(musicUrlRef.current);
       if (sfxUrlRef.current) URL.revokeObjectURL(sfxUrlRef.current);
       if (downloadUrlRef.current) URL.revokeObjectURL(downloadUrlRef.current);
-      roomRef.current?.disconnect();
+      roomRef.current?.close();
       musicAudioRef.current?.pause();
       sfxAudioRef.current?.pause();
       cameraStreamRef.current?.getTracks().forEach(track => track.stop());
@@ -792,11 +792,8 @@ export default function TvStudioPage() {
     setSourceVideoPlaying(!video.paused);
   };
 
-  const publishProgram = async (room: Room, program: MediaStream) => {
-    const video = program.getVideoTracks()[0];
-    const audio = program.getAudioTracks()[0];
-    if (video) await room.localParticipant.publishTrack(new LocalVideoTrack(video), { name: 'program-video', simulcast: true });
-    if (audio) await room.localParticipant.publishTrack(new LocalAudioTrack(audio), { name: 'program-audio' });
+  const publishProgram = async (session: TestagramMediaSession, program: MediaStream) => {
+    await session.publishTracks(program);
   };
 
   const startLive = async () => {
@@ -808,7 +805,7 @@ export default function TvStudioPage() {
       if (!user) throw new Error('Sign in to broadcast');
       await ensureStudio();
       const program = await createProductionProgram();
-      // Always reconcile the authoritative active row first; stale studio URLs cannot bypass this.
+
       const { data: existing, error: existingError } = await supabase
         .from('live_streams')
         .select('id,title,description,category,is_live')
@@ -818,114 +815,74 @@ export default function TvStudioPage() {
         .limit(1)
         .maybeSingle();
       if (existingError) throw new Error(existingError.message);
+
       if (existing?.id) {
         id = existing.id;
         setActiveStreamId(id);
         setStream(existing);
       } else {
-          const { data, error } = await supabase.from('live_streams').insert({
-            user_id: user.id, title: broadcastTitle, description: broadcastDescription,
-            category: broadcastCategory, is_live: true,
-          }).select('id,title,description,category,is_live').single();
-          if (error || !data) {
-            if ((error as any)?.code === '23505') {
-              const { data: raced } = await supabase.from('live_streams')
-                .select('id,title,description,category,is_live')
-                .eq('user_id', user.id).eq('is_live', true)
-                .order('started_at', { ascending: false }).limit(1).maybeSingle();
-              if (!raced?.id) throw new Error(error?.message || 'Could not create broadcast');
-              id = raced.id; setActiveStreamId(id); setStream(raced);
-            } else {
-              throw new Error(error?.message || 'Could not create broadcast');
-            }
-          } else {
-            id = data.id;
-            createdBroadcast = true;
+        const { data, error } = await supabase.from('live_streams').insert({
+          user_id: user.id,
+          title: broadcastTitle,
+          description: broadcastDescription,
+          category: broadcastCategory,
+          is_live: true,
+        }).select('id,title,description,category,is_live').single();
+
+        if (error || !data) {
+          if ((error as any)?.code === '23505') {
+            const { data: raced } = await supabase.from('live_streams')
+              .select('id,title,description,category,is_live')
+              .eq('user_id', user.id)
+              .eq('is_live', true)
+              .order('started_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+            if (!raced?.id) throw new Error(error?.message || 'Could not create broadcast');
+            id = raced.id;
             setActiveStreamId(id);
-            setStream(data);
+            setStream(raced);
+          } else {
+            throw new Error(error?.message || 'Could not create broadcast');
           }
-        }
-
-      if (!id) throw new Error('Could not resolve the active TV broadcast.');
-      // This is only a transport locator. It is never a video URL or stored recording.
-      await supabase.from('live_streams').update({ stream_url: `livekit://tv/${id}` }).eq('id', id).eq('user_id', user.id);
-
-      const info = await token(id);
-      const room = new Room({ adaptiveStream: true, dynacast: true });
-      roomRef.current = room;
-      const wireGuestTrack = (track: any, publication: any, participant: any) => {
-        const metadata = participant?.metadata || '';
-        const isGuest = metadata.includes('tv_guest') || metadata.includes('testagram_tv_guest') || metadata.includes('"role":"guest"');
-        if (!isGuest || ![Track.Source.Camera, Track.Source.Microphone].includes(publication?.source)) return;
-        const element = track.attach();
-        if (track.kind === Track.Kind.Video) {
-          remoteGuestVideoRef.current?.pause();
-          remoteGuestVideoRef.current = element as HTMLVideoElement;
-          remoteGuestVideoRef.current.muted = true;
-          remoteGuestVideoRef.current.playsInline = true;
-          void remoteGuestVideoRef.current.play().catch(() => undefined);
-          setGuestConnected(true);
-        } else if (track.kind === Track.Kind.Audio) {
-          const audioContext = productionAudioContextRef.current;
-          const master = productionMasterGainRef.current;
-          const native = (track as any).mediaStreamTrack;
-          if (audioContext && master && native) {
-            const guestSource = audioContext.createMediaStreamSource(new MediaStream([native]));
-            const guestGain = productionGuestGainRef.current ?? audioContext.createGain();
-            guestGain.gain.value = 1;
-            productionGuestGainRef.current = guestGain;
-            guestSource.connect(guestGain).connect(master);
-          }
-        }
-      };
-      room.on(RoomEvent.TrackSubscribed, wireGuestTrack);
-      room.on(RoomEvent.TrackUnsubscribed, (track: any, publication: any, participant: any) => {
-        if ((participant?.metadata || '').includes('tv_guest') || (participant?.metadata || '').includes('"role":"guest"')) {
-          track.detach();
-          setGuestConnected(false);
-          remoteGuestVideoRef.current = null;
-        }
-      });
-      const countRemoteViewers = () => Array.from(room.remoteParticipants.values()).filter(p => {
-        try { return JSON.parse(p.metadata || '{}')?.role === 'viewer'; } catch { return false; }
-      }).length;
-      const refreshViewerCount = () => setViewerCount(countRemoteViewers());
-      room.on(RoomEvent.ParticipantConnected, refreshViewerCount);
-      room.on(RoomEvent.ParticipantDisconnected, refreshViewerCount);
-      room.on(RoomEvent.ParticipantMetadataChanged, refreshViewerCount);
-      await room.connect(info.url, info.token);
-      await publishProgram(room, program);
-      for (const participant of room.remoteParticipants.values()) {
-        const metadata = participant.metadata || '';
-        const isGuest = metadata.includes('tv_guest') || (() => { try { return JSON.parse(metadata)?.role === 'guest'; } catch { return false; } })();
-        if (!isGuest) continue;
-        for (const publication of participant.trackPublications.values()) {
-          if (![Track.Source.Camera, Track.Source.Microphone].includes(publication.source)) continue;
-          if (!publication.isSubscribed) await publication.setSubscribed(true);
-          if (publication.track) wireGuestTrack(publication.track, publication, participant);
+        } else {
+          id = data.id;
+          createdBroadcast = true;
+          setActiveStreamId(id);
+          setStream(data);
         }
       }
-      setViewerCount(countRemoteViewers());
+
+      if (!id) throw new Error('Could not resolve the active TV broadcast.');
+
+      await supabase.from('live_streams')
+        .update({ stream_url: `testagram-media://tv/${id}` })
+        .eq('id', id)
+        .eq('user_id', user.id);
+
+      const session = await TestagramMediaSession.connectHost(id, program);
+      roomRef.current = session;
+      setViewerCount(0);
       liveRef.current = true;
       setLive(true);
       setMode('live');
       setStatus('live');
       setElapsed(0);
       setBroadcastError(null);
-      toast.success('TV broadcast is live');
+      toast.success('TV broadcast is live on Testagram Media Engine');
     } catch (e: any) {
-      await roomRef.current?.disconnect().catch(() => undefined);
+      await roomRef.current?.close().catch(() => undefined);
       roomRef.current = null;
       setViewerCount(0);
       setLive(false);
       setMode('studio');
       setStatus(cameraStreamRef.current ? 'preview' : 'idle');
       const failedId = id;
-      // Only close a broadcast created by this start attempt. If we reused an
-      // authoritative active row, a transient token/transport failure must
-      // never terminate the already-valid broadcast for that host.
       if (failedId && createdBroadcast && user) {
-        await supabase.from('live_streams').update({ is_live: false, ended_at: new Date().toISOString(), stream_url: null }).eq('id', failedId).eq('user_id', user.id);
+        await supabase.from('live_streams')
+          .update({ is_live: false, ended_at: new Date().toISOString(), stream_url: null })
+          .eq('id', failedId)
+          .eq('user_id', user.id);
         setActiveStreamId(null);
       }
       const message = e?.message || 'Unable to start live broadcast';
@@ -937,7 +894,7 @@ export default function TvStudioPage() {
   const createGuestInvite = async () => {
     if (!activeStreamId || !live) { toast.info('Go live first, then invite a guest.'); return; }
     try {
-      const { data, error } = await supabase.functions.invoke('livekit-tv-guest-token', { body: { stream_id: activeStreamId, mode: 'create' } });
+      const { data, error } = await supabase.functions.invoke('testagram-media-token', { body: { stream_id: activeStreamId, role: 'guest', invite_token: crypto.randomUUID() } });
       if (error || !data?.data?.invite_token) throw new Error(data?.error?.message || error?.message || 'Could not create guest invitation');
       const url = `${window.location.origin}/tv/live/${activeStreamId}?guest=${encodeURIComponent(data.data.invite_token)}`;
       setGuestInviteUrl(url);
@@ -957,7 +914,7 @@ export default function TvStudioPage() {
   };
 
   const stopLive = async () => {
-    await roomRef.current?.disconnect();
+    await roomRef.current?.close();
     roomRef.current = null;
     setViewerCount(0);
     setGuestConnected(false);
