@@ -651,6 +651,26 @@ jobs:
           printf '%s' "$CLOUDFLARE_STREAM_ALLOWED_ORIGINS" | vercel env add "CLOUDFLARE_STREAM_ALLOWED_ORIGINS" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           echo "Cloudflare Stream server credentials synchronized to Vercel without printing secret values."
 
+      - name: Synchronize Mux TV credentials into Vercel production
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID }}
+          MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET }}
+          VITE_MUX_ENV_KEY: ${{ secrets.VITE_MUX_ENV_KEY || secrets.MUX_ENV_KEY }}
+        run: |
+          set -euo pipefail
+          [[ -n "$VERCEL_TOKEN" ]] || { echo "::error::VERCEL_TOKEN is required."; exit 1; }
+          [[ -n "$MUX_TOKEN_ID" ]] || { echo "::error::MUX_TOKEN_ID is required for Testagram TV."; exit 1; }
+          [[ -n "$MUX_TOKEN_SECRET" ]] || { echo "::error::MUX_TOKEN_SECRET is required for Testagram TV."; exit 1; }
+          printf '%s' "$MUX_TOKEN_ID" | vercel env add "MUX_TOKEN_ID" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          printf '%s' "$MUX_TOKEN_SECRET" | vercel env add "MUX_TOKEN_SECRET" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          if [[ -n "$VITE_MUX_ENV_KEY" ]]; then
+            printf '%s' "$VITE_MUX_ENV_KEY" | vercel env add "VITE_MUX_ENV_KEY" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          fi
+          echo "Mux TV credentials synchronized without printing secret values."
+
+
       - name: Pull production Vercel configuration
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
