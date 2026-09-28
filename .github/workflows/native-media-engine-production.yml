@@ -109,7 +109,7 @@ jobs:
             printf 'TURN_MIN_PORT=49152\n'
             printf 'TURN_MAX_PORT=65535\n'
           } | ssh testagram-media-engine 'umask 077; cat > /opt/testagram/media-engine/.env'
-          ssh testagram-media-engine 'cd /opt/testagram/media-engine && docker compose up -d --build --remove-orphans && docker compose ps'
+          ssh testagram-media-engine 'cd /opt/testagram/media-engine && docker compose up -d --no-build --remove-orphans && docker compose ps'
 
       - name: Verify public native engine HTTPS/WSS endpoint
         env:
