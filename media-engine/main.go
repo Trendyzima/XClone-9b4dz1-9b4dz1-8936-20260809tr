@@ -88,15 +88,72 @@ func renegotiateViewer(v *peer,r *room){
   if local:=v.pc.LocalDescription();local!=nil{_ = send(v.ws,signal{Type:"offer",SDP:local.SDP})}
 }
 
-func addHostTrack(r *room,remote *webrtc.TrackRemote){
-  local,err:=webrtc.NewTrackLocalStaticRTP(remote.Codec().RTPCodecCapability,remote.Kind().String(),"testagram")
-  if err!=nil{return}
+func relayTrack(targets []*peer, remote *webrtc.TrackRemote, name string) {
+  local, err := webrtc.NewTrackLocalStaticRTP(remote.Codec().RTPCodecCapability, name, "testagram")
+  if err != nil { return }
+  go func() {
+    for {
+      packet, _, err := remote.ReadRTP()
+      if err != nil { return }
+      if err := local.WriteRTP(packet); err != nil { return }
+    }
+  }()
+  for _, target := range targets {
+    if target == nil { continue }
+    target.mu.Lock()
+    if remote.Kind() == webrtc.RTPCodecTypeVideo {
+      if _, err := target.pc.AddTrack(local); err != nil { target.mu.Unlock(); continue }
+      target.videoAttached = true
+    } else {
+      if _, err := target.pc.AddTrack(local); err != nil { target.mu.Unlock(); continue }
+      target.audioAttached = true
+    }
+    target.mu.Unlock()
+    go renegotiatePeer(target)
+  }
+}
+
+func renegotiatePeer(p *peer) {
+  if p.pc.ConnectionState() == webrtc.PeerConnectionStateClosed { return }
+  p.mu.Lock()
+  defer p.mu.Unlock()
+  offer, err := p.pc.CreateOffer(nil)
+  if err != nil { return }
+  if err = p.pc.SetLocalDescription(offer); err != nil { return }
+  <-webrtc.GatheringCompletePromise(p.pc)
+  if local := p.pc.LocalDescription(); local != nil { _ = send(p.ws, signal{Type:"offer", SDP:local.SDP}) }
+}
+
+func addHostTrack(r *room, remote *webrtc.TrackRemote) {
   r.mu.Lock()
-  if remote.Kind()==webrtc.RTPCodecTypeVideo {r.video=local}else{r.audio=local}
-  viewers:=make([]*peer,0,len(r.viewers));for viewer:=range r.viewers{viewers=append(viewers,viewer)}
+  viewers := make([]*peer, 0, len(r.viewers))
+  for viewer := range r.viewers { viewers = append(viewers, viewer) }
   r.mu.Unlock()
-  go func(){for{packet,_,err:=remote.ReadRTP();if err!=nil{return};if err:=local.WriteRTP(packet);err!=nil{return}}}()
-  for _,viewer:=range viewers{go renegotiateViewer(viewer,r)}
+  name := "program-video"
+  if remote.Kind() == webrtc.RTPCodecTypeAudio { name = "program-audio" }
+  local, err := webrtc.NewTrackLocalStaticRTP(remote.Codec().RTPCodecCapability, name, "testagram")
+  if err != nil { return }
+  r.mu.Lock()
+  if remote.Kind() == webrtc.RTPCodecTypeVideo { r.video = local } else { r.audio = local }
+  r.mu.Unlock()
+  go func() {
+    for {
+      packet, _, err := remote.ReadRTP()
+      if err != nil { return }
+      if err := local.WriteRTP(packet); err != nil { return }
+    }
+  }()
+  for _, viewer := range viewers { go renegotiateViewer(viewer, r) }
+}
+
+func addGuestTrack(r *room, remote *webrtc.TrackRemote) {
+  r.mu.Lock()
+  host := r.host
+  r.mu.Unlock()
+  if host == nil { return }
+  name := "guest-video"
+  if remote.Kind() == webrtc.RTPCodecTypeAudio { name = "guest-audio" }
+  relayTrack([]*peer{host}, remote, name)
 }
 
 func handlePeer(p *peer,r *room){
