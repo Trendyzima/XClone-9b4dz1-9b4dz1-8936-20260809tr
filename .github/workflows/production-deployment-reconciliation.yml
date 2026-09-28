@@ -569,12 +569,41 @@ jobs:
           printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | vercel env add "CLOUDFLARE_ACCOUNT_ID" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           printf '%s' "$CLOUDFLARE_API_TOKEN" | vercel env add "CLOUDFLARE_API_TOKEN" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           echo "Cloudflare backend credentials synchronized without printing secret values."
+      - name: Diagnose Mux GitHub secret visibility
+        shell: bash
+        env:
+          MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID }}
+          MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET }}
+          MUX_ENV_KEY: ${{ secrets.MUX_ENV_KEY }}
+          VITE_MUX_ENV_KEY: ${{ secrets.VITE_MUX_ENV_KEY }}
+          MUX_ACCESS_TOKEN_ID: ${{ secrets.MUX_ACCESS_TOKEN_ID }}
+          MUX_ACCESS_TOKEN_SECRET: ${{ secrets.MUX_ACCESS_TOKEN_SECRET }}
+        run: |
+          set -euo pipefail
+          echo "Mux GitHub secret visibility (values intentionally never printed):"
+          for name in MUX_TOKEN_ID MUX_TOKEN_SECRET MUX_ENV_KEY VITE_MUX_ENV_KEY MUX_ACCESS_TOKEN_ID MUX_ACCESS_TOKEN_SECRET; do
+            value="${!name:-}"
+            if [[ -n "$value" ]]; then
+              echo "$name=PRESENT"
+            else
+              echo "$name=ABSENT"
+            fi
+          done
+          if [[ -z "${MUX_TOKEN_ID:-}" && -z "${MUX_ACCESS_TOKEN_ID:-}" ]]; then
+            echo "::error::No Mux access-token ID is visible to the production job. The secret may be missing, misnamed, or scoped to a different GitHub environment/repository."
+            exit 1
+          fi
+          if [[ -z "${MUX_TOKEN_SECRET:-}" && -z "${MUX_ACCESS_TOKEN_SECRET:-}" ]]; then
+            echo "::error::No Mux access-token secret is visible to the production job. The secret may be missing, misnamed, or scoped to a different GitHub environment/repository."
+            exit 1
+          fi
+
       - name: Synchronize Mux TV credentials into Vercel production
         shell: bash
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID }}
-          MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET }}
+          MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID || secrets.MUX_ACCESS_TOKEN_ID }}
+          MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET || secrets.MUX_ACCESS_TOKEN_SECRET }}
           VITE_MUX_ENV_KEY: ${{ secrets.VITE_MUX_ENV_KEY || secrets.MUX_ENV_KEY }}
         run: |
           set -euo pipefail
