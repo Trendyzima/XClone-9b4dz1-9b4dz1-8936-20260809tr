@@ -61,6 +61,8 @@ export default function TvPublicLivePage() {
           const playbackUrl = session.getPlaybackUrl();
           if (!playbackUrl) throw new Error('Mux playback URL is missing [STREAM_PLAYBACK_NOT_READY].');
           sessionRef.current = session;
+          setTitle(session.getTitle() || 'Testagram TV');
+          setViewers(session.getViewerCount());
           const video = videoRef.current;
           if (!video) throw new Error('TV player element is unavailable [PLAYER_NOT_READY].');
           video.muted = true;
@@ -74,7 +76,7 @@ export default function TvPublicLivePage() {
           if (video.canPlayType('application/vnd.apple.mpegurl')) {
             video.src = playbackUrl;
             video.addEventListener('loadedmetadata', play, { once: true });
-            video.addEventListener('error', () => { throw new Error('Mux HLS manifest could not be loaded [PLAYBACK_MANIFEST_FAILED].'); }, { once: true });
+            video.addEventListener('error', () => { if (!cancelled) { setError('Mux HLS manifest could not be loaded [PLAYBACK_MANIFEST_FAILED].'); setConnecting(false); } }, { once: true });
           } else if (Hls.isSupported()) {
             const hls = new Hls({
               enableWorker: true,
