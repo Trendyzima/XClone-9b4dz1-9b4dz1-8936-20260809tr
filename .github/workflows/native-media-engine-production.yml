@@ -1,11 +1,9 @@
 name: Deploy Testagram Native Media Engine
 
+# Retired from the automatic production path: TV broadcasting now uses
+# Vercel Functions + Cloudflare Stream WebRTC. Keep this workflow manual-only
+# for legacy/native media maintenance and forensic recovery.
 on:
-  push:
-    branches: [main]
-    paths:
-      - "media-engine/**"
-      - ".github/workflows/native-media-engine-production.yml"
   workflow_dispatch:
 
 concurrency:
