@@ -791,12 +791,11 @@ export default function TvStudioPage() {
   const startLive = async () => {
     if (live || roomRef.current) return;
     setBroadcastError(null);
+    let id: string | null = null;
     try {
       if (!user) throw new Error('Sign in to broadcast');
       await ensureStudio();
       const program = await createProductionProgram();
-      let id: string | null = null;
-
       // Always reconcile the authoritative active row first; stale studio URLs cannot bypass this.
       const { data: existing, error: existingError } = await supabase
         .from('live_streams')
@@ -833,7 +832,6 @@ export default function TvStudioPage() {
             setStream(data);
           }
         }
-      }
 
       if (!id) throw new Error('Could not resolve the active TV broadcast.');
       // This is only a transport locator. It is never a video URL or stored recording.
