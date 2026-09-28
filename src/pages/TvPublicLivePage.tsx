@@ -72,8 +72,8 @@ export default function TvPublicLivePage() {
               }
             }
           });
+          session.setViewerCountHandler((count) => setViewers(count));
           sessionRef.current = session;
-          setViewers(1);
         }
 
         if (cancelled) {
