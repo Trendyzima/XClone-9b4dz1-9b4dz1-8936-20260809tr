@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { TestagramMediaSession } from '@/lib/testagramMedia';
 import { toast } from 'sonner';
+import Hls from 'hls.js';
 
 export default function TvPublicLivePage() {
   const { streamId } = useParams();
@@ -14,6 +15,7 @@ export default function TvPublicLivePage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const sessionRef = useRef<TestagramMediaSession | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
   const guestMediaRef = useRef<MediaStream | null>(null);
   const [title, setTitle] = useState('Testagram TV');
   const [viewers, setViewers] = useState(0);
@@ -29,16 +31,15 @@ export default function TvPublicLivePage() {
     const connect = async () => {
       if (!streamId) { setError('TV broadcast link is missing.'); setConnecting(false); return; }
       try {
-        const { data: stream, error: streamError } = await supabase
-          .from('live_streams')
-          .select('id,title,is_live')
-          .eq('id', streamId)
-          .maybeSingle();
-        if (streamError || !stream || !stream.is_live) throw new Error('This TV broadcast is no longer live.');
-        if (cancelled) return;
-        setTitle(stream.title || 'Testagram TV');
-
         if (isGuest && inviteToken) {
+          const { data: stream, error: streamError } = await supabase
+            .from('live_streams')
+            .select('id,title,is_live')
+            .eq('id', streamId)
+            .maybeSingle();
+          if (streamError || !stream || !stream.is_live) throw new Error('This TV broadcast is no longer live.');
+          if (cancelled) return;
+          setTitle(stream.title || 'Testagram TV');
           const session = await TestagramMediaSession.connectGuest(streamId, inviteToken);
           sessionRef.current = session;
           const media = await navigator.mediaDevices.getUserMedia({
@@ -54,26 +55,53 @@ export default function TvPublicLivePage() {
           }
           await session.publishTracks(media);
         } else {
-          const session = await TestagramMediaSession.connectViewer(streamId, remote => {
-            if (videoRef.current) {
-              const video = remote.getVideoTracks()[0];
-              if (video) {
-                videoRef.current.srcObject = remote;
-                videoRef.current.muted = muted;
-                void videoRef.current.play().catch(() => undefined);
-              }
-            }
-            if (audioRef.current) {
-              const audio = remote.getAudioTracks()[0];
-              if (audio) {
-                audioRef.current.srcObject = new MediaStream([audio]);
-                audioRef.current.muted = muted;
-                void audioRef.current.play().catch(() => undefined);
-              }
-            }
-          });
-          session.setViewerCountHandler((count) => setViewers(count));
+          // Public TV playback is Mux HLS. WebRTC/Cloudflare is intentionally
+          // reserved for studio ingest; viewers must never join the ingest path.
+          const session = await TestagramMediaSession.connectViewer(streamId, () => undefined);
+          const playbackUrl = session.getPlaybackUrl();
+          if (!playbackUrl) throw new Error('Mux playback URL is missing [STREAM_PLAYBACK_NOT_READY].');
           sessionRef.current = session;
+          const video = videoRef.current;
+          if (!video) throw new Error('TV player element is unavailable [PLAYER_NOT_READY].');
+          video.muted = true;
+          video.playsInline = true;
+          video.autoplay = true;
+
+          const play = () => void video.play().catch((e: any) => {
+            if (e?.name !== 'NotAllowedError') throw new Error('Mux HLS playback could not start [PLAYBACK_START_FAILED].');
+          });
+
+          if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = playbackUrl;
+            video.addEventListener('loadedmetadata', play, { once: true });
+            video.addEventListener('error', () => { throw new Error('Mux HLS manifest could not be loaded [PLAYBACK_MANIFEST_FAILED].'); }, { once: true });
+          } else if (Hls.isSupported()) {
+            const hls = new Hls({
+              enableWorker: true,
+              lowLatencyMode: true,
+              backBufferLength: 6,
+              maxBufferLength: 18,
+              liveSyncDurationCount: 4,
+              liveMaxLatencyDurationCount: 9,
+              manifestLoadingMaxRetry: 4,
+              levelLoadingMaxRetry: 5,
+              fragLoadingMaxRetry: 5,
+            });
+            hlsRef.current = hls;
+            hls.loadSource(playbackUrl);
+            hls.attachMedia(video);
+            hls.on(Hls.Events.MANIFEST_PARSED, play);
+            hls.on(Hls.Events.ERROR, (_event, data) => {
+              if (!data.fatal) return;
+              if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                try { hls.recoverMediaError(); return; } catch {}
+              }
+              setError('Mux HLS playback failed [PLAYBACK_FAILED].');
+              setConnecting(false);
+            });
+          } else {
+            throw new Error('This browser does not support HLS playback [HLS_UNSUPPORTED].');
+          }
         }
 
         if (cancelled) {
@@ -93,6 +121,8 @@ export default function TvPublicLivePage() {
     void connect();
     return () => {
       cancelled = true;
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
       void sessionRef.current?.close();
       sessionRef.current = null;
       guestMediaRef.current?.getTracks().forEach(track => track.stop());
