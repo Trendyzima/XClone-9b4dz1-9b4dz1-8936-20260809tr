@@ -6,7 +6,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 });
 
 const env = (name: string, fallback = '') => process.env[name] || fallback;
-const supabaseUrl = env('SUPABASE_URL', env('VITE_SUPABASE_URL')).replace(/\\/$/, '');
+const supabaseUrl = env('SUPABASE_URL', env('VITE_SUPABASE_URL')).replace(/\/$/, '');
 const supabaseKey = env('SUPABASE_PUBLISHABLE_KEY', env('SUPABASE_ANON_KEY', env('VITE_SUPABASE_PUBLISHABLE_KEY', env('VITE_SUPABASE_ANON_KEY'))));
 const cloudflareAccountId = env('CLOUDFLARE_ACCOUNT_ID');
 const cloudflareApiToken = env('CLOUDFLARE_API_TOKEN');
@@ -20,7 +20,7 @@ async function supabaseFetch(path: string, init: RequestInit = {}, bearer = '') 
   headers.set('apikey', supabaseKey);
   headers.set('content-type', 'application/json');
   if (bearer) headers.set('authorization', bearer);
-  return fetch(`${supabaseUrl}/${path.replace(/^\\//, '')}`, { ...init, headers });
+  return fetch(`${supabaseUrl}/${path.replace(/^\//, '')}`, { ...init, headers });
 }
 
 async function requireUser(request: Request) {
