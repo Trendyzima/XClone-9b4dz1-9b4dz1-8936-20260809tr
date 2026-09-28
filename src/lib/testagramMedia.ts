@@ -33,14 +33,14 @@ const waitForIce = async (pc: RTCPeerConnection) => {
 const getToken = async (roomId: string, roomType: MediaRoomType, role: MediaRole, inviteToken?: string): Promise<MediaToken> => {
   const { data: sessionData } = await supabase.auth.getSession();
   const accessToken = sessionData.session?.access_token;
-  if (!accessToken) throw new Error('Sign in to use Testagram media.');
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    apikey: supabasePublishableKey,
+  };
+  if (accessToken) headers.Authorization = `Bearer ${accessToken}`;
   const response = await fetch(`${supabaseUrl}/functions/v1/testagram-media-token`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      apikey: supabasePublishableKey,
-      Authorization: `Bearer ${accessToken}`,
-    },
+    headers,
     body: JSON.stringify({ room_id: roomId, room_type: roomType, role, invite_token: inviteToken || undefined }),
   });
   let payload: any = null;
