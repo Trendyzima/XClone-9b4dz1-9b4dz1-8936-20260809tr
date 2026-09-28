@@ -466,6 +466,12 @@ export default function TvStudioPage() {
     const previewCtx = previewCanvas?.getContext('2d');
     const draw = () => {
       const now = performance.now();
+      const targetFrameMs = lightModeRef.current ? 1000 / 24 : 1000 / 30;
+      if (renderClockRef.current && now - renderClockRef.current < targetFrameMs) {
+        sceneAnimationRef.current = requestAnimationFrame(draw);
+        return;
+      }
+      renderClockRef.current = now;
       const frameStats = programFrameRef.current;
       if (frameStats.last) {
         const delta = now - frameStats.last;
