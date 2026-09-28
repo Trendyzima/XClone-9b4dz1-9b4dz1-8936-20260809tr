@@ -100,7 +100,7 @@ export class TestagramMediaSession {
       });
       this.lastDiagnostics = { connectionState: state, iceConnectionState: ice, packets, bytes, frames, width, height, elapsedMs: Date.now() - started };
       if (state === 'failed' || state === 'closed' || ice === 'failed' || ice === 'closed') throw new Error(`WebRTC transport failed (connection=${state}, ICE=${ice}).`);
-      if ((state === 'connected' || state === 'completed') && (ice === 'connected') && packets > 0 && bytes > 0) return this.getDiagnostics();
+      if (state === 'connected' && ice === 'connected' && packets > 0 && bytes > 0) return this.getDiagnostics();
       last = `connection=${state}, ICE=${ice}, packets=${packets}`;
       await new Promise(resolve => window.setTimeout(resolve, 250));
     }
