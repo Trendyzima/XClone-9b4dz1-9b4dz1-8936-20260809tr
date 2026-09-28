@@ -37,10 +37,15 @@ async function requireUser(request: Request) {
 async function getStream(streamId: string, bearer: string): Promise<StreamRow | null> {
   const query = `rest/v1/live_streams?id=eq.${encodeURIComponent(streamId)}&select=id,user_id,is_live,title,stream_url,mux_live_stream_id,mux_playback_id,cloudflare_input_id,cloudflare_output_id&limit=1`;
   const response = await supabaseFetch(query, { method: 'GET' }, bearer);
-  if (!response.ok) return null;
+  if (!response.ok) {
+    const detail = (await response.text().catch(() => '')).slice(0, 240);
+    throw new Error(`SUPABASE_STREAM_LOOKUP_FAILED:${response.status}${detail ? `:${detail}` : ''}`);
+  }
   const rows = await response.json() as StreamRow[];
   return rows[0] || null;
 }
+
+const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
 async function updateStream(streamId: string, patch: Record<string, unknown>, bearer: string) {
   const response = await supabaseFetch(`rest/v1/live_streams?id=eq.${encodeURIComponent(streamId)}`, {
@@ -184,7 +189,13 @@ async function createCloudflareMuxOutput(inputId: string, muxStreamKey: string) 
 
 async function disableCloudflareOutput(inputId: string, outputId: string) {
   const response = await cloudflareFetch(`${cloudflareApiBase}/${encodeURIComponent(inputId)}/outputs/${encodeURIComponent(outputId)}`, { method: 'DELETE' });
-  return response.ok;
+  return response.ok || response.status === 404;
+}
+
+async function deleteMuxLiveStream(liveStreamId: string) {
+  if (!muxTokenId || !muxTokenSecret) return false;
+  const response = await muxFetch(`/live-streams/${encodeURIComponent(liveStreamId)}`, { method: 'DELETE' });
+  return response.ok || response.status === 404;
 }
 
 async function start(streamId: string, request: Request) {
@@ -194,7 +205,7 @@ async function start(streamId: string, request: Request) {
   if (!user) return json({ ok: false, error: { code: 'AUTH_REQUIRED', message: 'Sign in to broadcast.' } }, 401);
   const bearer = authHeader(request);
   const stream = await getStream(streamId, bearer);
-  if (!stream) return json({ ok: false, error: { code: 'STREAM_NOT_FOUND', message: 'TV broadcast was not found.' } }, 404);
+  if (!stream) return json({ ok: false, error: { code: 'STREAM_NOT_FOUND', message: `No live_streams record exists for stream_id "${streamId}". The TV studio must create the canonical broadcast record before starting.` } }, 404);
   if (stream.user_id !== user.id) return json({ ok: false, error: { code: 'HOST_REQUIRED', message: 'Only the broadcaster can publish.' } }, 403);
   if (stream.is_live) return json({ ok: false, error: { code: 'ALREADY_LIVE', message: 'This broadcast is already ON AIR.' } }, 409);
 
@@ -221,10 +232,10 @@ async function start(streamId: string, request: Request) {
 }
 async function viewer(streamId: string, request: Request) {
   const stream = await getStream(streamId, authHeader(request));
-  if (!stream) return json({ ok: false, error: { code: 'STREAM_NOT_FOUND', message: 'TV broadcast was not found.' } }, 404);
+  if (!stream) return json({ ok: false, error: { code: 'STREAM_NOT_FOUND', message: `No live_streams record exists for stream_id "${streamId}". The viewer link is stale or points at a non-canonical broadcast ID.` } }, 404);
   if (!stream.is_live || !stream.stream_url) return json({ ok: false, error: { code: 'STREAM_ENDED', message: 'Broadcast is no longer live.' } }, 409);
   if (!stream.stream_url.includes('stream.mux.com/')) return json({ ok: false, error: { code: 'STREAM_PLAYBACK_NOT_READY', message: 'Mux playback is not ready yet.' } }, 409);
-  return json({ ok: true, data: { provider: 'cloudflare-mux-hybrid', token: '', playback_url: stream.stream_url, room_id: streamId, room_type: 'tv', role: 'viewer', mux_playback_id: stream.mux_playback_id }, error: null });
+  return json({ ok: true, data: { provider: 'cloudflare-mux-hybrid', token: '', playback_url: stream.stream_url, room_id: streamId, room_type: 'tv', role: 'viewer', mux_playback_id: stream.mux_playback_id, title: stream.title, viewer_count: 0 }, error: null });
 }
 async function verify(streamId: string, request: Request) {
   const user = await requireUser(request);
@@ -265,10 +276,16 @@ async function stop(streamId: string, request: Request) {
   const bearer = authHeader(request);
   const stream = await getStream(streamId, bearer);
   if (!stream || stream.user_id !== user.id) return json({ ok: false, error: { code: 'HOST_REQUIRED', message: 'Only the broadcaster can stop this stream.' } }, 403);
+  let cloudflareStopped = true;
+  let muxStopped = true;
   if (stream.cloudflare_input_id) {
-    if (stream.cloudflare_output_id) await disableCloudflareOutput(stream.cloudflare_input_id, stream.cloudflare_output_id);
+    if (stream.cloudflare_output_id) cloudflareStopped = await disableCloudflareOutput(stream.cloudflare_input_id, stream.cloudflare_output_id) && cloudflareStopped;
     const response = await cloudflareFetch(`${cloudflareApiBase}/${encodeURIComponent(stream.cloudflare_input_id)}`, { method: 'PUT', body: JSON.stringify({ enabled: false }) });
-    if (!response.ok) return json({ ok: false, error: { code: 'CLOUDFLARE_STOP_FAILED', message: 'Cloudflare did not confirm TV input shutdown; Testagram kept the stream marked live.' } }, 502);
+    cloudflareStopped = (response.ok || response.status === 404) && cloudflareStopped;
+  }
+  if (stream.mux_live_stream_id) muxStopped = await deleteMuxLiveStream(stream.mux_live_stream_id);
+  if (!cloudflareStopped || !muxStopped) {
+    return json({ ok: false, error: { code: 'TV_STOP_INCOMPLETE', message: 'TV shutdown was only partially confirmed; the control-plane record was left intact for reconciliation.', details: { cloudflare_stopped: cloudflareStopped, mux_stopped: muxStopped } } }, 502);
   }
   await updateStream(streamId, { is_live: false, ended_at: new Date().toISOString(), stream_url: null, mux_live_stream_id: null, mux_playback_id: null, cloudflare_input_id: null, cloudflare_output_id: null }, bearer);
   return json({ ok: true, data: { stage: 'ended', cloudflare_stopped: true, mux_stopped: true }, error: null });
@@ -280,6 +297,7 @@ async function handle(request: Request) {
   const streamId = typeof body?.stream_id === 'string' ? body.stream_id : '';
   const action = typeof body?.action === 'string' ? body.action : '';
   if (!streamId) return json({ ok: false, error: { code: 'STREAM_ID_REQUIRED', message: 'stream_id is required.' } }, 400);
+  if (!isUuid(streamId)) return json({ ok: false, error: { code: 'STREAM_ID_INVALID', message: 'stream_id must be the canonical live_streams UUID, not a route slug or generated navigation ID.' } }, 400);
   try {
     if (action === 'start') return await start(streamId, request);
     if (action === 'viewer') return await viewer(streamId, request);
@@ -289,6 +307,7 @@ async function handle(request: Request) {
   } catch (error: any) {
     const message = String(error?.message || 'Vercel live control failed.');
     if (message === 'SUPABASE_SERVER_NOT_CONFIGURED') return json({ ok: false, error: { code: 'SUPABASE_SERVER_NOT_CONFIGURED', message: 'Vercel Supabase server configuration is missing.' } }, 503);
+    if (message.startsWith('SUPABASE_STREAM_LOOKUP_FAILED:')) return json({ ok: false, error: { code: 'STREAM_LOOKUP_FAILED', message: 'Supabase rejected the TV broadcast lookup; this is a control-plane access/configuration failure, not a missing broadcast.', detail: message.slice('SUPABASE_STREAM_LOOKUP_FAILED:') } }, 502);
     return json({ ok: false, error: { code: 'LIVE_CONTROL_FAILED', message: 'Vercel live control failed.' } }, 500);
   }
 }
