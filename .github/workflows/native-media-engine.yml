@@ -21,6 +21,9 @@ jobs:
       - name: Normalize Go formatting
         working-directory: media-engine
         run: gofmt -w main.go main_test.go
+      - name: Resolve Go module graph
+        working-directory: media-engine
+        run: go mod tidy
       - name: Go build
         working-directory: media-engine
         run: go build ./...
