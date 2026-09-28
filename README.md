@@ -83,7 +83,7 @@ Browser
   |
   +-- Publisher/RSS services
   +-- Fediverse integrations
-  +-- LiveKit live media
+  +-- Testagram Media Engine (WebRTC SFU)
   +-- Payment/monetization integrations
   +-- Analytics/observability
 ~~~
@@ -105,7 +105,7 @@ The repository configuration and deployed environment are authoritative for the 
 | Realtime | Supabase Realtime |
 | Storage | Supabase Storage |
 | Serverless | Supabase Edge Functions / API routes |
-| Live media | LiveKit Client |
+| Live media | Testagram Media Engine + WebRTC |
 | Data fetching | TanStack Query |
 | Charts | Recharts / Chart.js |
 | Maps | Leaflet / React Leaflet |
