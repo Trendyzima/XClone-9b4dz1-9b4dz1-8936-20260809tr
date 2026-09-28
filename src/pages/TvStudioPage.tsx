@@ -806,7 +806,7 @@ export default function TvStudioPage() {
           title: broadcastTitle,
           description: broadcastDescription,
           category: broadcastCategory,
-          is_live: true,
+          is_live: false,
         }).select('id,title,description,category,is_live').single();
 
         if (error || !data) {
@@ -842,6 +842,7 @@ export default function TvStudioPage() {
 
       const session = await TestagramMediaSession.connectHost(id, program);
       await session.configureVideoSender({ maxBitrate: VIDEO_PRESETS[quality].bitrate, maxFramerate: VIDEO_PRESETS[quality].fps, maintainResolution: true });
+      await session.waitForMediaReady('send', 20000);
       session.setViewerCountHandler((count) => setViewerCount(count));
       session.setRemoteTrackHandler((track) => {
         if (track.kind === 'video') {
@@ -866,6 +867,16 @@ export default function TvStudioPage() {
           }
         }
       });
+      // The stream is intentionally not public until WebRTC has proven that the broadcaster is transmitting.
+      const { error: onAirError } = await supabase.from('live_streams')
+        .update({ is_live: true, stream_url: `testagram-media://tv/${id}`, ended_at: null })
+        .eq('id', id)
+        .eq('user_id', user.id);
+      if (onAirError) {
+        await session.close();
+        throw new Error(`Broadcast transport is ready, but ON AIR activation failed: ${onAirError.message}`);
+      }
+
       roomRef.current = session;
       setViewerCount(0);
       liveRef.current = true;
