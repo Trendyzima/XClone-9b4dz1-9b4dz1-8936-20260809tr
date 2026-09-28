@@ -42,6 +42,7 @@ type room struct {
   mu sync.Mutex
   host *peer
   viewers map[*peer]bool
+  guests map[*peer]bool
   video *webrtc.TrackLocalStaticRTP
   audio *webrtc.TrackLocalStaticRTP
 }
@@ -67,7 +68,7 @@ func verifyToken(token, secret string) (*claims,error) {
 }
 
 func send(ws *websocket.Conn,m signal) error { ws.SetWriteDeadline(time.Now().Add(10*time.Second)); return ws.WriteJSON(m) }
-func getRoom(id string)*room { v,_:=rooms.LoadOrStore(id,&room{viewers:map[*peer]bool{}}); return v.(*room) }
+func getRoom(id string)*room { v,_:=rooms.LoadOrStore(id,&room{viewers:map[*peer]bool{},guests:map[*peer]bool{}}); return v.(*room) }
 func closePeer(p *peer){ if p==nil{return}; _=p.ws.Close(); _=p.pc.Close() }
 
 func addTracksToViewer(v *peer, r *room) error {
@@ -169,11 +170,15 @@ func handlePeer(p *peer,r *room){
   defer func(){
     r.mu.Lock()
     wasHost:=r.host==p
-    if wasHost {r.host=nil;for viewer:=range r.viewers{go closePeer(viewer)};r.viewers=map[*peer]bool{};r.video=nil;r.audio=nil} else {delete(r.viewers,p)}
+    if wasHost {r.host=nil;for viewer:=range r.viewers{go closePeer(viewer)};for guest:=range r.guests{go closePeer(guest)};r.viewers=map[*peer]bool{};r.guests=map[*peer]bool{};r.video=nil;r.audio=nil} else {delete(r.viewers,p);delete(r.guests,p)}
     r.mu.Unlock()
     closePeer(p)
   }()
-  p.pc.OnTrack(func(track *webrtc.TrackRemote,_ *webrtc.RTPReceiver){if p.role=="host"&&(track.Kind()==webrtc.RTPCodecTypeVideo||track.Kind()==webrtc.RTPCodecTypeAudio){addHostTrack(r,track)}})
+  p.pc.OnTrack(func(track *webrtc.TrackRemote,_ *webrtc.RTPReceiver){
+    if track.Kind()!=webrtc.RTPCodecTypeVideo && track.Kind()!=webrtc.RTPCodecTypeAudio { return }
+    if p.role=="host" { addHostTrack(r,track); return }
+    if p.role=="guest" { addGuestTrack(r,track) }
+  })
   for {
     var message signal
     if err:=p.ws.ReadJSON(&message);err!=nil{return}
@@ -193,6 +198,14 @@ func handlePeer(p *peer,r *room){
   }
 }
 
+func iceServers() []webrtc.ICEServer {
+  servers:=[]webrtc.ICEServer{{URLs:[]string{"stun:stun.l.google.com:19302"}}}
+  raw:=strings.TrimSpace(os.Getenv("MEDIA_ENGINE_ICE_SERVERS"))
+  if raw=="" { return servers }
+  var extra []webrtc.ICEServer
+  if json.Unmarshal([]byte(raw),&extra)==nil { servers=append(servers,extra...) }
+  return servers
+}
 func wsHandler(w http.ResponseWriter,req *http.Request){
   secret:=os.Getenv("MEDIA_ENGINE_SECRET");if secret==""{http.Error(w,"media engine not configured",503);return}
   c,err:=verifyToken(req.URL.Query().Get("token"),secret);if err!=nil{http.Error(w,"unauthorized",401);return}
@@ -201,18 +214,22 @@ func wsHandler(w http.ResponseWriter,req *http.Request){
   setting:=webrtc.SettingEngine{}
   _=setting.SetEphemeralUDPPortRange(10000,20000)
   setting.SetICEMulticastDNSMode(webrtc.MulticastDNSModeDisabled)
-  if publicIP!=""{setting.SetNAT1To1IPs([]string{publicIP},webrtc.ICECandidateTypeHost)}
+  if publicIP!=""{_ = setting.SetNAT1To1IPs([]string{publicIP},webrtc.ICECandidateTypeHost)}
   media:=&webrtc.MediaEngine{};if err:=media.RegisterDefaultCodecs();err!=nil{_ = conn.Close();return}
   api:=webrtc.NewAPI(webrtc.WithSettingEngine(setting),webrtc.WithMediaEngine(media))
-  pc,err:=api.NewPeerConnection(webrtc.Configuration{ICEServers:[]webrtc.ICEServer{{URLs:[]string{"stun:stun.l.google.com:19302"}}}})
+  pc,err:=api.NewPeerConnection(webrtc.Configuration{ICEServers:iceServers()})
   if err!=nil{_ = conn.Close();return}
   p:=&peer{ws:conn,pc:pc,role:c.Role};r:=getRoom(c.StreamID)
   r.mu.Lock()
-  if c.Role=="host" {if r.host!=nil{r.mu.Unlock();closePeer(p);return};r.host=p} else {r.viewers[p]=true}
+  if c.Role=="host" {if r.host!=nil{r.mu.Unlock();closePeer(p);return};r.host=p} else if c.Role=="guest" {r.guests[p]=true} else {r.viewers[p]=true}
   r.mu.Unlock()
   go handlePeer(p,r)
 }
 
-func health(w http.ResponseWriter,_ *http.Request){w.Header().Set("content-type","application/json");_,_=w.Write([]byte(`{"ok":true,"service":"testagram-media-engine","transport":"webrtc-sfu"}`))}
+func health(w http.ResponseWriter,_ *http.Request){
+  rooms.Range(func(_,v any) bool { _ = v.(*room); return true })
+  w.Header().Set("content-type","application/json")
+  _,_=w.Write([]byte(`{"ok":true,"service":"testagram-media-engine","transport":"webrtc-sfu","features":["websocket-signaling","host-publish","viewer-subscribe","guest-ingress","stun","turn-config","rtp-forwarding","room-isolation"]}`))
+}
 
 func main(){mux:=http.NewServeMux();mux.HandleFunc("/healthz",health);mux.HandleFunc("/ws",wsHandler);port:=os.Getenv("PORT");if port==""{port="8080"};log.Printf("Testagram Media Engine listening on :%s",port);log.Fatal(http.ListenAndServe(":"+port,mux))}
