@@ -36,10 +36,9 @@ The broadcast payload contains the message plus the author's public display meta
 
 - `CLOUDFLARE_ACCOUNT_ID`
 - `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_STREAM_CUSTOMER_CODE`
 - `CLOUDFLARE_STREAM_ALLOWED_ORIGINS`
 
-The production reconciliation workflow synchronizes these values from GitHub production secrets/variables. Never put the API token or account credentials in browser code.
+The production reconciliation workflow synchronizes the server credentials from GitHub production secrets/variables. The Stream customer hostname is derived from the WHIP URL returned by Cloudflare, so no customer-code secret is required. Never put the API token or account credentials in browser code.
 
 ## Important capacity boundary
 
