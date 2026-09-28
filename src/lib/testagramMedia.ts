@@ -111,6 +111,27 @@ export class TestagramMediaSession {
   setRemoteTrackHandler(handler: (track: MediaStreamTrack) => void) { this.onRemoteTrack = handler; }
   setViewerCountHandler(handler: (count: number, guests: number) => void) { this.onViewerCount = handler; }
   setParticipantCountHandler(handler: (count: number) => void) { this.onParticipantCount = handler; }
+  async configureVideoSender(options: { maxBitrate: number; maxFramerate?: number; maintainResolution?: boolean } ) {
+    if (!this.pc) return;
+    for (const sender of this.pc.getSenders()) {
+      if (sender.track?.kind !== 'video') continue;
+      try {
+        const params = sender.getParameters();
+        params.encodings ??= [{}];
+        for (const encoding of params.encodings) {
+          encoding.maxBitrate = options.maxBitrate;
+          if (options.maxFramerate) encoding.maxFramerate = options.maxFramerate;
+        }
+        if (options.maintainResolution && 'degradationPreference' in params) {
+          (params as RTCRtpSendParameters & { degradationPreference?: string }).degradationPreference = 'maintain-resolution';
+        }
+        await sender.setParameters(params);
+      } catch (error) {
+        console.warn('[Testagram Media Engine] video sender tuning unavailable; continuing with browser defaults', error);
+      }
+    }
+  }
+
 
   async publishTracks(stream: MediaStream) {
     this.localStream = stream;

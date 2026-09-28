@@ -11,14 +11,16 @@ import { drawTvGraphics, drawTvOpeningSlate, makeDefaultGraphics, TvReplayBuffer
 
 type Mode = 'studio' | 'live';
 type Scene = 'camera' | 'video' | 'screen';
-type Quality = '1080p' | '720p' | '480p';
+type Quality = '4k' | '1080p' | '720p' | '480p';
 
 const VIDEO_PRESETS: Record<Quality, { width: number; height: number; fps: number; bitrate: number }> = {
+  '4k': { width: 3840, height: 2160, fps: 30, bitrate: 24_000_000 },
   '1080p': { width: 1920, height: 1080, fps: 30, bitrate: 8_000_000 },
   '720p': { width: 1280, height: 720, fps: 30, bitrate: 5_000_000 },
   '480p': { width: 854, height: 480, fps: 30, bitrate: 2_500_000 },
 };
 const CAMERA_CONSTRAINTS: Record<Quality, MediaTrackConstraints> = {
+  '4k': { width: { min: 1920, ideal: 3840, max: 3840 }, height: { min: 1080, ideal: 2160, max: 2160 }, aspectRatio: { ideal: 16 / 9 }, frameRate: { min: 24, ideal: 30, max: 30 }, facingMode: { ideal: 'environment' } },
   '1080p': { width: { min: 1280, ideal: 1920, max: 1920 }, height: { min: 720, ideal: 1080, max: 1080 }, aspectRatio: { ideal: 16 / 9 }, frameRate: { min: 24, ideal: 30, max: 30 }, facingMode: { ideal: 'environment' } },
   '720p': { width: { min: 960, ideal: 1280, max: 1280 }, height: { min: 540, ideal: 720, max: 720 }, aspectRatio: { ideal: 16 / 9 }, frameRate: { min: 24, ideal: 30, max: 30 }, facingMode: { ideal: 'environment' } },
   '480p': { width: { min: 640, ideal: 854, max: 854 }, height: { min: 360, ideal: 480, max: 480 }, aspectRatio: { ideal: 16 / 9 }, frameRate: { ideal: 30, max: 30 }, facingMode: { ideal: 'environment' } },
@@ -128,7 +130,7 @@ export default function TvStudioPage() {
     const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     const memory = Number((navigator as any).deviceMemory || 0);
     const cores = Number(navigator.hardwareConcurrency || 0);
-    return mobile || (memory > 0 && memory <= 4) || (cores > 0 && cores <= 4) ? '720p' : '1080p';
+    return '4k';
   });
   const [savedName, setSavedName] = useState<string | null>(null);
   const [audioLevel, setAudioLevel] = useState(0);
@@ -160,6 +162,7 @@ export default function TvStudioPage() {
   const [cameraPermission, setCameraPermission] = useState<PermissionState | 'unsupported'>('unsupported');
   const [microphonePermission, setMicrophonePermission] = useState<PermissionState | 'unsupported'>('unsupported');
   const [deviceReady, setDeviceReady] = useState(false);
+  const [cameraResolution, setCameraResolution] = useState('not started');
   const broadcastTitle = searchParams.get('title')?.trim().slice(0, 100) || 'Testagram TV Live';
   const broadcastDescription = searchParams.get('description')?.trim().slice(0, 500) || 'Live from Testagram TV Studio';
   const broadcastCategory = searchParams.get('category')?.trim().slice(0, 50) || 'general';
@@ -170,7 +173,6 @@ export default function TvStudioPage() {
     const cores = Number(navigator.hardwareConcurrency || 0);
     const light = mobile || (memory > 0 && memory <= 4) || (cores > 0 && cores <= 4);
     lightModeRef.current = light;
-    if (light && quality === '1080p' && !live && !recording) setQuality('720p');
   }, []);
 
   const explainMediaError = (error: any) => {
@@ -269,6 +271,13 @@ export default function TvStudioPage() {
       const track = s.getVideoTracks()[0];
       if (track) {
         try { await track.applyConstraints({ aspectRatio: { ideal: 16 / 9 }, frameRate: { ideal: preset.fps, max: preset.fps } }); } catch {}
+        const settings = track.getSettings();
+        if (settings.width && settings.height) {
+          setCameraResolution(`${settings.width}×${settings.height} @ ${Math.round(settings.frameRate || preset.fps)}fps`);
+          if (quality === '4k' && (settings.width < 3840 || settings.height < 2160)) {
+            setPermissionError(`4K was requested, but this camera/browser supplied ${settings.width}×${settings.height}. Testagram will keep the production bus stable rather than falsely claiming native 4K.`);
+          }
+        }
       }
       cameraStreamRef.current = s;
       setDeviceReady(true);
@@ -579,7 +588,7 @@ export default function TvStudioPage() {
       }, 40);
     }
 
-    const runtimeFps = lightModeRef.current ? 24 : preset.fps;
+    const runtimeFps = quality === '4k' ? preset.fps : (lightModeRef.current ? 24 : preset.fps);
     const productionKey = `${quality}:${runtimeFps}`;
     if (productionCanvasQualityRef.current !== productionKey) {
       productionCanvasStreamRef.current?.getTracks().forEach(track => track.stop());
@@ -751,6 +760,21 @@ export default function TvStudioPage() {
     await session.publishTracks(program);
   };
 
+  const assertProductionReady = async (program: MediaStream) => {
+    const preset = VIDEO_PRESETS[quality];
+    await new Promise<void>(resolve => window.setTimeout(resolve, 150));
+    const videoTrack = program.getVideoTracks()[0];
+    const audioTrack = program.getAudioTracks()[0];
+    if (!videoTrack || videoTrack.readyState !== 'live') throw new Error('ON AIR blocked: the production video bus is not live.');
+    if (!audioTrack || audioTrack.readyState !== 'live') throw new Error('ON AIR blocked: the production audio bus is not live.');
+    if (sceneCanvasRef.current?.width !== preset.width || sceneCanvasRef.current?.height !== preset.height) {
+      throw new Error(`ON AIR blocked: production raster is not ${preset.width}×${preset.height}.`);
+    }
+    const cameraTrack = cameraStreamRef.current?.getVideoTracks()[0];
+    if (!cameraTrack || cameraTrack.readyState !== 'live') throw new Error('ON AIR blocked: camera track is not live.');
+    return { width: preset.width, height: preset.height, fps: preset.fps };
+  };
+
   const startLive = async () => {
     if (live || roomRef.current) return;
     setBroadcastError(null);
@@ -760,6 +784,7 @@ export default function TvStudioPage() {
       if (!user) throw new Error('Sign in to broadcast');
       await ensureStudio();
       const program = await createProductionProgram();
+      await assertProductionReady(program);
 
       const { data: existing, error: existingError } = await supabase
         .from('live_streams')
@@ -816,6 +841,7 @@ export default function TvStudioPage() {
         .eq('user_id', user.id);
 
       const session = await TestagramMediaSession.connectHost(id, program);
+      await session.configureVideoSender({ maxBitrate: VIDEO_PRESETS[quality].bitrate, maxFramerate: VIDEO_PRESETS[quality].fps, maintainResolution: true });
       session.setViewerCountHandler((count) => setViewerCount(count));
       session.setRemoteTrackHandler((track) => {
         if (track.kind === 'video') {
@@ -848,7 +874,7 @@ export default function TvStudioPage() {
       setStatus('live');
       setElapsed(0);
       setBroadcastError(null);
-      toast.success('TV broadcast is live on Testagram Media Engine');
+      toast.success(`TV broadcast is ON AIR at ${VIDEO_PRESETS[quality].width}×${VIDEO_PRESETS[quality].height} / ${VIDEO_PRESETS[quality].fps}fps`);
     } catch (e: any) {
       await roomRef.current?.close().catch(() => undefined);
       roomRef.current = null;
@@ -1254,10 +1280,10 @@ export default function TvStudioPage() {
               <div className="flex items-center gap-2 font-semibold mb-3"><Settings2 className="w-4 h-4" />Production controls</div>
               <label className="text-xs text-zinc-400">Capture quality</label>
               <select value={quality} disabled={live || recording} onChange={e => setQuality(e.target.value as Quality)} className="w-full mt-1 rounded-lg bg-zinc-800 p-2">
-                <option>1080p</option><option>720p</option><option>480p</option>
+                <option value="4k">4K UHD (3840×2160)</option><option value="1080p">1080p Full HD</option><option value="720p">720p HD</option><option value="480p">480p</option>
               </select>
               <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-lg bg-black/30 p-2"><Activity className="w-3.5 h-3.5 mb-1 text-emerald-400" /><span>{quality}</span><p className="text-zinc-500">capture</p></div>
+                <div className="rounded-lg bg-black/30 p-2"><Activity className="w-3.5 h-3.5 mb-1 text-emerald-400" /><span>{quality === '4k' ? '4K UHD' : quality}</span><p className="text-zinc-500">production output</p></div>
                 <div className="rounded-lg bg-black/30 p-2"><Mic className="w-3.5 h-3.5 mb-1 text-emerald-400" /><span>48 kHz</span><p className="text-zinc-500">processed audio</p></div>
                 <div className="rounded-lg bg-black/30 p-2"><Users className="w-3.5 h-3.5 mb-1 text-blue-400" /><span>{viewerCount}</span><p className="text-zinc-500">live viewers</p></div>
                 <div className="rounded-lg bg-black/30 p-2"><ShieldCheck className="w-3.5 h-3.5 mb-1 text-emerald-400" /><span>Local</span><p className="text-zinc-500">recording storage</p></div>
@@ -1266,7 +1292,7 @@ export default function TvStudioPage() {
               <div className="mt-1 text-[10px] text-zinc-500">Render: {programFps} FPS · delayed {programDropped}</div>
               <div className="mt-4 flex items-center justify-between text-[10px] text-zinc-500"><span>Studio signal</span><span className="uppercase tracking-wider">{deviceReady ? status : 'waiting for device'}</span></div>
               <div className="mt-1 h-2 rounded-full bg-zinc-700/50 overflow-hidden"><div className="h-full bg-emerald-400 transition-all" style={{ width: `${Math.min(100, audioLevel)}%` }} /></div>
-              <p className="text-[10px] text-zinc-500 mt-1">Microphone level • browser noise suppression + studio gate/compressor</p>
+              <p className="text-[10px] text-zinc-500 mt-1">Camera: {cameraResolution} · browser noise suppression + studio gate/compressor</p>
             </div>
 
             <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
