@@ -1,5 +1,6 @@
 services:
   testagram-media-engine:
+    image: testagram-media-engine:production
     build: .
     restart: unless-stopped
     environment:
