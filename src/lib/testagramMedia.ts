@@ -5,7 +5,10 @@ export type MediaRole = 'host' | 'viewer' | 'guest' | 'listener' | 'speaker' | '
 
 type MediaToken = {
   token: string;
-  ws_url: string;
+  ws_url?: string;
+  whip_url?: string;
+  whep_url?: string;
+  provider?: 'native' | 'cloudflare-stream';
   room_id: string;
   room_type: MediaRoomType;
   role: MediaRole;
@@ -50,7 +53,9 @@ const getToken = async (roomId: string, roomType: MediaRoomType, role: MediaRole
     const message = payload?.error?.message || `Media authorization failed (HTTP ${response.status}).`;
     throw new Error(`${message}${code}`);
   }
-  if (!payload?.data?.token || (payload?.data?.provider === 'cloudflare-stream' ? !payload?.data?.whep_url && !payload?.data?.whip_url : !payload?.data?.ws_url)) {
+  if (payload?.data?.provider === 'cloudflare-stream'
+    ? !payload?.data?.whep_url && !payload?.data?.whip_url
+    : !payload?.data?.token || !payload?.data?.ws_url) {
     throw new Error('Testagram media authorization returned an incomplete transport response.');
   }
   return payload.data as MediaToken;
