@@ -119,7 +119,7 @@ export default function LiveStreamPage() {
 
   useEffect(() => {
     const locator = typeof stream?.stream_url === 'string' ? stream.stream_url : '';
-    if (!stream?.is_live || !locator.startsWith('testagram-media://tv/')) return;
+    if (!stream?.is_live || !locator.includes('/webRTC/play')) return;
     let cancelled = false;
     const connectTv = async () => {
       try {
