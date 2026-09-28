@@ -26,7 +26,13 @@ const streamAllowedOrigins = (() => {
 })();
 const createCloudflareLiveInput = async (streamId: string, userId: string, title: string) => {
   if (!cloudflareAccountId || !cloudflareApiToken) {
-    return { error: "CLOUDFLARE_STREAM_NOT_CONFIGURED" as const };
+    return {
+      error: "CLOUDFLARE_STREAM_NOT_CONFIGURED" as const,
+      missing: [
+        !cloudflareAccountId ? "CLOUDFLARE_ACCOUNT_ID" : null,
+        !cloudflareApiToken ? "CLOUDFLARE_API_TOKEN" : null,
+      ].filter(Boolean),
+    };
   }
   const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/stream/live_inputs`, {
     method: "POST",
@@ -86,7 +92,7 @@ Deno.serve(async req=>{
       const created=await createCloudflareLiveInput(stream.id,user.id,stream.title||"Testagram TV Live");
       if("error" in created) {
         const code=created.error==="CLOUDFLARE_STREAM_NOT_CONFIGURED" ? "CLOUDFLARE_STREAM_NOT_CONFIGURED" : "CLOUDFLARE_STREAM_CREATE_FAILED";
-        return json({ok:false,error:{code,message:created.error==="CLOUDFLARE_STREAM_NOT_CONFIGURED"?"Cloudflare Stream WebRTC is not configured.":"Could not create the Cloudflare Stream live input.",details:created.error}},503);
+        return json({ok:false,error:{code,message:created.error==="CLOUDFLARE_STREAM_NOT_CONFIGURED"?"Cloudflare Stream WebRTC is not configured.":"Could not create the Cloudflare Stream live input.",details:"missing" in created ? { missing: created.missing } : { reason: created.error }},503);
       }
       return json({ok:true,data:{provider:"cloudflare-stream",token:"",whip_url:created.whipUrl,whep_url:created.whepUrl,live_input_id:created.uid,room_id:stream.id,room_type:"tv",role:"host",ice_servers:[{urls:"stun:stun.cloudflare.com:3478"}]},error:null});
     }
