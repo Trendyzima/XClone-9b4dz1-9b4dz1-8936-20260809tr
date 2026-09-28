@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, Camera, Mic, PhoneOff, ShieldCheck, Video, VideoOff, MicOff, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { ExternalE2EEKeyProvider, Room, RoomEvent, Track, type RemoteTrack, type RemoteTrackPublication, type RemoteParticipant } from 'livekit-client';
 import { useAuth } from '@/hooks/useAuth';
 import { communicationService } from '@/services/communicationService';
-import { communicationCrypto } from '@/services/communicationCrypto';
+import { TestagramMediaSession } from '@/lib/testagramMedia';
 
 export default function CallPage() {
   const { callId } = useParams<{ callId: string }>();
@@ -20,77 +19,90 @@ export default function CallPage() {
   const [cameraEnabled, setCameraEnabled] = useState(true);
   const [participantCount, setParticipantCount] = useState(1);
   const [kind] = useState<'voice' | 'video'>(() => params.get('kind') === 'voice' ? 'voice' : 'video');
-  const roomRef = useRef<Room | null>(null);
-  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const sessionRef = useRef<TestagramMediaSession | null>(null);
+  const localStreamRef = useRef<MediaStream | null>(null);
   const remoteMediaRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     if (!user) { navigate('/auth'); return; }
     setLoading(false);
-    return () => { void roomRef.current?.disconnect(); roomRef.current = null; };
+    return () => {
+      void sessionRef.current?.close();
+      sessionRef.current = null;
+      localStreamRef.current?.getTracks().forEach(track => track.stop());
+      localStreamRef.current = null;
+    };
   }, [user, navigate]);
 
-  const attachRemoteTrack = (track: RemoteTrack, _publication: RemoteTrackPublication, participant: RemoteParticipant) => {
-    if (!remoteMediaRef.current || track.kind !== Track.Kind.Video) return;
-    const element = track.attach();
-    element.dataset.participant = participant.identity;
-    element.className = 'w-full h-full object-cover rounded-3xl bg-black';
-    remoteMediaRef.current.appendChild(element);
+  const attachRemoteTrack = (track: MediaStreamTrack) => {
+    if (!remoteMediaRef.current) return;
+    if (remoteMediaRef.current.querySelector(\`[data-track-id="\${track.id}"]\`)) return;
+    if (track.kind === 'video') {
+      const element = document.createElement('video');
+      element.dataset.trackId = track.id;
+      element.autoplay = true;
+      element.playsInline = true;
+      element.className = 'w-full h-full object-cover rounded-3xl bg-black';
+      element.srcObject = new MediaStream([track]);
+      remoteMediaRef.current.appendChild(element);
+      void element.play().catch(() => undefined);
+    } else {
+      const element = document.createElement('audio');
+      element.dataset.trackId = track.id;
+      element.autoplay = true;
+      element.srcObject = new MediaStream([track]);
+      remoteMediaRef.current.appendChild(element);
+      void element.play().catch(() => undefined);
+    }
   };
-
-  const removeRemoteTrack = (track: RemoteTrack) => track.detach().forEach(element => element.remove());
 
   const join = async () => {
     if (!callId) return;
     setJoining(true);
     try {
       await communicationService.joinCall(callId);
-      const credentials = await communicationService.getLiveKitToken(callId);
-      const key = await communicationCrypto.ensureConversationKey(credentials.conversation_id);
-      const sharedKey = await communicationCrypto.exportConversationKey(credentials.conversation_id, key.epoch);
-      const keyProvider = new ExternalE2EEKeyProvider();
-      await keyProvider.setKey(sharedKey);
-      const room = new Room({ adaptiveStream: true, dynacast: true, disconnectOnPageLeave: true, encryption: { keyProvider, worker: new Worker(new URL('livekit-client/e2ee-worker', import.meta.url)) } });
-      room.on(RoomEvent.TrackSubscribed, attachRemoteTrack);
-      room.on(RoomEvent.TrackUnsubscribed, removeRemoteTrack);
-      room.on(RoomEvent.ParticipantConnected, () => setParticipantCount(room.remoteParticipants.size + 1));
-      room.on(RoomEvent.ParticipantDisconnected, () => setParticipantCount(Math.max(1, room.remoteParticipants.size + 1)));
-      room.on(RoomEvent.Disconnected, () => { setConnected(false); setParticipantCount(1); });
-      await room.connect(credentials.url, credentials.token);
-      await room.setE2EEEnabled(true);
-      roomRef.current = room;
-      setParticipantCount(room.remoteParticipants.size + 1);
-      if (kind === 'video') await room.localParticipant.enableCameraAndMicrophone();
-      else await room.localParticipant.setMicrophoneEnabled(true);
-      const cameraPublication = Array.from(room.localParticipant.videoTrackPublications.values()).find(pub => pub.track);
-      if (cameraPublication?.track && localVideoRef.current) cameraPublication.track.attach(localVideoRef.current);
+      const local = await navigator.mediaDevices.getUserMedia({
+        video: kind === 'video' ? { width: { ideal: 1280, max: 1920 }, height: { ideal: 720, max: 1080 }, frameRate: { ideal: 30, max: 30 } } : false,
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+      });
+      localStreamRef.current = local;
+      local.getAudioTracks().forEach(track => { track.enabled = true; });
+      local.getVideoTracks().forEach(track => { track.enabled = kind === 'video'; });
+      const session = await TestagramMediaSession.connectCall(callId, local, stream => {
+        for (const track of stream.getTracks()) attachRemoteTrack(track);
+      });
+      session.setParticipantCountHandler(count => setParticipantCount(Math.max(1, count)));
+      sessionRef.current = session;
       setConnected(true);
-      toast.success('Connected securely');
+      toast.success('Connected to Testagram native media');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to join call');
-      await roomRef.current?.disconnect();
-      roomRef.current = null;
+      await sessionRef.current?.close();
+      sessionRef.current = null;
+      localStreamRef.current?.getTracks().forEach(track => track.stop());
+      localStreamRef.current = null;
     } finally { setJoining(false); }
   };
 
-  const toggleMic = async () => {
-    const room = roomRef.current;
-    if (!room) return;
-    const next = !micEnabled;
-    await room.localParticipant.setMicrophoneEnabled(next);
-    setMicEnabled(next);
+  const toggleMic = () => {
+    const track = localStreamRef.current?.getAudioTracks()[0];
+    if (!track) return;
+    track.enabled = !track.enabled;
+    setMicEnabled(track.enabled);
   };
 
-  const toggleCamera = async () => {
-    const room = roomRef.current;
-    if (!room || kind !== 'video') return;
-    const next = !cameraEnabled;
-    await room.localParticipant.setCameraEnabled(next);
-    setCameraEnabled(next);
+  const toggleCamera = () => {
+    if (kind !== 'video') return;
+    const track = localStreamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    track.enabled = !track.enabled;
+    setCameraEnabled(track.enabled);
   };
 
   const end = async () => {
-    try { await roomRef.current?.disconnect(); } finally { roomRef.current = null; }
+    try { await sessionRef.current?.close(); } finally { sessionRef.current = null; }
+    localStreamRef.current?.getTracks().forEach(track => track.stop());
+    localStreamRef.current = null;
     if (callId) await communicationService.endCall(callId).catch(() => undefined);
     setConnected(false);
     setEnded(true);
@@ -102,13 +114,13 @@ export default function CallPage() {
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <header className="h-14 border-b border-border flex items-center gap-3 px-4">
         <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-muted" aria-label="Back"><ArrowLeft className="h-5 w-5" /></button>
-        <div className="min-w-0"><h1 className="font-bold truncate">{kind === 'video' ? 'Video call' : 'Voice call'}</h1><p className="text-xs text-muted-foreground">{connected ? `${participantCount} participant${participantCount === 1 ? '' : 's'}` : 'Testagram secure call'}</p></div>
+        <div className="min-w-0"><h1 className="font-bold truncate">{kind === 'video' ? 'Video call' : 'Voice call'}</h1><p className="text-xs text-muted-foreground">{connected ? String(participantCount) + ' participant' + (participantCount === 1 ? '' : 's') : 'Testagram native secure call'}</p></div>
       </header>
       <main className="flex-1 p-3 sm:p-5 flex flex-col gap-4">
         <section className="relative flex-1 min-h-[55vh] rounded-3xl bg-black overflow-hidden border border-border">
-          <div ref={remoteMediaRef} className="absolute inset-0 flex items-center justify-center" />
-          {!connected && <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-center p-6"><div className="h-16 w-16 rounded-full bg-white/10 flex items-center justify-center mb-5">{kind === 'video' ? <Video className="h-7 w-7" /> : <Mic className="h-7 w-7" />}</div><h2 className="text-2xl font-bold">{ended ? 'Call ended' : 'Ready to connect'}</h2><p className="mt-2 max-w-sm text-sm text-white/70">Testagram keeps identity and permissions in Supabase while LiveKit handles realtime media transport.</p></div>}
-          {connected && kind === 'video' && <video ref={localVideoRef} muted autoPlay playsInline className="absolute right-3 bottom-3 w-32 sm:w-44 aspect-video object-cover rounded-2xl border border-white/20 bg-black shadow-xl" />}
+          <div ref={remoteMediaRef} className="absolute inset-0 grid grid-cols-1 sm:grid-cols-2 gap-2 p-2" />
+          {!connected && <div className="absolute inset-0 flex flex-col items-center justify-center text-white text-center p-6"><div className="h-16 w-16 rounded-full bg-white/10 flex items-center justify-center mb-5">{kind === 'video' ? <Video className="h-7 w-7" /> : <Mic className="h-7 w-7" />}</div><h2 className="text-2xl font-bold">{ended ? 'Call ended' : 'Ready to connect'}</h2><p className="mt-2 max-w-sm text-sm text-white/70">Testagram identity and permissions stay in Testagram; realtime media is handled by the Testagram-owned WebRTC media engine.</p></div>}
+          {connected && kind === 'video' && <video ref={el => { if (el && localStreamRef.current) el.srcObject = localStreamRef.current; }} muted autoPlay playsInline className="absolute right-3 bottom-3 w-32 sm:w-44 aspect-video object-cover rounded-2xl border border-white/20 bg-black shadow-xl" />}
         </section>
         <div className="flex items-center justify-center gap-3">
           {!connected && !ended && <button onClick={join} disabled={joining} className="rounded-full bg-primary text-primary-foreground px-7 py-3 font-bold flex items-center gap-2">{joining ? <Loader2 className="h-4 w-4 animate-spin" /> : kind === 'video' ? <Video className="h-4 w-4" /> : <Mic className="h-4 w-4" />}{joining ? 'Connecting…' : 'Join call'}</button>}
