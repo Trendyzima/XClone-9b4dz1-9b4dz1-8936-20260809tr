@@ -189,7 +189,7 @@ async function stop(streamId: string, request: Request) {
   return json({ ok: true, data: { stage: 'ended', cloudflare_stopped: true }, error: null });
 }
 
-export default { async fetch(request: Request) {
+async function handle(request: Request) {
   if (request.method === 'OPTIONS') return json({ ok: true });
   if (request.method !== 'POST') return json({ ok: false, error: { code: 'METHOD_NOT_ALLOWED', message: 'POST required.' } }, 405);
   let body: any; try { body = await request.json(); } catch { return json({ ok: false, error: { code: 'INVALID_JSON', message: 'JSON required.' } }, 400); }
@@ -207,4 +207,24 @@ export default { async fetch(request: Request) {
     if (message === 'SUPABASE_SERVER_NOT_CONFIGURED') return json({ ok: false, error: { code: 'SUPABASE_SERVER_NOT_CONFIGURED', message: 'Vercel Supabase server configuration is missing.' } }, 503);
     return json({ ok: false, error: { code: 'LIVE_CONTROL_FAILED', message: 'Vercel live control failed.' } }, 500);
   }
-} };
+}
+
+export default async function handler(req: any, res: any) {
+  try {
+    const method = String(req.method || 'GET').toUpperCase();
+    const rawBody = typeof req.body === 'string' ? req.body : (req.body == null ? undefined : JSON.stringify(req.body));
+    const request = new Request(new URL(String(req.url || '/'), `https://${req.headers?.host || 'localhost'}`).toString(), {
+      method,
+      headers: new Headers(req.headers || {}),
+      body: method === 'GET' || method === 'HEAD' ? undefined : rawBody,
+    });
+    const response = await handle(request);
+    res.statusCode = response.status;
+    response.headers.forEach((value: string, key: string) => res.setHeader(key, value));
+    res.end(await response.text());
+  } catch {
+    res.statusCode = 500;
+    res.setHeader('content-type', 'application/json; charset=utf-8');
+    res.end(JSON.stringify({ ok: false, error: { code: 'LIVE_CONTROL_FAILED', message: 'Vercel live control failed.' } }));
+  }
+}
