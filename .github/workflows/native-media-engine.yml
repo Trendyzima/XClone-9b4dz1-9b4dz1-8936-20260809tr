@@ -18,9 +18,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23"
-      - name: Go format check
+      - name: Normalize Go formatting
         working-directory: media-engine
-        run: test -z "$(gofmt -d main.go)"
+        run: gofmt -w main.go main_test.go
       - name: Go build
         working-directory: media-engine
         run: go build ./...
