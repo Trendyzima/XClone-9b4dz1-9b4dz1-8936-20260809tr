@@ -1,0 +1,146 @@
+name: Synchronize LiveKit production credentials
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: livekit-production-sync
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    environment: production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@54.15.1
+
+      - name: Pull production configuration
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set -euo pipefail
+          [[ -n "$VERCEL_TOKEN" ]] || { echo "::error::VERCEL_TOKEN is required."; exit 1; }
+          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+
+      - name: Resolve LiveKit configuration
+        id: livekit
+        shell: bash
+        env:
+          GITHUB_LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
+          GITHUB_LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
+          GITHUB_LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
+        run: |
+          set -euo pipefail
+
+          ENV_FILE=""
+          for candidate in .env.production.local .env.production; do
+            if [[ -f "$candidate" ]]; then
+              ENV_FILE="$candidate"
+              break
+            fi
+          done
+
+          dotenv_value() {
+            local name="$1"
+            local file="$2"
+            [[ -n "$file" ]] || return 0
+            local line
+            line="$(grep -E "^$name=" "$file" | tail -n 1 || true)"
+            line="${line#*=}"
+            if [[ "${line:0:1}" == '"' && "${line: -1}" == '"' ]]; then
+              line="${line:1:${#line}-2}"
+            elif [[ "${line:0:1}" == "'" && "${line: -1}" == "'" ]]; then
+              line="${line:1:${#line}-2}"
+            fi
+            printf '%s' "$line"
+          }
+
+          LIVEKIT_URL="$GITHUB_LIVEKIT_URL"
+          LIVEKIT_API_KEY="$GITHUB_LIVEKIT_API_KEY"
+          LIVEKIT_API_SECRET="$GITHUB_LIVEKIT_API_SECRET"
+
+          [[ -n "$LIVEKIT_URL" ]] || LIVEKIT_URL="$(dotenv_value LIVEKIT_URL "$ENV_FILE")"
+          [[ -n "$LIVEKIT_API_KEY" ]] || LIVEKIT_API_KEY="$(dotenv_value LIVEKIT_API_KEY "$ENV_FILE")"
+          [[ -n "$LIVEKIT_API_SECRET" ]] || LIVEKIT_API_SECRET="$(dotenv_value LIVEKIT_API_SECRET "$ENV_FILE")"
+
+          missing=()
+          [[ -n "$LIVEKIT_URL" ]] || missing+=(LIVEKIT_URL)
+          [[ -n "$LIVEKIT_API_KEY" ]] || missing+=(LIVEKIT_API_KEY)
+          [[ -n "$LIVEKIT_API_SECRET" ]] || missing+=(LIVEKIT_API_SECRET)
+
+          if (( ${#missing[@]} > 0 )); then
+            echo "::error::LiveKit production configuration is missing: ${missing[*]}"
+            echo "::error::The TV token function cannot mint LiveKit credentials until these values exist in Vercel production or GitHub production secrets."
+            exit 1
+          fi
+
+          printf 'LIVEKIT_URL=%s
+' "$LIVEKIT_URL" > livekit.env
+          printf 'LIVEKIT_API_KEY=%s
+' "$LIVEKIT_API_KEY" >> livekit.env
+          printf 'LIVEKIT_API_SECRET=%s
+' "$LIVEKIT_API_SECRET" >> livekit.env
+          printf 'url_present=true
+' >> "$GITHUB_OUTPUT"
+          printf 'api_key_present=true
+' >> "$GITHUB_OUTPUT"
+          printf 'api_secret_present=true
+' >> "$GITHUB_OUTPUT"
+          chmod 600 livekit.env
+
+      - name: Authenticate to Supabase management API
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required."; exit 1; }
+          supabase --version
+        shell: bash
+        # CLI is installed by the next step.
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
+        with:
+          version: 2.118.0
+
+      - name: Synchronize LiveKit secrets into Supabase Edge Functions
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+        run: |
+          set -euo pipefail
+          PROJECT_REF="$SUPABASE_PROJECT_REF"
+          if [[ -z "$PROJECT_REF" ]]; then
+            PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
+          fi
+          [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Invalid Supabase project ref."; exit 1; }
+          supabase secrets set --project-ref "$PROJECT_REF" --env-file livekit.env
+          echo "LiveKit production secrets synchronized without printing secret values."
+
+      - name: Deploy TV token function
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+        run: |
+          set -euo pipefail
+          PROJECT_REF="$SUPABASE_PROJECT_REF"
+          if [[ -z "$PROJECT_REF" ]]; then
+            PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
+          fi
+          supabase functions deploy livekit-tv-token --use-api --project-ref "$PROJECT_REF" --no-verify-jwt
+
+      - name: Cleanup credentials
+        if: always()
+        run: rm -f livekit.env .env.production.local .env.production
