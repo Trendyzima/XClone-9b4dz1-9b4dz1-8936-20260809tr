@@ -532,6 +532,32 @@ jobs:
 
           echo "R2 production environment synchronized without printing secret values."
 
+      - name: Synchronize Cloudflare Stream WebRTC secrets into Vercel production
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_STREAM_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CLOUDFLARE_STREAM_API_TOKEN }}
+          CLOUDFLARE_STREAM_ALLOWED_ORIGINS: ${{ secrets.CLOUDFLARE_STREAM_ALLOWED_ORIGINS || vars.CLOUDFLARE_STREAM_ALLOWED_ORIGINS || '["https://testagram.site","https://www.testagram.site"]' }}
+        run: |
+          set -euo pipefail
+          require_secret() {
+            local name="$1"
+            local value="$2"
+            if [[ -z "$value" ]]; then
+              echo "::error::Required Cloudflare Stream production secret is missing from GitHub: $name"
+              echo "::error::Add the Cloudflare Stream Account ID and API Token to the GitHub production environment before TV Go Live can be enabled."
+              exit 1
+            fi
+            printf '::add-mask::%s\n' "$value"
+          }
+          require_secret "CLOUDFLARE_ACCOUNT_ID" "$CLOUDFLARE_ACCOUNT_ID"
+          require_secret "CLOUDFLARE_API_TOKEN" "$CLOUDFLARE_API_TOKEN"
+          printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | vercel env add "CLOUDFLARE_ACCOUNT_ID" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          printf '%s' "$CLOUDFLARE_API_TOKEN" | vercel env add "CLOUDFLARE_API_TOKEN" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          printf '%s' "$CLOUDFLARE_STREAM_ALLOWED_ORIGINS" | vercel env add "CLOUDFLARE_STREAM_ALLOWED_ORIGINS" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          echo "Cloudflare Stream server credentials synchronized to Vercel without printing secret values."
+
       - name: Pull production Vercel configuration
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
