@@ -21,8 +21,8 @@ import (
   "github.com/pion/webrtc/v4"
 )
 
-type claims struct { Mode string \`json:"mode"\`; RoomID string \`json:"room_id"\`; Role string \`json:"role"\`; UserID string \`json:"user_id"\`; Exp int64 \`json:"exp"\` }
-type signal struct { Type string \`json:"type"\`; SDP string \`json:"sdp,omitempty"\`; Candidate *webrtc.ICECandidateInit \`json:"candidate,omitempty"\`; ViewerCount int \`json:"viewer_count,omitempty"\`; GuestCount int \`json:"guest_count,omitempty"\`; ParticipantCount int \`json:"participant_count,omitempty"\` }
+type claims struct { Mode string `json:"mode"`; RoomID string `json:"room_id"`; Role string `json:"role"`; UserID string `json:"user_id"`; Exp int64 `json:"exp"` }
+type signal struct { Type string `json:"type"`; SDP string `json:"sdp,omitempty"`; Candidate *webrtc.ICECandidateInit `json:"candidate,omitempty"`; ViewerCount int `json:"viewer_count,omitempty"`; GuestCount int `json:"guest_count,omitempty"`; ParticipantCount int `json:"participant_count,omitempty"` }
 type peer struct { ws *websocket.Conn; pc *webrtc.PeerConnection; mode, role, userID string; mu sync.Mutex; writeMu sync.Mutex; senders map[*publishedTrack]*webrtc.RTPSender }
 type publishedTrack struct { owner *peer; local *webrtc.TrackLocalStaticRTP; key string; kind webrtc.RTPCodecType }
 type room struct { mode, id string; mu sync.Mutex; peers map[*peer]bool; host *peer; tracks map[string]*publishedTrack }
@@ -66,6 +66,8 @@ func connectionAllowed(ip string) bool {
   connectionRates[key] = entry
   return true
 }
+
+func envInt(name string,fallback int)int{v,e:=strconv.Atoi(strings.TrimSpace(os.Getenv(name)));if e!=nil||v<=0{return fallback};return v}
 
 func roomLimitReached(r *room,role string)bool{r.mu.Lock();defer r.mu.Unlock();switch r.mode{case "tv":if role=="viewer"{n:=0;for p:=range r.peers{if p.role=="viewer"{n++}};return n>=envInt("MEDIA_ENGINE_MAX_VIEWERS",500)};if role=="guest"{n:=0;for p:=range r.peers{if p.role=="guest"{n++}};return n>=envInt("MEDIA_ENGINE_MAX_GUESTS",4)}};if r.mode=="space"{return len(r.peers)>=envInt("MEDIA_ENGINE_MAX_SPACE_PARTICIPANTS",1000)};if r.mode=="call"{return len(r.peers)>=envInt("MEDIA_ENGINE_MAX_CALL_PARTICIPANTS",25)};return true}
 func shouldReceive(r *room,target,owner *peer)bool{if target==owner{return false};switch r.mode{case "tv":if owner.role=="host"{return target.role=="viewer"||target.role=="guest"};if owner.role=="guest"{return target.role=="host"};return false;case "space","call":return true};return false}
