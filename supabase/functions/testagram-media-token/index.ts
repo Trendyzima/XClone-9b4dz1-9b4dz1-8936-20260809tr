@@ -34,7 +34,7 @@ Deno.serve(async req=>{
    if(!auth.startsWith("Bearer "))return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Sign in to broadcast."}},401);
    const user=await getUser(auth);if(!user||stream.user_id!==user.id)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can publish."}},403);
    const now=Math.floor(Date.now()/1000);const token=await signToken("testagram-media-v1",{role:"host",stream_id:stream.id,user_id:user.id,exp:now+3600});
-   return json({ok:true,data:{token,ws_url:mediaUrl.replace(/\/$/,"")+"/ws",stream_id:stream.id,role:"host"},error:null});
+   return json({ok:true,data:{token,ws_url:mediaUrl.replace(/\/$/,"")+"/ws",stream_id:stream.id,role:"host",ice_servers:iceServers},error:null});
  }
  if(!stream.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
  if(role==="guest"){
@@ -47,8 +47,8 @@ Deno.serve(async req=>{
    const invite=typeof body.invite_token==="string"?await verifyToken(body.invite_token,"testagram-tv-guest-v1"):null;
    if(!invite||invite.typ!=="tv_guest_invite"||invite.stream_id!==stream.id||invite.host_id!==stream.user_id)return json({ok:false,error:{code:"INVALID_GUEST_INVITE",message:"This guest invitation is invalid or expired."}},401);
    const now=Math.floor(Date.now()/1000);const token=await signToken("testagram-media-v1",{role:"guest",stream_id:stream.id,user_id:"guest-"+crypto.randomUUID(),exp:now+3600});
-   return json({ok:true,data:{token,ws_url:mediaUrl.replace(/\/$/,"")+"/ws",stream_id:stream.id,role:"guest"},error:null});
+   return json({ok:true,data:{token,ws_url:mediaUrl.replace(/\/$/,"")+"/ws",stream_id:stream.id,role:"guest",ice_servers:iceServers},error:null});
  }
  const now=Math.floor(Date.now()/1000);const token=await signToken("testagram-media-v1",{role:"viewer",stream_id:stream.id,user_id:"viewer-"+crypto.randomUUID(),exp:now+3600});
- return json({ok:true,data:{token,ws_url:mediaUrl.replace(/\/$/,"")+"/ws",stream_id:stream.id,role:"viewer"},error:null});
+ return json({ok:true,data:{token,ws_url:mediaUrl.replace(/\/$/,"")+"/ws",stream_id:stream.id,role:"viewer",ice_servers:iceServers},error:null});
 });
