@@ -36,12 +36,21 @@ jobs:
           [[ -n "$VERCEL_PROJECT_ID" ]] || { echo "::error::VERCEL_PROJECT_ID is required."; exit 1; }
           vercel link --yes --project="$VERCEL_PROJECT_ID" --scope="$VERCEL_ORG_ID" --token="$VERCEL_TOKEN"
 
-      - name: Pull production configuration
+      - name: Pull production LiveKit configuration
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
         run: |
           set -euo pipefail
-          vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+          [[ -n "$VERCEL_TOKEN" ]] || { echo "::error::VERCEL_TOKEN is required."; exit 1; }
+          [[ -n "$VERCEL_PROJECT_ID" ]] || { echo "::error::VERCEL_PROJECT_ID is required."; exit 1; }
+          [[ -n "$VERCEL_ORG_ID" ]] || { echo "::error::VERCEL_ORG_ID is required."; exit 1; }
+
+          curl --fail --silent --show-error --location \
+            -H "Authorization: Bearer $VERCEL_TOKEN" \
+            -H "Accept: application/json" \
+            "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/env?teamId=$VERCEL_ORG_ID" > vercel-env.json
 
       - name: Resolve LiveKit configuration
         id: livekit
@@ -53,36 +62,23 @@ jobs:
         run: |
           set -euo pipefail
 
-          ENV_FILE=""
-          for candidate in .env.production.local .env.production; do
-            if [[ -f "$candidate" ]]; then
-              ENV_FILE="$candidate"
-              break
-            fi
-          done
-
-          dotenv_value() {
+          vercel_value() {
             local name="$1"
-            local file="$2"
-            [[ -n "$file" ]] || return 0
-            local line
-            line="$(grep -E "^$name=" "$file" | tail -n 1 || true)"
-            line="${line#*=}"
-            if [[ "${line:0:1}" == '"' && "${line: -1}" == '"' ]]; then
-              line="${line:1:${#line}-2}"
-            elif [[ "${line:0:1}" == "'" && "${line: -1}" == "'" ]]; then
-              line="${line:1:${#line}-2}"
-            fi
-            printf '%s' "$line"
+            jq -r --arg name "$name" '
+              (.envs // .)[] |
+              select(.key == $name) |
+              select((.target // []) | index("production")) |
+              (.value // empty)
+            ' vercel-env.json | head -n 1
           }
 
           LIVEKIT_URL="$GITHUB_LIVEKIT_URL"
           LIVEKIT_API_KEY="$GITHUB_LIVEKIT_API_KEY"
           LIVEKIT_API_SECRET="$GITHUB_LIVEKIT_API_SECRET"
 
-          [[ -n "$LIVEKIT_URL" ]] || LIVEKIT_URL="$(dotenv_value LIVEKIT_URL "$ENV_FILE")"
-          [[ -n "$LIVEKIT_API_KEY" ]] || LIVEKIT_API_KEY="$(dotenv_value LIVEKIT_API_KEY "$ENV_FILE")"
-          [[ -n "$LIVEKIT_API_SECRET" ]] || LIVEKIT_API_SECRET="$(dotenv_value LIVEKIT_API_SECRET "$ENV_FILE")"
+          [[ -n "$LIVEKIT_URL" ]] || LIVEKIT_URL="$(vercel_value LIVEKIT_URL)"
+          [[ -n "$LIVEKIT_API_KEY" ]] || LIVEKIT_API_KEY="$(vercel_value LIVEKIT_API_KEY)"
+          [[ -n "$LIVEKIT_API_SECRET" ]] || LIVEKIT_API_SECRET="$(vercel_value LIVEKIT_API_SECRET)"
 
           missing=()
           [[ -n "$LIVEKIT_URL" ]] || missing+=(LIVEKIT_URL)
@@ -145,4 +141,4 @@ jobs:
 
       - name: Cleanup credentials
         if: always()
-        run: rm -f livekit.env .env.production.local .env.production
+        run: rm -f livekit.env vercel-env.json .env.production.local .env.production
