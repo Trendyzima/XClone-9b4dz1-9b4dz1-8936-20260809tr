@@ -1,6 +1,6 @@
 # Testagram communication stack
 
-Testagram keeps Supabase Auth, the native social graph, blocks and conversation membership authoritative. Matrix/Synapse, LiveKit and Novu are downstream infrastructure, not replacement identity or inbox systems.
+Testagram keeps Supabase Auth, the native social graph, blocks and conversation membership authoritative. Matrix/Synapse and Novu are downstream infrastructure; Testagram's native media engine is the authoritative realtime media transport.
 
 ## Messaging
 
@@ -16,15 +16,15 @@ For Synapse federation, the recommended mapping is one stable Matrix identity pe
 
 ## Calls
 
-`MessagesPage -> testagram.calls.create/join -> livekit-token -> LiveKit`
+`MessagesPage -> testagram.calls.create/join -> Testagram Media Engine token -> native Pion/WebRTC SFU`
 
-Testagram creates the call session and authorizes conversation membership before issuing a short-lived LiveKit JWT. The browser receives only the room token and LiveKit URL. LiveKit API credentials remain in Edge Function secrets.
+Testagram creates the call session and authorizes conversation membership before issuing a short-lived native media token. The browser receives only the room token and Testagram Media Engine WebSocket URL. The media-engine secret remains server-side.
 
-The call surface uses the LiveKit JavaScript SDK directly so the existing Vite/React application does not need the complete Element Call application embedded. The interaction model follows the useful Element Call patterns: participant tiles, permission-aware media controls, reconnect state and a dedicated call surface.
+The call surface uses the native Testagram media session so the Vite/React application owns the media client and does not depend on a third-party realtime media SDK. The interaction model includes participant tiles, permission-aware media controls, reconnect state and a dedicated call surface.
 
 ## MatrixRTC / Element Call pattern
 
-Element Call is a reference for a future federation-aware calling layer: Matrix supplies room/signalling semantics while LiveKit supplies the media SFU. Testagram currently keeps its native conversation/call records authoritative and can add MatrixRTC signalling behind the Matrix bridge without changing the Testagram identity plane.
+Element Call remains a reference for federation-aware calling patterns. Testagram keeps its native conversation/call records authoritative and its own WebRTC media engine authoritative for transport; MatrixRTC signalling can be added behind the Matrix bridge without changing the Testagram identity plane.
 
 ## Notifications
 
@@ -32,11 +32,11 @@ Native Testagram notifications remain authoritative. Novu is downstream delivery
 
 ## Production secrets
 
-LiveKit Edge Function:
+Native media engine:
 
-- `LIVEKIT_URL`
-- `LIVEKIT_API_KEY`
-- `LIVEKIT_API_SECRET`
+- `MEDIA_ENGINE_URL`
+- `MEDIA_ENGINE_SECRET`
+- `MEDIA_ENGINE_ICE_SERVERS`
 
 Optional Matrix bridge:
 
