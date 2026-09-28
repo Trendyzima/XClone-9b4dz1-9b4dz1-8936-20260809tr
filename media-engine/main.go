@@ -331,7 +331,10 @@ func wsHandler(w http.ResponseWriter,req *http.Request){
   conn,err:=upgrader.Upgrade(w,req,nil);if err!=nil{return}
   publicIP:=strings.TrimSpace(os.Getenv("MEDIA_ENGINE_PUBLIC_IP"))
   setting:=webrtc.SettingEngine{}
-  _=setting.SetEphemeralUDPPortRange(10000,20000)
+  udpMin:=envInt("MEDIA_ENGINE_UDP_MIN",10000)
+  udpMax:=envInt("MEDIA_ENGINE_UDP_MAX",20000)
+  if udpMin>=udpMax || udpMax>65535 { udpMin,udpMax=10000,20000 }
+  _=setting.SetEphemeralUDPPortRange(uint16(udpMin),uint16(udpMax))
   setting.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
   if publicIP!=""{setting.SetNAT1To1IPs([]string{publicIP},webrtc.ICECandidateTypeHost)}
   media:=&webrtc.MediaEngine{};if err:=media.RegisterDefaultCodecs();err!=nil{_ = conn.Close();return}
