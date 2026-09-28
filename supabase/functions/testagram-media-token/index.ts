@@ -99,27 +99,6 @@ Deno.serve(async req=>{
     return json({ok:true,data:{provider:"cloudflare-stream",token:"",whep_url:whepUrl,room_id:stream.id,room_type:"tv",role:"viewer",ice_servers:[{urls:"stun:stun.cloudflare.com:3478"}]},error:null});
   }
 
-  if(!auth.startsWith("Bearer ")) return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Sign in to broadcast."}},401);
-      const user=await getUser(auth); if(!user||stream.user_id!==user.id) return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can publish."}},403);
-      const token=await signToken({mode:"tv",room_id:stream.id,role:"host",user_id:user.id,exp:now+3600});
-      return json({ok:true,data:{token,ws_url:mediaWsUrl,room_id:stream.id,room_type:"tv",role:"host",ice_servers:iceServers},error:null});
-    }
-    if(!stream.is_live) return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
-    if(requestedRole==="guest"){
-      const invite=typeof body.invite_token==="string"?body.invite_token:"";
-      if(!invite) return json({ok:false,error:{code:"INVALID_GUEST_INVITE",message:"Guest invitation is required."}},401);
-      const p=invite.split("."); if(p.length!==3) return json({ok:false,error:{code:"INVALID_GUEST_INVITE",message:"This guest invitation is invalid or expired."}},401);
-      try {
-        const payload=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(p[1].replace(/-/g,"+").replace(/_/g,"/")+"===".slice((p[1].length+3)%4)),c=>c.charCodeAt(0))));
-        if(payload.typ!=="tv_guest_invite"||payload.stream_id!==stream.id||payload.host_id!==stream.user_id||typeof payload.exp!=="number"||payload.exp<=now) throw new Error("invalid");
-      } catch { return json({ok:false,error:{code:"INVALID_GUEST_INVITE",message:"This guest invitation is invalid or expired."}},401); }
-      const token=await signToken({mode:"tv",room_id:stream.id,role:"guest",user_id:"guest-"+crypto.randomUUID(),exp:now+3600});
-      return json({ok:true,data:{token,ws_url:mediaWsUrl,room_id:stream.id,room_type:"tv",role:"guest",ice_servers:iceServers},error:null});
-    }
-    const token=await signToken({mode:"tv",room_id:stream.id,role:"viewer",user_id:"viewer-"+crypto.randomUUID(),exp:now+3600});
-    return json({ok:true,data:{token,ws_url:mediaWsUrl,room_id:stream.id,room_type:"tv",role:"viewer",ice_servers:iceServers},error:null});
-  }
-
   if(!auth.startsWith("Bearer ")) return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Authentication required."}},401);
   const user=await getUser(auth); if(!user) return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Authentication required."}},401);
 
