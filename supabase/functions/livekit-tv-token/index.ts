@@ -6,7 +6,8 @@ const supabaseKey=Deno.env.get("SUPABASE_ANON_KEY")??Deno.env.get("SUPABASE_PUBL
 const livekitUrl=Deno.env.get("LIVEKIT_URL")??"";
 const livekitApiKey=Deno.env.get("LIVEKIT_API_KEY")??"";
 const livekitApiSecret=Deno.env.get("LIVEKIT_API_SECRET")??"";
-const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json","Cache-Control":"no-store","Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"}});
+const corsHeaders={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type, x-retry-count, traceparent, tracestate, baggage","Access-Control-Allow-Methods":"POST, OPTIONS","Access-Control-Max-Age":"600","Vary":"Origin, Access-Control-Request-Headers"};
+const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json","Cache-Control":"no-store",...corsHeaders}});
 const enc=(v:string|Uint8Array)=>{const b=typeof v==="string"?new TextEncoder().encode(v):v;let s="";for(const x of b)s+=String.fromCharCode(x);return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"")};
 async function sign(p:Record<string,unknown>){const h=enc(JSON.stringify({alg:"HS256",typ:"JWT"})),b=enc(JSON.stringify(p)),i=`${h}.${b}`;const k=await crypto.subtle.importKey("raw",new TextEncoder().encode(livekitApiSecret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);const sig=new Uint8Array(await crypto.subtle.sign("HMAC",k,new TextEncoder().encode(i)));return `${i}.${enc(sig)}`}
 Deno.serve(async req=>{
