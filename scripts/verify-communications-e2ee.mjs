@@ -17,7 +17,6 @@ const required = [
   [service, 'testagram.messages.edit_encrypted', 'ciphertext-only edit capability'],
   [service, "provider: 'testagram-native'", 'native media provider'],
   [page, "navigate('/call/'", 'native media call routing'],
-  [page, "navigate('/call/'", 'native media call surface'],
   [migrations, 'messages_e2ee_plaintext_guard', 'database plaintext guard'],
   [migrations, 'server_plaintext_allowed', 'server plaintext policy boundary'],
   [migrations, 'create_message_notification', 'encrypted notification trigger'],
