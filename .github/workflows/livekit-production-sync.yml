@@ -84,18 +84,12 @@ jobs:
             exit 1
           fi
 
-          printf 'LIVEKIT_URL=%s
-' "$LIVEKIT_URL" > livekit.env
-          printf 'LIVEKIT_API_KEY=%s
-' "$LIVEKIT_API_KEY" >> livekit.env
-          printf 'LIVEKIT_API_SECRET=%s
-' "$LIVEKIT_API_SECRET" >> livekit.env
-          printf 'url_present=true
-' >> "$GITHUB_OUTPUT"
-          printf 'api_key_present=true
-' >> "$GITHUB_OUTPUT"
-          printf 'api_secret_present=true
-' >> "$GITHUB_OUTPUT"
+          printf '%s\n' "LIVEKIT_URL=$LIVEKIT_URL" > livekit.env
+          printf '%s\n' "LIVEKIT_API_KEY=$LIVEKIT_API_KEY" >> livekit.env
+          printf '%s\n' "LIVEKIT_API_SECRET=$LIVEKIT_API_SECRET" >> livekit.env
+          printf '%s\n' 'url_present=true' >> "$GITHUB_OUTPUT"
+          printf '%s\n' 'api_key_present=true' >> "$GITHUB_OUTPUT"
+          printf '%s\n' 'api_secret_present=true' >> "$GITHUB_OUTPUT"
           chmod 600 livekit.env
 
       - name: Verify Supabase management credentials
