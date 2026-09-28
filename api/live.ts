@@ -156,7 +156,12 @@ async function verify(streamId: string, request: Request) {
   if (!videoOk) return json({ ok: false, error: { code: 'VIDEO_RTP_FAILED', message: 'Cloudflare negotiation completed but the browser has not transmitted video RTP.' }, diagnostics }, 409);
   if (!audioOk) return json({ ok: false, error: { code: 'AUDIO_RTP_FAILED', message: 'Cloudflare negotiation completed but the browser has not transmitted audio RTP.' }, diagnostics }, 409);
   if (!stream.stream_url) return json({ ok: false, error: { code: 'STREAM_PLAYBACK_NOT_READY', message: 'No Cloudflare playback endpoint is stored.' } }, 409);
-  const lifecycle = await lifecycleFromWhep(stream.stream_url);
+  let lifecycle: { isInput?: boolean; live?: boolean; videoUID?: string | null } | null = null;
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    lifecycle = await lifecycleFromWhep(stream.stream_url);
+    if (lifecycle?.live) break;
+    await new Promise(resolve => setTimeout(resolve, 250));
+  }
   if (!lifecycle?.live) return json({ ok: false, error: { code: 'CLOUDFLARE_INPUT_NOT_LIVE', message: 'Cloudflare has not reported the live input as active yet.' }, lifecycle }, 409);
   await updateStream(streamId, { is_live: true, ended_at: null, stream_url: stream.stream_url }, bearer);
   return json({ ok: true, data: { stage: 'on-air', cloudflare_live: true, video_rtp: true, audio_rtp: true, video_uid: lifecycle.videoUID || null, diagnostics }, error: null });
@@ -172,11 +177,16 @@ async function stop(streamId: string, request: Request) {
   const inputId = inputIdFromWhep(stream.stream_url);
   let cloudflareStopped = true;
   if (inputId) {
-    const response = await cloudflareFetch(`${cloudflareApiBase}/${encodeURIComponent(inputId)}`, { method: 'PUT', body: JSON.stringify({ enabled: false }) });
-    cloudflareStopped = response.ok;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const response = await cloudflareFetch(`${cloudflareApiBase}/${encodeURIComponent(inputId)}`, { method: 'PUT', body: JSON.stringify({ enabled: false }) });
+      cloudflareStopped = response.ok;
+      if (cloudflareStopped) break;
+      await new Promise(resolve => setTimeout(resolve, 250));
+    }
   }
+  if (!cloudflareStopped) return json({ ok: false, error: { code: 'CLOUDFLARE_STOP_FAILED', message: 'Cloudflare did not confirm input shutdown; Testagram kept the stream marked live to avoid false OFF AIR state.' } }, 502);
   await updateStream(streamId, { is_live: false, ended_at: new Date().toISOString(), stream_url: null }, bearer);
-  return json({ ok: cloudflareStopped, data: { stage: 'ended', cloudflare_stopped: cloudflareStopped }, error: cloudflareStopped ? null : { code: 'CLOUDFLARE_STOP_FAILED', message: 'Testagram ended the broadcast record, but Cloudflare did not confirm input shutdown.' } });
+  return json({ ok: true, data: { stage: 'ended', cloudflare_stopped: true }, error: null });
 }
 
 export default { async fetch(request: Request) {
