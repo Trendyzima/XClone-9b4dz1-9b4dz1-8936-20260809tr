@@ -20,11 +20,14 @@ const muxApiBase = 'https://api.mux.com/video/v1';
 const authHeader = (request: Request) => request.headers.get('authorization') || '';
 
 async function supabaseFetch(path: string, init: RequestInit = {}, bearer = '') {
-  if (!supabaseUrl || !supabaseKey) throw new Error('SUPABASE_SERVER_NOT_CONFIGURED');
+  if (!supabaseUrl || !supabaseControlKey) throw new Error('SUPABASE_SERVER_NOT_CONFIGURED');
   const headers = new Headers(init.headers);
   headers.set('apikey', supabaseControlKey);
   headers.set('content-type', 'application/json');
-  if (bearer) headers.set('authorization', bearer);
+  // Control-plane queries must authenticate as the server role. A user JWT in
+  // Authorization would re-enable RLS even when apikey is the service-role key.
+  headers.set('authorization', `Bearer ${supabaseControlKey}`);
+  if (bearer && path.startsWith('auth/v1/')) headers.set('authorization', bearer);
   return fetch(`${supabaseUrl}/${path.replace(/^\//, '')}`, { ...init, headers });
 }
 
@@ -321,7 +324,7 @@ async function handle(request: Request) {
   } catch (error: any) {
     const message = String(error?.message || 'Vercel live control failed.');
     if (message === 'SUPABASE_SERVER_NOT_CONFIGURED') return json({ ok: false, error: { code: 'SUPABASE_SERVER_NOT_CONFIGURED', message: 'Vercel Supabase server configuration is missing.' } }, 503);
-    if (message.startsWith('SUPABASE_STREAM_LOOKUP_FAILED:')) return json({ ok: false, error: { code: 'STREAM_LOOKUP_FAILED', message: 'Supabase rejected the TV broadcast lookup; this is a control-plane access/configuration failure, not a missing broadcast.', detail: message.slice('SUPABASE_STREAM_LOOKUP_FAILED:') } }, 502);
+    if (message.startsWith('SUPABASE_STREAM_LOOKUP_FAILED:')) return json({ ok: false, error: { code: 'STREAM_LOOKUP_FAILED', message: 'Supabase rejected the TV broadcast lookup; this is a control-plane access/configuration failure, not a missing broadcast.', detail: message.slice('SUPABASE_STREAM_LOOKUP_FAILED:'.length) } }, 502);
     return json({ ok: false, error: { code: 'LIVE_CONTROL_FAILED', message: 'Vercel live control failed.' } }, 500);
   }
 }
