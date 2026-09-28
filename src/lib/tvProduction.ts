@@ -37,12 +37,15 @@ export interface TvReplayFrame {
 
 export class TvReplayBuffer {
   private frames: TvReplayFrame[] = [];
-  constructor(private readonly maxDurationMs = 30000, private readonly intervalMs = 500) {}
+  constructor(
+    private readonly maxDurationMs = 60000,
+    private readonly intervalMs = 500,
+    private readonly maxWidth = 480,
+    private readonly maxHeight = 270,
+  ) {}
   push(canvas: HTMLCanvasElement, now = performance.now()) {
     const copy = document.createElement('canvas');
-    const maxWidth = 480;
-    const maxHeight = 270;
-    const scale = Math.min(1, maxWidth / canvas.width, maxHeight / canvas.height);
+    const scale = Math.min(1, this.maxWidth / canvas.width, this.maxHeight / canvas.height);
     copy.width = Math.max(1, Math.round(canvas.width * scale));
     copy.height = Math.max(1, Math.round(canvas.height * scale));
     copy.getContext('2d')?.drawImage(canvas, 0, 0, copy.width, copy.height);
@@ -54,7 +57,11 @@ export class TvReplayBuffer {
     const last = this.frames[this.frames.length - 1];
     return !last || now - last.timestamp >= this.intervalMs;
   }
-  getFrames() { return this.frames.slice(); }
+  getFrames(maxDurationMs?: number) {
+    if (!maxDurationMs || maxDurationMs >= this.maxDurationMs) return this.frames.slice();
+    const cutoff = (this.frames[this.frames.length - 1]?.timestamp ?? performance.now()) - maxDurationMs;
+    return this.frames.filter(frame => frame.timestamp >= cutoff);
+  }
   latestCanvas() { return this.frames[this.frames.length - 1]?.canvas ?? null; }
   clear() { this.frames = []; }
   get durationMs() { return this.frames.length < 2 ? 0 : this.frames[this.frames.length - 1].timestamp - this.frames[0].timestamp; }
@@ -137,7 +144,8 @@ export function drawTvGraphics(
       const maxW = Math.min(safeW, Math.max(560, width * 0.56));
       const x = safeX;
       const h = 112;
-      const y = safeBottom - h - (g.y ?? 0);
+      // Keep lower thirds above the ticker/banner safe area.
+      const y = safeBottom - h - 92 - (g.y ?? 0);
       ctx.save();
       ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 20;
       ctx.fillStyle = 'rgba(9,9,11,.94)';
@@ -154,7 +162,7 @@ export function drawTvGraphics(
       }
       ctx.restore();
     } else if (g.kind === 'ticker') {
-      const y = safeBottom - 48;
+      const y = height - 48;
       const h = 48;
       ctx.save();
       ctx.fillStyle = 'rgba(9,9,11,.94)'; ctx.fillRect(0, y, width, h);
@@ -168,7 +176,8 @@ export function drawTvGraphics(
       ctx.fillText(text, width - (tickerOffset % cycle), y + 31);
       ctx.restore();
     } else if (g.kind === 'banner') {
-      const y = safeBottom - 76;
+      // Breaking banner occupies the lower-third lane but stays above the ticker.
+      const y = safeBottom - 148;
       ctx.save();
       ctx.fillStyle = 'rgba(9,9,11,.96)'; ctx.fillRect(safeX, y, safeW, 58);
       ctx.fillStyle = '#ef4444'; ctx.fillRect(safeX, y, 210, 58);
@@ -180,7 +189,8 @@ export function drawTvGraphics(
       const w = Math.min(430, safeW * 0.42);
       const h = 66;
       const x = width - safeX - w;
-      const y = safeBottom - h;
+      // NEXT sits above the ticker and clear of the lower-third lane.
+      const y = safeBottom - h - 158;
       ctx.save();
       ctx.fillStyle = 'rgba(9,9,11,.94)'; rounded(x, y, w, h, 10); ctx.fill();
       ctx.fillStyle = '#ef4444'; ctx.fillRect(x, y, 6, h);
