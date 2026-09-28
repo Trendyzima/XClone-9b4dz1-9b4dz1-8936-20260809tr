@@ -876,7 +876,6 @@ export default function TvStudioPage() {
           }
         }
       });
-      setBroadcastStage('on-air');
       // The stream is intentionally not public until WebRTC has proven that the broadcaster is transmitting.
       const { error: onAirError } = await supabase.from('live_streams')
         .update({ is_live: true, stream_url: `testagram-media://tv/${id}`, ended_at: null })
@@ -887,6 +886,7 @@ export default function TvStudioPage() {
         throw new Error(`Broadcast transport is ready, but ON AIR activation failed: ${onAirError.message}`);
       }
 
+      setBroadcastStage('on-air');
       roomRef.current = session;
       setViewerCount(0);
       liveRef.current = true;
@@ -897,6 +897,7 @@ export default function TvStudioPage() {
       setBroadcastError(null);
       toast.success(`TV broadcast is ON AIR at ${VIDEO_PRESETS[quality].width}×${VIDEO_PRESETS[quality].height} / ${VIDEO_PRESETS[quality].fps}fps`);
     } catch (e: any) {
+      if (session) setBroadcastDiagnostics(session.getDiagnostics());
       await session?.close().catch(() => undefined);
       await roomRef.current?.close().catch(() => undefined);
       roomRef.current = null;
