@@ -63,7 +63,7 @@ var totalConnections atomic.Uint64
 var rejectedConnections atomic.Uint64
 var rtpPackets atomic.Uint64
 var rtpWriteErrors atomic.Uint64
-var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
+func checkOrigin(r *http.Request) bool {
   raw := strings.TrimSpace(os.Getenv("MEDIA_ENGINE_ALLOWED_ORIGINS"))
   if raw == "" { return true }
   origin := strings.TrimRight(strings.TrimSpace(r.Header.Get("Origin")), "/")
@@ -71,7 +71,9 @@ var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
     if origin == strings.TrimRight(strings.TrimSpace(allowed), "/") { return true }
   }
   return false
-}}
+}
+
+var upgrader = websocket.Upgrader{CheckOrigin: checkOrigin}
 
 func decodePart(v string) ([]byte,error) { return base64.RawURLEncoding.DecodeString(v) }
 
