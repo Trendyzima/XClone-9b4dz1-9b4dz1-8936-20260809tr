@@ -1,5 +1,7 @@
 package main
 
+package main
+
 import (
   "crypto/hmac"
   "crypto/sha256"
@@ -11,7 +13,7 @@ import (
   "time"
 )
 
-func testToken(t *testing.T, mode, role, room, exp int64, secret string) string {
+func testToken(t *testing.T, mode, role, room string, exp int64, secret string) string {
   t.Helper()
   enc := func(v []byte) string { return base64.RawURLEncoding.EncodeToString(v) }
   h := enc([]byte("testagram-media-v1"))
