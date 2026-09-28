@@ -136,7 +136,7 @@ async function start(streamId: string, request: Request) {
   if (existingInputId) {
     input = await getCloudflareInput(existingInputId);
     if (input?.uid) {
-      const enable = await cloudflareFetch(`${cloudflareApiBase}/${encodeURIComponent(existingInputId)}`, { method: 'PUT', body: JSON.stringify({ enabled: true }) });
+      const enable = await cloudflareFetch(`${cloudflareApiBase}/${encodeURIComponent(existingInputId)}`, { method: 'PUT', body: JSON.stringify({ enabled: true, preferLowLatency: true, recording: { mode: 'automatic', deleteRecordingAfterDays: 30 } }) });
       if (!enable.ok) input = null;
       else { const enabledPayload = await enable.json() as any; input = enabledPayload?.result || input; }
     }
