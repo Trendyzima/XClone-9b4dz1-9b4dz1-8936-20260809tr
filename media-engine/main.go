@@ -11,6 +11,8 @@ import (
   "os"
   "strings"
   "sync"
+  "sync/atomic"
+  "strconv"
   "time"
 
   "github.com/gorilla/websocket"
@@ -53,6 +55,10 @@ type room struct {
 }
 
 var rooms sync.Map
+var totalConnections atomic.Uint64
+var rejectedConnections atomic.Uint64
+var rtpPackets atomic.Uint64
+var rtpWriteErrors atomic.Uint64
 var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
   raw := strings.TrimSpace(os.Getenv("MEDIA_ENGINE_ALLOWED_ORIGINS"))
   if raw == "" { return true }
@@ -262,6 +268,37 @@ func handlePeer(p *peer,r *room){
   }
 }
 
+func connectionAllowed(ip string) bool {
+  limit := envInt("MEDIA_ENGINE_CONNECTIONS_PER_MINUTE", 60)
+  key := "rate:" + ip
+  rateMu.Lock()
+  defer rateMu.Unlock()
+  entry := connectionRates[key]
+  now := time.Now()
+  if entry.started.IsZero() || now.Sub(entry.started) >= time.Minute {
+    connectionRates[key] = rateEntry{started: now, count: 1}
+    return true
+  }
+  if entry.count >= limit { return false }
+  entry.count++
+  connectionRates[key] = entry
+  return true
+}
+
+func roomLimitReached(r *room, role string) bool {
+  r.mu.Lock()
+  defer r.mu.Unlock()
+  if role == "viewer" && len(r.viewers) >= envInt("MEDIA_ENGINE_MAX_VIEWERS", 500) { return true }
+  if role == "guest" && len(r.guests) >= envInt("MEDIA_ENGINE_MAX_GUESTS", 4) { return true }
+  return false
+}
+
+func envInt(name string, fallback int) int {
+  value, err := strconv.Atoi(strings.TrimSpace(os.Getenv(name)))
+  if err != nil || value <= 0 { return fallback }
+  return value
+}
+
 func iceServers() []webrtc.ICEServer {
   servers:=[]webrtc.ICEServer{{URLs:[]string{"stun:stun.l.google.com:19302"}}}
   raw:=strings.TrimSpace(os.Getenv("MEDIA_ENGINE_ICE_SERVERS"))
@@ -271,8 +308,11 @@ func iceServers() []webrtc.ICEServer {
   return servers
 }
 func wsHandler(w http.ResponseWriter,req *http.Request){
+  totalConnections.Add(1)
   secret:=os.Getenv("MEDIA_ENGINE_SECRET");if secret==""{http.Error(w,"media engine not configured",503);return}
-  c,err:=verifyToken(req.URL.Query().Get("token"),secret);if err!=nil{http.Error(w,"unauthorized",401);return}
+  c,err:=verifyToken(req.URL.Query().Get("token"),secret);if err!=nil{rejectedConnections.Add(1);http.Error(w,"unauthorized",401);return}
+  remoteIP,_,_:=net.SplitHostPort(req.RemoteAddr)
+  if !connectionAllowed(remoteIP){rejectedConnections.Add(1);http.Error(w,"rate limited",429);return}
   conn,err:=upgrader.Upgrade(w,req,nil);if err!=nil{return}
   publicIP:=strings.TrimSpace(os.Getenv("MEDIA_ENGINE_PUBLIC_IP"))
   setting:=webrtc.SettingEngine{}
@@ -284,6 +324,7 @@ func wsHandler(w http.ResponseWriter,req *http.Request){
   pc,err:=api.NewPeerConnection(webrtc.Configuration{ICEServers:iceServers()})
   if err!=nil{_ = conn.Close();return}
   p:=&peer{ws:conn,pc:pc,role:c.Role};r:=getRoom(c.StreamID)
+  if roomLimitReached(r,c.Role){rejectedConnections.Add(1);closePeer(p);return}
   r.mu.Lock()
   if c.Role=="host" {if r.host!=nil{r.mu.Unlock();closePeer(p);return};r.host=p} else if c.Role=="guest" {r.guests[p]=true} else {r.viewers[p]=true}
   r.mu.Unlock()
@@ -295,6 +336,17 @@ func health(w http.ResponseWriter,_ *http.Request){
   rooms.Range(func(_,v any) bool { _ = v.(*room); return true })
   w.Header().Set("content-type","application/json")
   _,_=w.Write([]byte(`{"ok":true,"service":"testagram-media-engine","transport":"webrtc-sfu","features":["websocket-signaling","host-publish","viewer-subscribe","guest-ingress","stun","turn-config","rtp-forwarding","room-isolation"]}`))
+}
+
+func metrics(w http.ResponseWriter,_ *http.Request){
+  w.Header().Set("content-type","text/plain; version=0.0.4")
+  fmt.Fprintf(w,"testagram_media_connections_total %d\n",totalConnections.Load())
+  fmt.Fprintf(w,"testagram_media_connections_rejected_total %d\n",rejectedConnections.Load())
+  fmt.Fprintf(w,"testagram_media_rtp_packets_total %d\n",rtpPackets.Load())
+  fmt.Fprintf(w,"testagram_media_rtp_write_errors_total %d\n",rtpWriteErrors.Load())
+  roomsCount:=0
+  rooms.Range(func(_, _ any) bool {roomsCount++;return true})
+  fmt.Fprintf(w,"testagram_media_active_rooms %d\n",roomsCount)
 }
 
 func main(){mux:=http.NewServeMux();mux.HandleFunc("/healthz",health);mux.HandleFunc("/ws",wsHandler);port:=os.Getenv("PORT");if port==""{port="8080"};log.Printf("Testagram Media Engine listening on :%s",port);log.Fatal(http.ListenAndServe(":"+port,mux))}
