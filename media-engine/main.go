@@ -150,7 +150,8 @@ func relayTrack(targets []*peer, remote *webrtc.TrackRemote, name string) {
     for {
       packet, _, err := remote.ReadRTP()
       if err != nil { return }
-      if err := local.WriteRTP(packet); err != nil { return }
+      rtpPackets.Add(1)
+      if err := local.WriteRTP(packet); err != nil { rtpWriteErrors.Add(1); return }
     }
   }()
   for _, target := range targets {
@@ -176,7 +177,7 @@ func renegotiatePeer(p *peer) {
   if err != nil { return }
   if err = p.pc.SetLocalDescription(offer); err != nil { return }
   <-webrtc.GatheringCompletePromise(p.pc)
-  if local := p.pc.LocalDescription(); local != nil { _ = send(p.ws, signal{Type:"offer", SDP:local.SDP}) }
+  if local := p.pc.LocalDescription(); local != nil { _ = p.send(signal{Type:"offer", SDP:local.SDP}) }
 }
 
 func addHostTrack(r *room, remote *webrtc.TrackRemote) {
@@ -282,7 +283,6 @@ func connectionAllowed(ip string) bool {
     if now.Sub(entry.started) >= time.Minute { delete(connectionRates,k) }
   }
   entry := connectionRates[key]
-  now := time.Now()
   if entry.started.IsZero() || now.Sub(entry.started) >= time.Minute {
     connectionRates[key] = rateEntry{started: now, count: 1}
     return true
