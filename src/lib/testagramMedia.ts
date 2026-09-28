@@ -50,8 +50,8 @@ const getToken = async (roomId: string, roomType: MediaRoomType, role: MediaRole
     const message = payload?.error?.message || `Media authorization failed (HTTP ${response.status}).`;
     throw new Error(`${message}${code}`);
   }
-  if (!payload?.data?.token || !payload?.data?.ws_url) {
-    throw new Error('Testagram Media Engine returned an incomplete authorization response.');
+  if (!payload?.data?.token || (payload?.data?.provider === 'cloudflare-stream' ? !payload?.data?.whep_url && !payload?.data?.whip_url : !payload?.data?.ws_url)) {
+    throw new Error('Testagram media authorization returned an incomplete transport response.');
   }
   return payload.data as MediaToken;
 };
