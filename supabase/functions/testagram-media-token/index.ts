@@ -16,7 +16,7 @@ Deno.serve(async req=>{
  if(req.method==="OPTIONS")return json({ok:true});if(req.method!=="POST")return json({ok:false,error:{code:"METHOD_NOT_ALLOWED",message:"POST required"}},405);
  if(!supabaseUrl||!supabaseKey||!mediaUrl||!mediaSecret)return json({ok:false,error:{code:"MEDIA_ENGINE_NOT_CONFIGURED",message:"Testagram Media Engine is not configured",details:{missing:[!mediaUrl?"MEDIA_ENGINE_URL":null,!mediaSecret?"MEDIA_ENGINE_SECRET":null].filter(Boolean)}}},503);
  let body:any={};try{body=await req.json()}catch{return json({ok:false,error:{code:"INVALID_JSON",message:"JSON required"}},400)}
- const streamId=typeof body.stream_id==="string"?body.stream_id:"";const role=body.role==="host"||body.role==="guest"?"guest":body.role==="host"?"host":"viewer";
+ const streamId=typeof body.stream_id==="string"?body.stream_id:"";const role=body.role==="host"?"host":body.role==="guest"?"guest":"viewer";
  if(!streamId)return json({ok:false,error:{code:"STREAM_ID_REQUIRED",message:"stream_id is required"}},400);
  const publicDb=createClient(supabaseUrl,supabaseKey,{auth:{persistSession:false,autoRefreshToken:false}});
  const {data:stream,error:streamError}=await publicDb.from("live_streams").select("id,user_id,is_live,title").eq("id",streamId).maybeSingle();
