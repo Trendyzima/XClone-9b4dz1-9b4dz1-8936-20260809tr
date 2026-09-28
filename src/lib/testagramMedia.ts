@@ -78,7 +78,7 @@ export class TestagramMediaSession {
     await session.connect(false); return session;
   }
 
-  static async connectSpace(spaceId: string, role: 'listener' | 'speaker', localStream?: MediaStream, onRemoteStream?: (stream: MediaStream) => void) {
+  static async connectSpace(spaceId: string, role: 'host' | 'listener' | 'speaker', localStream?: MediaStream, onRemoteStream?: (stream: MediaStream) => void) {
     const session = new TestagramMediaSession('space', role, spaceId);
     session.localStream = localStream || null; session.onRemoteStream = onRemoteStream;
     await session.connect(true); return session;
