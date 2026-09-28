@@ -78,6 +78,7 @@ export class TestagramMediaSession {
   private lastDiagnostics: Record<string, unknown> = {};
 
   getDiagnostics() { return { ...this.lastDiagnostics }; }
+  getPlaybackUrl() { return this.info?.whep_url || null; }
 
   async waitForMediaReady(direction: 'send' | 'receive', timeoutMs = 20000) {
     const started = Date.now();
