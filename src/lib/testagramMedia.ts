@@ -8,7 +8,8 @@ type MediaToken = {
   ws_url?: string;
   whip_url?: string;
   whep_url?: string;
-  provider?: 'native' | 'cloudflare-stream';
+  playback_url?: string;
+  provider?: 'native' | 'cloudflare-stream' | 'cloudflare-stream-hybrid';
   room_id: string;
   room_type: MediaRoomType;
   role: MediaRole;
@@ -52,7 +53,7 @@ const getToken = async (roomId: string, roomType: MediaRoomType, role: MediaRole
       const message = payload?.error?.message || `TV media authorization failed (HTTP ${response.status}).`;
       throw new Error(`${message}${code}`);
     }
-    if (payload?.data?.provider !== 'cloudflare-stream' || (!payload?.data?.whep_url && !payload?.data?.whip_url)) {
+    if (!['cloudflare-stream', 'cloudflare-stream-hybrid'].includes(payload?.data?.provider) || (!payload?.data?.whep_url && !payload?.data?.whip_url)) {
       throw new Error('Vercel Cloudflare media authorization returned an incomplete transport response.');
     }
     return payload.data as MediaToken;
@@ -104,7 +105,7 @@ export class TestagramMediaSession {
   private lastDiagnostics: Record<string, unknown> = {};
 
   getDiagnostics() { return { ...this.lastDiagnostics }; }
-  getPlaybackUrl() { return this.info?.whep_url || null; }
+  getPlaybackUrl() { return this.info?.playback_url || this.info?.whep_url || null; }
   async verifyOnAir() {
     if (this.roomType !== 'tv' || this.role !== 'host') throw new Error('ON AIR verification is only available for the TV broadcaster.');
     const { data: sessionData } = await supabase.auth.getSession();
@@ -274,7 +275,7 @@ export class TestagramMediaSession {
     if (!answer.trim()) throw new Error('Cloudflare WebRTC returned an empty SDP answer.');
     await this.pc.setRemoteDescription({ type: 'answer', sdp: answer });
     this.answerReceived = true;
-    this.lastDiagnostics = { ...this.lastDiagnostics, provider: 'cloudflare-stream', signaling: 'sdp-answer-received', endpoint: this.role === 'host' ? 'whip' : 'whep' };
+    this.lastDiagnostics = { ...this.lastDiagnostics, provider: this.info?.provider || 'cloudflare-stream', signaling: 'sdp-answer-received', endpoint: this.role === 'host' ? 'whip' : 'whep' };
     const location = response.headers.get('Location');
     if (location) this.mediaSessionUrl = new URL(location, endpoint).toString();
   };
