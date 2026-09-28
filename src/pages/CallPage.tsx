@@ -36,7 +36,7 @@ export default function CallPage() {
 
   const attachRemoteTrack = (track: MediaStreamTrack) => {
     if (!remoteMediaRef.current) return;
-    if (remoteMediaRef.current.querySelector(\`[data-track-id="\${track.id}"]\`)) return;
+    if (remoteMediaRef.current.querySelector('[data-track-id="' + track.id + '"]')) return;
     if (track.kind === 'video') {
       const element = document.createElement('video');
       element.dataset.trackId = track.id;
