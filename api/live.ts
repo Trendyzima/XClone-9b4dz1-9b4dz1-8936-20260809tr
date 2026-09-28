@@ -211,8 +211,12 @@ async function start(streamId: string, request: Request) {
   if (stream.user_id !== user.id) return json({ ok: false, error: { code: 'HOST_REQUIRED', message: 'Only the broadcaster can publish.' } }, 403);
   if (stream.is_live) return json({ ok: false, error: { code: 'ALREADY_LIVE', message: 'This broadcast is already ON AIR.' } }, 409);
 
+  let muxLiveStreamId: string | null = null;
+  let cloudflareInputId: string | null = null;
+  let cloudflareOutputId: string | null = null;
   try {
     const mux = await createMuxLiveStream(streamId, stream.title);
+    muxLiveStreamId = mux.id;
     const response = await cloudflareFetch(cloudflareApiBase, {
       method: 'POST',
       headers: { 'Idempotency-Key': `tv-${streamId}` },
@@ -221,10 +225,18 @@ async function start(streamId: string, request: Request) {
     const payload = await response.json().catch(() => null) as any;
     if (!response.ok || !payload?.success || !payload?.result?.uid || !payload?.result?.webRTC?.url || !payload?.result?.webRTCPlayback?.url) throw new Error('CLOUDFLARE_STREAM_CREATE_FAILED');
     const input = payload.result;
+    cloudflareInputId = input.uid;
     const output = await createCloudflareMuxOutput(input.uid, mux.streamKey);
+    cloudflareOutputId = output.uid;
     await updateStream(streamId, { is_live: false, stream_url: mux.playbackUrl, ended_at: null, mux_live_stream_id: mux.id, mux_playback_id: mux.playbackId, cloudflare_input_id: input.uid, cloudflare_output_id: output.uid }, bearer);
     return json({ ok: true, data: { provider: 'cloudflare-mux-hybrid', token: '', whip_url: input.webRTC.url, whep_url: input.webRTCPlayback.url, playback_url: mux.playbackUrl, live_input_id: input.uid, room_id: streamId, room_type: 'tv', role: 'host', ice_servers: [{ urls: 'stun:stun.cloudflare.com:3478' }], mux_playback_id: mux.playbackId }, error: null });
   } catch (error: any) {
+    // start() is a multi-provider transaction. If any downstream allocation fails
+    // before the Supabase row is committed, reconcile the already-created resources
+    // so failed starts do not leak Mux streams or Cloudflare inputs/outputs.
+    if (cloudflareInputId && cloudflareOutputId) await disableCloudflareOutput(cloudflareInputId, cloudflareOutputId).catch(() => undefined);
+    if (cloudflareInputId) await cloudflareFetch(`${cloudflareApiBase}/${encodeURIComponent(cloudflareInputId)}`, { method: 'PUT', body: JSON.stringify({ enabled: false }) }).catch(() => undefined);
+    if (muxLiveStreamId) await deleteMuxLiveStream(muxLiveStreamId).catch(() => undefined);
     const message = String(error?.message || '');
     if (message === 'MUX_NOT_CONFIGURED') return json({ ok: false, error: { code: 'MUX_NOT_CONFIGURED', message: 'Vercel Mux Video API credentials are not configured for Testagram TV.' } }, 503);
     if (message === 'MUX_ENDPOINTS_MISSING') return json({ ok: false, error: { code: 'MUX_ENDPOINTS_MISSING', message: 'Mux did not return a usable stream key and playback ID.' } }, 502);
