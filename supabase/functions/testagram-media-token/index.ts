@@ -5,14 +5,17 @@ const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? "";
 const mediaUrl = Deno.env.get("MEDIA_ENGINE_URL") ?? "";
 const mediaSecret = Deno.env.get("MEDIA_ENGINE_SECRET") ?? "";
-const stunUrl = Deno.env.get("MEDIA_STUN_URL") ?? "stun:stun.l.google.com:19302";
-const turnUrl = Deno.env.get("MEDIA_TURN_URL") ?? "";
-const turnUsername = Deno.env.get("MEDIA_TURN_USERNAME") ?? "";
-const turnCredential = Deno.env.get("MEDIA_TURN_CREDENTIAL") ?? "";
-const iceServers = [
-  ...(stunUrl ? [{ urls: stunUrl }] : []),
-  ...(turnUrl && turnUsername && turnCredential ? [{ urls: turnUrl, username: turnUsername, credential: turnCredential }] : []),
-];
+const mediaWsUrl = mediaUrl.replace(/^https:/, "wss:").replace(/^http:/, "ws:").replace(/\/$/, "") + "/ws";
+const iceServers = (() => {
+  const raw = Deno.env.get("MEDIA_ENGINE_ICE_SERVERS") ?? "";
+  if (!raw) return [{ urls: "stun:stun.l.google.com:19302" }];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [{ urls: "stun:stun.l.google.com:19302" }];
+  } catch {
+    return [{ urls: "stun:stun.l.google.com:19302" }];
+  }
+})();
 const cors = {"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type, x-retry-count, traceparent, tracestate, baggage","Access-Control-Allow-Methods":"POST, OPTIONS","Access-Control-Max-Age":"600","Vary":"Origin, Access-Control-Request-Headers"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json","Cache-Control":"no-store",...cors}});
 const enc=(value:string|Uint8Array)=>{const bytes=typeof value==="string"?new TextEncoder().encode(value):value;let binary="";for(const byte of bytes)binary+=String.fromCharCode(byte);return btoa(binary).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"")};
@@ -34,7 +37,7 @@ Deno.serve(async req=>{
    if(!auth.startsWith("Bearer "))return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Sign in to broadcast."}},401);
    const user=await getUser(auth);if(!user||stream.user_id!==user.id)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can publish."}},403);
    const now=Math.floor(Date.now()/1000);const token=await signToken("testagram-media-v1",{role:"host",stream_id:stream.id,user_id:user.id,exp:now+3600});
-   return json({ok:true,data:{token,ws_url:mediaUrl.replace(/\/$/,"")+"/ws",stream_id:stream.id,role:"host",ice_servers:iceServers},error:null});
+   return json({ok:true,data:{token,ws_url:mediaWsUrl,stream_id:stream.id,role:"host",ice_servers:iceServers},error:null});
  }
  if(!stream.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
  if(role==="guest"){
