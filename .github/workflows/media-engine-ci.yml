@@ -26,9 +26,9 @@ jobs:
           go-version-file: media-engine/go.mod
           cache-dependency-path: media-engine/go.mod
 
-      - name: Download modules
+      - name: Resolve module graph
         working-directory: media-engine
-        run: go mod download
+        run: go mod tidy
 
       - name: Unit tests
         working-directory: media-engine
