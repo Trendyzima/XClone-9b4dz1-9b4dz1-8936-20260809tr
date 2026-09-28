@@ -89,6 +89,11 @@ func verifyToken(token, secret string) (*claims,error) {
   var c claims
   if err=json.Unmarshal(payload,&c);err!=nil{return nil,err}
   if c.StreamID==""||c.Role==""||time.Now().Unix()>=c.Exp{return nil,fmt.Errorf("expired media token")}
+  switch c.Role {
+  case "host","viewer","guest":
+  default:
+    return nil,fmt.Errorf("invalid media role")
+  }
   return &c,nil
 }
 
