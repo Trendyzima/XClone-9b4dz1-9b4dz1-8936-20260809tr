@@ -803,6 +803,7 @@ export default function TvStudioPage() {
     if (live || roomRef.current) return;
     setBroadcastError(null);
     let id: string | null = null;
+    let createdBroadcast = false;
     try {
       if (!user) throw new Error('Sign in to broadcast');
       await ensureStudio();
@@ -839,6 +840,7 @@ export default function TvStudioPage() {
             }
           } else {
             id = data.id;
+            createdBroadcast = true;
             setActiveStreamId(id);
             setStream(data);
           }
@@ -919,7 +921,10 @@ export default function TvStudioPage() {
       setMode('studio');
       setStatus(cameraStreamRef.current ? 'preview' : 'idle');
       const failedId = id;
-      if (failedId && user) {
+      // Only close a broadcast created by this start attempt. If we reused an
+      // authoritative active row, a transient token/transport failure must
+      // never terminate the already-valid broadcast for that host.
+      if (failedId && createdBroadcast && user) {
         await supabase.from('live_streams').update({ is_live: false, ended_at: new Date().toISOString(), stream_url: null }).eq('id', failedId).eq('user_id', user.id);
         setActiveStreamId(null);
       }
