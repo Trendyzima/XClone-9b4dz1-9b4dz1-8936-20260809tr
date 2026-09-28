@@ -50,6 +50,7 @@ export default function LiveStreamPage() {
   const chatRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<any>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const tvMediaRef = useRef<HTMLDivElement>(null);
   const tvRoomRef = useRef<TestagramMediaSession | null>(null);
   const adPushedRef = useRef(false);
