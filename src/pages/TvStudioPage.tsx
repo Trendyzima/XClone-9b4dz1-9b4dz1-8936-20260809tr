@@ -876,16 +876,10 @@ export default function TvStudioPage() {
         throw new Error('Cloudflare Stream WebRTC playback endpoint was not returned.');
       }
 
-      // The stream is intentionally not public until WebRTC has proven that the broadcaster is transmitting.
-      const { error: onAirError } = await supabase.from('live_streams')
-        .update({ is_live: true, stream_url: playbackUrl, ended_at: null })
-        .eq('id', id)
-        .eq('user_id', user.id);
-      if (onAirError) {
-        await session.close();
-        throw new Error(`Broadcast transport is ready, but ON AIR activation failed: ${onAirError.message}`);
-      }
-
+      // The server is the authority for ON AIR. It independently checks Cloudflare's
+      // lifecycle endpoint after the browser has proven outbound audio/video RTP.
+      setBroadcastStage('verifying');
+      await session.verifyOnAir();
       setBroadcastStage('on-air');
       roomRef.current = session;
       setViewerCount(0);
@@ -943,7 +937,15 @@ export default function TvStudioPage() {
   };
 
   const stopLive = async () => {
-    await roomRef.current?.close();
+    const activeSession = roomRef.current;
+    if (activeSession) {
+      try {
+        await activeSession.stopBroadcastControlPlane();
+      } catch (error: any) {
+        toast.error(error?.message || 'Cloudflare broadcast shutdown failed.');
+      }
+      await activeSession.close();
+    }
     roomRef.current = null;
     setViewerCount(0);
     setGuestConnected(false);
