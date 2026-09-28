@@ -32,6 +32,7 @@ interface FloatReaction {
 }
 
 // esbuild guard: module-level plain array (no 'as const')
+// CI validation: native media viewer keeps video and audio elements independently addressable.
 const REACTION_EMOJIS: string[] = ['❤️'];
 
 function LiveStreamAdBanner() { return <PageAdBanner />; }
