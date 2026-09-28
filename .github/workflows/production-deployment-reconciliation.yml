@@ -572,9 +572,9 @@ jobs:
           # this token can access. A token can be active while a wrong account ID
           # (for example a Zone ID instead of the Account ID) correctly returns 401.
           CF_MEMBERSHIPS="https://api.cloudflare.com/client/v4/memberships"
-          CF_MEMBERSHIPS_STATUS="$(curl --silent --show-error --output /tmp/cloudflare-memberships.json --write-out '%{http_code}' \\
-            --request GET \\
-            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
+          CF_MEMBERSHIPS_STATUS="$(curl --silent --show-error --output /tmp/cloudflare-memberships.json --write-out '%{http_code}' \
+            --request GET \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "$CF_MEMBERSHIPS")"
           if [[ "$CF_MEMBERSHIPS_STATUS" != "200" ]]; then
             echo "::error::Cloudflare token is active, but its account memberships could not be inspected (HTTP $CF_MEMBERSHIPS_STATUS)."
