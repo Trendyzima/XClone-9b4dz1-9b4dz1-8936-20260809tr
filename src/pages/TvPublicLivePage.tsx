@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
-import { Room, RoomEvent, Track } from 'livekit-client';
 import { Loader2, Radio, Users, Volume2, VolumeX, Share2, Maximize2, Camera, CameraOff, Mic, MicOff, PhoneOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
+import { TestagramMediaSession } from '@/lib/testagramMedia';
 import { toast } from 'sonner';
 
 export default function TvPublicLivePage() {
@@ -13,7 +13,8 @@ export default function TvPublicLivePage() {
   const isGuest = Boolean(inviteToken);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const roomRef = useRef<Room | null>(null);
+  const sessionRef = useRef<TestagramMediaSession | null>(null);
+  const guestMediaRef = useRef<MediaStream | null>(null);
   const [title, setTitle] = useState('Testagram TV');
   const [viewers, setViewers] = useState(0);
   const [connecting, setConnecting] = useState(true);
@@ -23,89 +24,80 @@ export default function TvPublicLivePage() {
   const [micOn, setMicOn] = useState(true);
   const [error, setError] = useState('');
 
-  const countViewers = (room: Room) => Array.from(room.remoteParticipants.values()).filter(participant => {
-    try { return JSON.parse(participant.metadata || '{}')?.role === 'viewer'; } catch { return false; }
-  }).length + (isGuest ? 0 : 1);
-
   useEffect(() => {
     let cancelled = false;
     const connect = async () => {
       if (!streamId) { setError('TV broadcast link is missing.'); setConnecting(false); return; }
       try {
-        const { data: stream, error: streamError } = await supabase.from('live_streams').select('id,title,is_live').eq('id', streamId).maybeSingle();
+        const { data: stream, error: streamError } = await supabase
+          .from('live_streams')
+          .select('id,title,is_live')
+          .eq('id', streamId)
+          .maybeSingle();
         if (streamError || !stream || !stream.is_live) throw new Error('This TV broadcast is no longer live.');
         if (cancelled) return;
         setTitle(stream.title || 'Testagram TV');
 
-        const body = isGuest
-          ? { stream_id: streamId, role: 'guest', invite_token: inviteToken }
-          : { stream_id: streamId, role: 'viewer' };
-        const { data, error: tokenError } = await supabase.functions.invoke('livekit-tv-guest-token', { body: { stream_id: streamId, mode: 'join', invite_token: inviteToken } });
-        if (tokenError || !data?.data?.token || !data?.data?.url) {
-          throw new Error(data?.error?.message || tokenError?.message || (isGuest ? 'Unable to join the guest session.' : 'Unable to connect to this TV broadcast.'));
-        }
-
-        const room = new Room({ adaptiveStream: true, dynacast: true });
-        roomRef.current = room;
-        const attach = (track: any) => {
-          if (track.kind === Track.Kind.Video && videoRef.current) {
-            track.attach(videoRef.current);
+        if (isGuest && inviteToken) {
+          const session = await TestagramMediaSession.connectGuest(streamId, inviteToken);
+          sessionRef.current = session;
+          const media = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } },
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          });
+          guestMediaRef.current = media;
+          if (videoRef.current) {
+            videoRef.current.srcObject = media;
+            videoRef.current.muted = true;
+            videoRef.current.playsInline = true;
             void videoRef.current.play().catch(() => undefined);
           }
-          if (track.kind === Track.Kind.Audio && audioRef.current) {
-            track.attach(audioRef.current);
-            audioRef.current.muted = muted;
-            void audioRef.current.play().catch(() => undefined);
-          }
-        };
-        room.on(RoomEvent.TrackSubscribed, (track, publication, participant) => {
-          if (isGuest) return;
-          try {
-            const role = JSON.parse(participant.metadata || '{}')?.role;
-            if (role === 'host' && (publication.trackName === 'program-video' || publication.trackName === 'program-audio')) attach(track);
-          } catch { /* Ignore malformed participant metadata. */ }
-        });
-        room.on(RoomEvent.TrackUnsubscribed, (track, publication) => {
-          if (publication.trackName === 'program-video' || publication.trackName === 'program-audio') track.detach();
-        });
-        const refreshCount = () => setViewers(countViewers(room));
-        room.on(RoomEvent.ParticipantConnected, refreshCount);
-        room.on(RoomEvent.ParticipantDisconnected, refreshCount);
-        room.on(RoomEvent.ParticipantMetadataChanged, refreshCount);
-
-        await room.connect(data.data.url, data.data.token);
-
-        if (isGuest) {
-          await room.localParticipant.enableCameraAndMicrophone();
-          const cameraPublication = room.localParticipant.getTrackPublication(Track.Source.Camera);
-          const localCamera = cameraPublication?.track;
-          if (localCamera && videoRef.current) {
-            localCamera.attach(videoRef.current);
-            void videoRef.current.play().catch(() => undefined);
-          }
+          await session.publishTracks(media);
         } else {
-          for (const participant of room.remoteParticipants.values()) {
-            let role = '';
-            try { role = JSON.parse(participant.metadata || '{}')?.role || ''; } catch {}
-            if (role !== 'host') continue;
-            for (const publication of participant.trackPublications.values()) {
-              if (publication.trackName !== 'program-video' && publication.trackName !== 'program-audio') continue;
-              if (!publication.isSubscribed) await publication.setSubscribed(true);
-              if (publication.track) attach(publication.track);
+          const session = await TestagramMediaSession.connectViewer(streamId, remote => {
+            if (videoRef.current) {
+              const video = remote.getVideoTracks()[0];
+              if (video) {
+                videoRef.current.srcObject = remote;
+                videoRef.current.muted = muted;
+                void videoRef.current.play().catch(() => undefined);
+              }
             }
-          }
+            if (audioRef.current) {
+              const audio = remote.getAudioTracks()[0];
+              if (audio) {
+                audioRef.current.srcObject = new MediaStream([audio]);
+                audioRef.current.muted = muted;
+                void audioRef.current.play().catch(() => undefined);
+              }
+            }
+          });
+          sessionRef.current = session;
+          setViewers(1);
         }
 
-        if (cancelled) { await room.disconnect(); return; }
-        refreshCount();
+        if (cancelled) {
+          await sessionRef.current?.close();
+          sessionRef.current = null;
+          return;
+        }
         setLive(true);
         setConnecting(false);
       } catch (e: any) {
-        if (!cancelled) { setError(e?.message || (isGuest ? 'Unable to join the guest session.' : 'Unable to connect to TV broadcast.')); setConnecting(false); }
+        if (!cancelled) {
+          setError(e?.message || (isGuest ? 'Unable to join the guest session.' : 'Unable to connect to TV broadcast.'));
+          setConnecting(false);
+        }
       }
     };
     void connect();
-    return () => { cancelled = true; roomRef.current?.disconnect(); roomRef.current = null; };
+    return () => {
+      cancelled = true;
+      void sessionRef.current?.close();
+      sessionRef.current = null;
+      guestMediaRef.current?.getTracks().forEach(track => track.stop());
+      guestMediaRef.current = null;
+    };
   }, [streamId, inviteToken, isGuest]);
 
   useEffect(() => {
@@ -134,23 +126,27 @@ export default function TvPublicLivePage() {
     } catch { toast.error('Fullscreen is not available on this device.'); }
   };
 
-  const toggleCamera = async () => {
-    if (!roomRef.current || !isGuest) return;
-    const next = !cameraOn;
-    await roomRef.current.localParticipant.setCameraEnabled(next);
-    setCameraOn(next);
+  const toggleCamera = () => {
+    if (!isGuest) return;
+    const track = guestMediaRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    track.enabled = !track.enabled;
+    setCameraOn(track.enabled);
   };
 
-  const toggleMic = async () => {
-    if (!roomRef.current || !isGuest) return;
-    const next = !micOn;
-    await roomRef.current.localParticipant.setMicrophoneEnabled(next);
-    setMicOn(next);
+  const toggleMic = () => {
+    if (!isGuest) return;
+    const track = guestMediaRef.current?.getAudioTracks()[0];
+    if (!track) return;
+    track.enabled = !track.enabled;
+    setMicOn(track.enabled);
   };
 
   const leaveGuest = async () => {
-    await roomRef.current?.disconnect();
-    roomRef.current = null;
+    await sessionRef.current?.close();
+    sessionRef.current = null;
+    guestMediaRef.current?.getTracks().forEach(track => track.stop());
+    guestMediaRef.current = null;
     setLive(false);
     setError('You left the TV guest session.');
   };
@@ -159,7 +155,7 @@ export default function TvPublicLivePage() {
     <header className="flex items-center justify-between gap-3 px-4 py-3 border-b border-white/10 bg-zinc-950">
       <div className="min-w-0">
         <div className="flex items-center gap-2 font-semibold truncate"><Radio className="w-4 h-4 text-red-500" />{isGuest ? 'TV Guest' : title}</div>
-        <div className="text-xs text-zinc-500">{isGuest ? (live ? 'CONNECTED TO STUDIO' : connecting ? 'CONNECTING…' : 'GUEST OFFLINE') : (live ? 'LIVE' : connecting ? 'CONNECTING…' : 'OFFLINE')}{!isGuest && ` · ${viewers} viewers`}</div>
+        <div className="text-xs text-zinc-500">{isGuest ? (live ? 'CONNECTED TO STUDIO' : connecting ? 'CONNECTING…' : 'GUEST OFFLINE') : (live ? 'LIVE' : connecting ? 'CONNECTING…' : 'OFFLINE')}{!isGuest && viewers > 0 && ` · ${viewers} connection`}</div>
       </div>
       {!isGuest ? <div className="flex gap-2"><Button size="sm" variant="outline" onClick={() => void share()}><Share2 className="w-4 h-4 mr-1" />Share</Button><Button size="sm" variant="outline" onClick={() => setMuted(v => !v)}>{muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}</Button><Button size="sm" variant="outline" onClick={() => void fullscreen()}><Maximize2 className="w-4 h-4" /></Button></div> : null}
     </header>
@@ -174,8 +170,8 @@ export default function TvPublicLivePage() {
       </div>
     </main>
     {isGuest && <div className="p-3 flex flex-wrap justify-center gap-2 border-t border-white/10 bg-zinc-950">
-      <Button disabled={!live} variant={cameraOn ? 'default' : 'destructive'} onClick={() => void toggleCamera()}>{cameraOn ? <Camera className="w-4 h-4 mr-1" /> : <CameraOff className="w-4 h-4 mr-1" />}{cameraOn ? 'Camera on' : 'Camera off'}</Button>
-      <Button disabled={!live} variant={micOn ? 'default' : 'destructive'} onClick={() => void toggleMic()}>{micOn ? <Mic className="w-4 h-4 mr-1" /> : <MicOff className="w-4 h-4 mr-1" />}{micOn ? 'Mic on' : 'Mic off'}</Button>
+      <Button disabled={!live} variant={cameraOn ? 'default' : 'destructive'} onClick={toggleCamera}>{cameraOn ? <Camera className="w-4 h-4 mr-1" /> : <CameraOff className="w-4 h-4 mr-1" />}{cameraOn ? 'Camera on' : 'Camera off'}</Button>
+      <Button disabled={!live} variant={micOn ? 'default' : 'destructive'} onClick={toggleMic}>{micOn ? <Mic className="w-4 h-4 mr-1" /> : <MicOff className="w-4 h-4 mr-1" />}{micOn ? 'Mic on' : 'Mic off'}</Button>
       <Button disabled={!live} variant="destructive" onClick={() => void leaveGuest()}><PhoneOff className="w-4 h-4 mr-1" />Leave studio</Button>
     </div>}
     <footer className="px-4 py-3 text-center text-xs text-zinc-600">{isGuest ? 'Guest media is transmitted live to the Testagram TV studio. No finished recording is uploaded from this page.' : 'Live from Testagram TV · This page receives the live program stream only; finished recordings are not stored here.'}</footer>
