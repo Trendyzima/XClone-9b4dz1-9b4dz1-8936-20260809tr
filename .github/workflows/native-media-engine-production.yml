@@ -82,9 +82,11 @@ jobs:
           TURN_USERNAME="testagram-turn"
           echo "::add-mask::$MEDIA_SECRET"
           echo "::add-mask::$TURN_PASSWORD"
-          echo "media_secret=$MEDIA_SECRET" >> "$GITHUB_OUTPUT"
-          echo "turn_password=$TURN_PASSWORD" >> "$GITHUB_OUTPUT"
-          echo "turn_username=$TURN_USERNAME" >> "$GITHUB_OUTPUT"
+          {
+            echo "media_secret=$MEDIA_SECRET"
+            echo "turn_password=$TURN_PASSWORD"
+            echo "turn_username=$TURN_USERNAME"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Configure and launch native media stack
         env:
