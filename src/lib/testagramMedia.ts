@@ -73,7 +73,39 @@ export class TestagramMediaSession {
   private onRemoteTrack?: (track: MediaStreamTrack) => void;
   private onViewerCount?: (count: number, guests: number) => void;
   private onParticipantCount?: (count: number) => void;
+  private answerReceived = false;
   private remoteStream = new MediaStream();
+  private lastDiagnostics: Record<string, unknown> = {};
+
+  getDiagnostics() { return { ...this.lastDiagnostics }; }
+
+  async waitForMediaReady(direction: 'send' | 'receive', timeoutMs = 20000) {
+    const started = Date.now();
+    let last = '';
+    while (Date.now() - started < timeoutMs) {
+      if (this.closed || !this.pc) throw new Error('Media session closed while waiting for transport readiness.');
+      const state = this.pc.connectionState;
+      const ice = this.pc.iceConnectionState;
+      let packets = 0, bytes = 0, frames = 0, width = 0, height = 0;
+      const stats = await this.pc.getStats();
+      stats.forEach(report => {
+        if (direction === 'send' && report.type === 'outbound-rtp' && report.kind === 'video') {
+          packets += Number(report.packetsSent || 0); bytes += Number(report.bytesSent || 0); frames += Number(report.framesEncoded || 0);
+          width = Number(report.frameWidth || 0); height = Number(report.frameHeight || 0);
+        }
+        if (direction === 'receive' && report.type === 'inbound-rtp' && report.kind === 'video') {
+          packets += Number(report.packetsReceived || 0); bytes += Number(report.bytesReceived || 0); frames += Number(report.framesDecoded || 0);
+          width = Number(report.frameWidth || 0); height = Number(report.frameHeight || 0);
+        }
+      });
+      this.lastDiagnostics = { connectionState: state, iceConnectionState: ice, packets, bytes, frames, width, height, elapsedMs: Date.now() - started };
+      if (state === 'failed' || state === 'closed' || ice === 'failed' || ice === 'closed') throw new Error(`WebRTC transport failed (connection=${state}, ICE=${ice}).`);
+      if ((state === 'connected' || state === 'completed') && (ice === 'connected' || ice === 'completed') && packets > 0 && bytes > 0) return this.getDiagnostics();
+      last = `connection=${state}, ICE=${ice}, packets=${packets}`;
+      await new Promise(resolve => window.setTimeout(resolve, 250));
+    }
+    throw new Error(`Media transport did not become ready within ${Math.round(timeoutMs / 1000)}s (${last || 'no WebRTC state observed'}).`);
+  }
 
   private constructor(roomType: MediaRoomType, role: MediaRole, roomId: string) {
     this.roomType = roomType; this.role = role; this.roomId = roomId;
@@ -188,7 +220,7 @@ export class TestagramMediaSession {
       const timeout = window.setTimeout(() => reject(new Error('Testagram Media Engine connection timed out.')), 15000);
       ws.onopen = async () => {
         window.clearTimeout(timeout); this.reconnectAttempt = 0;
-        try { if (createInitialOffer || this.role !== 'guest' || this.localStream) await this.sendOffer(); resolve(); } catch (error) { reject(error); }
+        try { if (createInitialOffer || this.role !== 'guest' || this.localStream) await this.sendOffer(); if (createInitialOffer || this.role !== 'guest' || this.localStream) { const started = Date.now(); while (!this.answerReceived && Date.now() - started < 15000) await new Promise(r => window.setTimeout(r, 50)); if (!this.answerReceived) throw new Error('Testagram Media Engine did not return a WebRTC answer.'); } resolve(); } catch (error) { reject(error); }
       };
       ws.onerror = () => { window.clearTimeout(timeout); reject(new Error('Could not connect to Testagram Media Engine.')); };
       ws.onclose = () => { if (!this.closed) this.scheduleReconnect(); };
@@ -203,7 +235,7 @@ export class TestagramMediaSession {
             if (this.pc.remoteDescription) await this.pc.addIceCandidate(message.candidate); else this.pendingCandidates.push(message.candidate); return;
           }
           if (message.type === 'answer' && message.sdp) {
-            await this.pc.setRemoteDescription({ type: 'answer', sdp: message.sdp }); await this.flushCandidates(); return;
+            await this.pc.setRemoteDescription({ type: 'answer', sdp: message.sdp }); await this.flushCandidates(); this.answerReceived = true; return;
           }
           if (message.type === 'offer' && message.sdp) {
             await this.pc.setRemoteDescription({ type: 'offer', sdp: message.sdp }); await this.flushCandidates();
