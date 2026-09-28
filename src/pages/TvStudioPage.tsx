@@ -816,6 +816,7 @@ export default function TvStudioPage() {
         .eq('user_id', user.id);
 
       const session = await TestagramMediaSession.connectHost(id, program);
+      session.setViewerCountHandler((count) => setViewerCount(count));
       session.setRemoteTrackHandler((track) => {
         if (track.kind === 'video') {
           const element = document.createElement('video');
