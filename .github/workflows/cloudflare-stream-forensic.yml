@@ -108,7 +108,7 @@ jobs:
           }
           trap cleanup EXIT
 
-          payload='{"deleteRecordingAfterDays":30,"enabled":true,"meta":{"name":"testagram-ci-forensic-${GITHUB_RUN_ID}"},"preferLowLatency":true,"recording":{"mode":"off"}}'
+          payload="$(GITHUB_RUN_ID="$GITHUB_RUN_ID" node -e 'process.stdout.write(JSON.stringify({deleteRecordingAfterDays:30,enabled:true,meta:{name:"testagram-ci-forensic-"+process.env.GITHUB_RUN_ID},preferLowLatency:true,recording:{mode:"off"}}))')"
           create_status="$(curl --silent --show-error --output /tmp/cf-create.json --write-out '%{http_code}'             --request POST             --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN"             --header "Content-Type: application/json"             --data "$payload"             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs")"
 
           CF_STATUS="$create_status" node -e '
@@ -130,11 +130,11 @@ jobs:
           CF_TEST_INPUT_ID="$(cat /tmp/cf-test-input-id)"
 
           get_status="$(curl --silent --show-error --output /tmp/cf-get.json --write-out '%{http_code}'             --request GET             --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN"             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs/$CF_TEST_INPUT_ID")"
-          CF_STATUS="$get_status" node -e '
+          CF_STATUS="$get_status" CF_TEST_INPUT_ID="$CF_TEST_INPUT_ID" node -e '
             const fs=require("node:fs");
             let p={}; try { p=JSON.parse(fs.readFileSync("/tmp/cf-get.json","utf8")); } catch {}
             const e=p?.errors?.[0];
-            if(process.env.CF_STATUS!=="200" || p?.success!==true || p?.result?.uid!=="'"$CF_TEST_INPUT_ID"'"){
+            if(process.env.CF_STATUS!=="200" || p?.success!==true || p?.result?.uid!==process.env.CF_TEST_INPUT_ID){
               console.error("Cloudflare Stream RETRIEVE failed:", JSON.stringify({httpStatus:Number(process.env.CF_STATUS),success:p?.success ?? false,errorCode:e?.code ?? null,errorMessage:e?.message ?? null}));
               process.exit(1);
             }
