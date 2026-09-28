@@ -31,11 +31,29 @@ const waitForIce = async (pc: RTCPeerConnection) => {
 };
 
 const getToken = async (roomId: string, roomType: MediaRoomType, role: MediaRole, inviteToken?: string): Promise<MediaToken> => {
-  const { data, error } = await supabase.functions.invoke('testagram-media-token', {
-    body: { room_id: roomId, room_type: roomType, role, invite_token: inviteToken || undefined },
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  if (!accessToken) throw new Error('Sign in to use Testagram media.');
+  const response = await fetch(`${supabaseUrl}/functions/v1/testagram-media-token`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: supabasePublishableKey,
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ room_id: roomId, room_type: roomType, role, invite_token: inviteToken || undefined }),
   });
-  if (error || !data?.data?.token || !data?.data?.ws_url) throw new Error(data?.error?.message || error?.message || 'Testagram Media Engine is not configured.');
-  return data.data as MediaToken;
+  let payload: any = null;
+  try { payload = await response.json(); } catch { /* preserve HTTP status below */ }
+  if (!response.ok) {
+    const code = payload?.error?.code ? ` [${payload.error.code}]` : '';
+    const message = payload?.error?.message || `Media authorization failed (HTTP ${response.status}).`;
+    throw new Error(`${message}${code}`);
+  }
+  if (!payload?.data?.token || !payload?.data?.ws_url) {
+    throw new Error('Testagram Media Engine returned an incomplete authorization response.');
+  }
+  return payload.data as MediaToken;
 };
 
 export class TestagramMediaSession {
