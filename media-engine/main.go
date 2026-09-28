@@ -70,11 +70,20 @@ func send(ws *websocket.Conn,m signal) error { ws.SetWriteDeadline(time.Now().Ad
 func getRoom(id string)*room { v,_:=rooms.LoadOrStore(id,&room{viewers:map[*peer]bool{}}); return v.(*room) }
 func closePeer(p *peer){ if p==nil{return}; _=p.ws.Close(); _=p.pc.Close() }
 
-func addTracksToViewer(v *peer,r *room) error {
-  r.mu.Lock(); video,audio:=r.video,r.audio; r.mu.Unlock()
-  v.mu.Lock(); defer v.mu.Unlock()
-  if video!=nil&&!v.videoAttached { if _,err:=v.pc.AddTrack(video);err!=nil{return err};v.videoAttached=true }
-  if audio!=nil&&!v.audioAttached { if _,err:=v.pc.AddTrack(audio);err!=nil{return err};v.audioAttached=true }
+func addTracksToViewer(v *peer, r *room) error {
+  r.mu.Lock()
+  video, audio := r.video, r.audio
+  r.mu.Unlock()
+  v.mu.Lock()
+  defer v.mu.Unlock()
+  if video != nil && !v.videoAttached {
+    if _, err := v.pc.AddTrack(video); err != nil { return err }
+    v.videoAttached = true
+  }
+  if audio != nil && !v.audioAttached {
+    if _, err := v.pc.AddTrack(audio); err != nil { return err }
+    v.audioAttached = true
+  }
   return nil
 }
 
