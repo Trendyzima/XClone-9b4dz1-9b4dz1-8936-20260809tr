@@ -553,6 +553,32 @@ jobs:
           }
           require_secret "CLOUDFLARE_ACCOUNT_ID" "$CLOUDFLARE_ACCOUNT_ID"
           require_secret "CLOUDFLARE_API_TOKEN" "$CLOUDFLARE_API_TOKEN"
+
+          # Prove the exact GitHub Cloudflare credential can authenticate against
+          # the exact account and access Stream before copying it into Vercel.
+          # Never print the token or raw Cloudflare response body.
+          CF_VERIFY="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/tokens/verify"
+          CF_VERIFY_STATUS="$(curl --silent --show-error --output /tmp/cloudflare-token-verify.json --write-out '%{http_code}' \\
+            --request GET \\
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
+            "$CF_VERIFY")"
+          if [[ "$CF_VERIFY_STATUS" != "200" ]]; then
+            echo "::error::Cloudflare API token verification failed for the configured account (HTTP $CF_VERIFY_STATUS). Check token status, account scope, and token permissions."
+            exit 1
+          fi
+          node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("/tmp/cloudflare-token-verify.json","utf8")); if(p?.success!==true || p?.result?.status!=="active"){console.error("::error::Cloudflare token is not active for the configured account."); process.exit(1)} console.log("Cloudflare API token is active for the configured account.");'
+
+          CF_STREAM="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs"
+          CF_STREAM_STATUS="$(curl --silent --show-error --output /tmp/cloudflare-stream-list.json --write-out '%{http_code}' \\
+            --request GET \\
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
+            "$CF_STREAM")"
+          if [[ "$CF_STREAM_STATUS" != "200" ]]; then
+            echo "::error::Cloudflare Stream authorization failed for the configured token/account (HTTP $CF_STREAM_STATUS). The token needs Account > Stream > Write and must be scoped to this account."
+            exit 1
+          fi
+          node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("/tmp/cloudflare-stream-list.json","utf8")); if(p?.success!==true){console.error("::error::Cloudflare Stream API authorization check failed."); process.exit(1)} console.log("Cloudflare Stream API authorization check passed.");'
+
           printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | vercel env add "CLOUDFLARE_ACCOUNT_ID" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           printf '%s' "$CLOUDFLARE_API_TOKEN" | vercel env add "CLOUDFLARE_API_TOKEN" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           printf '%s' "$CLOUDFLARE_STREAM_ALLOWED_ORIGINS" | vercel env add "CLOUDFLARE_STREAM_ALLOWED_ORIGINS" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
