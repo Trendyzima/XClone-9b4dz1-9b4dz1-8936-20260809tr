@@ -558,9 +558,9 @@ jobs:
           # the exact account and access Stream before copying it into Vercel.
           # Never print the token or raw Cloudflare response body.
           CF_VERIFY="https://api.cloudflare.com/client/v4/user/tokens/verify"
-          CF_VERIFY_STATUS="$(curl --silent --show-error --output /tmp/cloudflare-token-verify.json --write-out '%{http_code}' \\
-            --request GET \\
-            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
+          CF_VERIFY_STATUS="$(curl --silent --show-error --output /tmp/cloudflare-token-verify.json --write-out '%{http_code}' \
+            --request GET \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "$CF_VERIFY")"
           if [[ "$CF_VERIFY_STATUS" != "200" ]]; then
             echo "::error::Cloudflare API token verification failed for the configured account (HTTP $CF_VERIFY_STATUS). Check token status, account scope, and token permissions."
@@ -569,9 +569,9 @@ jobs:
           node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("/tmp/cloudflare-token-verify.json","utf8")); if(p?.success!==true || p?.result?.status!=="active"){console.error("::error::Cloudflare token is not active for the configured account."); process.exit(1)} console.log("Cloudflare API token is active for the configured account.");'
 
           CF_STREAM="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs"
-          CF_STREAM_STATUS="$(curl --silent --show-error --output /tmp/cloudflare-stream-list.json --write-out '%{http_code}' \\
-            --request GET \\
-            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
+          CF_STREAM_STATUS="$(curl --silent --show-error --output /tmp/cloudflare-stream-list.json --write-out '%{http_code}' \
+            --request GET \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "$CF_STREAM")"
           if [[ "$CF_STREAM_STATUS" != "200" ]]; then
             echo "::error::Cloudflare Stream authorization failed for the configured token/account (HTTP $CF_STREAM_STATUS). The token needs Account > Stream > Write and must be scoped to this account."
