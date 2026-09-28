@@ -68,6 +68,16 @@ function customerCodeFromLocator(locator: string | null) {
   }
 }
 
+function streamAllowedOrigins() {
+  const raw = env('CLOUDFLARE_STREAM_ALLOWED_ORIGINS');
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) return parsed.map(value => String(value).trim()).filter(Boolean);
+  } catch {}
+  return raw.split(',').map(value => value.trim()).filter(Boolean);
+}
+
 function streamHlsUrl(inputId: string, locator: string | null) {
   const customerCode = customerCodeFromLocator(locator);
   if (!customerCode) return null;
@@ -155,7 +165,7 @@ async function start(streamId: string, request: Request) {
     const response = await cloudflareFetch(cloudflareApiBase, {
       method: 'POST',
       headers: { 'Idempotency-Key': streamId },
-      body: JSON.stringify({ defaultCreator: user.id, enabled: true, meta: { testagram_stream_id: streamId, title: stream.title || 'Testagram TV Live' }, preferLowLatency: true, recording: { mode: 'automatic', deleteRecordingAfterDays: 30, allowedOrigins: env('CLOUDFLARE_STREAM_ALLOWED_ORIGINS') ? env('CLOUDFLARE_STREAM_ALLOWED_ORIGINS').split(',').map(v => v.trim()).filter(Boolean) : undefined } }),
+      body: JSON.stringify({ defaultCreator: user.id, enabled: true, meta: { testagram_stream_id: streamId, title: stream.title || 'Testagram TV Live' }, preferLowLatency: true, recording: { mode: 'automatic', deleteRecordingAfterDays: 30, allowedOrigins: streamAllowedOrigins() } }),
     });
     const payload = await response.json().catch(() => null) as any;
     if (!response.ok || !payload?.success || !payload?.result) {
@@ -168,7 +178,7 @@ async function start(streamId: string, request: Request) {
   const whepUrl = input.webRTCPlayback?.url || '';
   const playbackUrl = streamHlsUrl(input.uid, whipUrl);
   if (!input.uid || !whipUrl || !whepUrl) return json({ ok: false, error: { code: 'CLOUDFLARE_WEBRTC_ENDPOINTS_MISSING', message: 'Cloudflare did not return both WebRTC endpoints.' } }, 502);
-  
+  if (!playbackUrl) return json({ ok: false, error: { code: 'CLOUDFLARE_STREAM_PLAYBACK_URL_FAILED', message: 'Cloudflare returned a WebRTC endpoint without a usable Stream customer host.' } }, 502);
 
   await updateStream(streamId, { is_live: false, stream_url: playbackUrl, ended_at: null }, bearer);
   return json({ ok: true, data: { provider: 'cloudflare-stream-hybrid', token: '', whip_url: whipUrl, whep_url: whepUrl, playback_url: playbackUrl, live_input_id: input.uid, room_id: streamId, room_type: 'tv', role: 'host', ice_servers: [{ urls: 'stun:stun.cloudflare.com:3478' }] }, error: null });
