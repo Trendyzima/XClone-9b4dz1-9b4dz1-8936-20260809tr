@@ -1,13 +1,14 @@
 name: Native Media Engine Check
 on:
   push:
-    branches: [feat/testagram-native-media-engine]
+    branches: [main]
   pull_request:
     paths:
-      - "ops/media-engine/**"
+      - "media-engine/**"
       - "src/lib/testagramMedia.ts"
       - "supabase/functions/testagram-media-token/**"
-      - "src/pages/LiveStreamPage.tsx"
+      - "src/pages/TvStudioPage.tsx"
+      - "src/pages/TvPublicLivePage.tsx"
       - "package.json"
 jobs:
   media-engine:
@@ -16,10 +17,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: "1.24"
-      - name: Go format check
-        working-directory: ops/media-engine
-        run: test -z "$(gofmt -d main.go)"
+          go-version: "1.23"
+      - name: Normalize Go formatting
+        working-directory: media-engine
+        run: gofmt -w main.go main_test.go
+      - name: Resolve Go module graph
+        working-directory: media-engine
+        run: go mod tidy
       - name: Go build
-        working-directory: ops/media-engine
+        working-directory: media-engine
         run: go build ./...

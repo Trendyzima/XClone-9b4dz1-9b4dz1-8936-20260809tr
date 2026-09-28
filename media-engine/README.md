@@ -142,6 +142,6 @@ Do not mark migration complete on HTTP health alone. Capture one real broadcast 
 8. program track is 1920x1080 at the configured frame rate;
 9. audio track is 48000 Hz;
 10. `/metrics` shows no sustained RTP write errors;
-11. the broadcast remains native `testagram-media://` and no LiveKit endpoint is called.
+11. the broadcast remains native `testagram-media://` and no Testagram native media engine endpoint is called.
 
-Only after these checks pass should the old LiveKit compatibility functions be considered permanently retired.
+Only after these checks pass should the old Testagram native media engine compatibility functions be considered permanently retired.

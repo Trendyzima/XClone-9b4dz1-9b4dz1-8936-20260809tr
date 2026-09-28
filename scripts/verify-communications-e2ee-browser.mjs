@@ -231,7 +231,7 @@ try {
   evidence.checks.deletedPlaintextAbsentServerSide = true;
 
   const videoButtons = pageA.getByRole('button', { name: /video/i });
-  assert(await videoButtons.count() > 0, 'LIVEKIT_VIDEO_BUTTON_NOT_FOUND');
+  assert(await videoButtons.count() > 0, 'MEDIA_ENGINE_VIDEO_BUTTON_NOT_FOUND');
   await videoButtons.last().click();
   await pageB.waitForTimeout(2500);
   const accept = pageB.getByRole('button', { name: /accept|answer|join/i }).last();
@@ -239,17 +239,17 @@ try {
   await pageA.waitForTimeout(3500);
   await pageB.waitForTimeout(3500);
   const hasMedia = async (page) => page.locator('video').evaluateAll((vs) => vs.some((v) => v.readyState >= 2 && v.videoWidth > 0 && v.videoHeight > 0));
-  assert((await hasMedia(pageA)) || (await hasMedia(pageB)), 'LIVEKIT_MEDIA_NOT_EXCHANGED');
-  evidence.checks.liveKitMediaExchanged = true;
+  assert((await hasMedia(pageA)) || (await hasMedia(pageB)), 'MEDIA_ENGINE_MEDIA_NOT_EXCHANGED');
+  evidence.checks.nativeMediaExchanged = true;
 
   await contextA.setOffline(true);
   await pageA.waitForTimeout(2500);
   await contextA.setOffline(false);
   await pageA.waitForTimeout(6000);
   await pageB.waitForTimeout(3000);
-  assert(!/Unable to connect call/i.test(await pageA.locator('body').innerText()), 'LIVEKIT_RECONNECT_FAILED');
-  assert((await hasMedia(pageA)) || (await hasMedia(pageB)), 'LIVEKIT_MEDIA_DID_NOT_RECOVER_AFTER_RECONNECT');
-  evidence.checks.liveKitReconnectMedia = true;
+  assert(!/Unable to connect call/i.test(await pageA.locator('body').innerText()), 'MEDIA_ENGINE_RECONNECT_FAILED');
+  assert((await hasMedia(pageA)) || (await hasMedia(pageB)), 'MEDIA_ENGINE_MEDIA_DID_NOT_RECOVER_AFTER_RECONNECT');
+  evidence.checks.nativeMediaReconnect = true;
 
   console.log(JSON.stringify({ ok: true, evidence }, null, 2));
 } catch (error) {

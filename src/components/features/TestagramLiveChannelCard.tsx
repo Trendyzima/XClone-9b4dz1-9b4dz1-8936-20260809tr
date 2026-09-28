@@ -1,5 +1,5 @@
 import {useEffect,useRef,useState} from 'react';
-import {Room,RoomEvent,Track} from 'livekit-client';
+import { TestagramMediaSession } from '@/lib/testagramMedia';
 import {Radio,Volume2,VolumeX,Maximize2,Users,ExternalLink} from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {supabase} from '@/lib/supabase';
@@ -7,34 +7,24 @@ import {useNavigate} from 'react-router-dom';
 
 type Props={stream:any};
 export function TestagramLiveChannelCard({stream}:Props){
- const nav=useNavigate(); const videoRef=useRef<HTMLVideoElement>(null); const audioHost=useRef<HTMLDivElement>(null); const roomRef=useRef<Room|null>(null);
+ const nav=useNavigate(); const videoRef=useRef<HTMLVideoElement>(null); const audioHost=useRef<HTMLDivElement>(null); const mediaRef=useRef<TestagramMediaSession|null>(null);
  const [muted,setMuted]=useState(true); const [connected,setConnected]=useState(false); const [error,setError]=useState(false); const [viewers,setViewers]=useState(Number(stream.viewer_count||0));
  const [channelHandle,setChannelHandle]=useState<string|null>(null);
- useEffect(()=>{void (async()=>{const {data}=await supabase.from('channel_profiles').select('handle').eq('channel_key','tv:'+stream.id).maybeSingle();setChannelHandle(data?.handle??null)})();},[stream.id]);
- useEffect(()=>{
-  let cancelled=false;
-  const connect=async()=>{
-   try{
-    const {data,error:tokenError}=await supabase.functions.invoke('livekit-tv-token',{body:{stream_id:stream.id}});
-    if(cancelled||tokenError||!data?.data) throw tokenError||new Error('Live connection unavailable');
-    const room=new Room({adaptiveStream:true,dynacast:true}); roomRef.current=room;
-    const count=()=>setViewers(room.remoteParticipants.size);
-    room.on(RoomEvent.ParticipantConnected,count); room.on(RoomEvent.ParticipantDisconnected,count);
-    room.on(RoomEvent.TrackSubscribed,(track:any)=>{
-      if(cancelled)return;
-      if(track.kind===Track.Kind.Video&&videoRef.current){track.attach(videoRef.current);void videoRef.current.play().catch(()=>{});}
-      if(track.kind===Track.Kind.Audio&&audioHost.current){const a=document.createElement('audio');a.autoplay=true;a.dataset.sid=track.sid;audioHost.current.appendChild(a);track.attach(a);void a.play().catch(()=>{});}
+ useEffect(()=>{ let cancelled=false;
+  const connect=async()=>{ try{
+    const session=await TestagramMediaSession.connectViewer(stream.id,remote=>{
+      if(videoRef.current){videoRef.current.srcObject=remote;videoRef.current.muted=true;void videoRef.current.play().catch(()=>{});}
+      if(audioHost.current){let a=audioHost.current.querySelector('audio');if(!a){a=document.createElement('audio');a.autoplay=true;audioHost.current.appendChild(a);}a.srcObject=remote;void a.play().catch(()=>{});}
     });
-    await room.connect(data.data.url,data.data.token);
-    if(cancelled){await room.disconnect();return;}
-    room.remoteParticipants.forEach(p=>p.trackPublications.forEach(pub=>{if(!pub.track)return;const track:any=pub.track;if(track.kind===Track.Kind.Video&&videoRef.current)track.attach(videoRef.current);if(track.kind===Track.Kind.Audio&&audioHost.current){const a=document.createElement('audio');a.autoplay=true;a.dataset.sid=track.sid;audioHost.current.appendChild(a);track.attach(a);}}));
-    setConnected(true);setError(false);count();
-   }catch{if(!cancelled){setConnected(false);setError(true);}}
+    session.setViewerCountHandler(count=>setViewers(count));
+    if(cancelled){await session.close();return;}
+    mediaRef.current=session;setConnected(true);setError(false);
+  }catch(e){if(!cancelled){setError(true);setConnected(false);console.debug('[live channel] native media unavailable',e);}}
   };
   void connect();
-  return()=>{cancelled=true;roomRef.current?.disconnect();roomRef.current=null;if(audioHost.current)audioHost.current.replaceChildren();if(videoRef.current)videoRef.current.srcObject=null;};
- },[stream.id]);
- const toggle=()=>{const next=!muted;setMuted(next);if(videoRef.current){videoRef.current.muted=next;void videoRef.current.play().catch(()=>{});}};
+  return()=>{cancelled=true;void mediaRef.current?.close();mediaRef.current=null;if(audioHost.current)audioHost.current.replaceChildren();if(videoRef.current)videoRef.current.srcObject=null;};
+},[stream.id]);
+ const toggle=()=>{const next=!muted;setMuted(next);if(videoRef.current){videoRef.current.muted=true;void videoRef.current.play().catch(()=>{});}const audio=audioHost.current?.querySelector('audio');if(audio){audio.muted=next;void audio.play().catch(()=>{});}};
  return <article className="overflow-hidden rounded-2xl border bg-card shadow-sm">
   <div className="relative aspect-video bg-black">
    <video ref={videoRef} muted={muted} playsInline autoPlay controls className="absolute inset-0 w-full h-full object-contain" />
