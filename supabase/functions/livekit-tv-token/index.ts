@@ -6,6 +6,13 @@ const supabaseKey=Deno.env.get("SUPABASE_ANON_KEY")??Deno.env.get("SUPABASE_PUBL
 const livekitUrl=Deno.env.get("LIVEKIT_URL")??"";
 const livekitApiKey=Deno.env.get("LIVEKIT_API_KEY")??"";
 const livekitApiSecret=Deno.env.get("LIVEKIT_API_SECRET")??"";
+const missingLiveKitConfig=()=>{
+ const missing:string[]=[];
+ if(!livekitUrl)missing.push("LIVEKIT_URL");
+ if(!livekitApiKey)missing.push("LIVEKIT_API_KEY");
+ if(!livekitApiSecret)missing.push("LIVEKIT_API_SECRET");
+ return missing;
+};
 const corsHeaders={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type, x-retry-count, traceparent, tracestate, baggage","Access-Control-Allow-Methods":"POST, OPTIONS","Access-Control-Max-Age":"600","Vary":"Origin, Access-Control-Request-Headers"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json","Cache-Control":"no-store",...corsHeaders}});
 const enc=(v:string|Uint8Array)=>{const b=typeof v==="string"?new TextEncoder().encode(v):v;let s="";for(const x of b)s+=String.fromCharCode(x);return btoa(s).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"")};
@@ -14,7 +21,8 @@ Deno.serve(async req=>{
  if(req.method==="OPTIONS")return json({ok:true}); if(req.method!=="POST")return json({ok:false,error:{code:"METHOD_NOT_ALLOWED",message:"POST required"}},405);
  const auth=req.headers.get("authorization");
  if(!auth?.startsWith("Bearer "))return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Bearer authentication required"}},401);
- if(!supabaseUrl||!supabaseKey||!livekitUrl||!livekitApiKey||!livekitApiSecret)return json({ok:false,error:{code:"LIVEKIT_NOT_CONFIGURED",message:"Live broadcast service is not configured"}},503);
+ const missing=missingLiveKitConfig();
+if(!supabaseUrl||!supabaseKey||missing.length)return json({ok:false,error:{code:"LIVEKIT_NOT_CONFIGURED",message:"Live broadcast service is not configured",details:{missing:missing.length?missing:["SUPABASE_URL_OR_KEY"]}}},503);
  const db=createClient(supabaseUrl,supabaseKey,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});
  const {data:u,error:authError}=await db.auth.getUser();
  if(authError||!u.user)return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Authentication required"}},401);
