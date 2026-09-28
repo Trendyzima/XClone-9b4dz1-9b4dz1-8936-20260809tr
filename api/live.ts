@@ -11,6 +11,10 @@ const supabaseKey = env('SUPABASE_PUBLISHABLE_KEY', env('SUPABASE_ANON_KEY', env
 const cloudflareAccountId = env('CLOUDFLARE_ACCOUNT_ID');
 const cloudflareApiToken = env('CLOUDFLARE_API_TOKEN');
 const cloudflareApiBase = cloudflareAccountId ? `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/stream/live_inputs` : '';
+const cloudflareStreamCustomerCode = env('CLOUDFLARE_STREAM_CUSTOMER_CODE');
+const cloudflareRealtimeAppId = env('CLOUDFLARE_REALTIME_SFU_APP_ID');
+const cloudflareRealtimeAppSecret = env('CLOUDFLARE_REALTIME_SFU_APP_SECRET');
+const realtimeApiBase = cloudflareRealtimeAppId ? `https://rtc.live.cloudflare.com/v1/apps/${cloudflareRealtimeAppId}` : '';
 
 const authHeader = (request: Request) => request.headers.get('authorization') || '';
 
@@ -56,6 +60,11 @@ const cloudflareFetch = (url: string, init: RequestInit = {}) => fetch(url, {
     ...(init.headers || {}),
   },
 });
+
+function streamHlsUrl(inputId: string) {
+  if (!cloudflareStreamCustomerCode) return null;
+  return `https://customer-${cloudflareStreamCustomerCode}.cloudflarestream.com/${encodeURIComponent(inputId)}/manifest/video.m3u8`;
+}
 
 function inputIdFromWhep(url: string | null) {
   if (!url) return null;
@@ -117,7 +126,7 @@ async function start(streamId: string, request: Request) {
     const response = await cloudflareFetch(cloudflareApiBase, {
       method: 'POST',
       headers: { 'Idempotency-Key': streamId },
-      body: JSON.stringify({ defaultCreator: user.id, enabled: true, meta: { testagram_stream_id: streamId, title: stream.title || 'Testagram TV Live' }, recording: { mode: 'off' } }),
+      body: JSON.stringify({ defaultCreator: user.id, enabled: true, meta: { testagram_stream_id: streamId, title: stream.title || 'Testagram TV Live' }, preferLowLatency: true, recording: { mode: 'automatic', deleteRecordingAfterDays: 30, allowedOrigins: env('CLOUDFLARE_STREAM_ALLOWED_ORIGINS') ? env('CLOUDFLARE_STREAM_ALLOWED_ORIGINS').split(',').map(v => v.trim()).filter(Boolean) : undefined } }),
     });
     const payload = await response.json().catch(() => null) as any;
     if (!response.ok || !payload?.success || !payload?.result) {
@@ -128,18 +137,23 @@ async function start(streamId: string, request: Request) {
 
   const whipUrl = input.webRTC?.url || '';
   const whepUrl = input.webRTCPlayback?.url || '';
+  const playbackUrl = streamHlsUrl(input.uid);
   if (!input.uid || !whipUrl || !whepUrl) return json({ ok: false, error: { code: 'CLOUDFLARE_WEBRTC_ENDPOINTS_MISSING', message: 'Cloudflare did not return both WebRTC endpoints.' } }, 502);
+  if (!playbackUrl) return json({ ok: false, error: { code: 'CLOUDFLARE_STREAM_CUSTOMER_CODE_MISSING', message: 'Cloudflare Stream customer code is not configured for HLS playback.' } }, 503);
 
-  await updateStream(streamId, { is_live: false, stream_url: whepUrl, ended_at: null }, bearer);
-  return json({ ok: true, data: { provider: 'cloudflare-stream', token: '', whip_url: whipUrl, whep_url: whepUrl, live_input_id: input.uid, room_id: streamId, room_type: 'tv', role: 'host', ice_servers: [{ urls: 'stun:stun.cloudflare.com:3478' }] }, error: null });
+  await updateStream(streamId, { is_live: false, stream_url: playbackUrl, ended_at: null }, bearer);
+  return json({ ok: true, data: { provider: 'cloudflare-stream-hybrid', token: '', whip_url: whipUrl, whep_url: whepUrl, playback_url: playbackUrl, live_input_id: input.uid, room_id: streamId, room_type: 'tv', role: 'host', ice_servers: [{ urls: 'stun:stun.cloudflare.com:3478' }] }, error: null });
 }
 
 async function viewer(streamId: string, request: Request) {
   const stream = await getStream(streamId, authHeader(request));
   if (!stream) return json({ ok: false, error: { code: 'STREAM_NOT_FOUND', message: 'TV broadcast was not found.' } }, 404);
   if (!stream.is_live || !stream.stream_url) return json({ ok: false, error: { code: 'STREAM_ENDED', message: 'Broadcast is no longer live.' } }, 409);
-  if (!inputIdFromWhep(stream.stream_url)) return json({ ok: false, error: { code: 'STREAM_PLAYBACK_NOT_READY', message: 'Cloudflare Stream playback is not ready yet.' } }, 409);
-  return json({ ok: true, data: { provider: 'cloudflare-stream', token: '', whep_url: stream.stream_url, room_id: streamId, room_type: 'tv', role: 'viewer', ice_servers: [{ urls: 'stun:stun.cloudflare.com:3478' }] }, error: null });
+  if (!cloudflareStreamCustomerCode) return json({ ok: false, error: { code: 'CLOUDFLARE_STREAM_CUSTOMER_CODE_MISSING', message: 'Cloudflare Stream HLS playback is not configured.' } }, 503);
+  const inputId = stream.stream_url.match(/cloudflarestream\.com\/([^/]+)\/manifest\/video\.m3u8/i)?.[1] || null;
+  const playbackUrl = inputId ? streamHlsUrl(inputId) : stream.stream_url;
+  if (!playbackUrl) return json({ ok: false, error: { code: 'STREAM_PLAYBACK_NOT_READY', message: 'Cloudflare Stream playback is not ready yet.' } }, 409);
+  return json({ ok: true, data: { provider: 'cloudflare-stream-hybrid', token: '', playback_url: playbackUrl, room_id: streamId, room_type: 'tv', role: 'viewer' }, error: null });
 }
 
 async function verify(streamId: string, request: Request) {
