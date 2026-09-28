@@ -13,6 +13,8 @@ type MediaToken = {
   room_id: string;
   room_type: MediaRoomType;
   role: MediaRole;
+  title?: string | null;
+  viewer_count?: number;
   ice_servers?: RTCIceServer[];
 };
 
@@ -116,6 +118,8 @@ export class TestagramMediaSession {
   getDiagnostics() { return { ...this.lastDiagnostics }; }
   getPlaybackUrl() { return this.info?.playback_url || (this.role === 'viewer' ? null : this.info?.whep_url) || null; }
   isMuxPlayback() { return this.roomType === 'tv' && this.role === 'viewer' && (this.info?.provider === 'cloudflare-mux-hybrid' || this.info?.provider === 'mux'); }
+  getTitle() { return this.info?.title || null; }
+  getViewerCount() { return Number(this.info?.viewer_count || 0); }
   async verifyOnAir() {
     if (this.roomType !== 'tv' || this.role !== 'host') throw new Error('ON AIR verification is only available for the TV broadcaster.');
     const { data: sessionData } = await supabase.auth.getSession();
