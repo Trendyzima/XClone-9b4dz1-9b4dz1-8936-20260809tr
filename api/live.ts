@@ -8,6 +8,8 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 const env = (name: string, fallback = '') => process.env[name] || fallback;
 const supabaseUrl = env('SUPABASE_URL', env('VITE_SUPABASE_URL')).replace(/\/$/, '');
 const supabaseKey = env('SUPABASE_PUBLISHABLE_KEY', env('SUPABASE_ANON_KEY', env('VITE_SUPABASE_PUBLISHABLE_KEY', env('VITE_SUPABASE_ANON_KEY'))));
+const supabaseServiceRoleKey = env('SUPABASE_SERVICE_ROLE_KEY', env('SUPABASE_SECRET_KEY'));
+const supabaseControlKey = supabaseServiceRoleKey || supabaseKey;
 const cloudflareAccountId = env('CLOUDFLARE_ACCOUNT_ID');
 const cloudflareApiToken = env('CLOUDFLARE_API_TOKEN');
 const cloudflareApiBase = cloudflareAccountId ? `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/stream/live_inputs` : '';
@@ -20,7 +22,7 @@ const authHeader = (request: Request) => request.headers.get('authorization') ||
 async function supabaseFetch(path: string, init: RequestInit = {}, bearer = '') {
   if (!supabaseUrl || !supabaseKey) throw new Error('SUPABASE_SERVER_NOT_CONFIGURED');
   const headers = new Headers(init.headers);
-  headers.set('apikey', supabaseKey);
+  headers.set('apikey', supabaseControlKey);
   headers.set('content-type', 'application/json');
   if (bearer) headers.set('authorization', bearer);
   return fetch(`${supabaseUrl}/${path.replace(/^\//, '')}`, { ...init, headers });
