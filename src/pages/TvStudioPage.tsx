@@ -917,7 +917,7 @@ export default function TvStudioPage() {
   const createGuestInvite = async () => {
     if (!activeStreamId || !live) { toast.info('Go live first, then invite a guest.'); return; }
     try {
-      const { data, error } = await supabase.functions.invoke('testagram-media-token', { body: { stream_id: activeStreamId, role: 'guest', invite_token: crypto.randomUUID() } });
+      const { data, error } = await supabase.functions.invoke('testagram-media-token', { body: { stream_id: activeStreamId, role: 'guest', mode: 'create' } });
       if (error || !data?.data?.invite_token) throw new Error(data?.error?.message || error?.message || 'Could not create guest invitation');
       const url = `${window.location.origin}/tv/live/${activeStreamId}?guest=${encodeURIComponent(data.data.invite_token)}`;
       setGuestInviteUrl(url);
