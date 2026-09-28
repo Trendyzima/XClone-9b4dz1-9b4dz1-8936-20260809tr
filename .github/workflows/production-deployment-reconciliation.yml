@@ -568,6 +568,20 @@ jobs:
           fi
           node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("/tmp/cloudflare-token-verify.json","utf8")); if(p?.success!==true || p?.result?.status!=="active"){console.error("::error::Cloudflare token is not active for the configured account."); process.exit(1)} console.log("Cloudflare API token is active for the configured account.");'
 
+          # Confirm the configured account ID is actually one of the accounts
+          # this token can access. A token can be active while a wrong account ID
+          # (for example a Zone ID instead of the Account ID) correctly returns 401.
+          CF_MEMBERSHIPS="https://api.cloudflare.com/client/v4/memberships"
+          CF_MEMBERSHIPS_STATUS="$(curl --silent --show-error --output /tmp/cloudflare-memberships.json --write-out '%{http_code}' \\
+            --request GET \\
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
+            "$CF_MEMBERSHIPS")"
+          if [[ "$CF_MEMBERSHIPS_STATUS" != "200" ]]; then
+            echo "::error::Cloudflare token is active, but its account memberships could not be inspected (HTTP $CF_MEMBERSHIPS_STATUS)."
+            exit 1
+          fi
+          node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("/tmp/cloudflare-memberships.json","utf8")); const id=process.env.CLOUDFLARE_ACCOUNT_ID; const rows=Array.isArray(p?.result)?p.result:[]; const hit=rows.some(x=>x?.account?.id===id); if(!hit){console.error("::error::The configured CLOUDFLARE_ACCOUNT_ID is not present in the accounts accessible to this token. Use the Cloudflare Account ID, not the Zone ID."); process.exit(1)} console.log("Configured Cloudflare Account ID is accessible to the token.");'
+
           CF_STREAM="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs"
           CF_STREAM_STATUS="$(curl --silent --show-error --output /tmp/cloudflare-stream-list.json --write-out '%{http_code}' \
             --request GET \
