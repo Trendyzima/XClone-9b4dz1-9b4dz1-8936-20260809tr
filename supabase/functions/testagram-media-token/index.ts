@@ -50,8 +50,8 @@ Deno.serve(async req=>{
    const invite=typeof body.invite_token==="string"?await verifyToken(body.invite_token,"testagram-tv-guest-v1"):null;
    if(!invite||invite.typ!=="tv_guest_invite"||invite.stream_id!==stream.id||invite.host_id!==stream.user_id)return json({ok:false,error:{code:"INVALID_GUEST_INVITE",message:"This guest invitation is invalid or expired."}},401);
    const now=Math.floor(Date.now()/1000);const token=await signToken("testagram-media-v1",{role:"guest",stream_id:stream.id,user_id:"guest-"+crypto.randomUUID(),exp:now+3600});
-   return json({ok:true,data:{token,ws_url:mediaUrl.replace(/\/$/,"")+"/ws",stream_id:stream.id,role:"guest",ice_servers:iceServers},error:null});
+   return json({ok:true,data:{token,ws_url:mediaWsUrl,stream_id:stream.id,role:"guest",ice_servers:iceServers},error:null});
  }
  const now=Math.floor(Date.now()/1000);const token=await signToken("testagram-media-v1",{role:"viewer",stream_id:stream.id,user_id:"viewer-"+crypto.randomUUID(),exp:now+3600});
- return json({ok:true,data:{token,ws_url:mediaUrl.replace(/\/$/,"")+"/ws",stream_id:stream.id,role:"viewer",ice_servers:iceServers},error:null});
+ return json({ok:true,data:{token,ws_url:mediaWsUrl,stream_id:stream.id,role:"viewer",ice_servers:iceServers},error:null});
 });
