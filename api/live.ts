@@ -1,4 +1,4 @@
-type StreamRow = { id: string; user_id: string; is_live: boolean; title: string | null; stream_url: string | null };
+type StreamRow = { id: string; user_id: string; is_live: boolean; title: string | null; stream_url: string | null; mux_live_stream_id: string | null; mux_playback_id: string | null; cloudflare_input_id: string | null; cloudflare_output_id: string | null };
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status,
@@ -11,6 +11,9 @@ const supabaseKey = env('SUPABASE_PUBLISHABLE_KEY', env('SUPABASE_ANON_KEY', env
 const cloudflareAccountId = env('CLOUDFLARE_ACCOUNT_ID');
 const cloudflareApiToken = env('CLOUDFLARE_API_TOKEN');
 const cloudflareApiBase = cloudflareAccountId ? `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/stream/live_inputs` : '';
+const muxTokenId = env('MUX_TOKEN_ID');
+const muxTokenSecret = env('MUX_TOKEN_SECRET');
+const muxApiBase = 'https://api.mux.com/video/v1';
 
 const authHeader = (request: Request) => request.headers.get('authorization') || '';
 
@@ -32,7 +35,7 @@ async function requireUser(request: Request) {
 }
 
 async function getStream(streamId: string, bearer: string): Promise<StreamRow | null> {
-  const query = `rest/v1/live_streams?id=eq.${encodeURIComponent(streamId)}&select=id,user_id,is_live,title,stream_url&limit=1`;
+  const query = `rest/v1/live_streams?id=eq.${encodeURIComponent(streamId)}&select=id,user_id,is_live,title,stream_url,mux_live_stream_id,mux_playback_id,cloudflare_input_id,cloudflare_output_id&limit=1`;
   const response = await supabaseFetch(query, { method: 'GET' }, bearer);
   if (!response.ok) return null;
   const rows = await response.json() as StreamRow[];
@@ -135,67 +138,95 @@ async function lifecycleFromWhep(whepUrl: string) {
   } catch { return null; }
 }
 
+const muxAuth = () => `Basic ${Buffer.from(`${muxTokenId}:${muxTokenSecret}`).toString('base64')}`;
+
+const muxFetch = (path: string, init: RequestInit = {}) => fetch(`${muxApiBase}${path}`, {
+  ...init,
+  headers: { authorization: muxAuth(), 'content-type': 'application/json', ...(init.headers || {}) },
+});
+
+async function createMuxLiveStream(streamId: string, title: string | null) {
+  if (!muxTokenId || !muxTokenSecret) throw new Error('MUX_NOT_CONFIGURED');
+  const response = await muxFetch('/live-streams', {
+    method: 'POST',
+    body: JSON.stringify({
+      latency_mode: 'low',
+      playback_policies: ['public'],
+      new_asset_settings: { playback_policies: ['public'], meta: { external_id: streamId, title: title || 'Testagram TV Live' } },
+      meta: { title: title || 'Testagram TV Live', external_id: streamId },
+    }),
+  });
+  const payload = await response.json().catch(() => null) as any;
+  if (!response.ok || !payload?.data?.id) throw new Error('MUX_CREATE_FAILED');
+  const data = payload.data;
+  const playbackId = data.playback_ids?.find((item: any) => item?.policy === 'public')?.id || data.playback_ids?.[0]?.id || null;
+  if (!data.stream_key || !playbackId) throw new Error('MUX_ENDPOINTS_MISSING');
+  return { id: data.id as string, streamKey: data.stream_key as string, playbackId: playbackId as string, playbackUrl: `https://stream.mux.com/${encodeURIComponent(playbackId)}.m3u8` };
+}
+
+async function getMuxLiveStream(liveStreamId: string) {
+  if (!muxTokenId || !muxTokenSecret) return null;
+  const response = await muxFetch(`/live-streams/${encodeURIComponent(liveStreamId)}`, { method: 'GET' });
+  if (!response.ok) return null;
+  const payload = await response.json().catch(() => null) as any;
+  return payload?.data || null;
+}
+
+async function createCloudflareMuxOutput(inputId: string, muxStreamKey: string) {
+  const response = await cloudflareFetch(`${cloudflareApiBase}/${encodeURIComponent(inputId)}/outputs`, {
+    method: 'POST',
+    body: JSON.stringify({ url: 'rtmps://global-live.mux.com:443/app', streamKey: muxStreamKey, enabled: true }),
+  });
+  const payload = await response.json().catch(() => null) as any;
+  if (!response.ok || !payload?.success || !payload?.result?.uid) throw new Error('CLOUDFLARE_MUX_OUTPUT_FAILED');
+  return payload.result as { uid: string };
+}
+
+async function disableCloudflareOutput(inputId: string, outputId: string) {
+  const response = await cloudflareFetch(`${cloudflareApiBase}/${encodeURIComponent(inputId)}/outputs/${encodeURIComponent(outputId)}`, { method: 'DELETE' });
+  return response.ok;
+}
+
 async function start(streamId: string, request: Request) {
-  if (!cloudflareAccountId || !cloudflareApiToken) return json({ ok: false, error: { code: 'CLOUDFLARE_STREAM_NOT_CONFIGURED', message: 'Vercel Cloudflare Stream credentials are not configured.', missing: [!cloudflareAccountId ? 'CLOUDFLARE_ACCOUNT_ID' : null, !cloudflareApiToken ? 'CLOUDFLARE_API_TOKEN' : null].filter(Boolean) } }, 503);
+  if (!cloudflareAccountId || !cloudflareApiToken) return json({ ok: false, error: { code: 'CLOUDFLARE_STREAM_NOT_CONFIGURED', message: 'Vercel Cloudflare Stream credentials are not configured.' } }, 503);
+  if (!muxTokenId || !muxTokenSecret) return json({ ok: false, error: { code: 'MUX_NOT_CONFIGURED', message: 'Vercel Mux Video API credentials are not configured for Testagram TV.' } }, 503);
   const user = await requireUser(request);
   if (!user) return json({ ok: false, error: { code: 'AUTH_REQUIRED', message: 'Sign in to broadcast.' } }, 401);
   const bearer = authHeader(request);
   const stream = await getStream(streamId, bearer);
   if (!stream) return json({ ok: false, error: { code: 'STREAM_NOT_FOUND', message: 'TV broadcast was not found.' } }, 404);
   if (stream.user_id !== user.id) return json({ ok: false, error: { code: 'HOST_REQUIRED', message: 'Only the broadcaster can publish.' } }, 403);
+  if (stream.is_live) return json({ ok: false, error: { code: 'ALREADY_LIVE', message: 'This broadcast is already ON AIR.' } }, 409);
 
-  if (stream.is_live && stream.stream_url) {
-    const inputId = inputIdFromLocator(stream.stream_url);
-    const lifecycle = inputId ? await lifecycleFromWhep(whepFromInputId(inputId, stream.stream_url) || '') : null;
-    if (lifecycle?.live) return json({ ok: false, error: { code: 'ALREADY_LIVE', message: 'This broadcast is already ON AIR.' } }, 409);
-  }
-
-  let input: any = null;
-  const existingInputId = inputIdFromLocator(stream.stream_url);
-  if (existingInputId) {
-    input = await getCloudflareInput(existingInputId);
-    if (input?.uid) {
-      const enable = await cloudflareFetch(`${cloudflareApiBase}/${encodeURIComponent(existingInputId)}`, { method: 'PUT', body: JSON.stringify({ enabled: true, preferLowLatency: true, recording: { mode: 'automatic', deleteRecordingAfterDays: 30 } }) });
-      if (!enable.ok) input = null;
-      else { const enabledPayload = await enable.json() as any; input = enabledPayload?.result || input; }
-    }
-  }
-
-  if (!input?.uid || !input?.webRTC?.url || !input?.webRTCPlayback?.url) {
+  try {
+    const mux = await createMuxLiveStream(streamId, stream.title);
     const response = await cloudflareFetch(cloudflareApiBase, {
       method: 'POST',
-      headers: { 'Idempotency-Key': streamId },
+      headers: { 'Idempotency-Key': `tv-${streamId}` },
       body: JSON.stringify({ defaultCreator: user.id, enabled: true, deleteRecordingAfterDays: 30, meta: { testagram_stream_id: streamId, title: stream.title || 'Testagram TV Live' }, preferLowLatency: true, recording: { mode: 'automatic', allowedOrigins: streamAllowedOrigins() } }),
     });
     const payload = await response.json().catch(() => null) as any;
-    if (!response.ok || !payload?.success || !payload?.result) {
-      return json({ ok: false, error: { code: 'CLOUDFLARE_STREAM_CREATE_FAILED', message: 'Could not create the Cloudflare Stream live input.', status: response.status, provider_error: payload?.errors?.[0]?.message || null } }, 502);
-    }
-    input = payload.result;
+    if (!response.ok || !payload?.success || !payload?.result?.uid || !payload?.result?.webRTC?.url || !payload?.result?.webRTCPlayback?.url) throw new Error('CLOUDFLARE_STREAM_CREATE_FAILED');
+    const input = payload.result;
+    const output = await createCloudflareMuxOutput(input.uid, mux.streamKey);
+    await updateStream(streamId, { is_live: false, stream_url: mux.playbackUrl, ended_at: null, mux_live_stream_id: mux.id, mux_playback_id: mux.playbackId, cloudflare_input_id: input.uid, cloudflare_output_id: output.uid }, bearer);
+    return json({ ok: true, data: { provider: 'cloudflare-mux-hybrid', token: '', whip_url: input.webRTC.url, whep_url: input.webRTCPlayback.url, playback_url: mux.playbackUrl, live_input_id: input.uid, room_id: streamId, room_type: 'tv', role: 'host', ice_servers: [{ urls: 'stun:stun.cloudflare.com:3478' }], mux_playback_id: mux.playbackId }, error: null });
+  } catch (error: any) {
+    const message = String(error?.message || '');
+    if (message === 'MUX_NOT_CONFIGURED') return json({ ok: false, error: { code: 'MUX_NOT_CONFIGURED', message: 'Vercel Mux Video API credentials are not configured for Testagram TV.' } }, 503);
+    if (message === 'MUX_ENDPOINTS_MISSING') return json({ ok: false, error: { code: 'MUX_ENDPOINTS_MISSING', message: 'Mux did not return a usable stream key and playback ID.' } }, 502);
+    if (message === 'CLOUDFLARE_MUX_OUTPUT_FAILED') return json({ ok: false, error: { code: 'CLOUDFLARE_MUX_OUTPUT_FAILED', message: 'Cloudflare could not attach the Mux restream output.' } }, 502);
+    return json({ ok: false, error: { code: message === 'MUX_CREATE_FAILED' ? 'MUX_CREATE_FAILED' : 'LIVE_CONTROL_FAILED', message: 'TV media control failed while preparing the Cloudflare-to-Mux path.' } }, 502);
   }
-
-  const whipUrl = input.webRTC?.url || '';
-  const whepUrl = input.webRTCPlayback?.url || '';
-  const playbackUrl = streamHlsUrl(input.uid, whipUrl);
-  if (!input.uid || !whipUrl || !whepUrl) return json({ ok: false, error: { code: 'CLOUDFLARE_WEBRTC_ENDPOINTS_MISSING', message: 'Cloudflare did not return both WebRTC endpoints.' } }, 502);
-  if (!playbackUrl) return json({ ok: false, error: { code: 'CLOUDFLARE_STREAM_PLAYBACK_URL_FAILED', message: 'Cloudflare returned a WebRTC endpoint without a usable Stream customer host.' } }, 502);
-
-  await updateStream(streamId, { is_live: false, stream_url: playbackUrl, ended_at: null }, bearer);
-  return json({ ok: true, data: { provider: 'cloudflare-stream-hybrid', token: '', whip_url: whipUrl, whep_url: whepUrl, playback_url: playbackUrl, live_input_id: input.uid, room_id: streamId, room_type: 'tv', role: 'host', ice_servers: [{ urls: 'stun:stun.cloudflare.com:3478' }] }, error: null });
 }
-
 async function viewer(streamId: string, request: Request) {
   const stream = await getStream(streamId, authHeader(request));
   if (!stream) return json({ ok: false, error: { code: 'STREAM_NOT_FOUND', message: 'TV broadcast was not found.' } }, 404);
   if (!stream.is_live || !stream.stream_url) return json({ ok: false, error: { code: 'STREAM_ENDED', message: 'Broadcast is no longer live.' } }, 409);
-    const inputId = stream.stream_url.match(/cloudflarestream\.com\/([^/]+)\/manifest\/video\.m3u8/i)?.[1] || null;
-  const playbackUrl = inputId ? streamHlsUrl(inputId, stream.stream_url) : stream.stream_url;
-  if (!playbackUrl) return json({ ok: false, error: { code: 'STREAM_PLAYBACK_NOT_READY', message: 'Cloudflare Stream playback is not ready yet.' } }, 409);
-  return json({ ok: true, data: { provider: 'cloudflare-stream-hybrid', token: '', playback_url: playbackUrl, room_id: streamId, room_type: 'tv', role: 'viewer' }, error: null });
+  if (!stream.stream_url.includes('stream.mux.com/')) return json({ ok: false, error: { code: 'STREAM_PLAYBACK_NOT_READY', message: 'Mux playback is not ready yet.' } }, 409);
+  return json({ ok: true, data: { provider: 'cloudflare-mux-hybrid', token: '', playback_url: stream.stream_url, room_id: streamId, room_type: 'tv', role: 'viewer', mux_playback_id: stream.mux_playback_id }, error: null });
 }
-
 async function verify(streamId: string, request: Request) {
-  if (!cloudflareAccountId || !cloudflareApiToken) return json({ ok: false, error: { code: 'CLOUDFLARE_STREAM_NOT_CONFIGURED', message: 'Vercel Cloudflare Stream credentials are not configured.' } }, 503);
   const user = await requireUser(request);
   if (!user) return json({ ok: false, error: { code: 'AUTH_REQUIRED', message: 'Sign in to verify the broadcast.' } }, 401);
   const bearer = authHeader(request);
@@ -203,46 +234,45 @@ async function verify(streamId: string, request: Request) {
   if (!stream || stream.user_id !== user.id) return json({ ok: false, error: { code: 'HOST_REQUIRED', message: 'Only the broadcaster can verify this stream.' } }, 403);
   const body = await request.json().catch(() => ({})) as any;
   const diagnostics = body?.diagnostics || {};
-  const videoOk = Number(diagnostics.videoPackets) > 0 && Number(diagnostics.videoBytes) > 0;
-  const audioOk = Number(diagnostics.audioPackets) > 0 && Number(diagnostics.audioBytes) > 0;
-  if (!videoOk) return json({ ok: false, error: { code: 'VIDEO_RTP_FAILED', message: 'Cloudflare negotiation completed but the browser has not transmitted video RTP.' }, diagnostics }, 409);
-  if (!audioOk) return json({ ok: false, error: { code: 'AUDIO_RTP_FAILED', message: 'Cloudflare negotiation completed but the browser has not transmitted audio RTP.' }, diagnostics }, 409);
-  if (!stream.stream_url) return json({ ok: false, error: { code: 'STREAM_PLAYBACK_NOT_READY', message: 'No Cloudflare playback endpoint is stored.' } }, 409);
-  let lifecycle: { isInput?: boolean; live?: boolean; videoUID?: string | null } | null = null;
-  const inputId = inputIdFromLocator(stream.stream_url);
-  const whepUrl = inputId ? whepFromInputId(inputId, stream.stream_url) : null;
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    lifecycle = whepUrl ? await lifecycleFromWhep(whepUrl) : null;
-    if (lifecycle?.live) break;
-    await new Promise(resolve => setTimeout(resolve, 250));
+  if (!(Number(diagnostics.videoPackets) > 0 && Number(diagnostics.videoBytes) > 0)) return json({ ok: false, error: { code: 'VIDEO_RTP_FAILED', message: 'The browser has not transmitted video RTP.' }, diagnostics }, 409);
+  if (!(Number(diagnostics.audioPackets) > 0 && Number(diagnostics.audioBytes) > 0)) return json({ ok: false, error: { code: 'AUDIO_RTP_FAILED', message: 'The browser has not transmitted audio RTP.' }, diagnostics }, 409);
+  if (!stream.cloudflare_input_id || !stream.mux_live_stream_id) return json({ ok: false, error: { code: 'STREAM_CONTROL_STATE_MISSING', message: 'TV media control metadata is incomplete.' } }, 409);
+  let lifecycle: any = null;
+  const input = await getCloudflareInput(stream.cloudflare_input_id);
+  if (input?.status === 'connected' || input?.status === 'reconnected') lifecycle = { live: true, videoUID: input.uid };
+  if (!lifecycle) {
+    const whepUrl = whepFromInputId(stream.cloudflare_input_id, stream.stream_url);
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      lifecycle = whepUrl ? await lifecycleFromWhep(whepUrl) : null;
+      if (lifecycle?.live) break;
+      await new Promise(resolve => setTimeout(resolve, 500));
+    }
   }
-  if (!lifecycle?.live) return json({ ok: false, error: { code: 'CLOUDFLARE_INPUT_NOT_LIVE', message: 'Cloudflare has not reported the live input as active yet.' }, lifecycle }, 409);
+  if (!lifecycle?.live) return json({ ok: false, error: { code: 'CLOUDFLARE_INPUT_NOT_LIVE', message: 'Cloudflare has not reported the TV input as active yet.' } }, 409);
+  let muxLive: any = null;
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    muxLive = await getMuxLiveStream(stream.mux_live_stream_id);
+    if (muxLive?.status === 'active' || muxLive?.status === 'recording') break;
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+  if (!muxLive || !['active', 'recording'].includes(muxLive.status)) return json({ ok: false, error: { code: 'MUX_INPUT_NOT_ACTIVE', message: 'Cloudflare is receiving the broadcast, but Mux has not activated the downstream live stream yet.' }, mux_status: muxLive?.status || null }, 409);
   await updateStream(streamId, { is_live: true, ended_at: null, stream_url: stream.stream_url }, bearer);
-  return json({ ok: true, data: { stage: 'on-air', cloudflare_live: true, video_rtp: true, audio_rtp: true, video_uid: lifecycle.videoUID || null, diagnostics }, error: null });
+  return json({ ok: true, data: { stage: 'on-air', cloudflare_live: true, mux_live: true, mux_status: muxLive.status, video_rtp: true, audio_rtp: true, diagnostics }, error: null });
 }
-
 async function stop(streamId: string, request: Request) {
-  if (!cloudflareAccountId || !cloudflareApiToken) return json({ ok: false, error: { code: 'CLOUDFLARE_STREAM_NOT_CONFIGURED', message: 'Vercel Cloudflare Stream credentials are not configured.' } }, 503);
   const user = await requireUser(request);
   if (!user) return json({ ok: false, error: { code: 'AUTH_REQUIRED', message: 'Sign in to stop the broadcast.' } }, 401);
   const bearer = authHeader(request);
   const stream = await getStream(streamId, bearer);
   if (!stream || stream.user_id !== user.id) return json({ ok: false, error: { code: 'HOST_REQUIRED', message: 'Only the broadcaster can stop this stream.' } }, 403);
-  const inputId = inputIdFromLocator(stream.stream_url);
-  let cloudflareStopped = true;
-  if (inputId) {
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-      const response = await cloudflareFetch(`${cloudflareApiBase}/${encodeURIComponent(inputId)}`, { method: 'PUT', body: JSON.stringify({ enabled: false }) });
-      cloudflareStopped = response.ok;
-      if (cloudflareStopped) break;
-      await new Promise(resolve => setTimeout(resolve, 250));
-    }
+  if (stream.cloudflare_input_id) {
+    if (stream.cloudflare_output_id) await disableCloudflareOutput(stream.cloudflare_input_id, stream.cloudflare_output_id);
+    const response = await cloudflareFetch(`${cloudflareApiBase}/${encodeURIComponent(stream.cloudflare_input_id)}`, { method: 'PUT', body: JSON.stringify({ enabled: false }) });
+    if (!response.ok) return json({ ok: false, error: { code: 'CLOUDFLARE_STOP_FAILED', message: 'Cloudflare did not confirm TV input shutdown; Testagram kept the stream marked live.' } }, 502);
   }
-  if (!cloudflareStopped) return json({ ok: false, error: { code: 'CLOUDFLARE_STOP_FAILED', message: 'Cloudflare did not confirm input shutdown; Testagram kept the stream marked live to avoid false OFF AIR state.' } }, 502);
-  await updateStream(streamId, { is_live: false, ended_at: new Date().toISOString(), stream_url: null }, bearer);
-  return json({ ok: true, data: { stage: 'ended', cloudflare_stopped: true }, error: null });
+  await updateStream(streamId, { is_live: false, ended_at: new Date().toISOString(), stream_url: null, mux_live_stream_id: null, mux_playback_id: null, cloudflare_input_id: null, cloudflare_output_id: null }, bearer);
+  return json({ ok: true, data: { stage: 'ended', cloudflare_stopped: true, mux_stopped: true }, error: null });
 }
-
 async function handle(request: Request) {
   if (request.method === 'OPTIONS') return json({ ok: true });
   if (request.method !== 'POST') return json({ ok: false, error: { code: 'METHOD_NOT_ALLOWED', message: 'POST required.' } }, 405);
