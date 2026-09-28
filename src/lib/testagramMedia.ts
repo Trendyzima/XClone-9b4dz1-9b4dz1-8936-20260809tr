@@ -132,7 +132,7 @@ export class TestagramMediaSession {
             await this.pc.setLocalDescription(offer);
             await waitForIce(this.pc);
             if (this.pc.localDescription) ws.send(JSON.stringify({ type: 'offer', sdp: this.pc.localDescription.sdp }));
-            if (this.role === 'host') resolve();
+            if (this.role === 'viewer') resolve();
           } else {
             resolve();
           }
