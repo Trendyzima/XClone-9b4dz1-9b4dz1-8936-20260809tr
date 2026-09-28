@@ -79,6 +79,25 @@ function inputIdFromWhep(url: string | null) {
   } catch { return null; }
 }
 
+function inputIdFromLocator(url: string | null) {
+  if (!url) return null;
+  const whep = inputIdFromWhep(url);
+  if (whep) return whep;
+  try {
+    const parsed = new URL(url);
+    if (!parsed.hostname.endsWith('.cloudflarestream.com')) return null;
+    const parts = parsed.pathname.split('/').filter(Boolean);
+    const manifestIndex = parts.indexOf('manifest');
+    const id = manifestIndex > 0 ? parts[manifestIndex - 1] : '';
+    return /^[a-zA-Z0-9_-]{8,64}$/.test(id) ? id : null;
+  } catch { return null; }
+}
+
+function whepFromInputId(inputId: string) {
+  if (!cloudflareStreamCustomerCode) return null;
+  return `https://customer-${cloudflareStreamCustomerCode}.cloudflarestream.com/${encodeURIComponent(inputId)}/webRTC/play`;
+}
+
 async function getCloudflareInput(inputId: string) {
   const response = await cloudflareFetch(`${cloudflareApiBase}/${encodeURIComponent(inputId)}`, { method: 'GET' });
   if (!response.ok) return null;
@@ -107,12 +126,13 @@ async function start(streamId: string, request: Request) {
   if (stream.user_id !== user.id) return json({ ok: false, error: { code: 'HOST_REQUIRED', message: 'Only the broadcaster can publish.' } }, 403);
 
   if (stream.is_live && stream.stream_url) {
-    const lifecycle = await lifecycleFromWhep(stream.stream_url);
+    const const inputId = inputIdFromLocator(stream.stream_url);
+    lifecycle = inputId ? await lifecycleFromWhep(whepFromInputId(inputId) || '') : null;
     if (lifecycle?.live) return json({ ok: false, error: { code: 'ALREADY_LIVE', message: 'This broadcast is already ON AIR.' } }, 409);
   }
 
   let input: any = null;
-  const existingInputId = inputIdFromWhep(stream.stream_url);
+  const existingInputId = inputIdFromLocator(stream.stream_url);
   if (existingInputId) {
     input = await getCloudflareInput(existingInputId);
     if (input?.uid) {
@@ -188,7 +208,7 @@ async function stop(streamId: string, request: Request) {
   const bearer = authHeader(request);
   const stream = await getStream(streamId, bearer);
   if (!stream || stream.user_id !== user.id) return json({ ok: false, error: { code: 'HOST_REQUIRED', message: 'Only the broadcaster can stop this stream.' } }, 403);
-  const inputId = inputIdFromWhep(stream.stream_url);
+  const inputId = inputIdFromLocator(stream.stream_url);
   let cloudflareStopped = true;
   if (inputId) {
     for (let attempt = 0; attempt < 3; attempt += 1) {
