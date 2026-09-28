@@ -861,6 +861,29 @@ export default function TvStudioPage() {
         .eq('user_id', user.id);
 
       const session = await TestagramMediaSession.connectHost(id, program);
+      session.setRemoteTrackHandler((track) => {
+        if (track.kind === 'video') {
+          const element = document.createElement('video');
+          element.autoplay = true;
+          element.muted = true;
+          element.playsInline = true;
+          element.srcObject = new MediaStream([track]);
+          remoteGuestVideoRef.current?.pause();
+          remoteGuestVideoRef.current = element;
+          setGuestConnected(true);
+          void element.play().catch(() => undefined);
+        } else if (track.kind === 'audio') {
+          const audioContext = productionAudioContextRef.current;
+          const master = productionMasterGainRef.current;
+          if (audioContext && master) {
+            const source = audioContext.createMediaStreamSource(new MediaStream([track]));
+            const gain = productionGuestGainRef.current ?? audioContext.createGain();
+            gain.gain.value = 1;
+            productionGuestGainRef.current = gain;
+            source.connect(gain).connect(master);
+          }
+        }
+      });
       roomRef.current = session;
       setViewerCount(0);
       liveRef.current = true;
