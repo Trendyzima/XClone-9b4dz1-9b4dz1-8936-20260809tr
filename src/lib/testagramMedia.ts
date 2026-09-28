@@ -1,4 +1,4 @@
-import { supabase } from '@/lib/supabase';
+import { supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
 
 export type MediaRoomType = 'tv' | 'space' | 'call';
 export type MediaRole = 'host' | 'viewer' | 'guest' | 'listener' | 'speaker' | 'participant';
