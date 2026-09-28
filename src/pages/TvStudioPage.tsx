@@ -891,7 +891,12 @@ export default function TvStudioPage() {
       setBroadcastError(null);
       toast.success(`TV broadcast is ON AIR at ${VIDEO_PRESETS[quality].width}×${VIDEO_PRESETS[quality].height} / ${VIDEO_PRESETS[quality].fps}fps`);
     } catch (e: any) {
-      if (session) setBroadcastDiagnostics(session.getDiagnostics());
+      if (session) {
+        setBroadcastDiagnostics(session.getDiagnostics());
+        // If start() already allocated Cloudflare/Mux resources, always ask the
+        // control plane to reconcile them before closing the browser transport.
+        await session.stopBroadcastControlPlane().catch(() => undefined);
+      }
       await session?.close().catch(() => undefined);
       await roomRef.current?.close().catch(() => undefined);
       roomRef.current = null;
