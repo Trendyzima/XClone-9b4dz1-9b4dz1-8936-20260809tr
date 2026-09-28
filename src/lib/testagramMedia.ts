@@ -105,6 +105,40 @@ export class TestagramMediaSession {
 
   getDiagnostics() { return { ...this.lastDiagnostics }; }
   getPlaybackUrl() { return this.info?.whep_url || null; }
+  async verifyOnAir() {
+    if (this.roomType !== 'tv' || this.role !== 'host') throw new Error('ON AIR verification is only available for the TV broadcaster.');
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) throw new Error('Sign in to verify the broadcast.');
+    const response = await fetch('/api/live', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ action: 'verify', stream_id: this.roomId, diagnostics: this.getDiagnostics() }),
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      const code = payload?.error?.code ? ` [${payload.error.code}]` : '';
+      throw new Error(`${payload?.error?.message || 'Cloudflare ON AIR verification failed.'}${code}`);
+    }
+    return payload?.data;
+  }
+
+  async stopBroadcastControlPlane() {
+    if (this.roomType !== 'tv' || this.role !== 'host') return;
+    const { data: sessionData } = await supabase.auth.getSession();
+    const accessToken = sessionData.session?.access_token;
+    if (!accessToken) return;
+    const response = await fetch('/api/live', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+      body: JSON.stringify({ action: 'stop', stream_id: this.roomId }),
+    });
+    const payload = await response.json().catch(() => null);
+    if (!response.ok) {
+      throw new Error(`${payload?.error?.message || 'Cloudflare broadcast shutdown failed.'}${payload?.error?.code ? ` [${payload.error.code}]` : ''}`);
+    }
+  }
+
 
   async waitForMediaReady(direction: 'send' | 'receive', timeoutMs = 20000) {
     const started = Date.now();
