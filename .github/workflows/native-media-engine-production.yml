@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 env:
-  MEDIA_ENGINE_DOMAIN: ${secrets.MEDIA_ENGINE_DOMAIN || vars.MEDIA_ENGINE_DOMAIN || 'media.testagram.site'}
+  MEDIA_ENGINE_DOMAIN: ${{secrets.MEDIA_ENGINE_DOMAIN || vars.MEDIA_ENGINE_DOMAIN || 'media.testagram.site'}}
 
 jobs:
   deploy:
@@ -29,10 +29,10 @@ jobs:
 
       - name: Validate production host configuration
         env:
-          SSH_HOST: ${secrets.MEDIA_ENGINE_SSH_HOST}
-          SSH_USER: ${secrets.MEDIA_ENGINE_SSH_USER}
-          SSH_KEY: ${secrets.MEDIA_ENGINE_SSH_PRIVATE_KEY}
-          PUBLIC_IP: ${secrets.MEDIA_ENGINE_PUBLIC_IP}
+          SSH_HOST: ${{secrets.MEDIA_ENGINE_SSH_HOST}}
+          SSH_USER: ${{secrets.MEDIA_ENGINE_SSH_USER}}
+          SSH_KEY: ${{secrets.MEDIA_ENGINE_SSH_PRIVATE_KEY}}
+          PUBLIC_IP: ${{secrets.MEDIA_ENGINE_PUBLIC_IP}}
         run: |
           set -euo pipefail
           [[ -n "$SSH_HOST" ]] || { echo "::error::MEDIA_ENGINE_SSH_HOST is not configured."; exit 1; }
@@ -42,9 +42,9 @@ jobs:
 
       - name: Prepare SSH
         env:
-          SSH_KEY: ${secrets.MEDIA_ENGINE_SSH_PRIVATE_KEY}
-          SSH_HOST: ${secrets.MEDIA_ENGINE_SSH_HOST}
-          SSH_USER: ${secrets.MEDIA_ENGINE_SSH_USER}
+          SSH_KEY: ${{secrets.MEDIA_ENGINE_SSH_PRIVATE_KEY}}
+          SSH_HOST: ${{secrets.MEDIA_ENGINE_SSH_HOST}}
+          SSH_USER: ${{secrets.MEDIA_ENGINE_SSH_USER}}
         run: |
           set -euo pipefail
           install -m 700 -d ~/.ssh
@@ -88,11 +88,11 @@ jobs:
 
       - name: Configure and launch native media stack
         env:
-          MEDIA_SECRET: ${steps.credentials.outputs.media_secret}
-          TURN_PASSWORD: ${steps.credentials.outputs.turn_password}
-          TURN_USERNAME: ${steps.credentials.outputs.turn_username}
-          PUBLIC_IP: ${secrets.MEDIA_ENGINE_PUBLIC_IP}
-          DOMAIN: ${env.MEDIA_ENGINE_DOMAIN}
+          MEDIA_SECRET: ${{steps.credentials.outputs.media_secret}}
+          TURN_PASSWORD: ${{steps.credentials.outputs.turn_password}}
+          TURN_USERNAME: ${{steps.credentials.outputs.turn_username}}
+          PUBLIC_IP: ${{secrets.MEDIA_ENGINE_PUBLIC_IP}}
+          DOMAIN: ${{env.MEDIA_ENGINE_DOMAIN}}
         run: |
           set -euo pipefail
           TURN_ICE_JSON="$(printf '[{"urls":["stun:stun.l.google.com:19302"]},{"urls":["turn:%s:3478?transport=udp","turn:%s:3478?transport=tcp"],"username":"%s","credential":"%s"}]' "$DOMAIN" "$DOMAIN" "$TURN_USERNAME" "$TURN_PASSWORD")"
@@ -113,8 +113,8 @@ jobs:
 
       - name: Verify public native engine HTTPS/WSS endpoint
         env:
-          DOMAIN: ${env.MEDIA_ENGINE_DOMAIN}
-          PUBLIC_IP: ${secrets.MEDIA_ENGINE_PUBLIC_IP}
+          DOMAIN: ${{env.MEDIA_ENGINE_DOMAIN}}
+          PUBLIC_IP: ${{secrets.MEDIA_ENGINE_PUBLIC_IP}}
         run: |
           set -euo pipefail
           resolved="$(getent ahostsv4 "$DOMAIN" | awk 'NR==1 {print $1}')"
@@ -134,13 +134,13 @@ jobs:
 
       - name: Synchronize native media secrets into Supabase
         env:
-          SUPABASE_ACCESS_TOKEN: ${secrets.SUPABASE_ACCESS_TOKEN}
-          SUPABASE_PROJECT_REF: ${secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF}
-          SUPABASE_URL: ${secrets.SUPABASE_URL || vars.SUPABASE_URL}
-          MEDIA_SECRET: ${steps.credentials.outputs.media_secret}
-          DOMAIN: ${env.MEDIA_ENGINE_DOMAIN}
-          TURN_USERNAME: ${steps.credentials.outputs.turn_username}
-          TURN_PASSWORD: ${steps.credentials.outputs.turn_password}
+          SUPABASE_ACCESS_TOKEN: ${{secrets.SUPABASE_ACCESS_TOKEN}}
+          SUPABASE_PROJECT_REF: ${{secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF}}
+          SUPABASE_URL: ${{secrets.SUPABASE_URL || vars.SUPABASE_URL}}
+          MEDIA_SECRET: ${{steps.credentials.outputs.media_secret}}
+          DOMAIN: ${{env.MEDIA_ENGINE_DOMAIN}}
+          TURN_USERNAME: ${{steps.credentials.outputs.turn_username}}
+          TURN_PASSWORD: ${{steps.credentials.outputs.turn_password}}
         run: |
           set -euo pipefail
           [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required."; exit 1; }
@@ -164,9 +164,9 @@ jobs:
 
       - name: Deploy native media authorization function
         env:
-          SUPABASE_ACCESS_TOKEN: ${secrets.SUPABASE_ACCESS_TOKEN}
-          SUPABASE_PROJECT_REF: ${secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF}
-          SUPABASE_URL: ${secrets.SUPABASE_URL || vars.SUPABASE_URL}
+          SUPABASE_ACCESS_TOKEN: ${{secrets.SUPABASE_ACCESS_TOKEN}}
+          SUPABASE_PROJECT_REF: ${{secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF}}
+          SUPABASE_URL: ${{secrets.SUPABASE_URL || vars.SUPABASE_URL}}
         run: |
           set -euo pipefail
           PROJECT_REF="$SUPABASE_PROJECT_REF"
@@ -178,7 +178,7 @@ jobs:
 
       - name: Final native media contract
         env:
-          DOMAIN: ${env.MEDIA_ENGINE_DOMAIN}
+          DOMAIN: ${{env.MEDIA_ENGINE_DOMAIN}}
         run: |
           set -euo pipefail
           curl --fail --silent --show-error "https://$DOMAIN/readyz" > media-ready.json
