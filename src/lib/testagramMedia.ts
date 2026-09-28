@@ -7,12 +7,11 @@ type MediaToken = {
   ws_url: string;
   stream_id: string;
   role: MediaRole;
+  ice_servers?: RTCIceServer[];
 };
 
-type SignalType = 'offer' | 'answer' | 'candidate' | 'presence';
-
 type Signal = {
-  type: SignalType;
+  type: 'offer' | 'answer' | 'candidate' | 'presence';
   sdp?: string;
   candidate?: RTCIceCandidateInit;
   viewer_count?: number;
@@ -30,13 +29,14 @@ const waitForIce = async (pc: RTCPeerConnection) => {
     window.setTimeout(() => {
       pc.removeEventListener('icegatheringstatechange', done);
       resolve();
-    }, 4000);
+    }, 5000);
   });
 };
 
 const getToken = async (streamId: string, role: MediaRole, inviteToken?: string): Promise<MediaToken> => {
-  const body = { stream_id: streamId, role, invite_token: inviteToken || undefined };
-  const { data, error } = await supabase.functions.invoke('testagram-media-token', { body });
+  const { data, error } = await supabase.functions.invoke('testagram-media-token', {
+    body: { stream_id: streamId, role, invite_token: inviteToken || undefined },
+  });
   if (error || !data?.data?.token || !data?.data?.ws_url) {
     throw new Error(data?.error?.message || error?.message || 'Testagram Media Engine is not configured.');
   }
@@ -46,57 +46,44 @@ const getToken = async (streamId: string, role: MediaRole, inviteToken?: string)
 export class TestagramMediaSession {
   readonly role: MediaRole;
   readonly streamId: string;
-  readonly pc: RTCPeerConnection;
+  pc!: RTCPeerConnection;
+
   private ws: WebSocket | null = null;
   private closed = false;
+  private reconnectTimer: number | null = null;
+  private reconnectAttempt = 0;
+  private info: MediaToken | null = null;
+  private localStream: MediaStream | null = null;
+  private pendingCandidates: RTCIceCandidateInit[] = [];
   private onRemoteStream?: (stream: MediaStream) => void;
   private onRemoteTrack?: (track: MediaStreamTrack) => void;
   private onViewerCount?: (count: number, guests: number) => void;
+  private remoteStream = new MediaStream();
 
-  private constructor(role: MediaRole, streamId: string, pc: RTCPeerConnection) {
+  private constructor(role: MediaRole, streamId: string) {
     this.role = role;
     this.streamId = streamId;
-    this.pc = pc;
   }
 
-  static async connectHost(streamId: string, program: MediaStream): Promise<TestagramMediaSession> {
-    const info = await getToken(streamId, 'host');
-    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-    const session = new TestagramMediaSession('host', streamId, pc);
-    pc.addTransceiver('video', { direction: 'recvonly' });
-    pc.addTransceiver('audio', { direction: 'recvonly' });
-    session.bindRemoteTracks();
-    program.getTracks().forEach(track => pc.addTrack(track, program));
-    await session.connect(info);
+  static async connectHost(streamId: string, program: MediaStream) {
+    const session = new TestagramMediaSession('host', streamId);
+    session.localStream = program;
+    await session.connect(true);
     return session;
   }
 
-  static async connectViewer(streamId: string, onRemoteStream: (stream: MediaStream) => void): Promise<TestagramMediaSession> {
-    const info = await getToken(streamId, 'viewer');
-    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-    const session = new TestagramMediaSession('viewer', streamId, pc);
+  static async connectViewer(streamId: string, onRemoteStream: (stream: MediaStream) => void) {
+    const session = new TestagramMediaSession('viewer', streamId);
     session.onRemoteStream = onRemoteStream;
-    session.bindRemoteTracks();
-    const remote = new MediaStream();
-    pc.ontrack = event => {
-      event.streams[0]?.getTracks().forEach(track => {
-        if (!remote.getTracks().some(existing => existing.id === track.id)) remote.addTrack(track);
-        session.onRemoteTrack?.(track);
-      });
-      session.onRemoteStream?.(remote);
-    };
-    pc.addTransceiver('video', { direction: 'recvonly' });
-    pc.addTransceiver('audio', { direction: 'recvonly' });
-    await session.connect(info);
+    await session.connect(true);
     return session;
   }
 
-  static async connectGuest(streamId: string, inviteToken: string, onRemoteStream?: (stream: MediaStream) => void): Promise<TestagramMediaSession> {
-    const info = await getToken(streamId, 'guest', inviteToken);
-    const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
-    const session = new TestagramMediaSession('guest', streamId, pc);
+  static async connectGuest(streamId: string, inviteToken: string, onRemoteStream?: (stream: MediaStream) => void) {
+    const session = new TestagramMediaSession('guest', streamId);
     session.onRemoteStream = onRemoteStream;
-    await session.connect(info);
+    session.info = await getToken(streamId, 'guest', inviteToken);
+    await session.connect(false);
     return session;
   }
 
@@ -108,89 +95,180 @@ export class TestagramMediaSession {
     this.onViewerCount = handler;
   }
 
-  bindRemoteTracks() {
-    this.pc.ontrack = event => {
+  async publishTracks(stream: MediaStream) {
+    this.localStream = stream;
+    if (!this.pc || this.pc.connectionState === 'closed') {
+      await this.connect(false);
+      return;
+    }
+    for (const track of stream.getTracks()) {
+      if (!this.pc.getSenders().some(sender => sender.track?.id === track.id)) {
+        this.pc.addTrack(track, stream);
+      }
+    }
+    await this.sendOffer();
+  }
+
+  private createPeerConnection(iceServers: RTCIceServer[] = []) {
+    const pc = new RTCPeerConnection({
+      iceServers: iceServers.length ? iceServers : [{ urls: 'stun:stun.l.google.com:19302' }],
+      bundlePolicy: 'max-bundle',
+      rtcpMuxPolicy: 'require',
+    });
+    this.pc = pc;
+
+    pc.ontrack = event => {
       const track = event.track;
+      if (!this.remoteStream.getTracks().some(existing => existing.id === track.id)) {
+        this.remoteStream.addTrack(track);
+      }
       this.onRemoteTrack?.(track);
-      const stream = event.streams[0] || new MediaStream([track]);
-      this.onRemoteStream?.(stream);
+      this.onRemoteStream?.(this.remoteStream);
+    };
+
+    pc.onicecandidate = event => {
+      if (event.candidate && this.ws?.readyState === WebSocket.OPEN) {
+        this.ws.send(JSON.stringify({ type: 'candidate', candidate: event.candidate.toJSON() }));
+      }
+    };
+
+    pc.onconnectionstatechange = () => {
+      if (this.closed) return;
+      if (pc.connectionState === 'failed' || pc.connectionState === 'disconnected') {
+        this.scheduleReconnect();
+      }
     };
   }
 
-  async publishTracks(stream: MediaStream) {
-    stream.getTracks().forEach(track => this.pc.addTrack(track, stream));
-    const offer = await this.pc.createOffer();
-    await this.pc.setLocalDescription(offer);
-    await waitForIce(this.pc);
-    if (this.ws?.readyState === WebSocket.OPEN && this.pc.localDescription) {
-      this.ws.send(JSON.stringify({ type: 'offer', sdp: this.pc.localDescription.sdp }));
-    }
-  }
+  private async connect(createInitialOffer: boolean) {
+    if (this.closed) return;
+    this.info ??= await getToken(this.streamId, this.role);
+    this.createPeerConnection(this.info.ice_servers || []);
 
-  private async connect(existingInfo?: MediaToken) {
-    const info = existingInfo || await getToken(this.streamId, this.role);
+    if (this.role === 'host') {
+      this.pc.addTransceiver('video', { direction: 'recvonly' });
+      this.pc.addTransceiver('audio', { direction: 'recvonly' });
+      this.localStream?.getTracks().forEach(track => this.pc.addTrack(track, this.localStream!));
+    } else if (this.role === 'viewer') {
+      this.pc.addTransceiver('video', { direction: 'recvonly' });
+      this.pc.addTransceiver('audio', { direction: 'recvonly' });
+    } else if (this.localStream) {
+      this.localStream.getTracks().forEach(track => this.pc.addTrack(track, this.localStream!));
+    }
+
     await new Promise<void>((resolve, reject) => {
-      const ws = new WebSocket(info.ws_url + (info.ws_url.includes('?') ? '&' : '?') + 'token=' + encodeURIComponent(info.token));
+      const ws = new WebSocket(
+        this.info!.ws_url + (this.info!.ws_url.includes('?') ? '&' : '?') +
+        'token=' + encodeURIComponent(this.info!.token),
+      );
       this.ws = ws;
-      const timeout = window.setTimeout(() => reject(new Error('Testagram Media Engine connection timed out.')), 12000);
+      const timeout = window.setTimeout(() => reject(new Error('Testagram Media Engine connection timed out.')), 15000);
+
       ws.onopen = async () => {
         window.clearTimeout(timeout);
+        this.reconnectAttempt = 0;
         try {
-          if (this.role === 'viewer' || this.role === 'host') {
-            const offer = await this.pc.createOffer();
-            await this.pc.setLocalDescription(offer);
-            await waitForIce(this.pc);
-            if (this.pc.localDescription) ws.send(JSON.stringify({ type: 'offer', sdp: this.pc.localDescription.sdp }));
-            if (this.role === 'viewer') resolve();
-          } else {
-            resolve();
+          if (createInitialOffer || this.role !== 'guest' || this.localStream) {
+            await this.sendOffer();
           }
-        } catch (e) {
-          reject(e);
+          resolve();
+        } catch (error) {
+          reject(error);
         }
       };
+
       ws.onerror = () => {
         window.clearTimeout(timeout);
         reject(new Error('Could not connect to Testagram Media Engine.'));
       };
+
       ws.onclose = () => {
-        if (!this.closed) this.onRemoteStream?.(new MediaStream());
+        if (!this.closed) this.scheduleReconnect();
       };
+
       ws.onmessage = async event => {
         try {
           const message = JSON.parse(event.data) as Signal;
+          if (message.type === 'presence') {
+            this.onViewerCount?.(Number(message.viewer_count || 0), Number(message.guest_count || 0));
+            return;
+          }
+          if (message.type === 'candidate' && message.candidate) {
+            if (this.pc.remoteDescription) await this.pc.addIceCandidate(message.candidate);
+            else this.pendingCandidates.push(message.candidate);
+            return;
+          }
           if (message.type === 'answer' && message.sdp) {
             await this.pc.setRemoteDescription({ type: 'answer', sdp: message.sdp });
-            resolve();
-          } else if (message.type === 'offer' && message.sdp) {
+            await this.flushCandidates();
+            return;
+          }
+          if (message.type === 'offer' && message.sdp) {
             await this.pc.setRemoteDescription({ type: 'offer', sdp: message.sdp });
+            await this.flushCandidates();
             const answer = await this.pc.createAnswer();
             await this.pc.setLocalDescription(answer);
             await waitForIce(this.pc);
-            if (this.pc.localDescription) ws.send(JSON.stringify({ type: 'answer', sdp: this.pc.localDescription.sdp }));
-            resolve();
-          } else if (message.type === 'candidate' && message.candidate) {
-            await this.pc.addIceCandidate(message.candidate);
-          } else if (message.type === 'presence') {
-            this.onViewerCount?.(Number(message.viewer_count || 0), Number(message.guest_count || 0));
+            if (this.ws?.readyState === WebSocket.OPEN && this.pc.localDescription) {
+              this.ws.send(JSON.stringify({ type: 'answer', sdp: this.pc.localDescription.sdp }));
+            }
           }
-        } catch (e) {
-          console.warn('[Testagram Media Engine] signaling error', e);
-        }
-      };
-      this.pc.onicecandidate = event => {
-        if (event.candidate && ws.readyState === WebSocket.OPEN) {
-          ws.send(JSON.stringify({ type: 'candidate', candidate: event.candidate.toJSON() }));
+        } catch (error) {
+          console.warn('[Testagram Media Engine] signaling error', error);
         }
       };
     });
   }
 
+  private async flushCandidates() {
+    const candidates = this.pendingCandidates.splice(0);
+    for (const candidate of candidates) {
+      try { await this.pc.addIceCandidate(candidate); } catch {}
+    }
+  }
+
+  private async sendOffer() {
+    const offer = await this.pc.createOffer();
+    await this.pc.setLocalDescription(offer);
+    await waitForIce(this.pc);
+    if (this.ws?.readyState !== WebSocket.OPEN || !this.pc.localDescription) {
+      throw new Error('Testagram Media Engine signaling channel is not ready.');
+    }
+    this.ws.send(JSON.stringify({ type: 'offer', sdp: this.pc.localDescription.sdp }));
+  }
+
+  private scheduleReconnect() {
+    if (this.closed || this.reconnectTimer !== null) return;
+    const delay = Math.min(1000 * (2 ** Math.min(this.reconnectAttempt, 5)), 30000);
+    this.reconnectAttempt += 1;
+    this.reconnectTimer = window.setTimeout(() => {
+      this.reconnectTimer = null;
+      void this.reconnect();
+    }, delay);
+  }
+
+  private async reconnect() {
+    if (this.closed) return;
+    try {
+      this.info = await getToken(this.streamId, this.role);
+      this.ws?.close();
+      this.ws = null;
+      await this.pc?.close();
+      this.pendingCandidates = [];
+      await this.connect(true);
+    } catch {
+      this.scheduleReconnect();
+    }
+  }
+
   async close() {
     this.closed = true;
+    if (this.reconnectTimer !== null) window.clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
     this.ws?.close();
     this.ws = null;
-    this.pc.getSenders().forEach(sender => sender.track?.stop());
-    this.pc.close();
+    this.pc?.getSenders().forEach(sender => sender.track?.stop());
+    await this.pc?.close();
+    this.pc = undefined as unknown as RTCPeerConnection;
   }
 }
