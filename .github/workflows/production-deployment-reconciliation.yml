@@ -110,6 +110,26 @@ jobs:
           echo "::error::Supabase management preflight failed for a non-authentication reason."
           exit 1
 
+      - name: Retire legacy LiveKit Edge Functions
+        if: steps.supabase-auth.outputs.available == 'true'
+        shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+        run: |
+          set -euo pipefail
+          PROJECT_REF="$SUPABASE_PROJECT_REF"
+          if [[ -z "$PROJECT_REF" ]]; then
+            PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
+          fi
+          [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve Supabase project ref for LiveKit retirement."; exit 1; }
+          for fn in livekit-tv-token livekit-token livekit-tv-guest-token livekit-space-token; do
+            echo "Retiring legacy Edge Function: $fn"
+            supabase functions delete "$fn" --project-ref "$PROJECT_REF" --yes || true
+          done
+          echo "Legacy LiveKit Edge Function retirement completed."
+
       - name: Synchronize M-Pesa sandbox secrets into Supabase Edge Functions
         if: steps.supabase-auth.outputs.available == 'true'
         shell: bash
