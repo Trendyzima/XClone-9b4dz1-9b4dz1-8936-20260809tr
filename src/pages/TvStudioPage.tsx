@@ -795,25 +795,23 @@ export default function TvStudioPage() {
       if (!user) throw new Error('Sign in to broadcast');
       await ensureStudio();
       const program = await createProductionProgram();
-      let id = activeStreamId;
+      let id: string | null = null;
 
-      if (!id) {
-        // Reuse an already-live broadcast for this host. The database also enforces
-        // one active TV broadcast per user, so retries cannot create duplicate channels.
-        const { data: existing, error: existingError } = await supabase
-          .from('live_streams')
-          .select('id,title,description,category,is_live')
-          .eq('user_id', user.id)
-          .eq('is_live', true)
-          .order('started_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        if (existingError) throw new Error(existingError.message);
-        if (existing?.id) {
-          id = existing.id;
-          setActiveStreamId(id);
-          setStream(existing);
-        } else {
+      // Always reconcile the authoritative active row first; stale studio URLs cannot bypass this.
+      const { data: existing, error: existingError } = await supabase
+        .from('live_streams')
+        .select('id,title,description,category,is_live')
+        .eq('user_id', user.id)
+        .eq('is_live', true)
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (existingError) throw new Error(existingError.message);
+      if (existing?.id) {
+        id = existing.id;
+        setActiveStreamId(id);
+        setStream(existing);
+      } else {
           const { data, error } = await supabase.from('live_streams').insert({
             user_id: user.id, title: broadcastTitle, description: broadcastDescription,
             category: broadcastCategory, is_live: true,
@@ -835,9 +833,11 @@ export default function TvStudioPage() {
             setStream(data);
           }
         }
-        // This is only a transport locator. It is never a video URL or stored recording.
-        await supabase.from('live_streams').update({ stream_url: `livekit://tv/${id}` }).eq('id', id);
       }
+
+      if (!id) throw new Error('Could not resolve the active TV broadcast.');
+      // This is only a transport locator. It is never a video URL or stored recording.
+      await supabase.from('live_streams').update({ stream_url: `livekit://tv/${id}` }).eq('id', id).eq('user_id', user.id);
 
       const info = await token(id);
       const room = new Room({ adaptiveStream: true, dynacast: true });
@@ -909,7 +909,7 @@ export default function TvStudioPage() {
       setLive(false);
       setMode('studio');
       setStatus(cameraStreamRef.current ? 'preview' : 'idle');
-      const failedId = activeStreamId;
+      const failedId = id;
       if (failedId && user) {
         await supabase.from('live_streams').update({ is_live: false, ended_at: new Date().toISOString(), stream_url: null }).eq('id', failedId).eq('user_id', user.id);
         setActiveStreamId(null);
