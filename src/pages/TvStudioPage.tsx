@@ -1115,7 +1115,7 @@ export default function TvStudioPage() {
   }, [musicLevel, sfxLevel]);
 
   useEffect(() => {
-    replayBufferRef.current = new TvReplayBuffer(replaySeconds * 1000, 500);
+    replayBufferRef.current = new TvReplayBuffer(replaySeconds * 1000, lightModeRef.current ? 1000 : 500);
   }, [replaySeconds]);
 
   useEffect(() => {
