@@ -14,6 +14,7 @@ import (
   "time"
 
   "github.com/gorilla/websocket"
+  "github.com/pion/ice/v4"
   "github.com/pion/webrtc/v4"
 )
 
@@ -213,8 +214,8 @@ func wsHandler(w http.ResponseWriter,req *http.Request){
   publicIP:=strings.TrimSpace(os.Getenv("MEDIA_ENGINE_PUBLIC_IP"))
   setting:=webrtc.SettingEngine{}
   _=setting.SetEphemeralUDPPortRange(10000,20000)
-  setting.SetICEMulticastDNSMode(webrtc.MulticastDNSModeDisabled)
-  if publicIP!=""{_ = setting.SetNAT1To1IPs([]string{publicIP},webrtc.ICECandidateTypeHost)}
+  setting.SetICEMulticastDNSMode(ice.MulticastDNSModeDisabled)
+  if publicIP!=""{setting.SetNAT1To1IPs([]string{publicIP},webrtc.ICECandidateTypeHost)}
   media:=&webrtc.MediaEngine{};if err:=media.RegisterDefaultCodecs();err!=nil{_ = conn.Close();return}
   api:=webrtc.NewAPI(webrtc.WithSettingEngine(setting),webrtc.WithMediaEngine(media))
   pc,err:=api.NewPeerConnection(webrtc.Configuration{ICEServers:iceServers()})
