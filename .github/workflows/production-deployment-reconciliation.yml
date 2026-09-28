@@ -591,16 +591,17 @@ jobs:
       - name: Diagnose Mux GitHub secret visibility
         shell: bash
         env:
-          MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID }}
-          MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET }}
+          MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID || secrets.MUX_ACCESS_TOKEN_ID }}
+          MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET || secrets.MUX_ACCESS_TOKEN_SECRET || secrets.MUX_SECRET_KEY }}
           MUX_ENV_KEY: ${{ secrets.MUX_ENV_KEY }}
           VITE_MUX_ENV_KEY: ${{ secrets.VITE_MUX_ENV_KEY }}
           MUX_ACCESS_TOKEN_ID: ${{ secrets.MUX_ACCESS_TOKEN_ID }}
           MUX_ACCESS_TOKEN_SECRET: ${{ secrets.MUX_ACCESS_TOKEN_SECRET }}
+          MUX_SECRET_KEY: ${{ secrets.MUX_SECRET_KEY }}
         run: |
           set -euo pipefail
           echo "Mux GitHub secret visibility (values intentionally never printed):"
-          for name in MUX_TOKEN_ID MUX_TOKEN_SECRET MUX_ENV_KEY VITE_MUX_ENV_KEY MUX_ACCESS_TOKEN_ID MUX_ACCESS_TOKEN_SECRET; do
+          for name in MUX_TOKEN_ID MUX_TOKEN_SECRET MUX_ENV_KEY VITE_MUX_ENV_KEY MUX_ACCESS_TOKEN_ID MUX_ACCESS_TOKEN_SECRET MUX_SECRET_KEY; do
             value="${!name:-}"
             if [[ -n "$value" ]]; then
               echo "$name=PRESENT"
@@ -608,12 +609,16 @@ jobs:
               echo "$name=ABSENT"
             fi
           done
-          if [[ -z "${MUX_TOKEN_ID:-}" && -z "${MUX_ACCESS_TOKEN_ID:-}" ]]; then
-            echo "::error::No Mux access-token ID is visible to the production job. The secret may be missing, misnamed, or scoped to a different GitHub environment/repository."
+          if [[ -z "${MUX_TOKEN_ID:-}" ]]; then
+            echo "::error::No Mux access-token ID is visible to the production job."
             exit 1
           fi
-          if [[ -z "${MUX_TOKEN_SECRET:-}" && -z "${MUX_ACCESS_TOKEN_SECRET:-}" ]]; then
-            echo "::error::No Mux access-token secret is visible to the production job. The secret may be missing, misnamed, or scoped to a different GitHub environment/repository."
+          if [[ -z "${MUX_TOKEN_SECRET:-}" ]]; then
+            echo "::error::No Mux access-token secret is visible to the production job. Accepted GitHub secret names: MUX_TOKEN_SECRET, MUX_ACCESS_TOKEN_SECRET, MUX_SECRET_KEY."
+            exit 1
+          fi
+          if [[ -z "${MUX_ENV_KEY:-}" && -z "${VITE_MUX_ENV_KEY:-}" ]]; then
+            echo "::error::No Mux environment key is visible to the production job."
             exit 1
           fi
 
@@ -622,7 +627,7 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID || secrets.MUX_ACCESS_TOKEN_ID }}
-          MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET || secrets.MUX_ACCESS_TOKEN_SECRET }}
+          MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET || secrets.MUX_ACCESS_TOKEN_SECRET || secrets.MUX_SECRET_KEY }}
           VITE_MUX_ENV_KEY: ${{ secrets.VITE_MUX_ENV_KEY || secrets.MUX_ENV_KEY }}
         run: |
           set -euo pipefail
