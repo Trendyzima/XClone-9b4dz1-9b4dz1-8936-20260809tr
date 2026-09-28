@@ -10,7 +10,7 @@ type MediaToken = {
 };
 
 type Signal = {
-  type: 'offer' | 'answer' | 'candidate';
+  type: SignalType;
   sdp?: string;
   candidate?: RTCIceCandidateInit;
   viewer_count?: number;
