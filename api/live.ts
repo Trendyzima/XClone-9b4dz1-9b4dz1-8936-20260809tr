@@ -165,7 +165,7 @@ async function start(streamId: string, request: Request) {
     const response = await cloudflareFetch(cloudflareApiBase, {
       method: 'POST',
       headers: { 'Idempotency-Key': streamId },
-      body: JSON.stringify({ defaultCreator: user.id, enabled: true, meta: { testagram_stream_id: streamId, title: stream.title || 'Testagram TV Live' }, preferLowLatency: true, recording: { mode: 'automatic', deleteRecordingAfterDays: 30, allowedOrigins: streamAllowedOrigins() } }),
+      body: JSON.stringify({ defaultCreator: user.id, enabled: true, deleteRecordingAfterDays: 30, meta: { testagram_stream_id: streamId, title: stream.title || 'Testagram TV Live' }, preferLowLatency: true, recording: { mode: 'automatic', allowedOrigins: streamAllowedOrigins() } }),
     });
     const payload = await response.json().catch(() => null) as any;
     if (!response.ok || !payload?.success || !payload?.result) {
