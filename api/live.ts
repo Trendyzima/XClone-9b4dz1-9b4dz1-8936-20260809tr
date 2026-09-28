@@ -126,8 +126,8 @@ async function start(streamId: string, request: Request) {
   if (stream.user_id !== user.id) return json({ ok: false, error: { code: 'HOST_REQUIRED', message: 'Only the broadcaster can publish.' } }, 403);
 
   if (stream.is_live && stream.stream_url) {
-    const const inputId = inputIdFromLocator(stream.stream_url);
-    lifecycle = inputId ? await lifecycleFromWhep(whepFromInputId(inputId) || '') : null;
+    const inputId = inputIdFromLocator(stream.stream_url);
+    const lifecycle = inputId ? await lifecycleFromWhep(whepFromInputId(inputId) || '') : null;
     if (lifecycle?.live) return json({ ok: false, error: { code: 'ALREADY_LIVE', message: 'This broadcast is already ON AIR.' } }, 409);
   }
 
@@ -191,8 +191,10 @@ async function verify(streamId: string, request: Request) {
   if (!audioOk) return json({ ok: false, error: { code: 'AUDIO_RTP_FAILED', message: 'Cloudflare negotiation completed but the browser has not transmitted audio RTP.' }, diagnostics }, 409);
   if (!stream.stream_url) return json({ ok: false, error: { code: 'STREAM_PLAYBACK_NOT_READY', message: 'No Cloudflare playback endpoint is stored.' } }, 409);
   let lifecycle: { isInput?: boolean; live?: boolean; videoUID?: string | null } | null = null;
+  const inputId = inputIdFromLocator(stream.stream_url);
+  const whepUrl = inputId ? whepFromInputId(inputId) : null;
   for (let attempt = 0; attempt < 12; attempt += 1) {
-    lifecycle = await lifecycleFromWhep(stream.stream_url);
+    lifecycle = whepUrl ? await lifecycleFromWhep(whepUrl) : null;
     if (lifecycle?.live) break;
     await new Promise(resolve => setTimeout(resolve, 250));
   }
