@@ -139,6 +139,8 @@ export default function TvStudioPage() {
   const [recordingHint, setRecordingHint] = useState('Record locally on this device. Testagram never uploads the finished video.');
   const [permissionError, setPermissionError] = useState<string | null>(null);
   const [broadcastError, setBroadcastError] = useState<string | null>(null);
+  const [broadcastStage, setBroadcastStage] = useState<'idle' | 'preparing' | 'authorizing' | 'connecting' | 'verifying' | 'on-air'>('idle');
+  const [broadcastDiagnostics, setBroadcastDiagnostics] = useState<Record<string, unknown> | null>(null);
   const [productionSource, setProductionSource] = useState<'camera' | 'video'>('camera');
   const [activeScene, setActiveScene] = useState<Scene>('camera');
   const [previewScene, setPreviewScene] = useState<TvSceneId>('camera');
@@ -776,8 +778,11 @@ export default function TvStudioPage() {
   };
 
   const startLive = async () => {
-    if (live || roomRef.current) return;
+    if (live || roomRef.current || broadcastStage !== 'idle') return;
     setBroadcastError(null);
+    setBroadcastDiagnostics(null);
+    setBroadcastStage('preparing');
+    let session: TestagramMediaSession | null = null;
     let id: string | null = null;
     let createdBroadcast = false;
     try {
@@ -785,6 +790,7 @@ export default function TvStudioPage() {
       await ensureStudio();
       const program = await createProductionProgram();
       await assertProductionReady(program);
+      setBroadcastStage('authorizing');
 
       const { data: existing, error: existingError } = await supabase
         .from('live_streams')
@@ -840,9 +846,12 @@ export default function TvStudioPage() {
         .eq('id', id)
         .eq('user_id', user.id);
 
-      const session = await TestagramMediaSession.connectHost(id, program);
+      setBroadcastStage('connecting');
+      session = await TestagramMediaSession.connectHost(id, program);
       await session.configureVideoSender({ maxBitrate: VIDEO_PRESETS[quality].bitrate, maxFramerate: VIDEO_PRESETS[quality].fps, maintainResolution: true });
-      await session.waitForMediaReady('send', 20000);
+      setBroadcastStage('verifying');
+      const diagnostics = await session.waitForMediaReady('send', 20000);
+      setBroadcastDiagnostics(diagnostics);
       session.setViewerCountHandler((count) => setViewerCount(count));
       session.setRemoteTrackHandler((track) => {
         if (track.kind === 'video') {
@@ -867,6 +876,7 @@ export default function TvStudioPage() {
           }
         }
       });
+      setBroadcastStage('on-air');
       // The stream is intentionally not public until WebRTC has proven that the broadcaster is transmitting.
       const { error: onAirError } = await supabase.from('live_streams')
         .update({ is_live: true, stream_url: `testagram-media://tv/${id}`, ended_at: null })
@@ -887,6 +897,7 @@ export default function TvStudioPage() {
       setBroadcastError(null);
       toast.success(`TV broadcast is ON AIR at ${VIDEO_PRESETS[quality].width}×${VIDEO_PRESETS[quality].height} / ${VIDEO_PRESETS[quality].fps}fps`);
     } catch (e: any) {
+      await session?.close().catch(() => undefined);
       await roomRef.current?.close().catch(() => undefined);
       roomRef.current = null;
       setViewerCount(0);
@@ -903,6 +914,7 @@ export default function TvStudioPage() {
       }
       const message = e?.message || 'Unable to start live broadcast';
       setBroadcastError(message);
+      setBroadcastStage('idle');
       toast.error(message);
     }
   };
@@ -934,6 +946,8 @@ export default function TvStudioPage() {
     roomRef.current = null;
     setViewerCount(0);
     setGuestConnected(false);
+    setBroadcastStage('idle');
+    setBroadcastDiagnostics(null);
     setGuestInviteUrl(null);
     remoteGuestVideoRef.current?.pause(); remoteGuestVideoRef.current = null;
     liveRef.current = false;
@@ -1170,6 +1184,26 @@ export default function TvStudioPage() {
               </div>
             </div>
           )}
+          {broadcastStage !== 'idle' && !broadcastError && (
+            <div className="mb-3 rounded-xl border border-blue-500/30 bg-blue-500/10 p-3 text-sm text-blue-100">
+              <div className="flex items-center gap-2 font-semibold">
+                <Activity className="w-4 h-4 animate-pulse" />
+                {broadcastStage === 'preparing' && 'Preparing the TV program…'}
+                {broadcastStage === 'authorizing' && 'Authorizing the broadcast…'}
+                {broadcastStage === 'connecting' && 'Connecting to Testagram Media Engine…'}
+                {broadcastStage === 'verifying' && 'Verifying WebRTC connection and live media…'}
+                {broadcastStage === 'on-air' && 'ON AIR'}
+              </div>
+              <p className="mt-1 text-xs text-blue-200/80">
+                {broadcastStage === 'preparing' && 'Checking camera, microphone and production A/V tracks.'}
+                {broadcastStage === 'authorizing' && 'Creating the private broadcast session and requesting media authorization.'}
+                {broadcastStage === 'connecting' && 'Waiting for the signaling channel and WebRTC answer.'}
+                {broadcastStage === 'verifying' && 'Waiting for ICE to connect and confirming outbound video + audio RTP packets.'}
+                {broadcastStage === 'on-air' && 'The broadcaster is transmitting; the public stream has been activated.'}
+              </p>
+              {broadcastDiagnostics && <p className="mt-2 text-[10px] text-zinc-300">ICE: {String(broadcastDiagnostics.iceConnectionState)} · video packets: {String(broadcastDiagnostics.videoPackets)} · audio packets: {String(broadcastDiagnostics.audioPackets)} · {String(broadcastDiagnostics.width)}×{String(broadcastDiagnostics.height)}</p>}
+            </div>
+          )}
           {broadcastError && (
             <div className="mb-3 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-100">
               <div className="font-semibold">Broadcast connection failed</div>
@@ -1199,7 +1233,7 @@ export default function TvStudioPage() {
               <Button size="sm" variant={!muted ? 'default' : 'destructive'} onClick={toggleMic}><Mic className="w-4 h-4 mr-1" />{muted ? 'Mic off' : 'Mic'}</Button>
               <Button size="sm" variant={sharing ? 'secondary' : 'outline'} onClick={() => void shareScreen()}><MonitorUp className="w-4 h-4 mr-1" />{sharing ? 'Stop screen' : 'Screen'}</Button>
               {!recording ? <Button size="sm" disabled={saving} onClick={() => void startRecording()}><Circle className="w-4 h-4 mr-1" />Record locally</Button> : <Button size="sm" variant="destructive" onClick={stopRecording}><Square className="w-4 h-4 mr-1" />Stop & save</Button>}
-              {!live ? <Button size="sm" className="bg-red-600 hover:bg-red-700" onClick={() => void startLive()}><Radio className="w-4 h-4 mr-1" />Go live</Button> : <><Button size="sm" variant="outline" onClick={() => void shareLiveLink()}><Radio className="w-4 h-4 mr-1" />Share TV</Button><Button size="sm" variant="destructive" onClick={() => void stopLive()}>End live</Button></>}
+              {!live ? <Button size="sm" disabled={broadcastStage !== 'idle'} className="bg-red-600 hover:bg-red-700" onClick={() => void startLive()}><Radio className="w-4 h-4 mr-1" />{broadcastStage === 'idle' ? 'Go live' : broadcastStage === 'on-air' ? 'ON AIR' : 'Connecting…'}</Button> : <><Button size="sm" variant="outline" onClick={() => void shareLiveLink()}><Radio className="w-4 h-4 mr-1" />Share TV</Button><Button size="sm" variant="destructive" onClick={() => void stopLive()}>End live</Button></>}
             </div>
           </section>
 
