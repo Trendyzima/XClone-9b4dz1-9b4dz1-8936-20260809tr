@@ -1,144 +1,15 @@
-name: Synchronize LiveKit production credentials
-
+name: Media transport legacy compatibility check
 on:
   push:
-    branches: [main]
+    paths:
+      - ".github/workflows/livekit-production-sync.yml"
   workflow_dispatch:
-
-concurrency:
-  group: livekit-production-sync
-  cancel-in-progress: true
-
-permissions:
-  contents: read
-
 jobs:
-  sync:
-    environment: production
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
+  retired:
+    runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Install Vercel CLI
-        run: npm install --global vercel@54.15.1
-
-      - name: Link production Vercel project
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      - name: Confirm LiveKit transport is retired for TV
         run: |
-          set -euo pipefail
-          [[ -n "$VERCEL_TOKEN" ]] || { echo "::error::VERCEL_TOKEN is required."; exit 1; }
-          [[ -n "$VERCEL_ORG_ID" ]] || { echo "::error::VERCEL_ORG_ID is required."; exit 1; }
-          [[ -n "$VERCEL_PROJECT_ID" ]] || { echo "::error::VERCEL_PROJECT_ID is required."; exit 1; }
-          vercel link --yes --project="$VERCEL_PROJECT_ID" --scope="$VERCEL_ORG_ID" --token="$VERCEL_TOKEN"
-
-      - name: Pull production LiveKit configuration
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-        run: |
-          set -euo pipefail
-          [[ -n "$VERCEL_TOKEN" ]] || { echo "::error::VERCEL_TOKEN is required."; exit 1; }
-          [[ -n "$VERCEL_PROJECT_ID" ]] || { echo "::error::VERCEL_PROJECT_ID is required."; exit 1; }
-          [[ -n "$VERCEL_ORG_ID" ]] || { echo "::error::VERCEL_ORG_ID is required."; exit 1; }
-
-          curl --fail --silent --show-error --location \
-            -H "Authorization: Bearer $VERCEL_TOKEN" \
-            -H "Accept: application/json" \
-            "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/env?teamId=$VERCEL_ORG_ID" > vercel-env.json
-
-      - name: Resolve LiveKit configuration
-        id: livekit
-        shell: bash
-        env:
-          GITHUB_LIVEKIT_URL: ${{ secrets.LIVEKIT_URL }}
-          GITHUB_LIVEKIT_API_KEY: ${{ secrets.LIVEKIT_API_KEY }}
-          GITHUB_LIVEKIT_API_SECRET: ${{ secrets.LIVEKIT_API_SECRET }}
-        run: |
-          set -euo pipefail
-
-          vercel_value() {
-            local name="$1"
-            jq -r --arg name "$name" '
-              (.envs // .)[] |
-              select(.key == $name) |
-              select((.target // []) | index("production")) |
-              (.value // empty)
-            ' vercel-env.json | head -n 1
-          }
-
-          LIVEKIT_URL="$GITHUB_LIVEKIT_URL"
-          LIVEKIT_API_KEY="$GITHUB_LIVEKIT_API_KEY"
-          LIVEKIT_API_SECRET="$GITHUB_LIVEKIT_API_SECRET"
-
-          [[ -n "$LIVEKIT_URL" ]] || LIVEKIT_URL="$(vercel_value LIVEKIT_URL)"
-          [[ -n "$LIVEKIT_API_KEY" ]] || LIVEKIT_API_KEY="$(vercel_value LIVEKIT_API_KEY)"
-          [[ -n "$LIVEKIT_API_SECRET" ]] || LIVEKIT_API_SECRET="$(vercel_value LIVEKIT_API_SECRET)"
-
-          missing=()
-          [[ -n "$LIVEKIT_URL" ]] || missing+=(LIVEKIT_URL)
-          [[ -n "$LIVEKIT_API_KEY" ]] || missing+=(LIVEKIT_API_KEY)
-          [[ -n "$LIVEKIT_API_SECRET" ]] || missing+=(LIVEKIT_API_SECRET)
-
-          if (( ${#missing[@]} > 0 )); then
-            echo "::error::LiveKit production configuration is missing: ${missing[*]}"
-            echo "::error::The TV token function cannot mint LiveKit credentials until these values exist in Vercel production or GitHub production secrets."
-            exit 1
-          fi
-
-          printf '%s\n' "LIVEKIT_URL=$LIVEKIT_URL" > livekit.env
-          printf '%s\n' "LIVEKIT_API_KEY=$LIVEKIT_API_KEY" >> livekit.env
-          printf '%s\n' "LIVEKIT_API_SECRET=$LIVEKIT_API_SECRET" >> livekit.env
-          printf '%s\n' 'url_present=true' >> "$GITHUB_OUTPUT"
-          printf '%s\n' 'api_key_present=true' >> "$GITHUB_OUTPUT"
-          printf '%s\n' 'api_secret_present=true' >> "$GITHUB_OUTPUT"
-          chmod 600 livekit.env
-
-      - name: Verify Supabase management credentials
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-        run: |
-          set -euo pipefail
-          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required."; exit 1; }
-
-      - name: Install Supabase CLI
-        uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
-        with:
-          version: 2.118.0
-
-      - name: Synchronize LiveKit secrets into Supabase Edge Functions
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
-        run: |
-          set -euo pipefail
-          PROJECT_REF="$SUPABASE_PROJECT_REF"
-          if [[ -z "$PROJECT_REF" ]]; then
-            PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
-          fi
-          [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Invalid Supabase project ref."; exit 1; }
-          supabase secrets set --project-ref "$PROJECT_REF" --env-file livekit.env
-          echo "LiveKit production secrets synchronized without printing secret values."
-
-      - name: Deploy TV token function
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
-        run: |
-          set -euo pipefail
-          PROJECT_REF="$SUPABASE_PROJECT_REF"
-          if [[ -z "$PROJECT_REF" ]]; then
-            PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
-          fi
-          supabase functions deploy livekit-tv-token --use-api --project-ref "$PROJECT_REF" --no-verify-jwt
-
-      - name: Cleanup credentials
-        if: always()
-        run: rm -f livekit.env vercel-env.json .env.production.local .env.production
+          echo "Testagram TV uses the self-hosted Testagram Media Engine."
+          echo "No LiveKit credentials are required for the TV transport."
+          echo "Legacy LiveKit integrations remain only for non-TV surfaces until migrated.";
