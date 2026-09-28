@@ -101,7 +101,7 @@ export default function TvStudioPage() {
   const programSceneRef = useRef<TvSceneId>('camera');
   const transitionRef = useRef({ type: 'cut' as TransitionType, durationMs: 300 });
   const transitionStartedRef = useRef<number | null>(null);
-  const replayBufferRef = useRef(new TvReplayBuffer(30_000, 500));
+  const replayBufferRef = useRef(new TvReplayBuffer(60_000, 500));
   const openingSlateUntilRef = useRef<number | null>(null);
   const openingSlatePlayedRef = useRef(false);
   const liveRef = useRef(false);
@@ -475,7 +475,10 @@ export default function TvStudioPage() {
       const frameStats = programFrameRef.current;
       if (frameStats.last) {
         const delta = now - frameStats.last;
-        if (delta > 55) frameStats.dropped += Math.max(0, Math.round(delta / 33.33) - 1);
+        const expectedFrameMs = lightModeRef.current ? 1000 / 24 : 1000 / 30;
+        if (delta > expectedFrameMs * 1.5) {
+          frameStats.dropped += Math.max(0, Math.round(delta / expectedFrameMs) - 1);
+        }
       }
       frameStats.last = now; frameStats.count += 1;
       const activeProgram = programSceneRef.current;
@@ -486,7 +489,7 @@ export default function TvStudioPage() {
         if (progress >= 1) transitionStartedRef.current = null;
       }
       if (replayPlayingRef.current) {
-        const frames = replayBufferRef.current.getFrames();
+        const frames = replayBufferRef.current.getFrames(replaySeconds * 1000);
         if (frames.length) {
           const started = replayPlaybackStartRef.current ?? now;
           const base = replayPlaybackBaseRef.current ?? frames[0].timestamp;
@@ -645,7 +648,7 @@ export default function TvStudioPage() {
 
   const takeScene = async (scene: TvSceneId = previewScene) => {
     if (scene === 'replay') {
-      const frames = replayBufferRef.current.getFrames();
+      const frames = replayBufferRef.current.getFrames(replaySeconds * 1000);
       if (!frames.length) { toast.info('Replay buffer is empty.'); return; }
       transitionFromSceneRef.current = programSceneRef.current;
       transitionFromCanvasRef.current = sceneCanvasRef.current ? (() => {
