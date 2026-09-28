@@ -588,6 +588,22 @@ jobs:
           printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | vercel env add "CLOUDFLARE_ACCOUNT_ID" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           printf '%s' "$CLOUDFLARE_API_TOKEN" | vercel env add "CLOUDFLARE_API_TOKEN" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           echo "Cloudflare backend credentials synchronized without printing secret values."
+      - name: Synchronize Supabase TV control-plane credentials into Vercel production
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY || secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          [[ -n "$VERCEL_TOKEN" ]] || { echo "::error::VERCEL_TOKEN is required."; exit 1; }
+          [[ -n "$SUPABASE_URL" ]] || { echo "::error::SUPABASE_URL is required for TV control-plane reconciliation."; exit 1; }
+          [[ -n "$SUPABASE_SERVICE_ROLE_KEY" ]] || { echo "::error::SUPABASE_SERVICE_ROLE_KEY is required for server-side TV control-plane access."; exit 1; }
+          printf '::add-mask::%s\n' "$SUPABASE_SERVICE_ROLE_KEY"
+          printf '%s' "$SUPABASE_URL" | vercel env add "SUPABASE_URL" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          printf '%s' "$SUPABASE_SERVICE_ROLE_KEY" | vercel env add "SUPABASE_SERVICE_ROLE_KEY" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          echo "Supabase TV control-plane credentials synchronized without printing secret values."
+
       - name: Diagnose Mux GitHub secret visibility
         shell: bash
         env:
