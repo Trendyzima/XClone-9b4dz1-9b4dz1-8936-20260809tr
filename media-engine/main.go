@@ -28,6 +28,8 @@ type signal struct {
   Type string `json:"type"`
   SDP string `json:"sdp,omitempty"`
   Candidate *webrtc.ICECandidateInit `json:"candidate,omitempty"`
+  ViewerCount int `json:"viewer_count,omitempty"`
+  GuestCount int `json:"guest_count,omitempty"`
 }
 
 type peer struct {
@@ -35,6 +37,7 @@ type peer struct {
   pc *webrtc.PeerConnection
   role string
   mu sync.Mutex
+  writeMu sync.Mutex
   videoAttached bool
   audioAttached bool
 }
@@ -46,10 +49,19 @@ type room struct {
   guests map[*peer]bool
   video *webrtc.TrackLocalStaticRTP
   audio *webrtc.TrackLocalStaticRTP
+  lastActivity time.Time
 }
 
 var rooms sync.Map
-var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+var upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
+  raw := strings.TrimSpace(os.Getenv("MEDIA_ENGINE_ALLOWED_ORIGINS"))
+  if raw == "" { return true }
+  origin := strings.TrimRight(strings.TrimSpace(r.Header.Get("Origin")), "/")
+  for _, allowed := range strings.Split(raw, ",") {
+    if origin == strings.TrimRight(strings.TrimSpace(allowed), "/") { return true }
+  }
+  return false
+}}
 
 func decodePart(v string) ([]byte,error) { return base64.RawURLEncoding.DecodeString(v) }
 
@@ -69,7 +81,29 @@ func verifyToken(token, secret string) (*claims,error) {
 }
 
 func send(ws *websocket.Conn,m signal) error { ws.SetWriteDeadline(time.Now().Add(10*time.Second)); return ws.WriteJSON(m) }
-func getRoom(id string)*room { v,_:=rooms.LoadOrStore(id,&room{viewers:map[*peer]bool{},guests:map[*peer]bool{}}); return v.(*room) }
+func (p *peer) send(m signal) error {
+  p.writeMu.Lock()
+  defer p.writeMu.Unlock()
+  return send(p.ws,m)
+}
+func getRoom(id string)*room {
+  v,_:=rooms.LoadOrStore(id,&room{viewers:map[*peer]bool{},guests:map[*peer]bool{},lastActivity:time.Now()})
+  return v.(*room)
+}
+func roomPresence(r *room) signal {
+  r.mu.Lock(); defer r.mu.Unlock()
+  return signal{Type:"presence",ViewerCount:len(r.viewers),GuestCount:len(r.guests)}
+}
+func broadcastPresence(r *room) {
+  r.mu.Lock()
+  peers:=make([]*peer,0,len(r.viewers)+len(r.guests)+1)
+  if r.host!=nil { peers=append(peers,r.host) }
+  for p:=range r.viewers { peers=append(peers,p) }
+  for p:=range r.guests { peers=append(peers,p) }
+  presence:=signal{Type:"presence",ViewerCount:len(r.viewers),GuestCount:len(r.guests)}
+  r.mu.Unlock()
+  for _,p:=range peers { _=p.send(presence) }
+}
 func closePeer(p *peer){ if p==nil{return}; _=p.ws.Close(); _=p.pc.Close() }
 
 func addTracksToViewer(v *peer, r *room) error {
@@ -168,19 +202,48 @@ func addGuestTrack(r *room, remote *webrtc.TrackRemote) {
 }
 
 func handlePeer(p *peer,r *room){
+  done:=make(chan struct{})
+  defer close(done)
+  go func(){
+    ticker:=time.NewTicker(20*time.Second)
+    defer ticker.Stop()
+    for {
+      select {
+      case <-ticker.C:
+        p.writeMu.Lock()
+        _=p.ws.SetWriteDeadline(time.Now().Add(10*time.Second))
+        err:=p.ws.WriteMessage(websocket.PingMessage,nil)
+        p.writeMu.Unlock()
+        if err!=nil { _=p.ws.Close(); return }
+      case <-done:
+        return
+      }
+    }
+  }()
   defer func(){
     r.mu.Lock()
     wasHost:=r.host==p
     if wasHost {r.host=nil;for viewer:=range r.viewers{go closePeer(viewer)};for guest:=range r.guests{go closePeer(guest)};r.viewers=map[*peer]bool{};r.guests=map[*peer]bool{};r.video=nil;r.audio=nil} else {delete(r.viewers,p);delete(r.guests,p)}
     r.mu.Unlock()
+    activeRooms:=0
+    rooms.Range(func(_, _ any) bool { activeRooms++; return true })
+    _=activeRooms
+    broadcastPresence(r)
     closePeer(p)
   }()
+  p.ws.SetReadLimit(1<<20)
+  _=p.ws.SetReadDeadline(time.Now().Add(45*time.Second))
+  p.ws.SetPongHandler(func(string) error { return p.ws.SetReadDeadline(time.Now().Add(45*time.Second)) })
+  p.pc.OnConnectionStateChange(func(state webrtc.PeerConnectionState){
+    if state==webrtc.PeerConnectionStateFailed || state==webrtc.PeerConnectionStateClosed { _=p.ws.Close() }
+  })
   p.pc.OnTrack(func(track *webrtc.TrackRemote,_ *webrtc.RTPReceiver){
     if track.Kind()!=webrtc.RTPCodecTypeVideo && track.Kind()!=webrtc.RTPCodecTypeAudio { return }
     if p.role=="host" { addHostTrack(r,track); return }
     if p.role=="guest" { addGuestTrack(r,track) }
   })
   for {
+    _=p.ws.SetReadDeadline(time.Now().Add(45*time.Second))
     var message signal
     if err:=p.ws.ReadJSON(&message);err!=nil{return}
     switch message.Type {
@@ -190,7 +253,7 @@ func handlePeer(p *peer,r *room){
       answer,err:=p.pc.CreateAnswer(nil);if err!=nil{return}
       if err=p.pc.SetLocalDescription(answer);err!=nil{return}
       <-webrtc.GatheringCompletePromise(p.pc)
-      if local:=p.pc.LocalDescription();local!=nil{if err:=send(p.ws,signal{Type:"answer",SDP:local.SDP});err!=nil{return}}
+      if local:=p.pc.LocalDescription();local!=nil{if err:=p.send(signal{Type:"answer",SDP:local.SDP});err!=nil{return}}
     case "answer":
       if err:=p.pc.SetRemoteDescription(webrtc.SessionDescription{Type:webrtc.SDPTypeAnswer,SDP:message.SDP});err!=nil{return}
     case "candidate":
@@ -224,6 +287,7 @@ func wsHandler(w http.ResponseWriter,req *http.Request){
   r.mu.Lock()
   if c.Role=="host" {if r.host!=nil{r.mu.Unlock();closePeer(p);return};r.host=p} else if c.Role=="guest" {r.guests[p]=true} else {r.viewers[p]=true}
   r.mu.Unlock()
+  broadcastPresence(r)
   go handlePeer(p,r)
 }
 
