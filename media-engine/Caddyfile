@@ -1,0 +1,8 @@
+{
+  auto_https on
+}
+
+{$MEDIA_ENGINE_DOMAIN} {
+  encode gzip zstd
+  reverse_proxy testagram-media-engine:8080
+}
