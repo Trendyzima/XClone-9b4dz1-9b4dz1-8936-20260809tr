@@ -55,6 +55,9 @@ type room struct {
 }
 
 var rooms sync.Map
+type rateEntry struct { started time.Time; count int }
+var rateMu sync.Mutex
+var connectionRates = map[string]rateEntry{}
 var totalConnections atomic.Uint64
 var rejectedConnections atomic.Uint64
 var rtpPackets atomic.Uint64
