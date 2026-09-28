@@ -1,0 +1,186 @@
+name: Deploy Testagram Native Media Engine
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "media-engine/**"
+      - ".github/workflows/native-media-engine-production.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: native-media-engine-production
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  MEDIA_ENGINE_DOMAIN: ${secrets.MEDIA_ENGINE_DOMAIN || vars.MEDIA_ENGINE_DOMAIN || 'media.testagram.site'}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact source
+        uses: actions/checkout@v5
+
+      - name: Validate production host configuration
+        env:
+          SSH_HOST: ${secrets.MEDIA_ENGINE_SSH_HOST}
+          SSH_USER: ${secrets.MEDIA_ENGINE_SSH_USER}
+          SSH_KEY: ${secrets.MEDIA_ENGINE_SSH_PRIVATE_KEY}
+          PUBLIC_IP: ${secrets.MEDIA_ENGINE_PUBLIC_IP}
+        run: |
+          set -euo pipefail
+          [[ -n "$SSH_HOST" ]] || { echo "::error::MEDIA_ENGINE_SSH_HOST is not configured."; exit 1; }
+          [[ -n "$SSH_USER" ]] || { echo "::error::MEDIA_ENGINE_SSH_USER is not configured."; exit 1; }
+          [[ -n "$SSH_KEY" ]] || { echo "::error::MEDIA_ENGINE_SSH_PRIVATE_KEY is not configured."; exit 1; }
+          [[ "$PUBLIC_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || { echo "::error::MEDIA_ENGINE_PUBLIC_IP must be an IPv4 address."; exit 1; }
+
+      - name: Prepare SSH
+        env:
+          SSH_KEY: ${secrets.MEDIA_ENGINE_SSH_PRIVATE_KEY}
+          SSH_HOST: ${secrets.MEDIA_ENGINE_SSH_HOST}
+          SSH_USER: ${secrets.MEDIA_ENGINE_SSH_USER}
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/media-engine
+          chmod 600 ~/.ssh/media-engine
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host testagram-media-engine
+            HostName $SSH_HOST
+            User $SSH_USER
+            IdentityFile ~/.ssh/media-engine
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+          chmod 600 ~/.ssh/config
+
+      - name: Build native Testagram media engine
+        working-directory: media-engine
+        run: docker build --pull -t testagram-media-engine:production .
+
+      - name: Copy native engine deployment bundle
+        run: |
+          set -euo pipefail
+          ssh testagram-media-engine 'sudo mkdir -p /opt/testagram/media-engine && sudo chown "$USER":"$USER" /opt/testagram/media-engine'
+          scp media-engine/docker-compose.yml media-engine/Caddyfile testagram-media-engine:/opt/testagram/media-engine/
+          docker save testagram-media-engine:production | gzip | ssh testagram-media-engine 'docker load'
+
+      - name: Generate deployment credentials
+        id: credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          MEDIA_SECRET="$(openssl rand -hex 32)"
+          TURN_PASSWORD="$(openssl rand -hex 24)"
+          TURN_USERNAME="testagram-turn"
+          echo "::add-mask::$MEDIA_SECRET"
+          echo "::add-mask::$TURN_PASSWORD"
+          echo "media_secret=$MEDIA_SECRET" >> "$GITHUB_OUTPUT"
+          echo "turn_password=$TURN_PASSWORD" >> "$GITHUB_OUTPUT"
+          echo "turn_username=$TURN_USERNAME" >> "$GITHUB_OUTPUT"
+
+      - name: Configure and launch native media stack
+        env:
+          MEDIA_SECRET: ${steps.credentials.outputs.media_secret}
+          TURN_PASSWORD: ${steps.credentials.outputs.turn_password}
+          TURN_USERNAME: ${steps.credentials.outputs.turn_username}
+          PUBLIC_IP: ${secrets.MEDIA_ENGINE_PUBLIC_IP}
+          DOMAIN: ${env.MEDIA_ENGINE_DOMAIN}
+        run: |
+          set -euo pipefail
+          TURN_ICE_JSON="$(printf '[{"urls":["stun:stun.l.google.com:19302"]},{"urls":["turn:%s:3478?transport=udp","turn:%s:3478?transport=tcp"],"username":"%s","credential":"%s"}]' "$DOMAIN" "$DOMAIN" "$TURN_USERNAME" "$TURN_PASSWORD")"
+          umask 077
+          {
+            printf 'MEDIA_ENGINE_SECRET=%s\n' "$MEDIA_SECRET"
+            printf 'MEDIA_ENGINE_PUBLIC_IP=%s\n' "$PUBLIC_IP"
+            printf 'MEDIA_ENGINE_ALLOWED_ORIGINS=https://testagram.site,https://www.testagram.site\n'
+            printf 'MEDIA_ENGINE_ICE_SERVERS=%s\n' "$TURN_ICE_JSON"
+            printf 'MEDIA_ENGINE_DOMAIN=%s\n' "$DOMAIN"
+            printf 'TURN_REALM=%s\n' "$DOMAIN"
+            printf 'TURN_USERNAME=%s\n' "$TURN_USERNAME"
+            printf 'TURN_PASSWORD=%s\n' "$TURN_PASSWORD"
+            printf 'TURN_MIN_PORT=49152\n'
+            printf 'TURN_MAX_PORT=65535\n'
+          } | ssh testagram-media-engine 'umask 077; cat > /opt/testagram/media-engine/.env'
+          ssh testagram-media-engine 'cd /opt/testagram/media-engine && docker compose up -d --build --remove-orphans && docker compose ps'
+
+      - name: Verify public native engine HTTPS/WSS endpoint
+        env:
+          DOMAIN: ${env.MEDIA_ENGINE_DOMAIN}
+          PUBLIC_IP: ${secrets.MEDIA_ENGINE_PUBLIC_IP}
+        run: |
+          set -euo pipefail
+          resolved="$(getent ahostsv4 "$DOMAIN" | awk 'NR==1 {print $1}')"
+          [[ "$resolved" == "$PUBLIC_IP" ]] || {
+            echo "::error::DNS for $DOMAIN resolves to $resolved, expected $PUBLIC_IP."
+            exit 1
+          }
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent --show-error --location --retry 1 "https://$DOMAIN/healthz" > media-health.json; then
+              break
+            fi
+            echo "Waiting for native media HTTPS endpoint ($attempt/20)..."
+            sleep 5
+          done
+          test -s media-health.json
+          node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("media-health.json","utf8")); if(p?.ok!==true || p?.service!=="testagram-media-engine" || p?.transport!=="native-webrtc-sfu"){console.error("Native media health contract failed:",p);process.exit(1)} console.log("Native media engine health passed:",p)'
+
+      - name: Synchronize native media secrets into Supabase
+        env:
+          SUPABASE_ACCESS_TOKEN: ${secrets.SUPABASE_ACCESS_TOKEN}
+          SUPABASE_PROJECT_REF: ${secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF}
+          SUPABASE_URL: ${secrets.SUPABASE_URL || vars.SUPABASE_URL}
+          MEDIA_SECRET: ${steps.credentials.outputs.media_secret}
+          DOMAIN: ${env.MEDIA_ENGINE_DOMAIN}
+          TURN_USERNAME: ${steps.credentials.outputs.turn_username}
+          TURN_PASSWORD: ${steps.credentials.outputs.turn_password}
+        run: |
+          set -euo pipefail
+          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required."; exit 1; }
+          PROJECT_REF="$SUPABASE_PROJECT_REF"
+          if [[ -z "$PROJECT_REF" ]]; then
+            PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
+          fi
+          [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Invalid Supabase project ref."; exit 1; }
+          MEDIA_URL="https://$DOMAIN"
+          ICE_JSON="$(printf '[{"urls":["stun:stun.l.google.com:19302"]},{"urls":["turn:%s:3478?transport=udp","turn:%s:3478?transport=tcp"],"username":"%s","credential":"%s"}]' "$DOMAIN" "$DOMAIN" "$TURN_USERNAME" "$TURN_PASSWORD")"
+          umask 077
+          tmp="$(mktemp)"
+          trap 'rm -f "$tmp"' EXIT
+          {
+            printf 'MEDIA_ENGINE_URL=%s\n' "$MEDIA_URL"
+            printf 'MEDIA_ENGINE_SECRET=%s\n' "$MEDIA_SECRET"
+            printf 'MEDIA_ENGINE_ICE_SERVERS=%s\n' "$ICE_JSON"
+          } > "$tmp"
+          supabase secrets set --project-ref "$PROJECT_REF" --env-file "$tmp"
+          echo "Native media engine URL, signing secret, and ICE server configuration synchronized without printing secret values."
+
+      - name: Deploy native media authorization function
+        env:
+          SUPABASE_ACCESS_TOKEN: ${secrets.SUPABASE_ACCESS_TOKEN}
+          SUPABASE_PROJECT_REF: ${secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF}
+          SUPABASE_URL: ${secrets.SUPABASE_URL || vars.SUPABASE_URL}
+        run: |
+          set -euo pipefail
+          PROJECT_REF="$SUPABASE_PROJECT_REF"
+          if [[ -z "$PROJECT_REF" ]]; then
+            PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
+          fi
+          supabase functions deploy testagram-media-token --use-api --project-ref "$PROJECT_REF"
+          echo "testagram-media-token deployed from the exact checked-out revision."
+
+      - name: Final native media contract
+        env:
+          DOMAIN: ${env.MEDIA_ENGINE_DOMAIN}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error "https://$DOMAIN/readyz" > media-ready.json
+          node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("media-ready.json","utf8")); if(p?.ok!==true){console.error("Native media readiness failed:",p);process.exit(1)} console.log("Native media readiness passed:",p)'
+          echo "Testagram native media production deployment is ready for Go Live."
