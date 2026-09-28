@@ -536,8 +536,8 @@ jobs:
         shell: bash
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_STREAM_ACCOUNT_ID || secrets.R2_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN || secrets.CLOUDFLARE_STREAM_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.TESTAGRAM_CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_STREAM_ACCOUNT_ID || secrets.R2_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.TESTAGRAM_CLOUDFLARE_STREAM_API_TOKEN || secrets.CLOUDFLARE_API_TOKEN || secrets.CLOUDFLARE_STREAM_API_TOKEN }}
           CLOUDFLARE_STREAM_ALLOWED_ORIGINS: ${{ secrets.CLOUDFLARE_STREAM_ALLOWED_ORIGINS || vars.CLOUDFLARE_STREAM_ALLOWED_ORIGINS || '["https://testagram.site","https://www.testagram.site"]' }}
         run: |
           set -euo pipefail
@@ -557,7 +557,7 @@ jobs:
           # Prove the exact GitHub Cloudflare credential can authenticate against
           # the exact account and access Stream before copying it into Vercel.
           # Never print the token or raw Cloudflare response body.
-          CF_VERIFY="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/tokens/verify"
+          CF_VERIFY="https://api.cloudflare.com/client/v4/user/tokens/verify"
           CF_VERIFY_STATUS="$(curl --silent --show-error --output /tmp/cloudflare-token-verify.json --write-out '%{http_code}' \\
             --request GET \\
             --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \\
