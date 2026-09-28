@@ -1,0 +1,156 @@
+name: Cloudflare Stream Forensic Authorization
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  forensic:
+    name: Prove Cloudflare Stream control-plane access
+    runs-on: ubuntu-24.04
+    environment: production
+    timeout-minutes: 10
+    steps:
+      - name: Validate credential presence
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.TESTAGRAM_CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_STREAM_ACCOUNT_ID || secrets.R2_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.TESTAGRAM_CLOUDFLARE_STREAM_API_TOKEN || secrets.CLOUDFLARE_API_TOKEN || secrets.CLOUDFLARE_STREAM_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          [[ "${#CLOUDFLARE_ACCOUNT_ID}" -eq 32 ]] || { echo "::error::Cloudflare Account ID must be exactly 32 characters."; exit 1; }
+          [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::Cloudflare Account ID is not hexadecimal."; exit 1; }
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::Cloudflare API token is missing."; exit 1; }
+          echo "Cloudflare Account ID format: valid (32 hex characters)."
+
+      - name: Verify token and record non-secret token identity
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.TESTAGRAM_CLOUDFLARE_STREAM_API_TOKEN || secrets.CLOUDFLARE_API_TOKEN || secrets.CLOUDFLARE_STREAM_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          status="$(curl --silent --show-error --output /tmp/cf-verify.json --write-out '%{http_code}'             --request GET             --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN"             "https://api.cloudflare.com/client/v4/user/tokens/verify")"
+          CF_STATUS="$status" node -e '
+            const fs=require("node:fs");
+            const p=JSON.parse(fs.readFileSync("/tmp/cf-verify.json","utf8"));
+            if(process.env.CF_STATUS!=="200" || p?.success!==true || p?.result?.status!=="active"){
+              console.error("Cloudflare token verification failed:", JSON.stringify({httpStatus:process.env.CF_STATUS,success:p?.success,status:p?.result?.status,errors:p?.errors}));
+              process.exit(1);
+            }
+            console.log("Cloudflare token verification passed:", JSON.stringify({
+              tokenId:p?.result?.id,
+              status:p?.result?.status,
+              notBefore:p?.result?.not_before ?? null,
+              expiresOn:p?.result?.expires_on ?? null
+            }));
+          '
+
+      - name: Diagnose account endpoint without making it a Stream gate
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.TESTAGRAM_CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_STREAM_ACCOUNT_ID || secrets.R2_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.TESTAGRAM_CLOUDFLARE_STREAM_API_TOKEN || secrets.CLOUDFLARE_API_TOKEN || secrets.CLOUDFLARE_STREAM_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          status="$(curl --silent --show-error --output /tmp/cf-account.json --write-out '%{http_code}'             --request GET             --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN"             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID")"
+          CF_STATUS="$status" node -e '
+            const fs=require("node:fs");
+            let p={}; try { p=JSON.parse(fs.readFileSync("/tmp/cf-account.json","utf8")); } catch {}
+            const e=p?.errors?.[0];
+            console.log("Account-details diagnostic:", JSON.stringify({
+              httpStatus:Number(process.env.CF_STATUS),
+              success:p?.success ?? false,
+              accountId:p?.result?.id ?? null,
+              accountName:p?.result?.name ?? null,
+              errorCode:e?.code ?? null,
+              errorMessage:e?.message ?? null
+            }));
+          '
+
+      - name: Prove Stream list authorization
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.TESTAGRAM_CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_STREAM_ACCOUNT_ID || secrets.R2_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.TESTAGRAM_CLOUDFLARE_STREAM_API_TOKEN || secrets.CLOUDFLARE_API_TOKEN || secrets.CLOUDFLARE_STREAM_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          status="$(curl --silent --show-error --output /tmp/cf-stream-list.json --write-out '%{http_code}'             --request GET             --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN"             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs?per_page=5")"
+          CF_STATUS="$status" node -e '
+            const fs=require("node:fs");
+            let p={}; try { p=JSON.parse(fs.readFileSync("/tmp/cf-stream-list.json","utf8")); } catch {}
+            const e=p?.errors?.[0];
+            if(process.env.CF_STATUS!=="200" || p?.success!==true){
+              console.error("Cloudflare Stream LIST failed:", JSON.stringify({httpStatus:Number(process.env.CF_STATUS),success:p?.success ?? false,errorCode:e?.code ?? null,errorMessage:e?.message ?? null}));
+              process.exit(1);
+            }
+            console.log("Cloudflare Stream LIST authorization passed:", JSON.stringify({
+              count:Array.isArray(p?.result) ? p.result.length : null,
+              total:p?.result_info?.total_count ?? null
+            }));
+          '
+
+      - name: Prove Stream create, retrieve, and delete authorization
+        shell: bash
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.TESTAGRAM_CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID || secrets.R2_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.TESTAGRAM_CLOUDFLARE_STREAM_API_TOKEN || secrets.CLOUDFLARE_API_TOKEN || secrets.CLOUDFLARE_STREAM_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          cleanup() {
+            if [[ -n "${CF_TEST_INPUT_ID:-}" ]]; then
+              echo "Cleaning up forensic Live Input: $CF_TEST_INPUT_ID"
+              curl --silent --show-error --output /tmp/cf-delete-cleanup.json --write-out 'cleanup_http=%{http_code}\n'                 --request DELETE                 --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN"                 "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs/$CF_TEST_INPUT_ID" || true
+            fi
+          }
+          trap cleanup EXIT
+
+          payload='{"deleteRecordingAfterDays":30,"enabled":true,"meta":{"name":"testagram-ci-forensic-${GITHUB_RUN_ID}"},"preferLowLatency":true,"recording":{"mode":"off"}}'
+          create_status="$(curl --silent --show-error --output /tmp/cf-create.json --write-out '%{http_code}'             --request POST             --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN"             --header "Content-Type: application/json"             --data "$payload"             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs")"
+
+          CF_STATUS="$create_status" node -e '
+            const fs=require("node:fs");
+            let p={}; try { p=JSON.parse(fs.readFileSync("/tmp/cf-create.json","utf8")); } catch {}
+            const e=p?.errors?.[0];
+            if(process.env.CF_STATUS!=="200" || p?.success!==true || !p?.result?.uid){
+              console.error("Cloudflare Stream CREATE failed:", JSON.stringify({httpStatus:Number(process.env.CF_STATUS),success:p?.success ?? false,errorCode:e?.code ?? null,errorMessage:e?.message ?? null}));
+              process.exit(1);
+            }
+            fs.writeFileSync("/tmp/cf-test-input-id",p.result.uid);
+            console.log("Cloudflare Stream CREATE passed:", JSON.stringify({
+              uid:p.result.uid,
+              enabled:p.result.enabled,
+              preferLowLatency:p.result.preferLowLatency,
+              recordingMode:p.result.recording?.mode ?? null
+            }));
+          '
+          CF_TEST_INPUT_ID="$(cat /tmp/cf-test-input-id)"
+
+          get_status="$(curl --silent --show-error --output /tmp/cf-get.json --write-out '%{http_code}'             --request GET             --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN"             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs/$CF_TEST_INPUT_ID")"
+          CF_STATUS="$get_status" node -e '
+            const fs=require("node:fs");
+            let p={}; try { p=JSON.parse(fs.readFileSync("/tmp/cf-get.json","utf8")); } catch {}
+            const e=p?.errors?.[0];
+            if(process.env.CF_STATUS!=="200" || p?.success!==true || p?.result?.uid!=="'"$CF_TEST_INPUT_ID"'"){
+              console.error("Cloudflare Stream RETRIEVE failed:", JSON.stringify({httpStatus:Number(process.env.CF_STATUS),success:p?.success ?? false,errorCode:e?.code ?? null,errorMessage:e?.message ?? null}));
+              process.exit(1);
+            }
+            console.log("Cloudflare Stream RETRIEVE passed:", JSON.stringify({uid:p.result.uid,enabled:p.result.enabled,status:p.result.status ?? null}));
+          '
+
+          delete_status="$(curl --silent --show-error --output /tmp/cf-delete.json --write-out '%{http_code}'             --request DELETE             --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN"             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs/$CF_TEST_INPUT_ID")"
+          CF_STATUS="$delete_status" node -e '
+            const fs=require("node:fs");
+            let p={}; try { p=JSON.parse(fs.readFileSync("/tmp/cf-delete.json","utf8")); } catch {}
+            if(process.env.CF_STATUS!=="200" && process.env.CF_STATUS!=="204"){
+              const e=p?.errors?.[0];
+              console.error("Cloudflare Stream DELETE failed:", JSON.stringify({httpStatus:Number(process.env.CF_STATUS),success:p?.success ?? false,errorCode:e?.code ?? null,errorMessage:e?.message ?? null}));
+              process.exit(1);
+            }
+            console.log("Cloudflare Stream DELETE passed:", JSON.stringify({httpStatus:Number(process.env.CF_STATUS)}));
+          '
+          CF_TEST_INPUT_ID=""
+          echo "FORENSIC RESULT: GitHub can authenticate to Cloudflare and exercise Stream Live Input CRUD on the configured account."
