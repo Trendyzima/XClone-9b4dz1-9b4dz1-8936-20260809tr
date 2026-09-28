@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { TestagramMediaSession } from '@/lib/testagramMedia';
+import Hls from 'hls.js';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { useSEO } from '@/hooks/useSEO';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -53,7 +53,8 @@ export default function LiveStreamPage() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const tvMediaRef = useRef<HTMLDivElement>(null);
-  const tvRoomRef = useRef<TestagramMediaSession | null>(null);
+  const hlsRef = useRef<Hls | null>(null);
+  const chatChannelRef = useRef<any>(null);
   const adPushedRef = useRef(false);
 
   const [floatReactions, setFloatReactions] = useState<FloatReaction[]>([]);
@@ -119,42 +120,45 @@ export default function LiveStreamPage() {
 
   useEffect(() => {
     const locator = typeof stream?.stream_url === 'string' ? stream.stream_url : '';
-    if (!stream?.is_live || !locator.includes('/webRTC/play')) return;
-    let cancelled = false;
-    const connectTv = async () => {
-      try {
-        const session = await TestagramMediaSession.connectViewer(stream.id, remote => {
-          if (cancelled) return;
-          if (videoRef.current) {
-            videoRef.current.srcObject = remote;
-            videoRef.current.muted = muted;
-            void videoRef.current.play().catch(() => undefined);
-          }
-          if (audioRef.current) {
-            const audioTrack = remote.getAudioTracks()[0];
-            if (audioTrack) {
-              audioRef.current.srcObject = new MediaStream([audioTrack]);
-              audioRef.current.muted = muted;
-              void audioRef.current.play().catch(() => undefined);
-            }
-          }
-        });
-        session.setViewerCountHandler((count) => setViewerCount(count));
-        tvRoomRef.current = session;
-        if (!cancelled) return;
-        await session.close();
-        tvRoomRef.current = null;
-      } catch (error) {
-        if (!cancelled) console.warn('[tv-live-viewer] native media connection failed', error);
-      }
-    };
-    void connectTv();
+    if (!stream?.is_live || !locator.includes('/cloudflarestream.com/')) return;
+
+    const video = videoRef.current;
+    if (!video) return;
+
+    hlsRef.current?.destroy();
+    hlsRef.current = null;
+    video.src = '';
+    video.muted = muted;
+
+    const play = () => { void video.play().catch(() => undefined); };
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true,
+        backBufferLength: 30,
+        liveSyncDurationCount: 3,
+        maxBufferLength: 12,
+      });
+      hlsRef.current = hls;
+      hls.loadSource(locator);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, play);
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (!data?.fatal) return;
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
+        else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
+      });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = locator;
+      video.addEventListener('loadedmetadata', play, { once: true });
+    }
+
     return () => {
-      cancelled = true;
-      void tvRoomRef.current?.close();
-      tvRoomRef.current = null;
-      if (videoRef.current) videoRef.current.srcObject = null;
-      if (audioRef.current) audioRef.current.srcObject = null;
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
     };
   }, [stream?.id, stream?.is_live, stream?.stream_url, muted]);
 
@@ -170,14 +174,14 @@ export default function LiveStreamPage() {
     fetchStream();
     joinStream();
     fetchMessages();
-    pollRef.current = setInterval(() => {
-      fetchMessages();
-      fetchViewerCount();
-      buildMsgFreqChart();
-    }, 3000);
+    void buildMsgFreqChart();
     return () => {
       leaveStream();
       if (pollRef.current) clearInterval(pollRef.current);
+      if (chatChannelRef.current) {
+        void supabase.removeChannel(chatChannelRef.current);
+        chatChannelRef.current = null;
+      }
     };
   }, [streamId]);
 
@@ -204,11 +208,10 @@ export default function LiveStreamPage() {
   };
 
   const fetchViewerCount = async () => {
-    const { count } = await supabase
-      .from('stream_viewers')
-      .select('*', { count: 'exact', head: true })
-      .eq('stream_id', streamId);
-    if (count !== null) setViewerCount(count);
+    // Passive TV viewers do not poll Postgres for presence. The video path is
+    // Cloudflare Stream; viewer counts are intentionally treated as a snapshot
+    // supplied by the broadcast control plane to avoid N×3s database fan-out.
+    if (typeof stream?.viewer_count === 'number') setViewerCount(stream.viewer_count);
   };
 
   const joinStream = async () => {
@@ -259,6 +262,42 @@ export default function LiveStreamPage() {
     setLoadingChatAnalytics(false);
   };
 
+  useEffect(() => {
+    if (!streamId) return;
+    const channel = supabase
+      .channel(`tv:${streamId}:chat`)
+      .on('broadcast', { event: 'chat_message' }, ({ payload }: any) => {
+        if (!payload || payload.stream_id !== streamId) return;
+        const message = String(payload.message || '');
+        if (message.startsWith('[REACT:')) {
+          const match = message.match(/^\[REACT:(.+)\]$/);
+          if (match) addReactionCount(match[1]);
+          return;
+        }
+        const next: StreamMessage = {
+          id: String(payload.id),
+          user_id: String(payload.user_id || ''),
+          message,
+          created_at: String(payload.created_at || new Date().toISOString()),
+          user_profiles: {
+            username: String(payload.username || 'user'),
+            avatar_url: payload.avatar_url || undefined,
+            verified: Boolean(payload.verified),
+          },
+        };
+        setMessages(prev => {
+          if (prev.some(item => item.id === next.id)) return prev;
+          return [...prev.slice(-99), next];
+        });
+      })
+      .subscribe();
+    chatChannelRef.current = channel;
+    return () => {
+      if (chatChannelRef.current === channel) chatChannelRef.current = null;
+      void supabase.removeChannel(channel);
+    };
+  }, [streamId]);
+
   const fetchMessages = async () => {
     const { data } = await supabase
       .from('stream_chat')
@@ -292,7 +331,6 @@ export default function LiveStreamPage() {
     try {
       await supabase.from('stream_chat').insert({ stream_id: streamId, user_id: user.id, message: newMessage.trim() });
       setNewMessage('');
-      fetchMessages();
     } catch {
       toast.error('Failed to send message');
     }

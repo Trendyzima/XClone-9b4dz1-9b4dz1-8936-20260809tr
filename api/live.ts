@@ -11,6 +11,7 @@ const supabaseKey = env('SUPABASE_PUBLISHABLE_KEY', env('SUPABASE_ANON_KEY', env
 const cloudflareAccountId = env('CLOUDFLARE_ACCOUNT_ID');
 const cloudflareApiToken = env('CLOUDFLARE_API_TOKEN');
 const cloudflareApiBase = cloudflareAccountId ? `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/stream/live_inputs` : '';
+const cloudflareStreamCustomerCode = env('CLOUDFLARE_STREAM_CUSTOMER_CODE');
 
 const authHeader = (request: Request) => request.headers.get('authorization') || '';
 
@@ -57,6 +58,11 @@ const cloudflareFetch = (url: string, init: RequestInit = {}) => fetch(url, {
   },
 });
 
+function streamHlsUrl(inputId: string) {
+  if (!cloudflareStreamCustomerCode) return null;
+  return `https://customer-${cloudflareStreamCustomerCode}.cloudflarestream.com/${encodeURIComponent(inputId)}/manifest/video.m3u8`;
+}
+
 function inputIdFromWhep(url: string | null) {
   if (!url) return null;
   try {
@@ -68,6 +74,25 @@ function inputIdFromWhep(url: string | null) {
     const id = parts[webRtcIndex - 1];
     return /^[a-zA-Z0-9_-]{8,64}$/.test(id) ? id : null;
   } catch { return null; }
+}
+
+function inputIdFromLocator(url: string | null) {
+  if (!url) return null;
+  const whep = inputIdFromWhep(url);
+  if (whep) return whep;
+  try {
+    const parsed = new URL(url);
+    if (!parsed.hostname.endsWith('.cloudflarestream.com')) return null;
+    const parts = parsed.pathname.split('/').filter(Boolean);
+    const manifestIndex = parts.indexOf('manifest');
+    const id = manifestIndex > 0 ? parts[manifestIndex - 1] : '';
+    return /^[a-zA-Z0-9_-]{8,64}$/.test(id) ? id : null;
+  } catch { return null; }
+}
+
+function whepFromInputId(inputId: string) {
+  if (!cloudflareStreamCustomerCode) return null;
+  return `https://customer-${cloudflareStreamCustomerCode}.cloudflarestream.com/${encodeURIComponent(inputId)}/webRTC/play`;
 }
 
 async function getCloudflareInput(inputId: string) {
@@ -98,16 +123,17 @@ async function start(streamId: string, request: Request) {
   if (stream.user_id !== user.id) return json({ ok: false, error: { code: 'HOST_REQUIRED', message: 'Only the broadcaster can publish.' } }, 403);
 
   if (stream.is_live && stream.stream_url) {
-    const lifecycle = await lifecycleFromWhep(stream.stream_url);
+    const inputId = inputIdFromLocator(stream.stream_url);
+    const lifecycle = inputId ? await lifecycleFromWhep(whepFromInputId(inputId) || '') : null;
     if (lifecycle?.live) return json({ ok: false, error: { code: 'ALREADY_LIVE', message: 'This broadcast is already ON AIR.' } }, 409);
   }
 
   let input: any = null;
-  const existingInputId = inputIdFromWhep(stream.stream_url);
+  const existingInputId = inputIdFromLocator(stream.stream_url);
   if (existingInputId) {
     input = await getCloudflareInput(existingInputId);
     if (input?.uid) {
-      const enable = await cloudflareFetch(`${cloudflareApiBase}/${encodeURIComponent(existingInputId)}`, { method: 'PUT', body: JSON.stringify({ enabled: true }) });
+      const enable = await cloudflareFetch(`${cloudflareApiBase}/${encodeURIComponent(existingInputId)}`, { method: 'PUT', body: JSON.stringify({ enabled: true, preferLowLatency: true, recording: { mode: 'automatic', deleteRecordingAfterDays: 30 } }) });
       if (!enable.ok) input = null;
       else { const enabledPayload = await enable.json() as any; input = enabledPayload?.result || input; }
     }
@@ -117,7 +143,7 @@ async function start(streamId: string, request: Request) {
     const response = await cloudflareFetch(cloudflareApiBase, {
       method: 'POST',
       headers: { 'Idempotency-Key': streamId },
-      body: JSON.stringify({ defaultCreator: user.id, enabled: true, meta: { testagram_stream_id: streamId, title: stream.title || 'Testagram TV Live' }, recording: { mode: 'off' } }),
+      body: JSON.stringify({ defaultCreator: user.id, enabled: true, meta: { testagram_stream_id: streamId, title: stream.title || 'Testagram TV Live' }, preferLowLatency: true, recording: { mode: 'automatic', deleteRecordingAfterDays: 30, allowedOrigins: env('CLOUDFLARE_STREAM_ALLOWED_ORIGINS') ? env('CLOUDFLARE_STREAM_ALLOWED_ORIGINS').split(',').map(v => v.trim()).filter(Boolean) : undefined } }),
     });
     const payload = await response.json().catch(() => null) as any;
     if (!response.ok || !payload?.success || !payload?.result) {
@@ -128,18 +154,23 @@ async function start(streamId: string, request: Request) {
 
   const whipUrl = input.webRTC?.url || '';
   const whepUrl = input.webRTCPlayback?.url || '';
+  const playbackUrl = streamHlsUrl(input.uid);
   if (!input.uid || !whipUrl || !whepUrl) return json({ ok: false, error: { code: 'CLOUDFLARE_WEBRTC_ENDPOINTS_MISSING', message: 'Cloudflare did not return both WebRTC endpoints.' } }, 502);
+  if (!playbackUrl) return json({ ok: false, error: { code: 'CLOUDFLARE_STREAM_CUSTOMER_CODE_MISSING', message: 'Cloudflare Stream customer code is not configured for HLS playback.' } }, 503);
 
-  await updateStream(streamId, { is_live: false, stream_url: whepUrl, ended_at: null }, bearer);
-  return json({ ok: true, data: { provider: 'cloudflare-stream', token: '', whip_url: whipUrl, whep_url: whepUrl, live_input_id: input.uid, room_id: streamId, room_type: 'tv', role: 'host', ice_servers: [{ urls: 'stun:stun.cloudflare.com:3478' }] }, error: null });
+  await updateStream(streamId, { is_live: false, stream_url: playbackUrl, ended_at: null }, bearer);
+  return json({ ok: true, data: { provider: 'cloudflare-stream-hybrid', token: '', whip_url: whipUrl, whep_url: whepUrl, playback_url: playbackUrl, live_input_id: input.uid, room_id: streamId, room_type: 'tv', role: 'host', ice_servers: [{ urls: 'stun:stun.cloudflare.com:3478' }] }, error: null });
 }
 
 async function viewer(streamId: string, request: Request) {
   const stream = await getStream(streamId, authHeader(request));
   if (!stream) return json({ ok: false, error: { code: 'STREAM_NOT_FOUND', message: 'TV broadcast was not found.' } }, 404);
   if (!stream.is_live || !stream.stream_url) return json({ ok: false, error: { code: 'STREAM_ENDED', message: 'Broadcast is no longer live.' } }, 409);
-  if (!inputIdFromWhep(stream.stream_url)) return json({ ok: false, error: { code: 'STREAM_PLAYBACK_NOT_READY', message: 'Cloudflare Stream playback is not ready yet.' } }, 409);
-  return json({ ok: true, data: { provider: 'cloudflare-stream', token: '', whep_url: stream.stream_url, room_id: streamId, room_type: 'tv', role: 'viewer', ice_servers: [{ urls: 'stun:stun.cloudflare.com:3478' }] }, error: null });
+  if (!cloudflareStreamCustomerCode) return json({ ok: false, error: { code: 'CLOUDFLARE_STREAM_CUSTOMER_CODE_MISSING', message: 'Cloudflare Stream HLS playback is not configured.' } }, 503);
+  const inputId = stream.stream_url.match(/cloudflarestream\.com\/([^/]+)\/manifest\/video\.m3u8/i)?.[1] || null;
+  const playbackUrl = inputId ? streamHlsUrl(inputId) : stream.stream_url;
+  if (!playbackUrl) return json({ ok: false, error: { code: 'STREAM_PLAYBACK_NOT_READY', message: 'Cloudflare Stream playback is not ready yet.' } }, 409);
+  return json({ ok: true, data: { provider: 'cloudflare-stream-hybrid', token: '', playback_url: playbackUrl, room_id: streamId, room_type: 'tv', role: 'viewer' }, error: null });
 }
 
 async function verify(streamId: string, request: Request) {
@@ -157,8 +188,10 @@ async function verify(streamId: string, request: Request) {
   if (!audioOk) return json({ ok: false, error: { code: 'AUDIO_RTP_FAILED', message: 'Cloudflare negotiation completed but the browser has not transmitted audio RTP.' }, diagnostics }, 409);
   if (!stream.stream_url) return json({ ok: false, error: { code: 'STREAM_PLAYBACK_NOT_READY', message: 'No Cloudflare playback endpoint is stored.' } }, 409);
   let lifecycle: { isInput?: boolean; live?: boolean; videoUID?: string | null } | null = null;
+  const inputId = inputIdFromLocator(stream.stream_url);
+  const whepUrl = inputId ? whepFromInputId(inputId) : null;
   for (let attempt = 0; attempt < 12; attempt += 1) {
-    lifecycle = await lifecycleFromWhep(stream.stream_url);
+    lifecycle = whepUrl ? await lifecycleFromWhep(whepUrl) : null;
     if (lifecycle?.live) break;
     await new Promise(resolve => setTimeout(resolve, 250));
   }
@@ -174,7 +207,7 @@ async function stop(streamId: string, request: Request) {
   const bearer = authHeader(request);
   const stream = await getStream(streamId, bearer);
   if (!stream || stream.user_id !== user.id) return json({ ok: false, error: { code: 'HOST_REQUIRED', message: 'Only the broadcaster can stop this stream.' } }, 403);
-  const inputId = inputIdFromWhep(stream.stream_url);
+  const inputId = inputIdFromLocator(stream.stream_url);
   let cloudflareStopped = true;
   if (inputId) {
     for (let attempt = 0; attempt < 3; attempt += 1) {
