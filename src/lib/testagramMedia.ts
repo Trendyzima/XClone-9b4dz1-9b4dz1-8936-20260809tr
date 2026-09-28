@@ -36,6 +36,28 @@ const waitForIce = async (pc: RTCPeerConnection) => {
 const getToken = async (roomId: string, roomType: MediaRoomType, role: MediaRole, inviteToken?: string): Promise<MediaToken> => {
   const { data: sessionData } = await supabase.auth.getSession();
   const accessToken = sessionData.session?.access_token;
+  if (roomType === 'tv' && (role === 'host' || role === 'viewer')) {
+    const response = await fetch('/api/live', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      body: JSON.stringify({ action: role === 'host' ? 'start' : 'viewer', stream_id: roomId }),
+    });
+    let payload: any = null;
+    try { payload = await response.json(); } catch {}
+    if (!response.ok) {
+      const code = payload?.error?.code ? ` [${payload.error.code}]` : '';
+      const message = payload?.error?.message || `TV media authorization failed (HTTP ${response.status}).`;
+      throw new Error(`${message}${code}`);
+    }
+    if (payload?.data?.provider !== 'cloudflare-stream' || (!payload?.data?.whep_url && !payload?.data?.whip_url)) {
+      throw new Error('Vercel Cloudflare media authorization returned an incomplete transport response.');
+    }
+    return payload.data as MediaToken;
+  }
+
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     apikey: supabasePublishableKey,
@@ -47,15 +69,13 @@ const getToken = async (roomId: string, roomType: MediaRoomType, role: MediaRole
     body: JSON.stringify({ room_id: roomId, room_type: roomType, role, invite_token: inviteToken || undefined }),
   });
   let payload: any = null;
-  try { payload = await response.json(); } catch { /* preserve HTTP status below */ }
+  try { payload = await response.json(); } catch {}
   if (!response.ok) {
     const code = payload?.error?.code ? ` [${payload.error.code}]` : '';
     const message = payload?.error?.message || `Media authorization failed (HTTP ${response.status}).`;
     throw new Error(`${message}${code}`);
   }
-  if (payload?.data?.provider === 'cloudflare-stream'
-    ? !payload?.data?.whep_url && !payload?.data?.whip_url
-    : !payload?.data?.token || !payload?.data?.ws_url) {
+  if (!payload?.data?.token || !payload?.data?.ws_url) {
     throw new Error('Testagram media authorization returned an incomplete transport response.');
   }
   return payload.data as MediaToken;
@@ -79,6 +99,7 @@ export class TestagramMediaSession {
   private onViewerCount?: (count: number, guests: number) => void;
   private onParticipantCount?: (count: number) => void;
   private answerReceived = false;
+  private mediaSessionUrl: string | null = null;
   private remoteStream = new MediaStream();
   private lastDiagnostics: Record<string, unknown> = {};
 
@@ -186,6 +207,44 @@ export class TestagramMediaSession {
     await this.sendOffer();
   }
 
+  private async connectCloudflareStream() {
+    const endpoint = this.role === 'host' ? this.info?.whip_url : this.info?.whep_url;
+    if (!endpoint) throw new Error(`Cloudflare Stream ${this.role === 'host' ? 'WHIP' : 'WHEP'} endpoint was not returned.`);
+    this.createPeerConnection(this.info?.ice_servers || [{ urls: 'stun:stun.cloudflare.com:3478' }]);
+    if (this.role === 'host') {
+      if (!this.localStream) throw new Error('Cloudflare publisher has no production media stream.');
+      const video = this.localStream.getVideoTracks()[0];
+      const audio = this.localStream.getAudioTracks()[0];
+      if (!video || !audio) throw new Error('Cloudflare publisher requires both video and audio tracks.');
+      this.localStream.getTracks().forEach(track => this.pc.addTrack(track, this.localStream!));
+    } else {
+      this.pc.addTransceiver('video', { direction: 'recvonly' });
+      this.pc.addTransceiver('audio', { direction: 'recvonly' });
+    }
+
+    const offer = await this.pc.createOffer();
+    await this.pc.setLocalDescription(offer);
+    await waitForIce(this.pc);
+    if (!this.pc.localDescription?.sdp) throw new Error('Cloudflare WebRTC offer SDP was not created.');
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/sdp', Accept: 'application/sdp' },
+      body: this.pc.localDescription.sdp,
+    });
+    if (!response.ok) {
+      const detail = (await response.text().catch(() => '')).slice(0, 240);
+      throw new Error(`Cloudflare WebRTC ${this.role === 'host' ? 'WHIP' : 'WHEP'} negotiation failed (HTTP ${response.status})${detail ? `: ${detail}` : '.'}`);
+    }
+    const answer = await response.text();
+    if (!answer.trim()) throw new Error('Cloudflare WebRTC returned an empty SDP answer.');
+    await this.pc.setRemoteDescription({ type: 'answer', sdp: answer });
+    this.answerReceived = true;
+    this.lastDiagnostics = { ...this.lastDiagnostics, provider: 'cloudflare-stream', signaling: 'sdp-answer-received', endpoint: this.role === 'host' ? 'whip' : 'whep' };
+    const location = response.headers.get('Location');
+    if (location) this.mediaSessionUrl = new URL(location, endpoint).toString();
+  };
+
   private createPeerConnection(iceServers: RTCIceServer[] = []) {
     const pc = new RTCPeerConnection({
       iceServers: iceServers.length ? iceServers : [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -206,6 +265,13 @@ export class TestagramMediaSession {
   }
 
   private async connect(createInitialOffer: boolean) {
+    if (this.closed) return;
+    this.info ??= await getToken(this.roomId, this.roomType, this.role);
+    this.answerReceived = false;
+    if (this.roomType === 'tv' && this.info.provider === 'cloudflare-stream') {
+      await this.connectCloudflareStream();
+      return;
+    }
     if (this.closed) return;
     this.info ??= await getToken(this.roomId, this.roomType, this.role);
     this.answerReceived = false;
@@ -292,6 +358,10 @@ export class TestagramMediaSession {
     this.closed = true;
     if (this.reconnectTimer !== null) window.clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null; this.ws?.close(); this.ws = null;
+    if (this.mediaSessionUrl) {
+      try { await fetch(this.mediaSessionUrl, { method: 'DELETE' }); } catch {}
+      this.mediaSessionUrl = null;
+    }
     this.pc?.getSenders().forEach(sender => sender.track?.stop()); await this.pc?.close();
     this.pc = undefined as unknown as RTCPeerConnection;
   }
