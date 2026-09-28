@@ -14,6 +14,7 @@ import { formatNumber } from '@/lib/utils';
 import { LiveAudioBroadcaster } from './LiveAudioBroadcaster';
 import { LiveAudioPlayer } from './LiveAudioPlayer';
 import { SpaceRecordingsPlaylist } from './SpaceRecordingsPlaylist';
+import { TestagramMediaSession } from '@/lib/testagramMedia';
 
 interface JoinSpaceDialogProps {
   open: boolean;
@@ -63,30 +64,50 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
       setLoading(false);
     }
   };
+  const mediaSessionRef = useRef<TestagramMediaSession | null>(null);
+  const localMediaStreamRef = useRef<MediaStream | null>(null);
+  const liveAudioRef = useRef<HTMLAudioElement | null>(null);
 
-
-  const liveKitRef = useRef<any>(null);
   useEffect(() => {
-    if (!joined || !space?.is_live || !spaceId) return;
+    if (!joined || !space?.is_live || !spaceId || !user || space.host?.id === user.id) return;
     let cancelled = false;
-    let room: any = null;
     const connect = async () => {
       try {
-        const { data, error } = await supabase.functions.invoke('livekit-space-token', { body: { space_id: spaceId } });
-        if (error || !data?.ok || !data?.data?.token) throw error || new Error(data?.error?.message || 'Live audio connection unavailable');
-        const mod = await import('livekit-client');
-        room = new mod.Room({ adaptiveStream: true, dynacast: true });
-        await room.connect(data.data.url, data.data.token);
-        if (cancelled) { await room.disconnect(); return; }
-        liveKitRef.current = room;
+        let local: MediaStream | undefined;
+        if (role === 'speaker') {
+          local = await navigator.mediaDevices.getUserMedia({
+            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+          });
+          localMediaStreamRef.current = local;
+          local.getAudioTracks().forEach(track => { track.enabled = !isMuted; });
+        }
+        const session = await TestagramMediaSession.connectSpace(spaceId, role, local, remote => {
+          if (!liveAudioRef.current) return;
+          liveAudioRef.current.srcObject = remote;
+          liveAudioRef.current.muted = false;
+          void liveAudioRef.current.play().catch(() => undefined);
+        });
+        if (cancelled) {
+          await session.close();
+          local?.getTracks().forEach(track => track.stop());
+          return;
+        }
+        mediaSessionRef.current = session;
       } catch (e) {
-        console.error('LiveKit connection failed', e);
-        if (!cancelled) toast({ title: 'Audio connection unavailable', description: 'You are still joined; retrying audio is available when the room is ready.', variant: 'destructive' });
+        if (!cancelled) toast({ title: 'Audio connection unavailable', description: e instanceof Error ? e.message : 'Native media connection failed.', variant: 'destructive' });
       }
     };
     void connect();
-    return () => { cancelled = true; void room?.disconnect(); liveKitRef.current = null; };
-  }, [joined, space?.is_live, spaceId]);
+    return () => {
+      cancelled = true;
+      void mediaSessionRef.current?.close();
+      mediaSessionRef.current = null;
+      localMediaStreamRef.current?.getTracks().forEach(track => track.stop());
+      localMediaStreamRef.current = null;
+      if (liveAudioRef.current) liveAudioRef.current.srcObject = null;
+    };
+  }, [joined, space?.is_live, spaceId, role, isMuted, user, space?.host?.id]);
+
 
   const handleJoin = async () => {
     if (!user || !spaceId) return;
@@ -151,7 +172,8 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
           </DialogTitle>
         </DialogHeader>
 
-        {space && (
+        {space && (<>
+          <audio ref={liveAudioRef} autoPlay playsInline className="hidden" />
           <div className="space-y-6">
             <div>
               <h2 className="text-2xl font-bold mb-2">{space.title}</h2>
@@ -295,7 +317,7 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
               </div>
             )}
           </div>
-        )}
+        </>)}
       </DialogContent>
     </Dialog>
   );
