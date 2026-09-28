@@ -1,0 +1,46 @@
+name: Testagram Media Engine CI
+
+on:
+  push:
+    paths:
+      - "media-engine/**"
+  pull_request:
+    paths:
+      - "media-engine/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: media-engine/go.mod
+          cache-dependency-path: media-engine/go.mod
+
+      - name: Download modules
+        working-directory: media-engine
+        run: go mod download
+
+      - name: Unit tests
+        working-directory: media-engine
+        run: go test ./...
+
+      - name: Vet
+        working-directory: media-engine
+        run: go vet ./...
+
+      - name: Build
+        working-directory: media-engine
+        run: CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" .
+
+      - name: Container build
+        run: docker build -t testagram-media-engine-ci ./media-engine
