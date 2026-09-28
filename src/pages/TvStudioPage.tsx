@@ -1009,13 +1009,6 @@ export default function TvStudioPage() {
     if (t) { t.enabled = !t.enabled; setCamera(t.enabled); }
   };
 
-  const replacePublishedVideoTrack = async (track: MediaStreamTrack) => {
-    const room = roomRef.current;
-    if (!room) return;
-    const publication = Array.from(room.localParticipant.videoTrackPublications.values()).find(p => p.trackName === 'program-video') ?? Array.from(room.localParticipant.videoTrackPublications.values())[0];
-    if (publication?.track) await publication.track.replaceTrack(track);
-  };
-
   const shareScreen = async () => {
     if (sharing) {
       screenStreamRef.current?.getTracks().forEach(t => t.stop());
