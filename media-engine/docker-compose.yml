@@ -1,0 +1,37 @@
+services:
+  testagram-media-engine:
+    build: .
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+      MEDIA_ENGINE_SECRET: ${MEDIA_ENGINE_SECRET:?set MEDIA_ENGINE_SECRET}
+      MEDIA_ENGINE_PUBLIC_IP: ${MEDIA_ENGINE_PUBLIC_IP:?set MEDIA_ENGINE_PUBLIC_IP}
+      MEDIA_ENGINE_NODE_ID: ${MEDIA_ENGINE_NODE_ID:-native-1}
+      MEDIA_ENGINE_ALLOWED_ORIGINS: ${MEDIA_ENGINE_ALLOWED_ORIGINS:?set MEDIA_ENGINE_ALLOWED_ORIGINS}
+      MEDIA_ENGINE_ICE_SERVERS: ${MEDIA_ENGINE_ICE_SERVERS:?set MEDIA_ENGINE_ICE_SERVERS}
+      MEDIA_ENGINE_UDP_MIN: ${MEDIA_ENGINE_UDP_MIN:-10000}
+      MEDIA_ENGINE_UDP_MAX: ${MEDIA_ENGINE_UDP_MAX:-20000}
+      MEDIA_ENGINE_MAX_VIEWERS: ${MEDIA_ENGINE_MAX_VIEWERS:-500}
+      MEDIA_ENGINE_MAX_GUESTS: ${MEDIA_ENGINE_MAX_GUESTS:-4}
+      MEDIA_ENGINE_CONNECTIONS_PER_MINUTE: ${MEDIA_ENGINE_CONNECTIONS_PER_MINUTE:-60}
+    ports:
+      - "8080:8080/tcp"
+      - "${MEDIA_ENGINE_UDP_MIN:-10000}-${MEDIA_ENGINE_UDP_MAX:-20000}:${MEDIA_ENGINE_UDP_MIN:-10000}-${MEDIA_ENGINE_UDP_MAX:-20000}/udp"
+
+  coturn:
+    image: coturn/coturn:4.18
+    restart: unless-stopped
+    network_mode: host
+    command:
+      - -n
+      - --log-file=stdout
+      - --fingerprint
+      - --lt-cred-mech
+      - --realm=${TURN_REALM:?set TURN_REALM}
+      - --user=${TURN_USERNAME:?set TURN_USERNAME}:${TURN_PASSWORD:?set TURN_PASSWORD}
+      - --external-ip=${MEDIA_ENGINE_PUBLIC_IP:?set MEDIA_ENGINE_PUBLIC_IP}
+      - --listening-port=3478
+      - --tls-listening-port=5349
+      - --min-port=${TURN_MIN_PORT:-49152}
+      - --max-port=${TURN_MAX_PORT:-65535}
+      - --no-cli
