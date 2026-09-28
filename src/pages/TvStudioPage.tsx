@@ -101,7 +101,12 @@ export default function TvStudioPage() {
   const programSceneRef = useRef<TvSceneId>('camera');
   const transitionRef = useRef({ type: 'cut' as TransitionType, durationMs: 300 });
   const transitionStartedRef = useRef<number | null>(null);
-  const replayBufferRef = useRef(new TvReplayBuffer(60_000, 500));
+  const replayBufferRef = useRef(new TvReplayBuffer(
+    60_000,
+    typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ? 1000 : 500,
+    typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ? 360 : 480,
+    typeof navigator !== 'undefined' && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ? 203 : 270,
+  ));
   const openingSlateUntilRef = useRef<number | null>(null);
   const openingSlatePlayedRef = useRef(false);
   const liveRef = useRef(false);
@@ -364,7 +369,10 @@ export default function TvStudioPage() {
     const screenVideo = screenVideoRef.current ?? document.createElement('video');
     screenVideo.muted = true; screenVideo.playsInline = true;
     screenVideoRef.current = screenVideo;
-    if (screenStreamRef.current) screenVideo.srcObject = screenStreamRef.current;
+    if (screenStreamRef.current) {
+      screenVideo.srcObject = screenStreamRef.current;
+      await screenVideo.play().catch(() => undefined);
+    }
 
     // Every TV output is a true landscape 16:9 raster. Camera sources that
     // arrive portrait are cropped into that raster instead of being letterboxed
@@ -429,7 +437,7 @@ export default function TvStudioPage() {
       } else if (scene === 'guest') {
         fit(target, remoteGuestVideoRef.current, true);
       } else if (scene === 'replay') {
-        const frames = replayBufferRef.current.getFrames();
+        const frames = replayBufferRef.current.getFrames(replaySeconds * 1000);
         const frame = frames[Math.min(replayIndexRef.current, Math.max(frames.length - 1, 0))];
         if (frame) target.drawImage(frame.canvas, 0, 0, canvas.width, canvas.height);
       }
@@ -1321,7 +1329,7 @@ export default function TvStudioPage() {
                 <div className="rounded-lg bg-black/30 p-2"><ShieldCheck className="w-3.5 h-3.5 mb-1 text-emerald-400" /><span>Local</span><p className="text-zinc-500">recording storage</p></div>
               </div>
               <div className="mt-2 text-[10px] text-zinc-500">Replay buffer: {replayBufferRef.current.frameCount} frames / {Math.round(replayBufferRef.current.durationMs / 1000)}s · Guest: {guestConnected ? 'ready' : 'offline'}</div>
-              <div className="mt-1 text-[10px] text-zinc-500">Program: {programFps} FPS · dropped {programDropped}</div>
+              <div className="mt-1 text-[10px] text-zinc-500">Render: {programFps} FPS · delayed {programDropped}</div>
               <div className="mt-4 flex items-center justify-between text-[10px] text-zinc-500"><span>Studio signal</span><span className="uppercase tracking-wider">{deviceReady ? status : 'waiting for device'}</span></div>
               <div className="mt-1 h-2 rounded-full bg-zinc-700/50 overflow-hidden"><div className="h-full bg-emerald-400 transition-all" style={{ width: `${Math.min(100, audioLevel)}%` }} /></div>
               <p className="text-[10px] text-zinc-500 mt-1">Microphone level • browser noise suppression + studio gate/compressor</p>
