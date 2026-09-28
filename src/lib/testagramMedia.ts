@@ -108,7 +108,8 @@ export class TestagramMediaSession {
       const mediaReady = direction === 'send'
         ? videoPackets > 0 && videoBytes > 0 && audioPackets > 0 && audioBytes > 0
         : videoPackets > 0 && videoBytes > 0;
-      if (state === 'connected' && ice === 'connected' && mediaReady) return this.getDiagnostics();
+      const iceReady = ice === 'connected' || ice === 'completed';
+      if (state === 'connected' && iceReady && mediaReady) return this.getDiagnostics();
       last = `connection=${state}, ICE=${ice}, videoPackets=${videoPackets}, audioPackets=${audioPackets}`;
       await new Promise(resolve => window.setTimeout(resolve, 250));
     }
