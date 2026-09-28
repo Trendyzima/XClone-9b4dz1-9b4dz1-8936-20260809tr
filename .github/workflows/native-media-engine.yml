@@ -1,0 +1,25 @@
+name: Native Media Engine Check
+on:
+  push:
+    branches: [feat/testagram-native-media-engine]
+  pull_request:
+    paths:
+      - "ops/media-engine/**"
+      - "src/lib/testagramMedia.ts"
+      - "supabase/functions/testagram-media-token/**"
+      - "src/pages/LiveStreamPage.tsx"
+      - "package.json"
+jobs:
+  media-engine:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.24"
+      - name: Go format check
+        working-directory: ops/media-engine
+        run: test -z "$(gofmt -d main.go)"
+      - name: Go build
+        working-directory: ops/media-engine
+        run: go build ./...
