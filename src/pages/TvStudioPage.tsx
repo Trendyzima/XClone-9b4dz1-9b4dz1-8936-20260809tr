@@ -841,11 +841,6 @@ export default function TvStudioPage() {
 
       if (!id) throw new Error('Could not resolve the active TV broadcast.');
 
-      await supabase.from('live_streams')
-        .update({ stream_url: `testagram-media://tv/${id}` })
-        .eq('id', id)
-        .eq('user_id', user.id);
-
       setBroadcastStage('connecting');
       session = await TestagramMediaSession.connectHost(id, program);
       await session.configureVideoSender({ maxBitrate: VIDEO_PRESETS[quality].bitrate, maxFramerate: VIDEO_PRESETS[quality].fps, maintainResolution: true });
@@ -876,9 +871,14 @@ export default function TvStudioPage() {
           }
         }
       });
+      const playbackUrl = session.getPlaybackUrl();
+      if (!playbackUrl) {
+        throw new Error('Cloudflare Stream WebRTC playback endpoint was not returned.');
+      }
+
       // The stream is intentionally not public until WebRTC has proven that the broadcaster is transmitting.
       const { error: onAirError } = await supabase.from('live_streams')
-        .update({ is_live: true, stream_url: `testagram-media://tv/${id}`, ended_at: null })
+        .update({ is_live: true, stream_url: playbackUrl, ended_at: null })
         .eq('id', id)
         .eq('user_id', user.id);
       if (onAirError) {
