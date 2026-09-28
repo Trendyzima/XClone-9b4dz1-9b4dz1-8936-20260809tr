@@ -59,7 +59,7 @@ export class TestagramMediaSession {
     const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
     const session = new TestagramMediaSession('host', streamId, pc);
     program.getTracks().forEach(track => pc.addTrack(track, program));
-    await session.connect();
+    await session.connect(info);
     return session;
   }
 
