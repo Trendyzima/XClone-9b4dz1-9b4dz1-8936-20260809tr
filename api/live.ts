@@ -12,9 +12,6 @@ const cloudflareAccountId = env('CLOUDFLARE_ACCOUNT_ID');
 const cloudflareApiToken = env('CLOUDFLARE_API_TOKEN');
 const cloudflareApiBase = cloudflareAccountId ? `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/stream/live_inputs` : '';
 const cloudflareStreamCustomerCode = env('CLOUDFLARE_STREAM_CUSTOMER_CODE');
-const cloudflareRealtimeAppId = env('CLOUDFLARE_REALTIME_SFU_APP_ID');
-const cloudflareRealtimeAppSecret = env('CLOUDFLARE_REALTIME_SFU_APP_SECRET');
-const realtimeApiBase = cloudflareRealtimeAppId ? `https://rtc.live.cloudflare.com/v1/apps/${cloudflareRealtimeAppId}` : '';
 
 const authHeader = (request: Request) => request.headers.get('authorization') || '';
 
