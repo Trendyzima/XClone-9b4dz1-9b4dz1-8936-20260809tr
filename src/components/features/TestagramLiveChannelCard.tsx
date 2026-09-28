@@ -18,13 +18,13 @@ export function TestagramLiveChannelCard({stream}:Props){
     });
     session.setViewerCountHandler(count=>setViewers(count));
     if(cancelled){await session.close();return;}
-    mediaRef.current=session;
-  }catch(e){if(!cancelled)console.debug('[live channel] native media unavailable',e);}
+    mediaRef.current=session;setConnected(true);setError(false);
+  }catch(e){if(!cancelled){setError(true);setConnected(false);console.debug('[live channel] native media unavailable',e);}}
   };
   void connect();
   return()=>{cancelled=true;void mediaRef.current?.close();mediaRef.current=null;if(audioHost.current)audioHost.current.replaceChildren();if(videoRef.current)videoRef.current.srcObject=null;};
 },[stream.id]);
- const toggle=()=>{const next=!muted;setMuted(next);if(videoRef.current){videoRef.current.muted=next;void videoRef.current.play().catch(()=>{});}};
+ const toggle=()=>{const next=!muted;setMuted(next);if(videoRef.current){videoRef.current.muted=true;void videoRef.current.play().catch(()=>{});}const audio=audioHost.current?.querySelector('audio');if(audio){audio.muted=next;void audio.play().catch(()=>{});}};
  return <article className="overflow-hidden rounded-2xl border bg-card shadow-sm">
   <div className="relative aspect-video bg-black">
    <video ref={videoRef} muted={muted} playsInline autoPlay controls className="absolute inset-0 w-full h-full object-contain" />
