@@ -106,8 +106,11 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
       localMediaStreamRef.current = null;
       if (liveAudioRef.current) liveAudioRef.current.srcObject = null;
     };
-  }, [joined, space?.is_live, spaceId, role, isMuted, user, space?.host?.id]);
+  }, [joined, space?.is_live, spaceId, role, user?.id, space?.host?.id]);
 
+  useEffect(() => {
+    localMediaStreamRef.current?.getAudioTracks().forEach(track => { track.enabled = !isMuted; });
+  }, [isMuted]);
 
   const handleJoin = async () => {
     if (!user || !spaceId) return;
