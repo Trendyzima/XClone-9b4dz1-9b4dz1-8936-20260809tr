@@ -2,7 +2,7 @@ name: Repair npm lockfile
 on:
   push:
     branches:
-      - economical-backend-50k
+      - main
 permissions:
   contents: write
 jobs:
