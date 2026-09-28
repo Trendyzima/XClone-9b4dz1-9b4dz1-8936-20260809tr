@@ -40,8 +40,8 @@ export class TvReplayBuffer {
   constructor(private readonly maxDurationMs = 30000, private readonly intervalMs = 500) {}
   push(canvas: HTMLCanvasElement, now = performance.now()) {
     const copy = document.createElement('canvas');
-    const maxWidth = 640;
-    const maxHeight = 360;
+    const maxWidth = 480;
+    const maxHeight = 270;
     const scale = Math.min(1, maxWidth / canvas.width, maxHeight / canvas.height);
     copy.width = Math.max(1, Math.round(canvas.width * scale));
     copy.height = Math.max(1, Math.round(canvas.height * scale));
