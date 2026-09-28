@@ -495,7 +495,26 @@ jobs:
           fi
           [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required for profile media deployment."; exit 1; }
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref for profile media deployment."; exit 1; }
-          supabase functions deploy profile-media-upload --use-api --project-ref "$PROJECT_REF" --no-verify-jwt
+
+          # Supabase function bundling can transiently time out while fetching JSR
+          # package metadata. Retry the control-plane operation instead of treating
+          # a 10s registry timeout as a source-code failure.
+          attempt=1
+          max_attempts=4
+          while true; do
+            echo "Deploying profile-media-upload (attempt $attempt/$max_attempts)"
+            if supabase functions deploy profile-media-upload --use-api --project-ref "$PROJECT_REF" --no-verify-jwt; then
+              break
+            fi
+            if (( attempt >= max_attempts )); then
+              echo "::error::Profile media Edge Function deployment failed after $max_attempts attempts."
+              exit 1
+            fi
+            delay=$((attempt * 20))
+            echo "::warning::Profile media deployment hit a transient bundling/registry failure; retrying in ${delay}s (attempt $((attempt+1))/$max_attempts)."
+            sleep "$delay"
+            attempt=$((attempt+1))
+          done
           echo "Profile media Edge Function deployed with in-function bearer authentication."
       - name: Synchronize Cloudflare R2 secrets into Vercel production
         shell: bash
