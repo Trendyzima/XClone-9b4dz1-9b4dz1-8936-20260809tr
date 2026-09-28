@@ -1,5 +1,7 @@
 # Testagram Media Engine
 
+> Production CI validates the Go module graph, unit tests, vet, binary build, and container build.
+
 Self-hosted WebRTC SFU for Testagram TV.
 
 The broadcaster publishes the Testagram production A/V program bus. The engine forwards RTP to authorized viewers and relays guest contribution tracks back to the host. Media packets are not persisted by this service; Supabase remains the control plane.
