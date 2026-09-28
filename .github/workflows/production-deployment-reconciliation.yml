@@ -532,125 +532,43 @@ jobs:
 
           echo "R2 production environment synchronized without printing secret values."
 
-      - name: Synchronize Cloudflare Stream WebRTC secrets into Vercel production
+      - name: Synchronize Cloudflare backend credentials into Vercel production
         shell: bash
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.TESTAGRAM_CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_STREAM_ACCOUNT_ID || secrets.R2_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.TESTAGRAM_CLOUDFLARE_STREAM_API_TOKEN || secrets.CLOUDFLARE_API_TOKEN || secrets.CLOUDFLARE_STREAM_API_TOKEN }}
-          CLOUDFLARE_STREAM_ALLOWED_ORIGINS: ${{ secrets.CLOUDFLARE_STREAM_ALLOWED_ORIGINS || vars.CLOUDFLARE_STREAM_ALLOWED_ORIGINS || '["https://testagram.site","https://www.testagram.site"]' }}
         run: |
           set -euo pipefail
           require_secret() {
             local name="$1"
             local value="$2"
             if [[ -z "$value" ]]; then
-              echo "::error::Required Cloudflare Stream production secret is missing from GitHub: $name"
-              echo "::error::Add the Cloudflare Stream Account ID/API Token to the GitHub production environment, or provide the existing Cloudflare R2_ACCOUNT_ID when Stream and R2 share the same Cloudflare account."
+              echo "::error::Required Cloudflare backend credential is missing from GitHub: $name"
               exit 1
             fi
             printf '::add-mask::%s\n' "$value"
           }
+
           require_secret "CLOUDFLARE_ACCOUNT_ID" "$CLOUDFLARE_ACCOUNT_ID"
           require_secret "CLOUDFLARE_API_TOKEN" "$CLOUDFLARE_API_TOKEN"
 
-          # Prove the exact GitHub Cloudflare credential can authenticate against
-          # the exact account and access Stream before copying it into Vercel.
-          # Never print the token or raw Cloudflare response body.
-          CF_VERIFY="https://api.cloudflare.com/client/v4/user/tokens/verify"
+          # Cloudflare remains the backend/control-plane provider. TV media delivery
+          # is now reconciled through Mux below, so this gate intentionally does NOT
+          # require Cloudflare Stream Live Input permissions.
           CF_VERIFY_STATUS="$(curl --silent --show-error --output /tmp/cloudflare-token-verify.json --write-out '%{http_code}' \
             --request GET \
             --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "$CF_VERIFY")"
+            "https://api.cloudflare.com/client/v4/user/tokens/verify")"
           if [[ "$CF_VERIFY_STATUS" != "200" ]]; then
-            echo "::error::Cloudflare API token verification failed for the configured account (HTTP $CF_VERIFY_STATUS). Check token status, account scope, and token permissions."
+            echo "::error::Cloudflare API token verification failed (HTTP $CF_VERIFY_STATUS). Backend Cloudflare credentials were not synchronized."
             exit 1
           fi
-          node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("/tmp/cloudflare-token-verify.json","utf8")); if(p?.success!==true || p?.result?.status!=="active"){console.error("::error::Cloudflare token is not active for the configured account."); process.exit(1)} console.log("Cloudflare API token is active for the configured account.");'
-
-          # Identify the token and, when permitted, inspect its effective policies/resources.
-          TOKEN_ID="$(node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("/tmp/cloudflare-token-verify.json","utf8")); process.stdout.write(p?.result?.id||"")')"
-          if [[ -n "$TOKEN_ID" ]]; then
-            CF_TOKEN_DETAILS="https://api.cloudflare.com/client/v4/user/tokens/$TOKEN_ID"
-            CF_TOKEN_STATUS="$(curl --silent --show-error --output /tmp/cloudflare-token-details.json --write-out '%{http_code}' \
-              --request GET \
-              --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              "$CF_TOKEN_DETAILS")"
-            if [[ "$CF_TOKEN_STATUS" == "200" ]]; then
-              node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("/tmp/cloudflare-token-details.json","utf8")); const r=p?.result||{}; const policies=(r.policies||[]).map(x=>({id:x.id,effect:x.effect,permission_groups:(x.permission_groups||[]).map(g=>({id:g.id,name:g.name})),resources:x.resources||{}})); console.log("Cloudflare token policy inspection passed:", JSON.stringify({id:r.id,name:r.name,status:r.status,policies}));'
-            else
-              echo "Cloudflare token policy inspection unavailable (HTTP $CF_TOKEN_STATUS); continuing with direct Stream authorization tests."
-              node -e 'const fs=require("node:fs"); let p={}; try { p=JSON.parse(fs.readFileSync("/tmp/cloudflare-token-details.json","utf8")); } catch {} const e=p?.errors?.[0]; if(e?.code) console.log("Cloudflare token-details error code:",e.code); if(e?.message) console.log("Cloudflare token-details error message:",e.message);'
-            fi
-          else
-            echo "::warning::Cloudflare token verification returned no token identifier; direct Stream tests will still determine effective authorization."
-          fi
-
-          # Do NOT use GET /accounts/{id} or /memberships as the Stream authorization gate.
-          # Prove the actual Stream lifecycle: LIST -> CREATE -> GET -> DELETE.
-          CF_STREAM="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs"
-          CF_STREAM_LIST_STATUS="$(curl --silent --show-error --output /tmp/cloudflare-stream-list.json --write-out '%{http_code}' \
-            --request GET \
-            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "$CF_STREAM")"
-          if [[ "$CF_STREAM_LIST_STATUS" != "200" ]]; then
-            CF_STREAM_LIST_STATUS="$CF_STREAM_LIST_STATUS" node -e 'const fs=require("node:fs"); let p={}; try { p=JSON.parse(fs.readFileSync("/tmp/cloudflare-stream-list.json","utf8")); } catch {} const e=p?.errors?.[0]; console.error("::error::Cloudflare Stream LIST failed (HTTP "+process.env.CF_STREAM_LIST_STATUS+"). This is the direct Stream authorization test."); if(e?.code) console.error("Cloudflare Stream LIST error code:",e.code); if(e?.message) console.error("Cloudflare Stream LIST error message:",e.message); process.exit(1)'
-          fi
-          node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("/tmp/cloudflare-stream-list.json","utf8")); if(p?.success!==true){console.error("::error::Cloudflare Stream LIST returned success=false."); process.exit(1)} console.log("Cloudflare Stream LIST authorization passed.");'
-
-          TEST_INPUT_ID=""
-          cleanup_stream_input() {
-            if [[ -n "$TEST_INPUT_ID" ]]; then
-              echo "Cleaning up forensic Cloudflare Stream live input: $TEST_INPUT_ID"
-              curl --silent --show-error --output /tmp/cloudflare-stream-delete-cleanup.json --write-out '%{http_code}' \
-                --request DELETE \
-                --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-                "$CF_STREAM/$TEST_INPUT_ID" > /tmp/cloudflare-stream-delete-cleanup-status.txt || true
-            fi
-          }
-          trap cleanup_stream_input EXIT
-
-          TEST_META="testagram-ci-forensic-$(date +%s)-${GITHUB_RUN_ID:-local}"
-          CREATE_PAYLOAD="$(TEST_META="$TEST_META" node -e 'process.stdout.write(JSON.stringify({enabled:true,meta:{name:process.env.TEST_META},preferLowLatency:true,recording:{mode:"off"}}))')"
-          CF_STREAM_CREATE_STATUS="$(curl --silent --show-error --output /tmp/cloudflare-stream-create.json --write-out '%{http_code}' \
-            --request POST \
-            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            --header 'Content-Type: application/json' \
-            --header "Idempotency-Key: $TEST_META" \
-            --data "$CREATE_PAYLOAD" \
-            "$CF_STREAM")"
-          if [[ "$CF_STREAM_CREATE_STATUS" != "200" ]]; then
-            CF_STREAM_CREATE_STATUS="$CF_STREAM_CREATE_STATUS" node -e 'const fs=require("node:fs"); let p={}; try { p=JSON.parse(fs.readFileSync("/tmp/cloudflare-stream-create.json","utf8")); } catch {} const e=p?.errors?.[0]; console.error("::error::Cloudflare Stream CREATE failed (HTTP "+process.env.CF_STREAM_CREATE_STATUS+"). LIST succeeded, so this isolates the issue to Stream write authorization/policy/resource scope or a Stream service-level denial."); if(e?.code) console.error("Cloudflare Stream CREATE error code:",e.code); if(e?.message) console.error("Cloudflare Stream CREATE error message:",e.message); process.exit(1)'
-          fi
-          TEST_INPUT_ID="$(node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("/tmp/cloudflare-stream-create.json","utf8")); process.stdout.write(p?.result?.uid||"")')"
-          [[ -n "$TEST_INPUT_ID" ]] || { echo "::error::Cloudflare Stream CREATE returned HTTP 200 but no live-input UID."; exit 1; }
-          echo "Cloudflare Stream CREATE authorization passed; forensic live-input resource created."
-
-          CF_STREAM_GET_STATUS="$(curl --silent --show-error --output /tmp/cloudflare-stream-get.json --write-out '%{http_code}' \
-            --request GET \
-            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "$CF_STREAM/$TEST_INPUT_ID")"
-          if [[ "$CF_STREAM_GET_STATUS" != "200" ]]; then
-            CF_STREAM_GET_STATUS="$CF_STREAM_GET_STATUS" node -e 'const fs=require("node:fs"); let p={}; try { p=JSON.parse(fs.readFileSync("/tmp/cloudflare-stream-get.json","utf8")); } catch {} const e=p?.errors?.[0]; console.error("::error::Cloudflare Stream GET failed (HTTP "+process.env.CF_STREAM_GET_STATUS+") after successful CREATE. This exposes a read/resource-scope inconsistency."); if(e?.code) console.error("Cloudflare Stream GET error code:",e.code); if(e?.message) console.error("Cloudflare Stream GET error message:",e.message); process.exit(1)'
-          fi
-          node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("/tmp/cloudflare-stream-get.json","utf8")); if(p?.success!==true){console.error("::error::Cloudflare Stream GET returned success=false."); process.exit(1)} console.log("Cloudflare Stream GET authorization passed.");'
-
-          CF_STREAM_DELETE_STATUS="$(curl --silent --show-error --output /tmp/cloudflare-stream-delete.json --write-out '%{http_code}' \
-            --request DELETE \
-            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "$CF_STREAM/$TEST_INPUT_ID")"
-          if [[ "$CF_STREAM_DELETE_STATUS" != "200" ]]; then
-            CF_STREAM_DELETE_STATUS="$CF_STREAM_DELETE_STATUS" node -e 'const fs=require("node:fs"); let p={}; try { p=JSON.parse(fs.readFileSync("/tmp/cloudflare-stream-delete.json","utf8")); } catch {} const e=p?.errors?.[0]; console.error("::error::Cloudflare Stream DELETE failed (HTTP "+process.env.CF_STREAM_DELETE_STATUS+"). CREATE succeeded but Stream write authorization is incomplete or resource policy is inconsistent."); if(e?.code) console.error("Cloudflare Stream DELETE error code:",e.code); if(e?.message) console.error("Cloudflare Stream DELETE error message:",e.message); process.exit(1)'
-          fi
-          TEST_INPUT_ID=""
-          trap - EXIT
-          echo "Cloudflare Stream forensic lifecycle passed: LIST -> CREATE -> GET -> DELETE."
+          node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("/tmp/cloudflare-token-verify.json","utf8")); if(p?.success!==true || p?.result?.status!=="active"){console.error("::error::Cloudflare API token is not active."); process.exit(1)} console.log("Cloudflare backend token verification passed.");'
 
           printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | vercel env add "CLOUDFLARE_ACCOUNT_ID" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           printf '%s' "$CLOUDFLARE_API_TOKEN" | vercel env add "CLOUDFLARE_API_TOKEN" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
-          printf '%s' "$CLOUDFLARE_STREAM_ALLOWED_ORIGINS" | vercel env add "CLOUDFLARE_STREAM_ALLOWED_ORIGINS" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
-          echo "Cloudflare Stream server credentials synchronized to Vercel without printing secret values."
-
+          echo "Cloudflare backend credentials synchronized without printing secret values."
       - name: Synchronize Mux TV credentials into Vercel production
         shell: bash
         env:
