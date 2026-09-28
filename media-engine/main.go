@@ -1,3 +1,26 @@
+package main
+
+import (
+  "crypto/hmac"
+  "crypto/sha256"
+  "encoding/base64"
+  "encoding/json"
+  "fmt"
+  "log"
+  "net"
+  "net/http"
+  "os"
+  "strings"
+  "sync"
+  "sync/atomic"
+  "strconv"
+  "time"
+
+  "github.com/gorilla/websocket"
+  "github.com/pion/ice/v4"
+  "github.com/pion/webrtc/v4"
+)
+
 type claims struct { Mode string \`json:"mode"\`; RoomID string \`json:"room_id"\`; Role string \`json:"role"\`; UserID string \`json:"user_id"\`; Exp int64 \`json:"exp"\` }
 type signal struct { Type string \`json:"type"\`; SDP string \`json:"sdp,omitempty"\`; Candidate *webrtc.ICECandidateInit \`json:"candidate,omitempty"\`; ViewerCount int \`json:"viewer_count,omitempty"\`; GuestCount int \`json:"guest_count,omitempty"\`; ParticipantCount int \`json:"participant_count,omitempty"\` }
 type peer struct { ws *websocket.Conn; pc *webrtc.PeerConnection; mode, role, userID string; mu sync.Mutex; writeMu sync.Mutex; senders map[*publishedTrack]*webrtc.RTPSender }
