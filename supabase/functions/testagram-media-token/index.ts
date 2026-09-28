@@ -9,49 +9,77 @@ const mediaWsUrl = mediaUrl.replace(/^https:/, "wss:").replace(/^http:/, "ws:").
 const iceServers = (() => {
   const raw = Deno.env.get("MEDIA_ENGINE_ICE_SERVERS") ?? "";
   if (!raw) return [{ urls: "stun:stun.l.google.com:19302" }];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [{ urls: "stun:stun.l.google.com:19302" }];
-  } catch {
-    return [{ urls: "stun:stun.l.google.com:19302" }];
-  }
+  try { const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed : [{ urls: "stun:stun.l.google.com:19302" }]; }
+  catch { return [{ urls: "stun:stun.l.google.com:19302" }]; }
 })();
-const cors = {"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type, x-retry-count, traceparent, tracestate, baggage","Access-Control-Allow-Methods":"POST, OPTIONS","Access-Control-Max-Age":"600","Vary":"Origin, Access-Control-Request-Headers"};
+const cors = {"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS","Access-Control-Max-Age":"600","Vary":"Origin, Access-Control-Request-Headers"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json","Cache-Control":"no-store",...cors}});
 const enc=(value:string|Uint8Array)=>{const bytes=typeof value==="string"?new TextEncoder().encode(value):value;let binary="";for(const byte of bytes)binary+=String.fromCharCode(byte);return btoa(binary).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"")};
-const dec=(value:string)=>{const n=value.replace(/-/g,"+").replace(/_/g,"/")+"===".slice((value.length+3)%4);const bytes=atob(n);return Uint8Array.from(bytes,c=>c.charCodeAt(0))};
-const signToken=async(header:string,payload:Record<string,unknown>)=>{const h=enc(header);const b=enc(JSON.stringify(payload));const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(mediaSecret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);const sig=new Uint8Array(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(b)));return h+"."+b+"."+enc(sig)};
-const verifyToken=async(token:string,expectedHeader:string)=>{try{const p=token.split(".");if(p.length!==3||dec(p[0]).length===0||new TextDecoder().decode(dec(p[0]))!==expectedHeader)return null;const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(mediaSecret),{name:"HMAC",hash:"SHA-256"},false,["verify"]);if(!await crypto.subtle.verify("HMAC",key,dec(p[2]),new TextEncoder().encode(p[1])))return null;const payload=JSON.parse(new TextDecoder().decode(dec(p[1])));return typeof payload.exp==="number"&&payload.exp>Math.floor(Date.now()/1000)?payload:null}catch{return null}};
+const signToken=async(payload:Record<string,unknown>)=>{const h=enc("testagram-media-v1");const b=enc(JSON.stringify(payload));const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(mediaSecret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);const sig=new Uint8Array(await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(b)));return h+"."+b+"."+enc(sig)};
 const getUser=async(auth:string)=>{const db=createClient(supabaseUrl,supabaseKey,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});const {data,error}=await db.auth.getUser();return error||!data.user?null:data.user};
+
 Deno.serve(async req=>{
- if(req.method==="OPTIONS")return json({ok:true});if(req.method!=="POST")return json({ok:false,error:{code:"METHOD_NOT_ALLOWED",message:"POST required"}},405);
- if(!supabaseUrl||!supabaseKey||!mediaUrl||!mediaSecret)return json({ok:false,error:{code:"MEDIA_ENGINE_NOT_CONFIGURED",message:"Testagram Media Engine is not configured",details:{missing:[!mediaUrl?"MEDIA_ENGINE_URL":null,!mediaSecret?"MEDIA_ENGINE_SECRET":null].filter(Boolean)}}},503);
- let body:any={};try{body=await req.json()}catch{return json({ok:false,error:{code:"INVALID_JSON",message:"JSON required"}},400)}
- const streamId=typeof body.stream_id==="string"?body.stream_id:"";const role=body.role==="host"?"host":body.role==="guest"?"guest":"viewer";
- if(!streamId)return json({ok:false,error:{code:"STREAM_ID_REQUIRED",message:"stream_id is required"}},400);
- const publicDb=createClient(supabaseUrl,supabaseKey,{auth:{persistSession:false,autoRefreshToken:false}});
- const {data:stream,error:streamError}=await publicDb.from("live_streams").select("id,user_id,is_live,title").eq("id",streamId).maybeSingle();
- if(streamError||!stream)return json({ok:false,error:{code:"STREAM_NOT_FOUND",message:"TV broadcast was not found."}},404);
- const auth=req.headers.get("authorization")||"";
- if(role==="host"){
-   if(!auth.startsWith("Bearer "))return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Sign in to broadcast."}},401);
-   const user=await getUser(auth);if(!user||stream.user_id!==user.id)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can publish."}},403);
-   const now=Math.floor(Date.now()/1000);const token=await signToken("testagram-media-v1",{role:"host",stream_id:stream.id,user_id:user.id,exp:now+3600});
-   return json({ok:true,data:{token,ws_url:mediaWsUrl,stream_id:stream.id,role:"host",ice_servers:iceServers},error:null});
- }
- if(!stream.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
- if(role==="guest"){
-   if(body.mode==="create"){
-     if(!auth.startsWith("Bearer "))return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Sign in as the broadcaster to invite a guest."}},401);
-     const user=await getUser(auth);if(!user||stream.user_id!==user.id)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can create a guest invitation."}},403);
-     const now=Math.floor(Date.now()/1000);const invite=await signToken("testagram-tv-guest-v1",{typ:"tv_guest_invite",stream_id:stream.id,host_id:user.id,jti:crypto.randomUUID(),exp:now+900});
-     return json({ok:true,data:{invite_token:invite,stream_id:stream.id,expires_at:new Date((now+900)*1000).toISOString()},error:null});
-   }
-   const invite=typeof body.invite_token==="string"?await verifyToken(body.invite_token,"testagram-tv-guest-v1"):null;
-   if(!invite||invite.typ!=="tv_guest_invite"||invite.stream_id!==stream.id||invite.host_id!==stream.user_id)return json({ok:false,error:{code:"INVALID_GUEST_INVITE",message:"This guest invitation is invalid or expired."}},401);
-   const now=Math.floor(Date.now()/1000);const token=await signToken("testagram-media-v1",{role:"guest",stream_id:stream.id,user_id:"guest-"+crypto.randomUUID(),exp:now+3600});
-   return json({ok:true,data:{token,ws_url:mediaWsUrl,stream_id:stream.id,role:"guest",ice_servers:iceServers},error:null});
- }
- const now=Math.floor(Date.now()/1000);const token=await signToken("testagram-media-v1",{role:"viewer",stream_id:stream.id,user_id:"viewer-"+crypto.randomUUID(),exp:now+3600});
- return json({ok:true,data:{token,ws_url:mediaWsUrl,stream_id:stream.id,role:"viewer",ice_servers:iceServers},error:null});
+  if(req.method==="OPTIONS") return json({ok:true});
+  if(req.method!=="POST") return json({ok:false,error:{code:"METHOD_NOT_ALLOWED",message:"POST required"}},405);
+  if(!supabaseUrl||!supabaseKey||!mediaUrl||!mediaSecret) return json({ok:false,error:{code:"MEDIA_ENGINE_NOT_CONFIGURED",message:"Testagram Media Engine is not configured",details:{missing:[!mediaUrl?"MEDIA_ENGINE_URL":null,!mediaSecret?"MEDIA_ENGINE_SECRET":null].filter(Boolean)}}},503);
+  let body:any={}; try{body=await req.json()}catch{return json({ok:false,error:{code:"INVALID_JSON",message:"JSON required"}},400);}
+  const roomId=typeof body.room_id==="string"?body.room_id:"";
+  const roomType=body.room_type==="call"||body.room_type==="space"||body.room_type==="tv"?body.room_type:"tv";
+  const requestedRole=typeof body.role==="string"?body.role:"viewer";
+  if(!roomId) return json({ok:false,error:{code:"ROOM_ID_REQUIRED",message:"room_id is required"}},400);
+
+  const publicDb=createClient(supabaseUrl,supabaseKey,{auth:{persistSession:false,autoRefreshToken:false}});
+  const auth=req.headers.get("authorization")||"";
+  const now=Math.floor(Date.now()/1000);
+
+  if(roomType==="tv"){
+    const {data:stream,error}=await publicDb.from("live_streams").select("id,user_id,is_live,title").eq("id",roomId).maybeSingle();
+    if(stream===null||stream===undefined||error) return json({ok:false,error:{code:"STREAM_NOT_FOUND",message:"TV broadcast was not found."}},404);
+    if(requestedRole==="host"){
+      if(!auth.startsWith("Bearer ")) return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Sign in to broadcast."}},401);
+      const user=await getUser(auth); if(!user||stream.user_id!==user.id) return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can publish."}},403);
+      const token=await signToken({mode:"tv",room_id:stream.id,role:"host",user_id:user.id,exp:now+3600});
+      return json({ok:true,data:{token,ws_url:mediaWsUrl,room_id:stream.id,room_type:"tv",role:"host",ice_servers:iceServers},error:null});
+    }
+    if(!stream.is_live) return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
+    if(requestedRole==="guest"){
+      const invite=typeof body.invite_token==="string"?body.invite_token:"";
+      if(!invite) return json({ok:false,error:{code:"INVALID_GUEST_INVITE",message:"Guest invitation is required."}},401);
+      const p=invite.split("."); if(p.length!==3) return json({ok:false,error:{code:"INVALID_GUEST_INVITE",message:"This guest invitation is invalid or expired."}},401);
+      try {
+        const payload=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(p[1].replace(/-/g,"+").replace(/_/g,"/")+"===".slice((p[1].length+3)%4)),c=>c.charCodeAt(0))));
+        if(payload.typ!=="tv_guest_invite"||payload.stream_id!==stream.id||payload.host_id!==stream.user_id||typeof payload.exp!=="number"||payload.exp<=now) throw new Error("invalid");
+      } catch { return json({ok:false,error:{code:"INVALID_GUEST_INVITE",message:"This guest invitation is invalid or expired."}},401); }
+      const token=await signToken({mode:"tv",room_id:stream.id,role:"guest",user_id:"guest-"+crypto.randomUUID(),exp:now+3600});
+      return json({ok:true,data:{token,ws_url:mediaWsUrl,room_id:stream.id,room_type:"tv",role:"guest",ice_servers:iceServers},error:null});
+    }
+    const token=await signToken({mode:"tv",room_id:stream.id,role:"viewer",user_id:"viewer-"+crypto.randomUUID(),exp:now+3600});
+    return json({ok:true,data:{token,ws_url:mediaWsUrl,room_id:stream.id,room_type:"tv",role:"viewer",ice_servers:iceServers},error:null});
+  }
+
+  if(!auth.startsWith("Bearer ")) return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Authentication required."}},401);
+  const user=await getUser(auth); if(!user) return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Authentication required."}},401);
+
+  if(roomType==="space"){
+    const {data:space,error:spaceError}=await publicDb.from("spaces").select("id,host_id,is_live,room_name").eq("id",roomId).maybeSingle();
+    if(spaceError||!space) return json({ok:false,error:{code:"SPACE_NOT_FOUND",message:"Audio Space was not found."}},404);
+    if(!space.is_live) return json({ok:false,error:{code:"SPACE_ENDED",message:"Audio Space is not live."}},409);
+    const {data:member}=await publicDb.from("space_participants").select("role,left_at").eq("space_id",roomId).eq("user_id",user.id).is("left_at",null).maybeSingle();
+    const isHost=space.host_id===user.id;
+    const role=requestedRole==="speaker"?"speaker":"listener";
+    if(!isHost&&!member) return json({ok:false,error:{code:"SPACE_MEMBERSHIP_REQUIRED",message:"Join the Space before connecting to media."}},403);
+    if(role==="speaker"&&!isHost&&member?.role!=="speaker") return json({ok:false,error:{code:"SPEAKER_REQUIRED",message:"Speaker permission is required."}},403);
+    const token=await signToken({mode:"space",room_id:space.id,role:isHost?"host":role,user_id:user.id,exp:now+3600});
+    return json({ok:true,data:{token,ws_url:mediaWsUrl,room_id:space.id,room_type:"space",role:isHost?"host":role,ice_servers:iceServers},error:null});
+  }
+
+  const {data:call,error:callError}=await publicDb.from("calls").select("id,conversation_id,created_by,room_name,kind,status,metadata").eq("id",roomId).maybeSingle();
+  if(callError||!call) return json({ok:false,error:{code:"CALL_NOT_FOUND",message:"Call was not found."}},404);
+  if(!["ringing","active"].includes(call.status)) return json({ok:false,error:{code:"CALL_ENDED",message:"Call is no longer active."}},409);
+  const {data:membership}=await publicDb.from("conversation_members").select("user_id").eq("conversation_id",call.conversation_id).eq("user_id",user.id).maybeSingle();
+  if(!membership) return json({ok:false,error:{code:"CALL_MEMBERSHIP_REQUIRED",message:"Conversation membership is required."}},403);
+  const {data:participant}=await publicDb.from("call_participants").select("joined_at,left_at").eq("call_id",call.id).eq("user_id",user.id).maybeSingle();
+  if(!participant||participant.left_at) return json({ok:false,error:{code:"CALL_JOIN_REQUIRED",message:"Join the call before connecting to media."}},403);
+  const token=await signToken({mode:"call",room_id:call.id,role:"participant",user_id:user.id,kind:call.kind,exp:now+3600});
+  return json({ok:true,data:{token,ws_url:mediaWsUrl,room_id:call.id,room_type:"call",role:"participant",kind:call.kind,conversation_id:call.conversation_id,ice_servers:iceServers},error:null});
 });
