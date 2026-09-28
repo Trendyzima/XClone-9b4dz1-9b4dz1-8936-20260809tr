@@ -49,6 +49,31 @@ jobs:
             }));
           '
 
+      - name: Inspect token policy and resource scope
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.TESTAGRAM_CLOUDFLARE_STREAM_API_TOKEN || secrets.CLOUDFLARE_API_TOKEN || secrets.CLOUDFLARE_STREAM_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          TOKEN_ID="$(node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("/tmp/cf-verify.json","utf8")); process.stdout.write(p?.result?.id||"")')"
+          [[ -n "$TOKEN_ID" ]] || { echo "::error::Cloudflare token verification did not return a token identifier."; exit 1; }
+          status="$(curl --silent --show-error --output /tmp/cf-token-details.json --write-out '%{http_code}' \
+            --request GET \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/user/tokens/$TOKEN_ID")"
+          CF_STATUS="$status" node -e '
+            const fs=require("node:fs");
+            let p={}; try { p=JSON.parse(fs.readFileSync("/tmp/cf-token-details.json","utf8")); } catch {}
+            const e=p?.errors?.[0];
+            if(process.env.CF_STATUS!=="200" || p?.success!==true){
+              console.error("Cloudflare token policy inspection unavailable:", JSON.stringify({httpStatus:Number(process.env.CF_STATUS),success:p?.success ?? false,errorCode:e?.code ?? null,errorMessage:e?.message ?? null}));
+              console.log("This endpoint requires API Tokens Read/Write; the direct Stream lifecycle below remains authoritative.");
+              process.exit(0);
+            }
+            const r=p?.result||{};
+            const policies=(r.policies||[]).map(x=>({effect:x.effect,permission_groups:(x.permission_groups||[]).map(g=>g.name||g.id),resources:x.resources||{}}));
+            console.log("Cloudflare token policy inspection passed:", JSON.stringify({id:r.id,name:r.name,status:r.status,policies}));
+          '
       - name: Diagnose account endpoint without making it a Stream gate
         shell: bash
         env:
