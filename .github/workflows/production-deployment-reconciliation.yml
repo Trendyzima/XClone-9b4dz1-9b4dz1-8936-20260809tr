@@ -574,14 +574,23 @@ jobs:
           # Account > Stream permissions. The actual Stream endpoint below is the
           # authoritative test for this credential.
 
+          CF_ACCOUNT="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID"
+          CF_ACCOUNT_STATUS="$(curl --silent --show-error --output /tmp/cloudflare-account.json --write-out '%{http_code}' \
+            --request GET \
+            --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "$CF_ACCOUNT")"
+          if [[ "$CF_ACCOUNT_STATUS" != "200" ]]; then
+            node -e 'const fs=require("node:fs"); let p={}; try { p=JSON.parse(fs.readFileSync("/tmp/cloudflare-account.json","utf8")); } catch {} const e=p?.errors?.[0]; console.error("::error::Cloudflare account access failed (HTTP "+process.env.CF_ACCOUNT_STATUS+"). This indicates the configured Account ID is not accessible by this token, or the token is scoped to a different account."); if(e?.code) console.error("Cloudflare error code:", e.code); if(e?.message) console.error("Cloudflare error message:", e.message); process.exit(1)' 
+          fi
+          node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("/tmp/cloudflare-account.json","utf8")); console.log("Cloudflare account access passed:", JSON.stringify({id:p?.result?.id,name:p?.result?.name}));' 
+          
           CF_STREAM="https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs"
           CF_STREAM_STATUS="$(curl --silent --show-error --output /tmp/cloudflare-stream-list.json --write-out '%{http_code}' \
             --request GET \
             --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "$CF_STREAM")"
           if [[ "$CF_STREAM_STATUS" != "200" ]]; then
-            echo "::error::Cloudflare Stream authorization failed for the configured token/account (HTTP $CF_STREAM_STATUS). The token needs Account > Stream > Write and must be scoped to this account."
-            exit 1
+            CF_ACCOUNT_STATUS="$CF_ACCOUNT_STATUS" node -e 'const fs=require("node:fs"); let p={}; try { p=JSON.parse(fs.readFileSync("/tmp/cloudflare-stream-list.json","utf8")); } catch {} const e=p?.errors?.[0]; console.error("::error::Cloudflare Stream authorization failed for the configured token/account (HTTP "+process.env.CF_STREAM_STATUS+"). Cloudflare documents this endpoint as requiring Stream Read or Stream Write."); if(e?.code) console.error("Cloudflare Stream error code:", e.code); if(e?.message) console.error("Cloudflare Stream error message:", e.message); console.error("If account access passed but Stream returned 403, the remaining issue is the token's Stream permission on this exact account."); process.exit(1)'
           fi
           node -e 'const fs=require("node:fs"); const p=JSON.parse(fs.readFileSync("/tmp/cloudflare-stream-list.json","utf8")); if(p?.success!==true){console.error("::error::Cloudflare Stream API authorization check failed."); process.exit(1)} console.log("Cloudflare Stream API authorization check passed.");'
 
