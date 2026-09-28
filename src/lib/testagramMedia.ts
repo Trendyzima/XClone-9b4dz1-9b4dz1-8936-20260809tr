@@ -13,6 +13,8 @@ type Signal = {
   type: 'offer' | 'answer' | 'candidate';
   sdp?: string;
   candidate?: RTCIceCandidateInit;
+  viewer_count?: number;
+  guest_count?: number;
 };
 
 const waitForIce = async (pc: RTCPeerConnection) => {
@@ -47,6 +49,7 @@ export class TestagramMediaSession {
   private closed = false;
   private onRemoteStream?: (stream: MediaStream) => void;
   private onRemoteTrack?: (track: MediaStreamTrack) => void;
+  private onViewerCount?: (count: number, guests: number) => void;
 
   private constructor(role: MediaRole, streamId: string, pc: RTCPeerConnection) {
     this.role = role;
@@ -97,6 +100,10 @@ export class TestagramMediaSession {
 
   setRemoteTrackHandler(handler: (track: MediaStreamTrack) => void) {
     this.onRemoteTrack = handler;
+  }
+
+  setViewerCountHandler(handler: (count: number, guests: number) => void) {
+    this.onViewerCount = handler;
   }
 
   bindRemoteTracks() {
@@ -162,6 +169,8 @@ export class TestagramMediaSession {
             resolve();
           } else if (message.type === 'candidate' && message.candidate) {
             await this.pc.addIceCandidate(message.candidate);
+          } else if (message.type === 'presence') {
+            this.onViewerCount?.(Number(message.viewer_count || 0), Number(message.guest_count || 0));
           }
         } catch (e) {
           console.warn('[Testagram Media Engine] signaling error', e);
