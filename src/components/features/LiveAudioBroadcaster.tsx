@@ -4,6 +4,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { Mic, Square, Loader2, Radio, SlidersHorizontal } from 'lucide-react';
 import { createStudioAudioPipeline, requestStudioMicrophone, chooseAudioMimeType, type StudioAudioPipeline } from '@/lib/studioAudio';
+import { TestagramMediaSession } from '@/lib/testagramMedia';
 
 
 interface LiveAudioBroadcasterProps {
@@ -30,6 +31,7 @@ export function LiveAudioBroadcaster({
   const timerRef = useRef<number | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const pipelineRef = useRef<StudioAudioPipeline | null>(null);
+  const mediaSessionRef = useRef<TestagramMediaSession | null>(null);
 
   useEffect(() => {
     return () => { void stopBroadcast(); };
@@ -101,7 +103,10 @@ export function LiveAudioBroadcaster({
         timerRef.current = null;
       }
 
-      if (streamRef.current) {
+      await mediaSessionRef.current?.close();
+       mediaSessionRef.current = null;
+
+       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());
         streamRef.current = null;
       }
