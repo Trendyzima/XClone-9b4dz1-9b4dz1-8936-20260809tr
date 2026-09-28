@@ -9,7 +9,7 @@ type MediaToken = {
   whip_url?: string;
   whep_url?: string;
   playback_url?: string;
-  provider?: 'native' | 'cloudflare-stream' | 'cloudflare-stream-hybrid';
+  provider?: 'native' | 'cloudflare-stream' | 'cloudflare-stream-hybrid' | 'cloudflare-mux-hybrid' | 'mux';
   room_id: string;
   room_type: MediaRoomType;
   role: MediaRole;
@@ -53,8 +53,17 @@ const getToken = async (roomId: string, roomType: MediaRoomType, role: MediaRole
       const message = payload?.error?.message || `TV media authorization failed (HTTP ${response.status}).`;
       throw new Error(`${message}${code}`);
     }
-    if (!['cloudflare-stream', 'cloudflare-stream-hybrid'].includes(payload?.data?.provider) || (!payload?.data?.whep_url && !payload?.data?.whip_url)) {
-      throw new Error('Vercel Cloudflare media authorization returned an incomplete transport response.');
+    const provider = payload?.data?.provider;
+    const isMuxHybrid = provider === 'cloudflare-mux-hybrid';
+    const hasHostTransport = Boolean(payload?.data?.whip_url);
+    const hasViewerPlayback = Boolean(payload?.data?.playback_url);
+    const hasLegacyTransport = Boolean(payload?.data?.whep_url || payload?.data?.whip_url);
+    if (role === 'viewer' && isMuxHybrid) {
+      if (!hasViewerPlayback) throw new Error('TV playback authorization returned no Mux HLS playback URL [STREAM_PLAYBACK_NOT_READY].');
+    } else if (role === 'host' && isMuxHybrid) {
+      if (!hasHostTransport) throw new Error('TV broadcast authorization returned no Cloudflare WHIP ingest endpoint [INGEST_ENDPOINT_MISSING].');
+    } else if (!['cloudflare-stream', 'cloudflare-stream-hybrid'].includes(provider) || !hasLegacyTransport) {
+      throw new Error('Vercel TV media authorization returned an incomplete transport response.');
     }
     return payload.data as MediaToken;
   }
@@ -105,7 +114,8 @@ export class TestagramMediaSession {
   private lastDiagnostics: Record<string, unknown> = {};
 
   getDiagnostics() { return { ...this.lastDiagnostics }; }
-  getPlaybackUrl() { return this.info?.playback_url || this.info?.whep_url || null; }
+  getPlaybackUrl() { return this.info?.playback_url || (this.role === 'viewer' ? null : this.info?.whep_url) || null; }
+  isMuxPlayback() { return this.roomType === 'tv' && this.role === 'viewer' && (this.info?.provider === 'cloudflare-mux-hybrid' || this.info?.provider === 'mux'); }
   async verifyOnAir() {
     if (this.roomType !== 'tv' || this.role !== 'host') throw new Error('ON AIR verification is only available for the TV broadcaster.');
     const { data: sessionData } = await supabase.auth.getSession();
@@ -303,6 +313,20 @@ export class TestagramMediaSession {
     if (this.closed) return;
     this.info ??= await getToken(this.roomId, this.roomType, this.role);
     this.answerReceived = false;
+    if (this.roomType === 'tv' && this.info.provider === 'cloudflare-mux-hybrid') {
+      if (this.role === 'host') {
+        await this.connectCloudflareStream();
+      } else if (this.role === 'viewer') {
+        if (!this.info.playback_url) throw new Error('Mux playback URL is missing [STREAM_PLAYBACK_NOT_READY].');
+        this.lastDiagnostics = { provider: this.info.provider, playback: 'mux-hls', playbackUrlPresent: true };
+      }
+      return;
+    }
+    if (this.roomType === 'tv' && this.info.provider === 'mux') {
+      if (this.role !== 'viewer' || !this.info.playback_url) throw new Error('Invalid Mux TV transport contract [TV_TRANSPORT_INVALID].');
+      this.lastDiagnostics = { provider: this.info.provider, playback: 'mux-hls', playbackUrlPresent: true };
+      return;
+    }
     if (this.roomType === 'tv' && this.info.provider === 'cloudflare-stream') {
       await this.connectCloudflareStream();
       return;
