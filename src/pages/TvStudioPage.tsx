@@ -20,7 +20,7 @@ const VIDEO_PRESETS: Record<Quality, { width: number; height: number; fps: numbe
   '480p': { width: 854, height: 480, fps: 30, bitrate: 2_500_000 },
 };
 const CAMERA_CONSTRAINTS: Record<Quality, MediaTrackConstraints> = {
-  '4k': { width: { min: 1920, ideal: 3840, max: 3840 }, height: { min: 1080, ideal: 2160, max: 2160 }, aspectRatio: { ideal: 16 / 9 }, frameRate: { min: 24, ideal: 30, max: 30 }, facingMode: { ideal: 'environment' }, resizeMode: 'none' },
+  '4k': { width: { min: 1920, ideal: 3840, max: 3840 }, height: { min: 1080, ideal: 2160, max: 2160 }, aspectRatio: { ideal: 16 / 9 }, frameRate: { min: 24, ideal: 30, max: 30 }, facingMode: { ideal: 'environment' } },
   '1080p': { width: { min: 1280, ideal: 1920, max: 1920 }, height: { min: 720, ideal: 1080, max: 1080 }, aspectRatio: { ideal: 16 / 9 }, frameRate: { min: 24, ideal: 30, max: 30 }, facingMode: { ideal: 'environment' } },
   '720p': { width: { min: 960, ideal: 1280, max: 1280 }, height: { min: 540, ideal: 720, max: 720 }, aspectRatio: { ideal: 16 / 9 }, frameRate: { min: 24, ideal: 30, max: 30 }, facingMode: { ideal: 'environment' } },
   '480p': { width: { min: 640, ideal: 854, max: 854 }, height: { min: 360, ideal: 480, max: 480 }, aspectRatio: { ideal: 16 / 9 }, frameRate: { ideal: 30, max: 30 }, facingMode: { ideal: 'environment' } },
