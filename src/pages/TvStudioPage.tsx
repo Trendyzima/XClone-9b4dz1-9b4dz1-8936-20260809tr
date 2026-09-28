@@ -104,7 +104,9 @@ export default function TvStudioPage() {
   const replayBufferRef = useRef(new TvReplayBuffer(30_000, 500));
   const openingSlateUntilRef = useRef<number | null>(null);
   const openingSlatePlayedRef = useRef(false);
-  const liveRef = useRef(false);\n  const lightModeRef = useRef(false);\n  const renderClockRef = useRef(0);
+  const liveRef = useRef(false);
+  const lightModeRef = useRef(false);
+  const renderClockRef = useRef(0);
 
   const [stream, setStream] = useState<any>(null);
   const [activeStreamId, setActiveStreamId] = useState<string | null>(streamId ?? null);
@@ -116,7 +118,13 @@ export default function TvStudioPage() {
   const [sharing, setSharing] = useState(false);
   const [elapsed, setElapsed] = useState(0);
   const [viewerCount, setViewerCount] = useState(0);
-  const [quality, setQuality] = useState<Quality>(() => {\n    if (typeof navigator === 'undefined') return '1080p';\n    const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);\n    const memory = Number((navigator as any).deviceMemory || 0);\n    const cores = Number(navigator.hardwareConcurrency || 0);\n    return mobile || (memory > 0 && memory <= 4) || (cores > 0 && cores <= 4) ? '720p' : '1080p';\n  });
+  const [quality, setQuality] = useState<Quality>(() => {
+    if (typeof navigator === 'undefined') return '1080p';
+    const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const memory = Number((navigator as any).deviceMemory || 0);
+    const cores = Number(navigator.hardwareConcurrency || 0);
+    return mobile || (memory > 0 && memory <= 4) || (cores > 0 && cores <= 4) ? '720p' : '1080p';
+  });
   const [savedName, setSavedName] = useState<string | null>(null);
   const [audioLevel, setAudioLevel] = useState(0);
   const [status, setStatus] = useState<'idle' | 'preview' | 'recording' | 'live'>('idle');
@@ -149,7 +157,16 @@ export default function TvStudioPage() {
   const [deviceReady, setDeviceReady] = useState(false);
   const broadcastTitle = searchParams.get('title')?.trim().slice(0, 100) || 'Testagram TV Live';
   const broadcastDescription = searchParams.get('description')?.trim().slice(0, 500) || 'Live from Testagram TV Studio';
-  const broadcastCategory = searchParams.get('category')?.trim().slice(0, 50) || 'general';\n\n  useEffect(() => {\n    const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);\n    const memory = Number((navigator as any).deviceMemory || 0);\n    const cores = Number(navigator.hardwareConcurrency || 0);\n    const light = mobile || (memory > 0 && memory <= 4) || (cores > 0 && cores <= 4);\n    lightModeRef.current = light;\n    if (light && quality === '1080p' && !live && !recording) setQuality('720p');\n  }, []);
+  const broadcastCategory = searchParams.get('category')?.trim().slice(0, 50) || 'general';
+
+  useEffect(() => {
+    const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    const memory = Number((navigator as any).deviceMemory || 0);
+    const cores = Number(navigator.hardwareConcurrency || 0);
+    const light = mobile || (memory > 0 && memory <= 4) || (cores > 0 && cores <= 4);
+    lightModeRef.current = light;
+    if (light && quality === '1080p' && !live && !recording) setQuality('720p');
+  }, []);
 
   const explainMediaError = (error: any) => {
     const name = error?.name;
@@ -590,7 +607,9 @@ export default function TvStudioPage() {
       }, 40);
     }
 
-    const runtimeFps = lightModeRef.current ? 24 : preset.fps;\n    const productionKey = `${quality}:${runtimeFps}`;\n    if (productionCanvasQualityRef.current !== productionKey) {
+    const runtimeFps = lightModeRef.current ? 24 : preset.fps;
+    const productionKey = `${quality}:${runtimeFps}`;
+    if (productionCanvasQualityRef.current !== productionKey) {
       productionCanvasStreamRef.current?.getTracks().forEach(track => track.stop());
       // Capture only the fixed landscape production raster. Never hand the
       // raw camera MediaStream to MediaRecorder or the live transport.
@@ -1125,7 +1144,17 @@ export default function TvStudioPage() {
   const fmt = (n: number) => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
 
   return (
-    <div className="tv-studio min-h-screen bg-zinc-950 text-zinc-100">\n      <style>{\`\n        .tv-studio button.border-input { color:#f4f4f5 !important; background:#18181b !important; border-color:#3f3f46 !important; }\n        .tv-studio button.border-input:hover { color:#fff !important; background:#27272a !important; }\n        .tv-studio button.bg-secondary { color:#f4f4f5 !important; background:#27272a !important; }\n        .tv-studio button.bg-secondary:hover { background:#3f3f46 !important; color:#fff !important; }\n        .tv-studio select { color:#f4f4f5; background:#27272a; border-color:#3f3f46; }\n        .tv-studio input[type="text"], .tv-studio input[type="file"] { color:#f4f4f5; }\n        .tv-studio button { min-height:36px; }\n        @media (max-width: 768px) { .tv-studio .max-w-7xl { padding-bottom:5rem; } }\n      \`}</style>
+    <div className="tv-studio min-h-screen bg-zinc-950 text-zinc-100">
+      <style>{`
+        .tv-studio button.border-input { color:#f4f4f5 !important; background:#18181b !important; border-color:#3f3f46 !important; }
+        .tv-studio button.border-input:hover { color:#fff !important; background:#27272a !important; }
+        .tv-studio button.bg-secondary { color:#f4f4f5 !important; background:#27272a !important; }
+        .tv-studio button.bg-secondary:hover { background:#3f3f46 !important; color:#fff !important; }
+        .tv-studio select { color:#f4f4f5; background:#27272a; border-color:#3f3f46; }
+        .tv-studio input[type="text"], .tv-studio input[type="file"] { color:#f4f4f5; }
+        .tv-studio button { min-height:36px; }
+        @media (max-width: 768px) { .tv-studio .max-w-7xl { padding-bottom:5rem; } }
+      `}</style>
       <div className="max-w-7xl mx-auto p-3 md:p-6">
         <header className="flex items-center justify-between mb-4 gap-3">
           <div>
