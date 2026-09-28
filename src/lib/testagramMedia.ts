@@ -58,6 +58,9 @@ export class TestagramMediaSession {
     const info = await getToken(streamId, 'host');
     const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
     const session = new TestagramMediaSession('host', streamId, pc);
+    pc.addTransceiver('video', { direction: 'recvonly' });
+    pc.addTransceiver('audio', { direction: 'recvonly' });
+    session.bindRemoteTracks();
     program.getTracks().forEach(track => pc.addTrack(track, program));
     await session.connect(info);
     return session;
@@ -68,6 +71,7 @@ export class TestagramMediaSession {
     const pc = new RTCPeerConnection({ iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] });
     const session = new TestagramMediaSession('viewer', streamId, pc);
     session.onRemoteStream = onRemoteStream;
+    session.bindRemoteTracks();
     const remote = new MediaStream();
     pc.ontrack = event => {
       event.streams[0]?.getTracks().forEach(track => {
@@ -93,6 +97,15 @@ export class TestagramMediaSession {
 
   setRemoteTrackHandler(handler: (track: MediaStreamTrack) => void) {
     this.onRemoteTrack = handler;
+  }
+
+  bindRemoteTracks() {
+    this.pc.ontrack = event => {
+      const track = event.track;
+      this.onRemoteTrack?.(track);
+      const stream = event.streams[0] || new MediaStream([track]);
+      this.onRemoteStream?.(stream);
+    };
   }
 
   async publishTracks(stream: MediaStream) {
