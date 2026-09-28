@@ -773,14 +773,43 @@ export default function TvStudioPage() {
       let id = activeStreamId;
 
       if (!id) {
-        const { data, error } = await supabase.from('live_streams').insert({
-          user_id: user.id, title: broadcastTitle, description: broadcastDescription,
-          category: broadcastCategory, is_live: true,
-        }).select('id,title').single();
-        if (error || !data) throw new Error(error?.message || 'Could not create broadcast');
-        id = data.id;
-        setActiveStreamId(id);
-        setStream(data);
+        // Reuse an already-live broadcast for this host. The database also enforces
+        // one active TV broadcast per user, so retries cannot create duplicate channels.
+        const { data: existing, error: existingError } = await supabase
+          .from('live_streams')
+          .select('id,title,description,category,is_live')
+          .eq('user_id', user.id)
+          .eq('is_live', true)
+          .order('started_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (existingError) throw new Error(existingError.message);
+        if (existing?.id) {
+          id = existing.id;
+          setActiveStreamId(id);
+          setStream(existing);
+        } else {
+          const { data, error } = await supabase.from('live_streams').insert({
+            user_id: user.id, title: broadcastTitle, description: broadcastDescription,
+            category: broadcastCategory, is_live: true,
+          }).select('id,title,description,category,is_live').single();
+          if (error || !data) {
+            if ((error as any)?.code === '23505') {
+              const { data: raced } = await supabase.from('live_streams')
+                .select('id,title,description,category,is_live')
+                .eq('user_id', user.id).eq('is_live', true)
+                .order('started_at', { ascending: false }).limit(1).maybeSingle();
+              if (!raced?.id) throw new Error(error?.message || 'Could not create broadcast');
+              id = raced.id; setActiveStreamId(id); setStream(raced);
+            } else {
+              throw new Error(error?.message || 'Could not create broadcast');
+            }
+          } else {
+            id = data.id;
+            setActiveStreamId(id);
+            setStream(data);
+          }
+        }
         // This is only a transport locator. It is never a video URL or stored recording.
         await supabase.from('live_streams').update({ stream_url: `livekit://tv/${id}` }).eq('id', id);
       }
