@@ -98,15 +98,12 @@ jobs:
 ' >> "$GITHUB_OUTPUT"
           chmod 600 livekit.env
 
-      - name: Authenticate to Supabase management API
+      - name: Verify Supabase management credentials
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
         run: |
           set -euo pipefail
           [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required."; exit 1; }
-          supabase --version
-        shell: bash
-        # CLI is installed by the next step.
 
       - name: Install Supabase CLI
         uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
