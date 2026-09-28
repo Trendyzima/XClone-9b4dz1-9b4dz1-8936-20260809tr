@@ -130,7 +130,7 @@ export default function TvStudioPage() {
     const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     const memory = Number((navigator as any).deviceMemory || 0);
     const cores = Number(navigator.hardwareConcurrency || 0);
-    return '4k';
+    return '1080p';
   });
   const [savedName, setSavedName] = useState<string | null>(null);
   const [audioLevel, setAudioLevel] = useState(0);
