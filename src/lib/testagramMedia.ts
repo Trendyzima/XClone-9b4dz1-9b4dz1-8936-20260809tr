@@ -127,11 +127,12 @@ export class TestagramMediaSession {
       ws.onopen = async () => {
         window.clearTimeout(timeout);
         try {
-          if (this.role === 'viewer') {
+          if (this.role === 'viewer' || this.role === 'host') {
             const offer = await this.pc.createOffer();
             await this.pc.setLocalDescription(offer);
             await waitForIce(this.pc);
             if (this.pc.localDescription) ws.send(JSON.stringify({ type: 'offer', sdp: this.pc.localDescription.sdp }));
+            if (this.role === 'host') resolve();
           } else {
             resolve();
           }
