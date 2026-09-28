@@ -7,6 +7,7 @@ import (
   "encoding/json"
   "fmt"
   "log"
+  "net"
   "net/http"
   "os"
   "strings"
@@ -274,8 +275,12 @@ func handlePeer(p *peer,r *room){
 func connectionAllowed(ip string) bool {
   limit := envInt("MEDIA_ENGINE_CONNECTIONS_PER_MINUTE", 60)
   key := "rate:" + ip
+  now := time.Now()
   rateMu.Lock()
   defer rateMu.Unlock()
+  for k, entry := range connectionRates {
+    if now.Sub(entry.started) >= time.Minute { delete(connectionRates,k) }
+  }
   entry := connectionRates[key]
   now := time.Now()
   if entry.started.IsZero() || now.Sub(entry.started) >= time.Minute {
@@ -336,9 +341,22 @@ func wsHandler(w http.ResponseWriter,req *http.Request){
 }
 
 func health(w http.ResponseWriter,_ *http.Request){
-  rooms.Range(func(_,v any) bool { _ = v.(*room); return true })
+  ready:=strings.TrimSpace(os.Getenv("MEDIA_ENGINE_SECRET"))!=""
+  status:=http.StatusOK
+  if !ready { status=http.StatusServiceUnavailable }
   w.Header().Set("content-type","application/json")
-  _,_=w.Write([]byte(`{"ok":true,"service":"testagram-media-engine","transport":"webrtc-sfu","features":["websocket-signaling","host-publish","viewer-subscribe","guest-ingress","stun","turn-config","rtp-forwarding","room-isolation"]}`))
+  w.WriteHeader(status)
+  _=json.NewEncoder(w).Encode(map[string]any{
+    "ok":ready,"service":"testagram-media-engine","transport":"webrtc-sfu",
+    "node_id":os.Getenv("MEDIA_ENGINE_NODE_ID"),
+    "rooms":countRooms(),
+    "features":[]string{"websocket-signaling","host-publish","viewer-subscribe","guest-ingress","stun","turn-config","rtp-forwarding","room-isolation","presence","rate-limits","metrics"},
+  })
+}
+func countRooms() int {
+  count:=0
+  rooms.Range(func(_, _ any) bool {count++;return true})
+  return count
 }
 
 func metrics(w http.ResponseWriter,_ *http.Request){
@@ -352,4 +370,4 @@ func metrics(w http.ResponseWriter,_ *http.Request){
   fmt.Fprintf(w,"testagram_media_active_rooms %d\n",roomsCount)
 }
 
-func main(){mux:=http.NewServeMux();mux.HandleFunc("/healthz",health);mux.HandleFunc("/ws",wsHandler);port:=os.Getenv("PORT");if port==""{port="8080"};log.Printf("Testagram Media Engine listening on :%s",port);log.Fatal(http.ListenAndServe(":"+port,mux))}
+func main(){mux:=http.NewServeMux();mux.HandleFunc("/healthz",health);mux.HandleFunc("/readyz",health);mux.HandleFunc("/metrics",metrics);mux.HandleFunc("/ws",wsHandler);port:=os.Getenv("PORT");if port==""{port="8080"};log.Printf("Testagram Media Engine listening on :%s",port);log.Fatal(http.ListenAndServe(":"+port,mux))}
