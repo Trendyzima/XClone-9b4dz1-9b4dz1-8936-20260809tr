@@ -9,6 +9,8 @@ type MediaToken = {
   role: MediaRole;
 };
 
+type SignalType = 'offer' | 'answer' | 'candidate' | 'presence';
+
 type Signal = {
   type: SignalType;
   sdp?: string;
