@@ -86,22 +86,29 @@ export class TestagramMediaSession {
       if (this.closed || !this.pc) throw new Error('Media session closed while waiting for transport readiness.');
       const state = this.pc.connectionState;
       const ice = this.pc.iceConnectionState;
-      let packets = 0, bytes = 0, frames = 0, width = 0, height = 0;
+      let videoPackets = 0, videoBytes = 0, videoFrames = 0, width = 0, height = 0;
+      let audioPackets = 0, audioBytes = 0;
       const stats = await this.pc.getStats();
       stats.forEach(report => {
         if (direction === 'send' && report.type === 'outbound-rtp' && report.kind === 'video') {
-          packets += Number(report.packetsSent || 0); bytes += Number(report.bytesSent || 0); frames += Number(report.framesEncoded || 0);
+          videoPackets += Number(report.packetsSent || 0); videoBytes += Number(report.bytesSent || 0); videoFrames += Number(report.framesEncoded || 0);
           width = Number(report.frameWidth || 0); height = Number(report.frameHeight || 0);
         }
+        if (direction === 'send' && report.type === 'outbound-rtp' && report.kind === 'audio') {
+          audioPackets += Number(report.packetsSent || 0); audioBytes += Number(report.bytesSent || 0);
+        }
         if (direction === 'receive' && report.type === 'inbound-rtp' && report.kind === 'video') {
-          packets += Number(report.packetsReceived || 0); bytes += Number(report.bytesReceived || 0); frames += Number(report.framesDecoded || 0);
+          videoPackets += Number(report.packetsReceived || 0); videoBytes += Number(report.bytesReceived || 0); videoFrames += Number(report.framesDecoded || 0);
           width = Number(report.frameWidth || 0); height = Number(report.frameHeight || 0);
         }
       });
-      this.lastDiagnostics = { connectionState: state, iceConnectionState: ice, packets, bytes, frames, width, height, elapsedMs: Date.now() - started };
+      this.lastDiagnostics = { connectionState: state, iceConnectionState: ice, videoPackets, videoBytes, audioPackets, audioBytes, packets: videoPackets, bytes: videoBytes, frames: videoFrames, width, height, elapsedMs: Date.now() - started };
       if (state === 'failed' || state === 'closed' || ice === 'failed' || ice === 'closed') throw new Error(`WebRTC transport failed (connection=${state}, ICE=${ice}).`);
-      if (state === 'connected' && ice === 'connected' && packets > 0 && bytes > 0) return this.getDiagnostics();
-      last = `connection=${state}, ICE=${ice}, packets=${packets}`;
+      const mediaReady = direction === 'send'
+        ? videoPackets > 0 && videoBytes > 0 && audioPackets > 0 && audioBytes > 0
+        : videoPackets > 0 && videoBytes > 0;
+      if (state === 'connected' && ice === 'connected' && mediaReady) return this.getDiagnostics();
+      last = `connection=${state}, ICE=${ice}, videoPackets=${videoPackets}, audioPackets=${audioPackets}`;
       await new Promise(resolve => window.setTimeout(resolve, 250));
     }
     throw new Error(`Media transport did not become ready within ${Math.round(timeoutMs / 1000)}s (${last || 'no WebRTC state observed'}).`);
@@ -194,12 +201,11 @@ export class TestagramMediaSession {
   private async connect(createInitialOffer: boolean) {
     if (this.closed) return;
     this.info ??= await getToken(this.roomId, this.roomType, this.role);
+    this.answerReceived = false;
     this.createPeerConnection(this.info.ice_servers || []);
 
     if (this.roomType === 'tv') {
       if (this.role === 'host') {
-        this.pc.addTransceiver('video', { direction: 'recvonly' });
-        this.pc.addTransceiver('audio', { direction: 'recvonly' });
         this.localStream?.getTracks().forEach(track => this.pc.addTrack(track, this.localStream!));
       } else if (this.role === 'viewer') {
         this.pc.addTransceiver('video', { direction: 'recvonly' });
