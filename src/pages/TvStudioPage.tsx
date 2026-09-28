@@ -241,51 +241,6 @@ export default function TvStudioPage() {
     };
   }, []);
 
-  const token = async (requestedId?: string) => {
-    const id = requestedId ?? activeStreamId;
-    if (!id) throw new Error('Broadcast id missing');
-
-    const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError) throw new Error('Your Testagram session could not be read. Sign in again and retry.');
-    const accessToken = sessionData.session?.access_token;
-    if (!accessToken) throw new Error('Your Testagram session has expired. Sign in again before going live.');
-
-    const { data, error } = await supabase.functions.invoke('livekit-tv-token', {
-      body: { stream_id: id, role: 'host' },
-      headers: { Authorization: 'Bearer ' + accessToken },
-    });
-
-    if (error) {
-      let detail = '';
-      const context = (error as any)?.context;
-      try {
-        if (context instanceof Response) {
-          const payload = await context.clone().json();
-          detail = payload?.error?.message || payload?.message || '';
-        } else if (typeof context === 'string') {
-          const payload = JSON.parse(context);
-          detail = payload?.error?.message || payload?.message || context;
-        } else if (context?.body) {
-          const payload = typeof context.body === 'string' ? JSON.parse(context.body) : context.body;
-          detail = payload?.error?.message || payload?.message || '';
-        }
-      } catch {
-        // Preserve the stable fallback when the response body is not JSON.
-      }
-      const status = Number((error as any)?.context?.status || (error as any)?.status || 0);
-      if (!detail && status === 401) detail = 'Your Testagram session expired. Sign in again before going live.';
-      if (!detail && status === 403) detail = 'You are not authorized to broadcast this TV channel.';
-      if (!detail && status === 404) detail = 'The TV broadcast session no longer exists.';
-      if (!detail && status === 409) detail = 'This TV broadcast is no longer live.';
-      if (!detail && status >= 500) detail = 'Testagram Live is temporarily unavailable. Please retry.';
-      throw new Error(detail || error.message || 'Could not connect to the live broadcast service.');
-    }
-    if (!data?.data) {
-      throw new Error(data?.error?.message || 'Live broadcast service returned no connection credentials.');
-    }
-    return data.data;
-  };
-
   const getCamera = async () => {
     const permission = await readPermissionState();
     if (!window.isSecureContext) throw new Error('Camera and microphone require a secure HTTPS connection.');
@@ -949,7 +904,7 @@ export default function TvStudioPage() {
     productionVideoTrackRef.current = null;
     productionAudioTrackRef.current = null;
     if (activeStreamId) {
-      // Keep only broadcast metadata. End the control-plane record and remove the LiveKit locator;
+      // Keep only broadcast metadata. End the control-plane record and remove the media transport locator;
       // no recording/blob/video URL is persisted by this studio.
       await supabase.from('live_streams').update({
         is_live: false,
