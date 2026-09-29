@@ -99,6 +99,7 @@ jobs:
             ./objs/srs -c /etc/srs/srs.conf >/tmp/testagram-srs-config.log 2>&1
 
           for attempt in $(seq 1 15); do
+            echo "SRS startup probe $attempt/15"
             if curl --silent --show-error --fail "http://127.0.0.1:1985/api/v1/versions" >/tmp/testagram-srs-version.json; then
               echo "SRS v6 configuration parsed and HTTP API started."
               cat /tmp/testagram-srs-version.json
