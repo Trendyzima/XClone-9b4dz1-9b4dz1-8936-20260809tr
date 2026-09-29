@@ -17,10 +17,6 @@ function html(body: string, status = 200) {
   });
 }
 
-function base64url(value: Buffer | string) {
-  return Buffer.from(value).toString('base64url');
-}
-
 function makeState() {
   const nonce = crypto.randomBytes(32).toString('base64url');
   const mac = crypto.createHmac('sha256', clientSecret).update(nonce).digest('base64url');
@@ -31,7 +27,7 @@ function validState(state: string) {
   const [nonce, mac] = state.split('.');
   if (!nonce || !mac || !clientSecret) return false;
   const expected = crypto.createHmac('sha256', clientSecret).update(nonce).digest('base64url');
-  return crypto.timingSafeEqual(Buffer.from(mac), Buffer.from(expected));
+  const actual = Buffer.from(mac);\n  const target = Buffer.from(expected);\n  return actual.length === target.length && crypto.timingSafeEqual(actual, target);
 }
 
 async function start() {
