@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useSearchParams } from 'react-router-dom';
 import { Loader2, Radio, Users, Volume2, VolumeX, Share2, Maximize2, Camera, CameraOff, Mic, MicOff, PhoneOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -29,17 +30,43 @@ export default function TvPublicLivePage() {
 
   useEffect(() => {
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let connectingAttempt = false;
+
+    const sleepRetry = (ms: number) => {
+      if (cancelled) return;
+      if (retryTimer) clearTimeout(retryTimer);
+      retryTimer = setTimeout(() => { void connect(); }, ms);
+    };
+
     const connect = async () => {
-      if (!streamId) { setError('TV broadcast link is missing.'); setConnecting(false); return; }
+      if (cancelled || connectingAttempt || !streamId) return;
+      connectingAttempt = true;
+      setConnecting(true);
+      setError('');
       try {
         if (!isGuest) {
           const viewerResponse = await fetch('/api/live', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store',
+            headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
             body: JSON.stringify({ action: 'viewer', stream_id: streamId }),
           });
           const viewerPayload = await viewerResponse.json().catch(() => null);
-          if (!viewerResponse.ok) throw new Error(viewerPayload?.error?.message || 'TV broadcast is unavailable.');
+
+          // The page may be open before the producer goes live. Treat that as
+          // a normal waiting state and retry automatically instead of failing.
+          if (!viewerResponse.ok) {
+            const code = viewerPayload?.error?.code;
+            if (code === 'STREAM_ENDED' || code === 'STREAM_NOT_FOUND') {
+              setLive(false);
+              setConnecting(true);
+              sleepRetry(1000);
+              return;
+            }
+            throw new Error(viewerPayload?.error?.message || 'TV broadcast is unavailable.');
+          }
+
           const contract = viewerPayload?.data;
           if (contract?.provider === 'youtube' && contract?.playback_url) {
             setProvider('youtube');
@@ -50,6 +77,7 @@ export default function TvPublicLivePage() {
             return;
           }
         }
+
         if (isGuest && inviteToken) {
           const { data: stream, error: streamError } = await supabase
             .from('live_streams')
@@ -90,6 +118,10 @@ export default function TvPublicLivePage() {
               play();
             }
           });
+
+          sessionRef.current = session;
+          session.setViewerCountHandler((count) => setViewers(count));
+
           const video = videoRef.current;
           if (video) {
             const recover = () => {
@@ -100,13 +132,16 @@ export default function TvPublicLivePage() {
             video.addEventListener('stalled', recover);
             video.addEventListener('emptied', recover);
           }
-          sessionRef.current = session;
-          setTitle('Testagram TV');
-          session.setViewerCountHandler((count) => setViewers(count));
-          await session.waitForMediaReady('receive', 20000);
+
+          // Do not call the stream "LIVE" merely because signaling succeeded.
+          // waitForMediaReady requires real inbound RTP packets from the producer.
+          await session.waitForMediaReady('receive', 15000);
+          if (cancelled) return;
+
           setLive(true);
           setConnecting(false);
         }
+
         if (cancelled) {
           await sessionRef.current?.close();
           sessionRef.current = null;
@@ -116,20 +151,33 @@ export default function TvPublicLivePage() {
         setConnecting(false);
       } catch (e: any) {
         if (!cancelled) {
-          setError(e?.message || (isGuest ? 'Unable to join the guest session.' : 'Unable to connect to TV broadcast.'));
-          setConnecting(false);
+          setLive(false);
+          setError('');
+          // A transient ICE/signaling race is recoverable. Tear down the failed
+          // session and immediately establish a fresh viewer peer.
+          await sessionRef.current?.close().catch(() => undefined);
+          sessionRef.current = null;
+          sleepRetry(750);
         }
+      } finally {
+        connectingAttempt = false;
       }
     };
+
     void connect();
+
     return () => {
       cancelled = true;
+      connectingAttempt = false;
+      if (retryTimer) clearTimeout(retryTimer);
+      retryTimer = null;
       void sessionRef.current?.close();
       sessionRef.current = null;
       if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
       recoveryTimerRef.current = null;
       const video = videoRef.current;
       if (video) {
+        video.pause();
         video.removeAttribute('src');
         video.srcObject = null;
       }
