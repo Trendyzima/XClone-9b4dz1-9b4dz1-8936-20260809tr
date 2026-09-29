@@ -9,7 +9,7 @@ type MediaToken = {
   whip_url?: string;
   whep_url?: string;
   playback_url?: string;
-  provider?: 'native' | 'cloudflare-stream' | 'cloudflare-stream-hybrid' | 'cloudflare-mux-hybrid' | 'youtube-cloudflare-hybrid' | 'srs-youtube-hybrid' | 'srs-mux-hybrid' | 'mux' | 'youtube';
+  provider?: 'native' | 'srs-youtube' | 'youtube';
   room_id: string;
   room_type: MediaRoomType;
   role: MediaRole;
@@ -76,19 +76,11 @@ const getToken = async (roomId: string, roomType: MediaRoomType, role: MediaRole
       throw new Error(`${message}${code}`);
     }
     const provider = payload?.data?.provider;
-    const isMuxHybrid = provider === 'cloudflare-mux-hybrid' || provider === 'srs-mux-hybrid';
-    const isYouTubeHybrid = provider === 'youtube-cloudflare-hybrid' || provider === 'srs-youtube-hybrid';
-    const isSrs = provider === 'srs-youtube-hybrid' || provider === 'srs-mux-hybrid';
     const hasHostTransport = Boolean(payload?.data?.whip_url);
     const hasViewerPlayback = Boolean(payload?.data?.playback_url);
-    const hasLegacyTransport = Boolean(payload?.data?.whep_url || payload?.data?.whip_url);
-    if (role === 'viewer' && (isMuxHybrid || isYouTubeHybrid)) {
-      if (!hasViewerPlayback) throw new Error(`TV playback authorization returned no ${isYouTubeHybrid ? 'YouTube' : 'Mux'} playback URL [STREAM_PLAYBACK_NOT_READY].`);
-    } else if (role === 'host' && (isMuxHybrid || isYouTubeHybrid)) {
-      if (!hasHostTransport) throw new Error(`TV broadcast authorization returned no ${isSrs ? 'SRS' : 'Cloudflare'} WHIP ingest endpoint [INGEST_ENDPOINT_MISSING].`);
-    } else if (!['cloudflare-stream', 'cloudflare-stream-hybrid'].includes(provider) || !hasLegacyTransport) {
-      throw new Error('Vercel TV media authorization returned an incomplete transport response.');
-    }
+    if (provider !== 'srs-youtube') throw new Error('Vercel TV media authorization returned an unsupported TV provider [TV_PROVIDER_INVALID].');
+    if (role === 'host' && !hasHostTransport) throw new Error('TV broadcast authorization returned no SRS WHIP ingest endpoint [INGEST_ENDPOINT_MISSING].');
+    if (role === 'viewer' && !hasViewerPlayback) throw new Error('TV playback authorization returned no YouTube playback URL [STREAM_PLAYBACK_NOT_READY].');
     return payload.data as MediaToken;
   }
 
@@ -139,8 +131,7 @@ export class TestagramMediaSession {
 
   getDiagnostics() { return { ...this.lastDiagnostics }; }
   getPlaybackUrl() { return this.info?.playback_url || (this.role === 'viewer' ? null : this.info?.whep_url) || null; }
-  isMuxPlayback() { return this.roomType === 'tv' && this.role === 'viewer' && (this.info?.provider === 'cloudflare-mux-hybrid' || this.info?.provider === 'srs-mux-hybrid' || this.info?.provider === 'mux'); }
-  isYouTubePlayback() { return this.roomType === 'tv' && this.role === 'viewer' && (this.info?.provider === 'youtube-cloudflare-hybrid' || this.info?.provider === 'srs-youtube-hybrid'); }
+  isYouTubePlayback() { return this.roomType === 'tv' && this.role === 'viewer' && this.info?.provider === 'srs-youtube'; }
   getTitle() { return this.info?.title || null; }
   getViewerCount() { return Number(this.info?.viewer_count || 0); }
   async verifyOnAir() {
@@ -225,7 +216,7 @@ export class TestagramMediaSession {
       await session.connect(true);
       return session;
     } catch (error) {
-      // /api/live persists the YouTube/Mux control-plane allocation before WHIP.
+      // /api/live persists the YouTube control-plane allocation before WHIP.
       // If browser signaling fails after that point, this session must reconcile
       // the allocation itself; the caller cannot receive a session object from a
       // failed async connect().
@@ -293,29 +284,21 @@ export class TestagramMediaSession {
 
   private async connectWhipStream() {
     const endpoint = this.role === 'host' ? this.info?.whip_url : this.info?.whep_url;
-    if (!endpoint) throw new Error(`${this.info?.provider?.startsWith('srs-') ? 'Testagram SRS' : 'Cloudflare Stream'} ${this.role === 'host' ? 'WHIP' : 'WHEP'} endpoint was not returned.`);
-    const srsProvider = this.info?.provider?.startsWith('srs-') === true;
-    this.createPeerConnection(this.info?.ice_servers || (srsProvider ? [] : [{ urls: 'stun:stun.cloudflare.com:3478' }]));
+    if (!endpoint) throw new Error(`Testagram SRS ${this.role === 'host' ? 'WHIP' : 'WHEP'} endpoint was not returned.`);
+    this.createPeerConnection(this.info?.ice_servers || []);
     if (this.role === 'host') {
-      if (!this.localStream) throw new Error(`${srsProvider ? 'SRS' : 'Cloudflare'} publisher has no production media stream.`);
+      if (!this.localStream) throw new Error(`SRS publisher has no production media stream.`);
       const video = this.localStream.getVideoTracks()[0];
       const audio = this.localStream.getAudioTracks()[0];
-      if (!video || !audio) throw new Error(`${srsProvider ? 'SRS' : 'Cloudflare'} publisher requires both video and audio tracks.`);
-      if (srsProvider) {
-        // SRS RTC-to-RTMP requires H.264 video. Browsers may otherwise
-        // negotiate VP8/VP9/AV1, which can establish WebRTC successfully
-        // but cannot be converted into the downstream RTMP program.
-        const videoTransceiver = this.pc.addTransceiver(video, { direction: 'sendonly' });
-        const h264Codecs = (RTCRtpSender.getCapabilities('video')?.codecs || [])
-          .filter(codec => codec.mimeType.toLowerCase() === 'video/h264');
-        if (!h264Codecs.length || !videoTransceiver.setCodecPreferences) {
-          throw new Error('This browser cannot provide an H.264 WebRTC video track required by Testagram SRS.');
-        }
-        videoTransceiver.setCodecPreferences(h264Codecs);
-        this.pc.addTransceiver(audio, { direction: 'sendonly' });
-      } else {
-        this.localStream.getTracks().forEach(track => this.pc.addTrack(track, this.localStream!));
+      if (!video || !audio) throw new Error(`SRS publisher requires both video and audio tracks.`);
+      const videoTransceiver = this.pc.addTransceiver(video, { direction: 'sendonly' });
+      const h264Codecs = (RTCRtpSender.getCapabilities('video')?.codecs || [])
+        .filter(codec => codec.mimeType.toLowerCase() === 'video/h264');
+      if (!h264Codecs.length || !videoTransceiver.setCodecPreferences) {
+        throw new Error('This browser cannot provide an H.264 WebRTC video track required by Testagram SRS.');
       }
+      videoTransceiver.setCodecPreferences(h264Codecs);
+      this.pc.addTransceiver(audio, { direction: 'sendonly' });
     } else {
       this.pc.addTransceiver('video', { direction: 'recvonly' });
       this.pc.addTransceiver('audio', { direction: 'recvonly' });
@@ -324,13 +307,13 @@ export class TestagramMediaSession {
     const offer = await this.pc.createOffer();
     await this.pc.setLocalDescription(offer);
     await waitForIce(this.pc);
-    if (!this.pc.localDescription?.sdp) throw new Error('Cloudflare WebRTC offer SDP was not created.');
+    if (!this.pc.localDescription?.sdp) throw new Error('SRS WebRTC offer SDP was not created.');
 
     let response: Response;
     try {
       response = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/sdp', Accept: 'application/sdp', ...(this.info?.provider?.startsWith('srs-') && this.info?.token ? { Authorization: `Bearer ${this.info.token}` } : {}) },
+        headers: { 'Content-Type': 'application/sdp', Accept: 'application/sdp', ...(this.info?.provider === 'srs-youtube' && this.info?.token ? { Authorization: `Bearer ${this.info.token}` } : {}) },
         body: this.pc.localDescription.sdp,
       });
     } catch {
@@ -344,7 +327,7 @@ export class TestagramMediaSession {
     if (!answer.trim()) throw new Error('SRS WebRTC returned an empty SDP answer.');
     await this.pc.setRemoteDescription({ type: 'answer', sdp: answer });
     this.answerReceived = true;
-    this.lastDiagnostics = { ...this.lastDiagnostics, provider: this.info?.provider || 'srs-youtube-hybrid', signaling: 'sdp-answer-received', endpoint: this.role === 'host' ? 'whip' : 'whep' };
+    this.lastDiagnostics = { ...this.lastDiagnostics, provider: this.info?.provider || 'srs-youtube', signaling: 'sdp-answer-received', endpoint: this.role === 'host' ? 'whip' : 'whep' };
     const location = response.headers.get('Location');
     if (location) this.mediaSessionUrl = new URL(location, endpoint).toString();
   };
@@ -372,22 +355,13 @@ export class TestagramMediaSession {
     if (this.closed) return;
     this.info ??= await getToken(this.roomId, this.roomType, this.role);
     this.answerReceived = false;
-    if (this.roomType === 'tv' && (this.info.provider === 'cloudflare-mux-hybrid' || this.info.provider === 'youtube-cloudflare-hybrid' || this.info.provider === 'srs-youtube-hybrid' || this.info.provider === 'srs-mux-hybrid')) {
+    if (this.roomType === 'tv') {
       if (this.role === 'host') {
         await this.connectWhipStream();
       } else if (this.role === 'viewer') {
-        if (!this.info.playback_url) throw new Error(`${this.info.provider?.startsWith('srs-') ? 'YouTube' : 'Mux'} playback URL is missing [STREAM_PLAYBACK_NOT_READY].`);
-        this.lastDiagnostics = { provider: this.info.provider, playback: 'mux-hls', playbackUrlPresent: true };
+        if (!this.info.playback_url) throw new Error('YouTube playback URL is missing [STREAM_PLAYBACK_NOT_READY].');
+        this.lastDiagnostics = { provider: this.info.provider, playback: 'youtube', playbackUrlPresent: true };
       }
-      return;
-    }
-    if (this.roomType === 'tv' && this.info.provider === 'mux') {
-      if (this.role !== 'viewer' || !this.info.playback_url) throw new Error('Invalid Mux TV transport contract [TV_TRANSPORT_INVALID].');
-      this.lastDiagnostics = { provider: this.info.provider, playback: 'mux-hls', playbackUrlPresent: true };
-      return;
-    }
-    if (this.roomType === 'tv' && this.info.provider === 'cloudflare-stream') {
-      await this.connectWhipStream();
       return;
     }
     if (this.closed) return;
@@ -395,16 +369,7 @@ export class TestagramMediaSession {
     this.answerReceived = false;
     this.createPeerConnection(this.info.ice_servers || []);
 
-    if (this.roomType === 'tv') {
-      if (this.role === 'host') {
-        this.localStream?.getTracks().forEach(track => this.pc.addTrack(track, this.localStream!));
-      } else if (this.role === 'viewer') {
-        this.pc.addTransceiver('video', { direction: 'recvonly' });
-        this.pc.addTransceiver('audio', { direction: 'recvonly' });
-      } else if (this.localStream) {
-        this.localStream.getTracks().forEach(track => this.pc.addTrack(track, this.localStream!));
-      }
-    } else if (this.roomType === 'space') {
+    if (this.roomType === 'space') {
       if (this.role === 'listener') this.pc.addTransceiver('audio', { direction: 'recvonly' });
       else this.localStream?.getTracks().forEach(track => this.pc.addTrack(track, this.localStream!));
     } else {

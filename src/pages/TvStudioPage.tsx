@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { TestagramMediaSession } from '@/lib/testagramMedia';
+import { TestagramTvMediaSession } from '@/lib/testagramTvMedia';
 import { Camera, Mic, MonitorUp, Circle, Square, Radio, Users, Download, Clapperboard, Settings2, Activity, ShieldCheck, Upload, PictureInPicture2, Layers3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
@@ -34,7 +34,7 @@ export default function TvStudioPage() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
-  const roomRef = useRef<TestagramMediaSession | null>(null);
+  const roomRef = useRef<TestagramTvMediaSession | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const programStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
@@ -758,10 +758,6 @@ export default function TvStudioPage() {
     setSourceVideoPlaying(!video.paused);
   };
 
-  const publishProgram = async (session: TestagramMediaSession, program: MediaStream) => {
-    await session.publishTracks(program);
-  };
-
   const assertProductionReady = async (program: MediaStream) => {
     const preset = VIDEO_PRESETS[quality];
     await new Promise<void>(resolve => window.setTimeout(resolve, 150));
@@ -782,7 +778,7 @@ export default function TvStudioPage() {
     setBroadcastError(null);
     setBroadcastDiagnostics(null);
     setBroadcastStage('preparing');
-    let session: TestagramMediaSession | null = null;
+    let session: TestagramTvMediaSession | null = null;
     let id: string | null = null;
     let createdBroadcast = false;
     try {
@@ -842,7 +838,7 @@ export default function TvStudioPage() {
       if (!id) throw new Error('Could not resolve the active TV broadcast.');
 
       setBroadcastStage('connecting');
-      session = await TestagramMediaSession.connectHost(id, program);
+      session = await TestagramTvMediaSession.connectHost(id, program);
       await session.configureVideoSender({ maxBitrate: VIDEO_PRESETS[quality].bitrate, maxFramerate: VIDEO_PRESETS[quality].fps, maintainResolution: true });
       setBroadcastStage('verifying');
       const diagnostics = await session.waitForMediaReady('send', 20000);
@@ -871,13 +867,8 @@ export default function TvStudioPage() {
           }
         }
       });
-      const playbackUrl = session.getPlaybackUrl();
-      if (!playbackUrl) {
-        throw new Error('SRS WebRTC playback endpoint was not returned.');
-      }
-
-      // The server is the authority for ON AIR. It independently verifies the SRS-to-YouTube
-      // downstream path after the browser has proven outbound audio/video RTP.
+      // Supabase Edge control state is authoritative for ON AIR; the browser-native
+      // WebRTC session is already subscribed and the production program has live tracks.
       setBroadcastStage('verifying');
       await session.verifyOnAir();
       setBroadcastStage('on-air');
@@ -893,8 +884,7 @@ export default function TvStudioPage() {
     } catch (e: any) {
       if (session) {
         setBroadcastDiagnostics(session.getDiagnostics());
-        // If start() already allocated SRS/YouTube/Mux resources, always ask the
-        // control plane to reconcile them before closing the browser transport.
+        // Always reconcile the TV control-plane state before closing the browser transport.
         await session.stopBroadcastControlPlane().catch(() => undefined);
       }
       await session?.close().catch(() => undefined);
@@ -922,7 +912,14 @@ export default function TvStudioPage() {
   const createGuestInvite = async () => {
     if (!activeStreamId || !live) { toast.info('Go live first, then invite a guest.'); return; }
     try {
-      const { data, error } = await supabase.functions.invoke('testagram-media-token', { body: { stream_id: activeStreamId, role: 'guest', mode: 'create' } });
+      const { data: auth } = await supabase.auth.getSession();
+      const response = await fetch('/api/live', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: `Bearer ${auth.session.access_token}` } : {}) },
+        body: JSON.stringify({ action: 'create-guest', stream_id: activeStreamId }),
+      });
+      const data = await response.json();
+      const error = response.ok ? null : new Error('Guest invitation request failed');
       if (error || !data?.data?.invite_token) throw new Error(data?.error?.message || error?.message || 'Could not create guest invitation');
       const url = `${window.location.origin}/tv/live/${activeStreamId}?guest=${encodeURIComponent(data.data.invite_token)}`;
       setGuestInviteUrl(url);
@@ -947,7 +944,7 @@ export default function TvStudioPage() {
       try {
         await activeSession.stopBroadcastControlPlane();
       } catch (error: any) {
-        toast.error(error?.message || 'SRS broadcast shutdown failed.');
+        toast.error(error?.message || 'TV broadcast shutdown failed.');
       }
       await activeSession.close();
     }
