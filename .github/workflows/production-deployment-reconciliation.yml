@@ -759,11 +759,14 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
           SRS_MEDIA_BASE_URL: ${{ vars.SRS_MEDIA_BASE_URL || 'https://media.testagram.site' }}
+          SRS_FORWARD_SECRET: ${{ secrets.SRS_FORWARD_SECRET }}
         run: |
           set -euo pipefail
           [[ -n "$VERCEL_TOKEN" ]] || { echo "::error::VERCEL_TOKEN is required."; exit 1; }
+          [[ -n "$SRS_FORWARD_SECRET" ]] || { echo "::error::SRS_FORWARD_SECRET is required for Testagram-owned SRS session signing."; exit 1; }
           printf '%s' "srs" | vercel env add "TV_DISTRIBUTION_PROVIDER" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           printf '%s' "$SRS_MEDIA_BASE_URL" | vercel env add "SRS_MEDIA_BASE_URL" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          printf '%s' "$SRS_FORWARD_SECRET" | vercel env add "SRS_FORWARD_SECRET" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
 
           # Remove retired SRS API variables so production cannot regress to requiring an SRS vendor/API credential.
           vercel env rm "SRS_API_TOKEN" production --yes --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" >/dev/null 2>&1 || true
