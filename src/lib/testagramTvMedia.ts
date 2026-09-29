@@ -71,7 +71,7 @@ export class TestagramTvMediaSession {
   private heartbeatViewerCount = 0;
   private reconnectTimers = new Map<string, number>();
   private adaptationTimer: number | null = null;
-  private peerStats = new Map<string, { lastBytes: number; lastLost: number; lastAt: number; stableSamples: number; profile: TvNetworkProfile }>();
+  private peerStats = new Map<string, { lastBytes: number; lastLost: number; lastSentPackets: number; lastAt: number; stableSamples: number; profile: TvNetworkProfile }>();
 
   private constructor(role: TvRole, roomId: string) { this.role = role; this.roomId = roomId; }
 
@@ -309,7 +309,7 @@ export class TestagramTvMediaSession {
           encoding.maxFramerate = profile === 'poor' ? 20 : 30;
         }
         await videoSender.setParameters(params);
-        this.peerStats.set(peerId, { lastBytes: bytes, lastLost: lost, lastAt: now, stableSamples: (previous?.stableSamples || 0) + (profile === 'excellent' ? 1 : 0), profile });
+        this.peerStats.set(peerId, { lastBytes: bytes, lastLost: lost, lastSentPackets: sentPackets, lastAt: now, stableSamples: (previous?.stableSamples || 0) + (profile === 'excellent' ? 1 : 0), profile });
         this.lastDiagnostics = { ...this.lastDiagnostics, networkProfile: profile, peerBitrate: Math.round(bitrate), peerRttMs: Math.round(rtt), peerLossRatio: Number(lossRatio.toFixed(4)), peerAvailableBitrate: Math.round(available), adaptiveVideoBitrate: Math.round(next) };
       } catch {}
     }
@@ -504,6 +504,13 @@ export class TestagramTvMediaSession {
   getPlaybackUrl() { return null; }
   getViewerCount() { return Number(this.lastDiagnostics.viewerCount || 0); }
 
+  async requestReconnect() {
+    if (this.closed || this.role === 'host') return;
+    const hostPeer = Array.from(this.peers.keys())[0];
+    if (!hostPeer) return;
+    await this.send({ event: 'tv-reconnect', payload: { from: this.peerId, to: hostPeer, peerRole: this.role } }).catch(() => undefined);
+  }
+
   async close() {
     if (this.closed) return;
     this.closed = true;
@@ -512,7 +519,7 @@ export class TestagramTvMediaSession {
       this.adaptationTimer = null;
     }
     this.peerStats.clear();
-    if (this.heartbeatTimer !== null)
+    if (this.heartbeatTimer !== null) {
       window.clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
     }
