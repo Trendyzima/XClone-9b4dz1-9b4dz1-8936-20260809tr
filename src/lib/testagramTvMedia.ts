@@ -173,7 +173,8 @@ export class TestagramTvMediaSession {
         peerId,
       };
       if (this.role === 'host') {
-        const state = pc.connectionState === 'connected' ? 'connected'
+        const mediaConfirmed = this.lastDiagnostics.mediaReachedViewer === true;
+        const state = pc.connectionState === 'connected' && mediaConfirmed ? 'connected'
           : ['failed', 'disconnected'].includes(pc.connectionState) ? 'degraded'
           : 'starting';
         this.startHeartbeat(state);
@@ -393,7 +394,8 @@ export class TestagramTvMediaSession {
     for (const role of this.peerRoles.values()) role === 'guest' ? guests++ : viewers++;
     void this.send({ event: 'tv-presence', payload: { from: this.peerId, count: viewers, guestCount: guests } }).catch(() => undefined);
     this.onViewerCount?.(viewers, guests);
-    this.startHeartbeat(viewers + guests > 0 ? 'connected' : 'starting', viewers + guests);
+    const mediaConfirmed = this.lastDiagnostics.mediaReachedViewer === true;
+    this.startHeartbeat(viewers + guests > 0 && mediaConfirmed ? 'connected' : 'starting', viewers + guests);
   }
 
   private startHeartbeat(state: 'starting' | 'connected' | 'degraded' | 'stale', viewerCount?: number) {
