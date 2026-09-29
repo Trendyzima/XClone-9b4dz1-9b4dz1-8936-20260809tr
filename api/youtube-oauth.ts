@@ -27,7 +27,9 @@ function validState(state: string) {
   const [nonce, mac] = state.split('.');
   if (!nonce || !mac || !clientSecret) return false;
   const expected = crypto.createHmac('sha256', clientSecret).update(nonce).digest('base64url');
-  const actual = Buffer.from(mac);\n  const target = Buffer.from(expected);\n  return actual.length === target.length && crypto.timingSafeEqual(actual, target);
+  const actual = Buffer.from(mac);
+  const target = Buffer.from(expected);
+  return actual.length === target.length && crypto.timingSafeEqual(actual, target);
 }
 
 async function start() {
