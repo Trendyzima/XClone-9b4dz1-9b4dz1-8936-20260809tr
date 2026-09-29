@@ -191,7 +191,7 @@ async function getMuxLiveStream(liveStreamId: string) {
 async function createCloudflareOutput(inputId: string, url: string, streamKey: string) {
   const response = await cloudflareFetch(`${cloudflareApiBase}/${encodeURIComponent(inputId)}/outputs`, { method: 'POST', body: JSON.stringify({ url, streamKey, enabled: true }) });
   const payload = await response.json().catch(() => null) as any;
-  if (!response.ok || !payload?.success || !payload?.result?.uid) throw new Error('CLOUDFLARE_OUTPUT_FAILED');
+  if (!response.ok || !payload?.success || !payload?.result?.uid) { const code = payload?.errors?.[0]?.code; const reason = payload?.errors?.[0]?.message; throw new Error(`CLOUDFLARE_OUTPUT_FAILED:${response.status}:${String(code || 'unknown')}:${String(reason || 'Cloudflare rejected the output').slice(0, 160)}`); }
   return payload.result as { uid: string };
 }
 
