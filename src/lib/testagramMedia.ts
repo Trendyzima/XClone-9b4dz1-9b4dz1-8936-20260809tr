@@ -119,8 +119,8 @@ export class TestagramMediaSession {
 
   getDiagnostics() { return { ...this.lastDiagnostics }; }
   getPlaybackUrl() { return this.info?.playback_url || (this.role === 'viewer' ? null : this.info?.whep_url) || null; }
-  isMuxPlayback() { return this.roomType === 'tv' && this.role === 'viewer' && (this.info?.provider === 'cloudflare-mux-hybrid' || this.info?.provider === 'mux'); }
-  isYouTubePlayback() { return this.roomType === 'tv' && this.role === 'viewer' && this.info?.provider === 'youtube-cloudflare-hybrid'; }
+  isMuxPlayback() { return this.roomType === 'tv' && this.role === 'viewer' && (this.info?.provider === 'cloudflare-mux-hybrid' || this.info?.provider === 'srs-mux-hybrid' || this.info?.provider === 'mux'); }
+  isYouTubePlayback() { return this.roomType === 'tv' && this.role === 'viewer' && (this.info?.provider === 'youtube-cloudflare-hybrid' || this.info?.provider === 'srs-youtube-hybrid'); }
   getTitle() { return this.info?.title || null; }
   getViewerCount() { return Number(this.info?.viewer_count || 0); }
   async verifyOnAir() {
@@ -136,7 +136,7 @@ export class TestagramMediaSession {
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
       const code = payload?.error?.code ? ` [${payload.error.code}]` : '';
-      throw new Error(`${payload?.error?.message || 'Cloudflare ON AIR verification failed.'}${code}`);
+      throw new Error(`${payload?.error?.message || 'SRS ON AIR verification failed.'}${code}`);
     }
     return payload?.data;
   }
@@ -153,7 +153,7 @@ export class TestagramMediaSession {
     });
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
-      throw new Error(`${payload?.error?.message || 'Cloudflare broadcast shutdown failed.'}${payload?.error?.code ? ` [${payload.error.code}]` : ''}`);
+      throw new Error(`${payload?.error?.message || 'SRS broadcast shutdown failed.'}${payload?.error?.code ? ` [${payload.error.code}]` : ''}`);
     }
   }
 
@@ -286,10 +286,10 @@ export class TestagramMediaSession {
     });
     if (!response.ok) {
       const detail = (await response.text().catch(() => '')).slice(0, 240);
-      throw new Error(`Cloudflare WebRTC ${this.role === 'host' ? 'WHIP' : 'WHEP'} negotiation failed (HTTP ${response.status})${detail ? `: ${detail}` : '.'}`);
+      throw new Error(`SRS WebRTC ${this.role === 'host' ? 'WHIP' : 'WHEP'} negotiation failed (HTTP ${response.status})${detail ? `: ${detail}` : '.'}`);
     }
     const answer = await response.text();
-    if (!answer.trim()) throw new Error('Cloudflare WebRTC returned an empty SDP answer.');
+    if (!answer.trim()) throw new Error('SRS WebRTC returned an empty SDP answer.');
     await this.pc.setRemoteDescription({ type: 'answer', sdp: answer });
     this.answerReceived = true;
     this.lastDiagnostics = { ...this.lastDiagnostics, provider: this.info?.provider || 'cloudflare-stream', signaling: 'sdp-answer-received', endpoint: this.role === 'host' ? 'whip' : 'whep' };
