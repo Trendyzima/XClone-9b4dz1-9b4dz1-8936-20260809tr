@@ -356,7 +356,7 @@ async function verify(streamId: string, request: Request) {
   const input = await getCloudflareInput(stream.cloudflare_input_id);
   if (input?.status === 'connected' || input?.status === 'reconnected') lifecycle = { live: true, videoUID: input.uid };
   if (!lifecycle) {
-    const whepUrl = whepFromInputId(stream.cloudflare_input_id, stream.stream_url);
+    const whepUrl = input?.webRTCPlayback?.url || whepFromInputId(stream.cloudflare_input_id, stream.stream_url);
     for (let attempt = 0; attempt < 20; attempt += 1) {
       lifecycle = whepUrl ? await lifecycleFromWhep(whepUrl) : null;
       if (lifecycle?.live) break;
