@@ -66,6 +66,8 @@ export class TestagramTvMediaSession {
   private lastDiagnostics: Record<string, unknown> = {};
   private heartbeatTimer: number | null = null;
   private heartbeatInFlight = false;
+  private heartbeatState: 'starting' | 'connected' | 'degraded' | 'stale' = 'starting';
+  private heartbeatViewerCount = 0;
   private reconnectTimers = new Map<string, number>();
 
   private constructor(role: TvRole, roomId: string) { this.role = role; this.roomId = roomId; }
@@ -294,23 +296,25 @@ export class TestagramTvMediaSession {
 
   private startHeartbeat(state: 'starting' | 'connected' | 'degraded' | 'stale', viewerCount?: number) {
     if (this.role !== 'host' || this.closed) return;
-    void this.sendHeartbeat(state, viewerCount);
+    this.heartbeatState = state;
+    if (typeof viewerCount === 'number') this.heartbeatViewerCount = viewerCount;
+    void this.sendHeartbeat();
     if (this.heartbeatTimer !== null) return;
     this.heartbeatTimer = window.setInterval(() => {
-      void this.sendHeartbeat(state);
+      void this.sendHeartbeat();
     }, 10000);
   }
 
-  private async sendHeartbeat(state: 'starting' | 'connected' | 'degraded' | 'stale', viewerCount?: number) {
+  private async sendHeartbeat() {
     if (this.role !== 'host' || this.closed || this.heartbeatInFlight) return;
     this.heartbeatInFlight = true;
     try {
       const data = await api({
         action: 'heartbeat',
         stream_id: this.roomId,
-        connection_state: state,
+        connection_state: this.heartbeatState,
         peer_id: this.peerId,
-        viewer_count: viewerCount ?? this.peers.size,
+        viewer_count: this.heartbeatViewerCount || this.peers.size,
       });
       this.lastDiagnostics = {
         ...this.lastDiagnostics,
