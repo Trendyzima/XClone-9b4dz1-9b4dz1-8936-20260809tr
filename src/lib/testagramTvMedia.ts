@@ -151,7 +151,7 @@ export class TestagramTvMediaSession {
 
     try {
       await new Promise<void>((resolve, reject) => {
-        this.channel!.subscribe(status => {
+        this.channel!.subscribe((status, err) => {
           if (status === 'SUBSCRIBED') resolve();
           else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
             const detail = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
