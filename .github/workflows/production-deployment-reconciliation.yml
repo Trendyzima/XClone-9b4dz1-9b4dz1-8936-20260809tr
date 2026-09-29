@@ -769,7 +769,7 @@ jobs:
           [[ -n "$VERCEL_TOKEN" ]] || { echo "::error::VERCEL_TOKEN is required."; exit 1; }
           printf '%s' "srs" | vercel env add "TV_DISTRIBUTION_PROVIDER" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           printf '%s' "$SRS_MEDIA_BASE_URL" | vercel env add "SRS_MEDIA_BASE_URL" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
-          # Retire only the old SRS HTTP API credentials. SRS_FORWARD_SECRET is Testagram's own signing secret and must remain in Vercel.
+          # Retire the old SRS HTTP API credentials; the TV runtime is fully self-owned and does not require them.
           vercel env rm "SRS_API_TOKEN" production --yes --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" >/dev/null 2>&1 || true
           vercel env rm "SRS_API_URL" production --yes --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" >/dev/null 2>&1 || true
           echo "Self-hosted SRS TV media configuration synchronized; no SRS vendor/API credential is required."
