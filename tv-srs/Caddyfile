@@ -1,15 +1,10 @@
-https://media.testagram.site {
+media.testagram.site {
   handle /rtc/* {
     reverse_proxy srs:1985
   }
 
-  handle_path /srs-api/* {
-    rewrite * /api/v1{path}
-    reverse_proxy srs:1985
-  }
-
   handle /healthz {
-    reverse_proxy srs:1985
+    respond "ok" 200
   }
 
   respond 404
