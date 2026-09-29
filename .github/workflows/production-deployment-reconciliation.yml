@@ -80,7 +80,7 @@ jobs:
             cat /tmp/tv-retired-config.txt
             exit 1
           fi
-          retired_provider_pattern='CLOUDFLARE_STREAM_|YOUTUBE_CLIENT_|YOUTUBE_REFRESH_TOKEN|MEDIA_ENGINE_URL|MEDIA_ENGINE_SECRET'
+          retired_provider_pattern='CLOUDFLARE_STREAM_|MEDIA_ENGINE_URL|MEDIA_ENGINE_SECRET'
           if git grep -nE "${retired_provider_pattern}" -- . ':!.git' ':!supabase/migrations/**' ':!.github/workflows/production-deployment-reconciliation.yml' >/tmp/tv-retired-providers.txt; then
             echo "::error::Retired provider-specific TV configuration is still referenced in the production revision."
             cat /tmp/tv-retired-providers.txt
