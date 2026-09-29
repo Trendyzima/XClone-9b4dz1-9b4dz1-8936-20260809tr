@@ -361,6 +361,16 @@ async function start(streamId: string, request: Request) {
   if (!stream) return json({ ok: false, error: { code: 'STREAM_NOT_FOUND', message: 'No canonical live_streams record exists for this broadcast.' } }, 404);
   if (stream.user_id !== user.id) return json({ ok: false, error: { code: 'HOST_REQUIRED', message: 'Only the broadcaster can publish.' } }, 403);
   if (stream.is_live) return json({ ok: false, error: { code: 'ALREADY_LIVE', message: 'This broadcast is already ON AIR.' } }, 409);
+
+  // Start is intentionally idempotent while the broadcaster is still preparing
+  // the media path. Browser reconnects must reuse the same downstream YouTube
+  // broadcast/stream instead of creating duplicate YouTube broadcasts.
+  if (stream.youtube_broadcast_id && stream.youtube_stream_id && stream.stream_url) {
+    const srsToken = encodeSrsToken({ streamId, exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60 });
+    const whipUrl = srsMediaBaseUrl + '/rtc/v1/whip/?app=live&stream=' + encodeURIComponent(streamId) + '&token=' + encodeURIComponent(srsToken);
+    return json({ ok: true, data: { provider: tvSecondaryDistribution === 'mux' ? 'srs-mux-hybrid' : 'srs-youtube-hybrid', token: '', whip_url: whipUrl, whep_url: null, playback_url: stream.stream_url, live_input_id: null, room_id: streamId, room_type: 'tv', role: 'host', ice_servers: [], youtube_broadcast_id: stream.youtube_broadcast_id, youtube_stream_id: stream.youtube_stream_id, secondary_provider: stream.mux_live_stream_id ? 'mux' : null }, error: null });
+  }
+
   let youtubeBroadcastId: string | null = null; let youtubeStreamId: string | null = null; let muxLiveStreamId: string | null = null; let controlStage = 'initializing';
   try {
     controlStage = 'youtube-create';
