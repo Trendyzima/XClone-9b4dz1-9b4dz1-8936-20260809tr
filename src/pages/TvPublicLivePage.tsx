@@ -31,6 +31,8 @@ export default function TvPublicLivePage() {
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let connectingAttempt = false;
+    let retryCount = 0;
+    let signalChannel: ReturnType<typeof supabase.channel> | null = null;
 
     const sleepRetry = (ms: number) => {
       if (cancelled) return;
@@ -70,10 +72,12 @@ export default function TvPublicLivePage() {
           // a normal waiting state and retry automatically instead of failing.
           if (!viewerResponse.ok) {
             const code = viewerPayload?.error?.code;
-            if (code === 'STREAM_ENDED' || code === 'STREAM_NOT_FOUND') {
+            if (code === 'STREAM_ENDED' || code === 'STREAM_NOT_FOUND' || code === 'TV_MEDIA_NOT_READY') {
               setLive(false);
               setConnecting(true);
-              sleepRetry(1000);
+              if (code === 'TV_MEDIA_NOT_READY') setError(retryCount > 8 ? 'Live video is still connecting — retrying automatically.' : '');
+              sleepRetry(code === 'TV_MEDIA_NOT_READY' ? Math.min(5000, 500 + retryCount * 350) : 1000);
+              retryCount += 1;
               return;
             }
             throw new Error(viewerPayload?.error?.message || 'TV broadcast is unavailable.');
@@ -116,19 +120,18 @@ export default function TvPublicLivePage() {
           setConnecting(false);
         } else {
           const session = await TestagramTvMediaSession.connectViewer(streamId, (media) => {
-            if (videoRef.current) {
-              const video = videoRef.current;
-              video.srcObject = media;
-              video.muted = true;
-              video.defaultMuted = true;
-              video.playsInline = true;
-              video.autoplay = true;
-              video.preload = 'auto';
-              const play = () => void video.play().catch(() => undefined);
-              video.addEventListener('loadedmetadata', play, { once: true });
-              video.addEventListener('canplay', play, { once: true });
-              play();
-            }
+            const video = videoRef.current;
+            if (!video) return;
+            video.srcObject = media;
+            video.muted = true;
+            video.defaultMuted = true;
+            video.playsInline = true;
+            video.autoplay = true;
+            video.preload = 'auto';
+            const play = () => void video.play().catch(() => undefined);
+            video.addEventListener('loadedmetadata', play, { once: true });
+            video.addEventListener('canplay', play, { once: true });
+            play();
           });
 
           sessionRef.current = session;
@@ -150,6 +153,8 @@ export default function TvPublicLivePage() {
           await session.waitForMediaReady('receive', 15000);
           if (cancelled) return;
 
+          retryCount = 0;
+          setError('');
           setLive(true);
           setConnecting(false);
         }
@@ -164,17 +169,34 @@ export default function TvPublicLivePage() {
       } catch (e: any) {
         if (!cancelled) {
           setLive(false);
-          setError('');
+          retryCount += 1;
+          setError(retryCount > 8 ? 'Live video is reconnecting automatically.' : '');
           // A transient ICE/signaling race is recoverable. Tear down the failed
           // session and immediately establish a fresh viewer peer.
           await sessionRef.current?.close().catch(() => undefined);
           sessionRef.current = null;
-          sleepRetry(750);
+          sleepRetry(Math.min(5000, 750 + retryCount * 350));
         }
       } finally {
         connectingAttempt = false;
       }
     };
+
+    // Keep the public page subscribed to the stream row so a page opened before
+    // Go Live wakes immediately when the producer flips is_live=true.
+    if (!isGuest && streamId) {
+      signalChannel = supabase
+        .channel(`tv-public-live-${streamId}`)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'live_streams', filter: `id=eq.${streamId}` }, payload => {
+          if (cancelled) return;
+          const next = payload.new as { is_live?: boolean };
+          if (next.is_live) {
+            retryCount = 0;
+            void connect();
+          }
+        })
+        .subscribe();
+    }
 
     void connect();
 
@@ -183,6 +205,10 @@ export default function TvPublicLivePage() {
       connectingAttempt = false;
       if (retryTimer) clearTimeout(retryTimer);
       retryTimer = null;
+      if (signalChannel) {
+        void supabase.removeChannel(signalChannel);
+        signalChannel = null;
+      }
       void sessionRef.current?.close();
       sessionRef.current = null;
       if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
