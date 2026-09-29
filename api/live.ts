@@ -382,7 +382,7 @@ async function start(streamId: string, request: Request) {
     await checkSrsGateway();
   } catch (error: any) {
     const detail = String(error?.message || 'SRS_MEDIA_UNREACHABLE');
-    return json({ ok: false, error: { code: detail, message: 'Testagram TV media gateway is not reachable. Start the self-hosted SRS gateway before going live.' } }, 503);
+    return json({ ok: false, error: { code: detail, message: 'Testagram TV media gateway is temporarily unavailable. The TV infrastructure is not ready to accept a live broadcast.' } }, 503);
   }
   const user = await requireUser(request);
   if (!user) return json({ ok: false, error: { code: 'AUTH_REQUIRED', message: 'Sign in to broadcast.' } }, 401);
