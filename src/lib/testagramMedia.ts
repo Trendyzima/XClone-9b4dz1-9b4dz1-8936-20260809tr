@@ -279,7 +279,21 @@ export class TestagramMediaSession {
       const video = this.localStream.getVideoTracks()[0];
       const audio = this.localStream.getAudioTracks()[0];
       if (!video || !audio) throw new Error(`${srsProvider ? 'SRS' : 'Cloudflare'} publisher requires both video and audio tracks.`);
-      this.localStream.getTracks().forEach(track => this.pc.addTrack(track, this.localStream!));
+      if (srsProvider) {
+        // SRS RTC-to-RTMP requires H.264 video. Browsers may otherwise
+        // negotiate VP8/VP9/AV1, which can establish WebRTC successfully
+        // but cannot be converted into the downstream RTMP program.
+        const videoTransceiver = this.pc.addTransceiver(video, { direction: 'sendonly' });
+        const h264Codecs = (RTCRtpSender.getCapabilities('video')?.codecs || [])
+          .filter(codec => codec.mimeType.toLowerCase() === 'video/h264');
+        if (!h264Codecs.length || !videoTransceiver.setCodecPreferences) {
+          throw new Error('This browser cannot provide an H.264 WebRTC video track required by Testagram SRS.');
+        }
+        videoTransceiver.setCodecPreferences(h264Codecs);
+        this.pc.addTransceiver(audio, { direction: 'sendonly' });
+      } else {
+        this.localStream.getTracks().forEach(track => this.pc.addTrack(track, this.localStream!));
+      }
     } else {
       this.pc.addTransceiver('video', { direction: 'recvonly' });
       this.pc.addTransceiver('audio', { direction: 'recvonly' });
