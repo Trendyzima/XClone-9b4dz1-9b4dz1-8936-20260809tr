@@ -56,6 +56,27 @@ jobs:
           set -euo pipefail
           test "$(git rev-parse HEAD)" = "${{ steps.target.outputs.sha }}"
 
+      - name: Guard retired TV infrastructure
+        shell: bash
+        run: |
+          set -euo pipefail
+          # TV media is now owned by Testagram's native edge/control-plane path.
+          # These SSH/SRS deployment hooks are retired and must never become a
+          # production dependency again.
+          forbidden_paths=("tv-srs" "media-engine")
+          for path in "${forbidden_paths[@]}"; do
+            if [[ -e "$path" ]]; then
+              echo "::error::Retired TV infrastructure path is present: $path"
+              exit 1
+            fi
+          done
+          if git grep -nE 'MEDIA_ENGINE_SSH_HOST|MEDIA_ENGINE_SSH_USER|MEDIA_ENGINE_SSH_PRIVATE_KEY|MEDIA_ENGINE_PUBLIC_IP' -- . ':!.git' >/tmp/tv-retired-config.txt; then
+            echo "::error::Retired TV SSH configuration is still referenced in the production revision."
+            cat /tmp/tv-retired-config.txt
+            exit 1
+          fi
+          echo "TV architecture guard passed: no retired SSH/SRS media deployment dependency."
+
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
@@ -649,7 +670,7 @@ jobs:
           require_secret "CLOUDFLARE_API_TOKEN" "$CLOUDFLARE_API_TOKEN"
 
           # Cloudflare backend services used elsewhere in Testagram are independent of TV media.
-          # The TV media path is owned by Testagram SRS and this job does not provision any TV media provider credentials.
+          # TV media is owned by Testagram's native edge/control-plane path; this job does not provision any retired SRS/SSH media credentials.
           CF_VERIFY_STATUS="$(curl --silent --show-error --output /tmp/cloudflare-token-verify.json --write-out '%{http_code}' \
             --request GET \
             --header "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
