@@ -32,21 +32,23 @@ export default function TvPublicLivePage() {
     const connect = async () => {
       if (!streamId) { setError('TV broadcast link is missing.'); setConnecting(false); return; }
       try {
-        const viewerResponse = await fetch('/api/live', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: isGuest ? 'guest' : 'viewer', stream_id: streamId, ...(isGuest && inviteToken ? { invite_token: inviteToken } : {}) }),
-        });
-        const viewerPayload = await viewerResponse.json().catch(() => null);
-        if (!viewerResponse.ok) throw new Error(viewerPayload?.error?.message || 'TV broadcast is unavailable.');
-        const contract = viewerPayload?.data;
-        if (contract?.provider === 'youtube' && contract?.playback_url && !isGuest) {
-          setProvider('youtube');
-          setYoutubePlaybackUrl(contract.playback_url);
-          setTitle(contract.title || 'Testagram TV');
-          setLive(true);
-          setConnecting(false);
-          return;
+        if (!isGuest) {
+          const viewerResponse = await fetch('/api/live', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'viewer', stream_id: streamId }),
+          });
+          const viewerPayload = await viewerResponse.json().catch(() => null);
+          if (!viewerResponse.ok) throw new Error(viewerPayload?.error?.message || 'TV broadcast is unavailable.');
+          const contract = viewerPayload?.data;
+          if (contract?.provider === 'youtube' && contract?.playback_url) {
+            setProvider('youtube');
+            setYoutubePlaybackUrl(contract.playback_url);
+            setTitle(contract.title || 'Testagram TV');
+            setLive(true);
+            setConnecting(false);
+            return;
+          }
         }
         if (isGuest && inviteToken) {
           const { data: stream, error: streamError } = await supabase
