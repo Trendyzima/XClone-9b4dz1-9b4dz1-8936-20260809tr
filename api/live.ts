@@ -282,11 +282,13 @@ async function start(streamId: string, request: Request) {
   let youtubeStreamId: string | null = null;
   let cloudflareInputId: string | null = null;
   let cloudflareOutputId: string | null = null;
+  let controlStage = 'initializing';
   try {
     let playbackUrl = '';
     let destinationStreamKey = '';
     let destinationUrl = '';
     if (tvDistributionProvider === 'youtube') {
+      controlStage = 'youtube-create';
       const youtube = await createYoutubeBroadcast(stream.title);
       youtubeBroadcastId = youtube.broadcastId;
       youtubeStreamId = youtube.streamId;
@@ -301,6 +303,7 @@ async function start(streamId: string, request: Request) {
       playbackUrl = mux.playbackUrl;
     }
 
+    controlStage = 'cloudflare-input-create';
     const response = await cloudflareFetch(cloudflareApiBase, {
       method: 'POST',
       headers: { 'Idempotency-Key': `tv-${streamId}` },
@@ -310,9 +313,11 @@ async function start(streamId: string, request: Request) {
     if (!response.ok || !payload?.success || !payload?.result?.uid || !payload?.result?.webRTC?.url || !payload?.result?.webRTCPlayback?.url) throw new Error('CLOUDFLARE_STREAM_CREATE_FAILED');
     const input = payload.result;
     cloudflareInputId = input.uid;
+    controlStage = 'cloudflare-output-create';
     const output = await createCloudflareOutput(input.uid, destinationUrl, destinationStreamKey);
     cloudflareOutputId = output.uid;
 
+    controlStage = 'control-plane-persist';
     await updateStream(streamId, { is_live: false, stream_url: playbackUrl, ended_at: null, mux_live_stream_id: muxLiveStreamId, mux_playback_id: tvDistributionProvider === 'mux' ? playbackUrl.split('/').pop()?.replace('.m3u8','') || null : null, cloudflare_input_id: input.uid, cloudflare_output_id: output.uid, youtube_broadcast_id: youtubeBroadcastId, youtube_stream_id: youtubeStreamId, youtube_output_id: tvDistributionProvider === 'youtube' ? output.uid : null }, bearer);
     return json({ ok: true, data: { provider: tvDistributionProvider === 'youtube' ? 'youtube-cloudflare-hybrid' : 'cloudflare-mux-hybrid', token: '', whip_url: input.webRTC.url, whep_url: input.webRTCPlayback.url, playback_url: playbackUrl, live_input_id: input.uid, room_id: streamId, room_type: 'tv', role: 'host', ice_servers: [{ urls: 'stun:stun.cloudflare.com:3478' }], youtube_broadcast_id: youtubeBroadcastId, youtube_stream_id: youtubeStreamId }, error: null });
   } catch (error: any) {
