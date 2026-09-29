@@ -45,10 +45,23 @@ export default function TvPublicLivePage() {
       setError('');
       try {
         if (!isGuest) {
+          // Authenticate the viewer before the control-plane lookup. The TV
+          // Edge Function requires a JWT, and anonymous auth keeps public
+          // viewers frictionless while giving Realtime a valid private-channel token.
+          let { data: authData } = await supabase.auth.getSession();
+          if (!authData.session) {
+            const { data: anonymous, error: authError } = await supabase.auth.signInAnonymously();
+            if (authError || !anonymous.session) throw new Error('TV viewer authorization is unavailable.');
+            authData = { session: anonymous.session };
+          }
+          if (authData.session?.access_token) {
+            await supabase.realtime.setAuth(authData.session.access_token);
+          }
+
           const viewerResponse = await fetch('/api/live', {
             method: 'POST',
             cache: 'no-store',
-            headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache' },
+            headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-cache', ...(authData.session?.access_token ? { Authorization: `Bearer ${authData.session.access_token}` } : {}) },
             body: JSON.stringify({ action: 'viewer', stream_id: streamId }),
           });
           const viewerPayload = await viewerResponse.json().catch(() => null);
