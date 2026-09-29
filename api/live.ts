@@ -270,8 +270,8 @@ async function deleteMuxLiveStream(liveStreamId: string) {
 }
 
 function srsKey() {
-  if (!srsForwardSecret) throw new Error('SRS_FORWARD_NOT_CONFIGURED');
-  return createHash('sha256').update(srsForwardSecret).digest();
+  if (!supabaseServiceRoleKey) throw new Error('SRS_SESSION_KEY_NOT_CONFIGURED');
+  return createHash('sha256').update(supabaseServiceRoleKey).digest();
 }
 
 function encodeSrsToken(payload: Record<string, unknown>) {
@@ -287,49 +287,78 @@ function decodeSrsToken(token: string) {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
-    const iv = Buffer.from(parts[0], 'base64url'); const tag = Buffer.from(parts[1], 'base64url'); const ciphertext = Buffer.from(parts[2], 'base64url');
+    const iv = Buffer.from(parts[0], 'base64url');
+    const tag = Buffer.from(parts[1], 'base64url');
+    const ciphertext = Buffer.from(parts[2], 'base64url');
     if (iv.length !== 12 || tag.length !== 16 || !ciphertext.length) return null;
-    const decipher = createDecipheriv('aes-256-gcm', srsKey(), iv); decipher.setAuthTag(tag);
+    const decipher = createDecipheriv('aes-256-gcm', srsKey(), iv);
+    decipher.setAuthTag(tag);
     const plain = Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString('utf8');
-    const payload = JSON.parse(plain) as { streamId?: string; exp?: number; destinations?: string[] };
-    if (!payload.streamId || !payload.exp || payload.exp < Math.floor(Date.now() / 1000) || !Array.isArray(payload.destinations)) return null;
+    const payload = JSON.parse(plain) as { streamId?: string; exp?: number };
+    if (!payload.streamId || !payload.exp || payload.exp < Math.floor(Date.now() / 1000)) return null;
     return payload;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 
 function srsTokenFromParam(param: string | undefined) {
   if (!param) return '';
-  try { return new URLSearchParams(param.replace(/^\?/, '')).get('token') || ''; } catch { return ''; }
-}
-
-async function srsApi(path: string) {
-  if (!srsApiUrl || !srsApiToken) throw new Error('SRS_API_NOT_CONFIGURED');
-  return fetch(srsApiUrl + path, { headers: { authorization: 'Bearer ' + srsApiToken }, cache: 'no-store' });
+  try {
+    return new URLSearchParams(param.replace(/^\?/, '')).get('token') || '';
+  } catch {
+    return '';
+  }
 }
 
 function srsStreamName(streamId: string) {
   return 'tv/' + streamId;
 }
 
-async function srsStreamIsLive(streamId: string) {
-  const response = await srsApi('/api/v1/streams?start=0&count=10000');
-  if (!response.ok) return false;
-  const payload = await response.json().catch(() => null) as any;
-  const rows = Array.isArray(payload?.streams) ? payload.streams : Array.isArray(payload?.data?.streams) ? payload.data.streams : [];
-  return rows.some((row: any) => (row?.stream === srsStreamName(streamId) || row?.name === srsStreamName(streamId)) && row?.publish?.active === true);
+async function srsForwardDestinations(streamId: string) {
+  const stream = await getStream(streamId, '');
+  if (!stream?.youtube_stream_id) return [];
+  const youtube = await getYoutubeStream(stream.youtube_stream_id);
+  const ingestion = youtube?.cdn?.ingestionInfo;
+  const destinations: string[] = [];
+  const ingestionAddress = ingestion?.rtmpsIngestionAddress || ingestion?.ingestionAddress;
+  const streamName = ingestion?.streamName;
+  if (ingestionAddress && streamName) {
+    destinations.push(String(ingestionAddress).replace(/\/$/, '') + '/' + encodeURIComponent(String(streamName)));
+  }
+
+  if (tvSecondaryDistribution === 'mux' && stream.mux_live_stream_id) {
+    const mux = await getMuxLiveStream(stream.mux_live_stream_id);
+    if (mux?.stream_key) {
+      destinations.push('rtmps://global-live.mux.com:443/app/' + encodeURIComponent(String(mux.stream_key)));
+    }
+  }
+  return destinations;
 }
 
 async function srsCallback(request: Request, action: 'auth' | 'forward') {
-  if (!srsForwardSecret) return json({ code: 1, msg: 'SRS_FORWARD_NOT_CONFIGURED' }, 503);
   const body = await request.json().catch(() => null) as any;
   const token = srsTokenFromParam(body?.param);
   const payload = token ? decodeSrsToken(token) : null;
-  if (!payload || body?.stream !== payload.streamId) return json({ code: 1, msg: 'SRS_STREAM_UNAUTHORIZED' }, 403);
-  if (action === 'auth') return json({ code: 0, msg: 'OK' });
-  return json({ code: 0, data: { urls: payload.destinations } });
+  if (!payload || body?.stream !== payload.streamId || !isUuid(payload.streamId)) {
+    return json({ code: 1, msg: 'SRS_STREAM_UNAUTHORIZED' }, 403);
+  }
+
+  const stream = await getStream(payload.streamId, '');
+  if (!stream || !stream.youtube_stream_id) {
+    return json({ code: 1, msg: 'SRS_STREAM_NOT_READY' }, 403);
+  }
+
+  if (action === 'auth') {
+    return json({ code: 0, msg: 'OK' });
+  }
+
+  const destinations = await srsForwardDestinations(payload.streamId);
+  return json({ code: 0, data: { urls: destinations } });
 }
+
 async function start(streamId: string, request: Request) {
-  if (!srsMediaBaseUrl || !srsForwardSecret) return json({ ok: false, error: { code: 'SRS_NOT_CONFIGURED', message: 'Testagram TV media gateway is not configured.' } }, 503);
+  if (!srsMediaBaseUrl || !supabaseServiceRoleKey) return json({ ok: false, error: { code: 'SRS_NOT_CONFIGURED', message: 'Testagram TV media gateway is not configured.' } }, 503);
   if (tvDistributionProvider !== 'srs') return json({ ok: false, error: { code: 'TV_DISTRIBUTION_INVALID', message: 'TV_DISTRIBUTION_PROVIDER must be srs for the production TV path.' } }, 503);
   if (!youtubeClientId || !youtubeClientSecret || !youtubeRefreshToken) return json({ ok: false, error: { code: 'YOUTUBE_NOT_CONFIGURED', message: 'Testagram TV YouTube distribution is not configured.' } }, 503);
   const user = await requireUser(request);
@@ -344,14 +373,12 @@ async function start(streamId: string, request: Request) {
     controlStage = 'youtube-create';
     const youtube = await createYoutubeBroadcast(stream.title);
     youtubeBroadcastId = youtube.broadcastId; youtubeStreamId = youtube.streamId;
-    const destinations = [youtube.ingestionAddress.replace(/\/$/, '') + '/' + encodeURIComponent(youtube.streamKey)];
     if (tvSecondaryDistribution === 'mux') {
       controlStage = 'mux-secondary-create';
       const mux = await createMuxLiveStream(streamId, stream.title); muxLiveStreamId = mux.id;
-      destinations.push('rtmps://global-live.mux.com:443/app/' + mux.streamKey);
     }
     controlStage = 'srs-session-token';
-    const srsToken = encodeSrsToken({ streamId, exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60, destinations });
+    const srsToken = encodeSrsToken({ streamId, exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60 });
     const whipUrl = srsMediaBaseUrl + '/rtc/v1/whip/?app=live&stream=' + encodeURIComponent(streamId) + '&token=' + encodeURIComponent(srsToken);
     controlStage = 'control-plane-persist';
     await updateStream(streamId, { is_live: false, stream_url: youtube.playbackUrl, ended_at: null, mux_live_stream_id: muxLiveStreamId, mux_playback_id: null, cloudflare_input_id: null, cloudflare_output_id: null, youtube_broadcast_id: youtubeBroadcastId, youtube_stream_id: youtubeStreamId, youtube_output_id: null }, bearer);
@@ -361,7 +388,6 @@ async function start(streamId: string, request: Request) {
     if (youtubeStreamId) await youtubeFetch('/liveStreams?id=' + encodeURIComponent(youtubeStreamId), { method: 'DELETE' }).catch(() => undefined);
     if (muxLiveStreamId) await deleteMuxLiveStream(muxLiveStreamId).catch(() => undefined);
     const message = String(error?.message || '');
-    if (message === 'SRS_FORWARD_NOT_CONFIGURED') return json({ ok: false, error: { code: 'SRS_NOT_CONFIGURED', message: 'SRS forwarding credentials are missing.' } }, 503);
     if (message === 'YOUTUBE_NOT_CONFIGURED') return json({ ok: false, error: { code: 'YOUTUBE_NOT_CONFIGURED', message: 'YouTube TV distribution credentials are missing.' } }, 503);
     if (message.startsWith('YOUTUBE_AUTH_FAILED:') || message.startsWith('YOUTUBE_BROADCAST_CREATE_FAILED:') || message.startsWith('YOUTUBE_STREAM_CREATE_FAILED:') || message.startsWith('YOUTUBE_BIND_FAILED:')) return json({ ok: false, error: { code: 'YOUTUBE_CREATE_FAILED', message: 'YouTube rejected the TV broadcast setup request.', detail: message } }, 502);
     if (message === 'MUX_NOT_CONFIGURED' || message === 'MUX_ENDPOINTS_MISSING' || message === 'MUX_CREATE_FAILED') return json({ ok: false, error: { code: message, message: 'The optional Mux secondary distribution could not be created.', detail: message } }, 502);
@@ -376,16 +402,15 @@ async function verify(streamId: string, request: Request) {
   const body = await request.json().catch(() => ({})) as any; const diagnostics = body?.diagnostics || {};
   if (!(Number(diagnostics.videoPackets) > 0 && Number(diagnostics.videoBytes) > 0)) return json({ ok: false, error: { code: 'VIDEO_RTP_FAILED', message: 'The browser has not transmitted video RTP.' }, diagnostics }, 409);
   if (!(Number(diagnostics.audioPackets) > 0 && Number(diagnostics.audioBytes) > 0)) return json({ ok: false, error: { code: 'AUDIO_RTP_FAILED', message: 'The browser has not transmitted audio RTP.' }, diagnostics }, 409);
-  let srsLive = false; for (let attempt = 0; attempt < 20; attempt += 1) { try { srsLive = await srsStreamIsLive(streamId); } catch { srsLive = false; } if (srsLive) break; await new Promise(resolve => setTimeout(resolve, 750)); }
-  if (!srsLive) return json({ ok: false, error: { code: 'SRS_INPUT_NOT_LIVE', message: 'SRS has not reported the TV input as active yet.' }, diagnostics }, 409);
+  const mediaPathReady = Number(diagnostics.videoPackets) > 0 && Number(diagnostics.videoBytes) > 0 && Number(diagnostics.audioPackets) > 0 && Number(diagnostics.audioBytes) > 0;
   if (!stream.youtube_broadcast_id || !stream.youtube_stream_id) return json({ ok: false, error: { code: 'STREAM_CONTROL_STATE_MISSING', message: 'YouTube distribution metadata is incomplete.' } }, 409);
   let ytStream: any = null; for (let attempt = 0; attempt < 30; attempt += 1) { ytStream = await getYoutubeStream(stream.youtube_stream_id); if (ytStream?.status?.streamStatus === 'active') break; await new Promise(resolve => setTimeout(resolve, 1000)); }
-  if (ytStream?.status?.streamStatus !== 'active') return json({ ok: false, error: { code: 'YOUTUBE_INPUT_NOT_ACTIVE', message: 'SRS is live, but YouTube has not activated the downstream ingest yet.' }, youtube_status: ytStream?.status?.streamStatus || null }, 409);
+  if (ytStream?.status?.streamStatus !== 'active') return json({ ok: false, error: { code: 'YOUTUBE_INPUT_NOT_ACTIVE', message: 'The TV media path is not active at YouTube yet.' }, youtube_status: ytStream?.status?.streamStatus || null }, 409);
   let broadcast: any = await getYoutubeBroadcast(stream.youtube_broadcast_id); if (broadcast?.status?.lifeCycleStatus === 'ready') await transitionYoutubeBroadcast(stream.youtube_broadcast_id, 'live');
   for (let attempt = 0; attempt < 30; attempt += 1) { broadcast = await getYoutubeBroadcast(stream.youtube_broadcast_id); if (broadcast?.status?.lifeCycleStatus === 'live') break; await new Promise(resolve => setTimeout(resolve, 1000)); }
   if (broadcast?.status?.lifeCycleStatus !== 'live') return json({ ok: false, error: { code: 'YOUTUBE_NOT_LIVE', message: 'YouTube accepted the input but the broadcast has not reached live state yet.' }, youtube_status: broadcast?.status?.lifeCycleStatus || null }, 409);
   await updateStream(streamId, { is_live: true, ended_at: null, stream_url: stream.stream_url }, bearer);
-  return json({ ok: true, data: { stage: 'on-air', srs_live: true, youtube_live: true, youtube_status: broadcast.status.lifeCycleStatus, video_rtp: true, audio_rtp: true, diagnostics }, error: null });
+  return json({ ok: true, data: { stage: 'on-air', media_path_active: mediaPathReady, youtube_live: true, youtube_status: broadcast.status.lifeCycleStatus, video_rtp: true, audio_rtp: true, diagnostics }, error: null });
 }
 async function stop(streamId: string, request: Request) {
   const user = await requireUser(request); if (!user) return json({ ok: false, error: { code: 'AUTH_REQUIRED', message: 'Sign in to stop the broadcast.' } }, 401);
@@ -417,7 +442,7 @@ async function handle(request: Request) {
     return json({ ok: false, error: { code: 'ACTION_REQUIRED', message: 'Supported actions: start, viewer, verify, stop.' } }, 400);
   } catch (error: any) {
     const message = String(error?.message || 'Vercel live control failed. [stage=unknown; inspect runtime diagnostics]');
-    if (message === 'SRS_API_NOT_CONFIGURED') return json({ ok: false, error: { code: 'SRS_API_NOT_CONFIGURED', message: 'SRS control API credentials are missing.' } }, 503);
+    if (message === 'SRS_SESSION_KEY_NOT_CONFIGURED') return json({ ok: false, error: { code: 'SRS_NOT_CONFIGURED', message: 'Testagram server-side session key is missing.' } }, 503);
     if (message === 'SUPABASE_SERVER_NOT_CONFIGURED') return json({ ok: false, error: { code: 'SUPABASE_SERVER_NOT_CONFIGURED', message: 'Vercel Supabase server configuration is missing.' } }, 503);
     if (message.startsWith('SUPABASE_STREAM_LOOKUP_FAILED:')) return json({ ok: false, error: { code: 'STREAM_LOOKUP_FAILED', message: 'Supabase rejected the TV broadcast lookup; this is a control-plane access/configuration failure, not a missing broadcast.', detail: message.slice('SUPABASE_STREAM_LOOKUP_FAILED:'.length) } }, 502);
     return json({ ok: false, error: { code: 'LIVE_CONTROL_FAILED', message: 'Vercel live control failed.' } }, 500);
