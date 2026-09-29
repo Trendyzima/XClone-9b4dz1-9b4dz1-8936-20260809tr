@@ -144,8 +144,25 @@ Deno.serve(async req=>{
  }
  if(!stream.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
  if(provider==="youtube") return json({ok:true,data:{...contract("viewer"),playback_url:stream.youtube_video_id?"https://www.youtube.com/embed/"+stream.youtube_video_id+"?autoplay=1&playsinline=1":null},error:null});
+
+ // A producer can disappear without sending the explicit stop request (tab close,
+ // device loss, network loss). Bound that failure mode so viewers do not spin
+ // forever against an orphaned is_live row.
+ if(stream.tv_last_heartbeat_at){
+   const heartbeatAge=Date.now()-new Date(stream.tv_last_heartbeat_at).getTime();
+   if(heartbeatAge>30000){
+     await db.from("live_streams").update({
+       is_live:false,
+       ended_at:new Date().toISOString(),
+       tv_connection_state:"stale",
+       tv_host_peer_id:null,
+       viewer_count:0,
+     }).eq("id",streamId).eq("is_live",true);
+     return json({ok:false,error:{code:"STREAM_ENDED",message:"The TV producer session is no longer active."}},409);
+   }
+ }
  // The viewer must be allowed to join while the producer session is starting.
- // Heartbeat/peer health is confirmation after signaling, not a prerequisite for joining.
+ // Heartbeat/peer health is confirmation after signaling, not a prerequisite to joining.
  return json({ok:true,data:contract("viewer"),error:null});
 
 });
