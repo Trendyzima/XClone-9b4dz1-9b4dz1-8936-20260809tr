@@ -463,7 +463,6 @@ async function stop(streamId: string, request: Request) {
     stream_url: null,
     youtube_broadcast_id: null,
     youtube_stream_id: null,
-    youtube_output_id: null,
   }, bearer);
 
   return json({ ok: true, data: { stage: 'ended', srs_stopped: true, downstream_stopped: true }, error: null });
