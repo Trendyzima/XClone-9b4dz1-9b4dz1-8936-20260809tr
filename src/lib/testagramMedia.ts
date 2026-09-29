@@ -210,7 +210,19 @@ export class TestagramMediaSession {
 
   static async connectHost(streamId: string, program: MediaStream) {
     const session = new TestagramMediaSession('tv', 'host', streamId);
-    session.localStream = program; await session.connect(true); return session;
+    session.localStream = program;
+    try {
+      await session.connect(true);
+      return session;
+    } catch (error) {
+      // /api/live persists the YouTube/Mux control-plane allocation before WHIP.
+      // If browser signaling fails after that point, this session must reconcile
+      // the allocation itself; the caller cannot receive a session object from a
+      // failed async connect().
+      await session.stopBroadcastControlPlane().catch(() => undefined);
+      await session.close().catch(() => undefined);
+      throw error;
+    }
   }
 
   static async connectViewer(streamId: string, onRemoteStream: (stream: MediaStream) => void) {
