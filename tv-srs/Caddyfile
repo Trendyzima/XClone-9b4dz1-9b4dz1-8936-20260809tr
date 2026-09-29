@@ -1,10 +1,10 @@
-media.testagram.site {
+{$SRS_DOMAIN} {
   handle /rtc/* {
     reverse_proxy srs:1985
   }
 
   handle /healthz {
-    respond "ok" 200
+    respond 200 "ok"
   }
 
   respond 404

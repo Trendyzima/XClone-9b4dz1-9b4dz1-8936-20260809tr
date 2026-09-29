@@ -13,13 +13,13 @@ Testagram/Vercel remains the control plane. Supabase remains the canonical auth/
 
 SRS does **not** require an SRS vendor account, API subscription, or SRS API credential.
 
-- The SRS HTTP API stays private inside the Docker network and is not published through Caddy.
+- The SRS HTTP API is private to the Docker network and is not used by Testagram's broadcast control path.
 - Testagram does not call the SRS HTTP API for broadcast verification.
 - WHIP authentication uses a short-lived encrypted Testagram session token in the WHIP URL.
 - SRS calls Testagram's own HTTPS callbacks for publish authorization and dynamic forwarding.
 - Downstream YouTube/Mux destination URLs and stream keys are resolved server-side by Testagram. They are **not** embedded in the browser token.
 
-The only infrastructure value required by the media host is the public DNS name. SRS auto-detects its WebRTC candidate IP.
+The media host needs a public DNS name and its public IPv4 as SRS_PUBLIC_IP so WebRTC candidates are routable.
 
 ## Production host
 

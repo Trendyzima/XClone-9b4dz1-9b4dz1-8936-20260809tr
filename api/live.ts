@@ -12,6 +12,10 @@ const supabaseUrl = env('SUPABASE_URL', env('VITE_SUPABASE_URL')).replace(/\/$/,
 const supabaseKey = env('SUPABASE_PUBLISHABLE_KEY', env('SUPABASE_ANON_KEY', env('VITE_SUPABASE_PUBLISHABLE_KEY', env('VITE_SUPABASE_ANON_KEY'))));
 const supabaseServiceRoleKey = env('SUPABASE_SERVICE_ROLE_KEY', env('SUPABASE_SECRET_KEY'));
 const supabaseControlKey = supabaseServiceRoleKey || supabaseKey;
+// Existing Cloudflare backend/control-plane support; TV SRS does not call Cloudflare Stream.
+const cloudflareAccountId = env('CLOUDFLARE_ACCOUNT_ID');
+const cloudflareApiToken = env('CLOUDFLARE_API_TOKEN');
+const cloudflareApiBase = cloudflareAccountId ? `https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/stream/live_inputs` : '';
 const srsMediaBaseUrl = env('SRS_MEDIA_BASE_URL').replace(/\/$/, '');
 const muxTokenId = env('MUX_TOKEN_ID');
 const muxTokenSecret = env('MUX_TOKEN_SECRET');
@@ -398,6 +402,16 @@ async function start(streamId: string, request: Request) {
     return json({ ok: false, error: { code: 'LIVE_CONTROL_FAILED', message: 'TV media control failed while preparing the SRS distribution path.', detail: 'stage=' + controlStage + '; failure=' + message.slice(0, 260) } }, 502);
   }
 }
+async function viewer(streamId: string, request: Request) {
+  const stream = await getStream(streamId, authHeader(request));
+  if (!stream) return json({ ok: false, error: { code: 'STREAM_NOT_FOUND', message: 'No canonical live_streams record exists for this broadcast.' } }, 404);
+  if (!stream.is_live || !stream.stream_url) return json({ ok: false, error: { code: 'STREAM_ENDED', message: 'Broadcast is no longer live.' } }, 409);
+  const isYouTube = Boolean(stream.youtube_broadcast_id && stream.stream_url.includes('youtube.com/embed/'));
+  const isMux = Boolean(stream.mux_playback_id && stream.stream_url.includes('stream.mux.com/'));
+  if (!isYouTube && !isMux) return json({ ok: false, error: { code: 'STREAM_PLAYBACK_NOT_READY', message: 'TV playback is not ready yet.' } }, 409);
+  return json({ ok: true, data: { provider: isYouTube ? 'srs-youtube-hybrid' : 'srs-mux-hybrid', token: '', playback_url: stream.stream_url, room_id: streamId, room_type: 'tv', role: 'viewer', mux_playback_id: stream.mux_playback_id, youtube_broadcast_id: stream.youtube_broadcast_id, title: stream.title, viewer_count: 0 }, error: null });
+}
+
 async function verify(streamId: string, request: Request) {
   const user = await requireUser(request); if (!user) return json({ ok: false, error: { code: 'AUTH_REQUIRED', message: 'Sign in to verify the broadcast.' } }, 401);
   const bearer = authHeader(request); const stream = await getStream(streamId, bearer);
@@ -405,7 +419,8 @@ async function verify(streamId: string, request: Request) {
   const body = await request.json().catch(() => ({})) as any; const diagnostics = body?.diagnostics || {};
   if (!(Number(diagnostics.videoPackets) > 0 && Number(diagnostics.videoBytes) > 0)) return json({ ok: false, error: { code: 'VIDEO_RTP_FAILED', message: 'The browser has not transmitted video RTP.' }, diagnostics }, 409);
   if (!(Number(diagnostics.audioPackets) > 0 && Number(diagnostics.audioBytes) > 0)) return json({ ok: false, error: { code: 'AUDIO_RTP_FAILED', message: 'The browser has not transmitted audio RTP.' }, diagnostics }, 409);
-  const mediaPathReady = Number(diagnostics.videoPackets) > 0 && Number(diagnostics.videoBytes) > 0 && Number(diagnostics.audioPackets) > 0 && Number(diagnostics.audioBytes) > 0;
+  const mediaPathReady = diagnostics.signaling === 'sdp-answer-received' && Number(diagnostics.videoPackets) > 0 && Number(diagnostics.videoBytes) > 0 && Number(diagnostics.audioPackets) > 0 && Number(diagnostics.audioBytes) > 0;
+  if (diagnostics.signaling !== 'sdp-answer-received') return json({ ok: false, error: { code: 'SRS_WHIP_NOT_CONNECTED', message: 'SRS has not completed the WHIP SDP handshake yet.' }, diagnostics }, 409);
   if (!stream.youtube_broadcast_id || !stream.youtube_stream_id) return json({ ok: false, error: { code: 'STREAM_CONTROL_STATE_MISSING', message: 'YouTube distribution metadata is incomplete.' } }, 409);
   let ytStream: any = null; for (let attempt = 0; attempt < 30; attempt += 1) { ytStream = await getYoutubeStream(stream.youtube_stream_id); if (ytStream?.status?.streamStatus === 'active') break; await new Promise(resolve => setTimeout(resolve, 1000)); }
   if (ytStream?.status?.streamStatus !== 'active') return json({ ok: false, error: { code: 'YOUTUBE_INPUT_NOT_ACTIVE', message: 'The TV media path is not active at YouTube yet.' }, youtube_status: ytStream?.status?.streamStatus || null }, 409);

@@ -181,7 +181,7 @@ export class TestagramMediaSession {
           width = Number(report.frameWidth || 0); height = Number(report.frameHeight || 0);
         }
       });
-      this.lastDiagnostics = { connectionState: state, iceConnectionState: ice, videoPackets, videoBytes, audioPackets, audioBytes, packets: videoPackets, bytes: videoBytes, frames: videoFrames, width, height, elapsedMs: Date.now() - started };
+      this.lastDiagnostics = { ...this.lastDiagnostics, connectionState: state, iceConnectionState: ice, videoPackets, videoBytes, audioPackets, audioBytes, packets: videoPackets, bytes: videoBytes, frames: videoFrames, width, height, elapsedMs: Date.now() - started };
       if (state === 'failed' || state === 'closed' || ice === 'failed' || ice === 'closed') throw new Error(`WebRTC transport failed (connection=${state}, ICE=${ice}).`);
       const mediaReady = direction === 'send'
         ? videoPackets > 0 && videoBytes > 0 && audioPackets > 0 && audioBytes > 0
