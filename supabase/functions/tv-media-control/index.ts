@@ -43,7 +43,7 @@ async function prepareYouTubeBroadcast(stream:any){
     status:{privacyStatus:"public",selfDeclaredMadeForKids:false},
     contentDetails:{enableAutoStart:true,enableAutoStop:true,recordFromStart:true,enableDvr:true},
   })},token);
-  await youtubeRequest(`liveBroadcasts?part=id&id=${encodeURIComponent(broadcast.id)}&streamId=${encodeURIComponent(createdStream.id)}`,{method:"POST"},token);
+  await youtubeRequest(`liveBroadcasts/bind?part=id&id=${encodeURIComponent(broadcast.id)}&streamId=${encodeURIComponent(createdStream.id)}`,token,{method:"POST"});
   return {
     broadcast_id:createdStream?.id?broadcast.id:null,
     stream_id:createdStream?.id||null,
@@ -51,6 +51,8 @@ async function prepareYouTubeBroadcast(stream:any){
     status:broadcast?.status?.lifeCycleStatus||"created",
     ingest_configured:true,
     encoder_required:true,
+    rtmps_ingestion_address:createdStream?.cdn?.ingestionInfo?.rtmpsIngestionAddress||null,
+    stream_name:createdStream?.cdn?.ingestionInfo?.streamName||null,
   };
 }
 
@@ -87,7 +89,7 @@ Deno.serve(async req=>{
      youtube_broadcast_id:youtube?.broadcast_id||null,youtube_stream_id:youtube?.stream_id||null,youtube_video_id:youtube?.video_id||null
    }).eq("id",streamId).eq("user_id",stream.user_id).select("id,user_id,is_live,title,description,viewer_count,tv_provider,youtube_broadcast_id,youtube_stream_id,youtube_video_id").single();
    if(e||!updated)return json({ok:false,error:{code:"TV_START_FAILED",message:"Could not start the TV broadcast."}},409);
-   return json({ok:true,data:{...contract("host"),youtube:youtube?{video_id:youtube.video_id,broadcast_id:youtube.broadcast_id,stream_id:youtube.stream_id,status:youtube.status,encoder_required:true}:null},error:null});
+   return json({ok:true,data:{...contract("host"),youtube:youtube?{video_id:youtube.video_id,broadcast_id:youtube.broadcast_id,stream_id:youtube.stream_id,status:youtube.status,encoder_required:true,rtmps_ingestion_address:youtube.rtmps_ingestion_address,stream_name:youtube.stream_name}:null},error:null});
  }
  if(action==="stop"){
    if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can stop this TV broadcast."}},403);
