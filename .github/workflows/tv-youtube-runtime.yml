@@ -1,4 +1,5 @@
 name: TV YouTube Runtime Reconciliation
+# Runtime deploy is intentionally retriggered on every TV control-plane change.
 
 on:
   push:
