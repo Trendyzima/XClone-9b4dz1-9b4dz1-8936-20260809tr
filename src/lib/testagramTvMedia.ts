@@ -72,6 +72,7 @@ export class TestagramTvMediaSession {
   private reconnectTimers = new Map<string, number>();
   private adaptationTimer: number | null = null;
   private peerStats = new Map<string, { lastBytes: number; lastLost: number; lastSentPackets: number; lastAt: number; stableSamples: number; profile: TvNetworkProfile }>();
+  private videoCeilingBitrate = 8_000_000;
 
   private constructor(role: TvRole, roomId: string) { this.role = role; this.roomId = roomId; }
 
@@ -302,11 +303,12 @@ export class TestagramTvMediaSession {
         const params = videoSender.getParameters();
         params.encodings ??= [{}];
         const current = Number(params.encodings[0].maxBitrate || 4_500_000);
-        const target = profile === 'poor' ? 1_500_000 : profile === 'constrained' ? 2_500_000 : profile === 'good' ? 3_500_000 : 4_500_000;
+        const ceiling = this.videoCeilingBitrate;
+        const target = profile === 'poor' ? Math.max(900_000, ceiling * 0.25) : profile === 'constrained' ? Math.max(1_500_000, ceiling * 0.45) : profile === 'good' ? Math.max(2_000_000, ceiling * 0.7) : ceiling;
         const next = target < current ? Math.max(target, current * 0.72) : Math.min(target, current * 1.18);
         for (const encoding of params.encodings) {
           encoding.maxBitrate = Math.round(next);
-          encoding.maxFramerate = profile === 'poor' ? 20 : 30;
+          encoding.maxFramerate = profile === 'poor' ? 20 : profile === 'constrained' ? 24 : 30;
         }
         await videoSender.setParameters(params);
         this.peerStats.set(peerId, { lastBytes: bytes, lastLost: lost, lastSentPackets: sentPackets, lastAt: now, stableSamples: (previous?.stableSamples || 0) + (profile === 'excellent' ? 1 : 0), profile });
@@ -418,6 +420,7 @@ export class TestagramTvMediaSession {
 
   async configureVideoSender(options: VideoOptions) {
     this.videoOptions = options;
+    this.videoCeilingBitrate = Math.min(Math.max(1_000_000, options.maxBitrate), 8_000_000);
     await Promise.all(Array.from(this.peers.values()).map(pc => this.applyVideoOptions(pc, options)));
   }
 
