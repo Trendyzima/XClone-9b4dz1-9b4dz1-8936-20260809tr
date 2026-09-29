@@ -334,7 +334,7 @@ export class TestagramMediaSession {
         body: this.pc.localDescription.sdp,
       });
     } catch {
-      throw new Error('Testagram SRS media gateway is unreachable. Check media.testagram.site, HTTPS, and UDP/TCP 8000.');
+      throw new Error('Testagram SRS media gateway is unreachable. Check the Testagram TV media hostname, HTTPS, and UDP/TCP 8000.');
     }
     if (!response.ok) {
       const detail = (await response.text().catch(() => '')).slice(0, 240);
