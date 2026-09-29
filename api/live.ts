@@ -347,7 +347,7 @@ async function start(streamId: string, request: Request) {
       destinations.push('rtmps://global-live.mux.com:443/app/' + mux.streamKey);
     }
     controlStage = 'srs-session-token';
-    const srsToken = encodeSrsToken({ streamId, exp: Math.floor(Date.now() / 1000) + 2 * 60 * 60, destinations });
+    const srsToken = encodeSrsToken({ streamId, exp: Math.floor(Date.now() / 1000) + 24 * 60 * 60, destinations });
     const whipUrl = srsMediaBaseUrl + '/rtc/v1/whip/?app=live&stream=' + encodeURIComponent(streamId) + '&token=' + encodeURIComponent(srsToken);
     controlStage = 'control-plane-persist';
     await updateStream(streamId, { is_live: false, stream_url: youtube.playbackUrl, ended_at: null, mux_live_stream_id: muxLiveStreamId, mux_playback_id: null, cloudflare_input_id: null, cloudflare_output_id: null, youtube_broadcast_id: youtubeBroadcastId, youtube_stream_id: youtubeStreamId, youtube_output_id: null }, bearer);
