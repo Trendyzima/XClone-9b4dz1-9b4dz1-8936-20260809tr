@@ -78,9 +78,20 @@ export class TestagramTvMediaSession {
   private constructor(role: TvRole, roomId: string) { this.role = role; this.roomId = roomId; }
 
   static async connectHost(streamId: string, program: MediaStream) {
+    const video = program.getVideoTracks()[0];
+    const audio = program.getAudioTracks()[0];
+    if (!video || video.readyState !== 'live') throw new Error('TV program video track is not live.');
+    if (!audio || audio.readyState !== 'live') throw new Error('TV program audio track is not live.');
+
     const session = new TestagramTvMediaSession('host', streamId);
     session.localStream = program;
     await session.start('start');
+    session.lastDiagnostics = {
+      ...session.lastDiagnostics,
+      mediaReady: true,
+      videoTrack: video.readyState,
+      audioTrack: audio.readyState,
+    };
     return session;
   }
 
