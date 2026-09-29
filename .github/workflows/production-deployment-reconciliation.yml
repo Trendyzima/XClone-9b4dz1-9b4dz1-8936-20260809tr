@@ -127,19 +127,19 @@ jobs:
           fi
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref for migration reconciliation."; exit 1; }
 
-          # Production was historically reconciled with Supabase's migration API,
-          # which assigned database-side versions that differ from repository
-          # filename timestamps. A normal supabase db push compares versions,
-          # not migration names, and therefore correctly refuses to continue.
-          # Reconcile by canonical migration NAME instead: inspect remote history,
-          # then apply only repository migrations whose exact filename is absent.
-          # This preserves existing production history and avoids the DB password.
+          # Production migration history predates the current repository and contains
+          # intentionally generated platform versions plus legacy migrations that are
+          # not a runnable linear queue. The TV control-plane migration is the verified
+          # production baseline. From this point forward CI only applies canonical
+          # timestamped migrations newer than that baseline, by migration name.
           SUPABASE_PROJECT_REF="$PROJECT_REF" SUPABASE_ACCESS_TOKEN="$SUPABASE_ACCESS_TOKEN" node --input-type=module <<'NODE'
           import fs from "node:fs";
           import path from "node:path";
 
           const projectRef = process.env.SUPABASE_PROJECT_REF;
           const token = process.env.SUPABASE_ACCESS_TOKEN;
+          const baselineVersion = "20260928150000";
+          const baselineName = "20260928150000_tv_mux_hybrid_control_plane";
           const migrationsDir = path.join(process.cwd(), "supabase", "migrations");
           if (!token) throw new Error("SUPABASE_ACCESS_TOKEN is required for migration reconciliation.");
           if (!fs.existsSync(migrationsDir)) throw new Error("supabase/migrations directory is missing.");
@@ -151,17 +151,28 @@ jobs:
 
           const remote = JSON.parse(body);
           const applied = new Set(Array.isArray(remote) ? remote.map((m) => String(m?.name || "")).filter(Boolean) : []);
-          const files = fs.readdirSync(migrationsDir).filter((name) => /^\d{14}_.+\.sql$/.test(name)).sort((a, b) => a.localeCompare(b));
-          const pending = files.filter((file) => !applied.has(file.slice(0, -4)));
+          if (!applied.has(baselineName)) {
+            throw new Error("Verified migration baseline is missing from production history: " + baselineName);
+          }
 
-          console.log("Remote migration records: " + applied.size);
-          console.log("Repository canonical migrations: " + files.length);
-          console.log("Pending canonical migrations: " + pending.length);
+          const files = fs.readdirSync(migrationsDir)
+            .filter((name) => /^\d{14}_.+\.sql$/.test(name))
+            .sort((a, b) => a.localeCompare(b));
+          const pending = files.filter((file) => {
+            const version = file.slice(0, 14);
+            const name = file.slice(0, -4);
+            return version > baselineVersion && !applied.has(name);
+          });
+
+          console.log("Production migration records: " + applied.size);
+          console.log("Repository timestamped migrations: " + files.length);
+          console.log("Migration baseline: " + baselineName);
+          console.log("Pending migrations newer than baseline: " + pending.length);
 
           for (const file of pending) {
             const name = file.slice(0, -4);
             const query = fs.readFileSync(path.join(migrationsDir, file), "utf8");
-            console.log("Applying migration: " + name);
+            console.log("Applying migration newer than baseline: " + name);
             const apply = await fetch(historyUrl, {
               method: "POST",
               headers: { Authorization: "Bearer " + token, "Content-Type": "application/json", Accept: "application/json" },
@@ -172,7 +183,7 @@ jobs:
             console.log("Applied migration: " + name);
           }
 
-          console.log("Supabase migration reconciliation passed.");
+          console.log("Supabase migration reconciliation passed from verified baseline.");
           NODE
 
       - name: Retire legacy LiveKit Edge Functions
