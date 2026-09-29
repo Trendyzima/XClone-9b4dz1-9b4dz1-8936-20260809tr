@@ -714,6 +714,28 @@ jobs:
             exit 1
           fi
 
+      - name: Synchronize SRS TV media gateway credentials into Vercel production
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          SRS_MEDIA_BASE_URL: ${{ vars.SRS_MEDIA_BASE_URL || 'https://media.testagram.site' }}
+          SRS_API_URL: ${{ vars.SRS_API_URL || 'https://media.testagram.site/srs-api' }}
+          SRS_API_TOKEN: ${{ secrets.SRS_API_TOKEN }}
+          SRS_FORWARD_SECRET: ${{ secrets.SRS_FORWARD_SECRET }}
+          TV_SECONDARY_DISTRIBUTION: ${{ vars.TV_SECONDARY_DISTRIBUTION }}
+        run: |
+          set -euo pipefail
+          [[ -n "$VERCEL_TOKEN" ]] || { echo "::error::VERCEL_TOKEN is required."; exit 1; }
+          [[ -n "$SRS_API_TOKEN" ]] || { echo "::error::SRS_API_TOKEN is required for Testagram TV."; exit 1; }
+          [[ -n "$SRS_FORWARD_SECRET" ]] || { echo "::error::SRS_FORWARD_SECRET is required for Testagram TV."; exit 1; }
+          printf '%s' "srs" | vercel env add "TV_DISTRIBUTION_PROVIDER" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          printf '%s' "$SRS_MEDIA_BASE_URL" | vercel env add "SRS_MEDIA_BASE_URL" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          printf '%s' "$SRS_API_URL" | vercel env add "SRS_API_URL" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          printf '%s' "$SRS_API_TOKEN" | vercel env add "SRS_API_TOKEN" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          printf '%s' "$SRS_FORWARD_SECRET" | vercel env add "SRS_FORWARD_SECRET" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          printf '%s' "${TV_SECONDARY_DISTRIBUTION:-}" | vercel env add "TV_SECONDARY_DISTRIBUTION" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          echo "SRS TV media gateway credentials synchronized without printing secret values."
       - name: Synchronize YouTube TV distribution credentials into Vercel production
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
