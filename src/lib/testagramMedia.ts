@@ -261,13 +261,14 @@ export class TestagramMediaSession {
 
   private async connectWhipStream() {
     const endpoint = this.role === 'host' ? this.info?.whip_url : this.info?.whep_url;
-    if (!endpoint) throw new Error(`Cloudflare Stream ${this.role === 'host' ? 'WHIP' : 'WHEP'} endpoint was not returned.`);
-    this.createPeerConnection(this.info?.ice_servers || [{ urls: 'stun:stun.cloudflare.com:3478' }]);
+    if (!endpoint) throw new Error(`${this.info?.provider?.startsWith('srs-') ? 'Testagram SRS' : 'Cloudflare Stream'} ${this.role === 'host' ? 'WHIP' : 'WHEP'} endpoint was not returned.`);
+    const srsProvider = this.info?.provider?.startsWith('srs-') === true;
+    this.createPeerConnection(this.info?.ice_servers || (srsProvider ? [] : [{ urls: 'stun:stun.cloudflare.com:3478' }]));
     if (this.role === 'host') {
-      if (!this.localStream) throw new Error('Cloudflare publisher has no production media stream.');
+      if (!this.localStream) throw new Error(`${srsProvider ? 'SRS' : 'Cloudflare'} publisher has no production media stream.`);
       const video = this.localStream.getVideoTracks()[0];
       const audio = this.localStream.getAudioTracks()[0];
-      if (!video || !audio) throw new Error('Cloudflare publisher requires both video and audio tracks.');
+      if (!video || !audio) throw new Error(`${srsProvider ? 'SRS' : 'Cloudflare'} publisher requires both video and audio tracks.`);
       this.localStream.getTracks().forEach(track => this.pc.addTrack(track, this.localStream!));
     } else {
       this.pc.addTransceiver('video', { direction: 'recvonly' });
@@ -292,7 +293,7 @@ export class TestagramMediaSession {
     if (!answer.trim()) throw new Error('SRS WebRTC returned an empty SDP answer.');
     await this.pc.setRemoteDescription({ type: 'answer', sdp: answer });
     this.answerReceived = true;
-    this.lastDiagnostics = { ...this.lastDiagnostics, provider: this.info?.provider || 'cloudflare-stream', signaling: 'sdp-answer-received', endpoint: this.role === 'host' ? 'whip' : 'whep' };
+    this.lastDiagnostics = { ...this.lastDiagnostics, provider: this.info?.provider || 'srs-youtube-hybrid', signaling: 'sdp-answer-received', endpoint: this.role === 'host' ? 'whip' : 'whep' };
     const location = response.headers.get('Location');
     if (location) this.mediaSessionUrl = new URL(location, endpoint).toString();
   };
