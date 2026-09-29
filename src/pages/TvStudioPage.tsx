@@ -1228,7 +1228,7 @@ export default function TvStudioPage() {
                 <Activity className="w-4 h-4 animate-pulse" />
                 {broadcastStage === 'preparing' && 'Preparing the TV program…'}
                 {broadcastStage === 'authorizing' && 'Authorizing the broadcast…'}
-                {broadcastStage === 'connecting' && 'Connecting to Testagram Media Engine…'}
+                {broadcastStage === 'connecting' && 'Connecting TV signaling + WebRTC…'}
                 {broadcastStage === 'verifying' && 'Verifying WebRTC connection and live media…'}
                 {broadcastStage === 'on-air' && 'ON AIR'}
               </div>
@@ -1236,10 +1236,10 @@ export default function TvStudioPage() {
                 {broadcastStage === 'preparing' && 'Checking camera, microphone and production A/V tracks.'}
                 {broadcastStage === 'authorizing' && 'Creating the private broadcast session and requesting media authorization.'}
                 {broadcastStage === 'connecting' && 'Waiting for the signaling channel and WebRTC answer.'}
-                {broadcastStage === 'verifying' && 'Waiting for ICE to connect and confirming outbound video + audio RTP packets.'}
-                {broadcastStage === 'on-air' && 'The broadcaster is transmitting; the public stream has been activated.'}
+                {broadcastStage === 'verifying' && 'Validating live camera/microphone tracks and preparing the producer WebRTC session.'}
+                {broadcastStage === 'on-air' && 'Producer is transmitting. Public viewers attach automatically and the studio marks media delivery healthy after inbound RTP is confirmed.'}
               </p>
-              {broadcastDiagnostics && <p className="mt-2 text-[10px] text-zinc-300">ICE: {String(broadcastDiagnostics.iceConnectionState)} · video packets: {String(broadcastDiagnostics.videoPackets)} · audio packets: {String(broadcastDiagnostics.audioPackets)} · {String(broadcastDiagnostics.width)}×{String(broadcastDiagnostics.height)}</p>}
+              {broadcastDiagnostics && <p className="mt-2 text-[10px] text-zinc-300">{broadcastDiagnostics.mediaReachedViewer ? <>Viewer media: confirmed · video packets: {String(broadcastDiagnostics.viewerVideoPackets ?? broadcastDiagnostics.videoPackets ?? 0)} · audio packets: {String(broadcastDiagnostics.viewerAudioPackets ?? broadcastDiagnostics.audioPackets ?? 0)} · {String(broadcastDiagnostics.viewerWidth ?? broadcastDiagnostics.width ?? 0)}×{String(broadcastDiagnostics.viewerHeight ?? broadcastDiagnostics.height ?? 0)}</> : <>Producer tracks: {broadcastDiagnostics.mediaReady ? 'live' : 'checking'} · Viewer media: awaiting first inbound RTP</>}</p>}
             </div>
           )}
           {broadcastError && (
