@@ -4,7 +4,8 @@
   }
 
   handle /healthz {
-    respond 200 "ok"
+    rewrite * /api/v1/versions
+    reverse_proxy srs:1985
   }
 
   respond 404
