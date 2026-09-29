@@ -19,4 +19,4 @@ services:
 networks:
   testagram-media:
     external: true
-    name: media-engine_default
+    name: ${TESTAGRAM_MEDIA_NETWORK:?set TESTAGRAM_MEDIA_NETWORK}
