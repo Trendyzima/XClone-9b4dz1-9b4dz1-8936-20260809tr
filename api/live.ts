@@ -311,7 +311,11 @@ async function start(streamId: string, request: Request) {
       body: JSON.stringify({ defaultCreator: user.id, enabled: true, deleteRecordingAfterDays: 30, meta: { testagram_stream_id: streamId, title: stream.title || 'Testagram TV Live' }, preferLowLatency: true, recording: { mode: 'automatic', allowedOrigins: streamAllowedOrigins() } }),
     });
     const payload = await response.json().catch(() => null) as any;
-    if (!response.ok || !payload?.success || !payload?.result?.uid || !payload?.result?.webRTC?.url || !payload?.result?.webRTCPlayback?.url) throw new Error('CLOUDFLARE_STREAM_CREATE_FAILED');
+    if (!response.ok || !payload?.success || !payload?.result?.uid || !payload?.result?.webRTC?.url || !payload?.result?.webRTCPlayback?.url) {
+      const code = payload?.errors?.[0]?.code;
+      const reason = payload?.errors?.[0]?.message;
+      throw new Error(`CLOUDFLARE_STREAM_CREATE_FAILED:${response.status}:${String(code || 'unknown')}:${String(reason || 'Cloudflare rejected the live input').slice(0, 180)}`);
+    }
     const input = payload.result;
     cloudflareInputId = input.uid;
     controlStage = 'cloudflare-output-create';
