@@ -122,7 +122,9 @@ jobs:
           set -euo pipefail
           PROJECT_REF="$SUPABASE_PROJECT_REF"
           if [[ -z "$PROJECT_REF" ]]; then
-            PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\\.supabase\\.co/?$#\\1#p')"
+            SUPABASE_HOST="${SUPABASE_URL#https://}"
+            SUPABASE_HOST="${SUPABASE_HOST%%/*}"
+            PROJECT_REF="${SUPABASE_HOST%%.*}"
           fi
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref for migration reconciliation."; exit 1; }
           [[ -n "$SUPABASE_DB_PASSWORD" ]] || { echo "::error::SUPABASE_DB_PASSWORD is required for production database migration deployment."; exit 1; }
