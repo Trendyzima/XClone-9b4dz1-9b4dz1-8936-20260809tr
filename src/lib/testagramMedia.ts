@@ -35,7 +35,17 @@ const tvControlApiUrl = () => {
   return (origin === 'https://testagram.site' ? 'https://www.testagram.site' : origin) + '/api/live';
 };
 
-const tvControlFetch = (init: RequestInit) => fetch(tvControlApiUrl(), init);
+const tvControlFetch = async (init: RequestInit) => {
+  try {
+    return await fetch(tvControlApiUrl(), {
+      ...init,
+      cache: 'no-store',
+      redirect: 'error',
+    });
+  } catch {
+    throw new Error(`Testagram TV control API is unreachable at ${tvControlApiUrl()} [TV_CONTROL_UNREACHABLE]. Check the production API domain and HTTPS transport.`);
+  }
+};
 
 const waitForIce = async (pc: RTCPeerConnection) => {
   if (pc.iceGatheringState === 'complete') return;
