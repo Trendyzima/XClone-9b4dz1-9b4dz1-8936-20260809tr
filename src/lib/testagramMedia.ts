@@ -259,7 +259,7 @@ export class TestagramMediaSession {
     await this.sendOffer();
   }
 
-  private async connectCloudflareStream() {
+  private async connectWhipStream() {
     const endpoint = this.role === 'host' ? this.info?.whip_url : this.info?.whep_url;
     if (!endpoint) throw new Error(`Cloudflare Stream ${this.role === 'host' ? 'WHIP' : 'WHEP'} endpoint was not returned.`);
     this.createPeerConnection(this.info?.ice_servers || [{ urls: 'stun:stun.cloudflare.com:3478' }]);
