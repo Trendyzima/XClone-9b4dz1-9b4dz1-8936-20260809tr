@@ -69,5 +69,5 @@ jobs:
             HOST="${HOST%%/*}"
             PROJECT_REF="${HOST%%.*}"
           fi
-          supabase functions deploy tv-media-control --use-api --project-ref "$PROJECT_REF" --no-verify-jwt=false
+          supabase functions deploy tv-media-control --use-api --project-ref "$PROJECT_REF"
           echo "tv-media-control deployed."
