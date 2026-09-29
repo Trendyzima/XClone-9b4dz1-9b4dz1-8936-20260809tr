@@ -4,10 +4,12 @@ on:
   pull_request:
     paths:
       - "api/live.ts"
-      - "src/lib/testagramMedia.ts"
+      - "src/lib/testagramTvMedia.ts"
       - "src/pages/TvStudioPage.tsx"
-      - "tv-srs/**"
-      - "media-engine/Caddyfile"
+      - "src/pages/TvPublicLivePage.tsx"
+      - "supabase/functions/tv-media-control/**"
+      - "supabase/functions/testagram-media-token/**"
+      - "supabase/migrations/*tv*"
       - ".github/workflows/production-deployment-reconciliation.yml"
   workflow_dispatch:
 
@@ -40,35 +42,28 @@ jobs:
       - name: Production build
         run: npm run build
 
-      - name: Validate TV Compose
-        env:
-          SRS_PUBLIC_IP: 127.0.0.1
+      - name: Enforce single native TV media path
+        shell: bash
         run: |
           set -euo pipefail
-          docker network create ci-test-network >/dev/null 2>&1 || true
-          TESTAGRAM_MEDIA_NETWORK=ci-test-network docker compose -f tv-srs/docker-compose.yml config -q
-
-      - name: Validate TV Caddy configuration
-        run: |
-          set -euo pipefail
-          docker run --rm \
-            -e MEDIA_ENGINE_DOMAIN=localhost \
-            -e TV_SRS_DOMAIN=tv-media.testagram.site \
-            -v "$PWD/media-engine/Caddyfile:/etc/caddy/Caddyfile:ro" \
-            caddy:2.10-alpine \
-            caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
-
-      - name: Enforce single TV media path
-        run: |
-          set -euo pipefail
-          files="api/live.ts src/lib/testagramMedia.ts src/pages/TvStudioPage.tsx tv-srs/README.md"
-          if grep -Ein 'cloudflare|MUX_TOKEN|VITE_MUX|TV_SECONDARY_DISTRIBUTION|mux_live_stream_id|cloudflare_input_id|cloudflare_output_id' $files; then
-            echo "::error::Retired Cloudflare/Mux TV provider references remain in the active TV software."
+          active_files="api/live.ts src/lib/testagramTvMedia.ts src/pages/TvStudioPage.tsx src/pages/TvPublicLivePage.tsx supabase/functions/tv-media-control/index.ts supabase/functions/testagram-media-token/index.ts"
+          if grep -Ein 'cloudflare|MUX_TOKEN|VITE_MUX|TV_SECONDARY_DISTRIBUTION|mux_live_stream_id|mux_playback_id|cloudflare_input_id|cloudflare_output_id|youtube_broadcast_id|youtube_stream_id|youtube_output_id|MEDIA_ENGINE_SSH_|MEDIA_ENGINE_PUBLIC_IP|SRS_MEDIA_BASE_URL|WHIP|WHEP|tv-media\.testagram\.site' $active_files; then
+            echo "::error::Retired external TV media-provider or media-host references remain in active TV software."
             exit 1
           fi
-          if grep -Ein 'srs-youtube|SRS_MEDIA_BASE_URL|tv-media\.testagram\.site' api/live.ts src/lib/testagramMedia.ts tv-srs/README.md; then
-            echo "Canonical SRS TV path detected."
-          else
-            echo "::error::Canonical SRS TV path markers are missing."
+          grep -q 'provider: "native-p2p"' supabase/functions/tv-media-control/index.ts
+          grep -q "tv-media-control" api/live.ts
+          grep -q "supabase.channel" src/lib/testagramTvMedia.ts
+          grep -q "runtime: \"edge\"" api/live.ts
+          test ! -d tv-srs
+          echo "Native TV edge/control/signaling contract passed."
+
+      - name: Enforce retired TV deployment secrets are absent from workflow
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -RInE 'MEDIA_ENGINE_SSH_HOST|MEDIA_ENGINE_SSH_USER|MEDIA_ENGINE_SSH_PRIVATE_KEY|MEDIA_ENGINE_PUBLIC_IP|Deploy Testagram-owned TV SRS' .github/workflows; then
+            echo "::error::Retired TV media-host deployment credentials or deployment steps remain in CI."
             exit 1
           fi
+          echo "No TV media-host SSH deployment contract remains."
