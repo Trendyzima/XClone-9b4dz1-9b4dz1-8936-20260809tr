@@ -893,7 +893,7 @@ export default function TvStudioPage() {
     } catch (e: any) {
       if (session) {
         setBroadcastDiagnostics(session.getDiagnostics());
-        // If start() already allocated SRS/YouTube/Mux resources, always ask the
+        // If start() already allocated YouTube control-plane resources, always ask the
         // control plane to reconcile them before closing the browser transport.
         await session.stopBroadcastControlPlane().catch(() => undefined);
       }
