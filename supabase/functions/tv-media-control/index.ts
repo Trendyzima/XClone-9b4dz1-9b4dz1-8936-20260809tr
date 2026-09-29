@@ -56,7 +56,8 @@ Deno.serve(async req=>{
  if(action==="guest"){
    if(!stream.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
    if(!inviteToken)return json({ok:false,error:{code:"INVITE_REQUIRED",message:"A TV guest invite is required."}},401);
-   const inviteDb=secret?admin():db;\n   const {data:invite}=await inviteDb.from("tv_guest_invites").select("id,expires_at,used_at").eq("stream_id",streamId).eq("token_hash",await hash(inviteToken)).maybeSingle();
+   const inviteDb=secret?admin():db;
+   const {data:invite}=await inviteDb.from("tv_guest_invites").select("id,expires_at,used_at").eq("stream_id",streamId).eq("token_hash",await hash(inviteToken)).maybeSingle();
    if(!invite||invite.used_at||new Date(invite.expires_at).getTime()<=Date.now())return json({ok:false,error:{code:"INVITE_INVALID",message:"This TV guest invite is invalid or expired."}},401);
    return json({ok:true,data:{...contract("guest"),guest_token:inviteToken},error:null});
  }
