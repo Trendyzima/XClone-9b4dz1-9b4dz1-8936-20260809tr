@@ -714,6 +714,23 @@ jobs:
             exit 1
           fi
 
+      - name: Synchronize YouTube TV distribution credentials into Vercel production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        run: |
+          set -euo pipefail
+          printf '%s' "youtube" | vercel env add "TV_DISTRIBUTION_PROVIDER" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          if [[ -z "${YOUTUBE_CLIENT_ID:-}" || -z "${YOUTUBE_CLIENT_SECRET:-}" || -z "${YOUTUBE_REFRESH_TOKEN:-}" ]]; then
+            echo "::warning::YouTube TV distribution credentials are not yet present in GitHub Secrets. Testagram TV will remain wired to YouTube but Go Live will return YOUTUBE_NOT_CONFIGURED until all three secrets are added."
+            exit 0
+          fi
+          printf '%s' "$YOUTUBE_CLIENT_ID" | vercel env add "YOUTUBE_CLIENT_ID" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          printf '%s' "$YOUTUBE_CLIENT_SECRET" | vercel env add "YOUTUBE_CLIENT_SECRET" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          printf '%s' "$YOUTUBE_REFRESH_TOKEN" | vercel env add "YOUTUBE_REFRESH_TOKEN" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
       - name: Synchronize Mux TV credentials into Vercel production
         shell: bash
         env:
