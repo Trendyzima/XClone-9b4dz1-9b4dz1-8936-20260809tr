@@ -1,0 +1,71 @@
+name: Testagram TV SRS Gateway Deployment
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "tv-srs/**"
+      - ".github/workflows/tv-srs-gateway-deployment.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: testagram-tv-srs-gateway
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy Testagram-owned TV media gateway
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    environment: production
+    env:
+      SRS_DEPLOY_HOST: ${{ secrets.SRS_DEPLOY_HOST }}
+      SRS_DEPLOY_USER: ${{ secrets.SRS_DEPLOY_USER }}
+      SRS_DEPLOY_SSH_KEY: ${{ secrets.SRS_DEPLOY_SSH_KEY }}
+      SRS_PUBLIC_IP: ${{ vars.SRS_PUBLIC_IP }}
+      SRS_DOMAIN: ${{ vars.SRS_DOMAIN || 'media.testagram.site' }}
+    steps:
+      - name: Checkout exact revision
+        uses: actions/checkout@v5
+
+      - name: Validate required deployment inputs
+        shell: bash
+        run: |
+          set -euo pipefail
+          for name in SRS_DEPLOY_HOST SRS_DEPLOY_USER SRS_DEPLOY_SSH_KEY SRS_PUBLIC_IP; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "::error::${name} is required to deploy the Testagram-owned SRS gateway. The TV media plane cannot be hosted by Vercel because WebRTC requires public UDP/TCP media transport."
+              exit 1
+            fi
+          done
+          printf '::add-mask::%s\n' "$SRS_DEPLOY_SSH_KEY"
+          echo "SRS deployment target and public candidate are configured."
+
+      - name: Configure SSH
+        shell: bash
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SRS_DEPLOY_SSH_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "$SRS_DEPLOY_HOST" >> ~/.ssh/known_hosts 2>/dev/null
+
+      - name: Synchronize Testagram SRS stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          remote_dir="/opt/testagram-tv-srs"
+          ssh "$SRS_DEPLOY_USER@$SRS_DEPLOY_HOST" "sudo mkdir -p '$remote_dir' && sudo chown -R \$(id -u):\$(id -g) '$remote_dir'"
+          scp -q tv-srs/docker-compose.yml tv-srs/srs.conf tv-srs/Caddyfile tv-srs/deploy.sh             "$SRS_DEPLOY_USER@$SRS_DEPLOY_HOST:$remote_dir/"
+          ssh "$SRS_DEPLOY_USER@$SRS_DEPLOY_HOST" "chmod +x '$remote_dir/deploy.sh' && cd '$remote_dir' && SRS_PUBLIC_IP='$SRS_PUBLIC_IP' SRS_DOMAIN='$SRS_DOMAIN' ./deploy.sh"
+
+      - name: Verify public Testagram SRS gateway
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --retry 10 --retry-delay 3 "https://$SRS_DOMAIN/healthz"
+          echo
+          echo "Public Testagram SRS gateway is reachable."

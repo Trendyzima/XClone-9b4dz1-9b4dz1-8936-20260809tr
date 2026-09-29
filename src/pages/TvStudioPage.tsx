@@ -893,9 +893,22 @@ export default function TvStudioPage() {
     } catch (e: any) {
       if (session) {
         setBroadcastDiagnostics(session.getDiagnostics());
-        // If start() already allocated SRS/YouTube/Mux resources, always ask the
-        // control plane to reconcile them before closing the browser transport.
+        // If the WHIP connection fails after /api/live has allocated downstream
+        // resources, reconcile them before closing the browser transport.
         await session.stopBroadcastControlPlane().catch(() => undefined);
+      } else if (id && user) {
+        // connectHost() can fail before returning its session object. In that case
+        // the control plane still owns the YouTube/Mux allocation, so clean it up
+        // directly instead of leaving an orphaned downstream broadcast.
+        const { data: sessionData } = await supabase.auth.getSession();
+        const accessToken = sessionData.session?.access_token;
+        if (accessToken) {
+          await fetch((window.location.origin === 'https://testagram.site' ? 'https://www.testagram.site' : window.location.origin) + '/api/live', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
+            body: JSON.stringify({ action: 'stop', stream_id: id }),
+          }).catch(() => undefined);
+        }
       }
       await session?.close().catch(() => undefined);
       await roomRef.current?.close().catch(() => undefined);
