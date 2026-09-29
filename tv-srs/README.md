@@ -23,14 +23,14 @@ The media host needs a public DNS name and its public IPv4 as SRS_PUBLIC_IP so W
 
 ## Production host
 
-Run this stack on a public Linux host with:
+This stack is deployed automatically by Testagram's production reconciliation onto the same managed media host as the native Pion engine. The native Testagram Caddy instance owns TCP 80/443 and routes only the TV hostname to this SRS container.
 
-- TCP 80/443 for Caddy HTTPS.
-- UDP 8000 for SRS WebRTC media.
-- TCP 8000 for WebRTC-over-TCP fallback.
-- Public DNS `tv-media.testagram.site` pointing at the host.
-- Set `SRS_PUBLIC_IP` to the host's public IPv4 address before `docker compose up -d`.
-- Ports 1935/1985 remain internal; do not expose them publicly.
+- UDP 8000 and TCP 8000 belong to the SRS container for WebRTC media.
+- Public DNS `tv-media.testagram.site` points at the Testagram media host.
+- `SRS_PUBLIC_IP` is the host's public IPv4 used in WebRTC candidates.
+- SRS ports 1935/1985 are container-internal and are not published publicly.
+- The SRS container joins the running Testagram media Docker network.
+- The native Caddy stack remains the HTTPS edge for Spaces/Calls and TV.
 
 The WHIP endpoint is:
 `https://tv-media.testagram.site/rtc/v1/whip/`
