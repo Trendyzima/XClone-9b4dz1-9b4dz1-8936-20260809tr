@@ -165,7 +165,7 @@ jobs:
           scp tv-srs/docker-compose.yml tv-srs/srs.conf tv-srs/README.md testagram-tv-srs:/opt/testagram/tv-srs/
           scp media-engine/Caddyfile media-engine/docker-compose.yml testagram-tv-srs:/opt/testagram/media-engine/
 
-          ssh testagram-tv-srs "printf '%s\n' 'SRS_PUBLIC_IP=$PUBLIC_IP' 'SRS_DOMAIN=$SRS_DOMAIN' > /opt/testagram/tv-srs/.env"
+          ssh testagram-tv-srs env "SRS_PUBLIC_IP=$PUBLIC_IP" "SRS_DOMAIN=$SRS_DOMAIN" 'printf "%s\\n" "SRS_PUBLIC_IP=$SRS_PUBLIC_IP" "SRS_DOMAIN=$SRS_DOMAIN" > /opt/testagram/tv-srs/.env'
 
           ssh testagram-tv-srs '
             set -euo pipefail
