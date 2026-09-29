@@ -220,7 +220,7 @@ async function youtubeError(response: Response, fallback: string) {
 
 async function createYoutubeBroadcast(title: string | null) {
   const scheduledStartTime = new Date(Date.now() + 60_000).toISOString();
-  const broadcastResponse = await youtubeFetch('/liveBroadcasts?part=snippet,status,contentDetails', { method: 'POST', body: JSON.stringify({ snippet: { title: (title || 'Testagram TV Live').slice(0, 100), description: 'Live from Testagram TV', scheduledStartTime }, status: { privacyStatus: 'unlisted', selfDeclaredMadeForKids: false }, contentDetails: { enableEmbed: true, enableDvr: false, recordFromStart: true, enableAutoStart: false, enableAutoStop: false, monitorStream: { enableMonitorStream: false } } }) });
+  const broadcastResponse = await youtubeFetch('/liveBroadcasts?part=snippet,status,contentDetails', { method: 'POST', body: JSON.stringify({ snippet: { title: (title || 'Testagram TV Live').slice(0, 100), description: 'Live from Testagram TV', scheduledStartTime }, status: { privacyStatus: 'unlisted', selfDeclaredMadeForKids: false }, contentDetails: { enableEmbed: true, enableDvr: false, recordFromStart: true, enableAutoStart: false, enableAutoStop: true, monitorStream: { enableMonitorStream: false } } }) });
   if (!broadcastResponse.ok) throw new Error(await youtubeError(broadcastResponse, 'YOUTUBE_BROADCAST_CREATE_FAILED'));
   const broadcastPayload = await broadcastResponse.json() as any;
   const broadcastId = broadcastPayload?.id as string | undefined;
