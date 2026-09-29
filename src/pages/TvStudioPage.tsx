@@ -897,7 +897,7 @@ export default function TvStudioPage() {
       const failedId = id;
       if (failedId && createdBroadcast && user) {
         await supabase.from('live_streams')
-          .update({ is_live: false, ended_at: new Date().toISOString(), stream_url: null })
+          .update({ is_live: false, ended_at: new Date().toISOString(), stream_url: null, tv_connection_state: 'offline', tv_last_heartbeat_at: null, tv_host_peer_id: null, viewer_count: 0 })
           .eq('id', failedId)
           .eq('user_id', user.id);
         setActiveStreamId(null);
@@ -967,6 +967,10 @@ export default function TvStudioPage() {
         is_live: false,
         ended_at: new Date().toISOString(),
         stream_url: null,
+        tv_connection_state: 'offline',
+        tv_last_heartbeat_at: null,
+        tv_host_peer_id: null,
+        viewer_count: 0,
       }).eq('id', activeStreamId).eq('user_id', user?.id ?? '');
       setActiveStreamId(null);
       setStream((prev: any) => prev ? { ...prev, is_live: false, ended_at: new Date().toISOString(), stream_url: null } : null);
