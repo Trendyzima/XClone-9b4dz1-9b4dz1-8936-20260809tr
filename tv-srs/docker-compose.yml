@@ -4,11 +4,7 @@ services:
     restart: unless-stopped
     command: ["./objs/srs", "-c", "/etc/srs/srs.conf"]
     environment:
-      CANDIDATE: ${SRS_PUBLIC_IP:?set SRS_PUBLIC_IP}
-      SRS_HTTP_API_AUTH_ENABLED: "on"
-      SRS_HTTP_API_AUTH_TYPE: "bearer"
-      SRS_HTTP_API_AUTH_TOKEN: ${SRS_API_TOKEN:?set SRS_API_TOKEN}
-      SRS_HTTP_API_AUTH_RTC_BEARER_ENABLED: "off"
+      SRS_RTC_SERVER_CANDIDATE: ${SRS_PUBLIC_IP:?set SRS_PUBLIC_IP}
       SRS_RTC_SERVER_ENABLED: "on"
       SRS_RTC_SERVER_LISTEN: "8000"
       SRS_RTC_SERVER_TCP_ENABLED: "on"
