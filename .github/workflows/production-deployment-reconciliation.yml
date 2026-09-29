@@ -117,7 +117,6 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           set -euo pipefail
           PROJECT_REF="$SUPABASE_PROJECT_REF"
@@ -128,35 +127,53 @@ jobs:
           fi
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref for migration reconciliation."; exit 1; }
 
-          # Prefer an explicitly provisioned database password when one exists.
-          # Otherwise use Supabase's short-lived CLI login role from the Management API.
-          # This removes the need to store the production database password in GitHub
-          # while preserving the canonical `supabase db push` migration workflow.
-          DB_PASSWORD="$SUPABASE_DB_PASSWORD"
-          if [[ -z "$DB_PASSWORD" ]]; then
-            echo "SUPABASE_DB_PASSWORD is not configured; requesting a temporary Supabase CLI login role."
-            LOGIN_ROLE_RESPONSE="$(curl --fail --silent --show-error --retry 3 --retry-delay 2 \
-              --request POST \
-              --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
-              --header "Content-Type: application/json" \
-              --data '{"read_only":false}' \
-              "https://api.supabase.com/v1/projects/$PROJECT_REF/cli/login-role")"
-            DB_PASSWORD="$(node -e 'const p=JSON.parse(process.argv[1]); if(typeof p?.password !== "string" || !p.password){process.exit(1)} process.stdout.write(p.password)' "$LOGIN_ROLE_RESPONSE")" || {
-              echo "::error::Supabase Management API did not return a temporary CLI password."
-              exit 1
-            }
-            printf '::add-mask::%s\n' "$DB_PASSWORD"
-            echo "Temporary Supabase CLI login role acquired; its password is masked and will not be persisted."
-          else
-            printf '::add-mask::%s\n' "$DB_PASSWORD"
-            echo "Using the configured SUPABASE_DB_PASSWORD."
-          fi
+          # Production was historically reconciled with Supabase's migration API,
+          # which assigned database-side versions that differ from repository
+          # filename timestamps. A normal supabase db push compares versions,
+          # not migration names, and therefore correctly refuses to continue.
+          # Reconcile by canonical migration NAME instead: inspect remote history,
+          # then apply only repository migrations whose exact filename is absent.
+          # This preserves existing production history and avoids the DB password.
+          SUPABASE_PROJECT_REF="$PROJECT_REF" SUPABASE_ACCESS_TOKEN="$SUPABASE_ACCESS_TOKEN" node <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
 
-          # Production schema and migration history have been reconciled. From this
-          # point onward, CI uses the standard linked-project migration workflow.
-          supabase link --project-ref "$PROJECT_REF" --password "$DB_PASSWORD"
-          supabase db push --linked --yes
-          echo "Supabase migration reconciliation and database push passed for $PROJECT_REF."
+          const projectRef = process.env.SUPABASE_PROJECT_REF;
+          const token = process.env.SUPABASE_ACCESS_TOKEN;
+          const migrationsDir = path.join(process.cwd(), "supabase", "migrations");
+          if (!token) throw new Error("SUPABASE_ACCESS_TOKEN is required for migration reconciliation.");
+          if (!fs.existsSync(migrationsDir)) throw new Error("supabase/migrations directory is missing.");
+
+          const historyUrl = "https://api.supabase.com/v1/projects/" + projectRef + "/database/migrations";
+          const response = await fetch(historyUrl, { headers: { Authorization: "Bearer " + token, Accept: "application/json" } });
+          const body = await response.text();
+          if (!response.ok) throw new Error("Supabase migration history lookup failed (HTTP " + response.status + "): " + body.slice(0, 500));
+
+          const remote = JSON.parse(body);
+          const applied = new Set(Array.isArray(remote) ? remote.map((m) => String(m?.name || "")).filter(Boolean) : []);
+          const files = fs.readdirSync(migrationsDir).filter((name) => /^\d{14}_.+\.sql$/.test(name)).sort((a, b) => a.localeCompare(b));
+          const pending = files.filter((file) => !applied.has(file.slice(0, -4)));
+
+          console.log("Remote migration records: " + applied.size);
+          console.log("Repository canonical migrations: " + files.length);
+          console.log("Pending canonical migrations: " + pending.length);
+
+          for (const file of pending) {
+            const name = file.slice(0, -4);
+            const query = fs.readFileSync(path.join(migrationsDir, file), "utf8");
+            console.log("Applying migration: " + name);
+            const apply = await fetch(historyUrl, {
+              method: "POST",
+              headers: { Authorization: "Bearer " + token, "Content-Type": "application/json", Accept: "application/json" },
+              body: JSON.stringify({ name, query }),
+            });
+            const applyBody = await apply.text();
+            if (!apply.ok) throw new Error("Migration failed for " + name + " (HTTP " + apply.status + "): " + applyBody.slice(0, 1000));
+            console.log("Applied migration: " + name);
+          }
+
+          console.log("Supabase migration reconciliation passed.");
+          NODE
 
       - name: Retire legacy LiveKit Edge Functions
         if: steps.supabase-auth.outputs.available == 'true'
