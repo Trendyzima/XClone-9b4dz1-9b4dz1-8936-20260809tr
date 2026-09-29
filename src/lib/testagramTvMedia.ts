@@ -132,8 +132,8 @@ export class TestagramTvMediaSession {
     this.lastDiagnostics = { provider: 'native-p2p', signaling: 'supabase-realtime', topic: this.topic, peerId: this.peerId };
 
     if (this.role !== 'host') {
-      await this.send({ event: 'tv-join', payload: { from: this.peerId, peerRole: this.role } });
       this.readyPromise = new Promise<void>(resolve => { this.readyResolve = resolve; });
+      await this.send({ event: 'tv-join', payload: { from: this.peerId, peerRole: this.role } });
     } else {
       this.lastDiagnostics = { ...this.lastDiagnostics, programTracks: this.localStream?.getTracks().map(t => t.kind) || [] };
       this.startHeartbeat('starting');
@@ -201,8 +201,10 @@ export class TestagramTvMediaSession {
       if (!this.remoteStream.getTracks().some(t => t.id === e.track.id)) this.remoteStream.addTrack(e.track);
       this.onRemoteTrack?.(e.track);
       this.onRemoteStream?.(this.remoteStream);
-      this.readyResolve?.();
-      this.readyResolve = undefined;
+      if (this.readyResolve) {
+        this.readyResolve();
+        this.readyResolve = undefined;
+      }
     };
 
     if (this.role === 'host') {
