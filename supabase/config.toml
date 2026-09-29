@@ -1,3 +1,6 @@
+[auth]
+enable_anonymous_sign_ins = true
+
 [functions.capability-gateway]
 verify_jwt = false
 
@@ -20,4 +23,4 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.tv-media-control]
-verify_jwt = false
+verify_jwt = true
