@@ -78,7 +78,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          docker compose -f tv-srs/docker-compose.yml config -q
+          SRS_PUBLIC_IP=127.0.0.1 SRS_DOMAIN=localhost docker compose -f tv-srs/docker-compose.yml config -q
 
           docker run --rm \
             -v "$PWD/tv-srs/Caddyfile:/etc/caddy/Caddyfile:ro" \
