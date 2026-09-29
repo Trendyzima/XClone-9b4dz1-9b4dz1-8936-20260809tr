@@ -9,7 +9,7 @@ type MediaToken = {
   whip_url?: string;
   whep_url?: string;
   playback_url?: string;
-  provider?: 'native' | 'cloudflare-stream' | 'cloudflare-stream-hybrid' | 'cloudflare-mux-hybrid' | 'youtube-cloudflare-hybrid' | 'mux' | 'youtube';
+  provider?: 'native' | 'cloudflare-stream' | 'cloudflare-stream-hybrid' | 'cloudflare-mux-hybrid' | 'youtube-cloudflare-hybrid' | 'srs-youtube-hybrid' | 'srs-mux-hybrid' | 'mux' | 'youtube';
   room_id: string;
   room_type: MediaRoomType;
   role: MediaRole;
@@ -56,15 +56,16 @@ const getToken = async (roomId: string, roomType: MediaRoomType, role: MediaRole
       throw new Error(`${message}${code}`);
     }
     const provider = payload?.data?.provider;
-    const isMuxHybrid = provider === 'cloudflare-mux-hybrid';
-    const isYouTubeHybrid = provider === 'youtube-cloudflare-hybrid';
+    const isMuxHybrid = provider === 'cloudflare-mux-hybrid' || provider === 'srs-mux-hybrid';
+    const isYouTubeHybrid = provider === 'youtube-cloudflare-hybrid' || provider === 'srs-youtube-hybrid';
+    const isSrs = provider === 'srs-youtube-hybrid' || provider === 'srs-mux-hybrid';
     const hasHostTransport = Boolean(payload?.data?.whip_url);
     const hasViewerPlayback = Boolean(payload?.data?.playback_url);
     const hasLegacyTransport = Boolean(payload?.data?.whep_url || payload?.data?.whip_url);
     if (role === 'viewer' && (isMuxHybrid || isYouTubeHybrid)) {
       if (!hasViewerPlayback) throw new Error(`TV playback authorization returned no ${isYouTubeHybrid ? 'YouTube' : 'Mux'} playback URL [STREAM_PLAYBACK_NOT_READY].`);
     } else if (role === 'host' && (isMuxHybrid || isYouTubeHybrid)) {
-      if (!hasHostTransport) throw new Error('TV broadcast authorization returned no Cloudflare WHIP ingest endpoint [INGEST_ENDPOINT_MISSING].');
+      if (!hasHostTransport) throw new Error(`TV broadcast authorization returned no ${isSrs ? 'SRS' : 'Cloudflare'} WHIP ingest endpoint [INGEST_ENDPOINT_MISSING].`);
     } else if (!['cloudflare-stream', 'cloudflare-stream-hybrid'].includes(provider) || !hasLegacyTransport) {
       throw new Error('Vercel TV media authorization returned an incomplete transport response.');
     }
@@ -118,8 +119,8 @@ export class TestagramMediaSession {
 
   getDiagnostics() { return { ...this.lastDiagnostics }; }
   getPlaybackUrl() { return this.info?.playback_url || (this.role === 'viewer' ? null : this.info?.whep_url) || null; }
-  isMuxPlayback() { return this.roomType === 'tv' && this.role === 'viewer' && (this.info?.provider === 'cloudflare-mux-hybrid' || this.info?.provider === 'mux'); }
-  isYouTubePlayback() { return this.roomType === 'tv' && this.role === 'viewer' && this.info?.provider === 'youtube-cloudflare-hybrid'; }
+  isMuxPlayback() { return this.roomType === 'tv' && this.role === 'viewer' && (this.info?.provider === 'cloudflare-mux-hybrid' || this.info?.provider === 'srs-mux-hybrid' || this.info?.provider === 'mux'); }
+  isYouTubePlayback() { return this.roomType === 'tv' && this.role === 'viewer' && (this.info?.provider === 'youtube-cloudflare-hybrid' || this.info?.provider === 'srs-youtube-hybrid'); }
   getTitle() { return this.info?.title || null; }
   getViewerCount() { return Number(this.info?.viewer_count || 0); }
   async verifyOnAir() {
@@ -135,7 +136,7 @@ export class TestagramMediaSession {
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
       const code = payload?.error?.code ? ` [${payload.error.code}]` : '';
-      throw new Error(`${payload?.error?.message || 'Cloudflare ON AIR verification failed.'}${code}`);
+      throw new Error(`${payload?.error?.message || 'SRS ON AIR verification failed.'}${code}`);
     }
     return payload?.data;
   }
@@ -152,7 +153,7 @@ export class TestagramMediaSession {
     });
     const payload = await response.json().catch(() => null);
     if (!response.ok) {
-      throw new Error(`${payload?.error?.message || 'Cloudflare broadcast shutdown failed.'}${payload?.error?.code ? ` [${payload.error.code}]` : ''}`);
+      throw new Error(`${payload?.error?.message || 'SRS broadcast shutdown failed.'}${payload?.error?.code ? ` [${payload.error.code}]` : ''}`);
     }
   }
 
@@ -258,7 +259,7 @@ export class TestagramMediaSession {
     await this.sendOffer();
   }
 
-  private async connectCloudflareStream() {
+  private async connectWhipStream() {
     const endpoint = this.role === 'host' ? this.info?.whip_url : this.info?.whep_url;
     if (!endpoint) throw new Error(`Cloudflare Stream ${this.role === 'host' ? 'WHIP' : 'WHEP'} endpoint was not returned.`);
     this.createPeerConnection(this.info?.ice_servers || [{ urls: 'stun:stun.cloudflare.com:3478' }]);
@@ -280,15 +281,15 @@ export class TestagramMediaSession {
 
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/sdp', Accept: 'application/sdp' },
+      headers: { 'Content-Type': 'application/sdp', Accept: 'application/sdp', ...(this.info?.provider?.startsWith('srs-') && this.info?.token ? { Authorization: `Bearer ${this.info.token}` } : {}) },
       body: this.pc.localDescription.sdp,
     });
     if (!response.ok) {
       const detail = (await response.text().catch(() => '')).slice(0, 240);
-      throw new Error(`Cloudflare WebRTC ${this.role === 'host' ? 'WHIP' : 'WHEP'} negotiation failed (HTTP ${response.status})${detail ? `: ${detail}` : '.'}`);
+      throw new Error(`SRS WebRTC ${this.role === 'host' ? 'WHIP' : 'WHEP'} negotiation failed (HTTP ${response.status})${detail ? `: ${detail}` : '.'}`);
     }
     const answer = await response.text();
-    if (!answer.trim()) throw new Error('Cloudflare WebRTC returned an empty SDP answer.');
+    if (!answer.trim()) throw new Error('SRS WebRTC returned an empty SDP answer.');
     await this.pc.setRemoteDescription({ type: 'answer', sdp: answer });
     this.answerReceived = true;
     this.lastDiagnostics = { ...this.lastDiagnostics, provider: this.info?.provider || 'cloudflare-stream', signaling: 'sdp-answer-received', endpoint: this.role === 'host' ? 'whip' : 'whep' };
@@ -319,11 +320,11 @@ export class TestagramMediaSession {
     if (this.closed) return;
     this.info ??= await getToken(this.roomId, this.roomType, this.role);
     this.answerReceived = false;
-    if (this.roomType === 'tv' && (this.info.provider === 'cloudflare-mux-hybrid' || this.info.provider === 'youtube-cloudflare-hybrid')) {
+    if (this.roomType === 'tv' && (this.info.provider === 'cloudflare-mux-hybrid' || this.info.provider === 'youtube-cloudflare-hybrid' || this.info.provider === 'srs-youtube-hybrid' || this.info.provider === 'srs-mux-hybrid')) {
       if (this.role === 'host') {
-        await this.connectCloudflareStream();
+        await this.connectWhipStream();
       } else if (this.role === 'viewer') {
-        if (!this.info.playback_url) throw new Error('Mux playback URL is missing [STREAM_PLAYBACK_NOT_READY].');
+        if (!this.info.playback_url) throw new Error(`${this.info.provider?.startsWith('srs-') ? 'YouTube' : 'Mux'} playback URL is missing [STREAM_PLAYBACK_NOT_READY].`);
         this.lastDiagnostics = { provider: this.info.provider, playback: 'mux-hls', playbackUrlPresent: true };
       }
       return;
@@ -334,7 +335,7 @@ export class TestagramMediaSession {
       return;
     }
     if (this.roomType === 'tv' && this.info.provider === 'cloudflare-stream') {
-      await this.connectCloudflareStream();
+      await this.connectWhipStream();
       return;
     }
     if (this.closed) return;
