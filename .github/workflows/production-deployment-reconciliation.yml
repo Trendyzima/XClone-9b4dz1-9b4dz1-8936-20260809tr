@@ -98,15 +98,13 @@ jobs:
             ossrs/srs:v6 \
             ./objs/srs -c /etc/srs/srs.conf >/tmp/testagram-srs-config.log 2>&1
 
-          attempt=1
-          while [ "$attempt" -le 15 ]; do
+          for attempt in $(seq 1 15); do
             if curl --silent --show-error --fail "http://127.0.0.1:1985/api/v1/versions" >/tmp/testagram-srs-version.json; then
               echo "SRS v6 configuration parsed and HTTP API started."
               cat /tmp/testagram-srs-version.json
               exit 0
             fi
             sleep 1
-            attempt=$((attempt + 1))
           done
 
           echo "::error::SRS did not start from the repository configuration."
