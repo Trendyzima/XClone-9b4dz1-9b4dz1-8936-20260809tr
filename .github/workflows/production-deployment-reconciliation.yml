@@ -729,8 +729,13 @@ jobs:
           MUX_ACCESS_TOKEN_ID: ${{ secrets.MUX_ACCESS_TOKEN_ID }}
           MUX_ACCESS_TOKEN_SECRET: ${{ secrets.MUX_ACCESS_TOKEN_SECRET }}
           MUX_SECRET_KEY: ${{ secrets.MUX_SECRET_KEY }}
+          TV_SECONDARY_DISTRIBUTION: ${{ vars.TV_SECONDARY_DISTRIBUTION }}
         run: |
           set -euo pipefail
+          if [[ "${TV_SECONDARY_DISTRIBUTION:-}" != "mux" ]]; then
+            echo "Mux secondary distribution is disabled; skipping Mux credential visibility gate."
+            exit 0
+          fi
           echo "Mux GitHub secret visibility (values intentionally never printed):"
           for name in MUX_TOKEN_ID MUX_TOKEN_SECRET MUX_ENV_KEY VITE_MUX_ENV_KEY MUX_ACCESS_TOKEN_ID MUX_ACCESS_TOKEN_SECRET MUX_SECRET_KEY; do
             value="${!name:-}"
