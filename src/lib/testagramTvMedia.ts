@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase';
 type TvRole = 'host' | 'viewer' | 'guest';
 type Signal = { from: string; to?: string; peerRole?: TvRole; sdp?: string; candidate?: RTCIceCandidateInit; count?: number; guestCount?: number };
 type VideoOptions = { maxBitrate: number; maxFramerate?: number; maintainResolution?: boolean };
+type TvNetworkProfile = 'excellent' | 'good' | 'constrained' | 'poor';
 
 const tvApi = () => {
   const origin = window.location.origin === 'https://testagram.site' ? 'https://www.testagram.site' : window.location.origin;
@@ -69,6 +70,8 @@ export class TestagramTvMediaSession {
   private heartbeatState: 'starting' | 'connected' | 'degraded' | 'stale' = 'starting';
   private heartbeatViewerCount = 0;
   private reconnectTimers = new Map<string, number>();
+  private adaptationTimer: number | null = null;
+  private peerStats = new Map<string, { lastBytes: number; lastLost: number; lastAt: number; stableSamples: number; profile: TvNetworkProfile }>();
 
   private constructor(role: TvRole, roomId: string) { this.role = role; this.roomId = roomId; }
 
@@ -192,6 +195,8 @@ export class TestagramTvMediaSession {
       };
     };
     pc.ontrack = e => {
+      this.configureReceiverBuffering(pc);
+
       if (!this.remoteStream.getTracks().some(t => t.id === e.track.id)) this.remoteStream.addTrack(e.track);
       this.onRemoteTrack?.(e.track);
       this.onRemoteStream?.(this.remoteStream);
@@ -232,6 +237,82 @@ export class TestagramTvMediaSession {
     await pc.setLocalDescription(answer);
     await waitForIce(pc);
     await this.send({ event: 'tv-answer', payload: { from: this.peerId, to: message.from, sdp: pc.localDescription?.sdp } });
+  }
+
+  private configureReceiverBuffering(pc: RTCPeerConnection) {
+    for (const receiver of pc.getReceivers()) {
+      if (receiver.track?.kind !== 'video') continue;
+      const r = receiver as RTCRtpReceiver & { jitterBufferTarget?: number; playoutDelayHint?: number };
+      try { if ('jitterBufferTarget' in r) r.jitterBufferTarget = 1200; } catch {}
+      try { if ('playoutDelayHint' in r) r.playoutDelayHint = 1.5; } catch {}
+    }
+  }
+
+  private async applyAdaptiveDefaults(sender: RTCRtpSender) {
+    try {
+      const params = sender.getParameters();
+      params.encodings ??= [{}];
+      for (const encoding of params.encodings) {
+        encoding.maxBitrate = Math.min(Number(encoding.maxBitrate || 4_500_000), 4_500_000);
+        encoding.maxFramerate = Math.min(Number(encoding.maxFramerate || 30), 30);
+      }
+      if ('degradationPreference' in params) {
+        (params as RTCRtpSendParameters & { degradationPreference?: string }).degradationPreference = 'maintain-framerate';
+      }
+      await sender.setParameters(params);
+    } catch {}
+  }
+
+  private startAdaptationLoop() {
+    if (this.role !== 'host' || this.adaptationTimer !== null) return;
+    this.adaptationTimer = window.setInterval(() => void this.adaptPeers(), 5000);
+    void this.adaptPeers();
+  }
+
+  private async adaptPeers() {
+    if (this.role !== 'host' || this.closed) return;
+    for (const [peerId, pc] of this.peers) {
+      const videoSender = pc.getSenders().find(s => s.track?.kind === 'video');
+      if (!videoSender) continue;
+      try {
+        const reports = await pc.getStats();
+        let outbound: any = null;
+        let remote: any = null;
+        reports.forEach(report => {
+          if (report.type === 'outbound-rtp' && report.kind === 'video') outbound = report;
+          if (report.type === 'remote-inbound-rtp' && report.kind === 'video') remote = report;
+        });
+        if (!outbound) continue;
+        const now = performance.now();
+        const previous = this.peerStats.get(peerId);
+        const bytes = Number(outbound.bytesSent || 0);
+        const lost = Number(remote?.packetsLost || 0);
+        const deltaSeconds = previous ? Math.max((now - previous.lastAt) / 1000, 0.1) : 5;
+        const bitrate = previous ? ((bytes - previous.lastBytes) * 8) / deltaSeconds : 0;
+        const lossDelta = previous ? Math.max(0, lost - previous.lastLost) : 0;
+        const sentPackets = Number(outbound.packetsSent || 0);
+        const lossRatio = sentPackets > 0 ? lossDelta / Math.max(1, sentPackets - Number(previous?.lastLost || 0) + lossDelta) : 0;
+        const rtt = Number(remote?.roundTripTime || 0) * 1000;
+        const available = Number(outbound.availableOutgoingBitrate || 0);
+        let profile: TvNetworkProfile = 'excellent';
+        if (lossRatio > 0.08 || rtt > 500 || (available > 0 && available < 1_500_000)) profile = 'poor';
+        else if (lossRatio > 0.03 || rtt > 250 || (available > 0 && available < 3_000_000)) profile = 'constrained';
+        else if (lossRatio > 0.01 || rtt > 150 || (available > 0 && available < 5_000_000)) profile = 'good';
+
+        const params = videoSender.getParameters();
+        params.encodings ??= [{}];
+        const current = Number(params.encodings[0].maxBitrate || 4_500_000);
+        const target = profile === 'poor' ? 1_500_000 : profile === 'constrained' ? 2_500_000 : profile === 'good' ? 3_500_000 : 4_500_000;
+        const next = target < current ? Math.max(target, current * 0.72) : Math.min(target, current * 1.18);
+        for (const encoding of params.encodings) {
+          encoding.maxBitrate = Math.round(next);
+          encoding.maxFramerate = profile === 'poor' ? 20 : 30;
+        }
+        await videoSender.setParameters(params);
+        this.peerStats.set(peerId, { lastBytes: bytes, lastLost: lost, lastAt: now, stableSamples: (previous?.stableSamples || 0) + (profile === 'excellent' ? 1 : 0), profile });
+        this.lastDiagnostics = { ...this.lastDiagnostics, networkProfile: profile, peerBitrate: Math.round(bitrate), peerRttMs: Math.round(rtt), peerLossRatio: Number(lossRatio.toFixed(4)), peerAvailableBitrate: Math.round(available), adaptiveVideoBitrate: Math.round(next) };
+      } catch {}
+    }
   }
 
   private async onReconnect(message: Signal) {
@@ -426,7 +507,12 @@ export class TestagramTvMediaSession {
   async close() {
     if (this.closed) return;
     this.closed = true;
-    if (this.heartbeatTimer !== null) {
+    if (this.adaptationTimer !== null) {
+      window.clearInterval(this.adaptationTimer);
+      this.adaptationTimer = null;
+    }
+    this.peerStats.clear();
+    if (this.heartbeatTimer !== null)
       window.clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
     }
