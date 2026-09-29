@@ -230,7 +230,8 @@ async function createYoutubeBroadcast(title: string | null) {
   if (!streamResourceId || !ingestionAddress || !streamName) throw new Error('YOUTUBE_INGESTION_INFO_MISSING');
   const bindResponse = await youtubeFetch(`/liveBroadcasts/bind?id=${encodeURIComponent(broadcastId)}&streamId=${encodeURIComponent(streamResourceId)}&part=id,status,contentDetails`, { method: 'POST' });
   if (!bindResponse.ok) throw new Error(await youtubeError(bindResponse, 'YOUTUBE_BIND_FAILED'));
-  return { broadcastId, streamId: streamResourceId, ingestionAddress, streamKey: streamName, playbackUrl: `https://www.youtube.com/embed/${encodeURIComponent(broadcastId)}?autoplay=1&playsinline=1&rel=0` };
+  const rtmpsIngestionAddress = streamPayload?.cdn?.ingestionInfo?.rtmpsIngestionAddress as string | undefined;
+  return { broadcastId, streamId: streamResourceId, ingestionAddress: rtmpsIngestionAddress || ingestionAddress, streamKey: streamName, playbackUrl: `https://www.youtube.com/embed/${encodeURIComponent(broadcastId)}?autoplay=1&playsinline=1&rel=0` };
 }
 
 async function getYoutubeStream(streamId: string) {
@@ -324,6 +325,7 @@ async function start(streamId: string, request: Request) {
     if (cloudflareInputId && cloudflareOutputId) await disableCloudflareOutput(cloudflareInputId, cloudflareOutputId).catch(() => undefined);
     if (cloudflareInputId) await cloudflareFetch(`${cloudflareApiBase}/${encodeURIComponent(cloudflareInputId)}`, { method: 'PUT', body: JSON.stringify({ enabled: false }) }).catch(() => undefined);
     if (youtubeBroadcastId) await youtubeFetch(`/liveBroadcasts?id=${encodeURIComponent(youtubeBroadcastId)}`, { method: 'DELETE' }).catch(() => undefined);
+    if (youtubeStreamId) await youtubeFetch(`/liveStreams?id=${encodeURIComponent(youtubeStreamId)}`, { method: 'DELETE' }).catch(() => undefined);
     if (muxLiveStreamId) await deleteMuxLiveStream(muxLiveStreamId).catch(() => undefined);
     const message = String(error?.message || '');
     if (message === 'YOUTUBE_NOT_CONFIGURED') return json({ ok: false, error: { code: 'YOUTUBE_NOT_CONFIGURED', message: 'Testagram TV YouTube distribution is not configured. Add the server-side YouTube OAuth client and refresh token.' } }, 503);
