@@ -860,7 +860,7 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          SRS_MEDIA_BASE_URL: ${{ vars.SRS_MEDIA_BASE_URL || 'https://media.testagram.site' }}
+          SRS_MEDIA_BASE_URL: ${{ vars.SRS_MEDIA_BASE_URL || 'https://tv-media.testagram.site' }}
         run: |
           set -euo pipefail
           [[ -n "$VERCEL_TOKEN" ]] || { echo "::error::VERCEL_TOKEN is required."; exit 1; }
