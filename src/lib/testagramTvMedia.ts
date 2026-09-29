@@ -460,6 +460,11 @@ export class TestagramTvMediaSession {
 
   async verifyOnAir() {
     const data = await api({ action: 'verify', stream_id: this.roomId });
+    if (!data?.on_air) {
+      const state = data?.health?.connection_state || 'unknown';
+      const age = Number(data?.health?.heartbeat_age_ms);
+      throw new Error(`TV broadcast health check failed (state=${state}, heartbeat=${Number.isFinite(age) ? Math.round(age / 1000) + 's ago' : 'missing'}).`);
+    }
     return data;
   }
 
