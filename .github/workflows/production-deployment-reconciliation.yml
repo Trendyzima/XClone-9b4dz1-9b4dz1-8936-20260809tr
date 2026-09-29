@@ -161,9 +161,13 @@ jobs:
           '
           ssh testagram-tv-srs 'mkdir -p /opt/testagram/tv-srs'
           scp tv-srs/docker-compose.yml tv-srs/Caddyfile tv-srs/srs.conf tv-srs/README.md testagram-tv-srs:/opt/testagram/tv-srs/
+          MEDIA_NETWORK="$(ssh testagram-tv-srs 'set -euo pipefail; cd /opt/testagram/media-engine; CADDY_ID="$(docker compose ps -q caddy)"; test -n "$CADDY_ID"; docker inspect -f "{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}" "$CADDY_ID" | head -n1')"
+          [[ -n "$MEDIA_NETWORK" ]] || { echo "::error::Could not resolve the running Testagram media gateway Docker network."; exit 1; }
+          echo "Using Testagram media network: $MEDIA_NETWORK"
           ssh testagram-tv-srs "cat > /opt/testagram/tv-srs/.env" <<EOF
           SRS_PUBLIC_IP=$PUBLIC_IP
           SRS_DOMAIN=$SRS_DOMAIN
+          TESTAGRAM_MEDIA_NETWORK=$MEDIA_NETWORK
           EOF
           ssh testagram-tv-srs '
             set -euo pipefail
