@@ -113,6 +113,88 @@ jobs:
           cat /tmp/testagram-srs-config.log || true
           exit 1
 
+      - name: Deploy Testagram-owned TV SRS media gateway
+        shell: bash
+        env:
+          SSH_HOST: ${{ secrets.MEDIA_ENGINE_SSH_HOST }}
+          SSH_USER: ${{ secrets.MEDIA_ENGINE_SSH_USER }}
+          SSH_KEY: ${{ secrets.MEDIA_ENGINE_SSH_PRIVATE_KEY }}
+          PUBLIC_IP: ${{ secrets.MEDIA_ENGINE_PUBLIC_IP }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          SRS_DOMAIN: ${{ vars.SRS_DOMAIN || 'media.testagram.site' }}
+        run: |
+          set -euo pipefail
+          [[ -n "$SSH_HOST" && -n "$SSH_USER" && -n "$SSH_KEY" ]] || { echo "::error::Testagram TV media-host SSH configuration is missing."; exit 1; }
+          [[ "$PUBLIC_IP" =~ ^([0-9]{1,3}.){3}[0-9]{1,3}$ ]] || { echo "::error::MEDIA_ENGINE_PUBLIC_IP must be IPv4."; exit 1; }
+          [[ -n "$VERCEL_TOKEN" && -n "$VERCEL_ORG_ID" ]] || { echo "::error::Vercel credentials are required to reconcile media.testagram.site."; exit 1; }
+
+          npx --yes vercel@54.15.1 dns ls testagram.site --token "$VERCEL_TOKEN" --scope "$VERCEL_ORG_ID" > /tmp/testagram-dns.txt
+          if grep -Eiq "media[[:space:]]+A[[:space:]]+$PUBLIC_IP([[:space:]]|$)" /tmp/testagram-dns.txt; then
+            echo "media.testagram.site already targets the Testagram TV media host."
+          elif grep -Eiq "media[[:space:]]+A[[:space:]]+" /tmp/testagram-dns.txt; then
+            echo "::error::media.testagram.site has an unexpected A record; refusing to overwrite it."
+            grep -Ei "media[[:space:]]+A[[:space:]]+" /tmp/testagram-dns.txt || true
+            exit 1
+          else
+            npx --yes vercel@54.15.1 dns add testagram.site media A "$PUBLIC_IP" --token "$VERCEL_TOKEN" --scope "$VERCEL_ORG_ID"
+          fi
+
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/testagram-tv-srs
+          chmod 600 ~/.ssh/testagram-tv-srs
+          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          cat > ~/.ssh/config <<EOF
+          Host testagram-tv-srs
+            HostName $SSH_HOST
+            User $SSH_USER
+            IdentityFile ~/.ssh/testagram-tv-srs
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+          EOF
+          chmod 600 ~/.ssh/config
+
+          ssh testagram-tv-srs '
+            set -euo pipefail
+            command -v docker >/dev/null
+            docker compose version >/dev/null
+          '
+          ssh testagram-tv-srs 'mkdir -p /opt/testagram/tv-srs'
+          scp tv-srs/docker-compose.yml tv-srs/Caddyfile tv-srs/srs.conf tv-srs/README.md testagram-tv-srs:/opt/testagram/tv-srs/
+          ssh testagram-tv-srs "cat > /opt/testagram/tv-srs/.env" <<EOF
+          SRS_PUBLIC_IP=$PUBLIC_IP
+          SRS_DOMAIN=$SRS_DOMAIN
+          EOF
+          ssh testagram-tv-srs '
+            set -euo pipefail
+            cd /opt/testagram/tv-srs
+            docker compose config -q
+            docker compose pull
+            docker compose up -d --remove-orphans
+            docker compose ps
+          '
+
+          for attempt in $(seq 1 24); do
+            if curl --fail --silent --show-error --max-time 10 "https://$SRS_DOMAIN/healthz" > /tmp/testagram-srs-health.json; then
+              echo "Testagram TV SRS gateway is publicly reachable."
+              cat /tmp/testagram-srs-health.json
+              break
+            fi
+            echo "Waiting for Testagram TV SRS gateway ($attempt/24)..."
+            sleep 5
+          done
+          test -s /tmp/testagram-srs-health.json
+
+          status="$(curl -k -sS -o /tmp/testagram-srs-whip.txt -w '%{http_code}' --max-time 10 -X POST             -H 'Content-Type: application/sdp'             --data-binary 'v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\n'             "https://$SRS_DOMAIN/rtc/v1/whip/?app=live&stream=connectivity-probe")"
+          case "$status" in
+            400|401|403|404|415|422|500) echo "Public WHIP transport is reachable; invalid SDP was rejected at the SRS application layer."; ;;
+            200|201) echo "::error::WHIP accepted invalid SDP unexpectedly."; exit 1 ;;
+            *) echo "::error::WHIP transport is not reachable (HTTP $status)."; exit 1 ;;
+          esac
+
+          api_status="$(curl -k -sS -o /dev/null -w '%{http_code}' --max-time 10 "https://$SRS_DOMAIN/srs-api/versions" || true)"
+          [[ "$api_status" == "404" ]] || { echo "::error::SRS management API is publicly exposed."; exit 1; }
+
       - name: Install Supabase CLI
         uses: supabase/setup-cli@3c2f5e2ae34c34e428e8e206e2c4d21fa2d20fbf # v2.1.1
         with:
