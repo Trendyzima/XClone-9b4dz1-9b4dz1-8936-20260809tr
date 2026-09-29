@@ -1,6 +1,6 @@
 export const config = { runtime: "edge" };
 
-const env=(name:string,fallback="")=>globalThis.process?.env?.[name]||fallback;
+const env=(name:string,fallback="")=>{const g=globalThis as {process?:{env?:Record<string,string|undefined>}};return g.process?.env?.[name]||fallback;};
 const supabaseUrl=(env("SUPABASE_URL",env("VITE_SUPABASE_URL"))).replace(/\/$/,"");
 const supabaseKey=env("SUPABASE_PUBLISHABLE_KEY",env("SUPABASE_ANON_KEY",env("VITE_SUPABASE_PUBLISHABLE_KEY",env("VITE_SUPABASE_ANON_KEY"))));
 
