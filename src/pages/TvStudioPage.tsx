@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { TestagramMediaSession } from '@/lib/testagramMedia';
+import { TestagramTvMediaSession } from '@/lib/testagramTvMedia';
 import { Camera, Mic, MonitorUp, Circle, Square, Radio, Users, Download, Clapperboard, Settings2, Activity, ShieldCheck, Upload, PictureInPicture2, Layers3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
@@ -782,7 +782,7 @@ export default function TvStudioPage() {
     setBroadcastError(null);
     setBroadcastDiagnostics(null);
     setBroadcastStage('preparing');
-    let session: TestagramMediaSession | null = null;
+    let session: TestagramTvMediaSession | null = null;
     let id: string | null = null;
     let createdBroadcast = false;
     try {
@@ -842,7 +842,7 @@ export default function TvStudioPage() {
       if (!id) throw new Error('Could not resolve the active TV broadcast.');
 
       setBroadcastStage('connecting');
-      session = await TestagramMediaSession.connectHost(id, program);
+      session = await TestagramTvMediaSession.connectHost(id, program);
       await session.configureVideoSender({ maxBitrate: VIDEO_PRESETS[quality].bitrate, maxFramerate: VIDEO_PRESETS[quality].fps, maintainResolution: true });
       setBroadcastStage('verifying');
       const diagnostics = await session.waitForMediaReady('send', 20000);
@@ -871,13 +871,8 @@ export default function TvStudioPage() {
           }
         }
       });
-      const playbackUrl = session.getPlaybackUrl();
-      if (!playbackUrl) {
-        throw new Error('SRS WebRTC playback endpoint was not returned.');
-      }
-
-      // The server is the authority for ON AIR. It independently verifies the SRS-to-YouTube
-      // downstream path after the browser has proven outbound audio/video RTP.
+      // Supabase Edge control state is authoritative for ON AIR; the browser-native
+      // WebRTC session is already subscribed and the production program has live tracks.
       setBroadcastStage('verifying');
       await session.verifyOnAir();
       setBroadcastStage('on-air');
@@ -893,8 +888,7 @@ export default function TvStudioPage() {
     } catch (e: any) {
       if (session) {
         setBroadcastDiagnostics(session.getDiagnostics());
-        // If start() already allocated YouTube control-plane resources, always ask the
-        // control plane to reconcile them before closing the browser transport.
+        // Always reconcile the TV control-plane state before closing the browser transport.
         await session.stopBroadcastControlPlane().catch(() => undefined);
       }
       await session?.close().catch(() => undefined);
@@ -922,7 +916,7 @@ export default function TvStudioPage() {
   const createGuestInvite = async () => {
     if (!activeStreamId || !live) { toast.info('Go live first, then invite a guest.'); return; }
     try {
-      const { data, error } = await supabase.functions.invoke('testagram-media-token', { body: { stream_id: activeStreamId, role: 'guest', mode: 'create' } });
+      const { data, error } = await fetch('/api/live', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(user ? {} : {}) }, body: JSON.stringify({ action: 'create-guest', stream_id: activeStreamId }) }).then(async response => ({ data: await response.json(), error: response.ok ? null : new Error('Guest invitation request failed') }));
       if (error || !data?.data?.invite_token) throw new Error(data?.error?.message || error?.message || 'Could not create guest invitation');
       const url = `${window.location.origin}/tv/live/${activeStreamId}?guest=${encodeURIComponent(data.data.invite_token)}`;
       setGuestInviteUrl(url);
@@ -947,7 +941,7 @@ export default function TvStudioPage() {
       try {
         await activeSession.stopBroadcastControlPlane();
       } catch (error: any) {
-        toast.error(error?.message || 'SRS broadcast shutdown failed.');
+        toast.error(error?.message || 'TV broadcast shutdown failed.');
       }
       await activeSession.close();
     }
