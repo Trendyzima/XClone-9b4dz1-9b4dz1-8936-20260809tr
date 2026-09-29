@@ -126,18 +126,18 @@ jobs:
         run: |
           set -euo pipefail
           [[ -n "$SSH_HOST" && -n "$SSH_USER" && -n "$SSH_KEY" ]] || { echo "::error::Testagram TV media-host SSH configuration is missing."; exit 1; }
-          [[ "$PUBLIC_IP" =~ ^([0-9]{1,3}.){3}[0-9]{1,3}$ ]] || { echo "::error::MEDIA_ENGINE_PUBLIC_IP must be IPv4."; exit 1; }
+          [[ "$PUBLIC_IP" =~ ^([0-9]{1,3}\.){3}[0-9]{1,3}$ ]] || { echo "::error::MEDIA_ENGINE_PUBLIC_IP must be IPv4."; exit 1; }
           [[ -n "$VERCEL_TOKEN" && -n "$VERCEL_ORG_ID" ]] || { echo "::error::Vercel credentials are required to reconcile media.testagram.site."; exit 1; }
 
           npx --yes vercel@54.15.1 dns ls testagram.site --token "$VERCEL_TOKEN" --scope "$VERCEL_ORG_ID" > /tmp/testagram-dns.txt
           if grep -Eiq "media[[:space:]]+A[[:space:]]+$PUBLIC_IP([[:space:]]|$)" /tmp/testagram-dns.txt; then
             echo "media.testagram.site already targets the Testagram TV media host."
-          elif grep -Eiq "media[[:space:]]+A[[:space:]]+" /tmp/testagram-dns.txt; then
+          elif grep -Eiq "tv-media[[:space:]]+A[[:space:]]+" /tmp/testagram-dns.txt; then
             echo "::error::media.testagram.site has an unexpected A record; refusing to overwrite it."
-            grep -Ei "media[[:space:]]+A[[:space:]]+" /tmp/testagram-dns.txt || true
+            grep -Ei "tv-media[[:space:]]+A[[:space:]]+" /tmp/testagram-dns.txt || true
             exit 1
           else
-            npx --yes vercel@54.15.1 dns add testagram.site media A "$PUBLIC_IP" --token "$VERCEL_TOKEN" --scope "$VERCEL_ORG_ID"
+            npx --yes vercel@54.15.1 dns add testagram.site tv-media A "$PUBLIC_IP" --token "$VERCEL_TOKEN" --scope "$VERCEL_ORG_ID"
           fi
 
           install -m 700 -d ~/.ssh
