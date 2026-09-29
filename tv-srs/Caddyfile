@@ -1,8 +1,4 @@
-{
-  auto_https on
-}
-
-{$SRS_DOMAIN} {
+{$SRS_DOMAIN:media.testagram.site} {
   handle /rtc/* {
     reverse_proxy srs:1985
   }
@@ -13,7 +9,7 @@
   }
 
   handle /healthz {
-    reverse_proxy srs:1985
+    respond "ok" 200
   }
 
   respond 404
