@@ -8,7 +8,6 @@ type StreamRow = {
   stream_url: string | null;
   youtube_broadcast_id: string | null;
   youtube_stream_id: string | null;
-  youtube_output_id: string | null;
 };
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
@@ -63,7 +62,7 @@ async function requireUser(request: Request) {
 
 async function getStream(streamId: string, bearer: string): Promise<StreamRow | null> {
   const query =
-    `rest/v1/live_streams?id=eq.${encodeURIComponent(streamId)}&select=id,user_id,is_live,title,stream_url,youtube_broadcast_id,youtube_stream_id,youtube_output_id&limit=1`;
+    `rest/v1/live_streams?id=eq.${encodeURIComponent(streamId)}&select=id,user_id,is_live,title,stream_url,youtube_broadcast_id,youtube_stream_id&limit=1`;
   const response = await supabaseFetch(query, { method: 'GET' }, bearer);
   if (!response.ok) {
     const detail = (await response.text().catch(() => '')).slice(0, 240);
@@ -343,7 +342,6 @@ async function start(streamId: string, request: Request) {
       ended_at: null,
       youtube_broadcast_id: youtubeBroadcastId,
       youtube_stream_id: youtubeStreamId,
-      youtube_output_id: null,
     }, bearer);
 
     return json({
