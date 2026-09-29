@@ -1,0 +1,73 @@
+name: TV YouTube Runtime Reconciliation
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/tv-media-control/**"
+      - ".github/workflows/tv-youtube-runtime.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: tv-youtube-runtime
+  cancel-in-progress: false
+
+jobs:
+  reconcile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Supabase CLI
+        run: npm install --global supabase@latest
+
+      - name: Synchronize YouTube runtime secrets
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
+          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
+          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJECT_REF="$SUPABASE_PROJECT_REF"
+          if [[ -z "$PROJECT_REF" ]]; then
+            HOST="${SUPABASE_URL#https://}"
+            HOST="${HOST%%/*}"
+            PROJECT_REF="${HOST%%.*}"
+          fi
+          [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Invalid Supabase project ref"; exit 1; }
+          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required"; exit 1; }
+          for name in YOUTUBE_CLIENT_ID YOUTUBE_CLIENT_SECRET YOUTUBE_REFRESH_TOKEN; do
+            value="${!name}"
+            [[ -n "$value" ]] || { echo "::error::$name is missing from GitHub Secrets"; exit 1; }
+            printf '::add-mask::%s\n' "$value"
+          done
+          tmp="$(mktemp)"
+          trap 'rm -f "$tmp"' EXIT
+          {
+            printf 'YOUTUBE_CLIENT_ID=%s\n' "$YOUTUBE_CLIENT_ID"
+            printf 'YOUTUBE_CLIENT_SECRET=%s\n' "$YOUTUBE_CLIENT_SECRET"
+            printf 'YOUTUBE_REFRESH_TOKEN=%s\n' "$YOUTUBE_REFRESH_TOKEN"
+          } > "$tmp"
+          supabase secrets set --project-ref "$PROJECT_REF" --env-file "$tmp"
+          echo "YouTube runtime credentials synchronized to Supabase without printing values."
+
+      - name: Deploy tv-media-control
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          PROJECT_REF="$SUPABASE_PROJECT_REF"
+          if [[ -z "$PROJECT_REF" ]]; then
+            HOST="${SUPABASE_URL#https://}"
+            HOST="${HOST%%/*}"
+            PROJECT_REF="${HOST%%.*}"
+          fi
+          supabase functions deploy tv-media-control --use-api --project-ref "$PROJECT_REF" --no-verify-jwt=false
+          echo "tv-media-control deployed."
