@@ -30,20 +30,34 @@ Deno.serve(async req=>{
 
  if(action==="start"){
    if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can start this TV broadcast."}},403);
-   const {data:updated,error:e}=await db.from("live_streams").update({is_live:true,started_at:new Date().toISOString(),ended_at:null,stream_url:null}).eq("id",streamId).eq("user_id",stream.user_id).select("id,user_id,is_live,title,description,viewer_count").single();
+   const now=new Date().toISOString();
+   const {data:updated,error:e}=await db.from("live_streams").update({is_live:true,started_at:now,ended_at:null,stream_url:null,tv_connection_state:"starting",tv_last_heartbeat_at:now,tv_host_peer_id:null,viewer_count:0}).eq("id",streamId).eq("user_id",stream.user_id).select("id,user_id,is_live,title,description,viewer_count").single();
    if(e||!updated)return json({ok:false,error:{code:"TV_START_FAILED",message:"Could not start the TV broadcast."}},409);
    return json({ok:true,data:contract("host"),error:null});
  }
  if(action==="stop"){
    if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can stop this TV broadcast."}},403);
-   const {error:e}=await db.from("live_streams").update({is_live:false,ended_at:new Date().toISOString(),stream_url:null}).eq("id",streamId).eq("user_id",stream.user_id);
+   const {error:e}=await db.from("live_streams").update({is_live:false,ended_at:new Date().toISOString(),stream_url:null,tv_connection_state:"offline",tv_last_heartbeat_at:null,tv_host_peer_id:null,viewer_count:0}).eq("id",streamId).eq("user_id",stream.user_id);
    if(e)return json({ok:false,error:{code:"TV_STOP_FAILED",message:"Could not stop the TV broadcast."}},409);
    return json({ok:true,data:contract("host"),error:null});
  }
  if(action==="verify"){
    if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can verify this TV broadcast."}},403);
    if(!stream.is_live)return json({ok:false,error:{code:"STREAM_NOT_LIVE",message:"TV broadcast is not live."}},409);
-   return json({ok:true,data:{...contract("host"),on_air:true},error:null});
+   const {data:fresh}=await db.from("live_streams").select("is_live,tv_connection_state,tv_last_heartbeat_at,viewer_count").eq("id",streamId).maybeSingle();
+   const heartbeatAge=fresh?.tv_last_heartbeat_at ? Date.now()-new Date(fresh.tv_last_heartbeat_at).getTime() : Infinity;
+   const healthy=heartbeatAge<=30000 && ["starting","connected","degraded"].includes(fresh?.tv_connection_state||"");
+   return json({ok:true,data:{...contract("host"),on_air:healthy,health:{connection_state:fresh?.tv_connection_state||"offline",heartbeat_age_ms:Number.isFinite(heartbeatAge)?heartbeatAge:null,viewer_count:fresh?.viewer_count??0}},error:null});
+ }
+ if(action==="heartbeat"){
+   if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can send a TV heartbeat."}},403);
+   if(!stream.is_live)return json({ok:false,error:{code:"STREAM_NOT_LIVE",message:"TV broadcast is not live."}},409);
+   const state=["starting","connected","degraded","stale"].includes(body.connection_state)?body.connection_state:"degraded";
+   const viewerCount=Math.max(0,Math.min(100000,Number(body.viewer_count)||0));
+   const peerId=typeof body.peer_id==="string"&&body.peer_id.length<=128?body.peer_id:"";
+   const {error:e}=await db.from("live_streams").update({tv_last_heartbeat_at:new Date().toISOString(),tv_connection_state:state,tv_host_peer_id:peerId||null,viewer_count:viewerCount}).eq("id",streamId).eq("user_id",stream.user_id).eq("is_live",true);
+   if(e)return json({ok:false,error:{code:"TV_HEARTBEAT_FAILED",message:"Could not update TV broadcast health."}},409);
+   return json({ok:true,data:{heartbeat_ok:true,connection_state:state,viewer_count:viewerCount},error:null});
  }
  if(action==="create-guest"){
    if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can create a guest invite."}},403);
@@ -56,9 +70,12 @@ Deno.serve(async req=>{
  if(action==="guest"){
    if(!stream.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
    if(!inviteToken)return json({ok:false,error:{code:"INVITE_REQUIRED",message:"A TV guest invite is required."}},401);
-   const inviteDb=secret?admin():db;
-   const {data:invite}=await inviteDb.from("tv_guest_invites").select("id,expires_at,used_at").eq("stream_id",streamId).eq("token_hash",await hash(inviteToken)).maybeSingle();
-   if(!invite||invite.used_at||new Date(invite.expires_at).getTime()<=Date.now())return json({ok:false,error:{code:"INVITE_INVALID",message:"This TV guest invite is invalid or expired."}},401);
+   if(!user)return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Authentication is required to join the TV guest session."}},401);
+   if(!secret)return json({ok:false,error:{code:"TV_CONTROL_MISCONFIGURED",message:"TV guest claiming requires the Supabase server secret."}},503);
+   const inviteDb=admin();
+   const now=new Date().toISOString();
+   const {data:claimed,error:claimError}=await inviteDb.from("tv_guest_invites").update({used_at:now,claimed_by:user.id,claimed_at:now}).eq("id",(await inviteDb.from("tv_guest_invites").select("id").eq("stream_id",streamId).eq("token_hash",await hash(inviteToken)).is("used_at",null).gt("expires_at",now).maybeSingle()).data?.id||"").is("used_at",null).select("id").maybeSingle();
+   if(claimError||!claimed)return json({ok:false,error:{code:"INVITE_INVALID",message:"This TV guest invite is invalid, expired, or already claimed."}},401);
    return json({ok:true,data:{...contract("guest"),guest_token:inviteToken},error:null});
  }
  if(!stream.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
