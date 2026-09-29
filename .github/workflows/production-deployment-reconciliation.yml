@@ -159,19 +159,13 @@ jobs:
             set -euo pipefail
             command -v docker >/dev/null
             docker compose version >/dev/null
-            cd /opt/testagram/media-engine
-            CADDY_ID="$(docker compose ps -q caddy)"
-            test -n "$CADDY_ID"
+            docker network inspect media-engine_default >/dev/null
           '
           ssh testagram-tv-srs 'mkdir -p /opt/testagram/tv-srs'
           scp tv-srs/docker-compose.yml tv-srs/srs.conf tv-srs/README.md testagram-tv-srs:/opt/testagram/tv-srs/
           scp media-engine/Caddyfile media-engine/docker-compose.yml testagram-tv-srs:/opt/testagram/media-engine/
 
-          MEDIA_NETWORK="$(ssh testagram-tv-srs 'set -euo pipefail; cd /opt/testagram/media-engine; CADDY_ID="$(docker compose ps -q caddy)"; test -n "$CADDY_ID"; docker inspect -f "{{range $k,$v := .NetworkSettings.Networks}}{{println $k}}{{end}}" "$CADDY_ID" | head -n1')"
-          [[ -n "$MEDIA_NETWORK" ]] || { echo "::error::Could not resolve the running Testagram media Docker network."; exit 1; }
-          echo "Using Testagram media network: $MEDIA_NETWORK"
-
-          ssh testagram-tv-srs "printf '%s\\n' 'SRS_PUBLIC_IP=$PUBLIC_IP' 'SRS_DOMAIN=$SRS_DOMAIN' 'TESTAGRAM_MEDIA_NETWORK=$MEDIA_NETWORK' > /opt/testagram/tv-srs/.env"
+          ssh testagram-tv-srs "printf '%s\n' 'SRS_PUBLIC_IP=$PUBLIC_IP' 'SRS_DOMAIN=$SRS_DOMAIN' > /opt/testagram/tv-srs/.env"
 
           ssh testagram-tv-srs '
             set -euo pipefail
