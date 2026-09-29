@@ -74,7 +74,7 @@ Deno.serve(async req=>{
    if(!secret)return json({ok:false,error:{code:"TV_CONTROL_MISCONFIGURED",message:"TV guest claiming requires the Supabase server secret."}},503);
    const inviteDb=admin();
    const now=new Date().toISOString();
-   const {data:claimed,error:claimError}=await inviteDb.from("tv_guest_invites").update({used_at:now,claimed_by:user.id,claimed_at:now}).eq("id",(await inviteDb.from("tv_guest_invites").select("id").eq("stream_id",streamId).eq("token_hash",await hash(inviteToken)).is("used_at",null).gt("expires_at",now).maybeSingle()).data?.id||"").is("used_at",null).select("id").maybeSingle();
+   const {data:claimed,error:claimError}=await inviteDb.from("tv_guest_invites").update({used_at:now,claimed_by:user.id,claimed_at:now}).eq("stream_id",streamId).eq("token_hash",await hash(inviteToken)).is("used_at",null).gt("expires_at",now).select("id").maybeSingle();
    if(claimError||!claimed)return json({ok:false,error:{code:"INVITE_INVALID",message:"This TV guest invite is invalid, expired, or already claimed."}},401);
    return json({ok:true,data:{...contract("guest"),guest_token:inviteToken},error:null});
  }
