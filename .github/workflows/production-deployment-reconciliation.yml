@@ -81,6 +81,7 @@ jobs:
           SRS_PUBLIC_IP=127.0.0.1 SRS_DOMAIN=localhost docker compose -f tv-srs/docker-compose.yml config -q
 
           docker run --rm \
+            -e SRS_DOMAIN=localhost \
             -v "$PWD/tv-srs/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2.10-alpine \
             caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
