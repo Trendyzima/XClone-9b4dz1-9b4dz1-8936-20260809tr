@@ -916,7 +916,14 @@ export default function TvStudioPage() {
   const createGuestInvite = async () => {
     if (!activeStreamId || !live) { toast.info('Go live first, then invite a guest.'); return; }
     try {
-      const { data, error } = await fetch('/api/live', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(user ? {} : {}) }, body: JSON.stringify({ action: 'create-guest', stream_id: activeStreamId }) }).then(async response => ({ data: await response.json(), error: response.ok ? null : new Error('Guest invitation request failed') }));
+      const { data: auth } = await supabase.auth.getSession();
+      const response = await fetch('/api/live', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: `Bearer ${auth.session.access_token}` } : {}) },
+        body: JSON.stringify({ action: 'create-guest', stream_id: activeStreamId }),
+      });
+      const data = await response.json();
+      const error = response.ok ? null : new Error('Guest invitation request failed');
       if (error || !data?.data?.invite_token) throw new Error(data?.error?.message || error?.message || 'Could not create guest invitation');
       const url = `${window.location.origin}/tv/live/${activeStreamId}?guest=${encodeURIComponent(data.data.invite_token)}`;
       setGuestInviteUrl(url);
