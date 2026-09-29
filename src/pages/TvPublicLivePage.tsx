@@ -25,6 +25,7 @@ export default function TvPublicLivePage() {
   const [cameraOn, setCameraOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
   const [error, setError] = useState('');
+  const [youtubeUrl, setYoutubeUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -55,14 +56,21 @@ export default function TvPublicLivePage() {
           }
           await session.publishTracks(media);
         } else {
-          // Public TV playback is Mux HLS. WebRTC/Cloudflare is intentionally
-          // reserved for studio ingest; viewers must never join the ingest path.
+          // Public TV playback is downstream distribution. YouTube is the passive-viewer
+          // path; Mux remains supported as an explicit legacy fallback. WebRTC/Cloudflare
+          // is reserved for studio ingest; viewers never join the ingest path.
           const session = await TestagramMediaSession.connectViewer(streamId, () => undefined);
           const playbackUrl = session.getPlaybackUrl();
-          if (!playbackUrl) throw new Error('Mux playback URL is missing [STREAM_PLAYBACK_NOT_READY].');
+          if (!playbackUrl) throw new Error('TV playback URL is missing [STREAM_PLAYBACK_NOT_READY].');
           sessionRef.current = session;
           setTitle(session.getTitle() || 'Testagram TV');
           setViewers(session.getViewerCount());
+          if (session.isYouTubePlayback()) {
+            setYoutubeUrl(playbackUrl);
+            setLive(true);
+            setConnecting(false);
+            return;
+          }
           const video = videoRef.current;
           if (!video) throw new Error('TV player element is unavailable [PLAYER_NOT_READY].');
           video.muted = true;
@@ -193,11 +201,11 @@ export default function TvPublicLivePage() {
     </header>
     <main className="flex-1 flex items-center justify-center p-3">
       <div className="w-full max-w-6xl aspect-video bg-zinc-950 rounded-xl overflow-hidden relative border border-white/10">
-        <video ref={videoRef} autoPlay playsInline muted={isGuest ? true : muted} className="w-full h-full object-contain" />
+        {youtubeUrl && !isGuest ? <iframe title={title} src={youtubeUrl} className="w-full h-full border-0" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" /> : <video ref={videoRef} autoPlay playsInline muted={isGuest ? true : muted} className="w-full h-full object-contain" />}
         <audio ref={audioRef} autoPlay muted={muted} />
         {connecting && <div className="absolute inset-0 flex items-center justify-center bg-black/70"><Loader2 className="w-7 h-7 animate-spin" /></div>}
         {error && <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 text-center p-6"><Radio className="w-10 h-10 text-zinc-500" /><p>{error}</p><Button onClick={() => window.location.reload()}>Try again</Button></div>}
-        {live && <div className="absolute top-3 left-3 rounded bg-red-600 px-2 py-1 text-xs font-bold flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-white animate-pulse" />{isGuest ? 'GUEST LIVE' : 'LIVE'}</div>}
+        {live && !youtubeUrl && <div className="absolute top-3 left-3 rounded bg-red-600 px-2 py-1 text-xs font-bold flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-white animate-pulse" />{isGuest ? 'GUEST LIVE' : 'LIVE'}</div>}
         {!isGuest && live && <div className="absolute bottom-3 left-3 rounded bg-black/60 px-2 py-1 text-xs flex items-center gap-1"><Users className="w-3 h-3" />{viewers}</div>}
       </div>
     </main>
