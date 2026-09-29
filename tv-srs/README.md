@@ -28,12 +28,12 @@ Run this stack on a public Linux host with:
 - TCP 80/443 for Caddy HTTPS.
 - UDP 8000 for SRS WebRTC media.
 - TCP 8000 for WebRTC-over-TCP fallback.
-- Public DNS `media.testagram.site` pointing at the host.
+- Public DNS `tv-media.testagram.site` pointing at the host.
 - Set `SRS_PUBLIC_IP` to the host's public IPv4 address before `docker compose up -d`.
 - Ports 1935/1985 remain internal; do not expose them publicly.
 
 The WHIP endpoint is:
-`https://media.testagram.site/rtc/v1/whip/`
+`https://tv-media.testagram.site/rtc/v1/whip/`
 
 ## Security model
 
