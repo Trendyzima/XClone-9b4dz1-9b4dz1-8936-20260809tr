@@ -876,8 +876,8 @@ export default function TvStudioPage() {
         throw new Error('SRS WebRTC playback endpoint was not returned.');
       }
 
-      // The server is the authority for ON AIR. It independently checks Cloudflare's
-      // lifecycle endpoint after the browser has proven outbound audio/video RTP.
+      // The server is the authority for ON AIR. It independently verifies the SRS-to-YouTube
+      // downstream path after the browser has proven outbound audio/video RTP.
       setBroadcastStage('verifying');
       await session.verifyOnAir();
       setBroadcastStage('on-air');
