@@ -23,6 +23,8 @@ export default function TvPublicLivePage() {
   const [cameraOn, setCameraOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
   const [error, setError] = useState('');
+  const [provider, setProvider] = useState<'native-p2p' | 'youtube'>('native-p2p');
+  const [youtubePlaybackUrl, setYoutubePlaybackUrl] = useState<string | null>(null);
   const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -30,6 +32,22 @@ export default function TvPublicLivePage() {
     const connect = async () => {
       if (!streamId) { setError('TV broadcast link is missing.'); setConnecting(false); return; }
       try {
+        const viewerResponse = await fetch('/api/live', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: isGuest ? 'guest' : 'viewer', stream_id: streamId, ...(isGuest && inviteToken ? { invite_token: inviteToken } : {}) }),
+        });
+        const viewerPayload = await viewerResponse.json().catch(() => null);
+        if (!viewerResponse.ok) throw new Error(viewerPayload?.error?.message || 'TV broadcast is unavailable.');
+        const contract = viewerPayload?.data;
+        if (contract?.provider === 'youtube' && contract?.playback_url && !isGuest) {
+          setProvider('youtube');
+          setYoutubePlaybackUrl(contract.playback_url);
+          setTitle(contract.title || 'Testagram TV');
+          setLive(true);
+          setConnecting(false);
+          return;
+        }
         if (isGuest && inviteToken) {
           const { data: stream, error: streamError } = await supabase
             .from('live_streams')
@@ -169,7 +187,13 @@ export default function TvPublicLivePage() {
     </header>
     <main className="flex-1 flex items-center justify-center p-3">
       <div className="w-full max-w-6xl aspect-video bg-zinc-950 rounded-xl overflow-hidden relative border border-white/10">
-        <video ref={videoRef} autoPlay playsInline muted={isGuest ? true : muted} className="w-full h-full object-contain" />
+        {provider === 'youtube' && youtubePlaybackUrl ? <iframe
+          title="Testagram TV Live"
+          src={youtubePlaybackUrl}
+          className="w-full h-full border-0"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          allowFullScreen
+        /> : <video ref={videoRef} autoPlay playsInline muted={isGuest ? true : muted} className="w-full h-full object-contain" />}
         <audio ref={audioRef} autoPlay muted={muted} />
         {connecting && <div className="absolute inset-0 flex items-center justify-center bg-black/70"><Loader2 className="w-7 h-7 animate-spin" /></div>}
         {error && <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 text-center p-6"><Radio className="w-10 h-10 text-zinc-500" /><p>{error}</p><Button onClick={() => window.location.reload()}>Try again</Button></div>}
