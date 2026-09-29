@@ -9,6 +9,21 @@ const tvApi = () => {
   return origin + '/api/live';
 };
 
+const ensureRealtimeAuth = async (required: boolean) => {
+  const { data } = await supabase.auth.getSession();
+  if (data.session) {
+    await supabase.realtime.setAuth(data.session.access_token);
+    return data.session;
+  }
+  if (!required) return null;
+  const { data: anonymous, error } = await supabase.auth.signInAnonymously();
+  if (error || !anonymous.session) {
+    throw new Error('TV viewer authorization is unavailable. Enable Supabase Anonymous Sign-Ins or sign in to Testagram.');
+  }
+  await supabase.realtime.setAuth(anonymous.session.access_token);
+  return anonymous.session;
+};
+
 const api = async (body: Record<string, unknown>) => {
   const { data } = await supabase.auth.getSession();
   const response = await fetch(tvApi(), {
@@ -49,6 +64,9 @@ export class TestagramTvMediaSession {
   private readyPromise: Promise<void> | null = null;
   private readyResolve?: () => void;
   private lastDiagnostics: Record<string, unknown> = {};
+  private heartbeatTimer: number | null = null;
+  private heartbeatInFlight = false;
+  private reconnectTimers = new Map<string, number>();
 
   private constructor(role: TvRole, roomId: string) { this.role = role; this.roomId = roomId; }
 
@@ -78,9 +96,13 @@ export class TestagramTvMediaSession {
   private guestToken = '';
 
   private async start(action: 'start' | 'viewer' | 'guest') {
+    await ensureRealtimeAuth(action !== 'start');
     const data = await api({ action, stream_id: this.roomId, invite_token: action === 'guest' ? this.guestToken : undefined });
     this.topic = data.signaling_topic;
-    this.channel = supabase.channel(this.topic, { config: { broadcast: { ack: true, self: false } } });
+    await supabase.realtime.setAuth();
+    this.channel = supabase.channel(this.topic, {
+      config: { broadcast: { ack: true, self: false }, private: true },
+    });
 
     this.channel
       .on('broadcast', { event: 'tv-join' }, payload => void this.onJoin(payload.payload as Signal))
@@ -88,6 +110,7 @@ export class TestagramTvMediaSession {
       .on('broadcast', { event: 'tv-answer' }, payload => void this.onAnswer(payload.payload as Signal))
       .on('broadcast', { event: 'tv-candidate' }, payload => void this.onCandidate(payload.payload as Signal))
       .on('broadcast', { event: 'tv-leave' }, payload => void this.onLeave(payload.payload as Signal))
+      .on('broadcast', { event: 'tv-reconnect' }, payload => void this.onReconnect(payload.payload as Signal))
       .on('broadcast', { event: 'tv-presence' }, payload => {
         const p = payload.payload as Signal;
         this.onViewerCount?.(Number(p.count || 0), Number(p.guestCount || 0));
@@ -107,6 +130,7 @@ export class TestagramTvMediaSession {
       this.readyPromise = new Promise<void>(resolve => { this.readyResolve = resolve; });
     } else {
       this.lastDiagnostics = { ...this.lastDiagnostics, programTracks: this.localStream?.getTracks().map(t => t.kind) || [] };
+      this.startHeartbeat('starting');
     }
   }
 
@@ -134,11 +158,36 @@ export class TestagramTvMediaSession {
       if (e.candidate) void this.send({ event: 'tv-candidate', payload: { from: this.peerId, to: peerId, candidate: e.candidate.toJSON() } });
     };
     pc.onconnectionstatechange = () => {
-      if (['failed', 'closed', 'disconnected'].includes(pc.connectionState) && !this.closed) {
+      this.lastDiagnostics = {
+        ...this.lastDiagnostics,
+        peerConnectionState: pc.connectionState,
+        iceConnectionState: pc.iceConnectionState,
+        peerId,
+      };
+      if (this.role === 'host') {
+        const state = pc.connectionState === 'connected' ? 'connected'
+          : ['failed', 'disconnected'].includes(pc.connectionState) ? 'degraded'
+          : 'starting';
+        this.startHeartbeat(state);
+      }
+      if (['failed', 'disconnected'].includes(pc.connectionState) && !this.closed) {
+        if (this.role === 'host') {
+          void this.restartPeer(peerId);
+        } else {
+          void this.send({ event: 'tv-reconnect', payload: { from: this.peerId, to: peerId, peerRole: this.role } }).catch(() => undefined);
+        }
+      }
+      if (pc.connectionState === 'closed' && !this.closed) {
         this.peers.delete(peerId);
         this.peerRoles.delete(peerId);
         this.publishPresence();
       }
+    };
+    pc.oniceconnectionstatechange = () => {
+      this.lastDiagnostics = {
+        ...this.lastDiagnostics,
+        iceConnectionState: pc.iceConnectionState,
+      };
     };
     pc.ontrack = e => {
       if (!this.remoteStream.getTracks().some(t => t.id === e.track.id)) this.remoteStream.addTrack(e.track);
@@ -183,6 +232,34 @@ export class TestagramTvMediaSession {
     await this.send({ event: 'tv-answer', payload: { from: this.peerId, to: message.from, sdp: pc.localDescription?.sdp } });
   }
 
+  private async onReconnect(message: Signal) {
+    if (this.role !== 'host' || message.to !== this.peerId || !message.from) return;
+    await this.restartPeer(message.from);
+  }
+
+  private async restartPeer(peerId: string) {
+    if (this.closed) return;
+    const pc = this.peers.get(peerId);
+    if (!pc) return;
+    try {
+      pc.restartIce();
+      const offer = await pc.createOffer({ iceRestart: true });
+      await pc.setLocalDescription(offer);
+      await waitForIce(pc);
+      await this.send({
+        event: 'tv-offer',
+        payload: {
+          from: this.peerId,
+          to: peerId,
+          sdp: pc.localDescription?.sdp,
+          peerRole: this.peerRoles.get(peerId) || 'viewer',
+        },
+      });
+    } catch (error) {
+      console.warn('[Testagram TV] WebRTC reconnect failed', error);
+    }
+  }
+
   private async onAnswer(message: Signal) {
     if (this.role !== 'host' || message.to !== this.peerId || !message.sdp || !message.from) return;
     const pc = this.peers.get(message.from);
@@ -212,6 +289,43 @@ export class TestagramTvMediaSession {
     for (const role of this.peerRoles.values()) role === 'guest' ? guests++ : viewers++;
     void this.send({ event: 'tv-presence', payload: { from: this.peerId, count: viewers, guestCount: guests } }).catch(() => undefined);
     this.onViewerCount?.(viewers, guests);
+    this.startHeartbeat(viewers + guests > 0 ? 'connected' : 'starting', viewers + guests);
+  }
+
+  private startHeartbeat(state: 'starting' | 'connected' | 'degraded' | 'stale', viewerCount?: number) {
+    if (this.role !== 'host' || this.closed) return;
+    void this.sendHeartbeat(state, viewerCount);
+    if (this.heartbeatTimer !== null) return;
+    this.heartbeatTimer = window.setInterval(() => {
+      void this.sendHeartbeat(state);
+    }, 10000);
+  }
+
+  private async sendHeartbeat(state: 'starting' | 'connected' | 'degraded' | 'stale', viewerCount?: number) {
+    if (this.role !== 'host' || this.closed || this.heartbeatInFlight) return;
+    this.heartbeatInFlight = true;
+    try {
+      const data = await api({
+        action: 'heartbeat',
+        stream_id: this.roomId,
+        connection_state: state,
+        peer_id: this.peerId,
+        viewer_count: viewerCount ?? this.peers.size,
+      });
+      this.lastDiagnostics = {
+        ...this.lastDiagnostics,
+        ...data,
+        heartbeat_ok: true,
+      };
+    } catch (error) {
+      this.lastDiagnostics = {
+        ...this.lastDiagnostics,
+        heartbeat_ok: false,
+        heartbeat_error: error instanceof Error ? error.message : String(error),
+      };
+    } finally {
+      this.heartbeatInFlight = false;
+    }
   }
 
   setRemoteTrackHandler(handler: (track: MediaStreamTrack) => void) { this.onRemoteTrack = handler; }
@@ -268,6 +382,39 @@ export class TestagramTvMediaSession {
     if (this.role === 'host') await api({ action: 'stop', stream_id: this.roomId });
   }
 
+  async collectNetworkDiagnostics() {
+    const peers = await Promise.all(Array.from(this.peers.entries()).map(async ([peerId, pc]) => {
+      let inboundVideo = 0;
+      let inboundAudio = 0;
+      let outboundVideo = 0;
+      let outboundAudio = 0;
+      try {
+        const stats = await pc.getStats();
+        stats.forEach((report) => {
+          if (report.type === 'inbound-rtp') {
+            if (report.kind === 'video') inboundVideo += Number(report.bytesReceived || 0);
+            if (report.kind === 'audio') inboundAudio += Number(report.bytesReceived || 0);
+          }
+          if (report.type === 'outbound-rtp') {
+            if (report.kind === 'video') outboundVideo += Number(report.bytesSent || 0);
+            if (report.kind === 'audio') outboundAudio += Number(report.bytesSent || 0);
+          }
+        });
+      } catch {}
+      return {
+        peerId,
+        connectionState: pc.connectionState,
+        iceConnectionState: pc.iceConnectionState,
+        inboundVideoBytes: inboundVideo,
+        inboundAudioBytes: inboundAudio,
+        outboundVideoBytes: outboundVideo,
+        outboundAudioBytes: outboundAudio,
+      };
+    }));
+    this.lastDiagnostics = { ...this.lastDiagnostics, peers };
+    return this.getDiagnostics();
+  }
+
   getDiagnostics() { return { ...this.lastDiagnostics }; }
   getPlaybackUrl() { return null; }
   getViewerCount() { return Number(this.lastDiagnostics.viewerCount || 0); }
@@ -275,6 +422,12 @@ export class TestagramTvMediaSession {
   async close() {
     if (this.closed) return;
     this.closed = true;
+    if (this.heartbeatTimer !== null) {
+      window.clearInterval(this.heartbeatTimer);
+      this.heartbeatTimer = null;
+    }
+    for (const timer of this.reconnectTimers.values()) window.clearTimeout(timer);
+    this.reconnectTimers.clear();
     if (this.channel) {
       await this.send({ event: 'tv-leave', payload: { from: this.peerId } }).catch(() => undefined);
       await supabase.removeChannel(this.channel);
