@@ -34,7 +34,7 @@ export default function TvStudioPage() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
-  const roomRef = useRef<TestagramMediaSession | null>(null);
+  const roomRef = useRef<TestagramTvMediaSession | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const programStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
@@ -756,10 +756,6 @@ export default function TvStudioPage() {
     if (video.paused) await video.play().catch(() => undefined);
     else video.pause();
     setSourceVideoPlaying(!video.paused);
-  };
-
-  const publishProgram = async (session: TestagramMediaSession, program: MediaStream) => {
-    await session.publishTracks(program);
   };
 
   const assertProductionReady = async (program: MediaStream) => {
