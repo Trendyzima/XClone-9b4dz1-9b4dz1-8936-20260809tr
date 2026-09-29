@@ -768,10 +768,9 @@ jobs:
           printf '%s' "$SRS_MEDIA_BASE_URL" | vercel env add "SRS_MEDIA_BASE_URL" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           printf '%s' "$SRS_FORWARD_SECRET" | vercel env add "SRS_FORWARD_SECRET" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
 
-          # Remove retired SRS API variables so production cannot regress to requiring an SRS vendor/API credential.
+          # Retire only the old SRS HTTP API credentials. SRS_FORWARD_SECRET is Testagram's own signing secret and must remain in Vercel.
           vercel env rm "SRS_API_TOKEN" production --yes --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" >/dev/null 2>&1 || true
           vercel env rm "SRS_API_URL" production --yes --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" >/dev/null 2>&1 || true
-          vercel env rm "SRS_FORWARD_SECRET" production --yes --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" >/dev/null 2>&1 || true
           echo "Self-hosted SRS TV media configuration synchronized; no SRS vendor/API credential is required."
 
       - name: Synchronize YouTube TV distribution credentials into Vercel production
@@ -797,11 +796,16 @@ jobs:
           MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID || secrets.MUX_ACCESS_TOKEN_ID }}
           MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET || secrets.MUX_ACCESS_TOKEN_SECRET || secrets.MUX_SECRET_KEY }}
           VITE_MUX_ENV_KEY: ${{ secrets.VITE_MUX_ENV_KEY || secrets.MUX_ENV_KEY }}
+          TV_SECONDARY_DISTRIBUTION: ${{ vars.TV_SECONDARY_DISTRIBUTION }}
         run: |
           set -euo pipefail
           [[ -n "$VERCEL_TOKEN" ]] || { echo "::error::VERCEL_TOKEN is required."; exit 1; }
-          [[ -n "$MUX_TOKEN_ID" ]] || { echo "::error::MUX_TOKEN_ID is required for Testagram TV."; exit 1; }
-          [[ -n "$MUX_TOKEN_SECRET" ]] || { echo "::error::MUX_TOKEN_SECRET is required for Testagram TV."; exit 1; }
+          if [[ "${TV_SECONDARY_DISTRIBUTION:-}" != "mux" ]]; then
+            echo "Mux secondary distribution is disabled; skipping Mux credential synchronization."
+            exit 0
+          fi
+          [[ -n "$MUX_TOKEN_ID" ]] || { echo "::error::MUX_TOKEN_ID is required when TV_SECONDARY_DISTRIBUTION=mux."; exit 1; }
+          [[ -n "$MUX_TOKEN_SECRET" ]] || { echo "::error::MUX_TOKEN_SECRET is required when TV_SECONDARY_DISTRIBUTION=mux."; exit 1; }
           printf '%s' "$MUX_TOKEN_ID" | vercel env add "MUX_TOKEN_ID" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           printf '%s' "$MUX_TOKEN_SECRET" | vercel env add "MUX_TOKEN_SECRET" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           if [[ -n "$VITE_MUX_ENV_KEY" ]]; then
