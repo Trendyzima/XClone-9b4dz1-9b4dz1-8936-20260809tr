@@ -23,6 +23,7 @@ export default function TvPublicLivePage() {
   const [cameraOn, setCameraOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
   const [error, setError] = useState('');
+  const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,9 +61,20 @@ export default function TvPublicLivePage() {
               videoRef.current.muted = muted;
               videoRef.current.playsInline = true;
               videoRef.current.autoplay = true;
+              videoRef.current.preload = 'auto';
               void videoRef.current.play().catch(() => undefined);
             }
           });
+          const video = videoRef.current;
+          if (video) {
+            const recover = () => {
+              if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
+              recoveryTimerRef.current = setTimeout(() => void session.requestReconnect(), 1200);
+            };
+            video.addEventListener('waiting', recover);
+            video.addEventListener('stalled', recover);
+            video.addEventListener('emptied', recover);
+          }
           sessionRef.current = session;
           setTitle('Testagram TV');
           session.setViewerCountHandler((count) => setViewers(count));
@@ -89,6 +101,8 @@ export default function TvPublicLivePage() {
       cancelled = true;
       void sessionRef.current?.close();
       sessionRef.current = null;
+      if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
+      recoveryTimerRef.current = null;
       guestMediaRef.current?.getTracks().forEach(track => track.stop());
       guestMediaRef.current = null;
     };
