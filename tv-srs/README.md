@@ -5,9 +5,8 @@ This is Testagram's dedicated TV media plane. It does not replace the existing P
 ## Flow
 
 Browser TV Studio -> SRS WHIP -> SRS RTC-to-RTMP -> YouTube Live
-                                         -> optional Mux RTMPS secondary
 
-Testagram/Vercel remains the control plane. Supabase remains the canonical auth/database control plane. Cloudflare R2/DNS/backend paths remain untouched.
+Testagram/Vercel remains the TV control plane. Supabase remains the canonical auth/database control plane. The TV media path is self-hosted SRS and has no external media-provider dependency.
 
 ## Self-contained design
 
@@ -17,7 +16,7 @@ SRS does **not** require an SRS vendor account, API subscription, or SRS API cre
 - Testagram does not call the SRS HTTP API for broadcast verification.
 - WHIP authentication uses a short-lived encrypted Testagram session token in the WHIP URL.
 - SRS calls Testagram's own HTTPS callbacks for publish authorization and dynamic forwarding.
-- Downstream YouTube/Mux destination URLs and stream keys are resolved server-side by Testagram. They are **not** embedded in the browser token.
+- The YouTube destination URL and stream key are resolved server-side by Testagram. They are **not** embedded in the browser token.
 
 The media host needs a public DNS name and its public IPv4 as SRS_PUBLIC_IP so WebRTC candidates are routable.
 
@@ -40,10 +39,6 @@ The WHIP endpoint is:
 The browser receives a short-lived opaque AES-GCM token containing only the canonical stream ID and expiry. It is never persisted in Supabase.
 
 SRS sends the token back to Testagram's `on_publish` and dynamic `on_forward` callbacks. Testagram decrypts and validates it, confirms the stream exists, and resolves the downstream RTMP/RTMPS destinations from the server-side control plane.
-
-## Mux secondary path
-
-Set `TV_SECONDARY_DISTRIBUTION=mux` to create a disposable Mux Live Stream and have SRS forward the same program to both YouTube and Mux. Leave it empty for YouTube-only distribution.
 
 ## Important
 
