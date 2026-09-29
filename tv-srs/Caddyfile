@@ -1,12 +1,14 @@
-{
-  auto_https on
-}
-
 {$SRS_DOMAIN} {
   handle /rtc/* {
     reverse_proxy srs:1985
   }
 
-  respond /healthz 200
+  # Expose only a non-sensitive SRS health/version probe. The SRS management
+  # API itself stays on the private Docker network and is never published.
+  handle /healthz {
+    rewrite * /api/v1/versions
+    reverse_proxy srs:1985
+  }
+
   respond 404
 }
