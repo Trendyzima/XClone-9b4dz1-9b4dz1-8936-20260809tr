@@ -725,8 +725,8 @@ jobs:
           set -euo pipefail
           printf '%s' "youtube" | vercel env add "TV_DISTRIBUTION_PROVIDER" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           if [[ -z "${YOUTUBE_CLIENT_ID:-}" || -z "${YOUTUBE_CLIENT_SECRET:-}" || -z "${YOUTUBE_REFRESH_TOKEN:-}" ]]; then
-            echo "::warning::YouTube TV distribution credentials are not yet present in GitHub Secrets. Testagram TV will remain wired to YouTube but Go Live will return YOUTUBE_NOT_CONFIGURED until all three secrets are added."
-            exit 0
+            echo "::error::YouTube TV distribution credentials are incomplete in the GitHub production environment. YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, and YOUTUBE_REFRESH_TOKEN are required before production reconciliation can pass."
+            exit 1
           fi
           printf '%s' "$YOUTUBE_CLIENT_ID" | vercel env add "YOUTUBE_CLIENT_ID" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           printf '%s' "$YOUTUBE_CLIENT_SECRET" | vercel env add "YOUTUBE_CLIENT_SECRET" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
