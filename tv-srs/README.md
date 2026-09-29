@@ -29,6 +29,7 @@ Run this stack on a public Linux host with:
 - UDP 8000 for SRS WebRTC media.
 - TCP 8000 for WebRTC-over-TCP fallback.
 - Public DNS `media.testagram.site` pointing at the host.
+- Set `SRS_PUBLIC_IP` to the host's public IPv4 address before `docker compose up -d`.
 - Ports 1935/1985 remain internal; do not expose them publicly.
 
 The WHIP endpoint is:
