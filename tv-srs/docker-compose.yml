@@ -3,6 +3,8 @@ services:
     image: ossrs/srs:v6
     restart: unless-stopped
     command: ["./objs/srs", "-c", "/etc/srs/srs.conf"]
+    environment:
+      CANDIDATE: ${SRS_PUBLIC_IP:?set SRS_PUBLIC_IP}
     volumes:
       - ./srs.conf:/etc/srs/srs.conf:ro
     expose:
