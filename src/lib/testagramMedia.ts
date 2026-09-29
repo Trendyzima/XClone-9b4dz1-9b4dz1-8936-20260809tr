@@ -304,11 +304,16 @@ export class TestagramMediaSession {
     await waitForIce(this.pc);
     if (!this.pc.localDescription?.sdp) throw new Error('Cloudflare WebRTC offer SDP was not created.');
 
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/sdp', Accept: 'application/sdp', ...(this.info?.provider?.startsWith('srs-') && this.info?.token ? { Authorization: `Bearer ${this.info.token}` } : {}) },
-      body: this.pc.localDescription.sdp,
-    });
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/sdp', Accept: 'application/sdp', ...(this.info?.provider?.startsWith('srs-') && this.info?.token ? { Authorization: `Bearer ${this.info.token}` } : {}) },
+        body: this.pc.localDescription.sdp,
+      });
+    } catch {
+      throw new Error('Testagram SRS media gateway is unreachable. Check media.testagram.site, HTTPS, and UDP/TCP 8000.');
+    }
     if (!response.ok) {
       const detail = (await response.text().catch(() => '')).slice(0, 240);
       throw new Error(`SRS WebRTC ${this.role === 'host' ? 'WHIP' : 'WHEP'} negotiation failed (HTTP ${response.status})${detail ? `: ${detail}` : '.'}`);
