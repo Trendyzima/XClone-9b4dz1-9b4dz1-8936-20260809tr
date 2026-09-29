@@ -252,7 +252,9 @@ jobs:
           set -euo pipefail
           PROJECT_REF="$SUPABASE_PROJECT_REF"
           if [[ -z "$PROJECT_REF" ]]; then
-            PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
+            SUPABASE_HOST="${SUPABASE_URL#https://}"
+            SUPABASE_HOST="${SUPABASE_HOST%%/*}"
+            PROJECT_REF="${SUPABASE_HOST%%.*}"
           fi
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve Supabase project ref for LiveKit retirement."; exit 1; }
           for fn in livekit-tv-token livekit-token livekit-tv-guest-token livekit-space-token tv-stream-proxy; do
