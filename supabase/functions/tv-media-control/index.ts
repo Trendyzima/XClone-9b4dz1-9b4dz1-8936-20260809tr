@@ -67,7 +67,7 @@ Deno.serve(async req=>{
  if(!streamId) return json({ok:false,error:{code:"STREAM_ID_REQUIRED",message:"stream_id is required."}},400);
  const auth=req.headers.get("authorization")||"";
  const db=client(auth);
- const {data:stream,error}=await db.from("live_streams").select("id,user_id,is_live,title,description,viewer_count,tv_provider,youtube_broadcast_id,youtube_stream_id,youtube_video_id").eq("id",streamId).maybeSingle();
+ const {data:stream,error}=await db.from("live_streams").select("id,user_id,is_live,title,description,viewer_count,tv_provider,tv_connection_state,tv_last_heartbeat_at,tv_host_peer_id,youtube_broadcast_id,youtube_stream_id,youtube_video_id").eq("id",streamId).maybeSingle();
  if(error||!stream) return json({ok:false,error:{code:"STREAM_NOT_FOUND",message:"TV broadcast was not found."}},404);
  const user=auth.startsWith("Bearer ")?(await db.auth.getUser()).data.user:null;
  const owner=Boolean(user&&user.id===stream.user_id);
@@ -134,15 +134,9 @@ Deno.serve(async req=>{
  if(action==="guest"){
    if(provider==="youtube")return json({ok:false,error:{code:"GUEST_UNSUPPORTED_FOR_YOUTUBE",message:"YouTube mass-distribution mode is viewer-only."}},409);
    if(!stream.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
-   if(!inviteToken)return json({ok:false,error:{code:"INVITE_REQUIRED",message:"A TV guest invite is required."}},401);
-   if(!user)return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Authentication is required to join the TV guest session."}},401);
-   if(!secret)return json({ok:false,error:{code:"TV_CONTROL_MISCONFIGURED",message:"TV guest claiming requires the Supabase server secret."}},503);
-   const inviteDb=admin(); const now=new Date().toISOString();
-   const {data:claimed,error:claimError}=await inviteDb.from("tv_guest_invites").update({used_at:now,claimed_by:user.id,claimed_at:now}).eq("stream_id",streamId).eq("token_hash",await hash(inviteToken)).is("used_at",null).gt("expires_at",now).select("id").maybeSingle();
-   if(claimError||!claimed)return json({ok:false,error:{code:"INVITE_INVALID",message:"This TV guest invite is invalid, expired, or already claimed."}},401);
-   return json({ok:true,data:{...contract("guest"),guest_token:inviteToken},error:null});
- }
- if(!stream.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
- if(provider==="youtube") return json({ok:true,data:{...contract("viewer"),playback_url:stream.youtube_video_id?`https://www.youtube.com/embed/${stream.youtube_video_id}?autoplay=1&playsinline=1`:null},error:null});
+ if(provider==="youtube") return json({ok:true,data:{...contract("viewer"),playback_url:stream.youtube_video_id?"https://www.youtube.com/embed/"+stream.youtube_video_id+"?autoplay=1&playsinline=1":null},error:null});
+ const heartbeatAge = stream.tv_last_heartbeat_at ? Date.now()-new Date(stream.tv_last_heartbeat_at).getTime() : Infinity;
+ const nativeHealthy = heartbeatAge <= 30000 && ["starting","connected","degraded"].includes(stream.tv_connection_state||"") && Boolean(stream.tv_host_peer_id);
+ if(!nativeHealthy) return json({ok:false,error:{code:"TV_MEDIA_NOT_READY",message:"The TV broadcast is live in the control plane, but the producer media session is not ready yet."}},409);
  return json({ok:true,data:contract("viewer"),error:null});
 });
