@@ -27,6 +27,16 @@ type Signal = {
   participant_count?: number;
 };
 
+const tvControlApiUrl = () => {
+  const origin = window.location.origin;
+  // The apex domain redirects to www. A relative POST to /api/live would
+  // cross origins during the 308 redirect and browsers surface that as
+  // the opaque TypeError: Failed to fetch.
+  return (origin === 'https://testagram.site' ? 'https://www.testagram.site' : origin) + '/api/live';
+};
+
+const tvControlFetch = (init: RequestInit) => fetch(tvControlApiUrl(), init);
+
 const waitForIce = async (pc: RTCPeerConnection) => {
   if (pc.iceGatheringState === 'complete') return;
   await new Promise<void>(resolve => {
@@ -40,7 +50,7 @@ const getToken = async (roomId: string, roomType: MediaRoomType, role: MediaRole
   const { data: sessionData } = await supabase.auth.getSession();
   const accessToken = sessionData.session?.access_token;
   if (roomType === 'tv' && (role === 'host' || role === 'viewer')) {
-    const response = await fetch('/api/live', {
+    const response = await tvControlFetch({
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -128,7 +138,7 @@ export class TestagramMediaSession {
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData.session?.access_token;
     if (!accessToken) throw new Error('Sign in to verify the broadcast.');
-    const response = await fetch('/api/live', {
+    const response = await tvControlFetch({
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify({ action: 'verify', stream_id: this.roomId, diagnostics: this.getDiagnostics() }),
@@ -146,7 +156,7 @@ export class TestagramMediaSession {
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData.session?.access_token;
     if (!accessToken) return;
-    const response = await fetch('/api/live', {
+    const response = await tvControlFetch({
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accessToken}` },
       body: JSON.stringify({ action: 'stop', stream_id: this.roomId }),
