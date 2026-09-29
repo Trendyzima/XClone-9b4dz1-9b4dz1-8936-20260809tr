@@ -78,7 +78,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          SRS_PUBLIC_IP=127.0.0.1 SRS_DOMAIN=localhost docker compose -f tv-srs/docker-compose.yml config -q
+          SRS_PUBLIC_IP=127.0.0.1 SRS_DOMAIN=localhost TESTAGRAM_MEDIA_NETWORK=ci-test-network docker compose -f tv-srs/docker-compose.yml config -q
 
           docker run --rm \
             -e MEDIA_ENGINE_DOMAIN=localhost \
