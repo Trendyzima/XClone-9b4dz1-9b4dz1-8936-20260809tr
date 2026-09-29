@@ -270,7 +270,6 @@ export class TestagramTvMediaSession {
 
   getDiagnostics() { return { ...this.lastDiagnostics }; }
   getPlaybackUrl() { return null; }
-  isYouTubePlayback() { return false; }
   getViewerCount() { return Number(this.lastDiagnostics.viewerCount || 0); }
 
   async close() {
