@@ -138,8 +138,8 @@ jobs:
 
           const projectRef = process.env.SUPABASE_PROJECT_REF;
           const token = process.env.SUPABASE_ACCESS_TOKEN;
-          const baselineVersion = "20260928150000";
-          const baselineName = "tv_mux_hybrid_control_plane";
+          const baselineVersion = "20260929193000";
+          const baselineName = "tv_guest_invite_rls";
           const migrationsDir = path.join(process.cwd(), "supabase", "migrations");
           if (!token) throw new Error("SUPABASE_ACCESS_TOKEN is required for migration reconciliation.");
           if (!fs.existsSync(migrationsDir)) throw new Error("supabase/migrations directory is missing.");
