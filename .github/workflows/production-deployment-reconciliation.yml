@@ -71,7 +71,8 @@ jobs:
             fi
           done
           legacy_ssh_prefix='MEDIA_ENGINE_SSH_'
-          legacy_public_ip='MEDIA_ENGINE_PUBLIC_IP'
+          legacy_public_ip='MEDIA_ENGINE_'
+          legacy_public_ip="${legacy_public_ip}PUBLIC_IP"
           if git grep -nE "${legacy_ssh_prefix}(HOST|USER|PRIVATE_KEY)|${legacy_public_ip}" -- . ':!.git' >/tmp/tv-retired-config.txt; then
             echo "::error::Retired TV SSH configuration is still referenced in the production revision."
             cat /tmp/tv-retired-config.txt
