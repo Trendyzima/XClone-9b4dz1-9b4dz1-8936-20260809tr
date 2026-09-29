@@ -54,7 +54,7 @@ async function callback(url: URL, request: Request) {
   const code = url.searchParams.get('code') || '';
   const state = url.searchParams.get('state') || '';
   const cookie = request.headers.get('cookie') || '';
-  const cookieState = cookie.match(/(?:^|;\\s*)yt_oauth_state=([^;]+)/)?.[1] ? decodeURIComponent(cookie.match(/(?:^|;\\s*)yt_oauth_state=([^;]+)/)![1]) : '';
+  const cookieState = cookie.match(/(?:^|;\s*)yt_oauth_state=([^;]+)/)?.[1] ? decodeURIComponent(cookie.match(/(?:^|;\s*)yt_oauth_state=([^;]+)/)![1]) : '';
 
   if (!code || !state || !cookieState || state !== cookieState || !validState(state)) {
     return html('<h1>Authorization failed</h1><div class="err">OAuth state validation failed. Start again from Testagram.</div>', 400);
