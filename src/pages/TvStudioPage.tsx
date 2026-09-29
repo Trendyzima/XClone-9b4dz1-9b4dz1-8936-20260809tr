@@ -1321,7 +1321,7 @@ export default function TvStudioPage() {
                   <Button size="sm" variant={audioDucking ? 'default' : 'outline'} onClick={() => setAudioDucking(v => !v)}>Auto ducking</Button>
                 </div>
                 {guestInviteUrl && <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-2 text-[10px]">
-                  <div className="font-semibold text-emerald-300">Guest invite ready · expires in 15 minutes</div>
+                  <div className="font-semibold text-emerald-300">Guest invite ready · expires in 60 minutes</div>
                   <div className="mt-1 break-all text-zinc-400">{guestInviteUrl}</div>
                   <Button size="sm" className="mt-2" onClick={() => { void navigator.clipboard?.writeText(guestInviteUrl); toast.success('Guest invite copied'); }}>Copy invite</Button>
                 </div>}
