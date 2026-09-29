@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 
 type TvRole = 'host' | 'viewer' | 'guest';
-type Signal = { from: string; to?: string; peerRole?: TvRole; sdp?: string; candidate?: RTCIceCandidateInit; count?: number; guestCount?: number };
+type Signal = { from: string; to?: string; peerRole?: TvRole; sdp?: string; candidate?: RTCIceCandidateInit; count?: number; guestCount?: number; videoBytes?: number; audioBytes?: number; videoPackets?: number; audioPackets?: number; width?: number; height?: number };
 type VideoOptions = { maxBitrate: number; maxFramerate?: number; maintainResolution?: boolean };
 type TvNetworkProfile = 'excellent' | 'good' | 'constrained' | 'poor';
 
@@ -72,6 +72,7 @@ export class TestagramTvMediaSession {
   private reconnectTimers = new Map<string, number>();
   private adaptationTimer: number | null = null;
   private peerStats = new Map<string, { lastBytes: number; lastLost: number; lastSentPackets: number; lastAt: number; stableSamples: number; profile: TvNetworkProfile }>();
+  private inboundMediaReady = false;
   private videoCeilingBitrate = 8_000_000;
 
   private constructor(role: TvRole, roomId: string) { this.role = role; this.roomId = roomId; }
@@ -117,6 +118,7 @@ export class TestagramTvMediaSession {
       .on('broadcast', { event: 'tv-candidate' }, payload => void this.onCandidate(payload.payload as Signal))
       .on('broadcast', { event: 'tv-leave' }, payload => void this.onLeave(payload.payload as Signal))
       .on('broadcast', { event: 'tv-reconnect' }, payload => void this.onReconnect(payload.payload as Signal))
+      .on('broadcast', { event: 'tv-media-received' }, payload => this.onMediaReceived(payload.payload as Signal))
       .on('broadcast', { event: 'tv-presence' }, payload => {
         const p = payload.payload as Signal;
         this.onViewerCount?.(Number(p.count || 0), Number(p.guestCount || 0));
@@ -319,6 +321,21 @@ export class TestagramTvMediaSession {
     }
   }
 
+  private onMediaReceived(message: Signal) {
+    if (this.role !== 'host' || !message.from || message.to !== this.peerId) return;
+    this.lastDiagnostics = {
+      ...this.lastDiagnostics,
+      mediaReachedViewer: true,
+      viewerVideoBytes: Number(message.videoBytes || 0),
+      viewerAudioBytes: Number(message.audioBytes || 0),
+      viewerVideoPackets: Number(message.videoPackets || 0),
+      viewerAudioPackets: Number(message.audioPackets || 0),
+      viewerWidth: Number(message.width || 0),
+      viewerHeight: Number(message.height || 0),
+    };
+    this.startHeartbeat('connected');
+  }
+
   private async onReconnect(message: Signal) {
     if (this.role !== 'host' || message.to !== this.peerId || !message.from) return;
     await this.restartPeer(message.from);
@@ -454,13 +471,77 @@ export class TestagramTvMediaSession {
       this.lastDiagnostics = { ...this.lastDiagnostics, mediaReady: true, videoTrack: video.readyState, audioTrack: audio.readyState };
       return this.lastDiagnostics;
     }
-    if (this.readyPromise) {
-      await Promise.race([this.readyPromise, new Promise((_, reject) => window.setTimeout(() => reject(new Error(`TV media did not arrive within ${Math.round(timeoutMs / 1000)}s.`)), timeoutMs))]);
+
+    const deadline = performance.now() + timeoutMs;
+    while (performance.now() < deadline) {
+      const pc = Array.from(this.peers.values())[0];
+      if (!pc) {
+        await new Promise<void>(resolve => window.setTimeout(resolve, 100));
+        continue;
+      }
+      const tracks = this.remoteStream.getTracks();
+      const hasVideo = tracks.some(track => track.kind === 'video' && track.readyState === 'live');
+      const hasAudio = tracks.some(track => track.kind === 'audio' && track.readyState === 'live');
+      if (!hasVideo || !hasAudio || pc.connectionState !== 'connected') {
+        await new Promise<void>(resolve => window.setTimeout(resolve, 100));
+        continue;
+      }
+
+      let videoBytes = 0;
+      let audioBytes = 0;
+      let videoPackets = 0;
+      let audioPackets = 0;
+      let width = 0;
+      let height = 0;
+      try {
+        const stats = await pc.getStats();
+        stats.forEach((report: any) => {
+          if (report.type !== 'inbound-rtp') return;
+          if (report.kind === 'video') {
+            videoBytes += Number(report.bytesReceived || 0);
+            videoPackets += Number(report.packetsReceived || 0);
+            width = Math.max(width, Number(report.frameWidth || 0));
+            height = Math.max(height, Number(report.frameHeight || 0));
+          } else if (report.kind === 'audio') {
+            audioBytes += Number(report.bytesReceived || 0);
+            audioPackets += Number(report.packetsReceived || 0);
+          }
+        });
+      } catch {}
+
+      if (videoBytes > 0 && audioBytes > 0 && videoPackets > 0 && audioPackets > 0) {
+        this.inboundMediaReady = true;
+        this.lastDiagnostics = {
+          ...this.lastDiagnostics,
+          mediaReady: true,
+          connectionState: pc.connectionState,
+          iceConnectionState: pc.iceConnectionState,
+          videoPackets,
+          audioPackets,
+          videoBytes,
+          audioBytes,
+          width,
+          height,
+          mediaReachedViewer: true,
+        };
+        await this.send({
+          event: 'tv-media-received',
+          payload: {
+            from: this.peerId,
+            to: Array.from(this.peers.keys())[0],
+            videoBytes,
+            audioBytes,
+            videoPackets,
+            audioPackets,
+            width,
+            height,
+          },
+        }).catch(() => undefined);
+        return this.lastDiagnostics;
+      }
+      await new Promise<void>(resolve => window.setTimeout(resolve, 250));
     }
-    const pc = Array.from(this.peers.values())[0];
-    if (!pc) throw new Error('TV viewer is waiting for the broadcaster.');
-    this.lastDiagnostics = { ...this.lastDiagnostics, mediaReady: true, connectionState: pc.connectionState };
-    return this.lastDiagnostics;
+    throw new Error(`TV media did not reach the viewer within ${Math.round(timeoutMs / 1000)}s.`);
   }
 
   async verifyOnAir() {
