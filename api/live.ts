@@ -330,10 +330,11 @@ async function start(streamId: string, request: Request) {
     if (message.startsWith('YOUTUBE_AUTH_FAILED:')) return json({ ok: false, error: { code: 'YOUTUBE_AUTH_FAILED', message: 'YouTube rejected the server OAuth credentials.', detail: message } }, 502);
     if (message.startsWith('YOUTUBE_BROADCAST_CREATE_FAILED:') || message.startsWith('YOUTUBE_STREAM_CREATE_FAILED:') || message.startsWith('YOUTUBE_BIND_FAILED:')) return json({ ok: false, error: { code: 'YOUTUBE_CREATE_FAILED', message: 'YouTube rejected the TV broadcast setup request.', detail: message } }, 502);
     if (message === 'YOUTUBE_INGESTION_INFO_MISSING') return json({ ok: false, error: { code: 'YOUTUBE_INGESTION_INFO_MISSING', message: 'YouTube created the broadcast but did not return usable RTMP ingestion information.' } }, 502);
-    if (message === 'CLOUDFLARE_OUTPUT_FAILED') return json({ ok: false, error: { code: 'CLOUDFLARE_OUTPUT_FAILED', message: 'Cloudflare could not attach the YouTube restream output.' } }, 502);
+    if (message.startsWith('CLOUDFLARE_OUTPUT_FAILED:')) return json({ ok: false, error: { code: 'CLOUDFLARE_OUTPUT_FAILED', message: 'Cloudflare rejected the YouTube restream output.', detail: message } }, 502);
     if (message === 'MUX_NOT_CONFIGURED') return json({ ok: false, error: { code: 'MUX_NOT_CONFIGURED', message: 'Vercel Mux Video API credentials are not configured for Testagram TV.' } }, 503);
     if (message === 'MUX_ENDPOINTS_MISSING') return json({ ok: false, error: { code: 'MUX_ENDPOINTS_MISSING', message: 'Mux did not return a usable stream key and playback ID.' } }, 502);
-    return json({ ok: false, error: { code: message === 'MUX_CREATE_FAILED' ? 'MUX_CREATE_FAILED' : 'LIVE_CONTROL_FAILED', message: 'TV media control failed while preparing the broadcast distribution path.' } }, 502);
+    console.error('[TV_START_FAILED]', { streamId, provider: tvDistributionProvider, stage: controlStage, detail: message.slice(0, 260) });
+    return json({ ok: false, error: { code: message === 'MUX_CREATE_FAILED' ? 'MUX_CREATE_FAILED' : 'LIVE_CONTROL_FAILED', message: 'TV media control failed while preparing the broadcast distribution path.', detail: `stage=${controlStage}; failure=${message.slice(0, 260)}` } }, 502);
   }
 }
 async function viewer(streamId: string, request: Request) {
