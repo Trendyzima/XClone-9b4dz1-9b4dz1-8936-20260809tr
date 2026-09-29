@@ -1,4 +1,4 @@
-media.testagram.site {
+{$SRS_DOMAIN} {
   @whipOptions method OPTIONS
   handle @whipOptions {
     header Access-Control-Allow-Origin "*"
