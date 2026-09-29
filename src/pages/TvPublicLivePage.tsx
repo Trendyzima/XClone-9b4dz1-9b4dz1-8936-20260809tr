@@ -19,7 +19,7 @@ export default function TvPublicLivePage() {
   const [viewers, setViewers] = useState(0);
   const [connecting, setConnecting] = useState(true);
   const [live, setLive] = useState(false);
-  const [muted, setMuted] = useState(false);
+  const [muted, setMuted] = useState(true);
   const [cameraOn, setCameraOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
   const [error, setError] = useState('');
@@ -77,12 +77,17 @@ export default function TvPublicLivePage() {
         } else {
           const session = await TestagramTvMediaSession.connectViewer(streamId, (media) => {
             if (videoRef.current) {
-              videoRef.current.srcObject = media;
-              videoRef.current.muted = muted;
-              videoRef.current.playsInline = true;
-              videoRef.current.autoplay = true;
-              videoRef.current.preload = 'auto';
-              void videoRef.current.play().catch(() => undefined);
+              const video = videoRef.current;
+              video.srcObject = media;
+              video.muted = true;
+              video.defaultMuted = true;
+              video.playsInline = true;
+              video.autoplay = true;
+              video.preload = 'auto';
+              const play = () => void video.play().catch(() => undefined);
+              video.addEventListener('loadedmetadata', play, { once: true });
+              video.addEventListener('canplay', play, { once: true });
+              play();
             }
           });
           const video = videoRef.current;
@@ -123,6 +128,11 @@ export default function TvPublicLivePage() {
       sessionRef.current = null;
       if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
       recoveryTimerRef.current = null;
+      const video = videoRef.current;
+      if (video) {
+        video.removeAttribute('src');
+        video.srcObject = null;
+      }
       guestMediaRef.current?.getTracks().forEach(track => track.stop());
       guestMediaRef.current = null;
     };
@@ -130,7 +140,10 @@ export default function TvPublicLivePage() {
 
   useEffect(() => {
     if (audioRef.current) audioRef.current.muted = muted;
-    if (videoRef.current && !isGuest) videoRef.current.muted = muted;
+    if (videoRef.current && !isGuest) {
+      videoRef.current.muted = muted;
+      if (!muted) void videoRef.current.play().catch(() => undefined);
+    }
   }, [muted, isGuest]);
 
   const share = async () => {
