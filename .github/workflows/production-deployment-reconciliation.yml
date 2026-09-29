@@ -218,29 +218,6 @@ jobs:
           console.log("Supabase migration reconciliation passed from verified baseline.");
           NODE
 
-      - name: Ensure anonymous TV viewer authentication is enabled
-        if: steps.supabase-auth.outputs.available == 'true'
-        shell: bash
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
-        run: |
-          set -euo pipefail
-          PROJECT_REF="$SUPABASE_PROJECT_REF"
-          if [[ -z "$PROJECT_REF" ]]; then
-            PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\\.supabase\\.co/?$#\\1#p')"
-          fi
-          [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve Supabase project ref for Auth configuration."; exit 1; }
-          config_url="https://api.supabase.com/v1/projects/$PROJECT_REF/config/auth"
-          current="$(curl --fail --silent --show-error --request GET --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" --header "Accept: application/json" "$config_url")"
-          enabled="$(CURRENT_CONFIG="$current" node -e 'const c=JSON.parse(process.env.CURRENT_CONFIG); process.stdout.write(String(c.external_anonymous_users_enabled===true))')"
-          if [[ "$enabled" != "true" ]]; then
-            curl --fail --silent --show-error --request PATCH               --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN"               --header "Content-Type: application/json"               --data '{"external_anonymous_users_enabled":true}'               "$config_url" >/tmp/tv-auth-config.json
-          fi
-          verified="$(curl --fail --silent --show-error --request GET --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" --header "Accept: application/json" "$config_url")"
-          VERIFIED_CONFIG="$verified" node -e 'const c=JSON.parse(process.env.VERIFIED_CONFIG); if(c.external_anonymous_users_enabled!==true){throw new Error("Supabase anonymous sign-ins are not enabled.")}; console.log("Supabase anonymous TV viewer authentication: enabled.")'
-
       - name: Retire legacy LiveKit Edge Functions
         if: steps.supabase-auth.outputs.available == 'true'
         shell: bash
