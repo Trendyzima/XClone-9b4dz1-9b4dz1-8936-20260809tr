@@ -63,22 +63,30 @@ jobs:
           # TV media is now owned by Testagram's native edge/control-plane path.
           # These SSH/SRS deployment hooks are retired and must never become a
           # production dependency again.
-          forbidden_paths=("tv-srs" "media-engine")
-          for path in "${forbidden_paths[@]}"; do
-            if [[ -e "$path" ]]; then
-              echo "::error::Retired TV infrastructure path is present: $path"
-              exit 1
-            fi
-          done
-          legacy_ssh_prefix='MEDIA_ENGINE_SSH_'
-          legacy_public_ip='MEDIA_ENGINE_'
-          legacy_public_ip="${legacy_public_ip}PUBLIC_IP"
-          if git grep -nE "${legacy_ssh_prefix}(HOST|USER|PRIVATE_KEY)|${legacy_public_ip}" -- . ':!.git' >/tmp/tv-retired-config.txt; then
+          retired_media_dir_prefix="media-"
+          retired_media_dir_suffix="engine"
+          retired_path_regex="(^|/)tv-srs(/|$)|(^|/)${retired_media_dir_prefix}${retired_media_dir_suffix}(/|[-_.]|$)"
+          if git ls-files | grep -Ei "${retired_path_regex}" >/tmp/tv-retired-paths.txt; then
+            echo "::error::Retired TV media infrastructure is still tracked in the production revision."
+            cat /tmp/tv-retired-paths.txt
+            exit 1
+          fi
+          legacy_ssh_prefix='MEDIA_'
+          legacy_ssh_component='ENGINE'
+          legacy_public_ip="${legacy_ssh_prefix}${legacy_ssh_component}_PUBLIC_IP"
+          legacy_ssh_pattern="${legacy_ssh_prefix}${legacy_ssh_component}_SSH_(HOST|USER|PRIVATE_KEY)"
+          if git grep -nE "${legacy_ssh_pattern}|${legacy_public_ip}" -- . ':!.git' ':!supabase/migrations/**' >/tmp/tv-retired-config.txt; then
             echo "::error::Retired TV SSH configuration is still referenced in the production revision."
             cat /tmp/tv-retired-config.txt
             exit 1
           fi
-          echo "TV architecture guard passed: no retired SSH/SRS media deployment dependency."
+          retired_provider_pattern='CLOUDFLARE_STREAM_|YOUTUBE_CLIENT_|YOUTUBE_REFRESH_TOKEN|MEDIA_ENGINE_URL|MEDIA_ENGINE_SECRET'
+          if git grep -nE "${retired_provider_pattern}" -- . ':!.git' ':!supabase/migrations/**' >/tmp/tv-retired-providers.txt; then
+            echo "::error::Retired provider-specific TV configuration is still referenced in the production revision."
+            cat /tmp/tv-retired-providers.txt
+            exit 1
+          fi
+          echo "TV architecture guard passed: native Vercel Edge + Supabase + Realtime + browser WebRTC only."
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -210,6 +218,29 @@ jobs:
           console.log("Supabase migration reconciliation passed from verified baseline.");
           NODE
 
+      - name: Ensure anonymous TV viewer authentication is enabled
+        if: steps.supabase-auth.outputs.available == 'true'
+        shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+        run: |
+          set -euo pipefail
+          PROJECT_REF="$SUPABASE_PROJECT_REF"
+          if [[ -z "$PROJECT_REF" ]]; then
+            PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\\.supabase\\.co/?$#\\1#p')"
+          fi
+          [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve Supabase project ref for Auth configuration."; exit 1; }
+          config_url="https://api.supabase.com/v1/projects/$PROJECT_REF/config/auth"
+          current="$(curl --fail --silent --show-error --request GET --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" --header "Accept: application/json" "$config_url")"
+          enabled="$(CURRENT_CONFIG="$current" node -e 'const c=JSON.parse(process.env.CURRENT_CONFIG); process.stdout.write(String(c.external_anonymous_users_enabled===true))')"
+          if [[ "$enabled" != "true" ]]; then
+            curl --fail --silent --show-error --request PATCH               --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN"               --header "Content-Type: application/json"               --data '{"external_anonymous_users_enabled":true}'               "$config_url" >/tmp/tv-auth-config.json
+          fi
+          verified="$(curl --fail --silent --show-error --request GET --header "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" --header "Accept: application/json" "$config_url")"
+          VERIFIED_CONFIG="$verified" node -e 'const c=JSON.parse(process.env.VERIFIED_CONFIG); if(c.external_anonymous_users_enabled!==true){throw new Error("Supabase anonymous sign-ins are not enabled.")}; console.log("Supabase anonymous TV viewer authentication: enabled.")'
+
       - name: Retire legacy LiveKit Edge Functions
         if: steps.supabase-auth.outputs.available == 'true'
         shell: bash
@@ -224,7 +255,7 @@ jobs:
             PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
           fi
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve Supabase project ref for LiveKit retirement."; exit 1; }
-          for fn in livekit-tv-token livekit-token livekit-tv-guest-token livekit-space-token; do
+          for fn in livekit-tv-token livekit-token livekit-tv-guest-token livekit-space-token tv-stream-proxy; do
             echo "Retiring legacy Edge Function: $fn"
             supabase functions delete "$fn" --project-ref "$PROJECT_REF" --yes || true
           done
