@@ -114,6 +114,19 @@ jobs:
           cat /tmp/testagram-srs-config.log || true
           exit 1
 
+      - name: Retire legacy TV media-provider environment overrides
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+        run: |
+          set -euo pipefail
+          [[ -n "$VERCEL_TOKEN" && -n "$VERCEL_ORG_ID" ]] || { echo "::error::Vercel credentials are required to retire legacy TV environment overrides."; exit 1; }
+          for name in TV_DISTRIBUTION_PROVIDER TV_SECONDARY_DISTRIBUTION MUX_TOKEN_ID MUX_TOKEN_SECRET VITE_MUX_ENV_KEY CLOUDFLARE_STREAM_ALLOWED_ORIGINS CLOUDFLARE_STREAM_ACCOUNT_ID CLOUDFLARE_STREAM_API_TOKEN; do
+            vercel env rm "$name" production --yes --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" >/dev/null 2>&1 || true
+          done
+          echo "Legacy TV media-provider overrides retired from Vercel production."
+
       - name: Deploy Testagram-owned TV SRS media gateway
         shell: bash
         env:
