@@ -102,10 +102,10 @@ export class TestagramTvMediaSession {
   private guestToken = '';
 
   private async start(action: 'start' | 'viewer' | 'guest') {
-    await ensureRealtimeAuth(action !== 'start');
+    const realtimeSession = await ensureRealtimeAuth(action !== 'start');
     const data = await api({ action, stream_id: this.roomId, invite_token: action === 'guest' ? this.guestToken : undefined });
     this.topic = data.signaling_topic;
-    await supabase.realtime.setAuth();
+    if (realtimeSession?.access_token) await supabase.realtime.setAuth(realtimeSession.access_token);
     this.channel = supabase.channel(this.topic, {
       config: { broadcast: { ack: true, self: false }, private: true },
     });
