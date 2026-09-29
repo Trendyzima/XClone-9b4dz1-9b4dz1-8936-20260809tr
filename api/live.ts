@@ -377,18 +377,8 @@ async function checkSrsGateway() {
 async function start(streamId: string, request: Request) {
   if (!srsMediaBaseUrl || !supabaseServiceRoleKey) return json({ ok: false, error: { code: 'SRS_NOT_CONFIGURED', message: 'Testagram TV media gateway is not configured.' } }, 503);
   if (tvDistributionProvider !== 'srs') return json({ ok: false, error: { code: 'TV_DISTRIBUTION_INVALID', message: 'TV_DISTRIBUTION_PROVIDER must be srs for the production TV path.' } }, 503);
-  try {
-    await checkSrsGateway();
-  } catch {
-    return json({ ok: false, error: { code: 'SRS_MEDIA_UNREACHABLE', message: 'Testagram TV media gateway is not reachable. The Testagram-managed TV gateway must be healthy before a broadcast can be prepared.' } }, 503);
-  }
   if (!youtubeClientId || !youtubeClientSecret || !youtubeRefreshToken) return json({ ok: false, error: { code: 'YOUTUBE_NOT_CONFIGURED', message: 'Testagram TV YouTube distribution is not configured.' } }, 503);
-  try {
-    await checkSrsGateway();
-  } catch (error: any) {
-    const detail = String(error?.message || 'SRS_MEDIA_UNREACHABLE');
-    return json({ ok: false, error: { code: detail, message: 'Testagram TV media gateway is temporarily unavailable. The TV infrastructure is not ready to accept a live broadcast.' } }, 503);
-  }
+
   const user = await requireUser(request);
   if (!user) return json({ ok: false, error: { code: 'AUTH_REQUIRED', message: 'Sign in to broadcast.' } }, 401);
   const bearer = authHeader(request);
@@ -396,6 +386,12 @@ async function start(streamId: string, request: Request) {
   if (!stream) return json({ ok: false, error: { code: 'STREAM_NOT_FOUND', message: 'No canonical live_streams record exists for this broadcast.' } }, 404);
   if (stream.user_id !== user.id) return json({ ok: false, error: { code: 'HOST_REQUIRED', message: 'Only the broadcaster can publish.' } }, 403);
   if (stream.is_live) return json({ ok: false, error: { code: 'ALREADY_LIVE', message: 'This broadcast is already ON AIR.' } }, 409);
+
+  try {
+    await checkSrsGateway();
+  } catch {
+    return json({ ok: false, error: { code: 'SRS_MEDIA_UNREACHABLE', message: 'Testagram TV media gateway is not reachable. The Testagram-managed TV gateway must be healthy before a broadcast can be prepared.' } }, 503);
+  }
 
   // Start is intentionally idempotent while the broadcaster is still preparing
   // the media path. Browser reconnects must reuse the same downstream YouTube
