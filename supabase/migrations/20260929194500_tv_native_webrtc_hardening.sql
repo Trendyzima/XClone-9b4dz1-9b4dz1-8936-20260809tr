@@ -26,12 +26,6 @@ create policy "tv_guest_invites_claimed_read" on public.tv_guest_invites
   for select to authenticated
   using (claimed_by = (select auth.uid()));
 
-drop policy if exists "tv_guest_invites_claimed_update" on public.tv_guest_invites;
-create policy "tv_guest_invites_claimed_update" on public.tv_guest_invites
-  for update to authenticated
-  using (claimed_by = (select auth.uid()))
-  with check (claimed_by = (select auth.uid()));
-
 drop policy if exists "tv_realtime_receive" on realtime.messages;
 create policy "tv_realtime_receive" on realtime.messages
   for select to authenticated
@@ -69,6 +63,6 @@ create policy "tv_realtime_send" on realtime.messages
   );
 
 grant select on public.live_streams to authenticated, anon;
-grant select, insert, update on public.tv_guest_invites to authenticated;
+grant select, insert on public.tv_guest_invites to authenticated;
 
 notify pgrst, 'reload schema';
