@@ -873,7 +873,7 @@ export default function TvStudioPage() {
       });
       const playbackUrl = session.getPlaybackUrl();
       if (!playbackUrl) {
-        throw new Error('Cloudflare Stream WebRTC playback endpoint was not returned.');
+        throw new Error('SRS WebRTC playback endpoint was not returned.');
       }
 
       // The server is the authority for ON AIR. It independently checks Cloudflare's
@@ -893,7 +893,7 @@ export default function TvStudioPage() {
     } catch (e: any) {
       if (session) {
         setBroadcastDiagnostics(session.getDiagnostics());
-        // If start() already allocated Cloudflare/Mux resources, always ask the
+        // If start() already allocated SRS/YouTube/Mux resources, always ask the
         // control plane to reconcile them before closing the browser transport.
         await session.stopBroadcastControlPlane().catch(() => undefined);
       }
@@ -947,7 +947,7 @@ export default function TvStudioPage() {
       try {
         await activeSession.stopBroadcastControlPlane();
       } catch (error: any) {
-        toast.error(error?.message || 'Cloudflare broadcast shutdown failed.');
+        toast.error(error?.message || 'SRS broadcast shutdown failed.');
       }
       await activeSession.close();
     }
