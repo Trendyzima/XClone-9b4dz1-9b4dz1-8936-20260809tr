@@ -761,6 +761,13 @@ jobs:
           [[ -n "$VERCEL_TOKEN" ]] || { echo "::error::VERCEL_TOKEN is required."; exit 1; }
           printf '%s' "srs" | vercel env add "TV_DISTRIBUTION_PROVIDER" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           printf '%s' "$SRS_MEDIA_BASE_URL" | vercel env add "SRS_MEDIA_BASE_URL" production --force --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+
+          # These names belonged to the retired remote-SRS control design.
+          # Remove them so production cannot regress to requiring an SRS vendor/API credential.
+          for name in SRS_API_TOKEN SRS_API_URL SRS_FORWARD_SECRET; do
+            vercel env rm "$name" production --yes --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" >/dev/null 2>&1 || true
+          done
+
           echo "Self-hosted SRS TV media configuration synchronized; no SRS vendor/API credential is required."
 
       - name: Synchronize YouTube TV distribution credentials into Vercel production
