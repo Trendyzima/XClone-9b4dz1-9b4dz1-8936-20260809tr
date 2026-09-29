@@ -1,5 +1,5 @@
 name: TV YouTube Runtime Reconciliation
-# Runtime deploy is intentionally retriggered on every TV control-plane change.
+# Runtime deploy is intentionally retriggered on every TV control-plane change.\n# The deploy target is the current main branch, so parser fixes are deployed atomically.
 
 on:
   push:
