@@ -66,10 +66,11 @@ export class TestagramTvMediaSession {
     return session;
   }
 
-  static async connectGuest(streamId: string, inviteToken: string, onRemoteStream?: (stream: MediaStream) => void) {
+  static async connectGuest(streamId: string, inviteToken: string, localStream?: MediaStream, onRemoteStream?: (stream: MediaStream) => void) {
     const session = new TestagramTvMediaSession('guest', streamId);
     session.onRemoteStream = onRemoteStream;
     session.guestToken = inviteToken;
+    session.localStream = localStream || null;
     await session.start('guest');
     return session;
   }
@@ -157,6 +158,7 @@ export class TestagramTvMediaSession {
     } else {
       for (const track of this.localStream?.getTracks() || []) pc.addTrack(track, this.localStream!);
     }
+    if (this.videoOptions) void this.applyVideoOptions(pc, this.videoOptions);
     return pc;
   }
 
