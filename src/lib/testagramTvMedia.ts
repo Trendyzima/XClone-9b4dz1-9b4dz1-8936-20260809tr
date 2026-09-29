@@ -104,8 +104,22 @@ export class TestagramTvMediaSession {
 
   private async start(action: 'start' | 'viewer' | 'guest') {
     const realtimeSession = await ensureRealtimeAuth(action !== 'start');
-    const data = await api({ action, stream_id: this.roomId, invite_token: action === 'guest' ? this.guestToken : undefined });
-    this.topic = data.signaling_topic;
+
+    // The host must subscribe to signaling before the control plane marks the
+    // stream live. Otherwise a viewer can join in the small window where the
+    // database says "live" but the host is not yet listening for tv-join.
+    let data: any = null;
+    if (action === 'start') {
+      this.topic = `tv:${this.roomId}`;
+    } else {
+      data = await api({
+        action,
+        stream_id: this.roomId,
+        invite_token: action === 'guest' ? this.guestToken : undefined,
+      });
+      this.topic = data.signaling_topic;
+    }
+
     if (realtimeSession?.access_token) await supabase.realtime.setAuth(realtimeSession.access_token);
     this.channel = supabase.channel(this.topic, {
       config: { broadcast: { ack: true, self: false }, private: true },
@@ -124,12 +138,23 @@ export class TestagramTvMediaSession {
         this.onViewerCount?.(Number(p.count || 0), Number(p.guestCount || 0));
       });
 
-    await new Promise<void>((resolve, reject) => {
-      this.channel!.subscribe(status => {
-        if (status === 'SUBSCRIBED') resolve();
-        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') reject(new Error(`TV signaling channel ${status.toLowerCase()}.`));
+    try {
+      await new Promise<void>((resolve, reject) => {
+        this.channel!.subscribe(status => {
+          if (status === 'SUBSCRIBED') resolve();
+          else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') reject(new Error(`TV signaling channel ${status.toLowerCase()}.`));
+        });
       });
-    });
+
+      // Only now publish the live state and start host health heartbeats.
+      if (action === 'start') {
+        data = await api({ action: 'start', stream_id: this.roomId });
+      }
+    } catch (error) {
+      await this.channel?.unsubscribe().catch(() => undefined);
+      this.channel = null;
+      throw error;
+    }
 
     this.lastDiagnostics = { provider: 'native-p2p', signaling: 'supabase-realtime', topic: this.topic, peerId: this.peerId };
 
@@ -141,7 +166,6 @@ export class TestagramTvMediaSession {
       this.startHeartbeat('starting');
     }
   }
-
   private async send(message: { event: string; payload: Signal }) {
     if (!this.channel) throw new Error('TV signaling channel is not connected.');
     const result = await this.channel.send({ type: 'broadcast', event: message.event, payload: message.payload });
