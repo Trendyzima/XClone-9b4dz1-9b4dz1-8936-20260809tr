@@ -75,13 +75,13 @@ jobs:
           legacy_ssh_component='ENGINE'
           legacy_public_ip="${legacy_ssh_prefix}${legacy_ssh_component}_PUBLIC_IP"
           legacy_ssh_pattern="${legacy_ssh_prefix}${legacy_ssh_component}_SSH_(HOST|USER|PRIVATE_KEY)"
-          if git grep -nE "${legacy_ssh_pattern}|${legacy_public_ip}" -- . ':!.git' ':!supabase/migrations/**' >/tmp/tv-retired-config.txt; then
+          if git grep -nE "${legacy_ssh_pattern}|${legacy_public_ip}" -- . ':!.git' ':!supabase/migrations/**' ':!.github/workflows/production-deployment-reconciliation.yml' >/tmp/tv-retired-config.txt; then
             echo "::error::Retired TV SSH configuration is still referenced in the production revision."
             cat /tmp/tv-retired-config.txt
             exit 1
           fi
           retired_provider_pattern='CLOUDFLARE_STREAM_|YOUTUBE_CLIENT_|YOUTUBE_REFRESH_TOKEN|MEDIA_ENGINE_URL|MEDIA_ENGINE_SECRET'
-          if git grep -nE "${retired_provider_pattern}" -- . ':!.git' ':!supabase/migrations/**' >/tmp/tv-retired-providers.txt; then
+          if git grep -nE "${retired_provider_pattern}" -- . ':!.git' ':!supabase/migrations/**' ':!.github/workflows/production-deployment-reconciliation.yml' >/tmp/tv-retired-providers.txt; then
             echo "::error::Retired provider-specific TV configuration is still referenced in the production revision."
             cat /tmp/tv-retired-providers.txt
             exit 1
