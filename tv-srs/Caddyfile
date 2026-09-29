@@ -1,4 +1,6 @@
-{$SRS_DOMAIN} {
+media.testagram.site {
+  encode gzip
+
   handle /rtc/* {
     reverse_proxy srs:1985
   }
