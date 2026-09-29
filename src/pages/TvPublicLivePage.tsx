@@ -3,9 +3,8 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import { Loader2, Radio, Users, Volume2, VolumeX, Share2, Maximize2, Camera, CameraOff, Mic, MicOff, PhoneOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
-import { TestagramMediaSession } from '@/lib/testagramMedia';
+import { TestagramTvMediaSession } from '@/lib/testagramTvMedia';
 import { toast } from 'sonner';
-import Hls from 'hls.js';
 
 export default function TvPublicLivePage() {
   const { streamId } = useParams();
@@ -14,8 +13,7 @@ export default function TvPublicLivePage() {
   const isGuest = Boolean(inviteToken);
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const sessionRef = useRef<TestagramMediaSession | null>(null);
-  const hlsRef = useRef<Hls | null>(null);
+  const sessionRef = useRef<TestagramTvMediaSession | null>(null);
   const guestMediaRef = useRef<MediaStream | null>(null);
   const [title, setTitle] = useState('Testagram TV');
   const [viewers, setViewers] = useState(0);
@@ -25,7 +23,6 @@ export default function TvPublicLivePage() {
   const [cameraOn, setCameraOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
   const [error, setError] = useState('');
-  const [youtubeUrl, setYoutubeUrl] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -41,8 +38,6 @@ export default function TvPublicLivePage() {
           if (streamError || !stream || !stream.is_live) throw new Error('This TV broadcast is no longer live.');
           if (cancelled) return;
           setTitle(stream.title || 'Testagram TV');
-          const session = await TestagramMediaSession.connectGuest(streamId, inviteToken);
-          sessionRef.current = session;
           const media = await navigator.mediaDevices.getUserMedia({
             video: { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30, max: 30 } },
             audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
@@ -54,66 +49,27 @@ export default function TvPublicLivePage() {
             videoRef.current.playsInline = true;
             void videoRef.current.play().catch(() => undefined);
           }
-          await session.publishTracks(media);
-        } else {
-          // Public TV playback is downstream distribution. YouTube is the passive-viewer
-          // path; Mux remains supported as an explicit legacy fallback. WebRTC/Cloudflare
-          // is reserved for studio ingest; viewers never join the ingest path.
-          const session = await TestagramMediaSession.connectViewer(streamId, () => undefined);
-          const playbackUrl = session.getPlaybackUrl();
-          if (!playbackUrl) throw new Error('TV playback URL is missing [STREAM_PLAYBACK_NOT_READY].');
+          const session = await TestagramTvMediaSession.connectGuest(streamId, inviteToken, media);
           sessionRef.current = session;
-          setTitle(session.getTitle() || 'Testagram TV');
-          setViewers(session.getViewerCount());
-          if (session.isYouTubePlayback()) {
-            setYoutubeUrl(playbackUrl);
-            setLive(true);
-            setConnecting(false);
-            return;
-          }
-          const video = videoRef.current;
-          if (!video) throw new Error('TV player element is unavailable [PLAYER_NOT_READY].');
-          video.muted = true;
-          video.playsInline = true;
-          video.autoplay = true;
-
-          const play = () => void video.play().catch((e: any) => {
-            if (e?.name !== 'NotAllowedError') throw new Error('Mux HLS playback could not start [PLAYBACK_START_FAILED].');
+          setLive(true);
+          setConnecting(false);
+        } else {
+          const session = await TestagramTvMediaSession.connectViewer(streamId, (media) => {
+            if (videoRef.current) {
+              videoRef.current.srcObject = media;
+              videoRef.current.muted = muted;
+              videoRef.current.playsInline = true;
+              videoRef.current.autoplay = true;
+              void videoRef.current.play().catch(() => undefined);
+            }
           });
-
-          if (video.canPlayType('application/vnd.apple.mpegurl')) {
-            video.src = playbackUrl;
-            video.addEventListener('loadedmetadata', play, { once: true });
-            video.addEventListener('error', () => { if (!cancelled) { setError('Mux HLS manifest could not be loaded [PLAYBACK_MANIFEST_FAILED].'); setConnecting(false); } }, { once: true });
-          } else if (Hls.isSupported()) {
-            const hls = new Hls({
-              enableWorker: true,
-              lowLatencyMode: true,
-              backBufferLength: 6,
-              maxBufferLength: 18,
-              liveSyncDurationCount: 4,
-              liveMaxLatencyDurationCount: 9,
-              manifestLoadingMaxRetry: 4,
-              levelLoadingMaxRetry: 5,
-              fragLoadingMaxRetry: 5,
-            });
-            hlsRef.current = hls;
-            hls.loadSource(playbackUrl);
-            hls.attachMedia(video);
-            hls.on(Hls.Events.MANIFEST_PARSED, play);
-            hls.on(Hls.Events.ERROR, (_event, data) => {
-              if (!data.fatal) return;
-              if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-                try { hls.recoverMediaError(); return; } catch {}
-              }
-              setError('Mux HLS playback failed [PLAYBACK_FAILED].');
-              setConnecting(false);
-            });
-          } else {
-            throw new Error('This browser does not support HLS playback [HLS_UNSUPPORTED].');
-          }
+          sessionRef.current = session;
+          setTitle('Testagram TV');
+          session.setViewerCountHandler((count) => setViewers(count));
+          await session.waitForMediaReady('receive', 20000);
+          setLive(true);
+          setConnecting(false);
         }
-
         if (cancelled) {
           await sessionRef.current?.close();
           sessionRef.current = null;
@@ -131,8 +87,6 @@ export default function TvPublicLivePage() {
     void connect();
     return () => {
       cancelled = true;
-      hlsRef.current?.destroy();
-      hlsRef.current = null;
       void sessionRef.current?.close();
       sessionRef.current = null;
       guestMediaRef.current?.getTracks().forEach(track => track.stop());
