@@ -144,9 +144,8 @@ Deno.serve(async req=>{
  }
  if(!stream.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
  if(provider==="youtube") return json({ok:true,data:{...contract("viewer"),playback_url:stream.youtube_video_id?"https://www.youtube.com/embed/"+stream.youtube_video_id+"?autoplay=1&playsinline=1":null},error:null});
- const heartbeatAge = stream.tv_last_heartbeat_at ? Date.now()-new Date(stream.tv_last_heartbeat_at).getTime() : Infinity;
- const nativeHealthy = heartbeatAge <= 30000 && ["starting","connected","degraded"].includes(stream.tv_connection_state||"") && Boolean(stream.tv_host_peer_id);
- if(!nativeHealthy) return json({ok:false,error:{code:"TV_MEDIA_NOT_READY",message:"The TV broadcast is live in the control plane, but the producer media session is not ready yet."}},409);
+ // The viewer must be allowed to join while the producer session is starting.
+ // Heartbeat/peer health is confirmation after signaling, not a prerequisite for joining.
  return json({ok:true,data:contract("viewer"),error:null});
 
 });
