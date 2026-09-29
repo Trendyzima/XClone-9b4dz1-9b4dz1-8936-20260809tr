@@ -1,5 +1,5 @@
 services:
-  srs:
+  testagram-tv-srs:
     image: ossrs/srs:v6
     restart: unless-stopped
     command: ["./objs/srs", "-c", "/etc/srs/srs.conf"]
@@ -13,22 +13,10 @@ services:
     ports:
       - "8000:8000/udp"
       - "8000:8000/tcp"
+    networks:
+      - testagram-media
 
-  caddy:
-    image: caddy:2.10-alpine
-    restart: unless-stopped
-    depends_on:
-      - srs
-    environment:
-      SRS_DOMAIN: ${SRS_DOMAIN:-media.testagram.site}
-    ports:
-      - "80:80/tcp"
-      - "443:443/tcp"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-
-volumes:
-  caddy_data:
-  caddy_config:
+networks:
+  testagram-media:
+    external: true
+    name: media-engine_default
