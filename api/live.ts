@@ -335,6 +335,16 @@ async function srsForwardDestinations(streamId: string) {
 
 async function srsCallback(request: Request, action: 'auth' | 'forward') {
   const body = await request.json().catch(() => null) as any;
+
+  // SRS on_unpublish callbacks may not carry the original publish query
+  // parameters. They are cleanup notifications, not new authorization attempts.
+  // Do not make stream teardown depend on a token that SRS may legitimately omit.
+  if (action === 'auth' && body?.action === 'on_unpublish') {
+    return isUuid(String(body?.stream || ''))
+      ? json({ code: 0, msg: 'OK' })
+      : json({ code: 1, msg: 'SRS_STREAM_INVALID' }, 400);
+  }
+
   const token = srsTokenFromParam(body?.param);
   const payload = token ? decodeSrsToken(token) : null;
   if (!payload || body?.stream !== payload.streamId || !isUuid(payload.streamId)) {
