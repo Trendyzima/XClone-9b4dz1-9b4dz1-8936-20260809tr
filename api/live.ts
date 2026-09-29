@@ -13,9 +13,6 @@ const supabaseKey = env('SUPABASE_PUBLISHABLE_KEY', env('SUPABASE_ANON_KEY', env
 const supabaseServiceRoleKey = env('SUPABASE_SERVICE_ROLE_KEY', env('SUPABASE_SECRET_KEY'));
 const supabaseControlKey = supabaseServiceRoleKey || supabaseKey;
 const srsMediaBaseUrl = env('SRS_MEDIA_BASE_URL').replace(/\/$/, '');
-const srsApiUrl = env('SRS_API_URL').replace(/\/$/, '');
-const srsApiToken = env('SRS_API_TOKEN');
-const srsForwardSecret = env('SRS_FORWARD_SECRET');
 const muxTokenId = env('MUX_TOKEN_ID');
 const muxTokenSecret = env('MUX_TOKEN_SECRET');
 const muxApiBase = 'https://api.mux.com/video/v1';
@@ -309,10 +306,6 @@ function srsTokenFromParam(param: string | undefined) {
   } catch {
     return '';
   }
-}
-
-function srsStreamName(streamId: string) {
-  return 'tv/' + streamId;
 }
 
 async function srsForwardDestinations(streamId: string) {
