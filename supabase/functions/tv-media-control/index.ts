@@ -34,8 +34,6 @@ async function prepareYouTubeBroadcast(stream:any){
   const now=new Date(Date.now()+60_000).toISOString();
   const title=(stream.title||"Testagram TV Live").slice(0,100);
   const description=(stream.description||"Live from Testagram TV Studio").slice(0,500);
-  const liveStream=await youtubeRequest("liveStreams?part=snippet,cdn,status",{ } as any);
-  void liveStream;
   const createdStream=await youtubeRequest("liveStreams?part=snippet,cdn,status",{method:"POST",body:JSON.stringify({
     snippet:{title:`${title} · Testagram TV`,description},
     cdn:{frameRate:"variable",resolution:"variable",ingestionType:"rtmp"},
