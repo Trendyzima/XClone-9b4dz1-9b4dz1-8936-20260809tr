@@ -307,12 +307,16 @@ async function srsApi(path: string) {
   return fetch(srsApiUrl + path, { headers: { authorization: 'Bearer ' + srsApiToken }, cache: 'no-store' });
 }
 
+function srsStreamName(streamId: string) {
+  return 'tv/' + streamId;
+}
+
 async function srsStreamIsLive(streamId: string) {
-  const response = await srsApi('/api/v1/streams?start=0&count=100');
+  const response = await srsApi('/api/v1/streams?start=0&count=10000');
   if (!response.ok) return false;
   const payload = await response.json().catch(() => null) as any;
   const rows = Array.isArray(payload?.streams) ? payload.streams : Array.isArray(payload?.data?.streams) ? payload.data.streams : [];
-  return rows.some((row: any) => row?.stream === streamId && row?.publish?.active === true);
+  return rows.some((row: any) => (row?.stream === srsStreamName(streamId) || row?.name === srsStreamName(streamId)) && row?.publish?.active === true);
 }
 
 async function srsCallback(request: Request, action: 'auth' | 'forward') {
