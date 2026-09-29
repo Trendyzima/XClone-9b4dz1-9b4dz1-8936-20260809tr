@@ -1,0 +1,74 @@
+name: TV Production Validation
+
+on:
+  pull_request:
+    paths:
+      - "api/live.ts"
+      - "src/lib/testagramMedia.ts"
+      - "src/pages/TvStudioPage.tsx"
+      - "tv-srs/**"
+      - "media-engine/Caddyfile"
+      - ".github/workflows/production-deployment-reconciliation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate-tv:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Production build
+        run: npm run build
+
+      - name: Validate TV Compose
+        env:
+          SRS_PUBLIC_IP: 127.0.0.1
+        run: |
+          set -euo pipefail
+          docker network create ci-test-network >/dev/null 2>&1 || true
+          TESTAGRAM_MEDIA_NETWORK=ci-test-network docker compose -f tv-srs/docker-compose.yml config -q
+
+      - name: Validate TV Caddy configuration
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e MEDIA_ENGINE_DOMAIN=localhost \
+            -e TV_SRS_DOMAIN=tv-media.testagram.site \
+            -v "$PWD/media-engine/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2.10-alpine \
+            caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+
+      - name: Enforce single TV media path
+        run: |
+          set -euo pipefail
+          files="api/live.ts src/lib/testagramMedia.ts src/pages/TvStudioPage.tsx tv-srs/README.md"
+          if grep -Ein 'cloudflare|MUX_TOKEN|VITE_MUX|TV_SECONDARY_DISTRIBUTION|mux_live_stream_id|cloudflare_input_id|cloudflare_output_id' $files; then
+            echo "::error::Retired Cloudflare/Mux TV provider references remain in the active TV software."
+            exit 1
+          fi
+          if grep -Ein 'srs-youtube|SRS_MEDIA_BASE_URL|tv-media\.testagram\.site' api/live.ts src/lib/testagramMedia.ts tv-srs/README.md; then
+            echo "Canonical SRS TV path detected."
+          else
+            echo "::error::Canonical SRS TV path markers are missing."
+            exit 1
+          fi
