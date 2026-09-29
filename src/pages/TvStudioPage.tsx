@@ -799,9 +799,38 @@ export default function TvStudioPage() {
       if (existingError) throw new Error(existingError.message);
 
       if (existing?.id) {
-        id = existing.id;
-        setActiveStreamId(id);
-        setStream(existing);
+        const { data: auth } = await supabase.auth.getSession();
+        const headers = { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: `Bearer ${auth.session.access_token}` } : {}) };
+        const verifyResponse = await fetch('/api/live', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ action: 'verify', stream_id: existing.id }),
+        });
+        const verifyPayload = await verifyResponse.json().catch(() => null);
+        if (verifyResponse.ok && verifyPayload?.data?.on_air) {
+          id = existing.id;
+          setActiveStreamId(id);
+          setStream(existing);
+        } else {
+          // A stale/degraded row must never hijack a new production session.
+          await fetch('/api/live', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ action: 'stop', stream_id: existing.id }),
+          }).catch(() => undefined);
+          const { data, error } = await supabase.from('live_streams').insert({
+            user_id: user.id,
+            title: broadcastTitle,
+            description: broadcastDescription,
+            category: broadcastCategory,
+            is_live: false,
+          }).select('id,title,description,category,is_live').single();
+          if (error || !data) throw new Error(error?.message || 'Could not replace the stale TV broadcast.');
+          id = data.id;
+          createdBroadcast = true;
+          setActiveStreamId(id);
+          setStream(data);
+        }
       } else {
         const { data, error } = await supabase.from('live_streams').insert({
           user_id: user.id,
