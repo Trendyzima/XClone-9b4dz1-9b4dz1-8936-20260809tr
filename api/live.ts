@@ -400,8 +400,9 @@ async function handle(request: Request) {
   let body: any; try { body = await request.json(); } catch { return json({ ok: false, error: { code: 'INVALID_JSON', message: 'JSON required.' } }, 400); }
   const streamId = typeof body?.stream_id === 'string' ? body.stream_id : '';
   const action = typeof body?.action === 'string' ? body.action : '';
-  if (action === 'srs-auth') return await srsCallback(request, 'auth');
-  if (action === 'srs-forward') return await srsCallback(request, 'forward');
+  const srsAction = new URL(request.url).searchParams.get('srs');
+  if (srsAction === 'auth') return await srsCallback(request, 'auth');
+  if (srsAction === 'forward') return await srsCallback(request, 'forward');
   if (!streamId) return json({ ok: false, error: { code: 'STREAM_ID_REQUIRED', message: 'stream_id is required.' } }, 400);
   if (!isUuid(streamId)) return json({ ok: false, error: { code: 'STREAM_ID_INVALID', message: 'stream_id must be the canonical live_streams UUID, not a route slug or generated navigation ID.' } }, 400);
   try {
