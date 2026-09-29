@@ -364,10 +364,26 @@ async function srsCallback(request: Request, action: 'auth' | 'forward') {
   return json({ code: 0, data: { urls: destinations } });
 }
 
+async function checkSrsGateway() {
+  if (!srsMediaBaseUrl) throw new Error('SRS_MEDIA_NOT_CONFIGURED');
+  const response = await fetch(srsMediaBaseUrl + '/healthz', {
+    method: 'GET',
+    cache: 'no-store',
+    signal: AbortSignal.timeout(4000),
+  }).catch(() => null);
+  if (!response || !response.ok) throw new Error('SRS_MEDIA_UNREACHABLE');
+}
+
 async function start(streamId: string, request: Request) {
   if (!srsMediaBaseUrl || !supabaseServiceRoleKey) return json({ ok: false, error: { code: 'SRS_NOT_CONFIGURED', message: 'Testagram TV media gateway is not configured.' } }, 503);
   if (tvDistributionProvider !== 'srs') return json({ ok: false, error: { code: 'TV_DISTRIBUTION_INVALID', message: 'TV_DISTRIBUTION_PROVIDER must be srs for the production TV path.' } }, 503);
   if (!youtubeClientId || !youtubeClientSecret || !youtubeRefreshToken) return json({ ok: false, error: { code: 'YOUTUBE_NOT_CONFIGURED', message: 'Testagram TV YouTube distribution is not configured.' } }, 503);
+  try {
+    await checkSrsGateway();
+  } catch (error: any) {
+    const detail = String(error?.message || 'SRS_MEDIA_UNREACHABLE');
+    return json({ ok: false, error: { code: detail, message: 'Testagram TV media gateway is not reachable. Start the self-hosted SRS gateway before going live.' } }, 503);
+  }
   const user = await requireUser(request);
   if (!user) return json({ ok: false, error: { code: 'AUTH_REQUIRED', message: 'Sign in to broadcast.' } }, 401);
   const bearer = authHeader(request);
