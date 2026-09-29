@@ -9,7 +9,7 @@ type MediaToken = {
   whip_url?: string;
   whep_url?: string;
   playback_url?: string;
-  provider?: 'native' | 'cloudflare-stream' | 'cloudflare-stream-hybrid' | 'cloudflare-mux-hybrid' | 'mux';
+  provider?: 'native' | 'cloudflare-stream' | 'cloudflare-stream-hybrid' | 'cloudflare-mux-hybrid' | 'youtube-cloudflare-hybrid' | 'mux' | 'youtube';
   room_id: string;
   room_type: MediaRoomType;
   role: MediaRole;
@@ -57,12 +57,13 @@ const getToken = async (roomId: string, roomType: MediaRoomType, role: MediaRole
     }
     const provider = payload?.data?.provider;
     const isMuxHybrid = provider === 'cloudflare-mux-hybrid';
+    const isYouTubeHybrid = provider === 'youtube-cloudflare-hybrid';
     const hasHostTransport = Boolean(payload?.data?.whip_url);
     const hasViewerPlayback = Boolean(payload?.data?.playback_url);
     const hasLegacyTransport = Boolean(payload?.data?.whep_url || payload?.data?.whip_url);
-    if (role === 'viewer' && isMuxHybrid) {
-      if (!hasViewerPlayback) throw new Error('TV playback authorization returned no Mux HLS playback URL [STREAM_PLAYBACK_NOT_READY].');
-    } else if (role === 'host' && isMuxHybrid) {
+    if (role === 'viewer' && (isMuxHybrid || isYouTubeHybrid)) {
+      if (!hasViewerPlayback) throw new Error(`TV playback authorization returned no ${isYouTubeHybrid ? 'YouTube' : 'Mux'} playback URL [STREAM_PLAYBACK_NOT_READY].`);
+    } else if (role === 'host' && (isMuxHybrid || isYouTubeHybrid)) {
       if (!hasHostTransport) throw new Error('TV broadcast authorization returned no Cloudflare WHIP ingest endpoint [INGEST_ENDPOINT_MISSING].');
     } else if (!['cloudflare-stream', 'cloudflare-stream-hybrid'].includes(provider) || !hasLegacyTransport) {
       throw new Error('Vercel TV media authorization returned an incomplete transport response.');
@@ -118,6 +119,7 @@ export class TestagramMediaSession {
   getDiagnostics() { return { ...this.lastDiagnostics }; }
   getPlaybackUrl() { return this.info?.playback_url || (this.role === 'viewer' ? null : this.info?.whep_url) || null; }
   isMuxPlayback() { return this.roomType === 'tv' && this.role === 'viewer' && (this.info?.provider === 'cloudflare-mux-hybrid' || this.info?.provider === 'mux'); }
+  isYouTubePlayback() { return this.roomType === 'tv' && this.role === 'viewer' && this.info?.provider === 'youtube-cloudflare-hybrid'; }
   getTitle() { return this.info?.title || null; }
   getViewerCount() { return Number(this.info?.viewer_count || 0); }
   async verifyOnAir() {
@@ -317,7 +319,7 @@ export class TestagramMediaSession {
     if (this.closed) return;
     this.info ??= await getToken(this.roomId, this.roomType, this.role);
     this.answerReceived = false;
-    if (this.roomType === 'tv' && this.info.provider === 'cloudflare-mux-hybrid') {
+    if (this.roomType === 'tv' && (this.info.provider === 'cloudflare-mux-hybrid' || this.info.provider === 'youtube-cloudflare-hybrid')) {
       if (this.role === 'host') {
         await this.connectCloudflareStream();
       } else if (this.role === 'viewer') {
