@@ -171,11 +171,7 @@ jobs:
           [[ -n "$MEDIA_NETWORK" ]] || { echo "::error::Could not resolve the running Testagram media Docker network."; exit 1; }
           echo "Using Testagram media network: $MEDIA_NETWORK"
 
-          ssh testagram-tv-srs "cat > /opt/testagram/tv-srs/.env" <<EOF
-          SRS_PUBLIC_IP=$PUBLIC_IP
-          SRS_DOMAIN=$SRS_DOMAIN
-          TESTAGRAM_MEDIA_NETWORK=$MEDIA_NETWORK
-          EOF
+          ssh testagram-tv-srs "printf '%s\\n' 'SRS_PUBLIC_IP=$PUBLIC_IP' 'SRS_DOMAIN=$SRS_DOMAIN' 'TESTAGRAM_MEDIA_NETWORK=$MEDIA_NETWORK' > /opt/testagram/tv-srs/.env"
 
           ssh testagram-tv-srs '
             set -euo pipefail
