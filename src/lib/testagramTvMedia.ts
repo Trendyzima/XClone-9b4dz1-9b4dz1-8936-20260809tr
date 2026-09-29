@@ -153,7 +153,10 @@ export class TestagramTvMediaSession {
       await new Promise<void>((resolve, reject) => {
         this.channel!.subscribe(status => {
           if (status === 'SUBSCRIBED') resolve();
-          else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') reject(new Error(`TV signaling channel ${status.toLowerCase()}.`));
+          else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            const detail = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
+            reject(new Error(`TV signaling channel ${status.toLowerCase()}.${detail ? ` ${detail}` : ''}`));
+          }
         });
       });
 
