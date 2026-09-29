@@ -5,62 +5,6 @@ const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
 const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? "";
 const mediaUrl = Deno.env.get("MEDIA_ENGINE_URL") ?? "";
 const mediaSecret = Deno.env.get("MEDIA_ENGINE_SECRET") ?? "";
-const cloudflareAccountId = Deno.env.get("CLOUDFLARE_ACCOUNT_ID") ?? "";
-const cloudflareApiToken = Deno.env.get("CLOUDFLARE_API_TOKEN") ?? "";
-const mediaWsUrl = mediaUrl.replace(/^https:/, "wss:").replace(/^http:/, "ws:").replace(/\/$/, "") + "/ws";
-const iceServers = (() => {
-  const raw = Deno.env.get("MEDIA_ENGINE_ICE_SERVERS") ?? "";
-  if (!raw) return [{ urls: "stun:stun.cloudflare.com:3478" }];
-  try { const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed : [{ urls: "stun:stun.cloudflare.com:3478" }]; }
-  catch { return [{ urls: "stun:stun.cloudflare.com:3478" }]; }
-})();
-const streamAllowedOrigins = (() => {
-  const raw = Deno.env.get("CLOUDFLARE_STREAM_ALLOWED_ORIGINS") ?? "";
-  if (!raw) return ["*"];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length ? parsed : ["*"];
-  } catch {
-    return raw.split(",").map(v => v.trim()).filter(Boolean);
-  }
-})();
-const createCloudflareLiveInput = async (streamId: string, userId: string, title: string) => {
-  if (!cloudflareAccountId || !cloudflareApiToken) {
-    return {
-      error: "CLOUDFLARE_STREAM_NOT_CONFIGURED" as const,
-      missing: [
-        !cloudflareAccountId ? "CLOUDFLARE_ACCOUNT_ID" : null,
-        !cloudflareApiToken ? "CLOUDFLARE_API_TOKEN" : null,
-      ].filter(Boolean),
-    };
-  }
-  const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${cloudflareAccountId}/stream/live_inputs`, {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${cloudflareApiToken}`,
-      "Content-Type": "application/json",
-      "Idempotency-Key": streamId,
-    },
-    body: JSON.stringify({
-      defaultCreator: userId,
-      enabled: true,
-      meta: { testagram_stream_id: streamId, title },
-      preferLowLatency: true,
-      recording: { mode: "off", allowedOrigins: streamAllowedOrigins },
-    }),
-  });
-  let payload: any = null;
-  try { payload = await response.json(); } catch {}
-  if (!response.ok || !payload?.success || !payload?.result) {
-    const message = payload?.errors?.[0]?.message || `Cloudflare Stream live input creation failed (HTTP ${response.status}).`;
-    return { error: message };
-  }
-  const result = payload.result;
-  const whipUrl = result.webRTC?.url || "";
-  const whepUrl = result.webRTCPlayback?.url || "";
-  if (!result.uid || !whipUrl || !whepUrl) return { error: "Cloudflare Stream did not return WebRTC broadcast and playback endpoints." };
-  return { uid: result.uid, whipUrl, whepUrl };
-};
 const cors = {"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS","Access-Control-Max-Age":"600","Vary":"Origin, Access-Control-Request-Headers"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json","Cache-Control":"no-store",...cors}});
 const enc=(value:string|Uint8Array)=>{const bytes=typeof value==="string"?new TextEncoder().encode(value):value;let binary="";for(const byte of bytes)binary+=String.fromCharCode(byte);return btoa(binary).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/g,"")};
@@ -81,29 +25,7 @@ Deno.serve(async req=>{
   const auth=req.headers.get("authorization")||"";
   const now=Math.floor(Date.now()/1000);
 
-  if(roomType==="tv"){
-    const {data:stream,error}=await publicDb.from("live_streams").select("id,user_id,is_live,title").eq("id",roomId).maybeSingle();
-    if(stream===null||stream===undefined||error) return json({ok:false,error:{code:"STREAM_NOT_FOUND",message:"TV broadcast was not found."}},404);
-
-    if(requestedRole==="host"){
-      if(!auth.startsWith("Bearer ")) return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Sign in to broadcast."}},401);
-      const user=await getUser(auth);
-      if(!user||stream.user_id!==user.id) return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can publish."}},403);
-      const created=await createCloudflareLiveInput(stream.id,user.id,stream.title||"Testagram TV Live");
-      if("error" in created) {
-        const code=created.error==="CLOUDFLARE_STREAM_NOT_CONFIGURED" ? "CLOUDFLARE_STREAM_NOT_CONFIGURED" : "CLOUDFLARE_STREAM_CREATE_FAILED";
-        return json({ok:false,error:{code,message:created.error==="CLOUDFLARE_STREAM_NOT_CONFIGURED"?"Cloudflare Stream WebRTC is not configured.":"Could not create the Cloudflare Stream live input.",details:"missing" in created ? { missing: created.missing } : { reason: created.error }}},503);
-      }
-      return json({ok:true,data:{provider:"cloudflare-stream",token:"",whip_url:created.whipUrl,whep_url:created.whepUrl,live_input_id:created.uid,room_id:stream.id,room_type:"tv",role:"host",ice_servers:[{urls:"stun:stun.cloudflare.com:3478"}]},error:null});
-    }
-
-    if(!stream.is_live) return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
-    if(requestedRole==="guest") return json({ok:false,error:{code:"TV_GUEST_UNSUPPORTED",message:"Cloudflare Stream WebRTC supports one broadcaster per live input; TV guest publishing requires a multi-publisher SFU."}},409);
-
-    const whepUrl=typeof stream.stream_url==="string" && stream.stream_url.includes("/webRTC/play") ? stream.stream_url : "";
-    if(!whepUrl) return json({ok:false,error:{code:"STREAM_PLAYBACK_NOT_READY",message:"Cloudflare Stream playback is not ready yet."}},409);
-    return json({ok:true,data:{provider:"cloudflare-stream",token:"",whep_url:whepUrl,room_id:stream.id,room_type:"tv",role:"viewer",ice_servers:[{urls:"stun:stun.cloudflare.com:3478"}]},error:null});
-  }
+  if(roomType==="tv") return json({ok:false,error:{code:"TV_MEDIA_MIGRATED",message:"TV media authorization is owned by the tv-media-control Edge Function."}},410);
 
   if(!auth.startsWith("Bearer ")) return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Authentication required."}},401);
   const user=await getUser(auth); if(!user) return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Authentication required."}},401);
