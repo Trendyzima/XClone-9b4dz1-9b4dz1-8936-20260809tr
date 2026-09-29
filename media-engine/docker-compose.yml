@@ -28,6 +28,7 @@ services:
       - testagram-media-engine
     environment:
       MEDIA_ENGINE_DOMAIN: ${MEDIA_ENGINE_DOMAIN:-media.testagram.site}
+      TV_SRS_DOMAIN: ${TV_SRS_DOMAIN:-tv-media.testagram.site}
     ports:
       - "80:80/tcp"
       - "443:443/tcp"
