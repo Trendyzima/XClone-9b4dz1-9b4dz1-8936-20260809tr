@@ -377,6 +377,11 @@ async function checkSrsGateway() {
 async function start(streamId: string, request: Request) {
   if (!srsMediaBaseUrl || !supabaseServiceRoleKey) return json({ ok: false, error: { code: 'SRS_NOT_CONFIGURED', message: 'Testagram TV media gateway is not configured.' } }, 503);
   if (tvDistributionProvider !== 'srs') return json({ ok: false, error: { code: 'TV_DISTRIBUTION_INVALID', message: 'TV_DISTRIBUTION_PROVIDER must be srs for the production TV path.' } }, 503);
+  try {
+    await checkSrsGateway();
+  } catch {
+    return json({ ok: false, error: { code: 'SRS_MEDIA_UNREACHABLE', message: 'Testagram TV media gateway is not reachable. The Testagram-managed TV gateway must be healthy before a broadcast can be prepared.' } }, 503);
+  }
   if (!youtubeClientId || !youtubeClientSecret || !youtubeRefreshToken) return json({ ok: false, error: { code: 'YOUTUBE_NOT_CONFIGURED', message: 'Testagram TV YouTube distribution is not configured.' } }, 503);
   try {
     await checkSrsGateway();
