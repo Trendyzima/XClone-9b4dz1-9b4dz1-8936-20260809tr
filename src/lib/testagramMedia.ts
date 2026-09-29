@@ -320,11 +320,11 @@ export class TestagramMediaSession {
     if (this.closed) return;
     this.info ??= await getToken(this.roomId, this.roomType, this.role);
     this.answerReceived = false;
-    if (this.roomType === 'tv' && (this.info.provider === 'cloudflare-mux-hybrid' || this.info.provider === 'youtube-cloudflare-hybrid')) {
+    if (this.roomType === 'tv' && (this.info.provider === 'cloudflare-mux-hybrid' || this.info.provider === 'youtube-cloudflare-hybrid' || this.info.provider === 'srs-youtube-hybrid' || this.info.provider === 'srs-mux-hybrid')) {
       if (this.role === 'host') {
         await this.connectWhipStream();
       } else if (this.role === 'viewer') {
-        if (!this.info.playback_url) throw new Error('Mux playback URL is missing [STREAM_PLAYBACK_NOT_READY].');
+        if (!this.info.playback_url) throw new Error(`${this.info.provider?.startsWith('srs-') ? 'YouTube' : 'Mux'} playback URL is missing [STREAM_PLAYBACK_NOT_READY].`);
         this.lastDiagnostics = { provider: this.info.provider, playback: 'mux-hls', playbackUrlPresent: true };
       }
       return;
