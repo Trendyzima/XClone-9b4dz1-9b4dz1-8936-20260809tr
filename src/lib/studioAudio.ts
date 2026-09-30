@@ -6,6 +6,7 @@ export interface StudioAudioPipeline {
   compressor: DynamicsCompressorNode;
   analyser: AnalyserNode;
   getLevel: () => number;
+  getMeter: () => { level: number; peak: number; db: number; clipped: boolean };
   gate: GainNode;
   limiter: DynamicsCompressorNode;
   destination: MediaStreamAudioDestinationNode;
@@ -105,6 +106,20 @@ export async function createStudioAudioPipeline(input: MediaStream): Promise<Stu
       const rms = Math.sqrt(sum / values.length);
       const db = 20 * Math.log10(Math.max(rms, 0.00001));
       return Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
+    },
+    getMeter: () => {
+      const values = new Float32Array(analyser.fftSize);
+      analyser.getFloatTimeDomainData(values);
+      let sum = 0, peak = 0;
+      for (let i = 0; i < values.length; i++) {
+        const v = Math.abs(values[i]);
+        if (v > peak) peak = v;
+        sum += values[i] * values[i];
+      }
+      const rms = Math.sqrt(sum / values.length);
+      const db = 20 * Math.log10(Math.max(rms, 0.00001));
+      const peakDb = 20 * Math.log10(Math.max(peak, 0.00001));
+      return { level: Math.max(0, Math.min(100, ((db + 60) / 60) * 100)), peak: Math.max(0, Math.min(100, ((peakDb + 60) / 60) * 100)), db, clipped: peak >= 0.98 };
     },
     stop: async () => {
       cancelAnimationFrame(raf);
