@@ -188,7 +188,7 @@ Deno.serve(async req=>{
      const ytStatus=ytTarget?.status||stream.youtube_status||"disabled";
      const ytError=ytTarget?.error_severity||null;
      await db.from("live_streams").update({mux_status:muxStatus,mux_active_asset_id:m?.active_asset_id||null,tv_connection_state:active?"connected":"starting",tv_last_heartbeat_at:new Date().toISOString(),youtube_status:ytStatus,youtube_error:ytError}).eq("id",streamId).eq("user_id",stream.user_id);
-     return json({ok:true,data:{...(await contract("host")),on_air:active,health:{provider:"mux",mux_status:muxStatus,active_asset_id:m?.active_asset_id||null,viewer_count:stream.viewer_count??0,youtube:{status:ytStatus,error:ytError}},error:null});
+     return json({ok:true,data:{...(await contract("host")),on_air:active,health:{provider:"mux",mux_status:muxStatus,active_asset_id:m?.active_asset_id||null,viewer_count:stream.viewer_count??0,youtube:{status:ytStatus,error:ytError}}},error:null});
    }catch(e:any){return json({ok:false,error:{code:"MUX_VERIFY_FAILED",message:e?.message||"Could not verify Mux Live."}},502);}
  }
  if(action==="heartbeat"){
