@@ -436,6 +436,31 @@ jobs:
             PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
           fi
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref."; exit 1; }
+
+          # Repair stale legacy import-map metadata before deploying the Ads functions.
+          # The affected functions were previously registered with an import_map_path
+          # pointing at an old ephemeral /tmp deployment path. That metadata survives
+          # source changes and causes the Supabase API to return HTTP 500 during deploy.
+          # Current functions use function-local deno.json (Deno config), not legacy
+          # import maps, so clear only that stale remote metadata in-place.
+          functions_json="$(curl --fail --silent --show-error --retry 3 --retry-delay 2 \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+            -H "Accept: application/json" \
+            "https://api.supabase.com/v1/projects/$PROJECT_REF/functions")"
+          for fn in zenad-decision zenad-campaign zenad-ad-asset-upload; do
+            state="$(printf '%s' "$functions_json" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const a=JSON.parse(s);const n=process.argv[1];const f=(Array.isArray(a)?a:[]).find(x=>x.slug===n);process.stdout.write(f?JSON.stringify({import_map:f.import_map===true,import_map_path:f.import_map_path||""}):"{}")})' "$fn")"
+            if [[ "$state" == *'"import_map":true'* && "$state" == *'"import_map_path":"file:'* ]]; then
+              echo "Repairing stale import-map metadata for $fn: $state"
+              curl --fail --silent --show-error --retry 3 --retry-delay 2 \
+                --request PATCH \
+                -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN" \
+                -H "Content-Type: application/json" \
+                -H "Accept: application/json" \
+                --data '{"import_map":false}' \
+                "https://api.supabase.com/v1/projects/$PROJECT_REF/functions/$fn" >/dev/null
+            fi
+          done
+
           for fn in testagram-ad-campaign testagram-ads zenad-decision zenad-event testagram-ad-asset-upload zenad-campaign zenad-ad-asset-upload mpesa-ad-payment; do
             if [[ "$fn" == "zenad-event" || "$fn" == "mpesa-ad-payment" ]]; then
               supabase functions deploy "$fn" --use-api --project-ref "$PROJECT_REF" --no-verify-jwt
