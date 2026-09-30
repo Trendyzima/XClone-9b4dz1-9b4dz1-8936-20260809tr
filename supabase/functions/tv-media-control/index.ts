@@ -138,12 +138,12 @@ Deno.serve(async req=>{
    await adminDb.from("tv_mux_encoder_sessions").update({claimed_at:new Date().toISOString()}).eq("id",session.id);
    return json({ok:true,data:{rtmps_ingestion_address:"rtmps://global-live.mux.com:443/app",stream_name:streamKey},error:null});
  }
- const {data:stream,error}=await db.from("live_streams").select("id,user_id,is_live,title,description,viewer_count,tv_provider,tv_connection_state,tv_last_heartbeat_at,tv_host_peer_id,mux_live_stream_id,mux_playback_id,mux_active_asset_id,mux_status,youtube_broadcast_id,youtube_stream_id,youtube_video_id").eq("id",streamId).maybeSingle();
+ const {data:stream,error}=await db.from("live_streams").select("id,user_id,is_live,title,description,viewer_count,tv_provider,tv_connection_state,tv_last_heartbeat_at,tv_host_peer_id,mux_live_stream_id,mux_playback_id,mux_active_asset_id,mux_status,youtube_broadcast_id,youtube_stream_id,youtube_video_id,youtube_simulcast_target_id,youtube_status,youtube_error").eq("id",streamId).maybeSingle();
  if(error||!stream) return json({ok:false,error:{code:"STREAM_NOT_FOUND",message:"TV broadcast was not found."}},404);
  const user=auth.startsWith("Bearer ")?(await db.auth.getUser()).data.user:null;
  const owner=Boolean(user&&user.id===stream.user_id);
  const provider="mux";
- const contract=async(role:string)=>({provider,room_id:streamId,room_type:"tv",role,signaling_topic:"tv:"+streamId,title:stream.title,viewer_count:stream.viewer_count??0,ice_servers:await iceServers(),playback_id:stream.mux_playback_id||null,playback_url:stream.mux_playback_id?"https://stream.mux.com/"+stream.mux_playback_id+".m3u8":null,mux_live_stream_id:stream.mux_live_stream_id||null,mux_status:stream.mux_status||"idle"});
+ const contract=async(role:string)=>({provider,room_id:streamId,room_type:"tv",role,signaling_topic:"tv:"+streamId,title:stream.title,viewer_count:stream.viewer_count??0,ice_servers:await iceServers(),playback_id:stream.mux_playback_id||null,playback_url:stream.mux_playback_id?"https://stream.mux.com/"+stream.mux_playback_id+".m3u8":null,mux_live_stream_id:stream.mux_live_stream_id||null,mux_status:stream.mux_status||"idle",youtube:{enabled:youtubeConfigured(),status:stream.youtube_status||"disabled",target_id:stream.youtube_simulcast_target_id||null,error:stream.youtube_error||null}});
 
  if(action==="start"){
    if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can start this TV broadcast."}},403);
