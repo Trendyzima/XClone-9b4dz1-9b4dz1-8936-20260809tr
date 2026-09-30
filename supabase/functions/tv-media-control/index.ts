@@ -46,10 +46,10 @@ async function ytPrepare(s:any){
  const stream=(streams?.items||[]).find((x:any)=>String(x?.cdn?.ingestionInfo?.streamName||"")===ytKey);
  if(!stream?.id)throw new YouTubeStageError("stream_lookup","Configured YOUTUBE_STREAM_KEY does not match a stream owned by the authorized YouTube channel.",200,"stream_not_found");
  const streamId=String(stream.id);
- const active=await ytApi("liveBroadcasts?part=id,status,contentDetails&broadcastStatus=active&broadcastType=event&mine=true&maxResults=50",{},"active_broadcast_lookup");
+ const active=await ytApi("liveBroadcasts?part=id,status,contentDetails&broadcastStatus=active&broadcastType=event&maxResults=50",{},"active_broadcast_lookup");
  const activeMatch=(active?.items||[]).find((x:any)=>String(x?.contentDetails?.boundStreamId||"")===streamId&&["live","liveStarting"].includes(String(x?.status?.lifeCycleStatus||"")));
  if(activeMatch?.id)throw new YouTubeStageError("broadcast_lookup",`A YouTube broadcast is already active on the configured stream (broadcast ${String(activeMatch.id)}; status ${String(activeMatch?.status?.lifeCycleStatus||"unknown")}).`,409,"broadcast_already_active");
- const upcoming=await ytApi("liveBroadcasts?part=id,snippet,status,contentDetails&broadcastStatus=upcoming&broadcastType=event&mine=true&maxResults=50",{},"broadcast_lookup");
+ const upcoming=await ytApi("liveBroadcasts?part=id,snippet,status,contentDetails&broadcastStatus=upcoming&broadcastType=event&maxResults=50",{},"broadcast_lookup");
  let broadcast=(upcoming?.items||[]).find((x:any)=>String(x?.contentDetails?.boundStreamId||"")===streamId&&["created","ready"].includes(String(x?.status?.lifeCycleStatus||"")));
  let createdByTestagram=false;
  if(!broadcast){
