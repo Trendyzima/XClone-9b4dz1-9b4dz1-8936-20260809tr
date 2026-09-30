@@ -1282,7 +1282,7 @@ export default function TvStudioPage() {
       try {
         const { data: auth } = await supabase.auth.getSession();
         const headers = { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: 'Bearer ' + auth.session.access_token } : {}) };
-        await fetch('/api/live', { method: 'POST', headers, body: JSON.stringify({ action: 'heartbeat', stream_id: activeStreamId, connection_state: roomRef.current?.getStatus() === 'encoding' ? 'connected' : 'degraded', peer_id: 'cloudflare-browser-encoder' }) });
+        await fetch('/api/live', { method: 'POST', headers, body: JSON.stringify({ action: 'heartbeat', stream_id: activeStreamId, connection_state: roomRef.current?.getStatus() === 'encoding' ? 'connected' : 'degraded', peer_id: 'youtube-browser-encoder' }) });
       } catch {}
     };
     void heartbeat();
@@ -1482,7 +1482,7 @@ export default function TvStudioPage() {
                 {broadcastStage === 'verifying' && 'Validating Testagram live media. YouTube remains an independent output and may be starting or reconnecting.'}
                 {broadcastStage === 'on-air' && 'Producer is transmitting one program bus. Testagram TV and YouTube use the YouTube Live delivery path.'}
               </p>
-              {broadcastDiagnostics?.provider === 'dual' ? (
+              {broadcastDiagnostics?.provider === 'youtube' ? (
                 <p className="mt-2 text-[10px] text-zinc-300">YouTube encoder: {String(broadcastDiagnostics.encoder_status || 'starting')} · video: {String(broadcastDiagnostics.youtube_video_id || 'preparing')}</p>
               ) : broadcastDiagnostics ? (
                 <p className="mt-2 text-[10px] text-zinc-300">{broadcastDiagnostics.mediaReachedViewer ? `Viewer media: confirmed · video packets: ${String(broadcastDiagnostics.viewerVideoPackets ?? broadcastDiagnostics.videoPackets ?? 0)} · audio packets: ${String(broadcastDiagnostics.viewerAudioPackets ?? broadcastDiagnostics.audioPackets ?? 0)} · ${String(broadcastDiagnostics.viewerWidth ?? broadcastDiagnostics.width ?? 0)}×${String(broadcastDiagnostics.viewerHeight ?? broadcastDiagnostics.height ?? 0)}` : `Producer tracks: ${broadcastDiagnostics.mediaReady ? 'live' : 'checking'} · Viewer media: awaiting first inbound RTP`}</p>
