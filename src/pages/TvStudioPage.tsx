@@ -140,6 +140,9 @@ export default function TvStudioPage() {
   });
   const [savedName, setSavedName] = useState<string | null>(null);
   const [audioLevel, setAudioLevel] = useState(0);
+  const [audioPeak, setAudioPeak] = useState(0);
+  const [audioClipping, setAudioClipping] = useState(false);
+  const [sourceHealth, setSourceHealth] = useState<Record<string, 'ready' | 'lost' | 'idle'>>({ camera: 'idle', video: 'idle', screen: 'idle', guest: 'idle' });
   const [status, setStatus] = useState<'idle' | 'preview' | 'recording' | 'live'>('idle');
   const [saving, setSaving] = useState(false);
   const [recordingHint, setRecordingHint] = useState('Record locally on this device. Testagram never uploads the finished video.');
@@ -174,6 +177,8 @@ export default function TvStudioPage() {
   const [cameraResolution, setCameraResolution] = useState('not started');
   const [studioHealth, setStudioHealth] = useState<'ready' | 'degraded' | 'offline'>('offline');
   const [shortcutHint, setShortcutHint] = useState(false);
+  const [scenePresets, setScenePresets] = useState<Record<string, { preview: TvSceneId; transition: TransitionType; duration: number; pip: boolean; graphics: TvGraphic[] }>>({});
+  const transitionSnapshotRef = useRef<HTMLCanvasElement | null>(null);
   const broadcastTitle = searchParams.get('title')?.trim().slice(0, 100) || 'Testagram TV Live';
   const broadcastDescription = searchParams.get('description')?.trim().slice(0, 500) || 'Live from Testagram TV Studio';
   const broadcastCategory = searchParams.get('category')?.trim().slice(0, 50) || 'general';
@@ -661,10 +666,15 @@ export default function TvStudioPage() {
       const frames = replayBufferRef.current.getFrames(replaySeconds * 1000);
       if (!frames.length) { toast.info('Replay buffer is empty.'); return; }
       transitionFromSceneRef.current = programSceneRef.current;
-      transitionFromCanvasRef.current = sceneCanvasRef.current ? (() => {
-        const c = document.createElement('canvas'); c.width = sceneCanvasRef.current!.width; c.height = sceneCanvasRef.current!.height;
-        c.getContext('2d')?.drawImage(sceneCanvasRef.current!,0,0); return c;
-      })() : null;
+      if (sceneCanvasRef.current) {
+        const source = sceneCanvasRef.current;
+        const snapshot = transitionSnapshotRef.current ?? document.createElement('canvas');
+        if (snapshot.width !== source.width) snapshot.width = source.width;
+        if (snapshot.height !== source.height) snapshot.height = source.height;
+        snapshot.getContext('2d')?.drawImage(source, 0, 0);
+        transitionSnapshotRef.current = snapshot;
+        transitionFromCanvasRef.current = snapshot;
+      } else transitionFromCanvasRef.current = null;
       replayFramesRef.current = frames.map(f => f.canvas);
       replayIndexRef.current = 0; replayPlayingRef.current = true; setReplayState('playing');
       replayPlaybackStartRef.current = performance.now(); replayPlaybackBaseRef.current = frames[0].timestamp;
@@ -684,10 +694,15 @@ export default function TvStudioPage() {
     }
     if (scene === 'guest' && !remoteGuestVideoRef.current) { toast.info('No TV guest is connected.'); return; }
     transitionFromSceneRef.current = programSceneRef.current;
-    transitionFromCanvasRef.current = sceneCanvasRef.current ? (() => {
-      const c = document.createElement('canvas'); c.width = sceneCanvasRef.current!.width; c.height = sceneCanvasRef.current!.height;
-      c.getContext('2d')?.drawImage(sceneCanvasRef.current!,0,0); return c;
-    })() : null;
+    if (sceneCanvasRef.current) {
+      const source = sceneCanvasRef.current;
+      const snapshot = transitionSnapshotRef.current ?? document.createElement('canvas');
+      if (snapshot.width !== source.width) snapshot.width = source.width;
+      if (snapshot.height !== source.height) snapshot.height = source.height;
+      snapshot.getContext('2d')?.drawImage(source, 0, 0);
+      transitionSnapshotRef.current = snapshot;
+      transitionFromCanvasRef.current = snapshot;
+    } else transitionFromCanvasRef.current = null;
     if (mapped) await activateScene(mapped, true);
     transitionRef.current = { type: transitionType, durationMs: transitionDuration };
     transitionStartedRef.current = transitionType === 'cut' ? null : performance.now();
@@ -845,12 +860,9 @@ export default function TvStudioPage() {
         });
         const verifyPayload = await verifyResponse.json().catch(() => null);
         if (existing.tv_provider === 'mux' && verifyResponse.ok && verifyPayload?.data?.on_air) {
-          id = existing.id;
-          setActiveStreamId(id);
-          setStream(existing);
-        } else {
-          await fetch('/api/live', { method: 'POST', headers, body: JSON.stringify({ action: 'stop', stream_id: existing.id }) }).catch(() => undefined);
+          throw new Error('A Testagram TV broadcast is already ON AIR in another studio session. End that broadcast before starting a new one.');
         }
+        await fetch('/api/live', { method: 'POST', headers, body: JSON.stringify({ action: 'stop', stream_id: existing.id }) }).catch(() => undefined);
       }
 
       if (!id) {
@@ -900,6 +912,12 @@ export default function TvStudioPage() {
       // the public audience; Mux handles viewer fan-out.
       guestSession = await TestagramTvMediaSession.connectHostGuestBridge(id, program);
       guestSession.setRemoteTrackHandler(track => {
+        track.onended = () => {
+          setGuestConnected(false);
+          setSourceHealth(prev => ({ ...prev, guest: 'lost' }));
+          if (liveRef.current && programSceneRef.current === 'guest') void takeScene('black').catch(() => undefined);
+          toast.warning('Guest signal lost. Testagram TV removed the guest from Program safely.');
+        };
         if (track.kind === 'video') {
           const stream = new MediaStream([track]);
           if (remoteGuestVideoRef.current) {
@@ -918,6 +936,7 @@ export default function TvStudioPage() {
           }
         }
         setGuestConnected(true);
+        setSourceHealth(prev => ({ ...prev, guest: 'ready' }));
       });
       guestRoomRef.current = guestSession;
 
@@ -1231,8 +1250,12 @@ export default function TvStudioPage() {
   useEffect(() => {
     const id = window.setInterval(() => {
       setElapsed(prev => (recording || live ? prev + 1 : 0));
-      const level = audioPipelineRef.current?.getLevel();
-      if (level != null) setAudioLevel(level);
+      const meter = audioPipelineRef.current?.getMeter();
+      if (meter) {
+        setAudioLevel(meter.level);
+        setAudioPeak(meter.peak);
+        setAudioClipping(meter.clipped);
+      }
     }, 1000);
     return () => window.clearInterval(id);
   }, [recording, live]);
@@ -1287,6 +1310,67 @@ export default function TvStudioPage() {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [previewScene]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const saved = JSON.parse(localStorage.getItem('testagram-tv-scene-presets') || '{}');
+      if (saved && typeof saved === 'object') setScenePresets(saved);
+    } catch {}
+  }, []);
+
+  const saveScenePreset = (name: string) => {
+    const key = name.trim().slice(0, 32);
+    if (!key) return;
+    const next = { ...scenePresets, [key]: { preview: previewSceneRef.current, transition: transitionType, duration: transitionDuration, pip: pipEnabled, graphics } };
+    setScenePresets(next);
+    try { localStorage.setItem('testagram-tv-scene-presets', JSON.stringify(next)); } catch {}
+    toast.success('Scene preset saved: ' + key);
+  };
+
+  const loadScenePreset = (name: string) => {
+    const preset = scenePresets[name];
+    if (!preset) return;
+    setPreviewScene(preset.preview); previewSceneRef.current = preset.preview;
+    setTransitionType(preset.transition); setTransitionDuration(preset.duration);
+    setPipEnabled(preset.pip); pipEnabledRef.current = preset.pip;
+    setGraphics(preset.graphics);
+    toast.success('Preset loaded: ' + name);
+  };
+
+  useEffect(() => {
+    const monitor = window.setInterval(() => {
+      const cameraLive = cameraStreamRef.current?.getVideoTracks()[0]?.readyState === 'live';
+      const videoReady = Boolean(sourceVideoRef.current && sourceVideoRef.current.readyState >= 2 && !sourceVideoRef.current.ended);
+      const screenLive = screenStreamRef.current?.getVideoTracks()[0]?.readyState === 'live';
+      const guestLive = Boolean(remoteGuestVideoRef.current?.srcObject && remoteGuestVideoRef.current.readyState >= 2);
+      setSourceHealth({ camera: cameraLive ? 'ready' : cameraStreamRef.current ? 'lost' : 'idle', video: videoReady ? 'ready' : sourceVideoRef.current ? 'lost' : 'idle', screen: screenLive ? 'ready' : screenStreamRef.current ? 'lost' : 'idle', guest: guestConnected ? (guestLive ? 'ready' : 'lost') : 'idle' });
+      if (liveRef.current) {
+        const current = programSceneRef.current;
+        const lost = (current === 'camera' && !cameraLive) || (current === 'video' && !videoReady) || (current === 'screen' && !screenLive) || (current === 'guest' && !guestLive);
+        if (lost) {
+          setStudioHealth('degraded');
+          void takeScene('black').catch(() => undefined);
+        }
+      }
+    }, 1000);
+    return () => window.clearInterval(monitor);
+  }, [guestConnected]);
+
+  useEffect(() => {
+    const onVisibility = () => {
+      if (!liveRef.current) return;
+      if (document.visibilityState === 'hidden') {
+        setStudioHealth('degraded');
+        toast.warning('Studio tab is backgrounded. Broadcast health is being protected.');
+      } else {
+        void audioPipelineRef.current?.context.resume().catch(() => undefined);
+        void roomRef.current?.recover().catch(() => setStudioHealth('degraded'));
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
 
   const fmt = (n: number) => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
 
@@ -1491,6 +1575,10 @@ export default function TvStudioPage() {
               <div className="mt-4 flex items-center justify-between text-[10px] text-zinc-500"><span>Studio signal</span><span className={`uppercase tracking-wider font-semibold ${studioHealth === 'ready' ? 'text-emerald-400' : studioHealth === 'degraded' ? 'text-amber-400' : 'text-zinc-500'}`}>{studioHealth}</span></div>
               <div className="mt-1 h-2 rounded-full bg-zinc-700/50 overflow-hidden"><div className="h-full bg-emerald-400 transition-all" style={{ width: `${Math.min(100, audioLevel)}%` }} /></div>
               <p className="text-[10px] text-zinc-500 mt-1">Camera: {cameraResolution} · browser noise suppression + studio gate/compressor</p>
+              <div className="mt-2 flex items-center gap-2 text-[10px]">
+                <span>Audio</span><div className="h-2 flex-1 rounded bg-zinc-800 overflow-hidden"><div className="h-full bg-emerald-500 transition-all" style={{ width: audioPeak + '%' }} /></div>
+                <span className={audioClipping ? 'text-red-400 font-bold' : 'text-zinc-500'}>{audioClipping ? 'CLIP' : Math.round(audioPeak) + '%'}</span>
+              </div>
               {shortcutHint && <div className="mt-3 rounded-lg border border-white/10 bg-black/40 p-2 text-[10px] text-zinc-400">Hotkeys: <b>1</b> Camera · <b>2</b> Video · <b>3</b> Screen · <b>4</b> Guest · <b>T/Enter</b> Take · <b>R</b> Replay · <b>B</b> Black · <b>M</b> Mic</div>}
             </div>
 
