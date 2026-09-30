@@ -64,7 +64,11 @@ wss.on('connection', (socket, request) => {
           '-fflags', '+genpts',
           '-f', 'webm', '-i', 'pipe:0',
           '-c:v', 'libx264', '-preset', 'veryfast', '-tune', 'zerolatency',
-          '-pix_fmt', 'yuv420p', '-r', '30',
+          // Mux Live currently outputs up to 1080p. Downscale 4K/1440p browser
+          // canvases at the encoder so we do not spend Vercel CPU encoding pixels
+          // that Mux will discard downstream; never upscale lower resolutions.
+          '-vf', "scale=w='min(1920,iw)':h='min(1080,ih)':force_original_aspect_ratio=decrease",
+          '-profile:v', 'main', '-pix_fmt', 'yuv420p', '-r', '30',
           '-g', '60', '-keyint_min', '60', '-sc_threshold', '0',
           '-b:v', '8M', '-maxrate', '8M', '-bufsize', '16M',
           '-c:a', 'aac', '-ar', '48000', '-ac', '2', '-b:a', '128k',
