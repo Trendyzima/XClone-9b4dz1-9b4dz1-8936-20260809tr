@@ -84,7 +84,7 @@ export default function TvPublicLivePage() {
           }
 
           const contract = viewerPayload?.data;
-          if (contract?.provider === 'mux' && contract?.playback_url) {
+          if (contract?.provider === 'cloudflare' && contract?.playback_url) {
             const playbackUrl = contract.playback_url as string;
              setTitle(contract.title || 'Testagram TV');
             const video = videoRef.current;
@@ -113,7 +113,7 @@ export default function TvPublicLivePage() {
                 } else {
                   hls.destroy();
                   hlsRef.current = null;
-                  setError('Mux live playback lost. Reconnecting automatically.');
+                  setError('Cloudflare live playback lost. Reconnecting automatically.');
                   sleepRetry(1500);
                 }
               });
