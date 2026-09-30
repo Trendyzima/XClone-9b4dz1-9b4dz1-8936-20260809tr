@@ -1,7 +1,7 @@
 type YouTubeSessionStatus='connecting'|'encoding'|'reconnecting'|'stopped';
 type Options={streamId:string;encoderToken:string;program:MediaStream;videoBitsPerSecond:number;quality?:string;onStatus?:(status:YouTubeSessionStatus,detail?:string)=>void};
 
-const socketUrl=(id:string,t:string)=>{const p=window.location.protocol==="https:"?"wss:":"ws:";return p+"//"+window.location.host+"/api/tv-youtube-ingest?stream_id="+encodeURIComponent(id)+"&encoder_token="+encodeURIComponent(t)};
+const socketUrl=(id:string,t:string,q:string)=>{const p=window.location.protocol==="https:"?"wss:":"ws:";return p+"//"+window.location.host+"/api/tv-youtube-ingest?stream_id="+encodeURIComponent(id)+"&encoder_token="+encodeURIComponent(t)+"&quality="+encodeURIComponent(q)};
 
 function pickMime(){
  const candidates=["video/webm;codecs=vp9,opus","video/webm;codecs=vp8,opus","video/webm"];
@@ -30,7 +30,7 @@ export class TestagramTvYouTubeSession{
   if(this.stopped)return;
   if(this.connectPromise)return this.connectPromise;
   this.connectPromise=new Promise<void>((resolve,reject)=>{
-   const socket=new WebSocket(socketUrl(this.options.streamId,this.options.encoderToken));this.socket=socket;let settled=false;
+   const socket=new WebSocket(socketUrl(this.options.streamId,this.options.encoderToken,this.options.quality||"1080p"));this.socket=socket;let settled=false;
    const fail=(m:string)=>{if(settled)return;settled=true;reject(new Error(m))};
    socket.binaryType="arraybuffer";
    socket.onopen=()=>this.setStatus("connecting");
