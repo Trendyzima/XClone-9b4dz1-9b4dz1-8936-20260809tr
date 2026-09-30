@@ -845,13 +845,19 @@ export default function TvStudioPage() {
         body: JSON.stringify({ action: 'start', stream_id: id, provider: 'youtube' }),
       });
       const startPayload = await startResponse.json().catch(() => null);
-      if (!startResponse.ok || !startPayload?.data?.youtube?.encoder_token) {
-        throw new Error(startPayload?.error?.message || 'YouTube Live could not allocate its secure encoder session.');
+      const youtubeStart = startPayload?.data?.youtube;
+      const secureEncoderToken = typeof youtubeStart?.encoder_token === 'string' ? youtubeStart.encoder_token : undefined;
+      const rolloutIngestConfig = !secureEncoderToken && youtubeStart?.rtmps_ingestion_address && youtubeStart?.stream_name
+        ? { rtmpsIngestionAddress: youtubeStart.rtmps_ingestion_address, streamName: youtubeStart.stream_name }
+        : undefined;
+      if (!startResponse.ok || (!secureEncoderToken && !rolloutIngestConfig)) {
+        throw new Error(startPayload?.error?.message || 'YouTube Live could not allocate its encoder session.');
       }
 
       session = await TestagramTvYouTubeSession.connect({
         streamId: id,
-        encoderToken: startPayload.data.youtube.encoder_token,
+        encoderToken: secureEncoderToken,
+        ingestConfig: rolloutIngestConfig,
         program,
         videoBitsPerSecond: VIDEO_PRESETS[quality].bitrate,
         onStatus: (next, detail) => {
