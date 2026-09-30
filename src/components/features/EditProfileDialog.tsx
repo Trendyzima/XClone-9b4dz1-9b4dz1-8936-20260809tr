@@ -156,8 +156,8 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
     e.preventDefault();
     if (!user) return;
     const cleanUsername = username.trim();
-    if (!/^[A-Za-z0-9_]{3,32}$/.test(cleanUsername)) {
-      toast({ title: 'Invalid username', description: 'Use 3–32 letters, numbers, or underscores.', variant: 'destructive' });
+    if (!cleanUsername) {
+      toast({ title: 'Missing handle', description: 'Your permanent @handle could not be loaded. Please close and reopen the editor.', variant: 'destructive' });
       return;
     }
     setLoading(true);
