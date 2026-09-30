@@ -18,7 +18,7 @@ const server=createServer((_q,res)=>{res.statusCode=426;res.setHeader("Content-T
 const wss=new WebSocketServer({server,maxPayload:8*1024*1024});
 
 wss.on("connection",(socket,request)=>{
- const u=new URL(request.url||"/","https://tv.testagram.local"),id=u.searchParams.get("stream_id")||"",token=u.searchParams.get("encoder_token")||"";
+ const u=new URL(request.url||"/","https://tv.testagram.local"),id=u.searchParams.get("stream_id")||"",token=u.searchParams.get("encoder_token")||"",quality=u.searchParams.get("quality")||"1080p";
  if(!id||!token){socket.close(1008,"YouTube encoder session is required.");return}
  if(!ffmpegPath){socket.close(1011,"FFmpeg encoder binary is unavailable.");return}
  let ffmpeg:ChildProcessWithoutNullStreams|null=null,initialized=false,initializing=false,closed=false;
@@ -31,7 +31,7 @@ wss.on("connection",(socket,request)=>{
   try{
    const c=await config(id,token),ingest=c.rtmps_ingestion_address.replace(/\/$/,"")+"/"+c.stream_name;
    if(closed)return;
-   ffmpeg=spawn(ffmpegPath as string,["-hide_banner","-loglevel","warning","-fflags","+genpts","-f","webm","-i","pipe:0","-c:v","libx264","-preset","veryfast","-tune","zerolatency","-vf","scale=w='min(1920,iw)':h='min(1080,ih)':force_original_aspect_ratio=decrease","-profile:v","main","-pix_fmt","yuv420p","-r","30","-g","60","-keyint_min","60","-sc_threshold","0","-b:v","8M","-maxrate","8M","-bufsize","16M","-c:a","aac","-ar","48000","-ac","2","-b:a","128k","-f","flv",ingest]);
+   ffmpeg=spawn(ffmpegPath as string,["-hide_banner","-loglevel","warning","-fflags","+genpts","-f","webm","-i","pipe:0","-c:v","libx264","-preset","veryfast","-tune","zerolatency","-profile:v","main","-pix_fmt","yuv420p","-r","30","-g","60","-keyint_min","60","-sc_threshold","0","-b:v",quality==="4k"?"24M":quality==="1440p"?"15M":quality==="1080p"?"10M":quality==="720p"?"6M":"4M","-maxrate",quality==="4k"?"24M":quality==="1440p"?"15M":quality==="1080p"?"10M":quality==="720p"?"6M":"4M","-bufsize",quality==="4k"?"48M":quality==="1440p"?"30M":quality==="1080p"?"20M":quality==="720p"?"12M":"8M","-c:a","aac","-ar","48000","-ac","2","-b:a","128k","-f","flv",ingest]);
    ffmpeg.stderr.on("data",c=>{const line=String(c).trim();if(line)console.warn("[Testagram TV YouTube encoder]",line.slice(0,500))});
    ffmpeg.on("error",e=>{sendError("YouTube encoder process failed: "+e.message);close();try{socket.close(1011,"encoder failed")}catch{}});
    ffmpeg.on("exit",code=>{if(code!==0&&!closed)sendError("YouTube encoder stopped unexpectedly ("+code+").");ffmpeg=null});
