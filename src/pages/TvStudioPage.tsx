@@ -982,7 +982,6 @@ export default function TvStudioPage() {
         if (verifyResponse.ok && verifyPayload?.data) {
           lastHealth = verifyPayload.data.health || null;
           setYoutubeStatus(String(verifyPayload.data.health?.youtube?.status || verifyPayload.data.youtube?.status || "disabled"));
-          if (verifyPayload.data.provider === 'native-p2p') setBroadcastDiagnostics(prev => ({ ...(prev || {}), provider: 'native-p2p', fallback: true, cloudflare: 'not_provisioned' }));
           if (verifyPayload.data.on_air) {
             onAir = true;
             break;
@@ -991,9 +990,9 @@ export default function TvStudioPage() {
         await new Promise(resolve => window.setTimeout(resolve, 2000));
       }
       if (!onAir) {
-        throw new Error(provider === 'native-p2p'
-          ? 'Testagram native TV transport did not reach ON AIR within 60s.'
-          : `YouTube has not reached ON AIR within 60s.${lastHealth?.youtube_stream_status ? ` YouTube stream=${lastHealth.youtube_stream_status}.` : ''}`);
+        throw new Error(
+          `YouTube has not reached ON AIR within 60s.${lastHealth?.youtube_stream_status ? ` YouTube stream=${lastHealth.youtube_stream_status}.` : ''}`,
+        );
       }
 
       setBroadcastStage('on-air');
