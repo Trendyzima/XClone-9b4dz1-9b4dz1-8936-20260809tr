@@ -61,6 +61,23 @@ Deno.serve(async req=>{
  if(action==="start"){
   if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can start this TV broadcast."}},403);
   if(s.is_live)return json({ok:false,error:{code:"STREAM_ALREADY_LIVE",message:"This TV broadcast is already live."}},409);
+  if(b.provider==="native-p2p"){
+    const a=admin();
+    const {error:ue}=await a.from("live_streams").update({
+      is_live:true,started_at:new Date().toISOString(),ended_at:null,stream_url:null,
+      tv_provider:"native-p2p",tv_connection_state:"starting",tv_last_heartbeat_at:new Date().toISOString(),
+      tv_host_peer_id:null,viewer_count:0,cloudflare_input_id:null,cloudflare_output_id:null,
+      cloudflare_video_id:null,cloudflare_playback_url:null,youtube_output_id:null,youtube_status:"disabled",
+      youtube_error:"Native Testagram WebRTC transport active; Cloudflare Stream is not provisioned."
+    }).eq("id",id).eq("user_id",s.user_id).eq("is_live",false);
+    if(ue)return json({ok:false,error:{code:"NATIVE_TV_START_FAILED",message:"Could not start the native Testagram TV transport."}},409);
+    return json({ok:true,data:{
+      provider:"native-p2p",room_id:id,room_type:"tv",role:"host",signaling_topic:"tv:"+id,title:s.title,
+      viewer_count:0,ice_servers:await ice(),playback_id:null,playback_url:null,
+      cloudflare_status:"not_provisioned",youtube:{enabled:false,status:"disabled",output_id:null,error:"Cloudflare Stream is not provisioned."},
+      native_p2p:true
+    },error:null});
+  }
   if(!cfReady())return json({ok:false,error:{code:"CLOUDFLARE_NOT_CONFIGURED",message:"Cloudflare Stream credentials are not configured."}},503);
   if(!ytReady())return json({ok:false,error:{code:"YOUTUBE_NOT_CONFIGURED",message:"YouTube output is not configured. Add YOUTUBE_STREAM_KEY to the TV production secrets."}},503);
   if(!secret)return json({ok:false,error:{code:"TV_CONTROL_MISCONFIGURED",message:"TV server secret is not configured."}},503);
@@ -82,7 +99,15 @@ Deno.serve(async req=>{
   const {error:e}=await a.from("live_streams").update({is_live:false,ended_at:new Date().toISOString(),tv_connection_state:"offline",tv_last_heartbeat_at:null,tv_host_peer_id:null,viewer_count:0,cloudflare_video_id:null,youtube_status:"stopped",youtube_error:null}).eq("id",id).eq("user_id",s.user_id);if(e)return json({ok:false,error:{code:"TV_STOP_FAILED",message:"Could not stop the TV broadcast."}},409);return json({ok:true,data:await contract("host"),error:null});
  }
  if(action==="verify"){
-  if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can verify this TV broadcast."}},403);if(!s.is_live)return json({ok:false,error:{code:"STREAM_NOT_LIVE",message:"TV broadcast is not live."}},409);if(!s.cloudflare_input_id)return json({ok:false,error:{code:"CLOUDFLARE_INPUT_MISSING",message:"Cloudflare Live Input is not configured."}},409);
+  if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can verify this TV broadcast."}},403);
+  if(!s.is_live)return json({ok:false,error:{code:"STREAM_NOT_LIVE",message:"TV broadcast is not live."}},409);
+  if(s.tv_provider==="native-p2p"){
+    return json({ok:true,data:await contract("host",{
+      on_air:true,native_p2p:true,cloudflare_input_status:"not_provisioned",playback_url:null,
+      health:{provider:"native-p2p",native_p2p_state:s.tv_connection_state||"starting",youtube:{status:"disabled",error:"Cloudflare Stream is not provisioned."}}
+    }),error:null});
+  }
+  if(!s.cloudflare_input_id)return json({ok:false,error:{code:"CLOUDFLARE_INPUT_MISSING",message:"Cloudflare Live Input is not configured."}},409);
   try{const x=await liveState(s.cloudflare_input_id),a=admin();await a.from("live_streams").update({cloudflare_video_id:x.video?.uid||null,cloudflare_playback_url:x.playbackUrl||s.cloudflare_playback_url||null,stream_url:x.playbackUrl||s.cloudflare_playback_url||null,tv_connection_state:x.onAir?"connected":String(x.input?.status||"starting"),tv_last_heartbeat_at:new Date().toISOString()}).eq("id",id).eq("user_id",s.user_id);return json({ok:true,data:await contract("host",{on_air:x.onAir,cloudflare_input_status:x.input?.status||"unknown",cloudflare_video_id:x.video?.uid||null,playback_url:x.playbackUrl||s.cloudflare_playback_url||null,health:{provider:"cloudflare",cloudflare_input_status:x.input?.status||"unknown",cloudflare_video_state:x.video?.status?.state||"idle",playback_url:x.playbackUrl||null,youtube:{status:s.youtube_status||"disabled",error:s.youtube_error||null}}}),error:null})}catch(e:any){return json({ok:false,error:{code:"CLOUDFLARE_VERIFY_FAILED",message:e?.message||"Could not verify Cloudflare Stream."}},502)}
  }
  if(action==="heartbeat"){
