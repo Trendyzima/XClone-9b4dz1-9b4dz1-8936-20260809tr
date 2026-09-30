@@ -36,7 +36,7 @@ export default function TvStudioPage() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
-  const roomRef = useRef<TestagramTvCloudflareSession | TestagramTvMediaSession | null>(null);
+  const roomRef = useRef<TestagramTvCloudflareSession | TestagramTvYouTubeSession | TestagramTvMediaSession | null>(null);
   const guestRoomRef = useRef<TestagramTvMediaSession | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const programStreamRef = useRef<MediaStream | null>(null);
