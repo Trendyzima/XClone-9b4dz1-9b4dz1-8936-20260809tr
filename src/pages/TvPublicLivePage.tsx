@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { TestagramTvMediaSession } from '@/lib/testagramTvMedia';
 import { toast } from 'sonner';
+import Hls from 'hls.js';
 
 export default function TvPublicLivePage() {
   const { streamId } = useParams();
@@ -23,8 +24,7 @@ export default function TvPublicLivePage() {
   const [cameraOn, setCameraOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
   const [error, setError] = useState('');
-  const [provider, setProvider] = useState<'native-p2p' | 'youtube'>('native-p2p');
-  const [youtubePlaybackUrl, setYoutubePlaybackUrl] = useState<string | null>(null);
+   const hlsRef = useRef<Hls | null>(null);
   const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -84,10 +84,45 @@ export default function TvPublicLivePage() {
           }
 
           const contract = viewerPayload?.data;
-          if (contract?.provider === 'youtube' && contract?.playback_url) {
-            setProvider('youtube');
-            setYoutubePlaybackUrl(contract.playback_url);
-            setTitle(contract.title || 'Testagram TV');
+          if (contract?.provider === 'mux' && contract?.playback_url) {
+            const playbackUrl = contract.playback_url as string;
+             setTitle(contract.title || 'Testagram TV');
+            const video = videoRef.current;
+            if (!video) throw new Error('TV player is unavailable.');
+            video.muted = muted;
+            video.playsInline = true;
+            video.autoplay = true;
+            if (Hls.isSupported()) {
+              const hls = new Hls({
+                enableWorker: true,
+                lowLatencyMode: true,
+                backBufferLength: 30,
+                liveSyncDurationCount: 2,
+                liveMaxLatencyDurationCount: 5,
+              });
+              hlsRef.current = hls;
+              hls.loadSource(playbackUrl);
+              hls.attachMedia(video);
+              hls.on(Hls.Events.MANIFEST_PARSED, () => {
+                void video.play().catch(() => undefined);
+              });
+              hls.on(Hls.Events.ERROR, (_event, data) => {
+                if (!data?.fatal) return;
+                if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                  hls.recoverMediaError();
+                } else {
+                  hls.destroy();
+                  hlsRef.current = null;
+                  setError('Mux live playback lost. Reconnecting automatically.');
+                  sleepRetry(1500);
+                }
+              });
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+              video.src = playbackUrl;
+              void video.play().catch(() => undefined);
+            } else {
+              throw new Error('This browser does not support HLS playback.');
+            }
             setLive(true);
             setConnecting(false);
             return;
@@ -211,6 +246,8 @@ export default function TvPublicLivePage() {
       }
       void sessionRef.current?.close();
       sessionRef.current = null;
+      hlsRef.current?.destroy();
+      hlsRef.current = null;
       if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
       recoveryTimerRef.current = null;
       const video = videoRef.current;
@@ -288,13 +325,7 @@ export default function TvPublicLivePage() {
     </header>
     <main className="flex-1 flex items-center justify-center p-3">
       <div className="w-full max-w-6xl aspect-video bg-zinc-950 rounded-xl overflow-hidden relative border border-white/10">
-        {provider === 'youtube' && youtubePlaybackUrl ? <iframe
-          title="Testagram TV Live"
-          src={youtubePlaybackUrl}
-          className="w-full h-full border-0"
-          allow="autoplay; encrypted-media; picture-in-picture"
-          allowFullScreen
-        /> : <video ref={videoRef} autoPlay playsInline muted={isGuest ? true : muted} className="w-full h-full object-contain" />}
+        <video ref={videoRef} autoPlay playsInline muted={isGuest ? true : muted} className="w-full h-full object-contain" />
         <audio ref={audioRef} autoPlay muted={muted} />
         {connecting && <div className="absolute inset-0 flex items-center justify-center bg-black/70"><Loader2 className="w-7 h-7 animate-spin" /></div>}
         {error && <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 text-center p-6"><Radio className="w-10 h-10 text-zinc-500" /><p>{error}</p><Button onClick={() => window.location.reload()}>Try again</Button></div>}

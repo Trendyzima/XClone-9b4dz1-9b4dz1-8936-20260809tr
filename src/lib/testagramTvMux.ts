@@ -1,18 +1,17 @@
-type YouTubeSessionStatus = 'connecting' | 'encoding' | 'reconnecting' | 'stopped';
+type MuxSessionStatus = 'connecting' | 'encoding' | 'reconnecting' | 'stopped';
 
-type YouTubeSessionOptions = {
+type MuxSessionOptions = {
   streamId: string;
-  encoderToken?: string;
-  ingestConfig?: { rtmpsIngestionAddress: string; streamName: string };
+  encoderToken: string;
   program: MediaStream;
   videoBitsPerSecond: number;
-  onStatus?: (status: YouTubeSessionStatus, detail?: string) => void;
+  onStatus?: (status: MuxSessionStatus, detail?: string) => void;
 };
 
-const socketUrl = (streamId: string, encoderToken?: string, ingestConfig?: { rtmpsIngestionAddress: string; streamName: string }) => {
+const socketUrl = (streamId: string, encoderToken: string) => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-  return protocol + '//' + window.location.host + '/api/tv-youtube-ingest?stream_id=' +
-    encodeURIComponent(streamId) + (encoderToken ? '&encoder_token=' + encodeURIComponent(encoderToken) : '') + (ingestConfig ? '&rtmps_ingestion_address=' + encodeURIComponent(ingestConfig.rtmpsIngestionAddress) + '&stream_name=' + encodeURIComponent(ingestConfig.streamName) : '');
+  return protocol + '//' + window.location.host + '/api/tv-mux-ingest?stream_id=' +
+    encodeURIComponent(streamId) + '&encoder_token=' + encodeURIComponent(encoderToken);
 };
 
 const pickMime = () => [
@@ -21,9 +20,8 @@ const pickMime = () => [
   'video/webm',
 ].find(type => MediaRecorder.isTypeSupported(type)) || '';
 
-// Production transport: WebM chunks -> Vercel encoder -> YouTube RTMPS.
-export class TestagramTvYouTubeSession {
-  private readonly options: YouTubeSessionOptions;
+export class TestagramTvMuxSession {
+  private readonly options: MuxSessionOptions;
   private socket: WebSocket | null = null;
   private recorder: MediaRecorder | null = null;
   private stopped = false;
@@ -31,20 +29,20 @@ export class TestagramTvYouTubeSession {
   private reconnectTimer: number | null = null;
   private rotationTimer: number | null = null;
   private connectPromise: Promise<void> | null = null;
-  private status: YouTubeSessionStatus = 'connecting';
+  private status: MuxSessionStatus = 'connecting';
 
-  private constructor(options: YouTubeSessionOptions) {
+  private constructor(options: MuxSessionOptions) {
     this.options = options;
   }
 
-  static async connect(options: YouTubeSessionOptions) {
-    const session = new TestagramTvYouTubeSession(options);
+  static async connect(options: MuxSessionOptions) {
+    const session = new TestagramTvMuxSession(options);
     await session.openTransport();
-    session.rotationTimer = window.setTimeout(() => void session.rotateTransport(), 240_000);
+    session.rotationTimer = window.setTimeout(() => void session.rotateTransport(), 45_000);
     return session;
   }
 
-  private setStatus(status: YouTubeSessionStatus, detail?: string) {
+  private setStatus(status: MuxSessionStatus, detail?: string) {
     this.status = status;
     this.options.onStatus?.(status, detail);
   }
@@ -53,7 +51,7 @@ export class TestagramTvYouTubeSession {
     if (this.stopped) return;
     if (this.connectPromise) return this.connectPromise;
     this.connectPromise = new Promise<void>((resolve, reject) => {
-      const socket = new WebSocket(socketUrl(this.options.streamId, this.options.encoderToken, this.options.ingestConfig));
+      const socket = new WebSocket(socketUrl(this.options.streamId, this.options.encoderToken));
       this.socket = socket;
       socket.binaryType = 'arraybuffer';
       let settled = false;
@@ -65,9 +63,7 @@ export class TestagramTvYouTubeSession {
         }
       };
 
-      socket.onopen = () => {
-        this.setStatus('connecting');
-      };
+      socket.onopen = () => this.setStatus('connecting');
 
       socket.onmessage = event => {
         if (typeof event.data !== 'string') return;
@@ -79,11 +75,11 @@ export class TestagramTvYouTubeSession {
           this.setStatus('encoding');
           resolve();
         } else if (message.type === 'error') {
-          fail(message.message || 'YouTube encoder rejected the stream.');
+          fail(message.message || 'Mux encoder rejected the stream.');
         }
       };
 
-      socket.onerror = () => fail('YouTube encoder connection failed.');
+      socket.onerror = () => fail('Mux encoder connection failed.');
       socket.onclose = () => {
         this.socket = null;
         this.stopRecorder();
@@ -92,9 +88,9 @@ export class TestagramTvYouTubeSession {
           this.reconnectTimer = window.setTimeout(() => {
             this.connectPromise = null;
             void this.openTransport().catch(() => undefined);
-          }, 1500);
+          }, 1000);
         } else if (!settled) {
-          fail('YouTube encoder connection closed before it became ready.');
+          fail('Mux encoder connection closed before it became ready.');
         }
       };
     });
@@ -109,10 +105,10 @@ export class TestagramTvYouTubeSession {
   private startRecorder() {
     this.stopRecorder();
     const mimeType = pickMime();
-    if (!mimeType) throw new Error('This browser cannot encode a WebM live contribution for the YouTube encoder.');
+    if (!mimeType) throw new Error('This browser cannot encode a WebM live contribution for the Mux encoder.');
     const recorder = new MediaRecorder(this.options.program, {
       mimeType,
-      videoBitsPerSecond: this.options.videoBitsPerSecond,
+      videoBitsPerSecond: Math.min(this.options.videoBitsPerSecond, 8_000_000),
       audioBitsPerSecond: 128_000,
     });
     recorder.ondataavailable = event => {
@@ -143,19 +139,29 @@ export class TestagramTvYouTubeSession {
     this.rotating = true;
     this.setStatus('reconnecting');
     this.stopRecorder();
-    this.socket?.close(1000, 'scheduled transport rotation');
+    this.socket?.close(1000, 'scheduled encoder rotation');
     this.socket = null;
     await new Promise(resolve => window.setTimeout(resolve, 250));
     this.rotating = false;
     if (!this.stopped) {
       await this.openTransport();
-      this.rotationTimer = window.setTimeout(() => void this.rotateTransport(), 240_000);
+      this.rotationTimer = window.setTimeout(() => void this.rotateTransport(), 45_000);
     }
   }
 
   getStatus() { return this.status; }
-  getDiagnostics() { return { provider: 'youtube', status: this.status, streamId: this.options.streamId }; }
-  async stopBroadcastControlPlane() { /* Control-plane stop is handled by the Studio after transport shutdown. */ }
+  getDiagnostics() {
+    return {
+      provider: 'mux',
+      status: this.status,
+      streamId: this.options.streamId,
+      transport: 'websocket-webm-ffmpeg-rtmps',
+    };
+  }
+
+  async stopBroadcastControlPlane() {
+    // The Studio calls the TV control-plane stop after closing this transport.
+  }
 
   async close() { await this.stop(); }
 

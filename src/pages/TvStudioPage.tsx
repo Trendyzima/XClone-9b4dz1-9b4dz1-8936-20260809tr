@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { TestagramTvMediaSession } from '@/lib/testagramTvMedia';
-import { TestagramTvYouTubeSession } from '@/lib/testagramTvYouTube';
+import { TestagramTvMuxSession } from '@/lib/testagramTvMux';
 import { Camera, Mic, MonitorUp, Circle, Square, Radio, Users, Download, Clapperboard, Settings2, Activity, ShieldCheck, Upload, PictureInPicture2, Layers3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
@@ -35,7 +35,8 @@ export default function TvStudioPage() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
-  const roomRef = useRef<(TestagramTvMediaSession | TestagramTvYouTubeSession) | null>(null);
+  const roomRef = useRef<TestagramTvMuxSession | null>(null);
+  const guestRoomRef = useRef<TestagramTvMediaSession | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const programStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
@@ -232,6 +233,7 @@ export default function TvStudioPage() {
       if (sfxUrlRef.current) URL.revokeObjectURL(sfxUrlRef.current);
       if (downloadUrlRef.current) URL.revokeObjectURL(downloadUrlRef.current);
       roomRef.current?.close();
+      guestRoomRef.current?.close();
       musicAudioRef.current?.pause();
       sfxAudioRef.current?.pause();
       cameraStreamRef.current?.getTracks().forEach(track => track.stop());
@@ -779,7 +781,8 @@ export default function TvStudioPage() {
     setBroadcastError(null);
     setBroadcastDiagnostics(null);
     setBroadcastStage('preparing');
-    let session: TestagramTvYouTubeSession | null = null;
+    let session: TestagramTvMuxSession | null = null;
+    let guestSession: TestagramTvMediaSession | null = null;
     let id: string | null = null;
     let createdBroadcast = false;
     try {
@@ -799,7 +802,7 @@ export default function TvStudioPage() {
         .maybeSingle();
       if (existingError) throw new Error(existingError.message);
 
-      if (existing?.id && existing.tv_provider === 'youtube') {
+      if (existing?.id) {
         const { data: auth } = await supabase.auth.getSession();
         const headers = { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: `Bearer ${auth.session.access_token}` } : {}) };
         const verifyResponse = await fetch('/api/live', {
@@ -808,17 +811,13 @@ export default function TvStudioPage() {
           body: JSON.stringify({ action: 'verify', stream_id: existing.id }),
         });
         const verifyPayload = await verifyResponse.json().catch(() => null);
-        if (verifyResponse.ok && verifyPayload?.data?.on_air) {
+        if (existing.tv_provider === 'mux' && verifyResponse.ok && verifyPayload?.data?.on_air) {
           id = existing.id;
           setActiveStreamId(id);
           setStream(existing);
         } else {
           await fetch('/api/live', { method: 'POST', headers, body: JSON.stringify({ action: 'stop', stream_id: existing.id }) }).catch(() => undefined);
         }
-      } else if (existing?.id) {
-        const { data: auth } = await supabase.auth.getSession();
-        const headers = { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: `Bearer ${auth.session.access_token}` } : {}) };
-        await fetch('/api/live', { method: 'POST', headers, body: JSON.stringify({ action: 'stop', stream_id: existing.id }) }).catch(() => undefined);
       }
 
       if (!id) {
@@ -828,6 +827,7 @@ export default function TvStudioPage() {
           description: broadcastDescription,
           category: broadcastCategory,
           is_live: false,
+          tv_provider: 'mux',
         }).select('id,title,description,category,is_live,tv_provider').single();
         if (error || !data) throw new Error(error?.message || 'Could not create broadcast.');
         id = data.id;
@@ -842,32 +842,53 @@ export default function TvStudioPage() {
       const startResponse = await fetch('/api/live', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ action: 'start', stream_id: id, provider: 'youtube' }),
+        body: JSON.stringify({ action: 'start', stream_id: id, provider: 'mux' }),
       });
       const startPayload = await startResponse.json().catch(() => null);
-      const youtubeStart = startPayload?.data?.youtube;
-      const secureEncoderToken = typeof youtubeStart?.encoder_token === 'string' ? youtubeStart.encoder_token : undefined;
-      const rolloutIngestConfig = !secureEncoderToken && youtubeStart?.rtmps_ingestion_address && youtubeStart?.stream_name
-        ? { rtmpsIngestionAddress: youtubeStart.rtmps_ingestion_address, streamName: youtubeStart.stream_name }
-        : undefined;
-      if (!startResponse.ok || (!secureEncoderToken && !rolloutIngestConfig)) {
-        throw new Error(startPayload?.error?.message || 'YouTube Live could not allocate its encoder session.');
+      const muxStart = startPayload?.data?.mux;
+      const encoderToken = typeof muxStart?.encoder_token === 'string' ? muxStart.encoder_token : '';
+      if (!startResponse.ok || !encoderToken) {
+        throw new Error(startPayload?.error?.message || 'Mux Live could not allocate its secure encoder session.');
       }
 
-      session = await TestagramTvYouTubeSession.connect({
+      session = await TestagramTvMuxSession.connect({
         streamId: id,
-        encoderToken: secureEncoderToken,
-        ingestConfig: rolloutIngestConfig,
+        encoderToken,
         program,
         videoBitsPerSecond: VIDEO_PRESETS[quality].bitrate,
         onStatus: (next, detail) => {
-          setBroadcastDiagnostics({ provider: 'youtube', encoder_status: next, detail: detail || null });
+          setBroadcastDiagnostics({ provider: 'mux', encoder_status: next, detail: detail || null });
           if (next === 'reconnecting') setBroadcastStage('connecting');
         },
       });
       roomRef.current = session;
-      setBroadcastStage('verifying');
 
+      // WebRTC is now reserved for interactive guests only. It never carries
+      // the public audience; Mux handles viewer fan-out.
+      guestSession = await TestagramTvMediaSession.connectHostGuestBridge(id, program);
+      guestSession.setRemoteTrackHandler(track => {
+        if (track.kind === 'video') {
+          const stream = new MediaStream([track]);
+          if (remoteGuestVideoRef.current) {
+            remoteGuestVideoRef.current.srcObject = stream;
+            remoteGuestVideoRef.current.muted = true;
+            remoteGuestVideoRef.current.playsInline = true;
+            void remoteGuestVideoRef.current.play().catch(() => undefined);
+          }
+        } else if (track.kind === 'audio') {
+          const stream = new MediaStream([track]);
+          if (remoteGuestAudioRef.current) {
+            remoteGuestAudioRef.current.srcObject = stream;
+            remoteGuestAudioRef.current.muted = false;
+            remoteGuestAudioRef.current.autoplay = true;
+            void remoteGuestAudioRef.current.play().catch(() => undefined);
+          }
+        }
+        setGuestConnected(true);
+      });
+      guestRoomRef.current = guestSession;
+
+      setBroadcastStage('verifying');
       const verifyDeadline = Date.now() + 60_000;
       let onAir = false;
       let lastHealth: any = null;
@@ -888,7 +909,7 @@ export default function TvStudioPage() {
         await new Promise(resolve => window.setTimeout(resolve, 2000));
       }
       if (!onAir) {
-        throw new Error(`YouTube has not reached ON AIR within 60s.${lastHealth?.youtube_lifecycle ? ` Lifecycle=${lastHealth.youtube_lifecycle}.` : ''}`);
+        throw new Error(`Mux has not reached ON AIR within 60s.${lastHealth?.mux_status ? ` Mux=${lastHealth.mux_status}.` : ''}`);
       }
 
       setBroadcastStage('on-air');
@@ -899,11 +920,11 @@ export default function TvStudioPage() {
       setStatus('live');
       setElapsed(0);
       setBroadcastError(null);
-      toast.success(`Testagram TV is ON AIR through YouTube at ${VIDEO_PRESETS[quality].width}×${VIDEO_PRESETS[quality].height} / ${VIDEO_PRESETS[quality].fps}fps`);
+      toast.success(`Testagram TV is ON AIR through Mux at ${VIDEO_PRESETS[quality].width}×${VIDEO_PRESETS[quality].height} / ${VIDEO_PRESETS[quality].fps}fps`);
     } catch (e: any) {
+      if (guestSession) await guestSession.close().catch(() => undefined);
       if (session) {
         setBroadcastDiagnostics(session.getDiagnostics());
-        await session.stopBroadcastControlPlane().catch(() => undefined);
         await session.stop().catch(() => undefined);
       }
       if (id && user) {
@@ -914,7 +935,9 @@ export default function TvStudioPage() {
           body: JSON.stringify({ action: 'stop', stream_id: id }),
         }).catch(() => undefined);
       }
+      guestRoomRef.current = null;
       roomRef.current = null;
+      setGuestConnected(false);
       setViewerCount(0);
       setLive(false);
       setMode('studio');
@@ -958,38 +981,36 @@ export default function TvStudioPage() {
 
   const stopLive = async () => {
     const activeSession = roomRef.current;
-    if (activeSession) {
-      try {
-        await activeSession.stopBroadcastControlPlane();
-      } catch (error: any) {
-        toast.error(error?.message || 'TV broadcast shutdown failed.');
-      }
-      await activeSession.close();
+    const activeGuestSession = guestRoomRef.current;
+    if (activeGuestSession) await activeGuestSession.close().catch(() => undefined);
+    if (activeSession) await activeSession.close().catch(() => undefined);
+
+    if (activeStreamId && user) {
+      const { data: auth } = await supabase.auth.getSession();
+      await fetch('/api/live', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: `Bearer ${auth.session.access_token}` } : {}) },
+        body: JSON.stringify({ action: 'stop', stream_id: activeStreamId }),
+      }).catch(() => undefined);
     }
+
     roomRef.current = null;
+    guestRoomRef.current = null;
     setViewerCount(0);
     setGuestConnected(false);
     setBroadcastStage('idle');
     setBroadcastDiagnostics(null);
     setGuestInviteUrl(null);
-    remoteGuestVideoRef.current?.pause(); remoteGuestVideoRef.current = null;
+    remoteGuestVideoRef.current?.pause();
+    remoteGuestVideoRef.current = null;
+    remoteGuestAudioRef.current?.pause();
+    remoteGuestAudioRef.current = null;
     liveRef.current = false;
     setLive(false);
     if (!recording) setStatus(cameraStreamRef.current ? 'preview' : 'idle');
     productionVideoTrackRef.current = null;
     productionAudioTrackRef.current = null;
     if (activeStreamId) {
-      // Keep only broadcast metadata. End the control-plane record and remove the media transport locator;
-      // no recording/blob/video URL is persisted by this studio.
-      await supabase.from('live_streams').update({
-        is_live: false,
-        ended_at: new Date().toISOString(),
-        stream_url: null,
-        tv_connection_state: 'offline',
-        tv_last_heartbeat_at: null,
-        tv_host_peer_id: null,
-        viewer_count: 0,
-      }).eq('id', activeStreamId).eq('user_id', user?.id ?? '');
       setActiveStreamId(null);
       setStream((prev: any) => prev ? { ...prev, is_live: false, ended_at: new Date().toISOString(), stream_url: null } : null);
     }

@@ -74,6 +74,9 @@ export class TestagramTvMediaSession {
   private peerStats = new Map<string, { lastBytes: number; lastLost: number; lastSentPackets: number; lastAt: number; stableSamples: number; profile: TvNetworkProfile }>();
   private inboundMediaReady = false;
   private videoCeilingBitrate = 8_000_000;
+  private iceServers: RTCIceServer[] = [
+    { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
+  ];
 
   private constructor(role: TvRole, roomId: string) { this.role = role; this.roomId = roomId; }
 
@@ -95,6 +98,13 @@ export class TestagramTvMediaSession {
     return session;
   }
 
+  static async connectHostGuestBridge(streamId: string, program: MediaStream) {
+    const session = new TestagramTvMediaSession('host', streamId);
+    session.localStream = program;
+    await session.startHostGuestBridge();
+    return session;
+  }
+
   static async connectViewer(streamId: string, onRemoteStream: (stream: MediaStream) => void) {
     const session = new TestagramTvMediaSession('viewer', streamId);
     session.onRemoteStream = onRemoteStream;
@@ -113,6 +123,34 @@ export class TestagramTvMediaSession {
 
   private guestToken = '';
 
+  private async startHostGuestBridge() {
+    const realtimeSession = await ensureRealtimeAuth(false);
+    const data = await api({ action: 'viewer', stream_id: this.roomId });
+    if (Array.isArray(data?.ice_servers) && data.ice_servers.length) {
+      this.iceServers = data.ice_servers as RTCIceServer[];
+    }
+    if (realtimeSession?.access_token) await supabase.realtime.setAuth(realtimeSession.access_token);
+    this.topic = data?.signaling_topic || ('tv:' + this.roomId);
+    this.channel = supabase.channel(this.topic, {
+      config: { broadcast: { ack: true, self: false }, private: true },
+    });
+    this.channel
+      .on('broadcast', { event: 'tv-join' }, payload => void this.onJoin(payload.payload as Signal))
+      .on('broadcast', { event: 'tv-offer' }, payload => void this.onOffer(payload.payload as Signal))
+      .on('broadcast', { event: 'tv-answer' }, payload => void this.onAnswer(payload.payload as Signal))
+      .on('broadcast', { event: 'tv-candidate' }, payload => void this.onCandidate(payload.payload as Signal))
+      .on('broadcast', { event: 'tv-leave' }, payload => void this.onLeave(payload.payload as Signal))
+      .on('broadcast', { event: 'tv-reconnect' }, payload => void this.onReconnect(payload.payload as Signal))
+      .on('broadcast', { event: 'tv-media-received' }, payload => this.onMediaReceived(payload.payload as Signal));
+    await new Promise<void>((resolve, reject) => {
+      this.channel!.subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') resolve();
+        else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') reject(new Error('TV guest signaling channel ' + status.toLowerCase() + (err ? '.' : '')));
+      });
+    });
+    this.lastDiagnostics = { provider: 'mux', guestBridge: true, signaling: 'supabase-realtime', topic: this.topic, peerId: this.peerId };
+  }
+
   private async start(action: 'start' | 'viewer' | 'guest') {
     const realtimeSession = await ensureRealtimeAuth(action !== 'start');
 
@@ -129,6 +167,9 @@ export class TestagramTvMediaSession {
         invite_token: action === 'guest' ? this.guestToken : undefined,
       });
       this.topic = data.signaling_topic;
+      if (Array.isArray(data?.ice_servers) && data.ice_servers.length) {
+        this.iceServers = data.ice_servers as RTCIceServer[];
+      }
     }
 
     if (realtimeSession?.access_token) await supabase.realtime.setAuth(realtimeSession.access_token);
@@ -190,10 +231,7 @@ export class TestagramTvMediaSession {
     const existing = this.peers.get(peerId);
     if (existing) existing.close();
     const pc = new RTCPeerConnection({
-      iceServers: [
-        { urls: 'stun:stun.l.google.com:19302' },
-        { urls: 'stun:stun1.l.google.com:19302' },
-      ],
+      iceServers: this.iceServers,
       bundlePolicy: 'max-bundle',
       rtcpMuxPolicy: 'require',
     });

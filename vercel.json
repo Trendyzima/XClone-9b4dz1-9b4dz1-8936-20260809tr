@@ -13,8 +13,8 @@
     "api/story-cleanup.ts": {
       "maxDuration": 30
     },
-    "api/tv-youtube-ingest.ts": {
-      "maxDuration": 300,
+    "api/tv-mux-ingest.ts": {
+      "maxDuration": 60,
       "includeFiles": "node_modules/ffmpeg-static/ffmpeg"
     }
   },

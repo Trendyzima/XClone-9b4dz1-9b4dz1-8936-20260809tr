@@ -11,11 +11,11 @@ const getEncoderConfig = async (streamId: string, token: string) => {
   const response = await fetch(supabaseUrl + '/functions/v1/tv-media-control', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', apikey: supabaseKey, Authorization: 'Bearer ' + supabaseKey },
-    body: JSON.stringify({ action: 'youtube-encoder-config', stream_id: streamId, encoder_token: token }),
+    body: JSON.stringify({ action: 'mux-encoder-config', stream_id: streamId, encoder_token: token }),
   });
   const payload = await response.json().catch(() => null);
   if (!response.ok || !payload?.ok || !payload?.data?.rtmps_ingestion_address || !payload?.data?.stream_name) {
-    throw new Error(payload?.error?.message || 'YouTube encoder configuration is unavailable.');
+    throw new Error(payload?.error?.message || 'Mux encoder configuration is unavailable.');
   }
   return payload.data as { rtmps_ingestion_address: string; stream_name: string };
 };
@@ -32,11 +32,9 @@ wss.on('connection', (socket, request) => {
   const requestUrl = new URL(request.url || '/', 'https://tv.testagram.local');
   const streamId = requestUrl.searchParams.get('stream_id') || '';
   const encoderToken = requestUrl.searchParams.get('encoder_token') || '';
-  const directIngestAddress = requestUrl.searchParams.get('rtmps_ingestion_address') || '';
-  const directStreamName = requestUrl.searchParams.get('stream_name') || '';
 
-  if (!streamId || (!encoderToken && (!directIngestAddress || !directStreamName))) {
-    socket.close(1008, 'YouTube encoder session is required.');
+  if (!streamId || !encoderToken) {
+    socket.close(1008, 'Mux encoder session is required.');
     return;
   }
   if (!ffmpegPath) {
@@ -59,9 +57,7 @@ wss.on('connection', (socket, request) => {
     try {
       if (!initialized) {
         initialized = true;
-        const config = encoderToken
-          ? await getEncoderConfig(streamId, encoderToken)
-          : { rtmps_ingestion_address: directIngestAddress, stream_name: directStreamName };
+        const config = await getEncoderConfig(streamId, encoderToken);
         const ingest = config.rtmps_ingestion_address.replace(/\/$/, '') + '/' + config.stream_name;
         ffmpeg = spawn(ffmpegPath as string, [
           '-hide_banner', '-loglevel', 'warning',
@@ -76,16 +72,16 @@ wss.on('connection', (socket, request) => {
         ]);
         ffmpeg.stderr.on('data', chunk => {
           const line = String(chunk).trim();
-          if (line) console.warn('[TV YouTube encoder]', line.slice(0, 500));
+          if (line) console.warn('[Testagram TV Mux encoder]', line.slice(0, 500));
         });
         ffmpeg.on('error', error => {
-          try { socket.send(JSON.stringify({ type: 'error', message: 'YouTube encoder process failed: ' + error.message })); } catch {}
+          try { socket.send(JSON.stringify({ type: 'error', message: 'Mux encoder process failed: ' + error.message })); } catch {}
           closeEncoder();
           try { socket.close(1011, 'encoder failed'); } catch {}
         });
         ffmpeg.on('exit', code => {
           if (code !== 0 && socket.readyState === 1) {
-            try { socket.send(JSON.stringify({ type: 'error', message: 'YouTube encoder stopped unexpectedly (' + code + ').' })); } catch {}
+            try { socket.send(JSON.stringify({ type: 'error', message: 'Mux encoder stopped unexpectedly (' + code + ').' })); } catch {}
           }
           ffmpeg = null;
         });
@@ -93,7 +89,7 @@ wss.on('connection', (socket, request) => {
       }
       if (ffmpeg?.stdin.writable) ffmpeg.stdin.write(Buffer.isBuffer(data) ? data : Buffer.from(data as any));
     } catch (error: any) {
-      try { socket.send(JSON.stringify({ type: 'error', message: error?.message || 'Could not start YouTube encoder.' })); } catch {}
+      try { socket.send(JSON.stringify({ type: 'error', message: error?.message || 'Could not start Mux encoder.' })); } catch {}
       closeEncoder();
       try { socket.close(1011, 'encoder setup failed'); } catch {}
     }
