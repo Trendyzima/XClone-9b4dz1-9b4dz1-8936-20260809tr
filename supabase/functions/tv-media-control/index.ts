@@ -51,8 +51,6 @@ async function prepareYouTubeBroadcast(stream:any){
     status:broadcast?.status?.lifeCycleStatus||"created",
     ingest_configured:true,
     encoder_required:true,
-    rtmps_ingestion_address:createdStream?.cdn?.ingestionInfo?.rtmpsIngestionAddress||null,
-    stream_name:createdStream?.cdn?.ingestionInfo?.streamName||null,
   };
 }
 
@@ -67,6 +65,23 @@ Deno.serve(async req=>{
  if(!streamId) return json({ok:false,error:{code:"STREAM_ID_REQUIRED",message:"stream_id is required."}},400);
  const auth=req.headers.get("authorization")||"";
  const db=client(auth);
+ if(action==="youtube-encoder-config"){
+   const tokenHash=await hash(typeof body.encoder_token==="string"?body.encoder_token:"");
+   if(!tokenHash) return json({ok:false,error:{code:"ENCODER_TOKEN_REQUIRED",message:"YouTube encoder token is required."}},401);
+   const adminDb=admin();
+   const {data:session,error:sessionError}=await adminDb.from("tv_youtube_encoder_sessions").select("id,stream_id,user_id,expires_at,revoked_at").eq("stream_id",streamId).eq("token_hash",tokenHash).maybeSingle();
+   if(sessionError||!session||session.revoked_at||new Date(session.expires_at).getTime()<=Date.now()) return json({ok:false,error:{code:"ENCODER_TOKEN_INVALID",message:"YouTube encoder session is invalid or expired."}},401);
+   const {data:encoderStream,error:encoderStreamError}=await adminDb.from("live_streams").select("id,user_id,is_live,tv_provider,youtube_broadcast_id,youtube_stream_id,youtube_video_id").eq("id",streamId).maybeSingle();
+   if(encoderStreamError||!encoderStream||!encoderStream.is_live||encoderStream.tv_provider!=="youtube") return json({ok:false,error:{code:"YOUTUBE_ENCODER_STREAM_INVALID",message:"The YouTube TV stream is not active."}},409);
+   if(encoderStream.user_id!==session.user_id) return json({ok:false,error:{code:"ENCODER_OWNER_MISMATCH",message:"YouTube encoder session owner mismatch."}},403);
+   const token=await youtubeAccessToken();
+   const liveStream=await youtubeRequest("liveStreams?part=cdn,status&id="+encodeURIComponent(encoderStream.youtube_stream_id),token);
+   const item=liveStream?.items?.[0];
+   const ingestion=item?.cdn?.ingestionInfo;
+   if(!ingestion?.rtmpsIngestionAddress||!ingestion?.streamName) return json({ok:false,error:{code:"YOUTUBE_INGESTION_UNAVAILABLE",message:"YouTube has not returned a usable RTMPS ingestion endpoint."}},502);
+   await adminDb.from("tv_youtube_encoder_sessions").update({claimed_at:new Date().toISOString()}).eq("id",session.id);
+   return json({ok:true,data:{rtmps_ingestion_address:ingestion.rtmpsIngestionAddress,stream_name:ingestion.streamName},error:null});
+ }
  const {data:stream,error}=await db.from("live_streams").select("id,user_id,is_live,title,description,viewer_count,tv_provider,tv_connection_state,tv_last_heartbeat_at,tv_host_peer_id,youtube_broadcast_id,youtube_stream_id,youtube_video_id").eq("id",streamId).maybeSingle();
  if(error||!stream) return json({ok:false,error:{code:"STREAM_NOT_FOUND",message:"TV broadcast was not found."}},404);
  const user=auth.startsWith("Bearer ")?(await db.auth.getUser()).data.user:null;
@@ -78,9 +93,19 @@ Deno.serve(async req=>{
    if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can start this TV broadcast."}},403);
    const now=new Date().toISOString();
    let youtube:any=null;
+   let encoderToken:string|null=null;
    if(provider==="youtube"){
-     try{ youtube=await prepareYouTubeBroadcast(stream); }
-     catch(e:any){ return json({ok:false,error:{code:"YOUTUBE_SETUP_FAILED",message:e?.message||"Could not prepare YouTube Live."}},502); }
+     try{
+       youtube=await prepareYouTubeBroadcast(stream);
+       encoderToken=randomToken();
+       const {error:sessionError}=await admin().from("tv_youtube_encoder_sessions").insert({
+         stream_id:streamId,
+         user_id:stream.user_id,
+         token_hash:await hash(encoderToken),
+         expires_at:new Date(Date.now()+12*60*60*1000).toISOString(),
+       });
+       if(sessionError) throw new Error("Could not create the secure YouTube encoder session.");
+     }catch(e:any){ return json({ok:false,error:{code:"YOUTUBE_SETUP_FAILED",message:e?.message||"Could not prepare YouTube Live."}},502); }
    }
    const {data:updated,error:e}=await db.from("live_streams").update({
      is_live:true,started_at:now,ended_at:null,
@@ -89,13 +114,14 @@ Deno.serve(async req=>{
      youtube_broadcast_id:youtube?.broadcast_id||null,youtube_stream_id:youtube?.stream_id||null,youtube_video_id:youtube?.video_id||null
    }).eq("id",streamId).eq("user_id",stream.user_id).select("id,user_id,is_live,title,description,viewer_count,tv_provider,youtube_broadcast_id,youtube_stream_id,youtube_video_id").single();
    if(e||!updated)return json({ok:false,error:{code:"TV_START_FAILED",message:"Could not start the TV broadcast."}},409);
-   return json({ok:true,data:{...contract("host"),youtube:youtube?{video_id:youtube.video_id,broadcast_id:youtube.broadcast_id,stream_id:youtube.stream_id,status:youtube.status,encoder_required:true,rtmps_ingestion_address:youtube.rtmps_ingestion_address,stream_name:youtube.stream_name}:null},error:null});
+   return json({ok:true,data:{...contract("host"),youtube:youtube?{video_id:youtube.video_id,broadcast_id:youtube.broadcast_id,stream_id:youtube.stream_id,status:youtube.status,encoder_required:true,encoder_token:encoderToken}:null},error:null});
  }
  if(action==="stop"){
    if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can stop this TV broadcast."}},403);
    if(stream.tv_provider==="youtube"&&stream.youtube_broadcast_id){
      try{const token=await youtubeAccessToken(); await youtubeRequest(`liveBroadcasts?part=status&id=${encodeURIComponent(stream.youtube_broadcast_id)}`,token,{method:"GET"}); const b=await youtubeRequest(`liveBroadcasts?part=status&id=${encodeURIComponent(stream.youtube_broadcast_id)}`,token); if(["live","testing"].includes(b?.items?.[0]?.status?.lifeCycleStatus)){await youtubeRequest(`liveBroadcasts/transition?part=id,status&id=${encodeURIComponent(stream.youtube_broadcast_id)}&broadcastStatus=complete`,token,{method:"POST"});}}catch{ /* Testagram state must still be stopped if YouTube is unavailable. */ }
    }
+   await admin().from("tv_youtube_encoder_sessions").update({revoked_at:new Date().toISOString()}).eq("stream_id",streamId).is("revoked_at",null);
    const {error:e}=await db.from("live_streams").update({is_live:false,ended_at:new Date().toISOString(),stream_url:null,tv_connection_state:"offline",tv_last_heartbeat_at:null,tv_host_peer_id:null,viewer_count:0,youtube_broadcast_id:null,youtube_stream_id:null,youtube_video_id:null}).eq("id",streamId).eq("user_id",stream.user_id);
    if(e)return json({ok:false,error:{code:"TV_STOP_FAILED",message:"Could not stop the TV broadcast."}},409);
    return json({ok:true,data:contract("host"),error:null});
