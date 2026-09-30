@@ -522,6 +522,28 @@ jobs:
             exit 1
           fi
           echo "Cloudflare Stream API authentication and account access verified."
+
+          echo "Validating Cloudflare Stream Write permission with a disposable Live Input..."
+          cf_write="$(curl -sS -X POST -o /tmp/testagram-cloudflare-stream-write.json -w '%{http_code}' \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -H "Idempotency-Key: testagram-ci-preflight-$GITHUB_RUN_ID" \
+            --data '{"enabled":false,"meta":{"name":"Testagram CI credential preflight"},"recording":{"mode":"off"}}' \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs")"
+          if [[ "$cf_write" != "200" ]]; then
+            echo "::error::Cloudflare Stream Write preflight failed with HTTP $cf_write."
+            cat /tmp/testagram-cloudflare-stream-write.json
+            exit 1
+          fi
+          disposable_input="$(python3 -c 'import json; print(json.load(open("/tmp/testagram-cloudflare-stream-write.json"))["result"]["uid"])')"
+          if [[ -z "$disposable_input" ]]; then
+            echo "::error::Cloudflare Stream Write preflight returned no Live Input UID."
+            cat /tmp/testagram-cloudflare-stream-write.json
+            exit 1
+          fi
+          curl -sS -X DELETE -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs/$disposable_input" >/tmp/testagram-cloudflare-stream-delete.json
+          echo "Cloudflare Stream Write permission verified and disposable preflight input removed."
           supabase secrets set --project-ref "$PROJECT_REF"             "CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID"             "CLOUDFLARE_STREAM_API_TOKEN=$CLOUDFLARE_API_TOKEN"             "CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN"             "CLOUDFLARE_TURN_TOKEN_ID=$CLOUDFLARE_TURN_TOKEN_ID"             "CLOUDFLARE_TURN_API_TOKEN=$CLOUDFLARE_TURN_API_TOKEN"
           if [[ -n "$YOUTUBE_STREAM_KEY" ]]; then
             printf '::add-mask::%s\n' "$YOUTUBE_STREAM_KEY"
