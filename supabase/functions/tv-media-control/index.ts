@@ -55,6 +55,21 @@ async function iceServers() {
   return servers;
 }
 
+const youtubeRtmpUrl = Deno.env.get("YOUTUBE_RTMP_URL") ?? "rtmps://a.rtmp.youtube.com/live2";
+const youtubeStreamKey = Deno.env.get("YOUTUBE_STREAM_KEY") ?? "";
+const youtubeConfigured = () => Boolean(youtubeStreamKey);
+
+async function addYouTubeSimulcastTarget(liveStreamId: string) {
+  if (!youtubeConfigured()) return null;
+  const p = await muxRequest("live-streams/" + encodeURIComponent(liveStreamId) + "/simulcast-targets", {
+    method: "POST",
+    body: JSON.stringify({url: youtubeRtmpUrl, stream_key: youtubeStreamKey, passthrough: "testagram-youtube"}),
+  });
+  const target = p?.data;
+  if (!target?.id) throw new Error("Mux did not create the YouTube simulcast target.");
+  return {id:String(target.id),status:String(target.status || "idle")};
+}
+
 const muxConfigured = () => Boolean(muxTokenId && muxTokenSecret);
 async function muxRequest(path: string, init: RequestInit = {}) {
   if (!muxConfigured()) throw new Error("Mux TV transport is not configured.");
