@@ -1,12 +1,11 @@
--- Testagram TV: reconcile the YouTube-first control plane after the Cloudflare-primary migration.
--- The current production TV path uses a Vercel browser encoder -> YouTube RTMPS
--- plus Supabase lifecycle control. Completed YouTube broadcasts must never be
--- treated as active, and the encoder-session table is required by that path.
+-- Testagram TV: YouTube-only TV control-plane reconciliation.
+-- The TV path uses the existing browser encoder -> YouTube RTMPS flow plus
+-- Supabase lifecycle control. Completed broadcasts must never be treated as active.
 
 alter table public.live_streams drop constraint if exists live_streams_active_provider_check;
 alter table public.live_streams
   add constraint live_streams_active_provider_check
-  check (not is_live or tv_provider in ('youtube','cloudflare','native-p2p'));
+  check (not is_live or tv_provider = 'youtube');
 
 create table if not exists public.tv_youtube_encoder_sessions (
   id uuid primary key default gen_random_uuid(),
