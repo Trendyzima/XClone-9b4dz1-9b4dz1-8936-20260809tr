@@ -24,7 +24,7 @@ export default async function handler(request:Request){
   try{body=await request.json();}catch{return json({ok:false,error:{code:"INVALID_JSON",message:"JSON required."}},400);}
   const action=typeof body?.action==="string"?body.action:"";
   const streamId=typeof body?.stream_id==="string"?body.stream_id:"";
-  if(!["start","viewer","verify","stop","create-guest","guest","heartbeat","youtube-encoder-config"].includes(action))return json({ok:false,error:{code:"ACTION_INVALID",message:"Unsupported TV action."}},400);
+  if(!["start","viewer","verify","stop","create-guest","guest","heartbeat","mux-encoder-config"].includes(action))return json({ok:false,error:{code:"ACTION_INVALID",message:"Unsupported TV action."}},400);
   if(!streamId)return json({ok:false,error:{code:"STREAM_ID_REQUIRED",message:"stream_id is required."}},400);
 
   const upstream=await fetch(`${supabaseUrl}/functions/v1/tv-media-control`,{
@@ -39,7 +39,7 @@ export default async function handler(request:Request){
       stream_id:streamId,
       invite_token:typeof body?.invite_token==="string"?body.invite_token:undefined,
       encoder_token:typeof body?.encoder_token==="string"?body.encoder_token:undefined,
-      provider:body?.provider==="youtube"?"youtube":undefined,
+      provider:body?.provider==="mux"?"mux":undefined,
       diagnostics:body?.diagnostics,
     }),
   });
