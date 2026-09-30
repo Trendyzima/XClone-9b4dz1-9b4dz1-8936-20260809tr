@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { TestagramTvMediaSession } from '@/lib/testagramTvMedia';
+import { TestagramTvYouTubeSession } from '@/lib/testagramTvYouTube';
 import { Camera, Mic, MonitorUp, Circle, Square, Radio, Users, Download, Clapperboard, Settings2, Activity, ShieldCheck, Upload, PictureInPicture2, Layers3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
@@ -34,7 +35,7 @@ export default function TvStudioPage() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
-  const roomRef = useRef<TestagramTvMediaSession | null>(null);
+  const roomRef = useRef<(TestagramTvMediaSession | TestagramTvYouTubeSession) | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const programStreamRef = useRef<MediaStream | null>(null);
   const screenStreamRef = useRef<MediaStream | null>(null);
@@ -778,7 +779,7 @@ export default function TvStudioPage() {
     setBroadcastError(null);
     setBroadcastDiagnostics(null);
     setBroadcastStage('preparing');
-    let session: TestagramTvMediaSession | null = null;
+    let session: TestagramTvYouTubeSession | null = null;
     let id: string | null = null;
     let createdBroadcast = false;
     try {
@@ -790,7 +791,7 @@ export default function TvStudioPage() {
 
       const { data: existing, error: existingError } = await supabase
         .from('live_streams')
-        .select('id,title,description,category,is_live')
+        .select('id,title,description,category,is_live,tv_provider')
         .eq('user_id', user.id)
         .eq('is_live', true)
         .order('started_at', { ascending: false })
@@ -798,7 +799,7 @@ export default function TvStudioPage() {
         .maybeSingle();
       if (existingError) throw new Error(existingError.message);
 
-      if (existing?.id) {
+      if (existing?.id && existing.tv_provider === 'youtube') {
         const { data: auth } = await supabase.auth.getSession();
         const headers = { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: `Bearer ${auth.session.access_token}` } : {}) };
         const verifyResponse = await fetch('/api/live', {
@@ -812,96 +813,79 @@ export default function TvStudioPage() {
           setActiveStreamId(id);
           setStream(existing);
         } else {
-          // A stale/degraded row must never hijack a new production session.
-          await fetch('/api/live', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ action: 'stop', stream_id: existing.id }),
-          }).catch(() => undefined);
-          const { data, error } = await supabase.from('live_streams').insert({
-            user_id: user.id,
-            title: broadcastTitle,
-            description: broadcastDescription,
-            category: broadcastCategory,
-            is_live: false,
-          }).select('id,title,description,category,is_live').single();
-          if (error || !data) throw new Error(error?.message || 'Could not replace the stale TV broadcast.');
-          id = data.id;
-          createdBroadcast = true;
-          setActiveStreamId(id);
-          setStream(data);
+          await fetch('/api/live', { method: 'POST', headers, body: JSON.stringify({ action: 'stop', stream_id: existing.id }) }).catch(() => undefined);
         }
-      } else {
+      } else if (existing?.id) {
+        const { data: auth } = await supabase.auth.getSession();
+        const headers = { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: `Bearer ${auth.session.access_token}` } : {}) };
+        await fetch('/api/live', { method: 'POST', headers, body: JSON.stringify({ action: 'stop', stream_id: existing.id }) }).catch(() => undefined);
+      }
+
+      if (!id) {
         const { data, error } = await supabase.from('live_streams').insert({
           user_id: user.id,
           title: broadcastTitle,
           description: broadcastDescription,
           category: broadcastCategory,
           is_live: false,
-        }).select('id,title,description,category,is_live').single();
-
-        if (error || !data) {
-          if ((error as any)?.code === '23505') {
-            const { data: raced } = await supabase.from('live_streams')
-              .select('id,title,description,category,is_live')
-              .eq('user_id', user.id)
-              .eq('is_live', true)
-              .order('started_at', { ascending: false })
-              .limit(1)
-              .maybeSingle();
-            if (!raced?.id) throw new Error(error?.message || 'Could not create broadcast');
-            id = raced.id;
-            setActiveStreamId(id);
-            setStream(raced);
-          } else {
-            throw new Error(error?.message || 'Could not create broadcast');
-          }
-        } else {
-          id = data.id;
-          createdBroadcast = true;
-          setActiveStreamId(id);
-          setStream(data);
-        }
+        }).select('id,title,description,category,is_live,tv_provider').single();
+        if (error || !data) throw new Error(error?.message || 'Could not create broadcast.');
+        id = data.id;
+        createdBroadcast = true;
+        setActiveStreamId(id);
+        setStream(data);
       }
 
-      if (!id) throw new Error('Could not resolve the active TV broadcast.');
-
       setBroadcastStage('connecting');
-      session = await TestagramTvMediaSession.connectHost(id, program);
-      await session.configureVideoSender({ maxBitrate: VIDEO_PRESETS[quality].bitrate, maxFramerate: VIDEO_PRESETS[quality].fps, maintainResolution: true });
+      const { data: auth } = await supabase.auth.getSession();
+      const headers = { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: `Bearer ${auth.session.access_token}` } : {}) };
+      const startResponse = await fetch('/api/live', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ action: 'start', stream_id: id, provider: 'youtube' }),
+      });
+      const startPayload = await startResponse.json().catch(() => null);
+      if (!startResponse.ok || !startPayload?.data?.youtube?.encoder_token) {
+        throw new Error(startPayload?.error?.message || 'YouTube Live could not allocate its secure encoder session.');
+      }
+
+      session = await TestagramTvYouTubeSession.connect({
+        streamId: id,
+        encoderToken: startPayload.data.youtube.encoder_token,
+        program,
+        videoBitsPerSecond: VIDEO_PRESETS[quality].bitrate,
+        onStatus: (next, detail) => {
+          setBroadcastDiagnostics({ provider: 'youtube', encoder_status: next, detail: detail || null });
+          if (next === 'reconnecting') setBroadcastStage('connecting');
+        },
+      });
+      roomRef.current = session;
       setBroadcastStage('verifying');
-      const diagnostics = await session.waitForMediaReady('send', 20000);
-      setBroadcastDiagnostics(diagnostics);
-      session.setViewerCountHandler((count) => setViewerCount(count));
-      session.setRemoteTrackHandler((track) => {
-        if (track.kind === 'video') {
-          const element = document.createElement('video');
-          element.autoplay = true;
-          element.muted = true;
-          element.playsInline = true;
-          element.srcObject = new MediaStream([track]);
-          remoteGuestVideoRef.current?.pause();
-          remoteGuestVideoRef.current = element;
-          setGuestConnected(true);
-          void element.play().catch(() => undefined);
-        } else if (track.kind === 'audio') {
-          const audioContext = productionAudioContextRef.current;
-          const master = productionMasterGainRef.current;
-          if (audioContext && master) {
-            const source = audioContext.createMediaStreamSource(new MediaStream([track]));
-            const gain = productionGuestGainRef.current ?? audioContext.createGain();
-            gain.gain.value = 1;
-            productionGuestGainRef.current = gain;
-            source.connect(gain).connect(master);
+
+      const verifyDeadline = Date.now() + 60_000;
+      let onAir = false;
+      let lastHealth: any = null;
+      while (Date.now() < verifyDeadline) {
+        const verifyResponse = await fetch('/api/live', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ action: 'verify', stream_id: id }),
+        });
+        const verifyPayload = await verifyResponse.json().catch(() => null);
+        if (verifyResponse.ok && verifyPayload?.data) {
+          lastHealth = verifyPayload.data.health || null;
+          if (verifyPayload.data.on_air) {
+            onAir = true;
+            break;
           }
         }
-      });
-      // Supabase Edge control state is authoritative for ON AIR; the browser-native
-      // WebRTC session is already subscribed and the production program has live tracks.
-      setBroadcastStage('verifying');
-      await session.verifyOnAir();
+        await new Promise(resolve => window.setTimeout(resolve, 2000));
+      }
+      if (!onAir) {
+        throw new Error(`YouTube has not reached ON AIR within 60s.${lastHealth?.youtube_lifecycle ? ` Lifecycle=${lastHealth.youtube_lifecycle}.` : ''}`);
+      }
+
       setBroadcastStage('on-air');
-      roomRef.current = session;
       setViewerCount(0);
       liveRef.current = true;
       setLive(true);
@@ -909,28 +893,27 @@ export default function TvStudioPage() {
       setStatus('live');
       setElapsed(0);
       setBroadcastError(null);
-      toast.success(`TV broadcast is ON AIR at ${VIDEO_PRESETS[quality].width}×${VIDEO_PRESETS[quality].height} / ${VIDEO_PRESETS[quality].fps}fps`);
+      toast.success(`Testagram TV is ON AIR through YouTube at ${VIDEO_PRESETS[quality].width}×${VIDEO_PRESETS[quality].height} / ${VIDEO_PRESETS[quality].fps}fps`);
     } catch (e: any) {
       if (session) {
         setBroadcastDiagnostics(session.getDiagnostics());
-        // Always reconcile the TV control-plane state before closing the browser transport.
         await session.stopBroadcastControlPlane().catch(() => undefined);
+        await session.stop().catch(() => undefined);
       }
-      await session?.close().catch(() => undefined);
-      await roomRef.current?.close().catch(() => undefined);
+      if (id && user) {
+        const { data: auth } = await supabase.auth.getSession();
+        await fetch('/api/live', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: `Bearer ${auth.session.access_token}` } : {}) },
+          body: JSON.stringify({ action: 'stop', stream_id: id }),
+        }).catch(() => undefined);
+      }
       roomRef.current = null;
       setViewerCount(0);
       setLive(false);
       setMode('studio');
       setStatus(cameraStreamRef.current ? 'preview' : 'idle');
-      const failedId = id;
-      if (failedId && createdBroadcast && user) {
-        await supabase.from('live_streams')
-          .update({ is_live: false, ended_at: new Date().toISOString(), stream_url: null, tv_connection_state: 'offline', tv_last_heartbeat_at: null, tv_host_peer_id: null, viewer_count: 0 })
-          .eq('id', failedId)
-          .eq('user_id', user.id);
-        setActiveStreamId(null);
-      }
+      if (createdBroadcast) setActiveStreamId(null);
       const message = e?.message || 'Unable to start live broadcast';
       setBroadcastError(message);
       setBroadcastStage('idle');
