@@ -843,7 +843,10 @@ export default function TvStudioPage() {
         stream_id: id, host_user_id: user.id, question, options: payload, status: 'open',
       }).select('id').single();
       if (error) throw error;
-      await supabase.channel('tv-meetup-' + id).send({ type: 'broadcast', event: 'poll_changed', payload: { poll_id: data.id } });
+      const channel = supabase.channel('tv-meetup-' + id);
+      await new Promise<void>((resolve) => channel.subscribe(status => { if (status === 'SUBSCRIBED' || status === 'CHANNEL_ERROR') resolve(); }));
+      await channel.send({ type: 'broadcast', event: 'poll_changed', payload: { poll_id: data.id } });
+      void supabase.removeChannel(channel);
       toast.success('Live vote published');
       setPollQuestion('');
     } catch (error) {
