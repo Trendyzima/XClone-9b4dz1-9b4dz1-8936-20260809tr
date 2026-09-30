@@ -860,8 +860,12 @@ export default function TvStudioPage() {
           body: JSON.stringify({ action: 'verify', stream_id: existing.id }),
         });
         const verifyPayload = await verifyResponse.json().catch(() => null);
-        if (existing.tv_provider === 'cloudflare' && verifyResponse.ok && verifyPayload?.data?.on_air) {
-          throw new Error('A Testagram TV broadcast is already ON AIR in another studio session. End that broadcast before starting a new one.');
+        if (verifyResponse.ok && verifyPayload?.data?.on_air) {
+          throw new Error(
+            existing.tv_provider === 'youtube'
+              ? 'A Testagram TV YouTube broadcast is already ON AIR in another studio session. End that broadcast before starting a new one.'
+              : 'A Testagram TV broadcast is already ON AIR in another studio session. End that broadcast before starting a new one.',
+          );
         }
         await fetch('/api/live', { method: 'POST', headers, body: JSON.stringify({ action: 'stop', stream_id: existing.id }) }).catch(() => undefined);
       }
