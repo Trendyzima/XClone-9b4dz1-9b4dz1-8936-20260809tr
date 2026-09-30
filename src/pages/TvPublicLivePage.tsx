@@ -24,9 +24,7 @@ export default function TvPublicLivePage() {
   const [cameraOn, setCameraOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
   const [error, setError] = useState('');
-  const [provider, setProvider] = useState<'mux' | 'native-p2p'>('mux');
-  const [muxPlaybackUrl, setMuxPlaybackUrl] = useState<string | null>(null);
-  const hlsRef = useRef<Hls | null>(null);
+   const hlsRef = useRef<Hls | null>(null);
   const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -88,9 +86,7 @@ export default function TvPublicLivePage() {
           const contract = viewerPayload?.data;
           if (contract?.provider === 'mux' && contract?.playback_url) {
             const playbackUrl = contract.playback_url as string;
-            setProvider('mux');
-            setMuxPlaybackUrl(playbackUrl);
-            setTitle(contract.title || 'Testagram TV');
+             setTitle(contract.title || 'Testagram TV');
             const video = videoRef.current;
             if (!video) throw new Error('TV player is unavailable.');
             video.muted = muted;
