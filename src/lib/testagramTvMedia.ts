@@ -682,6 +682,18 @@ export class TestagramTvMediaSession {
   }
 
   getDiagnostics() { return { ...this.lastDiagnostics }; }
+  getStatus() {
+    if (this.closed) return 'stopped';
+    if (this.heartbeatState === 'connected') return 'encoding';
+    if (this.heartbeatState === 'degraded' || this.heartbeatState === 'stale') return 'reconnecting';
+    return 'connecting';
+  }
+  async recover() {
+    if (this.closed) return;
+    // Native WebRTC peer recovery is already handled by the session's connection
+    // state handlers; this method keeps the TV transport lifecycle compatible with
+    // the Cloudflare encoder session used by the same studio UI.
+  }
   getPlaybackUrl() { return null; }
   getViewerCount() { return Number(this.lastDiagnostics.viewerCount || 0); }
 
