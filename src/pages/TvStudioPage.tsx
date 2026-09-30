@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { TestagramTvMediaSession } from '@/lib/testagramTvMedia';
-import { TestagramTvMuxSession } from '@/lib/testagramTvMux';
+import { TestagramTvCloudflareSession } from '@/lib/testagramTvCloudflare';
 import { Camera, Mic, MonitorUp, Circle, Square, Radio, Users, Download, Clapperboard, Settings2, Activity, ShieldCheck, Upload, PictureInPicture2, Layers3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
@@ -35,7 +35,7 @@ export default function TvStudioPage() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
-  const roomRef = useRef<TestagramTvMuxSession | null>(null);
+  const roomRef = useRef<TestagramTvCloudflareSession | null>(null);
   const guestRoomRef = useRef<TestagramTvMediaSession | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const programStreamRef = useRef<MediaStream | null>(null);
@@ -829,7 +829,7 @@ export default function TvStudioPage() {
     setBroadcastError(null);
     setBroadcastDiagnostics(null);
     setBroadcastStage('preparing');
-    let session: TestagramTvMuxSession | null = null;
+    let session: TestagramTvCloudflareSession | null = null;
     let guestSession: TestagramTvMediaSession | null = null;
     let id: string | null = null;
     let createdBroadcast = false;
@@ -872,7 +872,7 @@ export default function TvStudioPage() {
           description: broadcastDescription,
           category: broadcastCategory,
           is_live: false,
-          tv_provider: 'mux',
+          tv_provider: 'cloudflare',
         }).select('id,title,description,category,is_live,tv_provider').single();
         if (error || !data) throw new Error(error?.message || 'Could not create broadcast.');
         id = data.id;
@@ -887,22 +887,22 @@ export default function TvStudioPage() {
       const startResponse = await fetch('/api/live', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ action: 'start', stream_id: id, provider: 'mux' }),
+        body: JSON.stringify({ action: 'start', stream_id: id, provider: 'cloudflare' }),
       });
       const startPayload = await startResponse.json().catch(() => null);
-      const muxStart = startPayload?.data?.mux;
-      const encoderToken = typeof muxStart?.encoder_token === 'string' ? muxStart.encoder_token : '';
+      const cloudflareStart = startPayload?.data?.mux;
+      const encoderToken = typeof cloudflareStart?.encoder_token === 'string' ? cloudflareStart.encoder_token : '';
       if (!startResponse.ok || !encoderToken) {
         throw new Error(startPayload?.error?.message || 'Mux Live could not allocate its secure encoder session.');
       }
 
-      session = await TestagramTvMuxSession.connect({
+      session = await TestagramTvCloudflareSession.connect({
         streamId: id,
         encoderToken,
         program,
         videoBitsPerSecond: VIDEO_PRESETS[quality].bitrate,
         onStatus: (next, detail) => {
-          setBroadcastDiagnostics({ provider: 'mux', encoder_status: next, detail: detail || null });
+          setBroadcastDiagnostics({ provider: 'cloudflare', encoder_status: next, detail: detail || null });
           if (next === 'reconnecting') setBroadcastStage('connecting');
         },
       });
@@ -962,7 +962,7 @@ export default function TvStudioPage() {
         await new Promise(resolve => window.setTimeout(resolve, 2000));
       }
       if (!onAir) {
-        throw new Error(`Mux has not reached ON AIR within 60s.${lastHealth?.mux_status ? ` Mux=${lastHealth.mux_status}.` : ''}`);
+        throw new Error(`Cloudflare Stream has not reached ON AIR within 60s.${lastHealth?.mux_status ? ` Mux=${lastHealth.mux_status}.` : ''}`);
       }
 
       setBroadcastStage('on-air');
@@ -1219,7 +1219,7 @@ export default function TvStudioPage() {
         if (cancelled || !response.ok || !payload?.data) return;
         const health = payload.data.health || {};
         const encoder = roomRef.current?.getStatus() || 'stopped';
-        setBroadcastDiagnostics({ provider: 'mux', encoder_status: encoder, mux_status: health.mux_status || payload.data.mux_status || 'unknown', on_air: Boolean(payload.data.on_air), youtube_status: health.youtube?.status || payload.data.youtube?.status || 'disabled' });
+        setBroadcastDiagnostics({ provider: 'cloudflare', encoder_status: encoder, mux_status: health.mux_status || payload.data.mux_status || 'unknown', on_air: Boolean(payload.data.on_air), youtube_status: health.youtube?.status || payload.data.youtube?.status || 'disabled' });
         setYoutubeStatus(String(health.youtube?.status || payload.data.youtube?.status || 'disabled'));
         if (!payload.data.on_air) {
           setStudioHealth('degraded');
