@@ -28,30 +28,56 @@ async function ytApi(path:string,init:RequestInit={},phase="api"){
  const token=await ytToken();
  const r=await fetch("https://www.googleapis.com/youtube/v3/"+path,{...init,headers:{Authorization:"Bearer "+token,"Content-Type":"application/json",...(init.headers||{})}});
  const p=await r.json().catch(()=>null);
- if(!r.ok)throw new YouTubeStageError(phase,"YouTube API "+r.status+": "+String(p?.error?.errors?.[0]?.reason||p?.error?.message||"request_failed"),r.status,String(p?.error?.errors?.[0]?.reason||p?.error?.message||"request_failed"));
+ if(!r.ok){
+  const first=p?.error?.errors?.[0]||{};
+  const reason=String(first?.reason||p?.error?.message||"request_failed");
+  const message=String(p?.error?.message||reason);
+  const detail=[reason,first?.domain?String(first.domain):"",first?.location?String(first.location):""].filter(Boolean).join(" · ");
+  throw new YouTubeStageError(phase,"YouTube API "+r.status+": "+message+(detail&&detail!==reason?" ["+detail+"]":""),r.status,reason);
+ }
  return p;
 }
+const ytRetryable=(e:any)=>e instanceof YouTubeStageError&&[500,502,503,504].includes(Number(e.httpStatus))&&["backendError","internalError","serviceUnavailable"].includes(String(e.reason));
+const ytDeleteBroadcast=async(id:string)=>{
+ try{await ytApi("liveBroadcasts?id="+encodeURIComponent(id),{method:"DELETE"},"broadcast_cleanup");}catch{}
+};
 async function ytPrepare(s:any){
  const streams=await ytApi("liveStreams?part=id,snippet,cdn,status&mine=true&maxResults=50",{},"stream_lookup");
  const stream=(streams?.items||[]).find((x:any)=>String(x?.cdn?.ingestionInfo?.streamName||"")===ytKey);
  if(!stream?.id)throw new YouTubeStageError("stream_lookup","Configured YOUTUBE_STREAM_KEY does not match a stream owned by the authorized YouTube channel.",200,"stream_not_found");
- const now=new Date(Date.now()+30000).toISOString();
- const broadcast=await ytApi("liveBroadcasts?part=snippet,status,contentDetails",{method:"POST",body:JSON.stringify({snippet:{title:String(s.title||"Testagram TV Live").slice(0,100),description:String(s.description||"Live from Testagram TV Studio").slice(0,5000),scheduledStartTime:now},status:{privacyStatus:"unlisted"},contentDetails:{enableAutoStart:true,enableAutoStop:true,enableEmbed:true,enableDvr:true,recordFromStart:true,monitorStream:{enableMonitorStream:false},latencyPreference:"low"}})},"broadcast_create");
+ const streamId=String(stream.id);
+ const active=await ytApi("liveBroadcasts?part=id,status,contentDetails&broadcastStatus=active&broadcastType=event&mine=true&maxResults=50",{},"active_broadcast_lookup");
+ const activeMatch=(active?.items||[]).find((x:any)=>String(x?.contentDetails?.boundStreamId||"")===streamId);
+ if(activeMatch?.id)throw new YouTubeStageError("broadcast_lookup","A YouTube broadcast is already active on the configured stream.",409,"broadcast_already_active");
+ const upcoming=await ytApi("liveBroadcasts?part=id,snippet,status,contentDetails&broadcastStatus=upcoming&broadcastType=event&mine=true&maxResults=50",{},"broadcast_lookup");
+ let broadcast=(upcoming?.items||[]).find((x:any)=>String(x?.contentDetails?.boundStreamId||"")===streamId&&["created","ready"].includes(String(x?.status?.lifeCycleStatus||"")));
+ let createdByTestagram=false;
+ if(!broadcast){
+  const now=new Date(Date.now()+120000).toISOString();
+  broadcast=await ytApi("liveBroadcasts?part=snippet,status,contentDetails",{method:"POST",body:JSON.stringify({snippet:{title:String(s.title||"Testagram TV Live").slice(0,100),description:String(s.description||"Live from Testagram TV Studio").slice(0,5000),scheduledStartTime:now},status:{privacyStatus:"unlisted"},contentDetails:{enableAutoStart:true,enableAutoStop:true,enableEmbed:true,enableDvr:true,recordFromStart:true,monitorStream:{enableMonitorStream:false},latencyPreference:"low"}})},"broadcast_create");
+  createdByTestagram=true;
+ }
  if(!broadcast?.id)throw new YouTubeStageError("broadcast_create","YouTube did not return a broadcast id.",200,"broadcast_id_missing");
- let bound=false,lastBindError:any=null;
- for(let attempt=0;attempt<3;attempt++){
+ const lifecycle=String(broadcast?.status?.lifeCycleStatus||"");
+ if(lifecycle==="ready"&&String(broadcast?.contentDetails?.boundStreamId||"")===streamId){
+  return {broadcastId:String(broadcast.id),streamId,videoId:String(broadcast.id),createdByTestagram};
+ }
+ let lastBindError:any=null;
+ for(let attempt=0;attempt<5;attempt++){
   try{
-   await ytApi("liveBroadcasts/bind?part=id,snippet,contentDetails&id="+encodeURIComponent(broadcast.id)+"&streamId="+encodeURIComponent(stream.id),{method:"POST",body:"{}"},"bind");
-   bound=true;
-   break;
+   await ytApi("liveBroadcasts/bind?part=id,snippet,contentDetails&id="+encodeURIComponent(broadcast.id)+"&streamId="+encodeURIComponent(streamId),{method:"POST"},"bind");
+   return {broadcastId:String(broadcast.id),streamId,videoId:String(broadcast.id),createdByTestagram};
   }catch(e:any){
    lastBindError=e;
-   if(!(e instanceof YouTubeStageError)||e.httpStatus!==500||e.reason!=="backendError"||attempt===2)throw e;
-   await new Promise(r=>setTimeout(r,1000*(attempt+1)));
+   if(!ytRetryable(e)||attempt===4){
+    if(createdByTestagram)await ytDeleteBroadcast(String(broadcast.id));
+    throw e;
+   }
+   await new Promise(r=>setTimeout(r,[1500,3000,6000,10000,15000][attempt]));
   }
  }
- if(!bound&&lastBindError)throw lastBindError;
- return {broadcastId:String(broadcast.id),streamId:String(stream.id),videoId:String(broadcast.id)};
+ if(createdByTestagram)await ytDeleteBroadcast(String(broadcast.id));
+ throw lastBindError||new YouTubeStageError("bind","YouTube broadcast binding failed.",500,"backendError");
 }
 async function ytState(broadcastId:string,streamId:string){
  const [s,b]=await Promise.all([ytApi("liveStreams?part=id,cdn,status&id="+encodeURIComponent(streamId),{},"stream_state"),ytApi("liveBroadcasts?part=id,status,contentDetails&id="+encodeURIComponent(broadcastId),{},"broadcast_state")]);
@@ -100,12 +126,12 @@ Deno.serve(async req=>{
   if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can start this TV broadcast."}},403);
   if(s.is_live)return json({ok:false,error:{code:"STREAM_ALREADY_LIVE",message:"This TV broadcast is already live."}},409);
   if(!ytApiReady())return json({ok:false,error:{code:"YOUTUBE_NOT_CONFIGURED",message:"YouTube Live credentials are not configured on the TV control plane."}},503);
-  let y:any;try{y=await ytPrepare(s)}catch(e:any){const ye=e instanceof YouTubeStageError?e:new YouTubeStageError("prepare",e?.message||"YouTube preparation failed.");return json({ok:false,error:{code:"YOUTUBE_SETUP_FAILED",message:ye.message,phase:ye.phase,http_status:ye.httpStatus,reason:ye.reason}},502)}
+  let y:any;try{y=await ytPrepare(s)}catch(e:any){const ye=e instanceof YouTubeStageError?e:new YouTubeStageError("prepare",e?.message||"YouTube preparation failed.");await adminClient.from("live_streams").update({youtube_status:"error",youtube_error:JSON.stringify({message:ye.message,phase:ye.phase,http_status:ye.httpStatus,reason:ye.reason}),tv_connection_state:"offline",tv_last_heartbeat_at:null}).eq("id",id).eq("user_id",s.user_id);return json({ok:false,error:{code:"YOUTUBE_SETUP_FAILED",message:ye.message,phase:ye.phase,http_status:ye.httpStatus,reason:ye.reason}},502)}
   const enc=randomToken();
   const {error:se}=await adminClient.from("tv_youtube_encoder_sessions").insert({stream_id:id,user_id:s.user_id,token_hash:await hash(enc),expires_at:new Date(Date.now()+12*60*60*1000).toISOString()});
   if(se)return json({ok:false,error:{code:"YOUTUBE_ENCODER_SESSION_FAILED",message:"Could not create the secure YouTube encoder session."}},500);
   const {error:ue}=await adminClient.from("live_streams").update({is_live:true,started_at:new Date().toISOString(),ended_at:null,stream_url:embed(y.videoId),tv_provider:"youtube",tv_connection_state:"starting",tv_last_heartbeat_at:new Date().toISOString(),tv_host_peer_id:null,viewer_count:0,youtube_broadcast_id:y.broadcastId,youtube_stream_id:y.streamId,youtube_video_id:y.videoId,youtube_status:"prepared",youtube_error:null}).eq("id",id).eq("user_id",s.user_id);
-  if(ue){await adminClient.from("tv_youtube_encoder_sessions").update({revoked_at:new Date().toISOString()}).eq("stream_id",id).eq("token_hash",await hash(enc));try{await ytTransitionComplete(y.broadcastId)}catch{};return json({ok:false,error:{code:"TV_START_FAILED",message:"Could not start the YouTube TV broadcast."}},409)}
+  if(ue){await adminClient.from("tv_youtube_encoder_sessions").update({revoked_at:new Date().toISOString()}).eq("stream_id",id).eq("token_hash",await hash(enc));try{await ytTransitionComplete(y.broadcastId)}catch{};if(y?.createdByTestagram)await ytDeleteBroadcast(y.broadcastId);return json({ok:false,error:{code:"TV_START_FAILED",message:"Could not start the YouTube TV broadcast."}},409)}
   return json({ok:true,data:await contract("host",{on_air:false,output_mode:"youtube",youtube:{enabled:true,status:"prepared",broadcast_id:y.broadcastId,stream_id:y.streamId,video_id:y.videoId,encoder_token:enc}}),error:null});
  }
  if(action==="verify"){
