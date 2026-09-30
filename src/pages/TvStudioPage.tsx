@@ -934,36 +934,48 @@ export default function TvStudioPage() {
         });
       }
 
-      // Interactive guests continue to use the Supabase Realtime/WebRTC bridge.
-      guestSession = await TestagramTvMediaSession.connectHostGuestBridge(id, program);
-      guestSession.setRemoteTrackHandler(track => {
-        track.onended = () => {
-          setGuestConnected(false);
-          setSourceHealth(prev => ({ ...prev, guest: 'lost' }));
-          if (liveRef.current && programSceneRef.current === 'guest') void takeScene('black').catch(() => undefined);
-          toast.warning('Guest signal lost. Testagram TV removed the guest from Program safely.');
-        };
-        if (track.kind === 'video') {
-          const stream = new MediaStream([track]);
-          if (remoteGuestVideoRef.current) {
-            remoteGuestVideoRef.current.srcObject = stream;
-            remoteGuestVideoRef.current.muted = true;
-            remoteGuestVideoRef.current.playsInline = true;
-            void remoteGuestVideoRef.current.play().catch(() => undefined);
-          }
-        } else if (track.kind === 'audio') {
-          const stream = new MediaStream([track]);
-          if (remoteGuestAudioRef.current) {
-            remoteGuestAudioRef.current.srcObject = stream;
-            remoteGuestAudioRef.current.muted = false;
-            remoteGuestAudioRef.current.autoplay = true;
-            void remoteGuestAudioRef.current.play().catch(() => undefined);
-          }
+      // Guest WebRTC is an optional interactive feature. It must never block
+      // the primary YouTube ON AIR path. Start it in the background after the
+      // public delivery transport is connected.
+      void TestagramTvMediaSession.connectHostGuestBridge(id, program).then(nextGuestSession => {
+        if (!liveRef.current && !roomRef.current) {
+          void nextGuestSession.close().catch(() => undefined);
+          return;
         }
-        setGuestConnected(true);
-        setSourceHealth(prev => ({ ...prev, guest: 'ready' }));
+        guestSession = nextGuestSession;
+        nextGuestSession.setRemoteTrackHandler(track => {
+          track.onended = () => {
+            setGuestConnected(false);
+            setSourceHealth(prev => ({ ...prev, guest: 'lost' }));
+            if (liveRef.current && programSceneRef.current === 'guest') void takeScene('black').catch(() => undefined);
+            toast.warning('Guest signal lost. Testagram TV removed the guest from Program safely.');
+          };
+          if (track.kind === 'video') {
+            const stream = new MediaStream([track]);
+            if (remoteGuestVideoRef.current) {
+              remoteGuestVideoRef.current.srcObject = stream;
+              remoteGuestVideoRef.current.muted = true;
+              remoteGuestVideoRef.current.playsInline = true;
+              void remoteGuestVideoRef.current.play().catch(() => undefined);
+            }
+          } else if (track.kind === 'audio') {
+            const stream = new MediaStream([track]);
+            if (remoteGuestAudioRef.current) {
+              remoteGuestAudioRef.current.srcObject = stream;
+              remoteGuestAudioRef.current.muted = false;
+              remoteGuestAudioRef.current.autoplay = true;
+              void remoteGuestAudioRef.current.play().catch(() => undefined);
+            }
+          }
+          setGuestConnected(true);
+          setSourceHealth(prev => ({ ...prev, guest: 'ready' }));
+        });
+        guestRoomRef.current = nextGuestSession;
+      }).catch(error => {
+        setGuestConnected(false);
+        setSourceHealth(prev => ({ ...prev, guest: 'idle' }));
+        setBroadcastDiagnostics(prev => ({ ...(prev || {}), guest_bridge: 'offline', guest_bridge_error: error instanceof Error ? error.message : String(error) }));
       });
-      guestRoomRef.current = guestSession;
 
       setBroadcastStage('verifying');
       const verifyDeadline = Date.now() + 60_000;
