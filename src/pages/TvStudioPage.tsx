@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { TestagramTvMediaSession } from '@/lib/testagramTvMedia';
 import { TestagramTvYouTubeSession } from '@/lib/testagramTvYouTube';
-import { Camera, Mic, MonitorUp, Circle, Square, Radio, Users, Download, Clapperboard, Settings2, Activity, ShieldCheck, Upload, PictureInPicture2, Layers3 } from 'lucide-react';
+import { Camera, Mic, MonitorUp, Circle, Square, Radio, Users, Download, Clapperboard, Settings2, Activity, ShieldCheck, Upload, PictureInPicture2, Layers3, BarChart3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -176,6 +176,8 @@ export default function TvStudioPage() {
   const [cameraPermission, setCameraPermission] = useState<PermissionState | 'unsupported'>('unsupported');
   const [microphonePermission, setMicrophonePermission] = useState<PermissionState | 'unsupported'>('unsupported');
   const [deviceReady, setDeviceReady] = useState(false);
+  const [pollQuestion, setPollQuestion] = useState('');
+  const [pollOptions, setPollOptions] = useState(['Yes','No']);
   const [cameraResolution, setCameraResolution] = useState('not started');
   const [studioHealth, setStudioHealth] = useState<'ready' | 'degraded' | 'offline'>('offline');
   const [shortcutHint, setShortcutHint] = useState(false);
@@ -824,6 +826,29 @@ export default function TvStudioPage() {
     const cameraTrack = cameraStreamRef.current?.getVideoTracks()[0];
     if (!cameraTrack || cameraTrack.readyState !== 'live') throw new Error('ON AIR blocked: camera track is not live.');
     return { width: preset.width, height: preset.height, fps: preset.fps };
+  };
+
+  const publishTvPoll = async () => {
+    const id = activeStreamId;
+    const question = pollQuestion.trim();
+    const options = pollOptions.map(x => x.trim()).filter(Boolean).slice(0, 4);
+    if (!id || !user || !live || question.length < 1 || options.length < 2) {
+      toast.error('Start the live broadcast and provide a question plus at least two choices.');
+      return;
+    }
+    try {
+      await supabase.from('tv_live_polls').update({ status: 'closed', closed_at: new Date().toISOString() }).eq('stream_id', id).eq('status', 'open').eq('host_user_id', user.id);
+      const payload = options.map((text, index) => ({ id: String.fromCharCode(97 + index), text }));
+      const { data, error } = await supabase.from('tv_live_polls').insert({
+        stream_id: id, host_user_id: user.id, question, options: payload, status: 'open',
+      }).select('id').single();
+      if (error) throw error;
+      await supabase.channel('tv-meetup-' + id).send({ type: 'broadcast', event: 'poll_changed', payload: { poll_id: data.id } });
+      toast.success('Live vote published');
+      setPollQuestion('');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not publish live vote');
+    }
   };
 
   const startLive = async () => {
@@ -1577,6 +1602,18 @@ export default function TvStudioPage() {
                     <button className="rounded bg-zinc-800 p-2" onClick={() => { setPreviewScene('replay'); previewSceneRef.current='replay'; }}>Preview Replay</button>
                     <button className="rounded bg-zinc-800 p-2" disabled={!guestConnected} onClick={() => { setPreviewScene('guest'); previewSceneRef.current='guest'; }}>Preview Guest</button>
                   </div>
+                </div>
+                <div className="rounded-lg bg-black/30 p-2 space-y-2">
+                  <div className="flex items-center gap-2 text-xs font-semibold"><BarChart3 className="w-4 h-4" />LIVE VIEWER VOTE</div>
+                  <input value={pollQuestion} onChange={e => setPollQuestion(e.target.value)} placeholder="Question for viewers" className="w-full rounded bg-zinc-800 p-2 text-xs" disabled={!live} />
+                  <div className="grid grid-cols-2 gap-2">
+                    {pollOptions.map((option, index) => <input key={index} value={option} onChange={e => setPollOptions(prev => prev.map((x, i) => i === index ? e.target.value : x))} placeholder={'Choice '+(index+1)} className="rounded bg-zinc-800 p-2 text-xs" disabled={!live} />)}
+                  </div>
+                  <div className="flex gap-2">
+                    {pollOptions.length < 4 && <Button size="sm" variant="outline" disabled={!live} onClick={() => setPollOptions(prev => [...prev, ''])}>Add choice</Button>}
+                    <Button size="sm" disabled={!live || pollOptions.filter(x => x.trim()).length < 2} onClick={() => void publishTvPoll()}>Publish vote</Button>
+                  </div>
+                  <p className="text-[10px] text-zinc-500">Viewers see the vote beside the live player and can vote once per broadcast poll.</p>
                 </div>
                 <div className="rounded-lg bg-black/30 p-2 space-y-2">
                   <div className="text-xs font-semibold">GRAPHICS</div>
