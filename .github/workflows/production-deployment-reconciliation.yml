@@ -507,7 +507,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.TESTAGRAM_CLOUDFLARE_STREAM_API_TOKEN }}
           CLOUDFLARE_TURN_TOKEN_ID: ${{ secrets.CLOUDFLARE_TURN_TOKEN_ID }}
           CLOUDFLARE_TURN_API_TOKEN: ${{ secrets.CLOUDFLARE_TURN_API_TOKEN }}
-          YOUTUBE_STREAM_KEY: ${{ secrets.TESTAGRAM_YOUTUBE_STREAM_KEY }}
+          YOUTUBE_STREAM_KEY: ${{ secrets.YOUTUBE_STREAM_KEY }}
         run: |
           set -euo pipefail
           PROJECT_REF="$SUPABASE_PROJECT_REF"
@@ -522,7 +522,7 @@ jobs:
           require_secret "TESTAGRAM_CLOUDFLARE_STREAM_API_TOKEN" "$CLOUDFLARE_API_TOKEN"
           require_secret "CLOUDFLARE_TURN_TOKEN_ID" "$CLOUDFLARE_TURN_TOKEN_ID"
           require_secret "CLOUDFLARE_TURN_API_TOKEN" "$CLOUDFLARE_TURN_API_TOKEN"
-          require_secret "TESTAGRAM_YOUTUBE_STREAM_KEY" "$YOUTUBE_STREAM_KEY"
+          require_secret "YOUTUBE_STREAM_KEY" "$YOUTUBE_STREAM_KEY"
 
           # Normalize copy/paste whitespace at the GitHub Actions boundary. GitHub
           # exposes the environment secret exactly as stored; do not let CR/LF or
@@ -609,7 +609,7 @@ jobs:
           supabase secrets set --project-ref "$PROJECT_REF"             "CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID"             "CLOUDFLARE_STREAM_API_TOKEN=$CLOUDFLARE_API_TOKEN"             "CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN"             "CLOUDFLARE_TURN_TOKEN_ID=$CLOUDFLARE_TURN_TOKEN_ID"             "CLOUDFLARE_TURN_API_TOKEN=$CLOUDFLARE_TURN_API_TOKEN"
           printf '::add-mask::%s\n' "$YOUTUBE_STREAM_KEY"
           supabase secrets set --project-ref "$PROJECT_REF" "YOUTUBE_STREAM_KEY=$YOUTUBE_STREAM_KEY"
-          supabase secrets set --project-ref "$PROJECT_REF" "YOUTUBE_RTMP_URL=rtmps://a.rtmp.youtube.com/live2"
+          supabase secrets set --project-ref "$PROJECT_REF" "YOUTUBE_RTMP_URL=$YOUTUBE_RTMP_URL"
           echo "YouTube output credential and secure RTMPS endpoint synchronized to the Cloudflare TV control plane."
           attempt=1; max_attempts=4
           while true; do
