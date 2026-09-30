@@ -923,8 +923,19 @@ export default function TvStudioPage() {
         if (!nativeResponse.ok) throw new Error(nativePayload?.error?.message || 'Native Testagram TV transport could not be started.');
 
         provider = 'native-p2p';
-        session = await TestagramTvMediaSession.connectHostExisting(id, program);
-        roomRef.current = session;
+        try {
+          session = await TestagramTvMediaSession.connectHostExisting(id, program);
+          roomRef.current = session;
+        } catch (nativeError) {
+          // Native start marks the row live before the browser joins Realtime.
+          // Roll it back immediately if the host transport cannot actually subscribe.
+          await fetch('/api/live', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ action: 'stop', stream_id: id }),
+          }).catch(() => undefined);
+          throw nativeError;
+        }
         setBroadcastDiagnostics({
           provider: 'native-p2p',
           fallback: true,
