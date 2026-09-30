@@ -12,10 +12,11 @@ import { drawTvGraphics, drawTvOpeningSlate, makeDefaultGraphics, TvReplayBuffer
 
 type Mode = 'studio' | 'live';
 type Scene = 'camera' | 'video' | 'screen';
-type Quality = '4k' | '1080p' | '720p' | '480p';
+type Quality = '4k' | '1440p' | '1080p' | '720p' | '480p';
 
 const VIDEO_PRESETS: Record<Quality, { width: number; height: number; fps: number; bitrate: number }> = {
-  '4k': { width: 3840, height: 2160, fps: 30, bitrate: 24_000_000 },
+  '4k': { width: 3840, height: 2160, fps: 30, bitrate: 30_000_000 },
+  '1440p': { width: 2560, height: 1440, fps: 30, bitrate: 15_000_000 },
   '1080p': { width: 1920, height: 1080, fps: 30, bitrate: 8_000_000 },
   '720p': { width: 1280, height: 720, fps: 30, bitrate: 5_000_000 },
   '480p': { width: 854, height: 480, fps: 30, bitrate: 2_500_000 },
@@ -135,7 +136,7 @@ export default function TvStudioPage() {
     // Keep mobile/low-power devices responsive. Cloudflare Stream live delivery is capped
     // at 1080p, so spending 1080p/4K browser CPU on a constrained device
     // only to downscale it again is counterproductive.
-    if (mobile || (memory > 0 && memory <= 4) || (cores > 0 && cores <= 4)) return '720p';
+    if (mobile || (memory > 0 && memory <= 4) || (cores > 0 && cores <= 4)) return '1080p';
     return '1080p';
   });
   const [savedName, setSavedName] = useState<string | null>(null);
@@ -1626,7 +1627,7 @@ export default function TvStudioPage() {
               <div className="flex items-center gap-2 font-semibold mb-3"><Settings2 className="w-4 h-4" />Production controls</div>
               <label className="text-xs text-zinc-400">Capture quality</label>
               <select value={quality} disabled={live || recording} onChange={e => setQuality(e.target.value as Quality)} className="w-full mt-1 rounded-lg bg-zinc-800 p-2">
-                <option value="4k">4K UHD (3840×2160)</option><option value="1080p">1080p Full HD</option><option value="720p">720p HD</option><option value="480p">480p</option>
+                <option value="4k">4K UHD (3840×2160)</option><option value="1440p">1440p QHD (2560×1440)</option><option value="1080p">1080p Full HD</option><option value="720p">720p HD</option><option value="480p">480p</option>
               </select>
               <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
                 <div className="rounded-lg bg-black/30 p-2"><Activity className="w-3.5 h-3.5 mb-1 text-emerald-400" /><span>{quality === '4k' ? '4K UHD' : quality}</span><p className="text-zinc-500">production output</p></div>
