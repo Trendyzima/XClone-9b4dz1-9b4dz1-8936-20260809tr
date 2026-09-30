@@ -1254,15 +1254,21 @@ export default function TvStudioPage() {
         if (cancelled || !response.ok || !payload?.data) return;
         const health = payload.data.health || {};
         const encoder = roomRef.current?.getStatus() || 'stopped';
-        setBroadcastDiagnostics(payload.data.provider === 'youtube'
-          ? { provider: 'youtube', encoder_status: encoder, youtube_video_id: payload.data.youtube?.video_id || payload.data.youtube?.broadcast_id || null, youtube_stream_status: payload.data.youtube_stream_status || health.youtube?.stream_status || 'unknown', youtube_broadcast_status: payload.data.youtube_broadcast_status || health.youtube?.broadcast_status || 'unknown', on_air: Boolean(payload.data.on_air) }
-          : { provider: 'cloudflare', encoder_status: encoder, cloudflare_status: health.cloudflare_input_status || payload.data.cloudflare_input_status || 'unknown', on_air: Boolean(payload.data.on_air), youtube_status: health.youtube?.status || payload.data.youtube?.status || 'disabled' });
-        setYoutubeStatus(String(health.youtube?.status || payload.data.youtube?.status || 'disabled'));
+        const youtube = health.youtube || payload.data.youtube || {};
+        setBroadcastDiagnostics({
+          provider: 'dual',
+          encoder_status: encoder,
+          cloudflare_status: health.cloudflare_input_status || payload.data.cloudflare_input_status || 'unknown',
+          youtube_status: youtube.status || 'disabled',
+          youtube_stream_status: payload.data.youtube_stream_status || youtube.stream_status || 'unknown',
+          youtube_broadcast_status: payload.data.youtube_broadcast_status || youtube.broadcast_status || 'unknown',
+          youtube_error: youtube.error || null,
+          on_air: Boolean(payload.data.on_air),
+        });
+        setYoutubeStatus(String(youtube.status || 'disabled'));
         if (!payload.data.on_air) {
           setStudioHealth('degraded');
-          toast.error(payload.data.provider === 'youtube'
-            ? 'Live output health changed. Testagram TV is checking the YouTube encoder and live broadcast.'
-            : 'Live output health changed. Testagram TV is checking the encoder and Cloudflare Stream connection.');
+          toast.error('Testagram live delivery is not currently ON AIR; YouTube status is tracked independently.');
         }
       } catch {}
     };
@@ -1478,7 +1484,7 @@ export default function TvStudioPage() {
                 {broadcastStage === 'verifying' && 'Validating Testagram live media. YouTube remains an independent output and may be starting or reconnecting.'}
                 {broadcastStage === 'on-air' && 'Producer is transmitting one program bus. Testagram viewers use Cloudflare delivery; YouTube receives the parallel output.'}
               </p>
-              {broadcastDiagnostics?.provider === 'youtube' ? (
+              {broadcastDiagnostics?.provider === 'dual' ? (
                 <p className="mt-2 text-[10px] text-zinc-300">YouTube encoder: {String(broadcastDiagnostics.encoder_status || 'starting')} · video: {String(broadcastDiagnostics.youtube_video_id || 'preparing')}</p>
               ) : broadcastDiagnostics ? (
                 <p className="mt-2 text-[10px] text-zinc-300">{broadcastDiagnostics.mediaReachedViewer ? `Viewer media: confirmed · video packets: ${String(broadcastDiagnostics.viewerVideoPackets ?? broadcastDiagnostics.videoPackets ?? 0)} · audio packets: ${String(broadcastDiagnostics.viewerAudioPackets ?? broadcastDiagnostics.audioPackets ?? 0)} · ${String(broadcastDiagnostics.viewerWidth ?? broadcastDiagnostics.width ?? 0)}×${String(broadcastDiagnostics.viewerHeight ?? broadcastDiagnostics.height ?? 0)}` : `Producer tracks: ${broadcastDiagnostics.mediaReady ? 'live' : 'checking'} · Viewer media: awaiting first inbound RTP`}</p>
