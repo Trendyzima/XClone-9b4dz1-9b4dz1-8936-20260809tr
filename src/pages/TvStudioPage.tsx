@@ -1257,11 +1257,15 @@ export default function TvStudioPage() {
         if (cancelled || !response.ok || !payload?.data) return;
         const health = payload.data.health || {};
         const encoder = roomRef.current?.getStatus() || 'stopped';
-        setBroadcastDiagnostics({ provider: 'cloudflare', encoder_status: encoder, cloudflare_status: health.cloudflare_input_status || payload.data.cloudflare_input_status || 'unknown', on_air: Boolean(payload.data.on_air), youtube_status: health.youtube?.status || payload.data.youtube?.status || 'disabled' });
+        setBroadcastDiagnostics(payload.data.provider === 'youtube'
+          ? { provider: 'youtube', encoder_status: encoder, youtube_video_id: payload.data.youtube?.video_id || payload.data.youtube?.broadcast_id || null, youtube_stream_status: payload.data.youtube_stream_status || health.youtube?.stream_status || 'unknown', youtube_broadcast_status: payload.data.youtube_broadcast_status || health.youtube?.broadcast_status || 'unknown', on_air: Boolean(payload.data.on_air) }
+          : { provider: 'cloudflare', encoder_status: encoder, cloudflare_status: health.cloudflare_input_status || payload.data.cloudflare_input_status || 'unknown', on_air: Boolean(payload.data.on_air), youtube_status: health.youtube?.status || payload.data.youtube?.status || 'disabled' });
         setYoutubeStatus(String(health.youtube?.status || payload.data.youtube?.status || 'disabled'));
         if (!payload.data.on_air) {
           setStudioHealth('degraded');
-          toast.error('Live output health changed. Testagram TV is checking the encoder and Cloudflare Stream connection.');
+          toast.error(payload.data.provider === 'youtube'
+            ? 'Live output health changed. Testagram TV is checking the YouTube encoder and live broadcast.'
+            : 'Live output health changed. Testagram TV is checking the encoder and Cloudflare Stream connection.');
         }
       } catch {}
     };
