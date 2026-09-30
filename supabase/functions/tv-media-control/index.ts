@@ -187,14 +187,12 @@ Deno.serve(async req=>{
  if(action==="create-guest"){
    if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can create a guest invite."}},403);
    if(!stream.is_live)return json({ok:false,error:{code:"STREAM_NOT_LIVE",message:"Start the TV broadcast before inviting a guest."}},409);
-   if(provider==="youtube") return json({ok:false,error:{code:"GUEST_UNSUPPORTED_FOR_YOUTUBE",message:"YouTube mass-distribution mode does not support Testagram WebRTC guest contribution. Use native studio mode for guest participation."}},409);
    const token=randomToken();
    const {error:e}=await db.from("tv_guest_invites").insert({stream_id:streamId,token_hash:await hash(token),expires_at:new Date(Date.now()+3600000).toISOString()});
    if(e)return json({ok:false,error:{code:"GUEST_INVITE_FAILED",message:"Could not create the guest invite."}},409);
-   return json({ok:true,data:{invite_token:token,room_id:streamId,signaling_topic:"tv:"+streamId},error:null});
+   return json({ok:true,data:{invite_token:token,room_id:streamId,signaling_topic:"tv:"+streamId,ice_servers:iceServers()},error:null});
  }
  if(action==="guest"){
-   if(provider==="youtube")return json({ok:false,error:{code:"GUEST_UNSUPPORTED_FOR_YOUTUBE",message:"YouTube mass-distribution mode is viewer-only."}},409);
    if(!stream.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
    if(!inviteToken)return json({ok:false,error:{code:"INVITE_REQUIRED",message:"A TV guest invite is required."}},401);
    if(!user)return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Authentication is required to join the TV guest session."}},401);
