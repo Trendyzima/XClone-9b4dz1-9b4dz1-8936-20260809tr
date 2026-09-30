@@ -3,7 +3,7 @@ const env=(n:string,f="")=>{const g=globalThis as any;return g.process?.env?.[n]
 const url=(env("SUPABASE_URL",env("VITE_SUPABASE_URL"))).replace(/\/$/,""),key=env("SUPABASE_PUBLISHABLE_KEY",env("SUPABASE_ANON_KEY",env("VITE_SUPABASE_PUBLISHABLE_KEY",env("VITE_SUPABASE_ANON_KEY"))));
 const json=(b:unknown,s=200,cacheControl="no-store")=>new Response(JSON.stringify(b),{status:s,headers:{"Content-Type":"application/json","Cache-Control":cacheControl,"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, content-type","Access-Control-Allow-Methods":"POST, OPTIONS"}});
 export default async function handler(req:Request){
- if(req.method==="OPTIONS")return json({ok:true});if(req.method!=="POST")return json({ok:false,error:{code:"METHOD_NOT_ALLOWED",message:"POST required."}},405);if(!url||!key)return json({ok:false,error:{code:"SUPABASE_NOT_CONFIGURED",message:"Testagram TV control plane is not configured."}},503);
+ if(req.method==="OPTIONS")return json({ok:true});\n const isGet=req.method==="GET";\n if(!isGet&&req.method!=="POST")return json({ok:false,error:{code:"METHOD_NOT_ALLOWED",message:"POST required."}},405);if(!url||!key)return json({ok:false,error:{code:"SUPABASE_NOT_CONFIGURED",message:"Testagram TV control plane is not configured."}},503);
  let b:any;try{b=await req.json()}catch{return json({ok:false,error:{code:"INVALID_JSON",message:"JSON required."}},400)}
  const action=typeof b?.action==="string"?b.action:"",id=typeof b?.stream_id==="string"?b.stream_id:"";
  if(!["start","viewer","verify","stop","create-guest","guest","heartbeat","youtube-encoder-config"].includes(action))return json({ok:false,error:{code:"ACTION_INVALID",message:"Unsupported TV action."}},400);
