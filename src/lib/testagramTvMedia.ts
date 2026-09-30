@@ -98,6 +98,18 @@ export class TestagramTvMediaSession {
     return session;
   }
 
+  static async connectHostExisting(streamId: string, program: MediaStream) {
+    const video = program.getVideoTracks()[0];
+    const audio = program.getAudioTracks()[0];
+    if (!video || video.readyState !== 'live') throw new Error('TV program video track is not live.');
+    if (!audio || audio.readyState !== 'live') throw new Error('TV program audio track is not live.');
+    const session = new TestagramTvMediaSession('host', streamId);
+    session.localStream = program;
+    await session.start('existing-host');
+    session.lastDiagnostics = { ...session.lastDiagnostics, mediaReady: true, videoTrack: video.readyState, audioTrack: audio.readyState };
+    return session;
+  }
+
   static async connectHostGuestBridge(streamId: string, program: MediaStream) {
     const session = new TestagramTvMediaSession('host', streamId);
     session.localStream = program;
@@ -151,14 +163,14 @@ export class TestagramTvMediaSession {
     this.lastDiagnostics = { provider: 'mux', guestBridge: true, signaling: 'supabase-realtime', topic: this.topic, peerId: this.peerId };
   }
 
-  private async start(action: 'start' | 'viewer' | 'guest') {
+  private async start(action: 'start' | 'existing-host' | 'viewer' | 'guest') {
     const realtimeSession = await ensureRealtimeAuth(action !== 'start');
 
     // The host must subscribe to signaling before the control plane marks the
     // stream live. Otherwise a viewer can join in the small window where the
     // database says "live" but the host is not yet listening for tv-join.
     let data: any = null;
-    if (action === 'start') {
+    if (action === 'start' || action === 'existing-host') {
       this.topic = `tv:${this.roomId}`;
     } else {
       data = await api({
