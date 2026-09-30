@@ -63,7 +63,6 @@ function HomeFeedItem({item,index,lastElementRef,tab,onUpdate,onNavigate}:{item:
     {item.type==='poll'&&<PollCard poll={item.data} onOpen={()=>onNavigate('/polls')}/>}
     {item.type==='product'&&<ProductCard product={item.data} onOpen={()=>onNavigate('/p/'+item.data.id)}/>}
     {item.type==='publisher'&&<PublisherFeedCard item={item.data as FeedItem}/>}
-    {tab==='all'&&index>0&&index%3===0&&<TvPostStream index={Math.floor(index/3)-1}/>}
     {tab==='all'&&index>0&&index%4===0&&<FederatedOrganicInjection surface="home"/>}
   </div>;
 }
@@ -275,6 +274,7 @@ export default function HomeHubPage(){
 
   return <div className="min-h-screen bg-background pb-16 lg:pb-0">
     <TopBar title="Home"/><Suspense fallback={<div className="h-20 border-b border-border bg-background" aria-hidden="true" />}><StoriesStrip/></Suspense>
+    <TvPostStream index={0}/>
     <div className="sticky top-14 z-30 bg-background/95 backdrop-blur border-b border-border"><div className="flex overflow-x-auto scrollbar-hide">
       {TABS.map(t=><button key={t.id} onClick={()=>setTab(t.id)} className={'min-w-[96px] px-4 py-3 text-sm font-semibold border-b-2 whitespace-nowrap '+(tab===t.id?'border-primary text-foreground':'border-transparent text-muted-foreground hover:bg-muted/40')}>{t.label}</button>)}
     </div></div>
