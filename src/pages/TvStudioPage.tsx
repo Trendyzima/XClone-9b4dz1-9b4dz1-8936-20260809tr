@@ -1492,6 +1492,16 @@ export default function TvStudioPage() {
                 <div><div className="flex justify-between text-[11px] text-zinc-400"><span>Video audio</span><span>{Math.round(programLevel * 100)}%</span></div><input type="range" min="0" max="1" step="0.05" value={programLevel} onChange={e => setProgramLevel(Number(e.target.value))} className="w-full" /></div>
                 <div><div className="flex justify-between text-[11px] text-zinc-400"><span>Commentary voice</span><span>{Math.round(commentaryLevel * 100)}%</span></div><input type="range" min="0" max="1.5" step="0.05" value={commentaryLevel} onChange={e => setCommentaryLevel(Number(e.target.value))} className="w-full" /></div>
                 <p className="text-[10px] text-zinc-500">Preview → TAKE → Program. Graphics and transitions are rendered into the program bus.</p>
+                <div className="rounded-lg bg-black/30 p-2 space-y-2">
+                  <div className="flex items-center justify-between"><span className="text-xs font-semibold">SCENE PRESETS</span><Button size="sm" variant="outline" onClick={() => saveScenePreset(window.prompt('Preset name') || '')}>Save</Button></div>
+                  <div className="flex flex-wrap gap-1">
+                    {Object.keys(scenePresets).map(name => <button key={name} className="rounded bg-zinc-800 px-2 py-1 text-[10px] hover:bg-zinc-700" onClick={() => loadScenePreset(name)}>{name}</button>)}
+                    {!Object.keys(scenePresets).length && <span className="text-[10px] text-zinc-500">Save a camera/video/screen setup for one-tap recall.</span>}
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-1 text-[9px] uppercase tracking-wide">
+                  {(['camera','video','screen','guest'] as const).map(source => <span key={source} className={`rounded px-2 py-1 text-center ${sourceHealth[source] === 'ready' ? 'bg-emerald-500/15 text-emerald-300' : sourceHealth[source] === 'lost' ? 'bg-red-500/15 text-red-300' : 'bg-zinc-800 text-zinc-500'}`}>{source}: {sourceHealth[source]}</span>)}
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <Button size="sm" variant="outline" onClick={() => void takeScene(previewScene)}>TAKE {previewScene.toUpperCase()}</Button>
                   <Button size="sm" variant="outline" onClick={() => void takeScene('black')}>DIP TO BLACK</Button>
