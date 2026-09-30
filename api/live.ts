@@ -8,6 +8,6 @@ export default async function handler(req:Request){
  const action=typeof b?.action==="string"?b.action:"",id=typeof b?.stream_id==="string"?b.stream_id:"";
  if(!["start","viewer","verify","stop","create-guest","guest","heartbeat","cloudflare-encoder-config"].includes(action))return json({ok:false,error:{code:"ACTION_INVALID",message:"Unsupported TV action."}},400);
  if(!id)return json({ok:false,error:{code:"STREAM_ID_REQUIRED",message:"stream_id is required."}},400);
- const r=await fetch(url+"/functions/v1/tv-media-control",{method:"POST",headers:{"Content-Type":"application/json",apikey:key,...(req.headers.get("authorization")?{Authorization:req.headers.get("authorization")!}:{})},body:JSON.stringify({action,stream_id:id,invite_token:typeof b?.invite_token==="string"?b.invite_token:undefined,encoder_token:typeof b?.encoder_token==="string"?b.encoder_token:undefined,diagnostics:b?.diagnostics})});
+ const r=await fetch(url+"/functions/v1/tv-media-control",{method:"POST",headers:{"Content-Type":"application/json",apikey:key,...(req.headers.get("authorization")?{Authorization:req.headers.get("authorization")!}:{})},body:JSON.stringify({action,stream_id:id,provider:typeof b?.provider==="string"?b.provider:undefined,invite_token:typeof b?.invite_token==="string"?b.invite_token:undefined,encoder_token:typeof b?.encoder_token==="string"?b.encoder_token:undefined,diagnostics:b?.diagnostics})});
  const p=await r.json().catch(()=>({ok:false,error:{code:"TV_CONTROL_INVALID_RESPONSE",message:"TV control returned invalid JSON."}}));return json(p,r.status);
 }
