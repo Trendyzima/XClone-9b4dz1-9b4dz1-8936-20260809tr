@@ -15,6 +15,8 @@ type Chat = {
 };
 type Viewer = { user_id: string; username?: string | null };
 type Reaction = { emoji: string; count: number };
+type PollOption = { id: string; text: string };
+type Poll = { id: string; question: string; options: PollOption[]; status: string; ends_at: string | null };
 
 const REACTIONS = [
   { emoji: '👍', label: 'Like', Icon: ThumbsUp },
@@ -31,7 +33,7 @@ export function TvMeetupPanel({ streamId }: Props) {
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
   const [viewers, setViewers] = useState<Viewer[]>([]);
-  const [poll, setPoll] = useState<any>(null);
+  const [poll, setPoll] = useState<Poll | null>(null);
   const [results, setResults] = useState<Record<string, number>>({});
   const [myVote, setMyVote] = useState<string | null>(null);
   const [reactions, setReactions] = useState<Reaction[]>([]);
@@ -51,7 +53,8 @@ export function TvMeetupPanel({ streamId }: Props) {
     const profileResult = ids.length
       ? await supabase.from('profiles').select('id,username').in('id', ids)
       : { data: [] };
-    const by = new Map((profileResult.data || []).map((p: any) => [p.id, p]));
+    const profiles = (profileResult.data || []) as Array<{ id: string; username: string | null }>;
+    const by = new Map(profiles.map((p) => [p.id, p]));
 
     setMessages(
       (data || [])
@@ -140,7 +143,7 @@ export function TvMeetupPanel({ streamId }: Props) {
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           await channel.track({
-            username: user?.user_metadata?.username || null,
+            username: user?.username || null,
           });
         }
       });
@@ -175,7 +178,7 @@ export function TvMeetupPanel({ streamId }: Props) {
           ...previous,
           {
             ...result.data,
-            username: user.user_metadata?.username || null,
+            username: user.username || null,
           },
         ].slice(-80),
       );
@@ -365,7 +368,7 @@ export function TvMeetupPanel({ streamId }: Props) {
             <>
               <p className="font-semibold text-sm">{poll.question}</p>
               <div className="mt-3 space-y-2">
-                {(poll.options || []).map((option: any) => (
+                {(poll.options || []).map((option) => (
                   <button
                     key={option.id}
                     disabled={!user || !!myVote}
