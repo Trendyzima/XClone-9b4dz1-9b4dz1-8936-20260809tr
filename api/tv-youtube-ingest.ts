@@ -31,8 +31,10 @@ export const GET = async (request: Request) => {
   const url = new URL(request.url);
   const streamId = url.searchParams.get('stream_id') || '';
   const encoderToken = url.searchParams.get('encoder_token') || '';
+  const directIngestAddress = url.searchParams.get('rtmps_ingestion_address') || '';
+  const directStreamName = url.searchParams.get('stream_name') || '';
   const authorization = '';
-  if (!streamId || !encoderToken) return jsonError('YouTube encoder session is required.', 401);
+  if (!streamId || (!encoderToken && (!directIngestAddress || !directStreamName))) return jsonError('YouTube encoder session is required.', 401);
   if (!ffmpegPath) return jsonError('FFmpeg encoder binary is unavailable.', 503);
 
   return experimental_upgradeWebSocket((socket) => {
@@ -50,7 +52,9 @@ export const GET = async (request: Request) => {
       if (!isBinary) return;
       try {
         if (!initialized) {
-          const config = await getEncoderConfig(streamId, encoderToken, authorization);
+          const config = encoderToken
+            ? await getEncoderConfig(streamId, encoderToken, authorization)
+            : { rtmps_ingestion_address: directIngestAddress, stream_name: directStreamName };
           const ingest = config.rtmps_ingestion_address.replace(/\/$/, '') + '/' + config.stream_name;
           ffmpeg = spawn(ffmpegPath as string, [
             '-hide_banner', '-loglevel', 'warning',
