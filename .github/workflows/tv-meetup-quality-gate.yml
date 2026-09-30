@@ -71,7 +71,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if git grep -nE "MEDIA_ENGINE_(SSH_HOST|SSH_USER|SSH_PRIVATE_KEY|PUBLIC_IP)|MUX_TOKEN_ID|MUX_TOKEN_SECRET" --             src api supabase/functions .github 2>/dev/null; then
+          if git grep -nE "MEDIA_ENGINE_(SSH_HOST|SSH_USER|SSH_PRIVATE_KEY|PUBLIC_IP)|MUX_TOKEN_ID|MUX_TOKEN_SECRET" -- src api supabase/functions 2>/dev/null; then
             echo "::error::Retired TV transport/provider credentials were reintroduced."
             exit 1
           fi
