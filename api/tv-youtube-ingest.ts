@@ -4,13 +4,13 @@ import { WebSocketServer } from 'ws';
 import ffmpegPath from 'ffmpeg-static';
 
 const supabaseUrl = (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
-const supabaseKey = process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.VITE_SUPABASE_ANON_KEY || '';
 
 const getEncoderConfig = async (streamId: string, token: string) => {
   if (!supabaseUrl || !supabaseKey) throw new Error('Supabase TV control is not configured.');
   const response = await fetch(supabaseUrl + '/functions/v1/tv-media-control', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', apikey: supabaseKey },
+    headers: { 'Content-Type': 'application/json', apikey: supabaseKey, Authorization: 'Bearer ' + supabaseKey },
     body: JSON.stringify({ action: 'youtube-encoder-config', stream_id: streamId, encoder_token: token }),
   });
   const payload = await response.json().catch(() => null);
