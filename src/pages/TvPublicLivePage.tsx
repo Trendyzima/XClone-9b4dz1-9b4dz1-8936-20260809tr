@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { TestagramTvMediaSession } from '@/lib/testagramTvMedia';
 import { toast } from 'sonner';
+import { TvMeetupPanel } from '@/components/features/TvMeetupPanel';
 
 const YOUTUBE_EMBED_BASE = 'https://www.youtube.com/embed/';
 
@@ -432,6 +433,8 @@ export default function TvPublicLivePage() {
             />
           )}
         </div>
+
+        {!isGuest && live && streamId ? <div className="w-full max-w-6xl"><TvMeetupPanel streamId={streamId} /></div> : null}
 
         <div className="w-full max-w-6xl min-h-10 flex items-center justify-center text-center">
           {connecting && (
