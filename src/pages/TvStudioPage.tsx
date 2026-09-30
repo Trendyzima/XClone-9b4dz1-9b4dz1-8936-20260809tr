@@ -172,6 +172,8 @@ export default function TvStudioPage() {
   const [microphonePermission, setMicrophonePermission] = useState<PermissionState | 'unsupported'>('unsupported');
   const [deviceReady, setDeviceReady] = useState(false);
   const [cameraResolution, setCameraResolution] = useState('not started');
+  const [studioHealth, setStudioHealth] = useState<'ready' | 'degraded' | 'offline'>('offline');
+  const [shortcutHint, setShortcutHint] = useState(false);
   const broadcastTitle = searchParams.get('title')?.trim().slice(0, 100) || 'Testagram TV Live';
   const broadcastDescription = searchParams.get('description')?.trim().slice(0, 500) || 'Live from Testagram TV Studio';
   const broadcastCategory = searchParams.get('category')?.trim().slice(0, 50) || 'general';
@@ -290,6 +292,22 @@ export default function TvStudioPage() {
         }
       }
       cameraStreamRef.current = s;
+      const cameraTrack = s.getVideoTracks()[0];
+      const audioTrack = s.getAudioTracks()[0];
+      if (cameraTrack) cameraTrack.onended = () => {
+        setCamera(false);
+        setDeviceReady(false);
+        setStudioHealth('degraded');
+        if (liveRef.current && programSceneRef.current === 'camera') {
+          void takeScene('black').catch(() => undefined);
+        }
+        toast.error('Camera signal lost. Testagram TV switched to a safe fallback.');
+      };
+      if (audioTrack) audioTrack.onended = () => {
+        setMuted(true);
+        setStudioHealth('degraded');
+        if (liveRef.current) toast.error('Microphone signal lost. Broadcast remains live with the audio bus muted.');
+      };
       setDeviceReady(true);
       setPermissionError(null);
       return s;
@@ -351,9 +369,9 @@ export default function TvStudioPage() {
     // Every TV output is a true landscape 16:9 raster. Camera sources that
     // arrive portrait are cropped into that raster instead of being letterboxed
     // as a portrait video. This keeps both preview and program buses landscape.
-    const fit = (target: CanvasRenderingContext2D, media: HTMLVideoElement | null, contain = true) => {
+    const fit = (target: CanvasRenderingContext2D, media: HTMLVideoElement | null, contain = true, targetWidth = canvas.width, targetHeight = canvas.height) => {
       if (!media || media.readyState < 2 || !media.videoWidth || !media.videoHeight) return;
-      const w = canvas.width, h = canvas.height;
+      const w = targetWidth, h = targetHeight;
       const ratio = media.videoWidth / media.videoHeight;
       const targetRatio = w / h;
       let dw = w, dh = h, dx = 0, dy = 0;
@@ -367,9 +385,9 @@ export default function TvStudioPage() {
       target.drawImage(media, dx, dy, dw, dh);
     };
 
-    const fitCameraLandscape = (target: CanvasRenderingContext2D, media: HTMLVideoElement | null) => {
+    const fitCameraLandscape = (target: CanvasRenderingContext2D, media: HTMLVideoElement | null, targetWidth = canvas.width, targetHeight = canvas.height) => {
       if (!media || media.readyState < 2 || !media.videoWidth || !media.videoHeight) return;
-      const w = canvas.width, h = canvas.height;
+      const w = targetWidth, h = targetHeight;
       const sourceRatio = media.videoWidth / media.videoHeight;
       const targetRatio = w / h;
       // Portrait camera tracks must never become a portrait TV frame. Crop the
@@ -427,8 +445,11 @@ export default function TvStudioPage() {
         ['camera',0,0],['video',w/2,0],['screen',0,h/2],['replay',w/2,h/2]
       ];
       for (const [scene,x,y] of cells) {
-        const cell = multiviewCellCanvasRefs.current[(x ? 1 : 0) + (y ? 2 : 0)] ?? document.createElement('canvas');
-        cell.width = w/2; cell.height = h/2; multiviewCellCanvasRefs.current[(x ? 1 : 0) + (y ? 2 : 0)] = cell;
+        const cellIndex = (x ? 1 : 0) + (y ? 2 : 0);
+        const cell = multiviewCellCanvasRefs.current[cellIndex] ?? document.createElement('canvas');
+        if (cell.width !== w / 2) cell.width = w / 2;
+        if (cell.height !== h / 2) cell.height = h / 2;
+        multiviewCellCanvasRefs.current[cellIndex] = cell;
         const cctx = cell.getContext('2d'); if (!cctx) continue;
         cctx.fillStyle = '#000'; cctx.fillRect(0,0,cell.width,cell.height);
         if (scene === 'camera') fitCameraLandscape(cctx,camera);
@@ -486,7 +507,9 @@ export default function TvStudioPage() {
         }
       }
       const incoming = transitionIncomingCanvasRef.current ?? document.createElement('canvas');
-      incoming.width = canvas.width; incoming.height = canvas.height; transitionIncomingCanvasRef.current = incoming;
+      if (incoming.width !== canvas.width) incoming.width = canvas.width;
+      if (incoming.height !== canvas.height) incoming.height = canvas.height;
+      transitionIncomingCanvasRef.current = incoming;
       const ictx = incoming.getContext('2d')!;
       renderScene(ictx, activeProgram);
       // The preview is a monitoring surface, not part of the program bus.
@@ -1155,6 +1178,10 @@ export default function TvStudioPage() {
       const stats = programFrameRef.current;
       setProgramFps(stats.count);
       setProgramDropped(stats.dropped);
+      const cameraLive = cameraStreamRef.current?.getVideoTracks()[0]?.readyState === 'live';
+      const audioLive = cameraStreamRef.current?.getAudioTracks()[0]?.readyState === 'live';
+      const programLive = programStreamRef.current?.getVideoTracks()[0]?.readyState === 'live' && programStreamRef.current?.getAudioTracks()[0]?.readyState === 'live';
+      setStudioHealth(!deviceReady ? 'offline' : cameraLive && audioLive && programLive && stats.dropped < 12 ? 'ready' : 'degraded');
       stats.count = 0;
       stats.dropped = 0;
     }, 1000);
@@ -1201,6 +1228,25 @@ export default function TvStudioPage() {
       toast.info('Use your device orientation controls to keep the TV production in landscape.');
     }
   };
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON'].includes(target.tagName)) return;
+      if (event.ctrlKey || event.metaKey || event.altKey) return;
+      const key = event.key.toLowerCase();
+      if (key === '1') { event.preventDefault(); void activateScene('camera'); }
+      else if (key === '2') { event.preventDefault(); if (sourceVideoRef.current) void activateScene('video'); else toast.info('Load a video first.'); }
+      else if (key === '3') { event.preventDefault(); void shareScreen(); }
+      else if (key === '4') { event.preventDefault(); setPreviewScene('guest'); previewSceneRef.current = 'guest'; }
+      else if (key === 'b') { event.preventDefault(); void takeScene('black'); }
+      else if (key === 't' || key === 'enter') { event.preventDefault(); void takeScene(previewSceneRef.current); }
+      else if (key === 'r') { event.preventDefault(); void takeScene('replay'); }
+      else if (key === 'm') { event.preventDefault(); toggleMic(); }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [previewScene]);
 
   const fmt = (n: number) => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
 
@@ -1281,6 +1327,10 @@ export default function TvStudioPage() {
               </div>
               <div className="aspect-video relative rounded-lg overflow-hidden border border-red-500/30 bg-black">
                 {status === 'idle' && <div className="absolute inset-0 z-10 flex flex-col items-center justify-center text-zinc-500"><Radio className="w-10 h-10 mb-2" /><span>Program monitor</span><span className="text-xs mt-1">Tap Preview to start the camera and microphone</span></div>}
+                <div className="absolute bottom-2 left-2 flex gap-1 pointer-events-none">
+                  <span className={`rounded px-2 py-1 text-[9px] font-bold ${studioHealth === 'ready' ? 'bg-emerald-500/90' : studioHealth === 'degraded' ? 'bg-amber-500/90' : 'bg-zinc-700/90'}`}>SIGNAL {studioHealth.toUpperCase()}</span>
+                  {live && <span className="rounded bg-zinc-950/90 border border-zinc-700 px-2 py-1 text-[9px] font-bold">ENC {String(broadcastDiagnostics?.encoder_status || 'starting').toUpperCase()}</span>}
+                </div>
                 <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-contain" />
                 {multiview && <canvas ref={multiviewCanvasRef} width={640} height={360} className="absolute inset-0 w-full h-full object-contain pointer-events-none" />}
                 <div className="absolute top-2 left-2 flex gap-2 pointer-events-none">
@@ -1291,6 +1341,7 @@ export default function TvStudioPage() {
             </div>
             <div className="p-3 border-t border-zinc-800/80 flex flex-wrap gap-2">
               <Button size="sm" disabled={saving} onClick={() => void activateScene('camera')}><Camera className="w-4 h-4 mr-1" />Preview</Button>
+              <Button size="sm" variant="outline" onClick={() => setShortcutHint(v => !v)}>Shortcuts</Button>
               <Button size="sm" variant={camera ? 'default' : 'destructive'} onClick={toggleCamera}><Camera className="w-4 h-4 mr-1" />{camera ? 'Camera' : 'Camera off'}</Button>
               <Button size="sm" variant={!muted ? 'default' : 'destructive'} onClick={toggleMic}><Mic className="w-4 h-4 mr-1" />{muted ? 'Mic off' : 'Mic'}</Button>
               <Button size="sm" variant={sharing ? 'secondary' : 'outline'} onClick={() => void shareScreen()}><MonitorUp className="w-4 h-4 mr-1" />{sharing ? 'Stop screen' : 'Screen'}</Button>
@@ -1397,9 +1448,10 @@ export default function TvStudioPage() {
               </div>
               <div className="mt-2 text-[10px] text-zinc-500">Replay buffer: {replayBufferRef.current.frameCount} frames / {Math.round(replayBufferRef.current.durationMs / 1000)}s · Guest: {guestConnected ? 'ready' : 'offline'}</div>
               <div className="mt-1 text-[10px] text-zinc-500">Render: {programFps} FPS · delayed {programDropped}</div>
-              <div className="mt-4 flex items-center justify-between text-[10px] text-zinc-500"><span>Studio signal</span><span className="uppercase tracking-wider">{deviceReady ? status : 'waiting for device'}</span></div>
+              <div className="mt-4 flex items-center justify-between text-[10px] text-zinc-500"><span>Studio signal</span><span className={`uppercase tracking-wider font-semibold ${studioHealth === 'ready' ? 'text-emerald-400' : studioHealth === 'degraded' ? 'text-amber-400' : 'text-zinc-500'}`}>{studioHealth}</span></div>
               <div className="mt-1 h-2 rounded-full bg-zinc-700/50 overflow-hidden"><div className="h-full bg-emerald-400 transition-all" style={{ width: `${Math.min(100, audioLevel)}%` }} /></div>
               <p className="text-[10px] text-zinc-500 mt-1">Camera: {cameraResolution} · browser noise suppression + studio gate/compressor</p>
+              {shortcutHint && <div className="mt-3 rounded-lg border border-white/10 bg-black/40 p-2 text-[10px] text-zinc-400">Hotkeys: <b>1</b> Camera · <b>2</b> Video · <b>3</b> Screen · <b>4</b> Guest · <b>T/Enter</b> Take · <b>R</b> Replay · <b>B</b> Black · <b>M</b> Mic</div>}
             </div>
 
             <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4">
