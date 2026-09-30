@@ -445,6 +445,37 @@ jobs:
           done
           node -e 'const fs=require("node:fs"); const p="supabase/migrations/20260919193000_testagram_ads_runtime_schema_repair.sql"; if(!fs.existsSync(p)){console.error("Canonical Testagram Ads runtime migration is missing:",p); process.exit(1)} console.log("Testagram Ads schema source present:",p);'
 
+      - name: Deploy Testagram TV control-plane Edge Function
+        if: steps.supabase-auth.outputs.available == 'true'
+        shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+        run: |
+          set -euo pipefail
+          PROJECT_REF="$SUPABASE_PROJECT_REF"
+          if [[ -z "$PROJECT_REF" ]]; then
+            PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
+          fi
+          [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref for TV control-plane deployment."; exit 1; }
+          attempt=1
+          max_attempts=4
+          while true; do
+            echo "Deploying tv-media-control (attempt $attempt/$max_attempts)"
+            if supabase functions deploy tv-media-control --use-api --project-ref "$PROJECT_REF"; then
+              break
+            fi
+            if (( attempt >= max_attempts )); then
+              echo "::error::tv-media-control deployment failed after $max_attempts attempts."
+              exit 1
+            fi
+            delay=$((attempt * 20))
+            echo "::warning::tv-media-control deployment hit a transient bundling/registry failure; retrying in ${delay}s."
+            sleep "$delay"
+            attempt=$((attempt+1))
+          done
+          echo "Testagram TV control-plane Edge Function deployed from the exact source revision."
       - name: Install pinned Vercel CLI
         run: npm install --global vercel@54.15.1
 
