@@ -903,6 +903,8 @@ export default function TvStudioPage() {
         streamId: id,
         encoderToken: youtubeToken,
         program,
+        quality,
+
         videoBitsPerSecond: VIDEO_PRESETS[quality].bitrate,
         onStatus: (next, detail) => {
           setBroadcastDiagnostics(prev => ({
