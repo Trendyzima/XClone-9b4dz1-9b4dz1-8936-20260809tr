@@ -21,6 +21,7 @@ const pickMime = () => [
   'video/webm',
 ].find(type => MediaRecorder.isTypeSupported(type)) || '';
 
+// Production transport: WebM chunks -> Vercel encoder -> YouTube RTMPS.
 export class TestagramTvYouTubeSession {
   private readonly options: YouTubeSessionOptions;
   private socket: WebSocket | null = null;
