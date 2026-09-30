@@ -16,7 +16,7 @@ const getEncoderConfig = async (streamId: string, token: string, auth: string) =
     headers: {
       'Content-Type': 'application/json',
       apikey: supabaseKey,
-      Authorization: auth,
+      ...(auth ? { Authorization: auth } : {}),
     },
     body: JSON.stringify({ action: 'youtube-encoder-config', stream_id: streamId, encoder_token: token }),
   });
@@ -31,8 +31,8 @@ export const GET = async (request: Request) => {
   const url = new URL(request.url);
   const streamId = url.searchParams.get('stream_id') || '';
   const encoderToken = url.searchParams.get('encoder_token') || '';
-  const authorization = request.headers.get('authorization') || '';
-  if (!streamId || !encoderToken || !authorization.startsWith('Bearer ')) return jsonError('Authenticated YouTube encoder connection required.', 401);
+  const authorization = '';
+  if (!streamId || !encoderToken) return jsonError('YouTube encoder session is required.', 401);
   if (!ffmpegPath) return jsonError('FFmpeg encoder binary is unavailable.', 503);
 
   return experimental_upgradeWebSocket((socket) => {
