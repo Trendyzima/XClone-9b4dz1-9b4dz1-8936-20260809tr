@@ -63,45 +63,6 @@ async function prepareMuxLiveStream(stream: any) {
   };
 }
 
-async function youtubeAccessToken(){
-  if(!ytClientId||!ytClientSecret||!ytRefreshToken) throw new Error("YouTube server credentials are not configured.");
-  const body=new URLSearchParams({client_id:ytClientId,client_secret:ytClientSecret,refresh_token:ytRefreshToken,grant_type:"refresh_token"});
-  const r=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body});
-  const p=await r.json().catch(()=>null);
-  if(!r.ok||!p?.access_token) throw new Error("YouTube OAuth refresh failed.");
-  return p.access_token as string;
-}
-async function youtubeRequest(path:string,token:string,init:RequestInit={}){
-  const r=await fetch("https://www.googleapis.com/youtube/v3/"+path,{...init,headers:{"Authorization":`Bearer ${token}`,"Content-Type":"application/json",...(init.headers||{})}});
-  const p=await r.json().catch(()=>null);
-  if(!r.ok) throw new Error(p?.error?.message||`YouTube API request failed (${r.status}).`);
-  return p;
-}
-async function prepareYouTubeBroadcast(stream:any){
-  const token=await youtubeAccessToken();
-  const now=new Date(Date.now()+60_000).toISOString();
-  const title=(stream.title||"Testagram TV Live").slice(0,100);
-  const description=(stream.description||"Live from Testagram TV Studio").slice(0,500);
-  const createdStream=await youtubeRequest("liveStreams?part=snippet,cdn,status",{method:"POST",body:JSON.stringify({
-    snippet:{title:`${title} · Testagram TV`,description},
-    cdn:{frameRate:"variable",resolution:"variable",ingestionType:"rtmp"},
-  })},token);
-  const broadcast=await youtubeRequest("liveBroadcasts?part=snippet,status,contentDetails",{method:"POST",body:JSON.stringify({
-    snippet:{title,description,scheduledStartTime:now},
-    status:{privacyStatus:"public",selfDeclaredMadeForKids:false},
-    contentDetails:{enableAutoStart:true,enableAutoStop:true,recordFromStart:true,enableDvr:true},
-  })},token);
-  await youtubeRequest(`liveBroadcasts/bind?part=id&id=${encodeURIComponent(broadcast.id)}&streamId=${encodeURIComponent(createdStream.id)}`,token,{method:"POST"});
-  return {
-    broadcast_id:createdStream?.id?broadcast.id:null,
-    stream_id:createdStream?.id||null,
-    video_id:broadcast?.id||null,
-    status:broadcast?.status?.lifeCycleStatus||"created",
-    ingest_configured:true,
-    encoder_required:true,
-  };
-}
-
 Deno.serve(async req=>{
  if(req.method==="OPTIONS") return json({ok:true});
  if(req.method!=="POST") return json({ok:false,error:{code:"METHOD_NOT_ALLOWED",message:"POST required."}},405);
