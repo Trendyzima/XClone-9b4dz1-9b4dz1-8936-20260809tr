@@ -77,7 +77,7 @@ Deno.serve(async req=>{
   if(ee||!st||!st.is_live||st.tv_provider!=="youtube"||!st.youtube_stream_id)return json({ok:false,error:{code:"YOUTUBE_ENCODER_STREAM_INVALID",message:"The YouTube TV stream is not active."}},409);
   if(st.user_id!==s.user_id)return json({ok:false,error:{code:"ENCODER_OWNER_MISMATCH",message:"YouTube encoder session owner mismatch."}},403);
   await a.from("tv_youtube_encoder_sessions").update({claimed_at:new Date().toISOString()}).eq("id",s.id);
-  return json({ok:true,data:{rtmps_ingestion_address:ytUrl.replace(/\\/$/,""),stream_name:ytKey},error:null});
+  return json({ok:true,data:{rtmps_ingestion_address:ytUrl.replace(/\/$/,""),stream_name:ytKey},error:null});
  }
  if(action==="cloudflare-encoder-config"){
   const h=await hash(typeof b.encoder_token==="string"?b.encoder_token:"");if(!h)return json({ok:false,error:{code:"ENCODER_TOKEN_REQUIRED",message:"Cloudflare encoder session token is required."}},401);if(!secret)return json({ok:false,error:{code:"TV_CONTROL_MISCONFIGURED",message:"TV server secret is not configured."}},503);
