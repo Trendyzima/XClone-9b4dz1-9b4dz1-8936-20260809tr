@@ -254,3 +254,4 @@ Deno.serve(async req=>{
  }
  if(!s.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);return json({ok:true,data:await contract(action==="viewer"?"viewer":"unknown"),error:null});
 });
+// TV production source gate: keep GitHub reconciliation attached to the deployed dual-output control path.
