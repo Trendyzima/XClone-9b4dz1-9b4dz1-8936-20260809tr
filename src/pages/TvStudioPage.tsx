@@ -888,51 +888,38 @@ export default function TvStudioPage() {
       const startResponse = await fetch('/api/live', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ action: 'start', stream_id: id }),
+        body: JSON.stringify({ action: 'start', provider: 'youtube', stream_id: id }),
       });
       let startPayload = await startResponse.json().catch(() => null);
-      let provider: 'youtube' | 'cloudflare' | 'native-p2p' = 'youtube';
+      const provider: 'youtube' = 'youtube';
 
-      // YouTube is the public TV delivery provider. Testagram still owns the
-      // studio, control plane and encoder; YouTube owns public live playback.
+      // YouTube is the single public TV delivery provider. Do not silently
+      // downgrade to another transport: a successful Go Live must prove the
+      // YouTube encoder, ingest and broadcast lifecycle are healthy.
       const youtubeStart = startPayload?.data?.youtube;
       const youtubeToken = typeof youtubeStart?.encoder_token === 'string' ? youtubeStart.encoder_token : '';
-      if (startResponse.ok && youtubeToken) {
-        session = await TestagramTvYouTubeSession.connect({
-          streamId: id,
-          encoderToken: youtubeToken,
-          program,
-          videoBitsPerSecond: VIDEO_PRESETS[quality].bitrate,
-          onStatus: (next, detail) => {
-            setBroadcastDiagnostics({ provider: 'youtube', encoder_status: next, detail: detail || null, youtube_video_id: youtubeStart?.video_id || null });
-            if (next === 'reconnecting') setBroadcastStage('connecting');
-          },
-        });
-        roomRef.current = session;
-      } else {
-        const errorMessage = String(startPayload?.error?.message || '');
-        const nativeResponse = await fetch('/api/live', {
-          method: 'POST',
-          headers,
-          body: JSON.stringify({ action: 'start', provider: 'native-p2p', stream_id: id }),
-        });
-        const nativePayload = await nativeResponse.json().catch(() => null);
-        if (!nativeResponse.ok) throw new Error(errorMessage || nativePayload?.error?.message || 'YouTube TV delivery could not be started.');
-        provider = 'native-p2p';
-        try {
-          session = await TestagramTvMediaSession.connectHostExisting(id, program);
-          roomRef.current = session;
-        } catch (nativeError) {
-          await fetch('/api/live', { method: 'POST', headers, body: JSON.stringify({ action: 'stop', stream_id: id }) }).catch(() => undefined);
-          throw nativeError;
-        }
-        setBroadcastDiagnostics({
-          provider: 'native-p2p',
-          fallback: true,
-          youtube: 'not_ready',
-          message: 'YouTube delivery was unavailable; native Testagram WebRTC is carrying the broadcast.',
-        });
+      if (!startResponse.ok || !youtubeToken) {
+        throw new Error(
+          String(startPayload?.error?.message || 'YouTube TV delivery could not be started.'),
+        );
       }
+
+      session = await TestagramTvYouTubeSession.connect({
+        streamId: id,
+        encoderToken: youtubeToken,
+        program,
+        videoBitsPerSecond: VIDEO_PRESETS[quality].bitrate,
+        onStatus: (next, detail) => {
+          setBroadcastDiagnostics({
+            provider: 'youtube',
+            encoder_status: next,
+            detail: detail || null,
+            youtube_video_id: youtubeStart?.video_id || null,
+          });
+          if (next === 'reconnecting') setBroadcastStage('connecting');
+        },
+      });
+      roomRef.current = session;
 
       // Guest WebRTC is an optional interactive feature. It must never block
       // the primary YouTube ON AIR path. Start it in the background after the
