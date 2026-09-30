@@ -3,7 +3,7 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const url=Deno.env.get("SUPABASE_URL")??"",key=Deno.env.get("SUPABASE_PUBLISHABLE_KEY")??Deno.env.get("SUPABASE_ANON_KEY")??"",secret=Deno.env.get("SUPABASE_SECRET_KEY")??Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")??"";
-const cfAccount=Deno.env.get("CLOUDFLARE_ACCOUNT_ID")??"",cfToken=Deno.env.get("CLOUDFLARE_STREAM_API_TOKEN")??Deno.env.get("CLOUDFLARE_API_TOKEN")??"";
+const cfAccount=Deno.env.get("TESTAGRAM_CLOUDFLARE_ACCOUNT_ID")??Deno.env.get("CLOUDFLARE_ACCOUNT_ID")??"",cfToken=Deno.env.get("TESTAGRAM_CLOUDFLARE_STREAM_API_TOKEN")??Deno.env.get("CLOUDFLARE_STREAM_API_TOKEN")??Deno.env.get("CLOUDFLARE_API_TOKEN")??"";
 const turnId=Deno.env.get("CLOUDFLARE_TURN_TOKEN_ID")??"",turnToken=Deno.env.get("CLOUDFLARE_TURN_API_TOKEN")??"";
 const ytUrl=Deno.env.get("YOUTUBE_RTMP_URL")??"rtmps://a.rtmp.youtube.com/live2",ytKey=Deno.env.get("YOUTUBE_STREAM_KEY")??"";
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS","Cache-Control":"no-store"};
