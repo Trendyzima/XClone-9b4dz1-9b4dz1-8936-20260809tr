@@ -86,7 +86,7 @@ jobs:
             cat /tmp/tv-retired-providers.txt
             exit 1
           fi
-          echo "TV architecture guard passed: Cloudflare Stream broadcast transport + Vercel encoder + Supabase control plane + Cloudflare TURN guest bridge."
+          echo "TV architecture guard passed: YouTube public delivery + Vercel encoder + Supabase control plane + Cloudflare TURN guest bridge."
 
       - name: Setup Node
         uses: actions/setup-node@v5
