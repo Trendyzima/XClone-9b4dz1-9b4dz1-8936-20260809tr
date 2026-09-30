@@ -101,6 +101,40 @@ export default function HomeHubPage(){
       return (data??[]).map((x:any)=>({type:'product',data:x}));
     }
 
+    if(target==='federated'){
+      const token = (await supabase.auth.getSession()).data.session?.access_token;
+      if(!token) return [];
+      const params = new URLSearchParams({ limit: '12' });
+      if (cursorOverride) params.set('before', cursorOverride);
+      const response = await fetch('/functions/v1/federated-feed?' + params.toString(), {
+        headers: {
+          Authorization: 'Bearer ' + token,
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+        },
+      });
+      if(!response.ok) throw new Error('Federated feed unavailable');
+      const payload = await response.json();
+      const fedItems = Array.isArray(payload?.items) ? payload.items : [];
+      setNextCursor(payload?.pagination?.nextCursor ?? null);
+      nextCursorRef.current = payload?.pagination?.nextCursor ?? null;
+      setHasMore(Boolean(payload?.pagination?.hasMore) && fedItems.length > 0);
+      return fedItems.map((p:any)=>({
+        type:'fedpost' as const,
+        data:{
+          ...p,
+          id:p.id ?? p.uri,
+          content:p.content ?? p.text ?? '',
+          created_at:p.created_at ?? p.published_at ?? p.published,
+          user_profiles:p.user_profiles ?? p.remote_account ?? p.actor ?? p.account ?? p.author ?? {},
+          media_urls:p.media_urls ?? p.mediaUrls ?? p.attachments ?? [],
+          image_url:p.image_url ?? p.preview_image_url ?? p.thumbnail_url,
+          video_url:p.video_url ?? p.videoUrl,
+          is_video:Boolean(p.is_video || p.video_url || p.videoUrl),
+          is_federated:true,
+        },
+      }));
+    }
+
     if(target==='all'){
       const token = (await supabase.auth.getSession()).data.session?.access_token;
       const params = new URLSearchParams({ limit: '6', includeFederated: includeFederated ? '1' : '0' });
@@ -185,7 +219,7 @@ export default function HomeHubPage(){
       cacheCursorRef.current=nextCursorRef.current;
       if(background){
         setNewCount(fresh.length);
-        if(fresh.length&&window.scrollY<500){setItems(prev=>{const retained=prev.filter(item=>item.type!=='fedpost');const merged=[...fresh,...retained].slice(0,80);feedBufferOffsetRef.current=merged.length;return merged;});}
+        if(fresh.length&&window.scrollY<500){setItems(prev=>{const retained=prev;const merged=[...fresh,...retained].slice(0,80);feedBufferOffsetRef.current=merged.length;return merged;});}
       }else{
         setItems(next);feedBufferRef.current=mergeHomeFeedItems([],next,80);feedBufferOffsetRef.current=next.length;cacheCursorRef.current=nextCursorRef.current;setLoading(false);
       }
