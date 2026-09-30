@@ -3,6 +3,7 @@
   "buildCommand": "node _build.cjs",
   "outputDirectory": "dist",
   "framework": "vite",
+  "fluid": true,
   "functions": {
     "api/media.ts": {
       "maxDuration": 10
@@ -14,7 +15,7 @@
       "maxDuration": 30
     },
     "api/tv-cloudflare-ingest.ts": {
-      "maxDuration": 300,
+      "maxDuration": 1800,
       "includeFiles": "node_modules/ffmpeg-static/ffmpeg"
     }
   },
