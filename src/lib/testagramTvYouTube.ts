@@ -1,5 +1,5 @@
 type YouTubeSessionStatus='connecting'|'encoding'|'reconnecting'|'stopped';
-type Options={streamId:string;encoderToken:string;program:MediaStream;videoBitsPerSecond:number;onStatus?:(status:YouTubeSessionStatus,detail?:string)=>void};
+type Options={streamId:string;encoderToken:string;program:MediaStream;videoBitsPerSecond:number;quality?:string;onStatus?:(status:YouTubeSessionStatus,detail?:string)=>void};
 
 const socketUrl=(id:string,t:string)=>{const p=window.location.protocol==="https:"?"wss:":"ws:";return p+"//"+window.location.host+"/api/tv-youtube-ingest?stream_id="+encodeURIComponent(id)+"&encoder_token="+encodeURIComponent(t)};
 
