@@ -28,6 +28,7 @@ export class TestagramTvMuxSession {
   private rotating = false;
   private reconnectTimer: number | null = null;
   private rotationTimer: number | null = null;
+  private reconnectAttempts = 0;
   private connectPromise: Promise<void> | null = null;
   private status: MuxSessionStatus = 'connecting';
 
@@ -45,6 +46,18 @@ export class TestagramTvMuxSession {
   private setStatus(status: MuxSessionStatus, detail?: string) {
     this.status = status;
     this.options.onStatus?.(status, detail);
+  }
+
+  private scheduleReconnect() {
+    if (this.stopped || this.rotating || this.reconnectTimer !== null) return;
+    const delay = Math.min(10000, 500 * Math.pow(2, Math.min(this.reconnectAttempts, 4)));
+    this.reconnectAttempts += 1;
+    this.setStatus('reconnecting', 'transport reconnect ' + this.reconnectAttempts);
+    this.reconnectTimer = window.setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connectPromise = null;
+      void this.openTransport().catch(() => this.scheduleReconnect());
+    }, delay);
   }
 
   private async openTransport(): Promise<void> {
@@ -71,9 +84,15 @@ export class TestagramTvMuxSession {
         try { message = JSON.parse(event.data); } catch { return; }
         if (message.type === 'ready') {
           settled = true;
-          this.startRecorder();
-          this.setStatus('encoding');
-          resolve();
+          try {
+            this.startRecorder();
+            this.reconnectAttempts = 0;
+            this.setStatus('encoding');
+            resolve();
+          } catch (error) {
+            fail(error instanceof Error ? error.message : 'Could not start the browser encoder.');
+            socket.close(1011, 'recorder start failed');
+          }
         } else if (message.type === 'error') {
           fail(message.message || 'Mux encoder rejected the stream.');
         }
@@ -84,11 +103,8 @@ export class TestagramTvMuxSession {
         this.socket = null;
         this.stopRecorder();
         if (!this.stopped && !this.rotating) {
-          this.setStatus('reconnecting');
-          this.reconnectTimer = window.setTimeout(() => {
-            this.connectPromise = null;
-            void this.openTransport().catch(() => undefined);
-          }, 1000);
+          if (!settled) fail('Mux encoder connection closed before it became ready.');
+          this.scheduleReconnect();
         } else if (!settled) {
           fail('Mux encoder connection closed before it became ready.');
         }
@@ -150,6 +166,18 @@ export class TestagramTvMuxSession {
   }
 
   getStatus() { return this.status; }
+  async recover() {
+    if (this.stopped) return;
+    this.rotating = true;
+    this.stopRecorder();
+    const socket = this.socket;
+    this.socket = null;
+    if (socket && socket.readyState !== WebSocket.CLOSED) socket.close(1000, 'visibility recovery');
+    if (this.reconnectTimer !== null) { window.clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
+    await new Promise(resolve => window.setTimeout(resolve, 150));
+    this.rotating = false;
+    await this.openTransport();
+  }
   getDiagnostics() {
     return {
       provider: 'mux',
