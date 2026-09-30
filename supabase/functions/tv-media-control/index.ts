@@ -6,9 +6,8 @@ const key = Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? Deno.env.get("SUPABASE_A
 const secret = Deno.env.get("SUPABASE_SECRET_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const muxTokenId = Deno.env.get("MUX_TOKEN_ID") ?? "";
 const muxTokenSecret = Deno.env.get("MUX_TOKEN_SECRET") ?? "";
-const turnUrls = (Deno.env.get("TV_TURN_URLS") ?? "").split(",").map(v => v.trim()).filter(Boolean);
-const turnUsername = Deno.env.get("TV_TURN_USERNAME") ?? "";
-const turnCredential = Deno.env.get("TV_TURN_CREDENTIAL") ?? "";
+const cloudflareTurnTokenId = Deno.env.get("CLOUDFLARE_TURN_TOKEN_ID") ?? "";
+const cloudflareTurnApiToken = Deno.env.get("CLOUDFLARE_TURN_API_TOKEN") ?? "";
 
 const cors = {"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS","Cache-Control":"no-store","Vary":"Origin, Access-Control-Request-Headers"};
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json",...cors}});
@@ -17,10 +16,44 @@ const admin=()=>createClient(url,secret,{auth:{persistSession:false,autoRefreshT
 const hash=async(v:string)=>Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v))),b=>b.toString(16).padStart(2,"0")).join("");
 const randomToken=()=>Array.from(crypto.getRandomValues(new Uint8Array(24)),b=>b.toString(16).padStart(2,"0")).join("");
 
-const iceServers = () => [
-  { urls: ["stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] },
-  ...(turnUrls.length && turnUsername && turnCredential ? [{ urls: turnUrls, username: turnUsername, credential: turnCredential }] : []),
-];
+let turnCache: { iceServers: any[]; expiresAt: number } | null = null;
+
+async function iceServers() {
+  const stun = { urls: ["stun:stun.cloudflare.com:3478", "stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] };
+  if (!cloudflareTurnTokenId || !cloudflareTurnApiToken) return [stun];
+
+  if (turnCache && turnCache.expiresAt > Date.now()) return turnCache.iceServers;
+
+  const response = await fetch(
+    "https://rtc.live.cloudflare.com/v1/turn/keys/" +
+      encodeURIComponent(cloudflareTurnTokenId) +
+      "/credentials/generate-ice-servers",
+    {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + cloudflareTurnApiToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ ttl: 86400 }),
+    },
+  );
+  const payload = await response.json().catch(() => null);
+  if (!response.ok || !Array.isArray(payload?.iceServers) || !payload.iceServers.length) {
+    throw new Error("Cloudflare TURN credentials could not be generated.");
+  }
+
+  const servers = payload.iceServers
+    .filter((server: any) => Array.isArray(server?.urls) && server.urls.length)
+    .map((server: any) => ({
+      urls: server.urls,
+      ...(server.username ? { username: server.username } : {}),
+      ...(server.credential ? { credential: server.credential } : {}),
+    }));
+
+  if (!servers.length) throw new Error("Cloudflare TURN returned no usable ICE servers.");
+  turnCache = { iceServers: servers, expiresAt: Date.now() + 30 * 60 * 1000 };
+  return servers;
+}
 
 const muxConfigured = () => Boolean(muxTokenId && muxTokenSecret);
 async function muxRequest(path: string, init: RequestInit = {}) {
@@ -95,7 +128,7 @@ Deno.serve(async req=>{
  const user=auth.startsWith("Bearer ")?(await db.auth.getUser()).data.user:null;
  const owner=Boolean(user&&user.id===stream.user_id);
  const provider="mux";
- const contract=(role:string)=>({provider,room_id:streamId,room_type:"tv",role,signaling_topic:"tv:"+streamId,title:stream.title,viewer_count:stream.viewer_count??0,ice_servers:iceServers(),playback_id:stream.mux_playback_id||null,playback_url:stream.mux_playback_id?"https://stream.mux.com/"+stream.mux_playback_id+".m3u8":null,mux_live_stream_id:stream.mux_live_stream_id||null,mux_status:stream.mux_status||"idle"});
+ const contract=(role:string)=>({provider,room_id:streamId,room_type:"tv",role,signaling_topic:"tv:"+streamId,title:stream.title,viewer_count:stream.viewer_count??0,ice_servers:await iceServers(),playback_id:stream.mux_playback_id||null,playback_url:stream.mux_playback_id?"https://stream.mux.com/"+stream.mux_playback_id+".m3u8":null,mux_live_stream_id:stream.mux_live_stream_id||null,mux_status:stream.mux_status||"idle"});
 
  if(action==="start"){
    if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can start this TV broadcast."}},403);
@@ -151,7 +184,7 @@ Deno.serve(async req=>{
    const token=randomToken();
    const {error:e}=await db.from("tv_guest_invites").insert({stream_id:streamId,token_hash:await hash(token),expires_at:new Date(Date.now()+3600000).toISOString()});
    if(e)return json({ok:false,error:{code:"GUEST_INVITE_FAILED",message:"Could not create the guest invite."}},409);
-   return json({ok:true,data:{invite_token:token,room_id:streamId,signaling_topic:"tv:"+streamId,ice_servers:iceServers()},error:null});
+   return json({ok:true,data:{invite_token:token,room_id:streamId,signaling_topic:"tv:"+streamId,ice_servers:await iceServers()},error:null});
  }
  if(action==="guest"){
    if(!stream.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
