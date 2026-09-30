@@ -132,6 +132,10 @@ export default function TvStudioPage() {
     const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     const memory = Number((navigator as any).deviceMemory || 0);
     const cores = Number(navigator.hardwareConcurrency || 0);
+    // Keep mobile/low-power devices responsive. Mux's live output is capped
+    // at 1080p, so spending 1080p/4K browser CPU on a constrained device
+    // only to downscale it again is counterproductive.
+    if (mobile || (memory > 0 && memory <= 4) || (cores > 0 && cores <= 4)) return '720p';
     return '1080p';
   });
   const [savedName, setSavedName] = useState<string | null>(null);
@@ -402,7 +406,7 @@ export default function TvStudioPage() {
           target.drawImage(camera, px, py, pw, ph);
         }
       } else if (scene === 'screen') {
-        if (screenStreamRef.current) screenVideo.srcObject = screenStreamRef.current;
+        if (screenStreamRef.current && screenVideo.srcObject !== screenStreamRef.current) screenVideo.srcObject = screenStreamRef.current;
         fit(target, screenVideo, true);
       } else if (scene === 'guest') {
         fit(target, remoteGuestVideoRef.current, true);
@@ -485,11 +489,14 @@ export default function TvStudioPage() {
       incoming.width = canvas.width; incoming.height = canvas.height; transitionIncomingCanvasRef.current = incoming;
       const ictx = incoming.getContext('2d')!;
       renderScene(ictx, activeProgram);
-      if (previewCanvas && previewCtx) {
-        if (previewCanvas.width !== canvas.width) previewCanvas.width = canvas.width;
-        if (previewCanvas.height !== canvas.height) previewCanvas.height = canvas.height;
+      // The preview is a monitoring surface, not part of the program bus.
+      // Render it at a reduced cadence to keep the full-resolution program
+      // compositor and encoder responsive on phones and low-power laptops.
+      if (previewCanvas && previewCtx && frameStats.count % (lightModeRef.current ? 3 : 2) === 0) {
+        if (previewCanvas.width !== 640) previewCanvas.width = 640;
+        if (previewCanvas.height !== 360) previewCanvas.height = 360;
         previewCtx.fillStyle = '#000';
-        previewCtx.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+        previewCtx.fillRect(0, 0, 640, 360);
         renderScene(previewCtx, previewSceneRef.current);
       }
 
@@ -517,7 +524,9 @@ export default function TvStudioPage() {
         }
       }
       if (replayBufferRef.current.shouldCapture(now) && programSceneRef.current !== 'replay') replayBufferRef.current.push(canvas, now);
-      renderMultiview();
+      // Multiview is diagnostic UI; keep it off the hot path and update it
+      // less frequently than the program bus.
+      if (multiview && frameStats.count % (lightModeRef.current ? 4 : 2) === 0) renderMultiview();
       sceneAnimationRef.current = requestAnimationFrame(draw);
     };
 
