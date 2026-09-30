@@ -128,7 +128,7 @@ Deno.serve(async req=>{
  const user=auth.startsWith("Bearer ")?(await db.auth.getUser()).data.user:null;
  const owner=Boolean(user&&user.id===stream.user_id);
  const provider="mux";
- const contract=(role:string)=>({provider,room_id:streamId,room_type:"tv",role,signaling_topic:"tv:"+streamId,title:stream.title,viewer_count:stream.viewer_count??0,ice_servers:await iceServers(),playback_id:stream.mux_playback_id||null,playback_url:stream.mux_playback_id?"https://stream.mux.com/"+stream.mux_playback_id+".m3u8":null,mux_live_stream_id:stream.mux_live_stream_id||null,mux_status:stream.mux_status||"idle"});
+ const contract=async(role:string)=>({provider,room_id:streamId,room_type:"tv",role,signaling_topic:"tv:"+streamId,title:stream.title,viewer_count:stream.viewer_count??0,ice_servers:await iceServers(),playback_id:stream.mux_playback_id||null,playback_url:stream.mux_playback_id?"https://stream.mux.com/"+stream.mux_playback_id+".m3u8":null,mux_live_stream_id:stream.mux_live_stream_id||null,mux_status:stream.mux_status||"idle"});
 
  if(action==="start"){
    if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can start this TV broadcast."}},403);
@@ -146,7 +146,7 @@ Deno.serve(async req=>{
      mux_live_stream_id:mux.live_stream_id,mux_playback_id:mux.playback_id,mux_active_asset_id:null,mux_status:mux.status||"idle"
    }).eq("id",streamId).eq("user_id",stream.user_id).select("id,user_id,is_live,title,description,viewer_count,tv_provider,mux_live_stream_id,mux_playback_id,mux_status").single();
    if(e||!updated)return json({ok:false,error:{code:"TV_START_FAILED",message:"Could not start the TV broadcast."}},409);
-   return json({ok:true,data:{...contract("host"),mux:{live_stream_id:mux.live_stream_id,playback_id:mux.playback_id,latency_mode:mux.latency_mode,encoder_required:true,encoder_token:encoderToken}},error:null});
+   return json({ok:true,data:{...(await contract("host")),mux:{live_stream_id:mux.live_stream_id,playback_id:mux.playback_id,latency_mode:mux.latency_mode,encoder_required:true,encoder_token:encoderToken}},error:null});
  }
  if(action==="stop"){
    if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can stop this TV broadcast."}},403);
@@ -154,7 +154,7 @@ Deno.serve(async req=>{
    await admin().from("tv_mux_encoder_sessions").update({revoked_at:new Date().toISOString()}).eq("stream_id",streamId).is("revoked_at",null);
    const {error:e}=await db.from("live_streams").update({is_live:false,ended_at:new Date().toISOString(),stream_url:null,tv_connection_state:"offline",tv_last_heartbeat_at:null,tv_host_peer_id:null,viewer_count:0,mux_status:"idle",mux_active_asset_id:null}).eq("id",streamId).eq("user_id",stream.user_id);
    if(e)return json({ok:false,error:{code:"TV_STOP_FAILED",message:"Could not stop the TV broadcast."}},409);
-   return json({ok:true,data:contract("host"),error:null});
+   return json({ok:true,data:await contract("host"),error:null});
  }
  if(action==="verify"){
    if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can verify this TV broadcast."}},403);
@@ -164,7 +164,7 @@ Deno.serve(async req=>{
      const p=await muxRequest("live-streams/"+encodeURIComponent(stream.mux_live_stream_id));
      const m=p?.data; const muxStatus=String(m?.status||"idle"); const active=muxStatus==="active"||Boolean(m?.active_asset_id);
      await db.from("live_streams").update({mux_status:muxStatus,mux_active_asset_id:m?.active_asset_id||null,tv_connection_state:active?"connected":"starting",tv_last_heartbeat_at:new Date().toISOString()}).eq("id",streamId).eq("user_id",stream.user_id);
-     return json({ok:true,data:{...contract("host"),on_air:active,health:{provider:"mux",mux_status:muxStatus,active_asset_id:m?.active_asset_id||null,viewer_count:stream.viewer_count??0}},error:null});
+     return json({ok:true,data:{...(await contract("host")),on_air:active,health:{provider:"mux",mux_status:muxStatus,active_asset_id:m?.active_asset_id||null,viewer_count:stream.viewer_count??0}},error:null});
    }catch(e:any){return json({ok:false,error:{code:"MUX_VERIFY_FAILED",message:e?.message||"Could not verify Mux Live."}},502);}
  }
  if(action==="heartbeat"){
@@ -194,9 +194,9 @@ Deno.serve(async req=>{
    const inviteDb=admin(); const now=new Date().toISOString();
    const {data:claimed,error:claimError}=await inviteDb.from("tv_guest_invites").update({used_at:now,claimed_by:user.id,claimed_at:now}).eq("stream_id",streamId).eq("token_hash",await hash(inviteToken)).is("used_at",null).gt("expires_at",now).select("id").maybeSingle();
    if(claimError||!claimed)return json({ok:false,error:{code:"INVITE_INVALID",message:"This TV guest invite is invalid, expired, or already claimed."}},401);
-   return json({ok:true,data:{...contract("guest"),guest_token:inviteToken},error:null});
+   return json({ok:true,data:{...(await contract("guest")),guest_token:inviteToken},error:null});
  }
  if(!stream.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
- if(stream.mux_playback_id)return json({ok:true,data:{...contract("viewer"),playback_url:"https://stream.mux.com/"+stream.mux_playback_id+".m3u8"},error:null});
+ if(stream.mux_playback_id)return json({ok:true,data:{...(await contract("viewer")),playback_url:"https://stream.mux.com/"+stream.mux_playback_id+".m3u8"},error:null});
  return json({ok:false,error:{code:"TV_MEDIA_NOT_READY",message:"Mux playback is not ready for this broadcast."}},409);
 });
