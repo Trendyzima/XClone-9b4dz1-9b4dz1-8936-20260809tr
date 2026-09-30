@@ -106,7 +106,7 @@ export default function HomeHubPage(){
       if(!token) return [];
       const params = new URLSearchParams({ limit: '12' });
       if (cursorOverride) params.set('before', cursorOverride);
-      const response = await fetch('/functions/v1/federated-feed?' + params.toString(), {
+      const response = await fetch((import.meta.env.VITE_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co') + '/functions/v1/federated-feed?' + params.toString(), {
         headers: {
           Authorization: 'Bearer ' + token,
           apikey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
