@@ -2,16 +2,17 @@ type YouTubeSessionStatus = 'connecting' | 'encoding' | 'reconnecting' | 'stoppe
 
 type YouTubeSessionOptions = {
   streamId: string;
-  encoderToken: string;
+  encoderToken?: string;
+  ingestConfig?: { rtmpsIngestionAddress: string; streamName: string };
   program: MediaStream;
   videoBitsPerSecond: number;
   onStatus?: (status: YouTubeSessionStatus, detail?: string) => void;
 };
 
-const socketUrl = (streamId: string, encoderToken: string) => {
+const socketUrl = (streamId: string, encoderToken?: string, ingestConfig?: { rtmpsIngestionAddress: string; streamName: string }) => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   return protocol + '//' + window.location.host + '/api/tv-youtube-ingest?stream_id=' +
-    encodeURIComponent(streamId) + '&encoder_token=' + encodeURIComponent(encoderToken);
+    encodeURIComponent(streamId) + (encoderToken ? '&encoder_token=' + encodeURIComponent(encoderToken) : '') + (ingestConfig ? '&rtmps_ingestion_address=' + encodeURIComponent(ingestConfig.rtmpsIngestionAddress) + '&stream_name=' + encodeURIComponent(ingestConfig.streamName) : '');
 };
 
 const pickMime = () => [
@@ -51,7 +52,7 @@ export class TestagramTvYouTubeSession {
     if (this.stopped) return;
     if (this.connectPromise) return this.connectPromise;
     this.connectPromise = new Promise<void>((resolve, reject) => {
-      const socket = new WebSocket(socketUrl(this.options.streamId, this.options.encoderToken));
+      const socket = new WebSocket(socketUrl(this.options.streamId, this.options.encoderToken, this.options.ingestConfig));
       this.socket = socket;
       socket.binaryType = 'arraybuffer';
       let settled = false;
