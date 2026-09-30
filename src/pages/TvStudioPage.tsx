@@ -1007,7 +1007,7 @@ export default function TvStudioPage() {
       if (guestSession) await guestSession.close().catch(() => undefined);
       if (session) {
         setBroadcastDiagnostics(session.getDiagnostics());
-        await session.stop().catch(() => undefined);
+        await session.close().catch(() => undefined);
       }
       if (id && user) {
         const { data: auth } = await supabase.auth.getSession();
