@@ -115,6 +115,7 @@ Allow: /
 # ── Sitemaps ─────────────────────────────────────────────────────────────────
 Sitemap: https://testagram.site/sitemap.xml
 Sitemap: https://testagram.site/sitemap-static.xml
-Sitemap: https://lrqqpudyrkmitbeilrqq.backend.onspace.ai/functions/v1/community-sitemap
+Sitemap: https://testagram.site/api/sitemap-users
+Sitemap: https://testagram.site/api/sitemap-community
 
 Crawl-delay: 1
