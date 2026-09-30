@@ -38,7 +38,19 @@ async function ytPrepare(s:any){
  const now=new Date(Date.now()+30000).toISOString();
  const broadcast=await ytApi("liveBroadcasts?part=snippet,status,contentDetails",{method:"POST",body:JSON.stringify({snippet:{title:String(s.title||"Testagram TV Live").slice(0,100),description:String(s.description||"Live from Testagram TV Studio").slice(0,5000),scheduledStartTime:now},status:{privacyStatus:"unlisted"},contentDetails:{enableAutoStart:true,enableAutoStop:true,enableEmbed:true,enableDvr:true,recordFromStart:true,monitorStream:{enableMonitorStream:false},latencyPreference:"low"}})},"broadcast_create");
  if(!broadcast?.id)throw new YouTubeStageError("broadcast_create","YouTube did not return a broadcast id.",200,"broadcast_id_missing");
- await ytApi("liveBroadcasts/bind?part=id,snippet,contentDetails&id="+encodeURIComponent(broadcast.id)+"&streamId="+encodeURIComponent(stream.id),{method:"POST",body:"{}"},"bind");
+ let bound=false,lastBindError:any=null;
+ for(let attempt=0;attempt<3;attempt++){
+  try{
+   await ytApi("liveBroadcasts/bind?part=id,snippet,contentDetails&id="+encodeURIComponent(broadcast.id)+"&streamId="+encodeURIComponent(stream.id),{method:"POST",body:"{}"},"bind");
+   bound=true;
+   break;
+  }catch(e:any){
+   lastBindError=e;
+   if(!(e instanceof YouTubeStageError)||e.httpStatus!==500||e.reason!=="backendError"||attempt===2)throw e;
+   await new Promise(r=>setTimeout(r,1000*(attempt+1)));
+  }
+ }
+ if(!bound&&lastBindError)throw lastBindError;
  return {broadcastId:String(broadcast.id),streamId:String(stream.id),videoId:String(broadcast.id)};
 }
 async function ytState(broadcastId:string,streamId:string){
