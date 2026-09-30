@@ -148,12 +148,7 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
-          SUPABASE_URL: \${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
-          MUX_TOKEN_ID: \${{ secrets.MUX_TOKEN_ID }}
-          MUX_TOKEN_SECRET: \${{ secrets.MUX_TOKEN_SECRET }}
-          TV_TURN_URLS: \${{ secrets.TV_TURN_URLS }}
-          TV_TURN_USERNAME: \${{ secrets.TV_TURN_USERNAME }}
-          TV_TURN_CREDENTIAL: \${{ secrets.TV_TURN_CREDENTIAL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
         run: |
           set -euo pipefail
           PROJECT_REF="$SUPABASE_PROJECT_REF"
@@ -491,6 +486,11 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+          MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID }}
+          MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET }}
+          TV_TURN_URLS: ${{ secrets.TV_TURN_URLS }}
+          TV_TURN_USERNAME: ${{ secrets.TV_TURN_USERNAME }}
+          TV_TURN_CREDENTIAL: ${{ secrets.TV_TURN_CREDENTIAL }}
         run: |
           set -euo pipefail
           PROJECT_REF="$SUPABASE_PROJECT_REF"
@@ -499,7 +499,7 @@ jobs:
           fi
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref for TV control-plane deployment."; exit 1; }
           for name in MUX_TOKEN_ID MUX_TOKEN_SECRET TV_TURN_URLS TV_TURN_USERNAME TV_TURN_CREDENTIAL; do
-            value="\${!name}"
+            value="${!name}"
             if [[ -z "$value" ]]; then
               echo "::error::Required TV production secret is missing from GitHub: $name"
               exit 1
@@ -801,17 +801,17 @@ jobs:
       - name: Synchronize Mux TV transport and TURN credentials into Vercel production
         shell: bash
         env:
-          VERCEL_TOKEN: \${{ secrets.VERCEL_TOKEN }}
-          MUX_TOKEN_ID: \${{ secrets.MUX_TOKEN_ID }}
-          MUX_TOKEN_SECRET: \${{ secrets.MUX_TOKEN_SECRET }}
-          TV_TURN_URLS: \${{ secrets.TV_TURN_URLS }}
-          TV_TURN_USERNAME: \${{ secrets.TV_TURN_USERNAME }}
-          TV_TURN_CREDENTIAL: \${{ secrets.TV_TURN_CREDENTIAL }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID }}
+          MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET }}
+          TV_TURN_URLS: ${{ secrets.TV_TURN_URLS }}
+          TV_TURN_USERNAME: ${{ secrets.TV_TURN_USERNAME }}
+          TV_TURN_CREDENTIAL: ${{ secrets.TV_TURN_CREDENTIAL }}
         run: |
           set -euo pipefail
           [[ -n "$VERCEL_TOKEN" ]] || { echo "::error::VERCEL_TOKEN is required."; exit 1; }
           for name in MUX_TOKEN_ID MUX_TOKEN_SECRET TV_TURN_URLS TV_TURN_USERNAME TV_TURN_CREDENTIAL; do
-            value="\${!name}"
+            value="${!name}"
             if [[ -z "$value" ]]; then
               echo "::error::Required TV production secret is missing from GitHub: $name"
               exit 1
