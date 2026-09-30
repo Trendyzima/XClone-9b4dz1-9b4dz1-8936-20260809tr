@@ -33,11 +33,13 @@ export function LiveSpacesDiscoveryStrip() {
     try { setHidden(Number(sessionStorage.getItem(HIDDEN_KEY) || '0') > Date.now()); } catch {}
     void load();
     const timer = window.setInterval(load, POLL_MS);
-    const channel = supabase.channel('live-channels-discovery')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'spaces' }, () => void load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'live_streams' }, () => void load())
-      .subscribe();
-    return () => { window.clearInterval(timer); void supabase.removeChannel(channel); };
+    // Polling is the source of truth for this discovery strip. Do not attach
+    // postgres_changes listeners here: this component is mounted on the global
+    // home shell and can be mounted/unmounted during route transitions. A
+    // realtime channel racing with cleanup can be observed by supabase-js as
+    // already subscribed, which aborts application startup. The 10s poll keeps
+    // live discovery fresh without making the home route dependent on realtime.
+    return () => { window.clearInterval(timer); };
   }, [load]);
 
   const excluded = location.pathname === '/spaces' || location.pathname.startsWith('/spaces/') || location.pathname.startsWith('/start-stream') || location.pathname.startsWith('/tv-studio') || location.pathname.startsWith('/stream/') || location.pathname.startsWith('/live/');
