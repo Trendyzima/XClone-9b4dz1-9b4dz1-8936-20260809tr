@@ -67,7 +67,7 @@ async function liveState(id:string){
 Deno.serve(async req=>{
  if(req.method==="OPTIONS")return json({ok:true});if(req.method!=="POST")return json({ok:false,error:{code:"METHOD_NOT_ALLOWED",message:"POST required."}},405);if(!url||!key)return json({ok:false,error:{code:"SUPABASE_NOT_CONFIGURED",message:"Supabase TV control is not configured."}},503);
  let b:any;try{b=await req.json()}catch{return json({ok:false,error:{code:"INVALID_JSON",message:"JSON required."}},400)}
- const id=typeof b.stream_id==="string"?b.stream_id:"",action=typeof b.action==="string"?b.action:"viewer",invite=typeof b.invite_token==="string"?b.invite_token:"",requestedProvider=typeof b.provider==="string"?b.provider:"";if(!id)return json({ok:false,error:{code:"STREAM_ID_REQUIRED",message:"stream_id is required."}},400);
+ const id=typeof b.stream_id==="string"?b.stream_id:"",action=typeof b.action==="string"?b.action:"viewer",invite=typeof b.invite_token==="string"?b.invite_token:"",requestedProvider=typeof b.provider==="string"?b.provider:"youtube";if(!id)return json({ok:false,error:{code:"STREAM_ID_REQUIRED",message:"stream_id is required."}},400);
  const auth=req.headers.get("authorization")||"",client=db(auth);
  if(action==="youtube-encoder-config"){
   const h=await hash(typeof b.encoder_token==="string"?b.encoder_token:"");if(!h)return json({ok:false,error:{code:"ENCODER_TOKEN_REQUIRED",message:"YouTube encoder session token is required."}},401);
@@ -107,6 +107,9 @@ Deno.serve(async req=>{
     return json({ok:true,data:{...(await contract("host",{youtube:{enabled:true,status:"prepared",broadcast_id:y.broadcastId,stream_id:y.streamId,video_id:y.videoId,error:null}})),youtube:{broadcast_id:y.broadcastId,stream_id:y.streamId,video_id:y.videoId,encoder_required:true,encoder_token:enc,rtmps_ingestion_address:ytUrl,stream_name:ytKey}},error:null});
   }
   if(requestedProvider==="native-p2p" || s.tv_provider==="native-p2p"){
+    return json({ok:false,error:{code:"YOUTUBE_REQUIRED",message:"Testagram TV public delivery is YouTube-only. Start the broadcast through the YouTube encoder path."}},409);
+  }
+  if(false && (requestedProvider==="native-p2p" || s.tv_provider==="native-p2p")){
     const a=admin();
     const {error:ue}=await a.from("live_streams").update({
       is_live:true,started_at:new Date().toISOString(),ended_at:null,stream_url:null,
@@ -155,10 +158,7 @@ Deno.serve(async req=>{
     }catch(e:any){return json({ok:false,error:{code:"YOUTUBE_VERIFY_FAILED",message:e?.message||"Could not verify YouTube live delivery."}},502)}
   }
   if(s.tv_provider==="native-p2p"){
-    return json({ok:true,data:await contract("host",{
-      on_air:true,native_p2p:true,cloudflare_input_status:"not_provisioned",playback_url:null,
-      health:{provider:"native-p2p",native_p2p_state:s.tv_connection_state||"starting",youtube:{status:"disabled",error:"Cloudflare Stream is not provisioned."}}
-    }),error:null});
+    return json({ok:false,error:{code:"YOUTUBE_REQUIRED",message:"Testagram TV now requires YouTube public delivery. Native P2P is not an ON AIR fallback."}},409);
   }
   if(!s.cloudflare_input_id)return json({ok:false,error:{code:"CLOUDFLARE_INPUT_MISSING",message:"Cloudflare Live Input is not configured."}},409);
   try{const x=await liveState(s.cloudflare_input_id),a=admin();await a.from("live_streams").update({cloudflare_video_id:x.video?.uid||null,cloudflare_playback_url:x.playbackUrl||s.cloudflare_playback_url||null,stream_url:x.playbackUrl||s.cloudflare_playback_url||null,tv_connection_state:x.onAir?"connected":String(x.input?.status||"starting"),tv_last_heartbeat_at:new Date().toISOString()}).eq("id",id).eq("user_id",s.user_id);return json({ok:true,data:await contract("host",{on_air:x.onAir,cloudflare_input_status:x.input?.status||"unknown",cloudflare_video_id:x.video?.uid||null,playback_url:x.playbackUrl||s.cloudflare_playback_url||null,health:{provider:"cloudflare",cloudflare_input_status:x.input?.status||"unknown",cloudflare_video_state:x.video?.status?.state||"idle",playback_url:x.playbackUrl||null,youtube:{status:s.youtube_status||"disabled",error:s.youtube_error||null}}}),error:null})}catch(e:any){return json({ok:false,error:{code:"CLOUDFLARE_VERIFY_FAILED",message:e?.message||"Could not verify Cloudflare Stream."}},502)}
