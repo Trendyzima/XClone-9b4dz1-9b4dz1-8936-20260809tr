@@ -234,11 +234,11 @@ jobs:
             PROJECT_REF="${SUPABASE_HOST%%.*}"
           fi
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve Supabase project ref for LiveKit retirement."; exit 1; }
-          for fn in livekit-tv-token livekit-token livekit-tv-guest-token livekit-space-token tv-stream-proxy; do
-            echo "Retiring legacy Edge Function: $fn"
+          for fn in livekit-tv-token livekit-token livekit-tv-guest-token livekit-space-token tv-stream-proxy mux-tv-webhook; do
+            echo "Retiring legacy TV Edge Function: $fn"
             supabase functions delete "$fn" --project-ref "$PROJECT_REF" --yes || true
           done
-          echo "Legacy LiveKit Edge Function retirement completed."
+          echo "Legacy LiveKit/Mux TV Edge Function retirement completed."
 
       - name: Synchronize M-Pesa sandbox secrets into Supabase Edge Functions
         if: steps.supabase-auth.outputs.available == 'true'
@@ -461,22 +461,39 @@ jobs:
             fi
           done
 
-          for fn in testagram-ad-campaign testagram-ads zenad-decision zenad-event testagram-ad-asset-upload mpesa-ad-payment; do
-            if [[ "$fn" == "zenad-event" || "$fn" == "mpesa-ad-payment" ]]; then
-              supabase functions deploy "$fn" --use-api --project-ref "$PROJECT_REF" --no-verify-jwt
-            else
-              supabase functions deploy "$fn" --use-api --project-ref "$PROJECT_REF"
-            fi
-          done
-          # These two compatibility wrappers have no external imports. Deploy them without
-          # their legacy deno.json so Supabase cannot re-associate the stale import-map path.
-          for fn in zenad-campaign zenad-ad-asset-upload; do
-            echo "Deploying compatibility wrapper $fn without a local import map"
-            # The pinned Supabase CLI rejects an absolute /tmp import-map path.
-            # These wrappers need no custom import map; remote stale metadata is
-            # normalized above before the source-only deployment.
-            supabase functions deploy "$fn" --use-api --project-ref "$PROJECT_REF"
-          done
+          deploy_ads_function() {
+            local name="$1"
+            local flags="${2:-}"
+            local attempt=1
+            local max_attempts=4
+            while true; do
+              echo "Deploying Testagram Ads Edge Function $name (attempt $attempt/$max_attempts)"
+              if [[ "$flags" == "--no-verify-jwt" ]]; then
+                if supabase functions deploy "$name" --use-api --project-ref "$PROJECT_REF" --no-verify-jwt; then return 0; fi
+              elif supabase functions deploy "$name" --use-api --project-ref "$PROJECT_REF"; then
+                return 0
+              fi
+              if (( attempt >= max_attempts )); then
+                echo "::error::Testagram Ads Edge Function deployment failed after $max_attempts attempts: $name"
+                return 1
+              fi
+              delay=$((attempt * 20))
+              echo "::warning::Supabase Ads deployment returned a transient failure for $name; retrying in ${delay}s (attempt $((attempt+1))/$max_attempts)."
+              sleep "$delay"
+              attempt=$((attempt+1))
+            done
+          }
+          deploy_ads_function testagram-ad-campaign
+          deploy_ads_function testagram-ads
+          deploy_ads_function zenad-decision
+          deploy_ads_function zenad-event "--no-verify-jwt"
+          deploy_ads_function testagram-ad-asset-upload
+          deploy_ads_function mpesa-ad-payment "--no-verify-jwt"
+          # These two compatibility wrappers have no external imports. Deploy them with
+          # the same transient-error retry contract after stale remote import-map metadata
+          # has been normalized above.
+          deploy_ads_function zenad-campaign
+          deploy_ads_function zenad-ad-asset-upload
           node -e 'const fs=require("node:fs"); const p="supabase/migrations/20260919193000_testagram_ads_runtime_schema_repair.sql"; if(!fs.existsSync(p)){console.error("Canonical Testagram Ads runtime migration is missing:",p); process.exit(1)} console.log("Testagram Ads schema source present:",p);'
 
       - name: Deploy Testagram TV control-plane Edge Function
