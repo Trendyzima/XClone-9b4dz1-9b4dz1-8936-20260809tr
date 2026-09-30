@@ -1459,19 +1459,19 @@ export default function TvStudioPage() {
                 <Activity className="w-4 h-4 animate-pulse" />
                 {broadcastStage === 'preparing' && 'Preparing the TV program…'}
                 {broadcastStage === 'authorizing' && 'Authorizing the broadcast…'}
-                {broadcastStage === 'connecting' && 'Connecting TV signaling + WebRTC…'}
-                {broadcastStage === 'verifying' && 'Verifying WebRTC connection and live media…'}
+                {broadcastStage === 'connecting' && (broadcastDiagnostics?.provider === 'youtube' ? 'Connecting YouTube encoder…' : 'Connecting Testagram TV signaling + WebRTC…')}
+                {broadcastStage === 'verifying' && (broadcastDiagnostics?.provider === 'youtube' ? 'Verifying YouTube ingest and live broadcast…' : 'Verifying WebRTC connection and live media…')}
                 {broadcastStage === 'on-air' && 'ON AIR'}
               </div>
               {broadcastStage === 'on-air' && <p className="mt-2 text-xs text-zinc-300">Cloudflare: <span className="font-semibold text-emerald-300">ON AIR</span> · YouTube: <span className={youtubeStatus === 'broadcasting' ? 'font-semibold text-emerald-300' : 'font-semibold text-amber-300'}>{youtubeStatus}</span></p>}
               <p className="mt-1 text-xs text-blue-200/80">
                 {broadcastStage === 'preparing' && 'Checking camera, microphone and production A/V tracks.'}
                 {broadcastStage === 'authorizing' && 'Creating the private broadcast session and requesting media authorization.'}
-                {broadcastStage === 'connecting' && 'Waiting for the signaling channel and WebRTC answer.'}
-                {broadcastStage === 'verifying' && 'Validating live camera/microphone tracks and preparing the producer WebRTC session.'}
-                {broadcastStage === 'on-air' && 'Producer is transmitting. Public viewers attach automatically and the studio marks media delivery healthy after inbound RTP is confirmed.'}
+                {broadcastStage === 'connecting' && (broadcastDiagnostics?.provider === 'youtube' ? 'Waiting for the YouTube encoder WebSocket to become ready.' : 'Waiting for the signaling channel and WebRTC answer.')}
+                {broadcastStage === 'verifying' && (broadcastDiagnostics?.provider === 'youtube' ? 'Checking encoder health and waiting for YouTube to report an active live stream.' : 'Validating live camera/microphone tracks and preparing the producer WebRTC session.')}
+                {broadcastStage === 'on-air' && (broadcastDiagnostics?.provider === 'youtube' ? 'Program is transmitting through the YouTube encoder. Public viewers receive the embedded YouTube live stream.' : 'Producer is transmitting. Public viewers attach automatically and the studio marks media delivery healthy after inbound RTP is confirmed.')}
               </p>
-              {broadcastDiagnostics && <p className="mt-2 text-[10px] text-zinc-300">{broadcastDiagnostics.mediaReachedViewer ? <>Viewer media: confirmed · video packets: {String(broadcastDiagnostics.viewerVideoPackets ?? broadcastDiagnostics.videoPackets ?? 0)} · audio packets: {String(broadcastDiagnostics.viewerAudioPackets ?? broadcastDiagnostics.audioPackets ?? 0)} · {String(broadcastDiagnostics.viewerWidth ?? broadcastDiagnostics.width ?? 0)}×{String(broadcastDiagnostics.viewerHeight ?? broadcastDiagnostics.height ?? 0)}</> : <>Producer tracks: {broadcastDiagnostics.mediaReady ? 'live' : 'checking'} · Viewer media: awaiting first inbound RTP</>}</p>}
+              {broadcastDiagnostics && <p className="mt-2 text-[10px] text-zinc-300">broadcastDiagnostics.provider === 'youtube' ? <>YouTube encoder: {String(broadcastDiagnostics.encoder_status || 'starting')} · video: {String(broadcastDiagnostics.youtube_video_id || 'preparing')}</> : broadcastDiagnostics.mediaReachedViewer ? <>Viewer media: confirmed · video packets: {String(broadcastDiagnostics.viewerVideoPackets ?? broadcastDiagnostics.videoPackets ?? 0)} · audio packets: {String(broadcastDiagnostics.viewerAudioPackets ?? broadcastDiagnostics.audioPackets ?? 0)} · {String(broadcastDiagnostics.viewerWidth ?? broadcastDiagnostics.width ?? 0)}×{String(broadcastDiagnostics.viewerHeight ?? broadcastDiagnostics.height ?? 0)}</> : <>Producer tracks: {broadcastDiagnostics.mediaReady ? 'live' : 'checking'} · Viewer media: awaiting first inbound RTP</></p>}
             </div>
           )}
           {broadcastError && (
