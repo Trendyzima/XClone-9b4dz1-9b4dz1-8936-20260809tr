@@ -72,7 +72,14 @@ async function ytTransitionComplete(id:string){return ytApi("liveBroadcasts/tran
 async function cf(path:string,init:RequestInit={}){
  if(!cfReady())throw new Error("Cloudflare Stream transport is not configured.");
  const r=await fetch("https://api.cloudflare.com/client/v4/accounts/"+encodeURIComponent(cfAccount)+"/stream/"+path,{...init,headers:{Authorization:"Bearer "+cfToken,"Content-Type":"application/json",...(init.headers||{})}});
- const p=await r.json().catch(()=>null);if(!r.ok||p?.success===false)throw new Error(p?.errors?.map((e:any)=>e?.message).filter(Boolean).join("; ")||"Cloudflare Stream API request failed ("+r.status+").");return p;
+ const p=await r.json().catch(()=>null);
+ if(!r.ok||p?.success===false){
+   const e=p?.errors?.[0]||{};
+   const code=String(e?.code||"unknown");
+   const message=String(e?.message||"Cloudflare Stream API request failed ("+r.status+").");
+   throw new Error("Cloudflare Stream "+path+" failed: HTTP "+r.status+" code="+code+" · "+message);
+ }
+ return p;
 }
 async function ice(){
  const stun={urls:["stun:stun.cloudflare.com:3478","stun:stun.l.google.com:19302","stun:stun1.l.google.com:19302"]};if(!turnId||!turnToken)return[stun];
