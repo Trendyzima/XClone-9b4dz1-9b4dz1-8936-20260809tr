@@ -3,6 +3,7 @@ const total = Number(process.env.LOAD_REQUESTS || 2000);
 const concurrency = Number(process.env.LOAD_CONCURRENCY || 100);
 const expectedCommit = process.env.BASELINE_SHA || process.env.GITHUB_SHA || "";
 const waitSeconds = Number(process.env.DEPLOY_WAIT_SECONDS || 300);
+const requestTimeoutMs = Number(process.env.BASELINE_REQUEST_TIMEOUT_MS || 10000);
 const target = base + "/api/health";
 const latencies = [];
 const statusCounts = new Map();
@@ -32,8 +33,12 @@ function recordStatus(status) {
 }
 
 async function readHealth() {
-  const response = await fetch(target, {
-    headers: {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), requestTimeoutMs);
+  try {
+    const response = await fetch(target, {
+      signal: controller.signal,
+      headers: {
       Accept: "application/json",
       "Cache-Control": "no-cache",
       "User-Agent": "testagram-production-capacity-baseline/1.0",
@@ -46,7 +51,10 @@ async function readHealth() {
   } catch {
     body = null;
   }
-  return { response, body };
+    return { response, body };
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 async function isDescendantOfExpected(observedCommit) {
