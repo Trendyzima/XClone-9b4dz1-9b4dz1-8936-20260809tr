@@ -510,6 +510,17 @@ jobs:
             "MUX_TOKEN_SECRET=$MUX_TOKEN_SECRET" \
             "CLOUDFLARE_TURN_TOKEN_ID=$CLOUDFLARE_TURN_TOKEN_ID" \
             "CLOUDFLARE_TURN_API_TOKEN=$CLOUDFLARE_TURN_API_TOKEN"
+
+          # YouTube is a downstream Mux simulcast. Keep its stream key server-side.
+          # If it is not configured yet, TV remains Mux-only rather than failing startup.
+          if [[ -n "${{ secrets.YOUTUBE_STREAM_KEY }}" ]]; then
+            YOUTUBE_STREAM_KEY="${{ secrets.YOUTUBE_STREAM_KEY }}"
+            printf '::add-mask::%s\n' "$YOUTUBE_STREAM_KEY"
+            supabase secrets set --project-ref "$PROJECT_REF" "YOUTUBE_STREAM_KEY=$YOUTUBE_STREAM_KEY"
+            echo "YouTube simulcast credential synchronized to the TV control plane."
+          else
+            echo "YouTube simulcast credential not configured; Mux remains the primary output."
+          fi
           echo "Mux credentials and Cloudflare TURN key credentials synchronized to the TV control plane."
           attempt=1
           max_attempts=4
