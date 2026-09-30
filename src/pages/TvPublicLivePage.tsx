@@ -3,7 +3,6 @@ import { useParams, useSearchParams } from 'react-router-dom';
 import {
   Loader2,
   Radio,
-  Users,
   Volume2,
   VolumeX,
   Share2,
@@ -49,10 +48,7 @@ export default function TvPublicLivePage() {
   const youtubeRef = useRef<HTMLIFrameElement>(null);
   const sessionRef = useRef<TestagramTvMediaSession | null>(null);
   const guestMediaRef = useRef<MediaStream | null>(null);
-  const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   const [title, setTitle] = useState('Testagram TV');
-  const [viewers, setViewers] = useState(0);
   const [connecting, setConnecting] = useState(true);
   const [live, setLive] = useState(false);
   const [muted, setMuted] = useState(true);
@@ -67,7 +63,6 @@ export default function TvPublicLivePage() {
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let connectingAttempt = false;
     let retryCount = 0;
-    let signalChannel: ReturnType<typeof supabase.channel> | null = null;
 
     const sleepRetry = (ms: number) => {
       if (cancelled) return;
@@ -134,9 +129,7 @@ export default function TvPublicLivePage() {
             throw new Error('Testagram TV is not configured for YouTube playback.');
           }
 
-          const videoId = String(
-            contract?.youtube?.video_id || contract?.playback_id || '',
-          ).trim();
+          const videoId = String(contract?.youtube?.video_id || '').trim();
 
           if (!videoId) {
             throw new Error('YouTube live video is not ready yet.');
@@ -221,13 +214,6 @@ export default function TvPublicLivePage() {
     };
 
     void connect();
-            }
-          },
-        )
-        .subscribe();
-    }
-
-    void connect();
 
     return () => {
       cancelled = true;
@@ -235,11 +221,6 @@ export default function TvPublicLivePage() {
 
       if (retryTimer) clearTimeout(retryTimer);
       retryTimer = null;
-
-      if (signalChannel) {
-        void supabase.removeChannel(signalChannel);
-        signalChannel = null;
-      }
 
       void sessionRef.current?.close();
       sessionRef.current = null;
@@ -366,7 +347,6 @@ export default function TvPublicLivePage() {
           </div>
           <div className="text-xs text-zinc-500">
             {viewerStatus}
-            {!isGuest && viewers > 0 && ` · ${viewers} connections`}
           </div>
         </div>
 
