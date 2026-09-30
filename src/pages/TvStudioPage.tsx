@@ -35,7 +35,7 @@ export default function TvStudioPage() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
-  const roomRef = useRef<{ close: () => Promise<void> } | null>(null);
+  const roomRef = useRef<TestagramTvCloudflareSession | TestagramTvMediaSession | null>(null);
   const guestRoomRef = useRef<TestagramTvMediaSession | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const programStreamRef = useRef<MediaStream | null>(null);
@@ -829,7 +829,7 @@ export default function TvStudioPage() {
     setBroadcastError(null);
     setBroadcastDiagnostics(null);
     setBroadcastStage('preparing');
-    let session: TestagramTvCloudflareSession | null = null;
+    let session: TestagramTvCloudflareSession | TestagramTvMediaSession | null = null;
     let guestSession: TestagramTvMediaSession | null = null;
     let id: string | null = null;
     let createdBroadcast = false;
