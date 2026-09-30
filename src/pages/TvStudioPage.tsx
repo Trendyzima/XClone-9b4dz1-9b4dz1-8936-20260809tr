@@ -923,7 +923,7 @@ export default function TvStudioPage() {
         if (!nativeResponse.ok) throw new Error(nativePayload?.error?.message || 'Native Testagram TV transport could not be started.');
 
         provider = 'native-p2p';
-        session = await TestagramTvMediaSession.connectHost(id, program);
+        session = await TestagramTvMediaSession.connectHostExisting(id, program);
         roomRef.current = session;
         setBroadcastDiagnostics({
           provider: 'native-p2p',
