@@ -920,7 +920,9 @@ export default function TvStudioPage() {
       setStatus('live');
       setElapsed(0);
       setBroadcastError(null);
-      toast.success(`Testagram TV is ON AIR through Mux at ${VIDEO_PRESETS[quality].width}×${VIDEO_PRESETS[quality].height} / ${VIDEO_PRESETS[quality].fps}fps`);
+      const muxOutputWidth = Math.min(VIDEO_PRESETS[quality].width, 1920);
+      const muxOutputHeight = Math.min(VIDEO_PRESETS[quality].height, 1080);
+      toast.success(`Testagram TV is ON AIR through Mux at up to ${muxOutputWidth}×${muxOutputHeight} / ${VIDEO_PRESETS[quality].fps}fps`);
     } catch (e: any) {
       if (guestSession) await guestSession.close().catch(() => undefined);
       if (session) {
