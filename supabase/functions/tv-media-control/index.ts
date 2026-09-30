@@ -152,14 +152,20 @@ Deno.serve(async req=>{
    const now=new Date().toISOString();
    let mux:any;
    try{mux=await prepareMuxLiveStream(stream);}catch(e:any){return json({ok:false,error:{code:"MUX_SETUP_FAILED",message:e?.message||"Could not prepare Mux Live."}},502);}
+   let youtubeTarget:any=null;
+   try { youtubeTarget=await addYouTubeSimulcastTarget(mux.live_stream_id); }
+   catch(e:any) {
+     try { await muxRequest("live-streams/"+encodeURIComponent(mux.live_stream_id), {method:"DELETE"}); } catch {}
+     return json({ok:false,error:{code:"YOUTUBE_SETUP_FAILED",message:e?.message||"Could not prepare YouTube distribution."}},502);
+   }
    const encoderToken=randomToken();
    const {error:sessionError}=await admin().from("tv_mux_encoder_sessions").insert({stream_id:streamId,user_id:stream.user_id,token_hash:await hash(encoderToken),expires_at:new Date(Date.now()+12*60*60*1000).toISOString()});
    if(sessionError)return json({ok:false,error:{code:"MUX_ENCODER_SESSION_FAILED",message:"Could not create the secure Mux encoder session."}},500);
    const {data:updated,error:e}=await db.from("live_streams").update({
      is_live:true,started_at:now,ended_at:null,stream_url:"https://stream.mux.com/"+mux.playback_id+".m3u8",
      tv_provider:"mux",tv_connection_state:"starting",tv_last_heartbeat_at:now,tv_host_peer_id:null,viewer_count:0,
-     mux_live_stream_id:mux.live_stream_id,mux_playback_id:mux.playback_id,mux_active_asset_id:null,mux_status:mux.status||"idle"
-   }).eq("id",streamId).eq("user_id",stream.user_id).select("id,user_id,is_live,title,description,viewer_count,tv_provider,mux_live_stream_id,mux_playback_id,mux_status").single();
+     mux_live_stream_id:mux.live_stream_id,mux_playback_id:mux.playback_id,mux_active_asset_id:null,mux_status:mux.status||"idle",youtube_simulcast_target_id:youtubeTarget?.id||null,youtube_status:youtubeTarget?"starting":"disabled",youtube_error:null
+   }).eq("id",streamId).eq("user_id",stream.user_id).select("id,user_id,is_live,title,description,viewer_count,tv_provider,mux_live_stream_id,mux_playback_id,mux_status,youtube_simulcast_target_id,youtube_status,youtube_error").single();
    if(e||!updated)return json({ok:false,error:{code:"TV_START_FAILED",message:"Could not start the TV broadcast."}},409);
    return json({ok:true,data:{...(await contract("host")),mux:{live_stream_id:mux.live_stream_id,playback_id:mux.playback_id,latency_mode:mux.latency_mode,encoder_required:true,encoder_token:encoderToken}},error:null});
  }
