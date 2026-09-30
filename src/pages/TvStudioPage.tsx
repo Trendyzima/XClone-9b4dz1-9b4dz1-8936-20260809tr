@@ -895,7 +895,7 @@ export default function TvStudioPage() {
         body: JSON.stringify({ action: 'start', provider: 'youtube', stream_id: id }),
       });
       let startPayload = await startResponse.json().catch(() => null);
-      const provider: 'youtube' = 'youtube';
+      const provider = 'youtube' as const;
 
       // YouTube is the single public TV delivery provider. Do not silently
       // downgrade to another transport: a successful Go Live must prove the
