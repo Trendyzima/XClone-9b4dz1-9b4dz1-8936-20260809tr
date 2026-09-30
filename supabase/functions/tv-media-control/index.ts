@@ -160,20 +160,27 @@ Deno.serve(async req=>{
    }
    const encoderToken=randomToken();
    const {error:sessionError}=await admin().from("tv_mux_encoder_sessions").insert({stream_id:streamId,user_id:stream.user_id,token_hash:await hash(encoderToken),expires_at:new Date(Date.now()+12*60*60*1000).toISOString()});
-   if(sessionError)return json({ok:false,error:{code:"MUX_ENCODER_SESSION_FAILED",message:"Could not create the secure Mux encoder session."}},500);
+   if(sessionError) {
+     try { await muxRequest("live-streams/"+encodeURIComponent(mux.live_stream_id), {method:"DELETE"}); } catch {}
+     return json({ok:false,error:{code:"MUX_ENCODER_SESSION_FAILED",message:"Could not create the secure Mux encoder session."}},500);
+   }
    const {data:updated,error:e}=await db.from("live_streams").update({
      is_live:true,started_at:now,ended_at:null,stream_url:"https://stream.mux.com/"+mux.playback_id+".m3u8",
      tv_provider:"mux",tv_connection_state:"starting",tv_last_heartbeat_at:now,tv_host_peer_id:null,viewer_count:0,
      mux_live_stream_id:mux.live_stream_id,mux_playback_id:mux.playback_id,mux_active_asset_id:null,mux_status:mux.status||"idle",youtube_simulcast_target_id:youtubeTarget?.id||null,youtube_status:youtubeTarget?"starting":"disabled",youtube_error:null
    }).eq("id",streamId).eq("user_id",stream.user_id).select("id,user_id,is_live,title,description,viewer_count,tv_provider,mux_live_stream_id,mux_playback_id,mux_status,youtube_simulcast_target_id,youtube_status,youtube_error").single();
-   if(e||!updated)return json({ok:false,error:{code:"TV_START_FAILED",message:"Could not start the TV broadcast."}},409);
+   if(e||!updated) {
+     await admin().from("tv_mux_encoder_sessions").update({revoked_at:new Date().toISOString()}).eq("stream_id",streamId).eq("token_hash",await hash(encoderToken));
+     try { await muxRequest("live-streams/"+encodeURIComponent(mux.live_stream_id), {method:"DELETE"}); } catch {}
+     return json({ok:false,error:{code:"TV_START_FAILED",message:"Could not start the TV broadcast."}},409);
+   }
    return json({ok:true,data:{...(await contract("host")),mux:{live_stream_id:mux.live_stream_id,playback_id:mux.playback_id,latency_mode:mux.latency_mode,encoder_required:true,encoder_token:encoderToken}},error:null});
  }
  if(action==="stop"){
    if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can stop this TV broadcast."}},403);
    if(stream.mux_live_stream_id&&muxConfigured()){try{await muxRequest("live-streams/"+encodeURIComponent(stream.mux_live_stream_id)+"/disable",{method:"PUT"});}catch{}}
    await admin().from("tv_mux_encoder_sessions").update({revoked_at:new Date().toISOString()}).eq("stream_id",streamId).is("revoked_at",null);
-   const {error:e}=await db.from("live_streams").update({is_live:false,ended_at:new Date().toISOString(),stream_url:null,tv_connection_state:"offline",tv_last_heartbeat_at:null,tv_host_peer_id:null,viewer_count:0,mux_status:"idle",mux_active_asset_id:null}).eq("id",streamId).eq("user_id",stream.user_id);
+   const {error:e}=await db.from("live_streams").update({is_live:false,ended_at:new Date().toISOString(),stream_url:null,tv_connection_state:"offline",tv_last_heartbeat_at:null,tv_host_peer_id:null,viewer_count:0,mux_status:"idle",mux_active_asset_id:null,youtube_status:"idle",youtube_error:null}).eq("id",streamId).eq("user_id",stream.user_id);
    if(e)return json({ok:false,error:{code:"TV_STOP_FAILED",message:"Could not stop the TV broadcast."}},409);
    return json({ok:true,data:await contract("host"),error:null});
  }
