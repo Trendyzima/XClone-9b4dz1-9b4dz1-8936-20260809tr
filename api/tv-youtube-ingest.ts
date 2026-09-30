@@ -58,6 +58,7 @@ wss.on('connection', (socket, request) => {
     if (!isBinary) return;
     try {
       if (!initialized) {
+        initialized = true;
         const config = encoderToken
           ? await getEncoderConfig(streamId, encoderToken)
           : { rtmps_ingestion_address: directIngestAddress, stream_name: directStreamName };
@@ -73,7 +74,6 @@ wss.on('connection', (socket, request) => {
           '-c:a', 'aac', '-ar', '48000', '-ac', '2', '-b:a', '128k',
           '-f', 'flv', ingest,
         ]);
-        initialized = true;
         ffmpeg.stderr.on('data', chunk => {
           const line = String(chunk).trim();
           if (line) console.warn('[TV YouTube encoder]', line.slice(0, 500));
@@ -84,7 +84,7 @@ wss.on('connection', (socket, request) => {
           try { socket.close(1011, 'encoder failed'); } catch {}
         });
         ffmpeg.on('exit', code => {
-          if (code !== 0 && socket.readyState === socket.OPEN) {
+          if (code !== 0 && socket.readyState === 1) {
             try { socket.send(JSON.stringify({ type: 'error', message: 'YouTube encoder stopped unexpectedly (' + code + ').' })); } catch {}
           }
           ffmpeg = null;
