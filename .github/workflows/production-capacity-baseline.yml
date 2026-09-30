@@ -25,6 +25,7 @@ jobs:
       LOAD_REQUESTS: "2000"
       LOAD_CONCURRENCY: "100"
       DEPLOY_WAIT_SECONDS: "300"
+      BASELINE_REQUEST_TIMEOUT_MS: "10000"
       GITHUB_TOKEN: ${{ github.token }}
     steps:
       - name: Skip superseded reconciliation runs
@@ -76,4 +77,4 @@ jobs:
 
       - name: Run production capacity baseline
         if: steps.guard.outputs.superseded != 'true'
-        run: node scripts/production-capacity-baseline.mjs
+        run: node scripts/production-capacity-baseline.mjs --skip-deployment-wait
