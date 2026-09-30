@@ -86,33 +86,10 @@ export default function TvPublicLivePage() {
 
       try {
         if (!isGuest) {
-          let { data: authData } = await supabase.auth.getSession();
-
-          if (!authData.session) {
-            const { data: anonymous, error: authError } =
-              await supabase.auth.signInAnonymously();
-
-            if (authError || !anonymous.session) {
-              throw new Error('TV viewer authorization is unavailable.');
-            }
-
-            authData = { session: anonymous.session };
-          }
-
-          if (authData.session?.access_token) {
-            await supabase.realtime.setAuth(authData.session.access_token);
-          }
-
           const viewerResponse = await fetch('/api/live', {
             method: 'POST',
             cache: 'no-store',
-            headers: {
-              'Content-Type': 'application/json',
-              'Cache-Control': 'no-cache',
-              ...(authData.session?.access_token
-                ? { Authorization: `Bearer ${authData.session.access_token}` }
-                : {}),
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ action: 'viewer', stream_id: streamId }),
           });
 
@@ -141,7 +118,7 @@ export default function TvPublicLivePage() {
               sleepRetry(
                 code === 'TV_MEDIA_NOT_READY'
                   ? Math.min(5000, 500 + retryCount * 350)
-                  : 1000,
+                  : 1500,
               );
               retryCount += 1;
               return;
@@ -244,24 +221,7 @@ export default function TvPublicLivePage() {
       }
     };
 
-    if (!isGuest && streamId) {
-      signalChannel = supabase
-        .channel(`tv-public-live-${streamId}`)
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'live_streams',
-            filter: `id=eq.${streamId}`,
-          },
-          (payload) => {
-            if (cancelled) return;
-            const next = payload.new as { is_live?: boolean };
-
-            if (next.is_live) {
-              retryCount = 0;
-              void connect();
+    void connect();
             }
           },
         )
@@ -284,11 +244,6 @@ export default function TvPublicLivePage() {
 
       void sessionRef.current?.close();
       sessionRef.current = null;
-
-      if (recoveryTimerRef.current) {
-        clearTimeout(recoveryTimerRef.current);
-      }
-      recoveryTimerRef.current = null;
 
       setYoutubeVideoId(null);
 
