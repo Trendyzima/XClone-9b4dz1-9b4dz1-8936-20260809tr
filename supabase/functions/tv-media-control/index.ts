@@ -1,233 +1,90 @@
+import "jsr:@supabase/supabase-js@2";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const url = Deno.env.get("SUPABASE_URL") ?? "";
-const key = Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY") ?? "";
-const secret = Deno.env.get("SUPABASE_SECRET_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const muxTokenId = Deno.env.get("MUX_TOKEN_ID") ?? "";
-const muxTokenSecret = Deno.env.get("MUX_TOKEN_SECRET") ?? "";
-const cloudflareTurnTokenId = Deno.env.get("CLOUDFLARE_TURN_TOKEN_ID") ?? "";
-const cloudflareTurnApiToken = Deno.env.get("CLOUDFLARE_TURN_API_TOKEN") ?? "";
-
-const cors = {"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS","Cache-Control":"no-store","Vary":"Origin, Access-Control-Request-Headers"};
-const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json",...cors}});
-const client=(auth:string)=>createClient(url,key,{global:{headers:auth?{Authorization:auth}:{}},auth:{persistSession:false,autoRefreshToken:false}});
+const url=Deno.env.get("SUPABASE_URL")??"",key=Deno.env.get("SUPABASE_PUBLISHABLE_KEY")??Deno.env.get("SUPABASE_ANON_KEY")??"",secret=Deno.env.get("SUPABASE_SECRET_KEY")??Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")??"";
+const cfAccount=Deno.env.get("CLOUDFLARE_ACCOUNT_ID")??"",cfToken=Deno.env.get("CLOUDFLARE_STREAM_API_TOKEN")??Deno.env.get("CLOUDFLARE_API_TOKEN")??"";
+const turnId=Deno.env.get("CLOUDFLARE_TURN_TOKEN_ID")??"",turnToken=Deno.env.get("CLOUDFLARE_TURN_API_TOKEN")??"";
+const ytUrl=Deno.env.get("YOUTUBE_RTMP_URL")??"rtmps://a.rtmp.youtube.com/live2",ytKey=Deno.env.get("YOUTUBE_STREAM_KEY")??"";
+const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Access-Control-Allow-Methods":"POST, OPTIONS","Cache-Control":"no-store"};
+const json=(b:unknown,s=200)=>new Response(JSON.stringify(b),{status:s,headers:{"Content-Type":"application/json",...cors}});
+const db=(a:string)=>createClient(url,key,{global:{headers:a?{Authorization:a}:{}},auth:{persistSession:false,autoRefreshToken:false}});
 const admin=()=>createClient(url,secret,{auth:{persistSession:false,autoRefreshToken:false}});
 const hash=async(v:string)=>Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(v))),b=>b.toString(16).padStart(2,"0")).join("");
 const randomToken=()=>Array.from(crypto.getRandomValues(new Uint8Array(24)),b=>b.toString(16).padStart(2,"0")).join("");
-
-let turnCache: { iceServers: any[]; expiresAt: number } | null = null;
-
-async function iceServers() {
-  const stun = { urls: ["stun:stun.cloudflare.com:3478", "stun:stun.l.google.com:19302", "stun:stun1.l.google.com:19302"] };
-  if (!cloudflareTurnTokenId || !cloudflareTurnApiToken) return [stun];
-
-  if (turnCache && turnCache.expiresAt > Date.now()) return turnCache.iceServers;
-
-  const response = await fetch(
-    "https://rtc.live.cloudflare.com/v1/turn/keys/" +
-      encodeURIComponent(cloudflareTurnTokenId) +
-      "/credentials/generate-ice-servers",
-    {
-      method: "POST",
-      headers: {
-        "Authorization": "Bearer " + cloudflareTurnApiToken,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ ttl: 86400 }),
-    },
-  );
-  const payload = await response.json().catch(() => null);
-  if (!response.ok || !Array.isArray(payload?.iceServers) || !payload.iceServers.length) {
-    throw new Error("Cloudflare TURN credentials could not be generated.");
-  }
-
-  const servers = payload.iceServers
-    .filter((server: any) => Array.isArray(server?.urls) && server.urls.length)
-    .map((server: any) => ({
-      urls: server.urls,
-      ...(server.username ? { username: server.username } : {}),
-      ...(server.credential ? { credential: server.credential } : {}),
-    }));
-
-  if (!servers.length) throw new Error("Cloudflare TURN returned no usable ICE servers.");
-  turnCache = { iceServers: servers, expiresAt: Date.now() + 30 * 60 * 1000 };
-  return servers;
+const cfReady=()=>Boolean(cfAccount&&cfToken),ytReady=()=>Boolean(ytKey);
+async function cf(path:string,init:RequestInit={}){
+ if(!cfReady())throw new Error("Cloudflare Stream transport is not configured.");
+ const r=await fetch("https://api.cloudflare.com/client/v4/accounts/"+encodeURIComponent(cfAccount)+"/stream/"+path,{...init,headers:{Authorization:"Bearer "+cfToken,"Content-Type":"application/json",...(init.headers||{})}});
+ const p=await r.json().catch(()=>null);if(!r.ok||p?.success===false)throw new Error(p?.errors?.map((e:any)=>e?.message).filter(Boolean).join("; ")||"Cloudflare Stream API request failed ("+r.status+").");return p;
 }
-
-const youtubeRtmpUrl = Deno.env.get("YOUTUBE_RTMP_URL") ?? "rtmps://a.rtmp.youtube.com/live2";
-const youtubeStreamKey = Deno.env.get("YOUTUBE_STREAM_KEY") ?? "";
-const youtubeConfigured = () => Boolean(youtubeStreamKey);
-
-async function addYouTubeSimulcastTarget(liveStreamId: string) {
-  if (!youtubeConfigured()) return null;
-  const p = await muxRequest("live-streams/" + encodeURIComponent(liveStreamId) + "/simulcast-targets", {
-    method: "POST",
-    body: JSON.stringify({url: youtubeRtmpUrl, stream_key: youtubeStreamKey, passthrough: "testagram-youtube"}),
-  });
-  const target = p?.data;
-  if (!target?.id) throw new Error("Mux did not create the YouTube simulcast target.");
-  return {id:String(target.id),status:String(target.status || "idle")};
+async function ice(){
+ const stun={urls:["stun:stun.cloudflare.com:3478","stun:stun.l.google.com:19302","stun:stun1.l.google.com:19302"]};if(!turnId||!turnToken)return[stun];
+ const r=await fetch("https://rtc.live.cloudflare.com/v1/turn/keys/"+encodeURIComponent(turnId)+"/credentials/generate-ice-servers",{method:"POST",headers:{Authorization:"Bearer "+turnToken,"Content-Type":"application/json"},body:JSON.stringify({ttl:86400})});
+ const p=await r.json().catch(()=>null);if(!r.ok||!Array.isArray(p?.iceServers)||!p.iceServers.length)throw new Error("Cloudflare TURN credentials could not be generated.");
+ return p.iceServers.filter((s:any)=>Array.isArray(s?.urls)&&s.urls.length).map((s:any)=>({urls:s.urls,...(s.username?{username:s.username}:{}),...(s.credential?{credential:s.credential}:{})}));
 }
-
-const muxConfigured = () => Boolean(muxTokenId && muxTokenSecret);
-async function muxRequest(path: string, init: RequestInit = {}) {
-  if (!muxConfigured()) throw new Error("Mux TV transport is not configured.");
-  const auth = btoa(muxTokenId + ":" + muxTokenSecret);
-  const r = await fetch("https://api.mux.com/video/v1/" + path, {
-    ...init,
-    headers: {
-      "Authorization": "Basic " + auth,
-      "Content-Type": "application/json",
-      ...(init.headers || {}),
-    },
-  });
-  const p = await r.json().catch(() => null);
-  if (!r.ok) throw new Error(p?.error?.messages?.join("; ") || p?.error?.message || ("Mux API request failed (" + r.status + ")."));
-  return p;
+async function createInput(s:any){
+ const p=await cf("live_inputs",{method:"POST",headers:{"Idempotency-Key":"testagram-tv-"+s.id},body:JSON.stringify({enabled:true,preferLowLatency:true,meta:{name:(s.title||"Testagram TV Live").slice(0,512),testagram_stream_id:s.id},recording:{mode:"automatic",requireSignedURLs:false}})});
+ const x=p?.result;if(!x?.uid||!x?.rtmps?.url||!x?.rtmps?.streamKey)throw new Error("Cloudflare Stream did not return usable Live Input credentials.");
+ return {inputId:String(x.uid),rtmpsUrl:String(x.rtmps.url),streamKey:String(x.rtmps.streamKey),playbackUrl:x?.playback?.hls||null,status:String(x?.status||"new")};
 }
-
-async function prepareMuxLiveStream(stream: any) {
-  const p = await muxRequest("live-streams", {
-    method: "POST",
-    body: JSON.stringify({
-      latency_mode: "low",
-      reconnect_window: 120,
-      max_continuous_duration: 43200,
-      playback_policies: ["public"],
-      new_asset_settings: { playback_policies: ["public"] },
-      meta: { title: (stream.title || "Testagram TV Live").slice(0, 512) },
-    }),
-  });
-  const data = p?.data;
-  const playbackId = data?.playback_ids?.find((x: any) => x?.policy === "public")?.id;
-  if (!data?.id || !data?.stream_key || !playbackId) throw new Error("Mux did not return a usable live stream, stream key, and playback ID.");
-  return {
-    live_stream_id: data.id,
-    stream_key: data.stream_key,
-    playback_id: playbackId,
-    status: data.status || "idle",
-    latency_mode: data.latency_mode || "low",
-  };
+async function createYT(id:string){if(!ytReady())return null;const p=await cf("live_inputs/"+encodeURIComponent(id)+"/outputs",{method:"POST",body:JSON.stringify({url:ytUrl,streamKey:ytKey})});if(!p?.result?.uid)throw new Error("Cloudflare Stream did not create the YouTube output.");return{id:String(p.result.uid),status:p.result.enabled===false?"disabled":"enabled"};}
+async function liveState(id:string){
+ const input=(await cf("live_inputs/"+encodeURIComponent(id)))?.result||{},videos=(await cf("live_inputs/"+encodeURIComponent(id)+"/videos"))?.result;
+ const video=Array.isArray(videos)?videos.find((v:any)=>v?.status?.state==="live-inprogress"):null;
+ return{input,video,playbackUrl:video?.playback?.hls||input?.playback?.hls||null,onAir:Boolean(video)};
 }
-
 Deno.serve(async req=>{
- if(req.method==="OPTIONS") return json({ok:true});
- if(req.method!=="POST") return json({ok:false,error:{code:"METHOD_NOT_ALLOWED",message:"POST required."}},405);
- if(!url||!key) return json({ok:false,error:{code:"SUPABASE_NOT_CONFIGURED",message:"Supabase TV control is not configured."}},503);
- let body:any; try{body=await req.json()}catch{return json({ok:false,error:{code:"INVALID_JSON",message:"JSON required."}},400);}
- const streamId=typeof body.stream_id==="string"?body.stream_id:"";
- const action=typeof body.action==="string"?body.action:"viewer";
- const inviteToken=typeof body.invite_token==="string"?body.invite_token:"";
- if(!streamId) return json({ok:false,error:{code:"STREAM_ID_REQUIRED",message:"stream_id is required."}},400);
- const auth=req.headers.get("authorization")||"";
- const db=client(auth);
- if(action==="mux-encoder-config"){
-   const tokenHash=await hash(typeof body.encoder_token==="string"?body.encoder_token:"");
-   if(!tokenHash)return json({ok:false,error:{code:"ENCODER_TOKEN_REQUIRED",message:"Mux encoder session token is required."}},401);
-   if(!secret)return json({ok:false,error:{code:"TV_CONTROL_MISCONFIGURED",message:"TV server secret is not configured."}},503);
-   const adminDb=admin();
-   const {data:session,error:sessionError}=await adminDb.from("tv_mux_encoder_sessions").select("id,stream_id,user_id,expires_at,revoked_at").eq("stream_id",streamId).eq("token_hash",tokenHash).maybeSingle();
-   if(sessionError||!session||session.revoked_at||new Date(session.expires_at).getTime()<=Date.now())return json({ok:false,error:{code:"ENCODER_TOKEN_INVALID",message:"Mux encoder session is invalid or expired."}},401);
-   const {data:encoderStream,error:encoderStreamError}=await adminDb.from("live_streams").select("id,user_id,is_live,tv_provider,mux_live_stream_id").eq("id",streamId).maybeSingle();
-   if(encoderStreamError||!encoderStream||!encoderStream.is_live||encoderStream.tv_provider!=="mux"||!encoderStream.mux_live_stream_id)return json({ok:false,error:{code:"MUX_ENCODER_STREAM_INVALID",message:"The Mux TV stream is not active."}},409);
-   if(encoderStream.user_id!==session.user_id)return json({ok:false,error:{code:"ENCODER_OWNER_MISMATCH",message:"Mux encoder session owner mismatch."}},403);
-   const live=await muxRequest("live-streams/"+encodeURIComponent(encoderStream.mux_live_stream_id));
-   const streamKey=live?.data?.stream_key;
-   if(!streamKey)return json({ok:false,error:{code:"MUX_INGESTION_UNAVAILABLE",message:"Mux has not returned a usable stream key."}},502);
-   await adminDb.from("tv_mux_encoder_sessions").update({claimed_at:new Date().toISOString()}).eq("id",session.id);
-   return json({ok:true,data:{rtmps_ingestion_address:"rtmps://global-live.mux.com:443/app",stream_name:streamKey},error:null});
+ if(req.method==="OPTIONS")return json({ok:true});if(req.method!=="POST")return json({ok:false,error:{code:"METHOD_NOT_ALLOWED",message:"POST required."}},405);if(!url||!key)return json({ok:false,error:{code:"SUPABASE_NOT_CONFIGURED",message:"Supabase TV control is not configured."}},503);
+ let b:any;try{b=await req.json()}catch{return json({ok:false,error:{code:"INVALID_JSON",message:"JSON required."}},400)}
+ const id=typeof b.stream_id==="string"?b.stream_id:"",action=typeof b.action==="string"?b.action:"viewer",invite=typeof b.invite_token==="string"?b.invite_token:"";if(!id)return json({ok:false,error:{code:"STREAM_ID_REQUIRED",message:"stream_id is required."}},400);
+ const auth=req.headers.get("authorization")||"",client=db(auth);
+ if(action==="cloudflare-encoder-config"){
+  const h=await hash(typeof b.encoder_token==="string"?b.encoder_token:"");if(!h)return json({ok:false,error:{code:"ENCODER_TOKEN_REQUIRED",message:"Cloudflare encoder session token is required."}},401);if(!secret)return json({ok:false,error:{code:"TV_CONTROL_MISCONFIGURED",message:"TV server secret is not configured."}},503);
+  const a=admin(),{data:s,error:se}=await a.from("tv_cloudflare_encoder_sessions").select("id,stream_id,user_id,expires_at,revoked_at").eq("stream_id",id).eq("token_hash",h).maybeSingle();
+  if(se||!s||s.revoked_at||new Date(s.expires_at).getTime()<=Date.now())return json({ok:false,error:{code:"ENCODER_TOKEN_INVALID",message:"Cloudflare encoder session is invalid or expired."}},401);
+  const {data:st,error:ee}=await a.from("live_streams").select("id,user_id,is_live,tv_provider,cloudflare_input_id").eq("id",id).maybeSingle();
+  if(ee||!st||!st.is_live||st.tv_provider!=="cloudflare"||!st.cloudflare_input_id)return json({ok:false,error:{code:"CLOUDFLARE_ENCODER_STREAM_INVALID",message:"The Cloudflare TV stream is not active."}},409);
+  if(st.user_id!==s.user_id)return json({ok:false,error:{code:"ENCODER_OWNER_MISMATCH",message:"Cloudflare encoder session owner mismatch."}},403);
+  const x=(await cf("live_inputs/"+encodeURIComponent(st.cloudflare_input_id)))?.result;if(!x?.rtmps?.url||!x?.rtmps?.streamKey)return json({ok:false,error:{code:"CLOUDFLARE_INGESTION_UNAVAILABLE",message:"Cloudflare has not returned usable RTMPS credentials."}},502);
+  await a.from("tv_cloudflare_encoder_sessions").update({claimed_at:new Date().toISOString()}).eq("id",s.id);
+  return json({ok:true,data:{rtmps_ingestion_address:String(x.rtmps.url),stream_name:String(x.rtmps.streamKey)},error:null});
  }
- const {data:stream,error}=await db.from("live_streams").select("id,user_id,is_live,title,description,viewer_count,tv_provider,tv_connection_state,tv_last_heartbeat_at,tv_host_peer_id,mux_live_stream_id,mux_playback_id,mux_active_asset_id,mux_status,youtube_broadcast_id,youtube_stream_id,youtube_video_id,youtube_simulcast_target_id,youtube_status,youtube_error").eq("id",streamId).maybeSingle();
- if(error||!stream) return json({ok:false,error:{code:"STREAM_NOT_FOUND",message:"TV broadcast was not found."}},404);
- const user=auth.startsWith("Bearer ")?(await db.auth.getUser()).data.user:null;
- const owner=Boolean(user&&user.id===stream.user_id);
- const provider="mux";
- const contract=async(role:string)=>({provider,room_id:streamId,room_type:"tv",role,signaling_topic:"tv:"+streamId,title:stream.title,viewer_count:stream.viewer_count??0,ice_servers:await iceServers(),playback_id:stream.mux_playback_id||null,playback_url:stream.mux_playback_id?"https://stream.mux.com/"+stream.mux_playback_id+".m3u8":null,mux_live_stream_id:stream.mux_live_stream_id||null,mux_status:stream.mux_status||"idle",youtube:{enabled:youtubeConfigured(),status:stream.youtube_status||"disabled",target_id:stream.youtube_simulcast_target_id||null,error:stream.youtube_error||null}});
-
+ const {data:s,error}=await client.from("live_streams").select("id,user_id,is_live,title,description,viewer_count,tv_provider,tv_connection_state,tv_last_heartbeat_at,tv_host_peer_id,cloudflare_input_id,cloudflare_output_id,cloudflare_video_id,cloudflare_playback_url,youtube_output_id,youtube_status,youtube_error").eq("id",id).maybeSingle();
+ if(error||!s)return json({ok:false,error:{code:"STREAM_NOT_FOUND",message:"TV broadcast was not found."}},404);
+ const user=auth.startsWith("Bearer ")?(await client.auth.getUser()).data.user:null,owner=Boolean(user&&user.id===s.user_id);
+ const contract=async(role:string,extra:any={})=>({provider:"cloudflare",room_id:id,room_type:"tv",role,signaling_topic:"tv:"+id,title:s.title,viewer_count:s.viewer_count??0,ice_servers:await ice(),playback_id:s.cloudflare_video_id||s.cloudflare_input_id||null,playback_url:s.cloudflare_playback_url||null,cloudflare_input_id:s.cloudflare_input_id||null,cloudflare_video_id:s.cloudflare_video_id||null,cloudflare_status:s.tv_connection_state||"offline",youtube:{enabled:ytReady(),status:s.youtube_status||"disabled",output_id:s.youtube_output_id||null,error:s.youtube_error||null},...extra});
  if(action==="start"){
-   if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can start this TV broadcast."}},403);
-   if(!muxConfigured())return json({ok:false,error:{code:"MUX_NOT_CONFIGURED",message:"Mux TV transport credentials are not configured."}},503);
-   if(!secret)return json({ok:false,error:{code:"TV_CONTROL_MISCONFIGURED",message:"TV server secret is not configured."}},503);
-   const now=new Date().toISOString();
-   let mux:any;
-   try{mux=await prepareMuxLiveStream(stream);}catch(e:any){return json({ok:false,error:{code:"MUX_SETUP_FAILED",message:e?.message||"Could not prepare Mux Live."}},502);}
-   let youtubeTarget:any=null;
-   try { youtubeTarget=await addYouTubeSimulcastTarget(mux.live_stream_id); }
-   catch(e:any) {
-     try { await muxRequest("live-streams/"+encodeURIComponent(mux.live_stream_id), {method:"DELETE"}); } catch {}
-     return json({ok:false,error:{code:"YOUTUBE_SETUP_FAILED",message:e?.message||"Could not prepare YouTube distribution."}},502);
-   }
-   const encoderToken=randomToken();
-   const {error:sessionError}=await admin().from("tv_mux_encoder_sessions").insert({stream_id:streamId,user_id:stream.user_id,token_hash:await hash(encoderToken),expires_at:new Date(Date.now()+12*60*60*1000).toISOString()});
-   if(sessionError) {
-     try { await muxRequest("live-streams/"+encodeURIComponent(mux.live_stream_id), {method:"DELETE"}); } catch {}
-     return json({ok:false,error:{code:"MUX_ENCODER_SESSION_FAILED",message:"Could not create the secure Mux encoder session."}},500);
-   }
-   const {data:updated,error:e}=await db.from("live_streams").update({
-     is_live:true,started_at:now,ended_at:null,stream_url:"https://stream.mux.com/"+mux.playback_id+".m3u8",
-     tv_provider:"mux",tv_connection_state:"starting",tv_last_heartbeat_at:now,tv_host_peer_id:null,viewer_count:0,
-     mux_live_stream_id:mux.live_stream_id,mux_playback_id:mux.playback_id,mux_active_asset_id:null,mux_status:mux.status||"idle",youtube_simulcast_target_id:youtubeTarget?.id||null,youtube_status:youtubeTarget?"starting":"disabled",youtube_error:null
-   }).eq("id",streamId).eq("user_id",stream.user_id).select("id,user_id,is_live,title,description,viewer_count,tv_provider,mux_live_stream_id,mux_playback_id,mux_status,youtube_simulcast_target_id,youtube_status,youtube_error").single();
-   if(e||!updated) {
-     await admin().from("tv_mux_encoder_sessions").update({revoked_at:new Date().toISOString()}).eq("stream_id",streamId).eq("token_hash",await hash(encoderToken));
-     try { await muxRequest("live-streams/"+encodeURIComponent(mux.live_stream_id), {method:"DELETE"}); } catch {}
-     return json({ok:false,error:{code:"TV_START_FAILED",message:"Could not start the TV broadcast."}},409);
-   }
-   return json({ok:true,data:{...(await contract("host")),mux:{live_stream_id:mux.live_stream_id,playback_id:mux.playback_id,latency_mode:mux.latency_mode,encoder_required:true,encoder_token:encoderToken}},error:null});
+  if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can start this TV broadcast."}},403);if(!cfReady())return json({ok:false,error:{code:"CLOUDFLARE_NOT_CONFIGURED",message:"Cloudflare Stream credentials are not configured."}},503);if(!secret)return json({ok:false,error:{code:"TV_CONTROL_MISCONFIGURED",message:"TV server secret is not configured."}},503);
+  let x:any;try{x=await createInput(s)}catch(e:any){return json({ok:false,error:{code:"CLOUDFLARE_SETUP_FAILED",message:e?.message||"Could not prepare Cloudflare Stream Live."}},502)}
+  let yo:any=null,ye:string|null=null;if(ytReady())try{yo=await createYT(x.inputId)}catch(e:any){ye=e?.message||"Could not configure the YouTube Cloudflare output."}
+  const enc=randomToken(),a=admin(),{error:se}=await a.from("tv_cloudflare_encoder_sessions").insert({stream_id:id,user_id:s.user_id,token_hash:await hash(enc),expires_at:new Date(Date.now()+12*60*60*1000).toISOString()});
+  if(se){try{await cf("live_inputs/"+encodeURIComponent(x.inputId),{method:"DELETE"})}catch{};return json({ok:false,error:{code:"CLOUDFLARE_ENCODER_SESSION_FAILED",message:"Could not create the secure Cloudflare encoder session."}},500)}
+  const {error:ue}=await a.from("live_streams").update({is_live:true,started_at:new Date().toISOString(),ended_at:null,stream_url:x.playbackUrl,tv_provider:"cloudflare",tv_connection_state:"starting",tv_last_heartbeat_at:new Date().toISOString(),tv_host_peer_id:null,viewer_count:0,cloudflare_input_id:x.inputId,cloudflare_output_id:yo?.id||null,cloudflare_video_id:null,cloudflare_playback_url:x.playbackUrl,youtube_output_id:yo?.id||null,youtube_status:yo?"enabled":(ytReady()?"error":"disabled"),youtube_error:ye}).eq("id",id).eq("user_id",s.user_id);
+  if(ue){await a.from("tv_cloudflare_encoder_sessions").update({revoked_at:new Date().toISOString()}).eq("stream_id",id).eq("token_hash",await hash(enc));try{await cf("live_inputs/"+encodeURIComponent(x.inputId),{method:"DELETE"})}catch{};return json({ok:false,error:{code:"TV_START_FAILED",message:"Could not start the TV broadcast."}},409)}
+  return json({ok:true,data:{...(await contract("host",{cloudflare_input_id:x.inputId,cloudflare_status:x.status,youtube:{enabled:ytReady(),status:yo?"enabled":(ytReady()?"error":"disabled"),output_id:yo?.id||null,error:ye}})),cloudflare:{input_id:x.inputId,playback_url:x.playbackUrl,encoder_required:true,encoder_token:enc}},error:null});
  }
  if(action==="stop"){
-   if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can stop this TV broadcast."}},403);
-   if(stream.mux_live_stream_id&&muxConfigured()){try{await muxRequest("live-streams/"+encodeURIComponent(stream.mux_live_stream_id)+"/disable",{method:"PUT"});}catch{}}
-   await admin().from("tv_mux_encoder_sessions").update({revoked_at:new Date().toISOString()}).eq("stream_id",streamId).is("revoked_at",null);
-   const {error:e}=await db.from("live_streams").update({is_live:false,ended_at:new Date().toISOString(),stream_url:null,tv_connection_state:"offline",tv_last_heartbeat_at:null,tv_host_peer_id:null,viewer_count:0,mux_status:"idle",mux_active_asset_id:null,youtube_status:"idle",youtube_error:null}).eq("id",streamId).eq("user_id",stream.user_id);
-   if(e)return json({ok:false,error:{code:"TV_STOP_FAILED",message:"Could not stop the TV broadcast."}},409);
-   return json({ok:true,data:await contract("host"),error:null});
+  if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can stop this TV broadcast."}},403);
+  if(s.cloudflare_input_id&&cfReady())try{await cf("live_inputs/"+encodeURIComponent(s.cloudflare_input_id),{method:"PUT",body:JSON.stringify({enabled:false})})}catch{}
+  const a=admin();await a.from("tv_cloudflare_encoder_sessions").update({revoked_at:new Date().toISOString()}).eq("stream_id",id).is("revoked_at",null);
+  const {error:e}=await a.from("live_streams").update({is_live:false,ended_at:new Date().toISOString(),tv_connection_state:"offline",tv_last_heartbeat_at:null,tv_host_peer_id:null,viewer_count:0,cloudflare_video_id:null,youtube_status:s.youtube_output_id?"stopped":"disabled",youtube_error:null}).eq("id",id).eq("user_id",s.user_id);if(e)return json({ok:false,error:{code:"TV_STOP_FAILED",message:"Could not stop the TV broadcast."}},409);return json({ok:true,data:await contract("host"),error:null});
  }
  if(action==="verify"){
-   if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can verify this TV broadcast."}},403);
-   if(!stream.is_live)return json({ok:false,error:{code:"STREAM_NOT_LIVE",message:"TV broadcast is not live."}},409);
-   if(!stream.mux_live_stream_id)return json({ok:false,error:{code:"MUX_STREAM_MISSING",message:"Mux live stream is not configured."}},409);
-   try{
-     const p=await muxRequest("live-streams/"+encodeURIComponent(stream.mux_live_stream_id));
-     const m=p?.data; const muxStatus=String(m?.status||"idle"); const active=muxStatus==="active"||Boolean(m?.active_asset_id);
-     const ytTarget=Array.isArray(m?.simulcast_targets)?m.simulcast_targets.find((x:any)=>x?.id===stream.youtube_simulcast_target_id):null;
-     const ytStatus=ytTarget?.status||stream.youtube_status||"disabled";
-     const ytError=ytTarget?.error_severity||null;
-     await db.from("live_streams").update({mux_status:muxStatus,mux_active_asset_id:m?.active_asset_id||null,tv_connection_state:active?"connected":"starting",tv_last_heartbeat_at:new Date().toISOString(),youtube_status:ytStatus,youtube_error:ytError}).eq("id",streamId).eq("user_id",stream.user_id);
-     return json({ok:true,data:{...(await contract("host")),on_air:active,health:{provider:"mux",mux_status:muxStatus,active_asset_id:m?.active_asset_id||null,viewer_count:stream.viewer_count??0,youtube:{status:ytStatus,error:ytError}}},error:null});
-   }catch(e:any){return json({ok:false,error:{code:"MUX_VERIFY_FAILED",message:e?.message||"Could not verify Mux Live."}},502);}
+  if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can verify this TV broadcast."}},403);if(!s.is_live)return json({ok:false,error:{code:"STREAM_NOT_LIVE",message:"TV broadcast is not live."}},409);if(!s.cloudflare_input_id)return json({ok:false,error:{code:"CLOUDFLARE_INPUT_MISSING",message:"Cloudflare Live Input is not configured."}},409);
+  try{const x=await liveState(s.cloudflare_input_id),a=admin();await a.from("live_streams").update({cloudflare_video_id:x.video?.uid||null,cloudflare_playback_url:x.playbackUrl||s.cloudflare_playback_url||null,stream_url:x.playbackUrl||s.cloudflare_playback_url||null,tv_connection_state:x.onAir?"connected":String(x.input?.status||"starting"),tv_last_heartbeat_at:new Date().toISOString()}).eq("id",id).eq("user_id",s.user_id);return json({ok:true,data:await contract("host",{on_air:x.onAir,cloudflare_input_status:x.input?.status||"unknown",cloudflare_video_id:x.video?.uid||null,playback_url:x.playbackUrl||s.cloudflare_playback_url||null,health:{provider:"cloudflare",cloudflare_input_status:x.input?.status||"unknown",cloudflare_video_state:x.video?.status?.state||"idle",playback_url:x.playbackUrl||null,youtube:{status:s.youtube_status||"disabled",error:s.youtube_error||null}}}),error:null})}catch(e:any){return json({ok:false,error:{code:"CLOUDFLARE_VERIFY_FAILED",message:e?.message||"Could not verify Cloudflare Stream."}},502)}
  }
  if(action==="heartbeat"){
-   if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can send a TV heartbeat."}},403);
-   if(!stream.is_live)return json({ok:false,error:{code:"STREAM_NOT_LIVE",message:"Broadcast is not live."}},409);
-   if(provider==="youtube") return json({ok:true,data:{heartbeat_ok:true,connection_state:stream.tv_connection_state||"starting",viewer_count:stream.viewer_count??0},error:null});
-   const state=["starting","connected","degraded","stale"].includes(body.connection_state)?body.connection_state:"degraded";
-   const viewerCount=Math.max(0,Math.min(100000,Number(body.viewer_count)||0));
-   const peerId=typeof body.peer_id==="string"&&body.peer_id.length<=128?body.peer_id:"";
-   const {error:e}=await db.from("live_streams").update({tv_last_heartbeat_at:new Date().toISOString(),tv_connection_state:state,tv_host_peer_id:peerId||null,viewer_count:viewerCount}).eq("id",streamId).eq("user_id",stream.user_id).eq("is_live",true);
-   if(e)return json({ok:false,error:{code:"TV_HEARTBEAT_FAILED",message:"Could not update TV broadcast health."}},409);
-   return json({ok:true,data:{heartbeat_ok:true,connection_state:state,viewer_count:viewerCount},error:null});
+  if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can send a TV heartbeat."}},403);if(!s.is_live)return json({ok:false,error:{code:"STREAM_NOT_LIVE",message:"Broadcast is not live."}},409);
+  const state=["starting","connected","degraded","stale"].includes(b.connection_state)?b.connection_state:"degraded",count=Math.max(0,Math.min(100000,Number(b.viewer_count)||0)),peer=typeof b.peer_id==="string"&&b.peer_id.length<=128?b.peer_id:"";const {error:e}=await admin().from("live_streams").update({tv_last_heartbeat_at:new Date().toISOString(),tv_connection_state:state,tv_host_peer_id:peer||null,viewer_count:count}).eq("id",id).eq("user_id",s.user_id).eq("is_live",true);if(e)return json({ok:false,error:{code:"TV_HEARTBEAT_FAILED",message:"Could not update TV broadcast health."}},409);return json({ok:true,data:{heartbeat_ok:true,connection_state:state,viewer_count:count},error:null});
  }
  if(action==="create-guest"){
-   if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can create a guest invite."}},403);
-   if(!stream.is_live)return json({ok:false,error:{code:"STREAM_NOT_LIVE",message:"Start the TV broadcast before inviting a guest."}},409);
-   const token=randomToken();
-   const {error:e}=await db.from("tv_guest_invites").insert({stream_id:streamId,token_hash:await hash(token),expires_at:new Date(Date.now()+3600000).toISOString()});
-   if(e)return json({ok:false,error:{code:"GUEST_INVITE_FAILED",message:"Could not create the guest invite."}},409);
-   return json({ok:true,data:{invite_token:token,room_id:streamId,signaling_topic:"tv:"+streamId,ice_servers:await iceServers()},error:null});
+  if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can create a guest invite."}},403);if(!s.is_live)return json({ok:false,error:{code:"STREAM_NOT_LIVE",message:"Start the TV broadcast before inviting a guest."}},409);const t=randomToken(),{error:e}=await admin().from("tv_guest_invites").insert({stream_id:id,token_hash:await hash(t),expires_at:new Date(Date.now()+3600000).toISOString()});if(e)return json({ok:false,error:{code:"GUEST_INVITE_FAILED",message:"Could not create the guest invite."}},409);return json({ok:true,data:{invite_token:t,room_id:id,signaling_topic:"tv:"+id,ice_servers:await ice()},error:null});
  }
  if(action==="guest"){
-   if(!stream.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
-   if(!inviteToken)return json({ok:false,error:{code:"INVITE_REQUIRED",message:"A TV guest invite is required."}},401);
-   if(!user)return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Authentication is required to join the TV guest session."}},401);
-   if(!secret)return json({ok:false,error:{code:"TV_CONTROL_MISCONFIGURED",message:"TV guest claiming requires the Supabase server secret."}},503);
-   const inviteDb=admin(); const now=new Date().toISOString();
-   const {data:claimed,error:claimError}=await inviteDb.from("tv_guest_invites").update({used_at:now,claimed_by:user.id,claimed_at:now}).eq("stream_id",streamId).eq("token_hash",await hash(inviteToken)).is("used_at",null).gt("expires_at",now).select("id").maybeSingle();
-   if(claimError||!claimed)return json({ok:false,error:{code:"INVITE_INVALID",message:"This TV guest invite is invalid, expired, or already claimed."}},401);
-   return json({ok:true,data:{...(await contract("guest")),guest_token:inviteToken},error:null});
+  if(!s.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);if(!invite)return json({ok:false,error:{code:"INVITE_REQUIRED",message:"A TV guest invite is required."}},401);if(!user)return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Authentication is required to join the TV guest session."}},401);if(!secret)return json({ok:false,error:{code:"TV_CONTROL_MISCONFIGURED",message:"TV guest claiming requires the Supabase server secret."}},503);
+  const now=new Date().toISOString(),{data:claimed,error:e}=await admin().from("tv_guest_invites").update({used_at:now,claimed_by:user.id,claimed_at:now}).eq("stream_id",id).eq("token_hash",await hash(invite)).is("used_at",null).gt("expires_at",now).select("id").maybeSingle();if(e||!claimed)return json({ok:false,error:{code:"INVITE_INVALID",message:"This TV guest invite is invalid, expired, or already claimed."}},401);return json({ok:true,data:{...(await contract("guest")),guest_token:invite},error:null});
  }
- if(!stream.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
- if(stream.mux_playback_id)return json({ok:true,data:{...(await contract("viewer")),playback_url:"https://stream.mux.com/"+stream.mux_playback_id+".m3u8"},error:null});
- return json({ok:false,error:{code:"TV_MEDIA_NOT_READY",message:"Mux playback is not ready for this broadcast."}},409);
+ if(!s.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);return json({ok:true,data:await contract(action==="viewer"?"viewer":"unknown"),error:null});
 });
