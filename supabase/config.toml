@@ -24,3 +24,6 @@ verify_jwt = false
 
 [functions.tv-media-control]
 verify_jwt = true
+
+[functions.mux-tv-webhook]
+verify_jwt = false
