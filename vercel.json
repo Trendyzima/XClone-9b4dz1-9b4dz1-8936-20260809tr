@@ -14,7 +14,7 @@
       "maxDuration": 30
     },
     "api/tv-mux-ingest.ts": {
-      "maxDuration": 60,
+      "maxDuration": 300,
       "includeFiles": "node_modules/ffmpeg-static/ffmpeg"
     }
   },
