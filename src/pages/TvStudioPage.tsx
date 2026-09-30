@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { TestagramTvMediaSession } from '@/lib/testagramTvMedia';
 import { TestagramTvCloudflareSession } from '@/lib/testagramTvCloudflare';
+import { TestagramTvYouTubeSession } from '@/lib/testagramTvYouTube';
 import { Camera, Mic, MonitorUp, Circle, Square, Radio, Users, Download, Clapperboard, Settings2, Activity, ShieldCheck, Upload, PictureInPicture2, Layers3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
@@ -829,7 +830,7 @@ export default function TvStudioPage() {
     setBroadcastError(null);
     setBroadcastDiagnostics(null);
     setBroadcastStage('preparing');
-    let session: TestagramTvCloudflareSession | TestagramTvMediaSession | null = null;
+    let session: TestagramTvCloudflareSession | TestagramTvYouTubeSession | TestagramTvMediaSession | null = null;
     let guestSession: TestagramTvMediaSession | null = null;
     let id: string | null = null;
     let createdBroadcast = false;
@@ -872,7 +873,7 @@ export default function TvStudioPage() {
           description: broadcastDescription,
           category: broadcastCategory,
           is_live: false,
-          tv_provider: 'cloudflare',
+          tv_provider: 'youtube',
         }).select('id,title,description,category,is_live,tv_provider').single();
         if (error || !data) throw new Error(error?.message || 'Could not create broadcast.');
         id = data.id;
@@ -890,57 +891,46 @@ export default function TvStudioPage() {
         body: JSON.stringify({ action: 'start', stream_id: id }),
       });
       let startPayload = await startResponse.json().catch(() => null);
-      let provider: 'cloudflare' | 'native-p2p' = 'cloudflare';
+      let provider: 'youtube' | 'cloudflare' | 'native-p2p' = 'youtube';
 
-      // Cloudflare Stream is preferred. If the account returns Stream-not-enabled
-      // (10002), use the existing native Testagram WebRTC transport instead.
-      const cloudflareStart = startPayload?.data?.cloudflare;
-      const encoderToken = typeof cloudflareStart?.encoder_token === 'string' ? cloudflareStart.encoder_token : '';
-      if (startResponse.ok && encoderToken) {
-        session = await TestagramTvCloudflareSession.connect({
+      // YouTube is the public TV delivery provider. Testagram still owns the
+      // studio, control plane and encoder; YouTube owns public live playback.
+      const youtubeStart = startPayload?.data?.youtube;
+      const youtubeToken = typeof youtubeStart?.encoder_token === 'string' ? youtubeStart.encoder_token : '';
+      if (startResponse.ok && youtubeToken) {
+        session = await TestagramTvYouTubeSession.connect({
           streamId: id,
-          encoderToken,
+          encoderToken: youtubeToken,
           program,
           videoBitsPerSecond: VIDEO_PRESETS[quality].bitrate,
           onStatus: (next, detail) => {
-            setBroadcastDiagnostics({ provider: 'cloudflare', encoder_status: next, detail: detail || null });
+            setBroadcastDiagnostics({ provider: 'youtube', encoder_status: next, detail: detail || null, youtube_video_id: youtubeStart?.video_id || null });
             if (next === 'reconnecting') setBroadcastStage('connecting');
           },
         });
         roomRef.current = session;
       } else {
-        const errorCode = String(startPayload?.error?.code || '');
         const errorMessage = String(startPayload?.error?.message || '');
-        const streamUnavailable = /CLOUDFLARE_SETUP_FAILED|CLOUDFLARE_NOT_CONFIGURED|Stream not enabled|not provisioned|10002/i.test(errorCode + ' ' + errorMessage);
-        if (!streamUnavailable) throw new Error(errorMessage || 'TV broadcast could not be started.');
-
         const nativeResponse = await fetch('/api/live', {
           method: 'POST',
           headers,
           body: JSON.stringify({ action: 'start', provider: 'native-p2p', stream_id: id }),
         });
         const nativePayload = await nativeResponse.json().catch(() => null);
-        if (!nativeResponse.ok) throw new Error(nativePayload?.error?.message || 'Native Testagram TV transport could not be started.');
-
+        if (!nativeResponse.ok) throw new Error(errorMessage || nativePayload?.error?.message || 'YouTube TV delivery could not be started.');
         provider = 'native-p2p';
         try {
           session = await TestagramTvMediaSession.connectHostExisting(id, program);
           roomRef.current = session;
         } catch (nativeError) {
-          // Native start marks the row live before the browser joins Realtime.
-          // Roll it back immediately if the host transport cannot actually subscribe.
-          await fetch('/api/live', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ action: 'stop', stream_id: id }),
-          }).catch(() => undefined);
+          await fetch('/api/live', { method: 'POST', headers, body: JSON.stringify({ action: 'stop', stream_id: id }) }).catch(() => undefined);
           throw nativeError;
         }
         setBroadcastDiagnostics({
           provider: 'native-p2p',
           fallback: true,
-          cloudflare: 'not_provisioned',
-          message: 'Cloudflare Stream is not provisioned; native Testagram WebRTC is carrying the broadcast.',
+          youtube: 'not_ready',
+          message: 'YouTube delivery was unavailable; native Testagram WebRTC is carrying the broadcast.',
         });
       }
 
@@ -1000,7 +990,7 @@ export default function TvStudioPage() {
       if (!onAir) {
         throw new Error(provider === 'native-p2p'
           ? 'Testagram native TV transport did not reach ON AIR within 60s.'
-          : `Cloudflare Stream has not reached ON AIR within 60s.${lastHealth?.cloudflare_input_status ? ` Cloudflare=${lastHealth.cloudflare_input_status}.` : ''}`);
+          : `YouTube has not reached ON AIR within 60s.${lastHealth?.youtube_stream_status ? ` YouTube stream=${lastHealth.youtube_stream_status}.` : ''}`);
       }
 
       setBroadcastStage('on-air');
@@ -1011,9 +1001,7 @@ export default function TvStudioPage() {
       setStatus('live');
       setElapsed(0);
       setBroadcastError(null);
-      const cloudflareOutputWidth = Math.min(VIDEO_PRESETS[quality].width, 1920);
-      const cloudflareOutputHeight = Math.min(VIDEO_PRESETS[quality].height, 1080);
-      toast.success(`Testagram TV is ON AIR through Cloudflare Stream at up to ${cloudflareOutputWidth}×${cloudflareOutputHeight} / ${VIDEO_PRESETS[quality].fps}fps`);
+      toast.success(provider === 'youtube' ? `Testagram TV is ON AIR through YouTube at up to ${Math.min(VIDEO_PRESETS[quality].width, 1920)}×${Math.min(VIDEO_PRESETS[quality].height, 1080)} / ${VIDEO_PRESETS[quality].fps}fps` : 'Testagram TV is ON AIR through native Testagram WebRTC');
     } catch (e: any) {
       if (guestSession) await guestSession.close().catch(() => undefined);
       if (session) {
