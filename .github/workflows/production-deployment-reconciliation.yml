@@ -541,27 +541,27 @@ jobs:
           # that the stream key belongs to the channel represented by the refresh token.
           echo "Verifying YouTube OAuth credentials and configured stream ownership..."
           YT_ACCESS_TOKEN="$(YOUTUBE_CLIENT_ID="$YOUTUBE_CLIENT_ID" YOUTUBE_CLIENT_SECRET="$YOUTUBE_CLIENT_SECRET" YOUTUBE_REFRESH_TOKEN="$YOUTUBE_REFRESH_TOKEN" node <<NODE
-const tokenRes=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({client_id:process.env.YOUTUBE_CLIENT_ID,client_secret:process.env.YOUTUBE_CLIENT_SECRET,refresh_token:process.env.YOUTUBE_REFRESH_TOKEN,grant_type:"refresh_token"})});
-const token=await tokenRes.json().catch(()=>({}));
-if(!tokenRes.ok||!token.access_token){console.error("::error::YouTube OAuth refresh failed:",token.error_description||token.error||"unknown error");process.exit(1);}
-process.stdout.write(token.access_token);
-NODE
+          const tokenRes=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({client_id:process.env.YOUTUBE_CLIENT_ID,client_secret:process.env.YOUTUBE_CLIENT_SECRET,refresh_token:process.env.YOUTUBE_REFRESH_TOKEN,grant_type:"refresh_token"})});
+          const token=await tokenRes.json().catch(()=>({}));
+          if(!tokenRes.ok||!token.access_token){console.error("::error::YouTube OAuth refresh failed:",token.error_description||token.error||"unknown error");process.exit(1);}
+          process.stdout.write(token.access_token);
+          NODE
           )"
           printf "::add-mask::%s\n" "$YT_ACCESS_TOKEN"
           yt_streams_json="$(curl --fail --silent --show-error --retry 3 --retry-delay 2 -H "Authorization: Bearer $YT_ACCESS_TOKEN" "https://www.googleapis.com/youtube/v3/liveStreams?part=id,snippet,cdn,status&mine=true&maxResults=50")"
           YOUTUBE_STREAM_KEY="$YOUTUBE_STREAM_KEY" YT_STREAMS_JSON="$yt_streams_json" node <<NODE
-const key=process.env.YOUTUBE_STREAM_KEY;
-const payload=JSON.parse(process.env.YT_STREAMS_JSON);
-const items=Array.isArray(payload.items)?payload.items:[];
-const match=items.find(x=>String(x?.cdn?.ingestionInfo?.streamName||"")===key);
-if(!match){
-  console.error("::error::YouTube OAuth is valid, but YOUTUBE_STREAM_KEY does not match any live stream owned by that OAuth channel.");
-  console.error("::error::YouTube returned "+items.length+" owned stream(s); no stream matched the configured key.");
-  console.error("::error::Owned stream diagnostics (stream keys intentionally omitted): "+JSON.stringify(items.map(x=>({id:x?.id||null,title:x?.snippet?.title||null,status:x?.status?.streamStatus||null}))));
-  process.exit(2);
-}
-console.log("YouTube stream ownership preflight passed:",JSON.stringify({stream_id:match.id,title:match.snippet?.title||null,status:match.status?.streamStatus||null}));
-NODE
+          const key=process.env.YOUTUBE_STREAM_KEY;
+          const payload=JSON.parse(process.env.YT_STREAMS_JSON);
+          const items=Array.isArray(payload.items)?payload.items:[];
+          const match=items.find(x=>String(x?.cdn?.ingestionInfo?.streamName||"")===key);
+          if(!match){
+            console.error("::error::YouTube OAuth is valid, but YOUTUBE_STREAM_KEY does not match any live stream owned by that OAuth channel.");
+            console.error("::error::YouTube returned "+items.length+" owned stream(s); no stream matched the configured key.");
+            console.error("::error::Owned stream diagnostics (stream keys intentionally omitted): "+JSON.stringify(items.map(x=>({id:x?.id||null,title:x?.snippet?.title||null,status:x?.status?.streamStatus||null}))));
+            process.exit(2);
+          }
+          console.log("YouTube stream ownership preflight passed:",JSON.stringify({stream_id:match.id,title:match.snippet?.title||null,status:match.status?.streamStatus||null}));
+          NODE
           echo "YouTube OAuth/channel/stream-key relationship is valid."
 
           # Normalize copy/paste whitespace at the GitHub Actions boundary. GitHub
