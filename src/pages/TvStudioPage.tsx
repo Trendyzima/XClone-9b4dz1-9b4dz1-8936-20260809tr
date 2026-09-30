@@ -1391,7 +1391,7 @@ export default function TvStudioPage() {
         toast.warning('Studio tab is backgrounded. Broadcast health is being protected.');
       } else {
         void audioPipelineRef.current?.context.resume().catch(() => undefined);
-        void roomRef.current?.recover().catch(() => setStudioHealth('degraded'));
+        void (roomRef.current && 'recover' in roomRef.current ? roomRef.current.recover() : Promise.resolve()).catch(() => setStudioHealth('degraded'));
       }
     };
     document.addEventListener('visibilitychange', onVisibility);
