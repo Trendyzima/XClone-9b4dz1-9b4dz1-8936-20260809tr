@@ -199,3 +199,4 @@ Deno.serve(async req=>{
  if(!stream.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
  if(stream.mux_playback_id)return json({ok:true,data:{...contract("viewer"),playback_url:"https://stream.mux.com/"+stream.mux_playback_id+".m3u8"},error:null});
  return json({ok:false,error:{code:"TV_MEDIA_NOT_READY",message:"Mux playback is not ready for this broadcast."}},409);
+});
