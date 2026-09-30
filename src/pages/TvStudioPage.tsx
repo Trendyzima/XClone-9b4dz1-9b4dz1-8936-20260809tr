@@ -829,7 +829,7 @@ export default function TvStudioPage() {
     setBroadcastError(null);
     setBroadcastDiagnostics(null);
     setBroadcastStage('preparing');
-    let session: TestagramTvCloudflareSession | TestagramTvYouTubeSession | TestagramTvMediaSession | null = null;
+    let session: TestagramTvCloudflareSession | TestagramTvMediaSession | null = null;
     let guestSession: TestagramTvMediaSession | null = null;
     let id: string | null = null;
     let createdBroadcast = false;
