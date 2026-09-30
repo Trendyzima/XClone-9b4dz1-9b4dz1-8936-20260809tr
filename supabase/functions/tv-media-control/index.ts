@@ -99,16 +99,6 @@ Deno.serve(async req=>{
  let b:any;try{b=await req.json()}catch{return json({ok:false,error:{code:"INVALID_JSON",message:"JSON required."}},400)}
  const id=typeof b.stream_id==="string"?b.stream_id:"",action=typeof b.action==="string"?b.action:"viewer",invite=typeof b.invite_token==="string"?b.invite_token:"",requestedProvider=typeof b.provider==="string"?b.provider:"dual";if(!id)return json({ok:false,error:{code:"STREAM_ID_REQUIRED",message:"stream_id is required."}},400);
  const auth=req.headers.get("authorization")||"",client=db(auth);
- if(action==="youtube-encoder-config"){
-  const h=await hash(typeof b.encoder_token==="string"?b.encoder_token:"");if(!h)return json({ok:false,error:{code:"ENCODER_TOKEN_REQUIRED",message:"YouTube encoder session token is required."}},401);
-  const a=admin(),{data:s,error:se}=await a.from("tv_youtube_encoder_sessions").select("id,stream_id,user_id,expires_at,revoked_at").eq("stream_id",id).eq("token_hash",h).maybeSingle();
-  if(se||!s||s.revoked_at||new Date(s.expires_at).getTime()<=Date.now())return json({ok:false,error:{code:"ENCODER_TOKEN_INVALID",message:"YouTube encoder session is invalid or expired."}},401);
-  const {data:st,error:ee}=await a.from("live_streams").select("id,user_id,is_live,tv_provider,youtube_stream_id").eq("id",id).maybeSingle();
-  if(ee||!st||!st.is_live||st.tv_provider!=="youtube"||!st.youtube_stream_id)return json({ok:false,error:{code:"YOUTUBE_ENCODER_STREAM_INVALID",message:"The YouTube TV stream is not active."}},409);
-  if(st.user_id!==s.user_id)return json({ok:false,error:{code:"ENCODER_OWNER_MISMATCH",message:"YouTube encoder session owner mismatch."}},403);
-  await a.from("tv_youtube_encoder_sessions").update({claimed_at:new Date().toISOString()}).eq("id",s.id);
-  return json({ok:true,data:{rtmps_ingestion_address:ytUrl.replace(/\/$/,""),stream_name:ytKey},error:null});
- }
  if(action==="cloudflare-encoder-config"){
   const h=await hash(typeof b.encoder_token==="string"?b.encoder_token:"");if(!h)return json({ok:false,error:{code:"ENCODER_TOKEN_REQUIRED",message:"Cloudflare encoder session token is required."}},401);if(!secret)return json({ok:false,error:{code:"TV_CONTROL_MISCONFIGURED",message:"TV server secret is not configured."}},503);
   const a=admin(),{data:s,error:se}=await a.from("tv_cloudflare_encoder_sessions").select("id,stream_id,user_id,expires_at,revoked_at").eq("stream_id",id).eq("token_hash",h).maybeSingle();
