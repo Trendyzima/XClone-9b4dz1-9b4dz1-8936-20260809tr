@@ -14,7 +14,6 @@ type TestagramLive = {
   youtube_video_id: string | null;
 };
 
-const MAX_LIVE_ITEMS = 8;
 const REFRESH_MS = 15_000;
 const HIDDEN = /^\/(auth|admin|settings|wallet|messages|notifications|help|premium|create-ad|my-ads|ad-|rewards|verify|privacy|terms|policy|regulator|sessions|blocked|appeals|payouts|revenue|analytics|news\/|tv)(?:\/|$)/;
 
