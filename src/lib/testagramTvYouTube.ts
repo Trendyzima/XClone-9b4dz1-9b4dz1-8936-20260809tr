@@ -46,7 +46,7 @@ export class TestagramTvYouTubeSession{
  }
  private startRecorder(){
   this.stopRecorder();const mime=pickMime();if(!mime)throw new Error("This browser cannot encode a WebM live contribution for the YouTube encoder.");
-  const r=new MediaRecorder(this.options.program,{mimeType:mime,videoBitsPerSecond:Math.min(this.options.videoBitsPerSecond,8000000),audioBitsPerSecond:128000});
+  const r=new MediaRecorder(this.options.program,{mimeType:mime,videoBitsPerSecond:this.options.videoBitsPerSecond,audioBitsPerSecond:128000});
   r.ondataavailable=e=>{if(e.data.size&&this.socket?.readyState===WebSocket.OPEN)this.socket.send(e.data)};
   r.onerror=()=>this.scheduleReconnect();r.onstop=()=>{if(!this.stopped&&this.socket?.readyState===WebSocket.OPEN)this.scheduleReconnect()};
   this.recorder=r;r.start(1000);
