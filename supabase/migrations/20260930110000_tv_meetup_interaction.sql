@@ -1,12 +1,32 @@
 create table if not exists public.tv_live_polls (id uuid primary key default gen_random_uuid(),stream_id uuid not null references public.live_streams(id) on delete cascade,host_user_id uuid not null references public.profiles(id) on delete cascade,question text not null check (char_length(btrim(question)) between 1 and 280),options jsonb not null check (jsonb_typeof(options)='array' and jsonb_array_length(options) between 2 and 4),status text not null default 'open' check (status in ('open','closed')),created_at timestamptz not null default now(),ends_at timestamptz,closed_at timestamptz);
 create unique index if not exists tv_live_polls_one_open_per_stream on public.tv_live_polls(stream_id) where status='open';
 create table if not exists public.tv_live_poll_votes (id uuid primary key default gen_random_uuid(),poll_id uuid not null references public.tv_live_polls(id) on delete cascade,voter_id uuid not null references public.profiles(id) on delete cascade,option_id text not null,created_at timestamptz not null default now(),unique(poll_id,voter_id));
-alter table public.tv_live_polls enable row level security; alter table public.tv_live_poll_votes enable row level security;
-create policy tv_live_polls_public_read on public.tv_live_polls for select using (exists(select 1 from public.live_streams s where s.id=stream_id and s.is_live));
-create policy tv_live_polls_host_insert on public.tv_live_polls for insert with check (host_user_id=auth.uid() and exists(select 1 from public.live_streams s where s.id=stream_id and s.user_id=auth.uid() and s.is_live));
-create policy tv_live_polls_host_update on public.tv_live_polls for update using(host_user_id=auth.uid()) with check(host_user_id=auth.uid());
-create policy tv_live_polls_host_delete on public.tv_live_polls for delete using(host_user_id=auth.uid());
-create policy tv_live_poll_votes_own_read on public.tv_live_poll_votes for select using(voter_id=auth.uid());
-create policy tv_live_poll_votes_insert on public.tv_live_poll_votes for insert with check(voter_id=auth.uid() and exists(select 1 from public.tv_live_polls p join public.live_streams s on s.id=p.stream_id where p.id=poll_id and p.status='open' and s.is_live and (p.ends_at is null or now()<p.ends_at) and exists(select 1 from jsonb_array_elements(p.options) o where o->>'id'=option_id)));
+alter table public.tv_live_polls enable row level security;
+alter table public.tv_live_poll_votes enable row level security;
+
+do $$
+begin
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='tv_live_polls' and policyname='tv_live_polls_public_read') then
+    create policy tv_live_polls_public_read on public.tv_live_polls for select using (exists(select 1 from public.live_streams s where s.id=stream_id and s.is_live));
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='tv_live_polls' and policyname='tv_live_polls_host_insert') then
+    create policy tv_live_polls_host_insert on public.tv_live_polls for insert with check (host_user_id=auth.uid() and exists(select 1 from public.live_streams s where s.id=stream_id and s.user_id=auth.uid() and s.is_live));
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='tv_live_polls' and policyname='tv_live_polls_host_update') then
+    create policy tv_live_polls_host_update on public.tv_live_polls for update using(host_user_id=auth.uid()) with check(host_user_id=auth.uid());
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='tv_live_polls' and policyname='tv_live_polls_host_delete') then
+    create policy tv_live_polls_host_delete on public.tv_live_polls for delete using(host_user_id=auth.uid());
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='tv_live_poll_votes' and policyname='tv_live_poll_votes_own_read') then
+    create policy tv_live_poll_votes_own_read on public.tv_live_poll_votes for select using(voter_id=auth.uid());
+  end if;
+  if not exists (select 1 from pg_policies where schemaname='public' and tablename='tv_live_poll_votes' and policyname='tv_live_poll_votes_insert') then
+    create policy tv_live_poll_votes_insert on public.tv_live_poll_votes for insert with check(voter_id=auth.uid() and exists(select 1 from public.tv_live_polls p join public.live_streams s on s.id=p.stream_id where p.id=poll_id and p.status='open' and s.is_live and (p.ends_at is null or now()<p.ends_at) and exists(select 1 from jsonb_array_elements(p.options) o where o->>'id'=option_id)));
+  end if;
+end
+$$;
+
 create or replace function public.tv_live_poll_results(p_poll_id uuid) returns table(option_id text,vote_count bigint) security definer set search_path=public language sql stable as $$ select option_id,count(*)::bigint from public.tv_live_poll_votes where poll_id=p_poll_id group by option_id $$;
-revoke all on function public.tv_live_poll_results(uuid) from public; grant execute on function public.tv_live_poll_results(uuid) to anon,authenticated;
+revoke all on function public.tv_live_poll_results(uuid) from public;
+grant execute on function public.tv_live_poll_results(uuid) to anon,authenticated;
