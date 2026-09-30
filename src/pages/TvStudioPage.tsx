@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { TestagramTvMediaSession } from '@/lib/testagramTvMedia';
 import { TestagramTvCloudflareSession } from '@/lib/testagramTvCloudflare';
-import { TestagramTvYouTubeSession } from '@/lib/testagramTvYouTube';
 import { Camera, Mic, MonitorUp, Circle, Square, Radio, Users, Download, Clapperboard, Settings2, Activity, ShieldCheck, Upload, PictureInPicture2, Layers3 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
@@ -36,7 +35,7 @@ export default function TvStudioPage() {
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
-  const roomRef = useRef<TestagramTvCloudflareSession | TestagramTvYouTubeSession | TestagramTvMediaSession | null>(null);
+  const roomRef = useRef<TestagramTvCloudflareSession | TestagramTvMediaSession | null>(null);
   const guestRoomRef = useRef<TestagramTvMediaSession | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const programStreamRef = useRef<MediaStream | null>(null);
@@ -862,9 +861,7 @@ export default function TvStudioPage() {
         const verifyPayload = await verifyResponse.json().catch(() => null);
         if (verifyResponse.ok && verifyPayload?.data?.on_air) {
           throw new Error(
-            existing.tv_provider === 'youtube'
-              ? 'A Testagram TV YouTube broadcast is already ON AIR in another studio session. End that broadcast before starting a new one.'
-              : 'A Testagram TV broadcast is already ON AIR in another studio session. End that broadcast before starting a new one.',
+            'A Testagram TV broadcast is already ON AIR in another studio session. End that broadcast before starting a new one.',
           );
         }
         await fetch('/api/live', { method: 'POST', headers, body: JSON.stringify({ action: 'stop', stream_id: existing.id }) }).catch(() => undefined);
@@ -877,7 +874,7 @@ export default function TvStudioPage() {
           description: broadcastDescription,
           category: broadcastCategory,
           is_live: false,
-          tv_provider: 'youtube',
+          tv_provider: 'cloudflare',
         }).select('id,title,description,category,is_live,tv_provider').single();
         if (error || !data) throw new Error(error?.message || 'Could not create broadcast.');
         id = data.id;
@@ -892,34 +889,32 @@ export default function TvStudioPage() {
       const startResponse = await fetch('/api/live', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ action: 'start', provider: 'youtube', stream_id: id }),
+        body: JSON.stringify({ action: 'start', provider: 'dual', stream_id: id }),
       });
-      let startPayload = await startResponse.json().catch(() => null);
-      const provider = 'youtube' as const;
+      const startPayload = await startResponse.json().catch(() => null);
+      const provider = 'cloudflare' as const;
 
-      // YouTube is the single public TV delivery provider. Do not silently
-      // downgrade to another transport: a successful Go Live must prove the
-      // YouTube encoder, ingest and broadcast lifecycle are healthy.
-      const youtubeStart = startPayload?.data?.youtube;
-      const youtubeToken = typeof youtubeStart?.encoder_token === 'string' ? youtubeStart.encoder_token : '';
-      if (!startResponse.ok || !youtubeToken) {
-        throw new Error(
-          String(startPayload?.error?.message || 'YouTube TV delivery could not be started.'),
-        );
+      // Testagram is the primary live output. YouTube is an independent
+      // Cloudflare output and must never be allowed to take Testagram off-air.
+      const cloudflareStart = startPayload?.data?.cloudflare;
+      const cloudflareToken = typeof cloudflareStart?.encoder_token === 'string' ? cloudflareStart.encoder_token : '';
+      if (!startResponse.ok || !cloudflareToken) {
+        throw new Error(String(startPayload?.error?.message || 'Testagram live delivery could not be started.'));
       }
 
-      session = await TestagramTvYouTubeSession.connect({
+      session = await TestagramTvCloudflareSession.connect({
         streamId: id,
-        encoderToken: youtubeToken,
+        encoderToken: cloudflareToken,
         program,
         videoBitsPerSecond: VIDEO_PRESETS[quality].bitrate,
         onStatus: (next, detail) => {
-          setBroadcastDiagnostics({
-            provider: 'youtube',
+          setBroadcastDiagnostics(prev => ({
+            ...(prev || {}),
+            provider: 'dual',
             encoder_status: next,
+            cloudflare_status: next,
             detail: detail || null,
-            youtube_video_id: youtubeStart?.video_id || null,
-          });
+          }));
           if (next === 'reconnecting') setBroadcastStage('connecting');
         },
       });
@@ -981,7 +976,19 @@ export default function TvStudioPage() {
         const verifyPayload = await verifyResponse.json().catch(() => null);
         if (verifyResponse.ok && verifyPayload?.data) {
           lastHealth = verifyPayload.data.health || null;
-          setYoutubeStatus(String(verifyPayload.data.health?.youtube?.status || verifyPayload.data.youtube?.status || "disabled"));
+          const youtube = verifyPayload.data.health?.youtube || verifyPayload.data.youtube || {};
+          setYoutubeStatus(String(youtube.status || 'disabled'));
+          setBroadcastDiagnostics(prev => ({
+            ...(prev || {}),
+            provider: 'dual',
+            encoder_status: roomRef.current?.getStatus?.() || 'encoding',
+            cloudflare_status: verifyPayload.data.cloudflare_input_status || lastHealth?.cloudflare_input_status || 'unknown',
+            youtube_status: youtube.status || 'disabled',
+            youtube_stream_status: verifyPayload.data.youtube_stream_status || youtube.stream_status || null,
+            youtube_broadcast_status: verifyPayload.data.youtube_broadcast_status || youtube.broadcast_status || null,
+            youtube_error: youtube.error || null,
+            on_air: Boolean(verifyPayload.data.on_air),
+          }));
           if (verifyPayload.data.on_air) {
             onAir = true;
             break;
@@ -991,7 +998,7 @@ export default function TvStudioPage() {
       }
       if (!onAir) {
         throw new Error(
-          `YouTube has not reached ON AIR within 60s.${lastHealth?.youtube_stream_status ? ` YouTube stream=${lastHealth.youtube_stream_status}.` : ''}`,
+          `Testagram Live has not reached ON AIR within 60s.${lastHealth?.cloudflare_input_status ? ` Cloudflare input=${lastHealth.cloudflare_input_status}.` : ''}`,
         );
       }
 
@@ -1003,7 +1010,7 @@ export default function TvStudioPage() {
       setStatus('live');
       setElapsed(0);
       setBroadcastError(null);
-      toast.success(provider === 'youtube' ? `Testagram TV is ON AIR through YouTube at up to ${Math.min(VIDEO_PRESETS[quality].width, 1920)}×${Math.min(VIDEO_PRESETS[quality].height, 1080)} / ${VIDEO_PRESETS[quality].fps}fps` : 'Testagram TV is ON AIR through native Testagram WebRTC');
+      toast.success(`Testagram TV is ON AIR · YouTube output: ${youtubeStatus}`);
     } catch (e: any) {
       if (guestSession) await guestSession.close().catch(() => undefined);
       if (session) {
@@ -1453,23 +1460,23 @@ export default function TvStudioPage() {
                 <Activity className="w-4 h-4 animate-pulse" />
                 {broadcastStage === 'preparing' && 'Preparing the TV program…'}
                 {broadcastStage === 'authorizing' && 'Authorizing the broadcast…'}
-                {broadcastStage === 'connecting' && (broadcastDiagnostics?.provider === 'youtube' ? 'Connecting YouTube encoder…' : 'Connecting Testagram TV signaling + WebRTC…')}
-                {broadcastStage === 'verifying' && (broadcastDiagnostics?.provider === 'youtube' ? 'Verifying YouTube ingest and live broadcast…' : 'Verifying WebRTC connection and live media…')}
+                {broadcastStage === 'connecting' && 'Connecting Testagram live encoder…'}
+                {broadcastStage === 'verifying' && 'Verifying Testagram live media; YouTube is checked independently…'}
                 {broadcastStage === 'on-air' && 'ON AIR'}
               </div>
               {broadcastStage === 'on-air' && (
                 <p className="mt-2 text-xs text-zinc-300">
-                  {broadcastDiagnostics?.provider === 'youtube'
-                    ? <><span className="font-semibold text-emerald-300">YouTube: ON AIR</span> · Cloudflare: <span className="font-semibold text-zinc-400">disabled</span></>
-                    : <>Cloudflare: <span className="font-semibold text-emerald-300">ON AIR</span> · YouTube: <span className={youtubeStatus === 'broadcasting' ? 'font-semibold text-emerald-300' : 'font-semibold text-amber-300'}>{youtubeStatus}</span></>}
+                  <span className="font-semibold text-emerald-300">Testagram: ON AIR</span>
+                  <span className="mx-1">·</span>
+                  <span className={youtubeStatus === 'broadcasting' ? 'font-semibold text-emerald-300' : 'font-semibold text-amber-300'}>YouTube: {youtubeStatus}</span>
                 </p>
               )}
               <p className="mt-1 text-xs text-blue-200/80">
                 {broadcastStage === 'preparing' && 'Checking camera, microphone and production A/V tracks.'}
                 {broadcastStage === 'authorizing' && 'Creating the private broadcast session and requesting media authorization.'}
-                {broadcastStage === 'connecting' && (broadcastDiagnostics?.provider === 'youtube' ? 'Waiting for the YouTube encoder WebSocket to become ready.' : 'Waiting for the signaling channel and WebRTC answer.')}
-                {broadcastStage === 'verifying' && (broadcastDiagnostics?.provider === 'youtube' ? 'Checking encoder health and waiting for YouTube to report an active live stream.' : 'Validating live camera/microphone tracks and preparing the producer WebRTC session.')}
-                {broadcastStage === 'on-air' && (broadcastDiagnostics?.provider === 'youtube' ? 'Program is transmitting through the YouTube encoder. Public viewers receive the embedded YouTube live stream.' : 'Producer is transmitting. Public viewers attach automatically and the studio marks media delivery healthy after inbound RTP is confirmed.')}
+                {broadcastStage === 'connecting' && 'Waiting for the Testagram encoder transport to become ready.'}
+                {broadcastStage === 'verifying' && 'Validating Testagram live media. YouTube remains an independent output and may be starting or reconnecting.'}
+                {broadcastStage === 'on-air' && 'Producer is transmitting one program bus. Testagram viewers use Cloudflare delivery; YouTube receives the parallel output.'}
               </p>
               {broadcastDiagnostics?.provider === 'youtube' ? (
                 <p className="mt-2 text-[10px] text-zinc-300">YouTube encoder: {String(broadcastDiagnostics.encoder_status || 'starting')} · video: {String(broadcastDiagnostics.youtube_video_id || 'preparing')}</p>
