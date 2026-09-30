@@ -24,6 +24,7 @@ export default function TvPublicLivePage() {
   const [cameraOn, setCameraOn] = useState(true);
   const [micOn, setMicOn] = useState(true);
   const [error, setError] = useState('');
+  const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
    const hlsRef = useRef<Hls | null>(null);
   const recoveryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -84,6 +85,16 @@ export default function TvPublicLivePage() {
           }
 
           const contract = viewerPayload?.data;
+          if (contract?.provider === 'youtube') {
+            const videoId = String(contract?.youtube?.video_id || contract?.playback_id || '').trim();
+            if (!videoId) throw new Error('YouTube live video is not ready yet.');
+            setTitle(contract.title || 'Testagram TV');
+            setYoutubeVideoId(videoId);
+            setLive(true);
+            setConnecting(false);
+            setError('');
+            return;
+          }
           if (contract?.provider === 'cloudflare' && contract?.playback_url) {
             const playbackUrl = contract.playback_url as string;
              setTitle(contract.title || 'Testagram TV');
@@ -250,6 +261,7 @@ export default function TvPublicLivePage() {
       hlsRef.current = null;
       if (recoveryTimerRef.current) clearTimeout(recoveryTimerRef.current);
       recoveryTimerRef.current = null;
+      setYoutubeVideoId(null);
       const video = videoRef.current;
       if (video) {
         video.pause();
@@ -283,10 +295,11 @@ export default function TvPublicLivePage() {
 
   const fullscreen = async () => {
     const el = videoRef.current;
-    if (!el) return;
+    const youtube = document.querySelector<HTMLIFrameElement>('[data-testagram-youtube-player="true"]');
+    if (!el && !youtube) return;
     try {
       if (document.fullscreenElement) await document.exitFullscreen();
-      else await el.requestFullscreen();
+      else await (youtube || el)?.requestFullscreen();
     } catch { toast.error('Fullscreen is not available on this device.'); }
   };
 
@@ -325,7 +338,18 @@ export default function TvPublicLivePage() {
     </header>
     <main className="flex-1 flex items-center justify-center p-3">
       <div className="w-full max-w-6xl aspect-video bg-zinc-950 rounded-xl overflow-hidden relative border border-white/10">
-        <video ref={videoRef} autoPlay playsInline muted={isGuest ? true : muted} className="w-full h-full object-contain" />
+        {youtubeVideoId && !isGuest ? (
+          <iframe
+            data-testagram-youtube-player="true"
+            className="w-full h-full border-0"
+            src={`https://www.youtube.com/embed/${encodeURIComponent(youtubeVideoId)}?autoplay=1&playsinline=1&mute=1&enablejsapi=1`}
+            title={title}
+            allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+            allowFullScreen
+          />
+        ) : (
+          <video ref={videoRef} autoPlay playsInline muted={isGuest ? true : muted} className="w-full h-full object-contain" />
+        )}
         <audio ref={audioRef} autoPlay muted={muted} />
         {connecting && <div className="absolute inset-0 flex items-center justify-center bg-black/70"><Loader2 className="w-7 h-7 animate-spin" /></div>}
         {error && <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 text-center p-6"><Radio className="w-10 h-10 text-zinc-500" /><p>{error}</p><Button onClick={() => window.location.reload()}>Try again</Button></div>}
