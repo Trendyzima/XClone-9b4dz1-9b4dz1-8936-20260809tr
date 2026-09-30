@@ -132,7 +132,7 @@ export default function TvStudioPage() {
     const mobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
     const memory = Number((navigator as any).deviceMemory || 0);
     const cores = Number(navigator.hardwareConcurrency || 0);
-    // Keep mobile/low-power devices responsive. Mux's live output is capped
+    // Keep mobile/low-power devices responsive. Cloudflare Stream live delivery is capped
     // at 1080p, so spending 1080p/4K browser CPU on a constrained device
     // only to downscale it again is counterproductive.
     if (mobile || (memory > 0 && memory <= 4) || (cores > 0 && cores <= 4)) return '720p';
@@ -859,7 +859,7 @@ export default function TvStudioPage() {
           body: JSON.stringify({ action: 'verify', stream_id: existing.id }),
         });
         const verifyPayload = await verifyResponse.json().catch(() => null);
-        if (existing.tv_provider === 'mux' && verifyResponse.ok && verifyPayload?.data?.on_air) {
+        if (existing.tv_provider === 'cloudflare' && verifyResponse.ok && verifyPayload?.data?.on_air) {
           throw new Error('A Testagram TV broadcast is already ON AIR in another studio session. End that broadcast before starting a new one.');
         }
         await fetch('/api/live', { method: 'POST', headers, body: JSON.stringify({ action: 'stop', stream_id: existing.id }) }).catch(() => undefined);
@@ -887,13 +887,13 @@ export default function TvStudioPage() {
       const startResponse = await fetch('/api/live', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ action: 'start', stream_id: id, provider: 'cloudflare' }),
+        body: JSON.stringify({ action: 'start', stream_id: id }),
       });
       const startPayload = await startResponse.json().catch(() => null);
-      const cloudflareStart = startPayload?.data?.mux;
+      const cloudflareStart = startPayload?.data?.cloudflare;
       const encoderToken = typeof cloudflareStart?.encoder_token === 'string' ? cloudflareStart.encoder_token : '';
       if (!startResponse.ok || !encoderToken) {
-        throw new Error(startPayload?.error?.message || 'Mux Live could not allocate its secure encoder session.');
+        throw new Error(startPayload?.error?.message || 'Cloudflare Stream could not allocate its secure encoder session.');
       }
 
       session = await TestagramTvCloudflareSession.connect({
@@ -909,7 +909,7 @@ export default function TvStudioPage() {
       roomRef.current = session;
 
       // WebRTC is now reserved for interactive guests only. It never carries
-      // the public audience; Mux handles viewer fan-out.
+      // the public audience; Cloudflare Stream handles delivery and YouTube simulcast.
       guestSession = await TestagramTvMediaSession.connectHostGuestBridge(id, program);
       guestSession.setRemoteTrackHandler(track => {
         track.onended = () => {
@@ -962,7 +962,7 @@ export default function TvStudioPage() {
         await new Promise(resolve => window.setTimeout(resolve, 2000));
       }
       if (!onAir) {
-        throw new Error(`Cloudflare Stream has not reached ON AIR within 60s.${lastHealth?.mux_status ? ` Mux=${lastHealth.mux_status}.` : ''}`);
+        throw new Error(`Cloudflare Stream has not reached ON AIR within 60s.${lastHealth?.cloudflare_input_status ? ` Cloudflare=${lastHealth.cloudflare_input_status}.` : ''}`);
       }
 
       setBroadcastStage('on-air');
@@ -973,9 +973,9 @@ export default function TvStudioPage() {
       setStatus('live');
       setElapsed(0);
       setBroadcastError(null);
-      const muxOutputWidth = Math.min(VIDEO_PRESETS[quality].width, 1920);
-      const muxOutputHeight = Math.min(VIDEO_PRESETS[quality].height, 1080);
-      toast.success(`Testagram TV is ON AIR through Mux at up to ${muxOutputWidth}×${muxOutputHeight} / ${VIDEO_PRESETS[quality].fps}fps`);
+      const cloudflareOutputWidth = Math.min(VIDEO_PRESETS[quality].width, 1920);
+      const cloudflareOutputHeight = Math.min(VIDEO_PRESETS[quality].height, 1080);
+      toast.success(`Testagram TV is ON AIR through Cloudflare Stream at up to ${cloudflareOutputWidth}×${cloudflareOutputHeight} / ${VIDEO_PRESETS[quality].fps}fps`);
     } catch (e: any) {
       if (guestSession) await guestSession.close().catch(() => undefined);
       if (session) {
@@ -1219,11 +1219,11 @@ export default function TvStudioPage() {
         if (cancelled || !response.ok || !payload?.data) return;
         const health = payload.data.health || {};
         const encoder = roomRef.current?.getStatus() || 'stopped';
-        setBroadcastDiagnostics({ provider: 'cloudflare', encoder_status: encoder, mux_status: health.mux_status || payload.data.mux_status || 'unknown', on_air: Boolean(payload.data.on_air), youtube_status: health.youtube?.status || payload.data.youtube?.status || 'disabled' });
+        setBroadcastDiagnostics({ provider: 'cloudflare', encoder_status: encoder, cloudflare_status: health.cloudflare_input_status || payload.data.cloudflare_input_status || 'unknown', on_air: Boolean(payload.data.on_air), youtube_status: health.youtube?.status || payload.data.youtube?.status || 'disabled' });
         setYoutubeStatus(String(health.youtube?.status || payload.data.youtube?.status || 'disabled'));
         if (!payload.data.on_air) {
           setStudioHealth('degraded');
-          toast.error('Live output health changed. Testagram TV is checking the encoder and Mux connection.');
+          toast.error('Live output health changed. Testagram TV is checking the encoder and Cloudflare Stream connection.');
         }
       } catch {}
     };
@@ -1239,7 +1239,7 @@ export default function TvStudioPage() {
       try {
         const { data: auth } = await supabase.auth.getSession();
         const headers = { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: 'Bearer ' + auth.session.access_token } : {}) };
-        await fetch('/api/live', { method: 'POST', headers, body: JSON.stringify({ action: 'heartbeat', stream_id: activeStreamId, connection_state: roomRef.current?.getStatus() === 'encoding' ? 'connected' : 'degraded', peer_id: 'mux-browser-encoder' }) });
+        await fetch('/api/live', { method: 'POST', headers, body: JSON.stringify({ action: 'heartbeat', stream_id: activeStreamId, connection_state: roomRef.current?.getStatus() === 'encoding' ? 'connected' : 'degraded', peer_id: 'cloudflare-browser-encoder' }) });
       } catch {}
     };
     void heartbeat();
@@ -1425,7 +1425,7 @@ export default function TvStudioPage() {
                 {broadcastStage === 'verifying' && 'Verifying WebRTC connection and live media…'}
                 {broadcastStage === 'on-air' && 'ON AIR'}
               </div>
-              {broadcastStage === 'on-air' && <p className="mt-2 text-xs text-zinc-300">Mux: <span className="font-semibold text-emerald-300">ON AIR</span> · YouTube: <span className={youtubeStatus === 'broadcasting' ? 'font-semibold text-emerald-300' : 'font-semibold text-amber-300'}>{youtubeStatus}</span></p>}
+              {broadcastStage === 'on-air' && <p className="mt-2 text-xs text-zinc-300">Cloudflare: <span className="font-semibold text-emerald-300">ON AIR</span> · YouTube: <span className={youtubeStatus === 'broadcasting' ? 'font-semibold text-emerald-300' : 'font-semibold text-amber-300'}>{youtubeStatus}</span></p>}
               <p className="mt-1 text-xs text-blue-200/80">
                 {broadcastStage === 'preparing' && 'Checking camera, microphone and production A/V tracks.'}
                 {broadcastStage === 'authorizing' && 'Creating the private broadcast session and requesting media authorization.'}
