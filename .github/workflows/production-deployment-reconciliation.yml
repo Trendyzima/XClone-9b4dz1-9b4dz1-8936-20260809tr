@@ -789,10 +789,9 @@ jobs:
           printf '%s' "$SUPABASE_SERVICE_ROLE_KEY" | vercel env add "SUPABASE_SERVICE_ROLE_KEY" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           echo "Supabase TV control-plane credentials synchronized without printing secret values."
 
-      # Mux master credentials and Cloudflare TURN API credentials are control-plane secrets.
-      # They are synchronized only to Supabase tv-media-control above. Vercel receives the
-      # public application/control-plane credentials only and must never require retired
-      # TV_TURN_* credentials or Mux signing credentials.
+      # Cloudflare Stream and TURN credentials are control-plane secrets. They are synchronized
+      # only to Supabase tv-media-control above; Vercel receives only the application/runtime
+      # credentials required by the browser encoder. No Mux credentials are required.
       - name: Pull production Vercel configuration
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
