@@ -1189,6 +1189,46 @@ export default function TvStudioPage() {
   }, []);
 
   useEffect(() => {
+    if (!live || !activeStreamId || !user) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const { data: auth } = await supabase.auth.getSession();
+        const headers = { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: 'Bearer ' + auth.session.access_token } : {}) };
+        const response = await fetch('/api/live', { method: 'POST', headers, body: JSON.stringify({ action: 'verify', stream_id: activeStreamId }) });
+        const payload = await response.json().catch(() => null);
+        if (cancelled || !response.ok || !payload?.data) return;
+        const health = payload.data.health || {};
+        const encoder = roomRef.current?.getStatus() || 'stopped';
+        setBroadcastDiagnostics({ provider: 'mux', encoder_status: encoder, mux_status: health.mux_status || payload.data.mux_status || 'unknown', on_air: Boolean(payload.data.on_air), youtube_status: health.youtube?.status || payload.data.youtube?.status || 'disabled' });
+        setYoutubeStatus(String(health.youtube?.status || payload.data.youtube?.status || 'disabled'));
+        if (!payload.data.on_air) {
+          setStudioHealth('degraded');
+          toast.error('Live output health changed. Testagram TV is checking the encoder and Mux connection.');
+        }
+      } catch {}
+    };
+    void poll();
+    const id = window.setInterval(() => void poll(), 10000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, [live, activeStreamId, user]);
+
+  useEffect(() => {
+    if (!live || !activeStreamId || !user) return;
+    let cancelled = false;
+    const heartbeat = async () => {
+      try {
+        const { data: auth } = await supabase.auth.getSession();
+        const headers = { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: 'Bearer ' + auth.session.access_token } : {}) };
+        await fetch('/api/live', { method: 'POST', headers, body: JSON.stringify({ action: 'heartbeat', stream_id: activeStreamId, connection_state: roomRef.current?.getStatus() === 'encoding' ? 'connected' : 'degraded', peer_id: 'mux-browser-encoder' }) });
+      } catch {}
+    };
+    void heartbeat();
+    const id = window.setInterval(() => { if (!cancelled) void heartbeat(); }, 15000);
+    return () => { cancelled = true; window.clearInterval(id); };
+  }, [live, activeStreamId, user]);
+
+  useEffect(() => {
     const id = window.setInterval(() => {
       setElapsed(prev => (recording || live ? prev + 1 : 0));
       const level = audioPipelineRef.current?.getLevel();
