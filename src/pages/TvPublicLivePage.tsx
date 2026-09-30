@@ -86,11 +86,10 @@ export default function TvPublicLivePage() {
 
       try {
         if (!isGuest) {
-          const viewerResponse = await fetch('/api/live', {
-            method: 'POST',
-            cache: 'no-store',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'viewer', stream_id: streamId }),
+          const viewerUrl = `/api/live?action=viewer&stream_id=${encodeURIComponent(streamId)}`;
+          const viewerResponse = await fetch(viewerUrl, {
+            method: 'GET',
+            cache: 'default',
           });
 
           const viewerPayload = await viewerResponse.json().catch(() => null);
