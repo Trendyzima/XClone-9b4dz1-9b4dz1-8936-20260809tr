@@ -107,8 +107,52 @@ export function useSEO({ title, description, image, url, type = 'website', struc
   }, [title, description, image, url, type, noindex, keywords, structuredData]);
 }
 
-export function buildProfileLD(profile: { username: string; bio?: string; avatar_url?: string; follower_count?: number; verified?: boolean }) {
-  return { '@context': 'https://schema.org', '@type': 'Person', name: profile.username, alternateName: `@${profile.username}`, description: profile.bio || '', image: profile.avatar_url || '', url: `https://testagram.site/profile/${profile.username}`, interactionStatistic: { '@type': 'InteractionCounter', interactionType: 'https://schema.org/FollowAction', userInteractionCount: profile.follower_count ?? 0 }, ...(profile.verified ? { award: 'Verified Creator' } : {}) };
+export function buildProfileLD(profile: {
+  id?: string;
+  username: string;
+  display_name?: string;
+  full_name?: string;
+  bio?: string;
+  avatar_url?: string;
+  follower_count?: number;
+  following_count?: number;
+  posts_count?: number;
+  verified?: boolean;
+  created_at?: string;
+  updated_at?: string;
+  website?: string;
+  location?: string;
+  social_links?: Record<string, unknown>;
+}) {
+  const profileUrl = `https://testagram.site/profile/${encodeURIComponent(profile.username)}`;
+  const name = profile.display_name || profile.full_name || profile.username;
+  const person: Record<string, unknown> = {
+    '@type': 'Person',
+    '@id': `${profileUrl}#person`,
+    name,
+    alternateName: `@${profile.username}`,
+    identifier: profile.id || profile.username,
+    url: profileUrl,
+    description: profile.bio || undefined,
+    image: profile.avatar_url || undefined,
+    ...(profile.website ? { url: profileUrl, sameAs: [profile.website] } : {}),
+    ...(profile.location ? { homeLocation: { '@type': 'Place', name: profile.location } } : {}),
+    interactionStatistic: [
+      { '@type': 'InteractionCounter', interactionType: 'https://schema.org/FollowAction', userInteractionCount: profile.follower_count ?? 0 },
+      { '@type': 'InteractionCounter', interactionType: 'https://schema.org/WriteAction', userInteractionCount: profile.posts_count ?? 0 },
+    ],
+    ...(profile.verified ? { award: 'Verified Creator' } : {}),
+  };
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'ProfilePage',
+    '@id': profileUrl,
+    url: profileUrl,
+    name: `@${profile.username} on Testagram`,
+    dateCreated: profile.created_at,
+    dateModified: profile.updated_at || profile.created_at,
+    mainEntity: person,
+  };
 }
 
 export function buildPostLD(post: { id: string; content: string; image_url?: string; video_url?: string; created_at: string; user_profiles?: { username?: string; avatar_url?: string } }) {
