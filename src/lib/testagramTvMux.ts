@@ -38,7 +38,7 @@ export class TestagramTvMuxSession {
   static async connect(options: MuxSessionOptions) {
     const session = new TestagramTvMuxSession(options);
     await session.openTransport();
-    session.rotationTimer = window.setTimeout(() => void session.rotateTransport(), 240_000);
+    session.rotationTimer = window.setTimeout(() => void session.rotateTransport(), 45_000);
     return session;
   }
 
@@ -145,7 +145,7 @@ export class TestagramTvMuxSession {
     this.rotating = false;
     if (!this.stopped) {
       await this.openTransport();
-      this.rotationTimer = window.setTimeout(() => void this.rotateTransport(), 240_000);
+      this.rotationTimer = window.setTimeout(() => void this.rotateTransport(), 45_000);
     }
   }
 
