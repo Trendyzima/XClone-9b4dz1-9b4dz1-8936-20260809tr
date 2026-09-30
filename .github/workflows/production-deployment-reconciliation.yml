@@ -566,54 +566,45 @@ jobs:
           # actual Stream permission endpoint is reached. The Stream API itself is the
           # authoritative check for this TV token/account pair.
           echo "Validating Cloudflare Stream access for the configured account..."
-
           cf_status="$(curl -sS -o /tmp/testagram-cloudflare-stream.json -w '%{http_code}' \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs?per_page=1")"
-          if [[ "$cf_status" != "200" ]]; then
-            echo "::error::Cloudflare Stream access failed with HTTP $cf_status."
-            node - <<'NODE'
-          const fs=require("node:fs");
-          const p=JSON.parse(fs.readFileSync("/tmp/testagram-cloudflare-stream.json","utf8"));
-          console.error(JSON.stringify({
-            success:p?.success,
-            errors:p?.errors,
-            messages:p?.messages,
-            diagnosis: p?.errors?.some(e=>e?.code===10002) && p?.messages?.some(m=>/stream not enabled/i.test(m?.message||""))
-              ? "The token reached Cloudflare, but Stream is not enabled/provisioned for this account. This is not a GitHub secret interpolation failure."
-              : "The token/account/permission path was rejected; inspect the Cloudflare error above."
-          }, null, 2));
-          NODE
-            exit 1
-          fi
-          if ! grep -q '"success"[[:space:]]*:[[:space:]]*true' /tmp/testagram-cloudflare-stream.json; then
-            echo "::error::Cloudflare Stream API returned success=false during credential preflight."
-            cat /tmp/testagram-cloudflare-stream.json
-            exit 1
-          fi
-          echo "Cloudflare Stream API authentication, account authorization, and Stream access verified."
+          if [[ "$cf_status" == "200" ]] && grep -q '"success"[[:space:]]*:[[:space:]]*true' /tmp/testagram-cloudflare-stream.json; then
+            echo "Cloudflare Stream is provisioned and accessible."
+            export TESTAGRAM_TV_CLOUDFLARE_AVAILABLE=true
 
-          echo "Validating Cloudflare Stream Write permission with a disposable Live Input..."
-          cf_write="$(curl -sS -X POST -o /tmp/testagram-cloudflare-stream-write.json -w '%{http_code}' \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            -H "Content-Type: application/json" \
-            -H "Idempotency-Key: testagram-ci-preflight-$GITHUB_RUN_ID" \
-            --data '{"enabled":false,"meta":{"name":"Testagram CI credential preflight"},"recording":{"mode":"off"}}' \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs")"
-          if [[ "$cf_write" != "200" ]]; then
-            echo "::error::Cloudflare Stream Write preflight failed with HTTP $cf_write."
-            cat /tmp/testagram-cloudflare-stream-write.json
-            exit 1
+            echo "Validating Cloudflare Stream Write permission with a disposable Live Input..."
+            cf_write="$(curl -sS -X POST -o /tmp/testagram-cloudflare-stream-write.json -w '%{http_code}' \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Content-Type: application/json" \
+              -H "Idempotency-Key: testagram-ci-preflight-$GITHUB_RUN_ID" \
+              --data '{"enabled":false,"meta":{"name":"Testagram CI credential preflight"},"recording":{"mode":"off"}}' \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs")"
+            if [[ "$cf_write" != "200" ]]; then
+              echo "::error::Cloudflare Stream Write preflight failed with HTTP $cf_write."
+              cat /tmp/testagram-cloudflare-stream-write.json
+              exit 1
+            fi
+            disposable_input="$(python3 -c 'import json; print(json.load(open("/tmp/testagram-cloudflare-stream-write.json"))["result"]["uid"])')"
+            if [[ -z "$disposable_input" ]]; then
+              echo "::error::Cloudflare Stream Write preflight returned no Live Input UID."
+              cat /tmp/testagram-cloudflare-stream-write.json
+              exit 1
+            fi
+            curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs/$disposable_input" >/tmp/testagram-cloudflare-stream-delete.json
+            echo "Cloudflare Stream Write permission verified and disposable preflight input removed."
+          else
+            if grep -q '"code"[[:space:]]*:[[:space:]]*10002' /tmp/testagram-cloudflare-stream.json && grep -qi 'stream not enabled' /tmp/testagram-cloudflare-stream.json; then
+              echo "::warning::Cloudflare Stream is not provisioned for this account. TV production will use the native Testagram WebRTC fallback until Stream is enabled."
+              export TESTAGRAM_TV_CLOUDFLARE_AVAILABLE=false
+            else
+              echo "::error::Cloudflare Stream credential/account access failed with HTTP $cf_status."
+              cat /tmp/testagram-cloudflare-stream.json
+              exit 1
+            fi
           fi
-          disposable_input="$(python3 -c 'import json; print(json.load(open("/tmp/testagram-cloudflare-stream-write.json"))["result"]["uid"])')"
-          if [[ -z "$disposable_input" ]]; then
-            echo "::error::Cloudflare Stream Write preflight returned no Live Input UID."
-            cat /tmp/testagram-cloudflare-stream-write.json
-            exit 1
-          fi
-          curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs/$disposable_input" >/tmp/testagram-cloudflare-stream-delete.json
-          echo "Cloudflare Stream Write permission verified and disposable preflight input removed."
+
           supabase secrets set --project-ref "$PROJECT_REF"             "CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID"             "CLOUDFLARE_STREAM_API_TOKEN=$CLOUDFLARE_API_TOKEN"             "CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN"             "CLOUDFLARE_TURN_TOKEN_ID=$CLOUDFLARE_TURN_TOKEN_ID"             "CLOUDFLARE_TURN_API_TOKEN=$CLOUDFLARE_TURN_API_TOKEN"
           if [[ -n "$YOUTUBE_STREAM_KEY" ]]; then
             printf '::add-mask::%s\n' "$YOUTUBE_STREAM_KEY"
