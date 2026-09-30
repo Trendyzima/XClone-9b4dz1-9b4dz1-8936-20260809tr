@@ -978,9 +978,8 @@ export default function TvStudioPage() {
           setYoutubeStatus(String(youtube.status || 'disabled'));
           setBroadcastDiagnostics(prev => ({
             ...(prev || {}),
-            provider: 'dual',
+            provider: 'youtube',
             encoder_status: roomRef.current?.getStatus?.() || 'encoding',
-            cloudflare_status: verifyPayload.data.cloudflare_input_status || lastHealth?.cloudflare_input_status || 'unknown',
             youtube_status: youtube.status || 'disabled',
             youtube_stream_status: verifyPayload.data.youtube_stream_status || youtube.stream_status || null,
             youtube_broadcast_status: verifyPayload.data.youtube_broadcast_status || youtube.broadcast_status || null,
