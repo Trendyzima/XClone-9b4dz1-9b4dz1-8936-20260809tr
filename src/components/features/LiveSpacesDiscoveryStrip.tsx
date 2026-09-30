@@ -20,7 +20,7 @@ export function LiveSpacesDiscoveryStrip() {
   const load = useCallback(async () => {
     const [spacesResult, tvResult] = await Promise.all([
       supabase.from('spaces').select('id,title,host_id,listener_count,started_at,category,artwork_url,has_video,host:profiles!spaces_host_id_fkey(username,display_name,avatar_url)').eq('is_live', true).eq('is_archived', false).order('listener_count', { ascending: false }).limit(8),
-      supabase.from('live_streams').select('id,title,user_id,viewer_count,started_at,category,thumbnail_url,user:profiles!live_streams_user_id_fkey(username,display_name,avatar_url)').eq('is_live', true).order('viewer_count', { ascending: false }).limit(8),
+      supabase.from('live_streams').select('id,title,user_id,viewer_count,started_at,category,thumbnail_url,user:profiles!live_streams_user_id_fkey(username,display_name,avatar_url)').eq('is_live', true).eq('tv_provider', 'youtube').order('viewer_count', { ascending: false }).limit(8),
     ]);
     const audio: LiveChannel[] = (spacesResult.data ?? []).map((s: any) => ({ ...s, kind: s.has_video ? 'video-space' : 'audio' }));
     const tv: LiveChannel[] = (tvResult.data ?? []).map((s: any) => ({ ...s, kind: 'tv' }));
