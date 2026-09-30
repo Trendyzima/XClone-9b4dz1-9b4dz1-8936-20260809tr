@@ -53,5 +53,5 @@ export class TestagramTvYouTubeSession{
  }
  getStatus(){return this.status}
  getDiagnostics(){return{provider:"youtube",status:this.status,streamId:this.options.streamId,transport:"websocket-webm-ffmpeg-rtmps-youtube"}}
- async stop(){this.stopped=true;if(this.reconnectTimer!==null)window.clearTimeout(this.reconnectTimer);if(this.rotationTimer!==null)window.clearTimeout(this.rotationTimer);this.stopRecorder();const s=this.socket;this.socket=null;if(s&&s.readyState!==WebSocket.CLOSED)s.close(1000,"broadcast stopped");this.setStatus("stopped")}
+ async close(){return this.stop()}\n async stop(){this.stopped=true;if(this.reconnectTimer!==null)window.clearTimeout(this.reconnectTimer);if(this.rotationTimer!==null)window.clearTimeout(this.rotationTimer);this.stopRecorder();const s=this.socket;this.socket=null;if(s&&s.readyState!==WebSocket.CLOSED)s.close(1000,"broadcast stopped");this.setStatus("stopped")}
 }
