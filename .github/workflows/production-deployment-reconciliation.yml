@@ -560,26 +560,13 @@ jobs:
           console.log("Cloudflare TV API token is active; GitHub secret injection is verified.");
           NODE
 
-          echo "Validating that the same token is authorized for the configured TV account..."
-          cf_account_verify_status="$(curl -sS -o /tmp/testagram-cloudflare-account-token-verify.json -w '%{http_code}' \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/tokens/verify")"
-          if [[ "$cf_account_verify_status" != "200" ]]; then
-            echo "::error::The TV Cloudflare token is not authorized for the configured account (HTTP $cf_account_verify_status)."
-            cat /tmp/testagram-cloudflare-account-token-verify.json
-            exit 1
-          fi
-          node - <<'NODE'
-          const fs=require("node:fs");
-          const p=JSON.parse(fs.readFileSync("/tmp/testagram-cloudflare-account-token-verify.json","utf8"));
-          if (p?.success !== true || p?.result?.status !== "active") {
-            console.error("::error::Cloudflare token/account authorization check failed:", JSON.stringify({success:p?.success,status:p?.result?.status,errors:p?.errors}));
-            process.exit(1);
-          }
-          console.log("Cloudflare token is active for the configured account.");
-          NODE
-
+          # Do not use /accounts/{id}/tokens/verify as the TV gate. Cloudflare's
+          # account-token verification endpoint is specifically for account-owned
+          # token validation and can reject an otherwise active API token before the
+          # actual Stream permission endpoint is reached. The Stream API itself is the
+          # authoritative check for this TV token/account pair.
           echo "Validating Cloudflare Stream access for the configured account..."
+
           cf_status="$(curl -sS -o /tmp/testagram-cloudflare-stream.json -w '%{http_code}' \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs?per_page=1")"
