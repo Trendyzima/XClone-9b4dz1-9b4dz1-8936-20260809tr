@@ -155,6 +155,8 @@ export class TestagramTvYouTubeSession {
   getDiagnostics() { return { provider: 'youtube', status: this.status, streamId: this.options.streamId }; }
   async stopBroadcastControlPlane() { /* Control-plane stop is handled by the Studio after transport shutdown. */ }
 
+  async close() { await this.stop(); }
+
   async stop() {
     this.stopped = true;
     if (this.reconnectTimer !== null) window.clearTimeout(this.reconnectTimer);
