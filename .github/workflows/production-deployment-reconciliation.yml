@@ -461,12 +461,18 @@ jobs:
             fi
           done
 
-          for fn in testagram-ad-campaign testagram-ads zenad-decision zenad-event testagram-ad-asset-upload zenad-campaign zenad-ad-asset-upload mpesa-ad-payment; do
+          for fn in testagram-ad-campaign testagram-ads zenad-decision zenad-event testagram-ad-asset-upload mpesa-ad-payment; do
             if [[ "$fn" == "zenad-event" || "$fn" == "mpesa-ad-payment" ]]; then
               supabase functions deploy "$fn" --use-api --project-ref "$PROJECT_REF" --no-verify-jwt
             else
               supabase functions deploy "$fn" --use-api --project-ref "$PROJECT_REF"
             fi
+          done
+          # These two compatibility wrappers have no external imports. Deploy them without
+          # their legacy deno.json so Supabase cannot re-associate the stale import-map path.
+          for fn in zenad-campaign zenad-ad-asset-upload; do
+            echo "Deploying compatibility wrapper $fn without legacy import-map config"
+            supabase functions deploy "$fn" --use-api --project-ref "$PROJECT_REF"
           done
           node -e 'const fs=require("node:fs"); const p="supabase/migrations/20260919193000_testagram_ads_runtime_schema_repair.sql"; if(!fs.existsSync(p)){console.error("Canonical Testagram Ads runtime migration is missing:",p); process.exit(1)} console.log("Testagram Ads schema source present:",p);'
 
