@@ -143,6 +143,7 @@ export default function TvStudioPage() {
   const [broadcastError, setBroadcastError] = useState<string | null>(null);
   const [broadcastStage, setBroadcastStage] = useState<'idle' | 'preparing' | 'authorizing' | 'connecting' | 'verifying' | 'on-air'>('idle');
   const [broadcastDiagnostics, setBroadcastDiagnostics] = useState<Record<string, unknown> | null>(null);
+  const [youtubeStatus, setYoutubeStatus] = useState<string>("disabled");
   const [productionSource, setProductionSource] = useState<'camera' | 'video'>('camera');
   const [activeScene, setActiveScene] = useState<Scene>('camera');
   const [previewScene, setPreviewScene] = useState<TvSceneId>('camera');
@@ -901,6 +902,7 @@ export default function TvStudioPage() {
         const verifyPayload = await verifyResponse.json().catch(() => null);
         if (verifyResponse.ok && verifyPayload?.data) {
           lastHealth = verifyPayload.data.health || null;
+          setYoutubeStatus(String(verifyPayload.data.health?.youtube?.status || verifyPayload.data.youtube?.status || "disabled"));
           if (verifyPayload.data.on_air) {
             onAir = true;
             break;
@@ -1244,6 +1246,7 @@ export default function TvStudioPage() {
                 {broadcastStage === 'verifying' && 'Verifying WebRTC connection and live media…'}
                 {broadcastStage === 'on-air' && 'ON AIR'}
               </div>
+              {broadcastStage === 'on-air' && <p className="mt-2 text-xs text-zinc-300">Mux: <span className="font-semibold text-emerald-300">ON AIR</span> · YouTube: <span className={youtubeStatus === 'broadcasting' ? 'font-semibold text-emerald-300' : 'font-semibold text-amber-300'}>{youtubeStatus}</span></p>}
               <p className="mt-1 text-xs text-blue-200/80">
                 {broadcastStage === 'preparing' && 'Checking camera, microphone and production A/V tracks.'}
                 {broadcastStage === 'authorizing' && 'Creating the private broadcast session and requesting media authorization.'}
