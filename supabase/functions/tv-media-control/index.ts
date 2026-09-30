@@ -109,23 +109,6 @@ Deno.serve(async req=>{
   if(requestedProvider==="native-p2p" || s.tv_provider==="native-p2p"){
     return json({ok:false,error:{code:"YOUTUBE_REQUIRED",message:"Testagram TV public delivery is YouTube-only. Start the broadcast through the YouTube encoder path."}},409);
   }
-  if(false && (requestedProvider==="native-p2p" || s.tv_provider==="native-p2p")){
-    const a=admin();
-    const {error:ue}=await a.from("live_streams").update({
-      is_live:true,started_at:new Date().toISOString(),ended_at:null,stream_url:null,
-      tv_provider:"native-p2p",tv_connection_state:"starting",tv_last_heartbeat_at:new Date().toISOString(),
-      tv_host_peer_id:null,viewer_count:0,cloudflare_input_id:null,cloudflare_output_id:null,
-      cloudflare_video_id:null,cloudflare_playback_url:null,youtube_output_id:null,youtube_status:"disabled",
-      youtube_error:"Native Testagram WebRTC transport active; Cloudflare Stream is not provisioned."
-    }).eq("id",id).eq("user_id",s.user_id).eq("is_live",false);
-    if(ue)return json({ok:false,error:{code:"NATIVE_TV_START_FAILED",message:"Could not start the native Testagram TV transport."}},409);
-    return json({ok:true,data:{
-      provider:"native-p2p",room_id:id,room_type:"tv",role:"host",signaling_topic:"tv:"+id,title:s.title,
-      viewer_count:0,ice_servers:await ice(),playback_id:null,playback_url:null,
-      cloudflare_status:"not_provisioned",youtube:{enabled:false,status:"disabled",output_id:null,error:"Cloudflare Stream is not provisioned."},
-      native_p2p:true
-    },error:null});
-  }
   if(!cfReady())return json({ok:false,error:{code:"CLOUDFLARE_NOT_CONFIGURED",message:"Cloudflare Stream credentials are not configured."}},503);
   if(!ytReady())return json({ok:false,error:{code:"YOUTUBE_NOT_CONFIGURED",message:"YouTube output is not configured. Add YOUTUBE_STREAM_KEY to the TV production secrets."}},503);
   if(!secret)return json({ok:false,error:{code:"TV_CONTROL_MISCONFIGURED",message:"TV server secret is not configured."}},503);
