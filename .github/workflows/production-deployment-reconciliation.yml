@@ -796,29 +796,10 @@ jobs:
           printf '%s' "$SUPABASE_SERVICE_ROLE_KEY" | vercel env add "SUPABASE_SERVICE_ROLE_KEY" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
           echo "Supabase TV control-plane credentials synchronized without printing secret values."
 
-      - name: Synchronize Mux TV transport and TURN credentials into Vercel production
-        shell: bash
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID }}
-          MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET }}
-          TV_TURN_URLS: ${{ secrets.TV_TURN_URLS }}
-          TV_TURN_USERNAME: ${{ secrets.TV_TURN_USERNAME }}
-          TV_TURN_CREDENTIAL: ${{ secrets.TV_TURN_CREDENTIAL }}
-        run: |
-          set -euo pipefail
-          [[ -n "$VERCEL_TOKEN" ]] || { echo "::error::VERCEL_TOKEN is required."; exit 1; }
-          for name in MUX_TOKEN_ID MUX_TOKEN_SECRET TV_TURN_URLS TV_TURN_USERNAME TV_TURN_CREDENTIAL; do
-            value="${!name}"
-            if [[ -z "$value" ]]; then
-              echo "::error::Required TV production secret is missing from GitHub: $name"
-              exit 1
-            fi
-            printf '::add-mask::%s\n' "$value"
-            printf '%s' "$value" | vercel env add "$name" production --force --sensitive --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
-          done
-          echo "Mux and TURN production credentials synchronized without printing secret values."
-
+      # Mux master credentials and Cloudflare TURN API credentials are control-plane secrets.
+      # They are synchronized only to Supabase tv-media-control above. Vercel receives the
+      # public application/control-plane credentials only and must never require retired
+      # TV_TURN_* credentials or Mux signing credentials.
       - name: Pull production Vercel configuration
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
