@@ -488,9 +488,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
           MUX_TOKEN_ID: ${{ secrets.MUX_TOKEN_ID }}
           MUX_TOKEN_SECRET: ${{ secrets.MUX_TOKEN_SECRET }}
-          TV_TURN_URLS: ${{ secrets.TV_TURN_URLS }}
-          TV_TURN_USERNAME: ${{ secrets.TV_TURN_USERNAME }}
-          TV_TURN_CREDENTIAL: ${{ secrets.TV_TURN_CREDENTIAL }}
+          CLOUDFLARE_TURN_TOKEN_ID: ${{ secrets.CLOUDFLARE_TURN_TOKEN_ID }}
+          CLOUDFLARE_TURN_API_TOKEN: ${{ secrets.CLOUDFLARE_TURN_API_TOKEN }}
         run: |
           set -euo pipefail
           PROJECT_REF="$SUPABASE_PROJECT_REF"
@@ -498,7 +497,7 @@ jobs:
             PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
           fi
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref for TV control-plane deployment."; exit 1; }
-          for name in MUX_TOKEN_ID MUX_TOKEN_SECRET TV_TURN_URLS TV_TURN_USERNAME TV_TURN_CREDENTIAL; do
+          for name in MUX_TOKEN_ID MUX_TOKEN_SECRET CLOUDFLARE_TURN_TOKEN_ID CLOUDFLARE_TURN_API_TOKEN; do
             value="${!name}"
             if [[ -z "$value" ]]; then
               echo "::error::Required TV production secret is missing from GitHub: $name"
@@ -509,10 +508,9 @@ jobs:
           supabase secrets set --project-ref "$PROJECT_REF" \
             "MUX_TOKEN_ID=$MUX_TOKEN_ID" \
             "MUX_TOKEN_SECRET=$MUX_TOKEN_SECRET" \
-            "TV_TURN_URLS=$TV_TURN_URLS" \
-            "TV_TURN_USERNAME=$TV_TURN_USERNAME" \
-            "TV_TURN_CREDENTIAL=$TV_TURN_CREDENTIAL"
-          echo "Mux and TURN secrets synchronized to the TV control plane."
+            "CLOUDFLARE_TURN_TOKEN_ID=$CLOUDFLARE_TURN_TOKEN_ID" \
+            "CLOUDFLARE_TURN_API_TOKEN=$CLOUDFLARE_TURN_API_TOKEN"
+          echo "Mux credentials and Cloudflare TURN key credentials synchronized to the TV control plane."
           attempt=1
           max_attempts=4
           while true; do
