@@ -568,7 +568,7 @@ export default function ProfilePage() {
   };
 
   const handleShareProfile = async () => {
-    const url = `${window.location.origin}/profile/${profile.username}`;
+    const url = `${window.location.origin}/profile/${encodeURIComponent(profile.username)}`;
     const shareText = `Check out @${profile.username} on Tsocial${profile.bio ? ': ' + profile.bio.slice(0, 80) : ''}!`;
     if (navigator.share) await navigator.share({ title: `@${profile.username} on Tsocial`, text: shareText, url }).catch(() => {});
     else await navigator.clipboard.writeText(url).catch(() => {});
@@ -775,13 +775,21 @@ export default function ProfilePage() {
 
   const fetchProfile = async () => {
     try {
-      const initialProfileQuery = username ? await supabase.from('profiles').select('*').eq('username', username).maybeSingle() : { data: null, error: null };
+      const requestedUsername = username?.trim() || '';
+      const canonicalUsername = requestedUsername.toLowerCase();
+      const initialProfileQuery = canonicalUsername
+        ? await supabase.from('profiles').select('*').eq('username', canonicalUsername).maybeSingle()
+        : { data: null, error: null };
       let profileData = initialProfileQuery.data;
       if (!profileData && !username && currentUser) {
         const ownProfileQuery = await supabase.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
         profileData = ownProfileQuery.data;
       }
       if (!profileData) throw initialProfileQuery.error ?? new Error('Canonical profile not found');
+      if (requestedUsername && requestedUsername !== canonicalUsername) {
+        navigate(`/profile/${encodeURIComponent(canonicalUsername)}`, { replace: true });
+        return;
+      }
       const socialLinks = (profileData.social_links ?? {}) as { twitter?: string | null; instagram?: string | null; linkedin?: string | null };
       // Critical path: render the canonical profile immediately. Non-critical profile
       // enrichments must never block the profile shell from becoming visible.
@@ -793,15 +801,6 @@ export default function ProfilePage() {
       void supabase.from('user_monetization').select('total_earnings').eq('user_id', profileData.id).maybeSingle()
         .then(({ data }) => { if (data) setProfile((prev: any) => prev ? { ...prev, total_earnings: data.total_earnings ?? 0 } : prev); })
         .catch(() => {});
-      // Update meta tags inline (no IIFE in render — this is async data loading)
-      const title = `@${profileData.username} on Testagram`;
-      const desc = profileData.bio?.slice(0, 200) || `Follow @${profileData.username} on Testagram`;
-      const img = profileData.avatar_url || `${window.location.origin}/app-icon.jpg`;
-      const setM = (p: string, v: string) => { let el = document.querySelector(`meta[property="${p}"]`) as HTMLMetaElement | null; if (!el) { el = document.createElement('meta'); el.setAttribute('property', p); document.head.appendChild(el); } el.setAttribute('content', v); };
-      document.title = title;
-      setM('og:title', title); setM('og:description', desc); setM('og:image', img);
-      setM('og:url', `${window.location.origin}/profile/${profileData.username}`);
-
       // Route-owned data lifecycle: load only the collection represented by the current profile route.
       const loaders: Record<string, () => Promise<unknown>> = {
         Tips: () => Promise.all([fetchTipHistory(profileData.id), fetchTipGoal(profileData.id), fetchProfileViews7d(profileData.id)]),
