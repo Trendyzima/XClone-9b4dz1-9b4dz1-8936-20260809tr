@@ -12,6 +12,12 @@
     },
     "api/story-cleanup.ts": {
       "maxDuration": 30
+    },
+    "api/tv-youtube-ingest.ts": {
+      "maxDuration": 300,
+      "includeFiles": [
+        "node_modules/ffmpeg-static/ffmpeg"
+      ]
     }
   },
   "rewrites": [
