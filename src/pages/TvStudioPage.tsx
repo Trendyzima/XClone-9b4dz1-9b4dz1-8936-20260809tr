@@ -1665,6 +1665,7 @@ export default function TvStudioPage() {
                 {(['camera','video','screen','guest'] as const).map(source => <div key={source} className={`rounded-lg border border-white/5 px-2 py-2 text-center ${sourceHealth[source] === 'ready' ? 'bg-emerald-500/10 text-emerald-300' : sourceHealth[source] === 'lost' ? 'bg-red-500/10 text-red-300' : 'bg-zinc-900 text-zinc-500'}`}><div className="text-[9px] uppercase tracking-wide">{source}</div><div className="text-[10px] font-semibold">{sourceHealth[source]}</div></div>)}
               </div>
             </section>
+            <div className="space-y-3">
                 <div className="rounded-lg bg-black/30 p-2 space-y-2">
                   <div className="flex items-center gap-2 text-xs font-semibold"><BarChart3 className="w-4 h-4" />LIVE VIEWER VOTE</div>
                   <input value={pollQuestion} onChange={e => setPollQuestion(e.target.value)} placeholder="Question for viewers" className="w-full rounded bg-zinc-800 p-2 text-xs" disabled={!live} />
