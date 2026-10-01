@@ -203,34 +203,6 @@ export default function TvPublicLivePage() {
               }
             },
           );
-          session.setGuestControlHandler((control) => {
-            if (control === 'grant-speak') {
-              setSpeakingGranted(true);
-              const track = guestMediaRef.current?.getAudioTracks()[0];
-              if (track) { track.enabled = true; setMicOn(true); }
-              toast.success('The host has given you a chance to speak.');
-            } else if (control === 'deny-speak') {
-              setSpeakingGranted(false);
-              toast.info('The host has not opened the floor yet.');
-            } else if (control === 'mute') {
-              const track = guestMediaRef.current?.getAudioTracks()[0];
-              if (track) { track.enabled = false; setMicOn(false); }
-              toast.info('The studio muted your microphone.');
-            } else if (control === 'unmute') {
-              const track = guestMediaRef.current?.getAudioTracks()[0];
-              if (track) { track.enabled = true; setMicOn(true); }
-              toast.info('The studio enabled your microphone.');
-            } else if (control === 'block') {
-              guestMediaRef.current?.getTracks().forEach((track) => track.stop());
-              guestMediaRef.current = null;
-              setLive(false);
-              setError('The studio has blocked this guest slot.');
-              toast.error('You have been blocked from the TV guest slot.');
-            } else if (control === 'unblock') {
-              toast.info('The studio has unblocked your guest slot. Reload to reconnect.');
-            }
-          });
-
           sessionRef.current = session;
           session.setGuestControlHandler((control) => {
             if (control === 'grant-speak') {
