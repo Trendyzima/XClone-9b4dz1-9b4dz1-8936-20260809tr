@@ -58,8 +58,10 @@ jobs:
         run: |
           set -euo pipefail
           remote_dir="/opt/testagram-tv-srs"
+          # shellcheck disable=SC2029
           ssh "$SRS_DEPLOY_USER@$SRS_DEPLOY_HOST" "sudo mkdir -p '$remote_dir' && sudo chown -R \$(id -u):\$(id -g) '$remote_dir'"
           scp -q tv-srs/docker-compose.yml tv-srs/srs.conf tv-srs/Caddyfile tv-srs/deploy.sh             "$SRS_DEPLOY_USER@$SRS_DEPLOY_HOST:$remote_dir/"
+          # shellcheck disable=SC2029
           ssh "$SRS_DEPLOY_USER@$SRS_DEPLOY_HOST" "chmod +x '$remote_dir/deploy.sh' && cd '$remote_dir' && SRS_PUBLIC_IP='$SRS_PUBLIC_IP' SRS_DOMAIN='$SRS_DOMAIN' ./deploy.sh"
 
       - name: Verify public Testagram SRS gateway
