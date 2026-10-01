@@ -871,7 +871,8 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       productionSourceGainRef.current.gain.value =
         programSceneRef.current === 'video' && !sourceVideoMuted && !programMuted ? programLevel : 0;
     }
-    if (sourceVideo && sourceVideo.muted !== sourceVideoMuted) sourceVideo.muted = sourceVideoMuted;
+    // Route uploaded-media audio through the production mixer only.
+    if (sourceVideo) sourceVideo.muted = true;
 
     if (audioPipelineRef.current && !productionCommentaryGainRef.current) {
       const commentary = audioContext.createMediaStreamSource(audioPipelineRef.current.stream);
@@ -1193,7 +1194,10 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     }
     const nextMuted = !sourceVideoMuted;
     setSourceVideoMuted(nextMuted);
-    sourceVideoRef.current.muted = nextMuted;
+    // Keep the media element muted locally; the production AudioContext gain
+    // is the authoritative Program audio control, preventing duplicate local
+    // playback and making MUTE/UNMUTE deterministic.
+    sourceVideoRef.current.muted = true;
     const gain = productionSourceGainRef.current;
     if (gain) {
       const context = productionAudioContextRef.current;
@@ -1913,9 +1917,16 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
   useEffect(() => {
     const sourceGain = productionSourceGainRef.current;
     const commentaryGain = productionCommentaryGainRef.current;
-    if (sourceGain) sourceGain.gain.value = sourceVideoMuted ? 0 : programLevel;
+    // Uploaded-media audio is a Program bus, not a global audio source. It must
+    // only open when VIDEO is actually on Program and the bus is not muted.
+    if (sourceGain) {
+      sourceGain.gain.value =
+        programSceneRef.current === 'video' && !sourceVideoMuted && !programMuted
+          ? programLevel
+          : 0;
+    }
     if (commentaryGain) commentaryGain.gain.value = muted ? 0 : commentaryLevel;
-  }, [programLevel, commentaryLevel, muted, sourceVideoMuted]);
+  }, [programLevel, commentaryLevel, muted, sourceVideoMuted, programMuted]);
 
   const toggleLandscape = async () => {
     try {
