@@ -405,16 +405,25 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     : null;
 
   useEffect(() => {
+    let cancelled = false;
     const fetchPoll = async () => {
+      // Home/profile/feed endpoints may already embed the poll relation.
+      // Use it immediately and avoid an extra request per post.
+      const embedded = (post as any).poll;
+      if (embedded?.id) {
+        if (!cancelled) setPoll(embedded);
+        return;
+      }
       const { data } = await supabase
         .from('polls')
-        .select('*, options:poll_options(*)')
+        .select('id,post_id,question,description,status,ends_at,allow_multiple,visibility')
         .eq('post_id', post.id)
         .maybeSingle();
-      if (data) setPoll(data);
+      if (!cancelled && data) setPoll(data);
     };
-    fetchPoll();
-  }, [post.id]);
+    void fetchPoll();
+    return () => { cancelled = true; };
+  }, [post.id, (post as any).poll?.id]);
 
   useEffect(() => {
     let cancelled = false;
