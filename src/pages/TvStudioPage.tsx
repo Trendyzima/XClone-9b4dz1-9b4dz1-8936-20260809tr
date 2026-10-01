@@ -523,6 +523,18 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     return createProductionProgram();
   };
 
+  // The persistent dock swaps the Program <video> element while keeping the
+  // production session alive. Reattach the existing program MediaStream to the
+  // newly mounted monitor instead of requiring a second production pipeline.
+  useEffect(() => {
+    const monitor = videoRef.current;
+    const stream = programStreamRef.current;
+    if (!monitor || !stream) return;
+    monitor.srcObject = stream;
+    monitor.muted = true;
+    void monitor.play().catch(() => undefined);
+  }, [persistentDock]);
+
   const createProductionProgram = async () => {
     await ensureStudio();
     const preset = VIDEO_PRESETS[quality];
