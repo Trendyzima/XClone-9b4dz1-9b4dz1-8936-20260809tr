@@ -185,6 +185,7 @@ export default function TvStudioPage() {
   const [pollQuestion, setPollQuestion] = useState('');
   const [pollOptions, setPollOptions] = useState(['Yes','No']);
   const [cameraResolution, setCameraResolution] = useState('not started');
+  const [cameraFacing, setCameraFacing] = useState<'front' | 'back'>('back');
   const [studioHealth, setStudioHealth] = useState<'ready' | 'degraded' | 'offline'>('offline');
   const [shortcutHint, setShortcutHint] = useState(false);
   const [scenePresets, setScenePresets] = useState<Record<string, { preview: TvSceneId; transition: TransitionType; duration: number; pip: boolean; graphics: TvGraphic[] }>>({});
@@ -279,7 +280,7 @@ export default function TvStudioPage() {
     };
   }, []);
 
-  const getCamera = async () => {
+  const getCamera = async (requestedFacing: 'front' | 'back' = cameraFacing) => {
     const permission = await readPermissionState();
     if (!window.isSecureContext) throw new Error('Camera and microphone require a secure HTTPS connection.');
     if (permission.camera === 'denied' || permission.microphone === 'denied') {
@@ -294,13 +295,13 @@ export default function TvStudioPage() {
       let s: MediaStream;
       try {
         s = await navigator.mediaDevices.getUserMedia({
-          video: CAMERA_CONSTRAINTS[quality],
+          video: { ...CAMERA_CONSTRAINTS[quality], facingMode: { ideal: requestedFacing === 'front' ? 'user' : 'environment' } },
           audio: { channelCount: { ideal: 1 }, sampleRate: { ideal: 48000 }, sampleSize: { ideal: 24 }, echoCancellation: true, noiseSuppression: true, autoGainControl: false },
         });
       } catch (error) {
         if ((error as DOMException)?.name !== 'OverconstrainedError') throw error;
         s = await navigator.mediaDevices.getUserMedia({
-          video: { width: { ideal: preset.width }, height: { ideal: preset.height }, aspectRatio: { ideal: 16 / 9 }, frameRate: { ideal: preset.fps, max: preset.fps }, facingMode: { ideal: 'environment' } },
+          video: { width: { ideal: preset.width }, height: { ideal: preset.height }, aspectRatio: { ideal: 16 / 9 }, frameRate: { ideal: preset.fps, max: preset.fps }, facingMode: { ideal: requestedFacing === 'front' ? 'user' : 'environment' } },
           audio: { channelCount: { ideal: 1 }, sampleRate: { ideal: 48000 }, sampleSize: { ideal: 24 }, echoCancellation: true, noiseSuppression: true, autoGainControl: false },
         });
       }
@@ -340,6 +341,59 @@ export default function TvStudioPage() {
       const message = explainMediaError(error);
       setPermissionError(message);
       throw new Error(message);
+    }
+  };
+
+  const switchCameraFacing = async (requestedFacing: 'front' | 'back') => {
+    if (requestedFacing === cameraFacing) return;
+    const current = cameraStreamRef.current;
+    if (!current) {
+      setCameraFacing(requestedFacing);
+      return;
+    }
+    const currentVideo = current.getVideoTracks()[0];
+    if (!currentVideo) return;
+    try {
+      try {
+        await currentVideo.applyConstraints({ facingMode: requestedFacing === 'front' ? 'user' : 'environment' });
+        setCameraFacing(requestedFacing);
+        const settings = currentVideo.getSettings();
+        if (settings.width && settings.height) setCameraResolution(String(settings.width) + '×' + settings.height + ' @ ' + Math.round(settings.frameRate || VIDEO_PRESETS[quality].fps) + 'fps');
+        setPermissionError(null);
+        return;
+      } catch {
+        // Some mobile browsers expose facingMode only at getUserMedia time.
+      }
+      const replacement = await navigator.mediaDevices.getUserMedia({
+        video: { ...CAMERA_CONSTRAINTS[quality], facingMode: { exact: requestedFacing === 'front' ? 'user' : 'environment' } },
+      });
+      const nextVideo = replacement.getVideoTracks()[0];
+      if (!nextVideo) throw new Error('The selected camera did not provide a video track.');
+      current.removeTrack(currentVideo);
+      current.addTrack(nextVideo);
+      currentVideo.stop();
+      nextVideo.onended = () => {
+        setCamera(false);
+        setDeviceReady(false);
+        setStudioHealth('degraded');
+        if (liveRef.current && programSceneRef.current === 'camera') void takeScene('black').catch(() => undefined);
+        toast.error('Camera signal lost. Testagram TV switched to a safe fallback.');
+      };
+      setCameraFacing(requestedFacing);
+      const settings = nextVideo.getSettings();
+      if (settings.width && settings.height) setCameraResolution(String(settings.width) + '×' + settings.height + ' @ ' + Math.round(settings.frameRate || VIDEO_PRESETS[quality].fps) + 'fps');
+      if (videoRef.current) videoRef.current.srcObject = current;
+      if (productionCameraVideoRef.current) productionCameraVideoRef.current.srcObject = current;
+      await productionCameraVideoRef.current?.play().catch(() => undefined);
+      setPermissionError(null);
+    } catch (error) {
+      const message = error instanceof DOMException && error.name === 'NotAllowedError'
+        ? 'Camera permission is required to switch cameras. Allow camera access and try again.'
+        : error instanceof DOMException && error.name === 'OverconstrainedError'
+          ? 'The ' + requestedFacing + ' camera is not available on this device.'
+          : explainMediaError(error);
+      setPermissionError(message);
+      toast.error(message);
     }
   };
 
@@ -1698,6 +1752,16 @@ export default function TvStudioPage() {
               <Button size="sm" disabled={saving} onClick={() => void activateScene('camera')}><Camera className="w-4 h-4 mr-1" />{deviceReady ? 'Preview' : 'Start preview'}</Button>
               <Button size="sm" variant="outline" onClick={() => setShortcutHint(v => !v)}>Shortcuts</Button>
               <Button size="sm" variant={camera ? 'default' : 'destructive'} onClick={() => void toggleCamera()}><Camera className="w-4 h-4 mr-1" />{camera ? 'Camera' : 'Camera off'}</Button>
+              <div className="mt-3 rounded-lg border border-white/10 bg-black/30 p-2.5">
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <div><div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Camera</div><div className="text-[10px] text-zinc-500">Choose the physical camera used by the production bus.</div></div>
+                  <span className="text-[10px] font-semibold uppercase text-emerald-300">{cameraFacing}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <Button size="sm" variant={cameraFacing === 'front' ? 'default' : 'outline'} disabled={!deviceReady || saving} onClick={() => void switchCameraFacing('front')}><Camera className="mr-1 h-4 w-4" />Front camera</Button>
+                  <Button size="sm" variant={cameraFacing === 'back' ? 'default' : 'outline'} disabled={!deviceReady || saving} onClick={() => void switchCameraFacing('back')}><Camera className="mr-1 h-4 w-4" />Back camera</Button>
+                </div>
+              </div>
               <Button size="sm" variant={!muted ? 'default' : 'destructive'} onClick={() => void toggleMic()}><Mic className="w-4 h-4 mr-1" />{muted ? 'Mic off' : 'Mic'}</Button>
               <Button size="sm" disabled={!getDisplayMedia()} variant={sharing ? 'secondary' : 'outline'} onClick={() => void shareScreen()}><MonitorUp className="w-4 h-4 mr-1" />{sharing ? 'Stop screen' : getDisplayMedia() ? 'Screen' : 'Screen unavailable'}</Button>
               {!recording ? <Button size="sm" disabled={saving} onClick={() => void startRecording()}><Circle className="w-4 h-4 mr-1" />Record locally</Button> : <Button size="sm" variant="destructive" onClick={stopRecording}><Square className="w-4 h-4 mr-1" />Stop & save</Button>}
