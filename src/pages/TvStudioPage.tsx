@@ -195,6 +195,15 @@ export default function TvStudioPage() {
     lightModeRef.current = light;
   }, []);
 
+  const getDisplayMedia = (): ((constraints?: MediaStreamConstraints) => Promise<MediaStream>) | null => {
+    const mediaDevices = navigator.mediaDevices as MediaDevices | undefined;
+    if (mediaDevices && typeof mediaDevices.getDisplayMedia === 'function') {
+      return mediaDevices.getDisplayMedia.bind(mediaDevices);
+    }
+    const legacy = (navigator as Navigator & { getDisplayMedia?: (constraints?: MediaStreamConstraints) => Promise<MediaStream> }).getDisplayMedia;
+    return typeof legacy === 'function' ? legacy.bind(navigator) : null;
+  };
+
   const explainMediaError = (error: any) => {
     const name = error?.name;
     if (!window.isSecureContext) return 'Camera and microphone require a secure HTTPS connection.';
@@ -688,7 +697,10 @@ export default function TvStudioPage() {
       return;
     }
     const mapped = sceneToScene(scene);
-    if (!mapped && scene !== 'black') { toast.info('Guest is available when a marked TV guest publishes a camera track.'); return; }
+    if (!mapped && scene !== 'guest' && scene !== 'black') {
+      toast.info('That scene is not available yet.');
+      return;
+    }
     if (scene === 'black') {
       transitionFromSceneRef.current = programSceneRef.current;
       transitionFromCanvasRef.current = sceneCanvasRef.current;
@@ -696,7 +708,7 @@ export default function TvStudioPage() {
       transitionStartedRef.current = performance.now();
       programSceneRef.current = 'black'; setProgramScene('black'); return;
     }
-    if (scene === 'guest' && !remoteGuestVideoRef.current) { toast.info('No TV guest is connected.'); return; }
+    if (scene === 'guest' && (!guestConnected || !remoteGuestVideoRef.current)) { toast.info('No TV guest is connected.'); return; }
     transitionFromSceneRef.current = programSceneRef.current;
     if (sceneCanvasRef.current) {
       const source = sceneCanvasRef.current;
@@ -726,11 +738,22 @@ export default function TvStudioPage() {
         if (!sourceVideoRef.current) { videoFileInputRef.current?.click(); return; }
         await ensureStudio(); await sourceVideoRef.current.play().catch(() => undefined);
         setSourceVideoPlaying(!sourceVideoRef.current.paused); setProductionSource('video');
+      } else if (scene === 'guest') {
+        if (!guestConnected || !remoteGuestVideoRef.current) {
+          toast.info('Connect a TV guest before previewing the Guest scene.');
+          return;
+        }
+        await ensureStudio();
+        setProductionSource('camera');
       } else {
-        if (!navigator.mediaDevices?.getDisplayMedia) { toast.info('Screen sharing is not supported by this browser. Camera, video, guest and replay scenes remain available.'); return; }
+        const requestDisplayMedia = getDisplayMedia();
+        if (!requestDisplayMedia) {
+          toast.info('Screen sharing is unavailable in this browser. Use Camera, Video, Guest or Replay.');
+          return;
+        }
         if (!screenStreamRef.current) {
           const preset = VIDEO_PRESETS[quality];
-          const ss = await navigator.mediaDevices.getDisplayMedia({ video: { frameRate: { ideal: preset.fps, max: preset.fps }, width: { ideal: preset.width, max: preset.width }, height: { ideal: preset.height, max: preset.height }, aspectRatio: { ideal: 16 / 9 } }, audio: false });
+          const ss = await requestDisplayMedia({ video: { frameRate: { ideal: preset.fps, max: preset.fps }, width: { ideal: preset.width, max: preset.width }, height: { ideal: preset.height, max: preset.height }, aspectRatio: { ideal: 16 / 9 } }, audio: false });
           screenStreamRef.current = ss;
           const track = ss.getVideoTracks()[0];
           track.onended = () => { screenStreamRef.current = null; setSharing(false); void activateScene('camera'); };
@@ -1237,8 +1260,13 @@ export default function TvStudioPage() {
       return;
     }
     try {
+      const requestDisplayMedia = getDisplayMedia();
+      if (!requestDisplayMedia) {
+        toast.info('Screen sharing is unavailable in this browser. Camera, Video, Guest and Replay scenes are still available.');
+        return;
+      }
       const preset = VIDEO_PRESETS[quality];
-      const s = await navigator.mediaDevices.getDisplayMedia({
+      const s = await requestDisplayMedia({
         video: { frameRate: preset.fps, width: { ideal: preset.width }, height: { ideal: preset.height } },
         audio: false,
       });
@@ -1561,11 +1589,11 @@ export default function TvStudioPage() {
           <aside className="space-y-3">
                           <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-3">
                 <div className="flex items-center gap-2 font-semibold text-sm"><Layers3 className="w-4 h-4" />Program / scenes</div>
-                <div className="grid grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <Button size="sm" variant={previewScene === 'camera' ? 'default' : 'outline'} onClick={() => void activateScene('camera')}><Camera className="w-4 h-4 mr-1" />Camera</Button>
-                  <Button size="sm" variant={activeScene === 'video' ? 'default' : 'outline'} onClick={() => void activateScene('video')}><Upload className="w-4 h-4 mr-1" />Video</Button>
+                  <Button size="sm" variant={previewScene === 'video' ? 'default' : 'outline'} onClick={() => void activateScene('video')}><Upload className="w-4 h-4 mr-1" />Video</Button>
                   <Button size="sm" variant={previewScene === 'screen' ? 'default' : 'outline'} onClick={() => void shareScreen()}><MonitorUp className="w-4 h-4 mr-1" />Screen</Button>
-                  <Button size="sm" variant={previewScene === 'guest' ? 'default' : 'outline'} disabled={!guestConnected} onClick={() => setPreviewScene('guest')}>Guest</Button>
+                  <Button size="sm" variant={previewScene === 'guest' ? 'default' : 'outline'} disabled={!guestConnected} onClick={() => void activateScene('guest')}>Guest</Button>
                 </div>
                 <input ref={videoFileInputRef} type="file" accept="video/*" className="hidden" onChange={e => void loadProductionVideo(e.target.files?.[0])} />
                 {uploadedVideoName && <div className="text-[11px] text-zinc-400 truncate">{uploadedVideoName}</div>}
