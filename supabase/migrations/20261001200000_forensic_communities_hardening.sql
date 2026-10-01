@@ -407,3 +407,57 @@ create index if not exists community_members_community_status_role_idx
 
 create index if not exists community_chat_community_created_at_idx
   on public.community_chat (community_id, created_at desc, id desc);
+
+
+create table if not exists public.community_event_rsvps (
+  event_id uuid not null references public.community_events(id) on delete cascade,
+  user_id uuid not null references public.profiles(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (event_id, user_id)
+);
+
+alter table public.community_event_rsvps enable row level security;
+
+drop policy if exists "community event rsvps member read" on public.community_event_rsvps;
+create policy "community event rsvps member read"
+on public.community_event_rsvps
+for select
+to authenticated
+using (
+  exists (
+    select 1 from public.community_events e
+    join public.community_members cm on cm.community_id = e.community_id
+    where e.id = community_event_rsvps.event_id
+      and cm.user_id = (select auth.uid())
+      and cm.status = 'active'
+  )
+);
+
+drop policy if exists "community event rsvps own insert" on public.community_event_rsvps;
+create policy "community event rsvps own insert"
+on public.community_event_rsvps
+for insert
+to authenticated
+with check (
+  user_id = (select auth.uid())
+  and exists (
+    select 1 from public.community_events e
+    join public.community_members cm on cm.community_id = e.community_id
+    where e.id = community_event_rsvps.event_id
+      and cm.user_id = (select auth.uid())
+      and cm.status = 'active'
+  )
+);
+
+drop policy if exists "community event rsvps own delete" on public.community_event_rsvps;
+create policy "community event rsvps own delete"
+on public.community_event_rsvps
+for delete
+to authenticated
+using (user_id = (select auth.uid()));
+
+grant select, insert, delete on public.community_event_rsvps to authenticated;
+revoke all on public.community_event_rsvps from anon;
+
+create index if not exists community_event_rsvps_event_idx
+  on public.community_event_rsvps (event_id, created_at desc);
