@@ -174,7 +174,8 @@ export class TestagramTvMediaSession {
       })
       .on('broadcast', { event: 'tv-guest-signal' }, payload => {
         const p = payload.payload as Signal;
-        if (this.role === 'host' && Number(p.guestSlot) > 0 && p.guestSignal) this.onGuestSignal?.(p.guestSignal, Number(p.guestSlot));
+        const slot = Number(p.guestSlot || 0);
+        if (this.role === 'host' && p.guestSignal && p.from && this.peerGuestSlots.get(p.from) === slot) this.onGuestSignal?.(p.guestSignal, slot);
       });
     await new Promise<void>((resolve, reject) => {
       this.channel!.subscribe((status, err) => {
