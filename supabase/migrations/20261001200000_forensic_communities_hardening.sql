@@ -1,6 +1,62 @@
 -- Forensic community hardening: authorization boundaries, durable events, and server-side moderation.
 -- Generated for Testagram production schema.
 
+-- Normalize community membership RLS without self-referential policy recursion.
+create or replace function public.is_community_member(p_community_id uuid, p_user_id uuid)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $
+  select exists (
+    select 1
+    from public.community_members cm
+    where cm.community_id = p_community_id
+      and cm.user_id = p_user_id
+      and cm.status = 'active'
+  );
+$;
+
+revoke execute on function public.is_community_member(uuid, uuid) from public, anon;
+grant execute on function public.is_community_member(uuid, uuid) to authenticated;
+
+do $
+declare
+  p record;
+begin
+  for p in
+    select policyname
+    from pg_policies
+    where schemaname = 'public'
+      and tablename = 'community_members'
+  loop
+    execute format('drop policy if exists %I on public.community_members', p.policyname);
+  end loop;
+end
+$;
+
+create policy "community members self read"
+on public.community_members
+for select
+to authenticated
+using (
+  user_id = (select auth.uid())
+  or public.is_community_member(community_id, (select auth.uid()))
+);
+
+create policy "community members self join"
+on public.community_members
+for insert
+to authenticated
+with check (
+  user_id = (select auth.uid())
+  and role = 'member'
+  and status in ('active', 'pending')
+);
+
+
+
 create table if not exists public.community_events (
   id uuid primary key default gen_random_uuid(),
   community_id uuid not null references public.communities(id) on delete cascade,
