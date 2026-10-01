@@ -2037,11 +2037,14 @@ export default function TvStudioPage() {
                   const selected = previewScene === scene;
                   const available = scene === 'camera' || scene === 'video' || scene === 'screen' || scene === 'guest' || scene === 'replay';
                   return (
-                    <button key={scene} type="button" disabled={!available || (scene === 'guest' && guestLifecycle === 'connecting')} onClick={() => {
-                      if (scene === 'camera' || scene === 'video') void activateScene(scene); else if (scene === 'guest') { if (guestConnected) { setPreviewScene('guest'); previewSceneRef.current = 'guest'; } else void createGuestInvite(); }
+                    <button key={scene} type="button" aria-label={scene === 'guest' ? 'Generate guest invitation' : label} onPointerDown={() => {
+                      if (scene === 'guest') void createGuestInvite();
+                    }} onClick={() => {
+                      if (scene === 'camera' || scene === 'video') void activateScene(scene);
+                      else if (scene === 'guest') { if (guestConnected) { setPreviewScene('guest'); previewSceneRef.current = 'guest'; } }
                       else if (scene === 'screen') void shareScreen();
                       else { setPreviewScene('replay'); previewSceneRef.current = 'replay'; }
-                    }} className={`group rounded-xl border p-3 text-left transition ${selected ? 'border-red-500/60 bg-red-500/10 ring-1 ring-red-500/30' : 'border-white/10 bg-zinc-900/70 hover:border-white/20 hover:bg-zinc-900'} disabled:cursor-not-allowed disabled:opacity-45`}>
+                    }} className={`group rounded-xl border p-3 text-left transition ${selected ? 'border-red-500/60 bg-red-500/10 ring-1 ring-red-500/30' : 'border-white/10 bg-zinc-900/70 hover:border-white/20 hover:bg-zinc-900'}`}>
                       <div className="flex items-center justify-between gap-2">
                         <Icon className={`h-4 w-4 ${selected ? 'text-red-400' : 'text-zinc-400'}`} />
                         <span className={`h-2 w-2 rounded-full ${ready ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
@@ -2163,7 +2166,7 @@ export default function TvStudioPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <Button size="sm" variant={multiview ? 'default' : 'outline'} onClick={() => setMultiview(v => !v)}>Multiview</Button>
-                  <Button size="sm" variant="outline" aria-label="Generate guest link" title="Generate the next guest link" onClick={() => void createGuestInvite()} disabled={guestLifecycle === 'connecting' || guestSlots.length >= TV_GUEST_CAPACITY}><Users className="w-4 h-4 mr-1" />{guestSlots.length>=TV_GUEST_CAPACITY?'Guest slots full':'Guest '+(guestSlots.length+1)}</Button>
+                  <Button size="sm" variant="outline" aria-label="Generate guest link" title="Generate the next guest link" onPointerDown={() => void createGuestInvite()} onClick={() => void createGuestInvite()} disabled={guestSlots.length >= TV_GUEST_CAPACITY}><Users className="w-4 h-4 mr-1" />{guestSlots.length>=TV_GUEST_CAPACITY?'Guest slots full':'Guest '+(guestSlots.length+1)}</Button>
                   <Button size="sm" variant={replayState === 'playing' ? 'default' : 'outline'} disabled={!replayBufferRef.current.frameCount} onClick={() => void takeScene('replay')}>REPLAY</Button>
                   <Button size="sm" variant={audioDucking ? 'default' : 'outline'} onClick={() => { setAudioDucking(v => !v); if (audioDucking) { setDuckingActive(false); setDuckingReduction(0); } }}>Auto ducking</Button>
                 </div>
