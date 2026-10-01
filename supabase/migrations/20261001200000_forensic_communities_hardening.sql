@@ -517,7 +517,7 @@ as $$
     '[]'::jsonb
   )
   from (
-    select c, count(p.id)::bigint as recent_posts
+    select c, c.member_count as member_count, count(p.id)::bigint as recent_posts
     from public.communities c
     left join public.posts p
       on p.community_id = c.id
