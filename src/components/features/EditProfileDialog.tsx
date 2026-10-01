@@ -230,7 +230,7 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
             </label>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2"><Label htmlFor="username">Username *</Label><Input id="username" value={username} onChange={e => setUsername(e.target.value)} placeholder="your_username" required disabled={loading} /></div>
+            <div className="space-y-2"><Label htmlFor="username">Permanent handle</Label><Input id="username" value={username ? `@${username}` : ""} placeholder="@your_handle" readOnly disabled className="bg-muted" /><p className="text-xs text-muted-foreground">Your @handle is permanent and cannot be changed. It is your public profile identity.</p></div>
             <div className="space-y-2"><Label htmlFor="email">Email (read-only)</Label><Input id="email" value={user?.email || ''} disabled className="bg-muted" /></div>
             <div className="space-y-2 md:col-span-2"><Label htmlFor="bio">Bio</Label><Textarea id="bio" value={bio} onChange={e => setBio(e.target.value)} placeholder="Tell us about yourself" rows={3} maxLength={160} disabled={loading} /><p className="text-xs text-muted-foreground text-right">{bio.length}/160</p></div>
             <div className="space-y-2"><Label htmlFor="location">Location</Label><Input id="location" value={location} onChange={e => setLocation(e.target.value)} placeholder="City, Country" disabled={loading} /></div>
