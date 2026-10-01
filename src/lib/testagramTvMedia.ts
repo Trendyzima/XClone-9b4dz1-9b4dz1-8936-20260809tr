@@ -224,6 +224,17 @@ export class TestagramTvMediaSession {
       .on('broadcast', { event: 'tv-presence' }, payload => {
         const p = payload.payload as Signal;
         this.onViewerCount?.(Number(p.count || 0), Number(p.guestCount || 0));
+      })
+      .on('broadcast', { event: 'tv-guest-control' }, payload => {
+        const p = payload.payload as Signal;
+        if (this.role === 'guest' && Number(p.toGuestSlot) === this.guestSlot && p.control) this.onGuestControl?.(p.control);
+      })
+      .on('broadcast', { event: 'tv-guest-signal' }, payload => {
+        const p = payload.payload as Signal;
+        const slot = Number(p.guestSlot || 0);
+        if (this.role === 'host' && p.guestSignal && p.from && this.peerGuestSlots.get(p.from) === slot) {
+          this.onGuestSignal?.(p.guestSignal, slot);
+        }
       });
 
     try {
