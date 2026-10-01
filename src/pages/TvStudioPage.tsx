@@ -101,6 +101,7 @@ export default function TvStudioPage() {
   const guestVideoElementsRef = useRef<Map<number,HTMLVideoElement>>(new Map());
   const guestAudioElementsRef = useRef<Map<number,HTMLAudioElement>>(new Map());
   const guestPeerSlotsRef = useRef<Map<string,number>>(new Map());
+  const guestMultiviewStreamRef = useRef<MediaStream | null>(null);
   const [replayState, setReplayState] = useState<'ready' | 'playing'>('ready');
   const [programFps, setProgramFps] = useState(0);
   const [programDropped, setProgramDropped] = useState(0);
