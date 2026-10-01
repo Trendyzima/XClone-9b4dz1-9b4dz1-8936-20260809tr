@@ -146,8 +146,8 @@ export function drawTvGraphics(
       const maxW = Math.min(safeW, Math.max(560, width * 0.56));
       const x = safeX;
       const h = 112;
-      // Keep lower thirds above the ticker/banner safe area.
-      const y = safeBottom - h - 92 - (g.y ?? 0);
+      // Broadcast-safe lower-third lane: clear of breaking banner and ticker.
+      const y = safeBottom - h - 112 - (g.y ?? 0);
       ctx.save();
       ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 20;
       ctx.fillStyle = 'rgba(9,9,11,.94)';
@@ -178,21 +178,22 @@ export function drawTvGraphics(
       ctx.fillText(text, width - (tickerOffset % cycle), y + 31);
       ctx.restore();
     } else if (g.kind === 'banner') {
-      // Breaking banner occupies the lower-third lane but stays above the ticker.
-      const y = safeBottom - 148;
+      // Breaking banner gets its own dedicated lane immediately above the ticker.
+      const y = safeBottom - 106;
       ctx.save();
       ctx.fillStyle = 'rgba(9,9,11,.96)'; ctx.fillRect(safeX, y, safeW, 58);
-      ctx.fillStyle = '#ef4444'; ctx.fillRect(safeX, y, 210, 58);
+      ctx.fillStyle = '#ef4444'; ctx.fillRect(safeX, y, Math.min(210, safeW * 0.28), 58);
+      const labelW = Math.min(210, safeW * 0.28);
       ctx.fillStyle = '#fff'; ctx.font = '900 17px sans-serif'; ctx.fillText('BREAKING NEWS', safeX + 20, y + 36);
       ctx.fillStyle = '#fafafa'; ctx.font = '700 20px sans-serif';
-      ctx.fillText(clampText(g.text, 100), safeX + 230, y + 36);
+      ctx.fillText(clampText(g.text, 100), safeX + labelW + 20, y + 36);
       ctx.restore();
     } else if (g.kind === 'next') {
       const w = Math.min(430, safeW * 0.42);
       const h = 66;
       const x = width - safeX - w;
-      // NEXT sits above the ticker and clear of the lower-third lane.
-      const y = safeBottom - h - 158;
+      // NEXT lives in the upper-right information lane, below the station bug.
+      const y = safeY + Math.min(86, Math.max(70, height * 0.09));
       ctx.save();
       ctx.fillStyle = 'rgba(9,9,11,.94)'; rounded(x, y, w, h, 10); ctx.fill();
       ctx.fillStyle = '#ef4444'; ctx.fillRect(x, y, 6, h);
