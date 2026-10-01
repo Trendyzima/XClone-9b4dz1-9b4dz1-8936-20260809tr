@@ -12,6 +12,9 @@ import {
   Mic,
   MicOff,
   PhoneOff,
+  Hand,
+  MessageCirclePlus,
+  ThumbsUp,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
@@ -60,6 +63,8 @@ export default function TvPublicLivePage() {
   const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
   const [youtubePlayerError, setYoutubePlayerError] = useState(false);
   const [guestSlot, setGuestSlot] = useState<number | null>(null);
+  const [speakingGranted, setSpeakingGranted] = useState(false);
+  const [sentGuestSignal, setSentGuestSignal] = useState<'raise-hand' | 'add-to-point' | 'second-point' | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -199,7 +204,15 @@ export default function TvPublicLivePage() {
             },
           );
           session.setGuestControlHandler((control) => {
-            if (control === 'mute') {
+            if (control === 'grant-speak') {
+              setSpeakingGranted(true);
+              const track = guestMediaRef.current?.getAudioTracks()[0];
+              if (track) { track.enabled = true; setMicOn(true); }
+              toast.success('The host has given you a chance to speak.');
+            } else if (control === 'deny-speak') {
+              setSpeakingGranted(false);
+              toast.info('The host has not opened the floor yet.');
+            } else if (control === 'mute') {
               const track = guestMediaRef.current?.getAudioTracks()[0];
               if (track) { track.enabled = false; setMicOn(false); }
               toast.info('The studio muted your microphone.');
@@ -220,7 +233,15 @@ export default function TvPublicLivePage() {
 
           sessionRef.current = session;
           session.setGuestControlHandler((control) => {
-            if (control === 'mute') {
+            if (control === 'grant-speak') {
+              setSpeakingGranted(true);
+              const track = guestMediaRef.current?.getAudioTracks()[0];
+              if (track) { track.enabled = true; setMicOn(true); }
+              toast.success('The host has given you a chance to speak.');
+            } else if (control === 'deny-speak') {
+              setSpeakingGranted(false);
+              toast.info('The host has not opened the floor yet.');
+            } else if (control === 'mute') {
               const track = guestMediaRef.current?.getAudioTracks()[0];
               if (track) { track.enabled = false; setMicOn(false); }
               toast.info('The studio muted your microphone.');
@@ -357,6 +378,18 @@ export default function TvPublicLivePage() {
 
     track.enabled = !track.enabled;
     setMicOn(track.enabled);
+  };
+
+  const sendGuestSignal = async (signal: 'raise-hand' | 'add-to-point' | 'second-point') => {
+    if (!isGuest || !live || !sessionRef.current) return;
+    try {
+      await sessionRef.current.sendGuestSignal(signal);
+      setSentGuestSignal(signal);
+      const label = signal === 'raise-hand' ? 'Raise hand' : signal === 'add-to-point' ? 'Add to point' : 'Second point';
+      toast.success(label + ' sent to the host.');
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'Could not send speaking signal.');
+    }
   };
 
   const leaveGuest = async () => {
@@ -559,6 +592,17 @@ export default function TvPublicLivePage() {
             )}
             {micOn ? 'Mic on' : 'Mic off'}
           </Button>
+
+          <div className="w-full max-w-2xl rounded-xl border border-white/10 bg-zinc-900/70 p-3">
+            <div className="flex items-center gap-2 text-xs font-semibold"><Hand className="w-4 h-4 text-amber-300" />ASK TO SPEAK</div>
+            <p className="mt-1 text-[10px] text-zinc-500">Send a polite, non-verbal cue to the host. The host decides when to open your mic.</p>
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              <Button size="sm" disabled={!live} variant={sentGuestSignal === 'raise-hand' ? 'default' : 'outline'} onClick={() => void sendGuestSignal('raise-hand')}><Hand className="w-4 h-4 mr-1" />Raise hand</Button>
+              <Button size="sm" disabled={!live} variant={sentGuestSignal === 'add-to-point' ? 'default' : 'outline'} onClick={() => void sendGuestSignal('add-to-point')}><MessageCirclePlus className="w-4 h-4 mr-1" />Add to point</Button>
+              <Button size="sm" disabled={!live} variant={sentGuestSignal === 'second-point' ? 'default' : 'outline'} onClick={() => void sendGuestSignal('second-point')}><ThumbsUp className="w-4 h-4 mr-1" />Second point</Button>
+            </div>
+            {sentGuestSignal && <div className="mt-2 text-[10px] text-emerald-300">Signal sent · waiting for the host {speakingGranted ? '· you may speak' : '· mic remains under host control'}.</div>}
+          </div>
 
           <Button
             disabled={!live}
