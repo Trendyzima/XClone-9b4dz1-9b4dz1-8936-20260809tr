@@ -71,6 +71,12 @@ export default function TvStudioPage() {
   const productionMusicGainRef = useRef<GainNode | null>(null);
   const productionSfxSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const productionSfxGainRef = useRef<GainNode | null>(null);
+  const productionCommentaryMeterRef = useRef<AnalyserNode | null>(null);
+  const productionSourceMeterRef = useRef<AnalyserNode | null>(null);
+  const productionGuestMeterRef = useRef<AnalyserNode | null>(null);
+  const productionMusicMeterRef = useRef<AnalyserNode | null>(null);
+  const productionSfxMeterRef = useRef<AnalyserNode | null>(null);
+  const productionMasterMeterRef = useRef<AnalyserNode | null>(null);
   const musicAudioRef = useRef<HTMLAudioElement | null>(null);
   const sfxAudioRef = useRef<HTMLAudioElement | null>(null);
   const musicUrlRef = useRef<string | null>(null);
@@ -106,6 +112,16 @@ export default function TvStudioPage() {
   const [sfxName, setSfxName] = useState<string | null>(null);
   const [musicLevel, setMusicLevel] = useState(0.5);
   const [sfxLevel, setSfxLevel] = useState(0.7);
+  const [guestLevel, setGuestLevel] = useState(1);
+  const [masterLevel, setMasterLevel] = useState(1);
+  const [musicMuted, setMusicMuted] = useState(false);
+  const [sfxMuted, setSfxMuted] = useState(false);
+  const [guestMuted, setGuestMuted] = useState(false);
+  const [programMuted, setProgramMuted] = useState(false);
+  const [masterMuted, setMasterMuted] = useState(false);
+  const [musicState, setMusicState] = useState<'empty' | 'ready' | 'playing' | 'paused'>('empty');
+  const [sfxState, setSfxState] = useState<'empty' | 'ready' | 'playing'>('empty');
+  const [audioBusMeters, setAudioBusMeters] = useState<Record<string, number>>({ mic: 0, program: 0, guest: 0, music: 0, sfx: 0, master: 0 });
   const pipEnabledRef = useRef(true);
   const previewSceneRef = useRef<TvSceneId>('camera');
   const programSceneRef = useRef<TvSceneId>('camera');
@@ -169,6 +185,7 @@ export default function TvStudioPage() {
   const [tickerText, setTickerText] = useState('');
   const [multiview, setMultiview] = useState(false);
   const [replaySeconds, setReplaySeconds] = useState(30);
+  const [graphicsMaster, setGraphicsMaster] = useState(true);
   const [audioDucking, setAudioDucking] = useState(false);
   const [duckingActive, setDuckingActive] = useState(false);
   const [duckingReduction, setDuckingReduction] = useState(0);
@@ -680,13 +697,17 @@ export default function TvStudioPage() {
       const limiter = audioContext.createDynamicsCompressor();
       limiter.threshold.value = -1; limiter.knee.value = 0; limiter.ratio.value = 20; limiter.attack.value = 0.001; limiter.release.value = 0.08;
       productionLimiterRef.current = limiter;
-      productionMasterGainRef.current.connect(limiter).connect(destination);
+      productionMasterMeterRef.current = audioContext.createAnalyser();
+      productionMasterMeterRef.current.fftSize = 256;
+      productionMasterGainRef.current.connect(productionMasterMeterRef.current).connect(limiter).connect(destination);
     }
 
     if (sourceVideo && !productionSourceAudioRef.current) {
       productionSourceAudioRef.current = audioContext.createMediaElementSource(sourceVideo);
       productionSourceGainRef.current = audioContext.createGain();
-      productionSourceAudioRef.current.connect(productionSourceGainRef.current).connect(productionMasterGainRef.current);
+      productionSourceMeterRef.current = audioContext.createAnalyser();
+      productionSourceMeterRef.current.fftSize = 256;
+      productionSourceAudioRef.current.connect(productionSourceGainRef.current).connect(productionSourceMeterRef.current).connect(productionMasterGainRef.current);
     }
     if (productionSourceGainRef.current) {
       productionSourceGainRef.current.gain.value = programSceneRef.current === 'video' && !sourceVideoMuted ? programLevel : 0;
@@ -700,6 +721,7 @@ export default function TvStudioPage() {
       commentary.connect(analyser).connect(commentaryGain).connect(productionMasterGainRef.current);
       productionCommentaryGainRef.current = commentaryGain;
       productionCommentaryAnalyserRef.current = analyser;
+      productionCommentaryMeterRef.current = analyser;
     }
     if (productionCommentaryGainRef.current) productionCommentaryGainRef.current.gain.value = muted ? 0 : commentaryLevel;
 
@@ -713,7 +735,11 @@ export default function TvStudioPage() {
       if (!sourceRef.current) {
         sourceRef.current = audioContext!.createMediaElementSource(element);
         gainRef.current = audioContext!.createGain();
-        sourceRef.current.connect(gainRef.current).connect(productionMasterGainRef.current!);
+        const meter = audioContext!.createAnalyser();
+        meter.fftSize = 256;
+        if (sourceRef === productionMusicSourceRef) productionMusicMeterRef.current = meter;
+        if (sourceRef === productionSfxSourceRef) productionSfxMeterRef.current = meter;
+        sourceRef.current.connect(gainRef.current).connect(meter).connect(productionMasterGainRef.current!);
       }
       gainRef.current!.gain.value = level;
     };
@@ -741,18 +767,12 @@ export default function TvStudioPage() {
         const release = 0.12;
         const duckFactor = duck ? 0.28 : 1;
         if (productionSourceGainRef.current) {
-          const programTarget = programSceneRef.current === 'video' && !sourceVideoMuted ? programLevel * duckFactor : 0;
+          const programTarget = programSceneRef.current === 'video' && !sourceVideoMuted && !programMuted ? programLevel * duckFactor : 0;
           productionSourceGainRef.current.gain.setTargetAtTime(programTarget, now, release);
         }
-        if (productionMusicGainRef.current) {
-          productionMusicGainRef.current.gain.setTargetAtTime(musicLevel * duckFactor, now, release);
-        }
-        if (productionSfxGainRef.current) {
-          productionSfxGainRef.current.gain.setTargetAtTime(sfxLevel * duckFactor, now, release);
-        }
-        if (productionGuestGainRef.current) {
-          productionGuestGainRef.current.gain.setTargetAtTime(duck ? 0.28 : 1, now, release);
-        }
+            if (productionMusicGainRef.current) productionMusicGainRef.current.gain.setTargetAtTime(musicMuted ? 0 : musicLevel * duckFactor, now, release);
+        if (productionSfxGainRef.current) productionSfxGainRef.current.gain.setTargetAtTime(sfxMuted ? 0 : sfxLevel * duckFactor, now, release);
+        if (productionGuestGainRef.current) productionGuestGainRef.current.gain.setTargetAtTime(guestMuted ? 0 : guestLevel * duckFactor, now, release);
       }, 40);
     }
 
@@ -883,7 +903,10 @@ export default function TvStudioPage() {
       musicUrlRef.current = url; setMusicName(file.name);
       const el = musicAudioRef.current ?? new Audio();
       el.loop = true; el.preload = 'auto'; el.src = url; el.volume = 1; musicAudioRef.current = el;
-      void el.play().catch(() => undefined);
+      el.onplay = () => setMusicState('playing');
+      el.onpause = () => setMusicState('paused');
+      el.onended = () => setMusicState('ready');
+      setMusicState('ready');
       if (productionAudioContextRef.current?.state === 'suspended') void productionAudioContextRef.current.resume();
       if (productionAudioContextRef.current && productionMasterGainRef.current) {
         if (!productionMusicSourceRef.current) productionMusicSourceRef.current = productionAudioContextRef.current.createMediaElementSource(el);
@@ -898,7 +921,9 @@ export default function TvStudioPage() {
       sfxUrlRef.current = url; setSfxName(file.name);
       const el = sfxAudioRef.current ?? new Audio();
       el.preload = 'auto'; el.src = url; el.volume = 1; sfxAudioRef.current = el;
-      void el.play().catch(() => undefined);
+      el.onplay = () => setSfxState('playing');
+      el.onended = () => setSfxState('ready');
+      setSfxState('ready');
       if (productionAudioContextRef.current?.state === 'suspended') void productionAudioContextRef.current.resume();
       if (productionAudioContextRef.current && productionMasterGainRef.current) {
         if (!productionSfxSourceRef.current) productionSfxSourceRef.current = productionAudioContextRef.current.createMediaElementSource(el);
@@ -910,6 +935,23 @@ export default function TvStudioPage() {
       }
     }
   };
+
+  const playMusic = async () => {
+    const el = musicAudioRef.current;
+    if (!el) { toast.info('Load a music track first.'); return; }
+    if (productionAudioContextRef.current?.state === 'suspended') await productionAudioContextRef.current.resume();
+    await el.play().catch(() => toast.info('Tap Play again after allowing audio playback.'));
+  };
+  const pauseMusic = () => { musicAudioRef.current?.pause(); };
+  const stopMusic = () => { const el = musicAudioRef.current; if (!el) return; el.pause(); el.currentTime = 0; setMusicState('ready'); };
+  const triggerSfx = async () => {
+    const el = sfxAudioRef.current;
+    if (!el) { toast.info('Load an SFX file first.'); return; }
+    if (productionAudioContextRef.current?.state === 'suspended') await productionAudioContextRef.current.resume();
+    el.currentTime = 0;
+    await el.play().catch(() => toast.info('Tap Trigger SFX again after allowing audio playback.'));
+  };
+  const stopSfx = () => { const el = sfxAudioRef.current; if (!el) return; el.pause(); el.currentTime = 0; setSfxState('ready'); };
 
   const loadProductionVideo = async (file?: File) => {
     if (!file) return;
@@ -1134,8 +1176,9 @@ export default function TvStudioPage() {
                 productionGuestSourceRef.current?.disconnect();
                 productionGuestSourceRef.current = audioContext.createMediaStreamSource(stream);
                 if (!productionGuestGainRef.current) productionGuestGainRef.current = audioContext.createGain();
-                productionGuestGainRef.current.gain.value = 1;
-                productionGuestSourceRef.current.connect(productionGuestGainRef.current).connect(masterGain);
+                if (!productionGuestMeterRef.current) { productionGuestMeterRef.current = audioContext.createAnalyser(); productionGuestMeterRef.current.fftSize = 256; }
+                productionGuestGainRef.current.gain.value = guestMuted ? 0 : guestLevel;
+                productionGuestSourceRef.current.connect(productionGuestGainRef.current).connect(productionGuestMeterRef.current).connect(masterGain);
               } catch (error) {
                 setBroadcastDiagnostics(prev => ({ ...(prev || {}), guest_audio_error: error instanceof Error ? error.message : String(error) }));
               }
@@ -1533,13 +1576,33 @@ export default function TvStudioPage() {
   }, [recording, live]);
 
   useEffect(() => {
-    if (productionMusicGainRef.current) productionMusicGainRef.current.gain.value = musicLevel;
-    if (productionSfxGainRef.current) productionSfxGainRef.current.gain.value = sfxLevel;
-  }, [musicLevel, sfxLevel]);
+    if (productionMusicGainRef.current) productionMusicGainRef.current.gain.value = musicMuted ? 0 : musicLevel;
+    if (productionSfxGainRef.current) productionSfxGainRef.current.gain.value = sfxMuted ? 0 : sfxLevel;
+    if (productionGuestGainRef.current) productionGuestGainRef.current.gain.value = guestMuted ? 0 : guestLevel;
+    if (productionMasterGainRef.current) productionMasterGainRef.current.gain.value = masterMuted ? 0 : masterLevel;
+  }, [musicLevel, sfxLevel, guestLevel, masterLevel, musicMuted, sfxMuted, guestMuted, masterMuted]);
 
   useEffect(() => {
-    replayBufferRef.current = new TvReplayBuffer(replaySeconds * 1000, lightModeRef.current ? 1000 : 500);
-  }, [replaySeconds]);
+    const readMeter = (analyser: AnalyserNode | null) => {
+      if (!analyser) return 0;
+      const data = new Uint8Array(analyser.fftSize);
+      analyser.getByteTimeDomainData(data);
+      let sum = 0;
+      for (const value of data) { const n = (value - 128) / 128; sum += n * n; }
+      const rms = Math.sqrt(sum / data.length);
+      if (!Number.isFinite(rms) || rms <= 0.00001) return 0;
+      return Math.max(0, Math.min(100, Math.round(((20 * Math.log10(rms) + 60) / 60) * 100)));
+    };
+    const id = window.setInterval(() => setAudioBusMeters({
+      mic: readMeter(productionCommentaryMeterRef.current),
+      program: readMeter(productionSourceMeterRef.current),
+      guest: readMeter(productionGuestMeterRef.current),
+      music: readMeter(productionMusicMeterRef.current),
+      sfx: readMeter(productionSfxMeterRef.current),
+      master: readMeter(productionMasterMeterRef.current),
+    }), 120);
+    return () => window.clearInterval(id);
+  }, []);
 
   useEffect(() => {
     pipEnabledRef.current = pipEnabled;
