@@ -111,6 +111,8 @@ export default function TvStudioPage() {
   const [guestLifecycle, setGuestLifecycle] = useState<'offline' | 'invited' | 'connecting' | 'connected' | 'partial' | 'lost'>('offline');
   const [guestInviteUrl, setGuestInviteUrl] = useState<string | null>(null);
   const [guestSlots, setGuestSlots] = useState<GuestSlotState[]>([]);
+  const guestSlotsRef = useRef<GuestSlotState[]>([]);
+  guestSlotsRef.current = guestSlots;
   const [bannerText, setBannerText] = useState('');
   const [fullscreenText, setFullscreenText] = useState('');
   const [nextText, setNextText] = useState('');
@@ -120,6 +122,8 @@ export default function TvStudioPage() {
   const [sfxLevel, setSfxLevel] = useState(0.7);
   const [guestLevel, setGuestLevel] = useState(1);
   const [activeGuestSlot, setActiveGuestSlot] = useState<number | null>(null);
+  const activeGuestSlotRef = useRef<number | null>(null);
+  activeGuestSlotRef.current = activeGuestSlot;
   const [masterLevel, setMasterLevel] = useState(1);
   const [musicMuted, setMusicMuted] = useState(false);
   const [sfxMuted, setSfxMuted] = useState(false);
@@ -602,7 +606,7 @@ export default function TvStudioPage() {
         if (screenStreamRef.current && screenVideo.srcObject !== screenStreamRef.current) screenVideo.srcObject = screenStreamRef.current;
         fit(target, screenVideo, true);
       } else if (scene === 'guest') {
-        fit(target, guestVideoElementsRef.current.get(activeGuestSlot || guestSlots[0]?.slot || 0) || remoteGuestVideoRef.current, true);
+        fit(target, guestVideoElementsRef.current.get(activeGuestSlotRef.current || guestSlotsRef.current[0]?.slot || 0) || remoteGuestVideoRef.current, true);
       } else if (scene === 'replay') {
         const frames = replayBufferRef.current.getFrames(replaySeconds * 1000);
         const frame = frames[Math.min(replayIndexRef.current, Math.max(frames.length - 1, 0))];
@@ -616,7 +620,7 @@ export default function TvStudioPage() {
       const mctx = mv.getContext('2d'); if (!mctx) return;
       const w=mv.width,h=mv.height,cols=4,cellW=w/cols,cellH=h/3;
       mctx.fillStyle='#09090b';mctx.fillRect(0,0,w,h);
-      const guests=guestSlots.slice().sort((a,b)=>a.slot-b.slot);
+      const guests=guestSlotsRef.current.slice().sort((a,b)=>a.slot-b.slot);
       const cells:any[]=[
         {scene:'camera',label:'CAMERA',x:0,y:0,width:cellW},
         {scene:'video',label:'VIDEO',x:cellW,y:0,width:cellW},
@@ -1387,54 +1391,93 @@ export default function TvStudioPage() {
   };
 
   const attachGuestPreviewSession = (nextGuestSession: TestagramTvMediaSession) => {
-    nextGuestSession.setRemotePeerLeaveHandler((_peerId,_role,guestSlot) => {
-      if(!guestSlot)return;
-      const video=guestVideoElementsRef.current.get(guestSlot);if(video){video.pause();video.srcObject=null;}
-      const audio=guestAudioElementsRef.current.get(guestSlot);if(audio){audio.pause();audio.srcObject=null;}
-      guestPeerSlotsRef.current.forEach((slot,peerId)=>{if(slot===guestSlot)guestPeerSlotsRef.current.delete(peerId);});
-      setGuestSlots(current=>current.filter(g=>g.slot!==guestSlot));
-      if(activeGuestSlot===guestSlot)setActiveGuestSlot(null);
+    nextGuestSession.setRemotePeerLeaveHandler((_peerId, _role, guestSlot) => {
+      if (!guestSlot) return;
+      const video = guestVideoElementsRef.current.get(guestSlot);
+      if (video) { video.pause(); video.srcObject = null; }
+      const audio = guestAudioElementsRef.current.get(guestSlot);
+      if (audio) { audio.pause(); audio.srcObject = null; }
+      guestPeerSlotsRef.current.forEach((slot, peerId) => { if (slot === guestSlot) guestPeerSlotsRef.current.delete(peerId); });
+      setGuestSlots(current => current.filter(g => g.slot !== guestSlot));
+      if (activeGuestSlotRef.current === guestSlot) setActiveGuestSlot(null);
     });
-    nextGuestSession.setRemoteTrackHandler((track,peerId,guestSlot) => {
-      if(!guestSlot||guestSlot>TV_GUEST_CAPACITY)return;
-      guestPeerSlotsRef.current.set(peerId,guestSlot);
-      const current=guestSlots.find(g=>g.slot===guestSlot);
-      const label=current?.label||'Guest '+guestSlot;
-      if(track.kind==='video'){
-        let video=guestVideoElementsRef.current.get(guestSlot);
-        if(!video){video=document.createElement('video');video.autoplay=true;video.playsInline=true;video.muted=true;video.style.display='none';document.body.appendChild(video);guestVideoElementsRef.current.set(guestSlot,video);}
-        video.srcObject=new MediaStream([track]);void video.play().catch(()=>undefined);
-        setGuestSlots(prev=>{const p=prev.find(g=>g.slot===guestSlot);const n=p||{slot:guestSlot,label,inviteUrl:'',lifecycle:'partial' as const,videoReady:false,audioReady:false};return prev.filter(g=>g.slot!==guestSlot).concat({...n,peerId,videoReady:true,lifecycle:n.audioReady?'connected':'partial'}).sort((a,b)=>a.slot-b.slot);});
-        setActiveGuestSlot(x=>x||guestSlot);setGuestConnected(true);setGuestVideoReady(true);setSourceHealth(prev=>({...prev,guest:'ready'}));
-      }else if(track.kind==='audio'){
-        let audio=guestAudioElementsRef.current.get(guestSlot);
-        if(!audio){audio=document.createElement('audio');audio.autoplay=true;audio.style.display='none';document.body.appendChild(audio);guestAudioElementsRef.current.set(guestSlot,audio);}
-        const media=new MediaStream([track]);audio.srcObject=media;void audio.play().catch(()=>undefined);
-        const ctx=productionAudioContextRef.current,gain=productionMasterGainRef.current;
-        if(ctx&&gain){try{productionGuestSourceRef.current?.disconnect();productionGuestSourceRef.current=ctx.createMediaStreamSource(media);if(!productionGuestGainRef.current)productionGuestGainRef.current=ctx.createGain();productionGuestGainRef.current.gain.value=guestMuted?0:guestLevel;productionGuestSourceRef.current.connect(productionGuestGainRef.current).connect(gain);}catch{}}
-        setGuestSlots(prev=>{const p=prev.find(g=>g.slot===guestSlot);const n=p||{slot:guestSlot,label,inviteUrl:'',lifecycle:'partial' as const,videoReady:false,audioReady:false};return prev.filter(g=>g.slot!==guestSlot).concat({...n,peerId,audioReady:true,lifecycle:n.videoReady?'connected':'partial'}).sort((a,b)=>a.slot-b.slot);});
-        setA  const createGuestInvite = async () => {
-    if(guestSlots.length>=TV_GUEST_CAPACITY){toast.error('All six multiview guest slots are occupied.');return;}
-    try{
-      let streamId=activeStreamId||stream?.id||null;
-      if(!streamId){
-        if(!user){toast.info('Sign in to invite a guest.');return;}
-        const {data,error}=await supabase.from('live_streams').insert({user_id:user.id,title:broadcastTitle,description:broadcastDescription,category:broadcastCategory,is_live:false,tv_provider:'youtube'}).select('id,title,description,category,is_live,tv_provider').single();
-        if(error||!data)throw new Error(error?.message||'Could not prepare a TV preview session.');
-        streamId=data.id;setActiveStreamId(streamId);setStream(data);
+    nextGuestSession.setRemoteTrackHandler((track, peerId, guestSlot) => {
+      if (!guestSlot || guestSlot > TV_GUEST_CAPACITY) return;
+      guestPeerSlotsRef.current.set(peerId, guestSlot);
+      const current = guestSlotsRef.current.find(g => g.slot === guestSlot);
+      const label = current?.label || 'Guest ' + guestSlot;
+      if (track.kind === 'video') {
+        let video = guestVideoElementsRef.current.get(guestSlot);
+        if (!video) {
+          video = document.createElement('video');
+          video.autoplay = true; video.playsInline = true; video.muted = true; video.style.display = 'none';
+          document.body.appendChild(video); guestVideoElementsRef.current.set(guestSlot, video);
+        }
+        video.srcObject = new MediaStream([track]); void video.play().catch(() => undefined);
+        setGuestSlots(prev => {
+          const prior = prev.find(g => g.slot === guestSlot);
+          const next = prior || { slot: guestSlot, label, inviteUrl: '', lifecycle: 'partial' as const, videoReady: false, audioReady: false };
+          return prev.filter(g => g.slot !== guestSlot).concat({ ...next, peerId, videoReady: true, lifecycle: next.audioReady ? 'connected' : 'partial' }).sort((a,b) => a.slot-b.slot);
+        });
+        setActiveGuestSlot(slot => slot || guestSlot); setGuestConnected(true); setGuestVideoReady(true); setGuestLifecycle('partial');
+        setSourceHealth(prev => ({ ...prev, guest: 'ready' }));
+      } else if (track.kind === 'audio') {
+        let audio = guestAudioElementsRef.current.get(guestSlot);
+        if (!audio) {
+          audio = document.createElement('audio');
+          audio.autoplay = true; audio.style.display = 'none';
+          document.body.appendChild(audio); guestAudioElementsRef.current.set(guestSlot, audio);
+        }
+        const media = new MediaStream([track]); audio.srcObject = media; void audio.play().catch(() => undefined);
+        const audioContext = productionAudioContextRef.current, masterGain = productionMasterGainRef.current;
+        if (audioContext && masterGain) {
+          try {
+            productionGuestSourceRef.current?.disconnect();
+            productionGuestSourceRef.current = audioContext.createMediaStreamSource(media);
+            if (!productionGuestGainRef.current) productionGuestGainRef.current = audioContext.createGain();
+            productionGuestGainRef.current.gain.value = guestMuted ? 0 : guestLevel;
+            productionGuestSourceRef.current.connect(productionGuestGainRef.current).connect(masterGain);
+          } catch (error) {
+            setBroadcastDiagnostics(prev => ({ ...(prev || {}), guest_audio_error: error instanceof Error ? error.message : String(error) }));
+          }
+        }
+        setGuestSlots(prev => {
+          const prior = prev.find(g => g.slot === guestSlot);
+          const next = prior || { slot: guestSlot, label, inviteUrl: '', lifecycle: 'partial' as const, videoReady: false, audioReady: false };
+          return prev.filter(g => g.slot !== guestSlot).concat({ ...next, peerId, audioReady: true, lifecycle: next.videoReady ? 'connected' : 'partial' }).sort((a,b) => a.slot-b.slot);
+        });
+        setActiveGuestSlot(slot => slot || guestSlot); setGuestConnected(true); setGuestAudioReady(true); setGuestLifecycle('connected');
       }
-      const {data:auth}=await supabase.auth.getSession();
-      const response=await fetch('/api/live',{method:'POST',headers:{'Content-Type':'application/json',...(auth.session?.access_token?{Authorization:'Bearer '+auth.session.access_token}:{})},body:JSON.stringify({action:'create-guest',stream_id:streamId})});
-      const payload=await response.json().catch(()=>null);
-      if(!response.ok||!payload?.data?.invite_token)throw new Error(String(payload?.error?.message||'Could not create guest invitation.'));
-      const slot=Number(payload.data.guest_slot||0);if(!slot)throw new Error('No guest slot was allocated.');
-      if(!guestRoomRef.current){await ensureStudio();const program=await createProductionProgram();setGuestLifecycle('connecting');const session=await TestagramTvMediaSession.connectHostGuestBridge(streamId,program);attachGuestPreviewSession(session);}
-      const url=window.location.origin+'/tv/live/'+streamId+'?guest='+encodeURIComponent(payload.data.invite_token);
-      const label=String(payload.data.guest_label||'Guest '+slot);
-      setGuestSlots(prev=>prev.concat({slot,label,inviteUrl:url,lifecycle:'invited',videoReady:false,audioReady:false}).sort((a,b)=>a.slot-b.slot));
-      setActiveGuestSlot(slot);setGuestInviteUrl(url);setGuestConnected(false);setGuestVideoReady(false);setGuestAudioReady(false);setGuestLifecycle('invited');setSourceHealth(prev=>({...prev,guest:'idle'}));
-      try{await navigator.clipboard.writeText(url);toast.success(label+' link copied');}catch{toast.success(label+' link ready');}
-    }catch(e:any){setGuestLifecycle('offline');toast.error(e?.message||'Could not create guest invitation');}
+    });
+    guestRoomRef.current = nextGuestSession;
+  };
+
+  const createGuestInvite = async () => {
+    if (guestSlotsRef.current.length >= TV_GUEST_CAPACITY) { toast.error('All six multiview guest slots are occupied.'); return; }
+    try {
+      let streamId = activeStreamId || stream?.id || null;
+      if (!streamId) {
+        if (!user) { toast.info('Sign in to invite a guest.'); return; }
+        const { data, error } = await supabase.from('live_streams').insert({ user_id: user.id, title: broadcastTitle, description: broadcastDescription, category: broadcastCategory, is_live: false, tv_provider: 'youtube' }).select('id,title,description,category,is_live,tv_provider').single();
+        if (error || !data) throw new Error(error?.message || 'Could not prepare a TV preview session.');
+        streamId = data.id; setActiveStreamId(streamId); setStream(data);
+      }
+      const { data: auth } = await supabase.auth.getSession();
+      const response = await fetch('/api/live', { method: 'POST', headers: { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: 'Bearer ' + auth.session.access_token } : {}) }, body: JSON.stringify({ action: 'create-guest', stream_id: streamId }) });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload?.data?.invite_token) throw new Error(String(payload?.error?.message || 'Could not create guest invitation.'));
+      const slot = Number(payload.data.guest_slot || 0); if (!slot) throw new Error('No guest slot was allocated.');
+      if (!guestRoomRef.current) {
+        await ensureStudio(); const program = await createProductionProgram(); setGuestLifecycle('connecting');
+        const session = await TestagramTvMediaSession.connectHostGuestBridge(streamId, program); attachGuestPreviewSession(session);
+      }
+      const url = window.location.origin + '/tv/live/' + streamId + '?guest=' + encodeURIComponent(payload.data.invite_token);
+      const label = String(payload.data.guest_label || 'Guest ' + slot);
+      setGuestSlots(prev => prev.concat({ slot, label, inviteUrl: url, lifecycle: 'invited', videoReady: false, audioReady: false }).sort((a,b) => a.slot-b.slot));
+      setActiveGuestSlot(slot); setGuestInviteUrl(url); setGuestConnected(false); setGuestVideoReady(false); setGuestAudioReady(false); setGuestLifecycle('invited');
+      setSourceHealth(prev => ({ ...prev, guest: 'idle' }));
+      try { await navigator.clipboard.writeText(url); toast.success(label + ' link copied'); } catch { toast.success(label + ' link ready'); }
+    } catch (e: any) { setGuestLifecycle('offline'); toast.error(e?.message || 'Could not create guest invitation'); }
   };
 
   const shareLiveLink = async () => {
