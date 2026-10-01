@@ -281,6 +281,19 @@ export default function CommunityPage({ section, standalone = false }: { section
   const reactionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showChatGifPicker, setShowChatGifPicker] = useState(false);
 
+  const fetchChat = useCallback(async () => {
+    if (!community) return;
+    const { data } = await supabase.from('community_chat')
+      .select('*, profiles(id, username, avatar_url, verified_tier)')
+      .eq('community_id', community.id).order('created_at', { ascending: true }).limit(100);
+    if (data) {
+      setChatMessages(data);
+      try { const rr = localStorage.getItem(`chat_reactions_${community.id}`); if (rr) { const parsed = JSON.parse(rr); const ids = Object.keys(parsed); setReactionMsgIds(ids); setReactionData(ids.map((k: string) => parsed[k])); } } catch { /* ignore */ }
+      const raw = localStorage.getItem(`chat_pinned_${community.id}`);
+      if (raw) setPinnedChatIds(JSON.parse(raw));
+    }
+  }, [community]);
+
   const handleSendGif = useCallback(async (gifUrl: string) => {
     if (!user || !community || chatSending || !isMember || !GIF_URL_RE.test(gifUrl)) return;
     setShowChatGifPicker(false); setChatSending(true);
@@ -317,19 +330,6 @@ export default function CommunityPage({ section, standalone = false }: { section
     if (reactionsTimerRef.current) clearTimeout(reactionsTimerRef.current);
     reactionsTimerRef.current = setTimeout(() => setFloatingReactions(prev => prev.filter(r => r.id !== fr.id)), 2000);
   }, []);
-
-  const fetchChat = useCallback(async () => {
-    if (!community) return;
-    const { data } = await supabase.from('community_chat')
-      .select('*, profiles(id, username, avatar_url, verified_tier)')
-      .eq('community_id', community.id).order('created_at', { ascending: true }).limit(100);
-    if (data) {
-      setChatMessages(data);
-      try { const rr = localStorage.getItem(`chat_reactions_${community.id}`); if (rr) { const parsed = JSON.parse(rr); const ids = Object.keys(parsed); setReactionMsgIds(ids); setReactionData(ids.map((k: string) => parsed[k])); } } catch { /* ignore */ }
-      const raw = localStorage.getItem(`chat_pinned_${community.id}`);
-      if (raw) setPinnedChatIds(JSON.parse(raw));
-    }
-  }, [community]);
 
   const handleAddReaction = useCallback((msgId: string, emoji: string) => {
     if (!community) return;
@@ -1198,197 +1198,3 @@ export default function CommunityPage({ section, standalone = false }: { section
           {loadingEvents ? <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div> :
            events.length === 0 ? <div className="text-center py-16 text-muted-foreground"><CalendarDays className="w-14 h-14 mx-auto mb-3 opacity-20" /><p className="font-semibold">No events yet</p></div> : (
             <div className="space-y-3">
-              {events.map((ev: any) => {
-                const evDate = new Date(ev.scheduled_for);
-                const passed = isPast(evDate);
-                const timeLeft = !passed ? formatDistanceToNow(evDate, { addSuffix: false }) : null;
-                const isRsvp = rsvpSet.has(ev.id);
-                const lines = (ev.content ?? '').split('\n');
-                const evTitle = lines[0] ?? '';
-                const evDesc = lines.slice(1).join('\n').trim();
-                return (
-                  <div key={ev.id} className={`border rounded-2xl overflow-hidden ${passed ? 'border-border bg-muted/20 opacity-70' : 'border-primary/20 bg-primary/5 hover:border-primary/40'}`}>
-                    <div className="p-4">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        {!passed ? <span className="flex items-center gap-1 text-[10px] font-black text-green-600 bg-green-500/10 border border-green-500/20 px-2 py-0.5 rounded-full"><span className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />Upcoming</span> : <span className="text-[10px] font-bold text-muted-foreground bg-muted px-2 py-0.5 rounded-full">Past</span>}
-                        {timeLeft && <span className="flex items-center gap-1 text-[10px] text-primary font-bold"><Clock className="w-2.5 h-2.5" />{timeLeft} away</span>}
-                      </div>
-                      <p className="font-bold text-sm leading-snug">{evTitle}</p>
-                      {evDesc && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{evDesc}</p>}
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2 mb-3">
-                        <span className="flex items-center gap-1"><CalendarDays className="w-3.5 h-3.5" />{evDate.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })}</span>
-                        <span className="flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{evDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-                      </div>
-                      {!passed && isMember && (
-                        <button onClick={() => handleRsvp(ev.id)}
-                          className={`w-full flex items-center justify-center gap-1.5 py-2 rounded-xl text-xs font-bold border-2 transition-all ${isRsvp ? 'border-green-500/30 bg-green-500/10 text-green-600' : 'border-primary/30 bg-background text-primary hover:bg-primary/5'}`}>
-                          {isRsvp ? <><Check className="w-3.5 h-3.5" />You're going!</> : <><CalendarDays className="w-3.5 h-3.5" />RSVP</>}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-          {showCreateEvent && (
-            <div className="fixed inset-0 z-[200] bg-black/60 flex items-end" onClick={() => setShowCreateEvent(false)}>
-              <div className="w-full bg-background rounded-t-3xl p-5 space-y-4" onClick={e => e.stopPropagation()}>
-                <div className="flex items-center justify-between"><h3 className="font-bold text-lg">Add Event</h3><button onClick={() => setShowCreateEvent(false)} className="p-2 rounded-full hover:bg-muted"><X className="w-5 h-5" /></button></div>
-                <div className="space-y-3">
-                  <div><label className="text-sm font-semibold mb-1 block">Title *</label><Input value={eventForm.title} onChange={e => setEventForm(p => ({ ...p, title: e.target.value }))} placeholder="e.g. Weekly AMA" maxLength={80} /></div>
-                  <div><label className="text-sm font-semibold mb-1 block">Description</label><Textarea value={eventForm.description} onChange={e => setEventForm(p => ({ ...p, description: e.target.value }))} rows={2} maxLength={300} /></div>
-                  <div><label className="text-sm font-semibold mb-1 block">Date & Time *</label><input type="datetime-local" value={eventForm.scheduled_for} onChange={e => setEventForm(p => ({ ...p, scheduled_for: e.target.value }))} className="w-full h-10 px-3 rounded-xl border border-border bg-background text-sm focus:outline-none" /></div>
-                </div>
-                <button onClick={handleCreateEvent} disabled={creatingEvent || !eventForm.title.trim() || !eventForm.scheduled_for} className="w-full py-3 bg-primary text-primary-foreground rounded-xl font-bold text-sm disabled:opacity-50 flex items-center justify-center gap-2 hover:opacity-90">
-                  {creatingEvent ? <Loader2 className="w-4 h-4 animate-spin" /> : <CalendarDays className="w-4 h-4" />}Add Event
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* MEMBERS TAB */}
-      {activeTab === 'members' && (
-        <div className="p-4 space-y-3">
-          <div className="rounded-2xl border border-border overflow-hidden mb-1">
-            <div className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-amber-500/8 to-orange-500/5 border-b border-border">
-              <Trophy className="w-4 h-4 text-amber-500" /><h3 className="font-bold text-sm">Top Contributors</h3><span className="text-[10px] text-muted-foreground ml-1">last 30 days</span>
-            </div>
-            {loadingLeaderboard ? <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-primary" /></div> :
-             leaderboard.length === 0 ? <p className="text-xs text-muted-foreground text-center py-5">No activity in last 30 days</p> : (
-              <div className="flex items-end justify-center gap-3 px-4 pt-4 pb-5">
-                {[leaderboard[1], leaderboard[0], leaderboard[2]].map((entry, podiumIdx) => {
-                  if (!entry) return <div key={podiumIdx} className="w-20" />;
-                  const rank = podiumIdx === 0 ? 2 : podiumIdx === 1 ? 1 : 3;
-                  const medalEmoji = LEADERBOARD_MEDALS[rank - 1];
-                  const podiumH = LEADERBOARD_PODIUM_H[podiumIdx];
-                  return (
-                    <div key={entry.profile?.id ?? podiumIdx} className="flex flex-col items-center gap-1.5 flex-1 max-w-[80px]">
-                      <span className="text-xl">{medalEmoji}</span>
-                      <button onClick={() => navigate(`/profile/${entry.profile?.username}`)} className="w-12 h-12 rounded-full overflow-hidden bg-muted border-2 border-border hover:border-primary/40 transition-colors">
-                        {entry.profile?.avatar_url ? <img src={entry.profile.avatar_url} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center font-bold text-sm">{entry.profile?.username?.[0]?.toUpperCase()}</div>}
-                      </button>
-                      <p className="text-[10px] font-bold text-center truncate w-full">{entry.profile?.username}</p>
-                      <p className="text-[9px] text-pink-500 font-semibold">{entry.likes} ♥</p>
-                      <p className="text-[9px] text-muted-foreground">{entry.posts} posts</p>
-                      <div className={`w-full ${podiumH} ${rank === 1 ? 'bg-amber-500/20 border-amber-500/30' : rank === 2 ? 'bg-slate-400/15 border-slate-400/25' : 'bg-orange-400/15 border-orange-400/25'} border rounded-t-lg`} />
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-          <h3 className="font-bold text-sm text-muted-foreground uppercase tracking-wide">{formatNumber(community.member_count)} Members</h3>
-          {members.map(member => (
-            <div key={member.id} className="flex items-center justify-between p-3 bg-card rounded-xl border border-border hover:border-primary/30 transition-colors">
-              <div className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer" onClick={() => navigate(`/profile/${member.user_profiles?.username}`)}>
-                <div className="w-10 h-10 rounded-full bg-muted overflow-hidden shrink-0">
-                  {member.user_profiles?.avatar_url ? <img src={member.user_profiles.avatar_url} className="w-full h-full object-cover" alt="" /> : <div className="w-full h-full flex items-center justify-center font-bold">{member.user_profiles?.username?.[0]?.toUpperCase()}</div>}
-                </div>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="font-semibold text-sm truncate">{member.user_profiles?.username}</p>
-                    {member.role === 'owner' && <Crown className="w-3.5 h-3.5 text-yellow-500 shrink-0" />}
-                    {member.role === 'moderator' && <Shield className="w-3.5 h-3.5 text-blue-500 shrink-0" />}
-                  </div>
-                  <p className="text-xs text-muted-foreground capitalize">{member.role}</p>
-                </div>
-              </div>
-              {isOwner && member.role !== 'owner' && (
-                <div className="relative ml-2 shrink-0">
-                  <button onClick={() => setShowRoleMenu(p => p === member.id ? null : member.id)} className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground"><MoreVertical className="w-4 h-4" /></button>
-                  {showRoleMenu === member.id && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setShowRoleMenu(null)} />
-                      <div className="absolute right-0 mt-1 w-48 bg-background border border-border rounded-xl shadow-xl z-50 overflow-hidden">
-                        {member.role === 'member' && <button onClick={() => handlePromoteRole(member.id, member.user_id, 'moderator')} disabled={promotingMemberId === member.id} className="w-full flex items-center gap-2 px-3 py-3 text-sm hover:bg-muted text-blue-600">{promotingMemberId === member.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldCheck className="w-4 h-4" />}Promote to Moderator</button>}
-                        {member.role === 'moderator' && <button onClick={() => handlePromoteRole(member.id, member.user_id, 'member')} disabled={promotingMemberId === member.id} className="w-full flex items-center gap-2 px-3 py-3 text-sm hover:bg-muted text-orange-600">{promotingMemberId === member.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldOff className="w-4 h-4" />}Remove Moderator</button>}
-                        <button onClick={async () => {
-                          if (!window.confirm(`Remove @${member.user_profiles?.username}?`)) return;
-                          const { error } = await supabase.rpc('remove_community_member', { p_membership_id: member.id });
-                          if (error) { toast({ title: 'Error', description: error.message, variant: 'destructive' }); return; }
-                          setMembers(prev => prev.filter(m => m.id !== member.id));
-                          setShowRoleMenu(null);
-                          toast({ title: 'Member removed' });
-                        }} className="w-full flex items-center gap-2 px-3 py-3 text-sm hover:bg-destructive/10 text-destructive border-t border-border"><Trash2 className="w-4 h-4" />Remove</button>
-                      </div>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-          ))}
-          {community.member_count > 20 && <p className="text-center text-sm text-muted-foreground py-4">+{formatNumber(community.member_count - 20)} more members</p>}
-        </div>
-      )}
-
-      {/* SHOP TAB */}
-      {activeTab === 'shop' && shopUnlocked && (
-        <div className="p-4 space-y-4">
-          <div className="flex items-center gap-3">
-            <ShoppingBag className="w-5 h-5 text-primary" />
-            <div><h3 className="font-bold text-base">Community Shop</h3><p className="text-xs text-muted-foreground mt-0.5">Products from community members</p></div>
-          </div>
-          {nftUnlocked ? (
-            <div className="border border-cyan-500/20 bg-cyan-500/5 rounded-2xl overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-cyan-500/15">
-                <div className="flex items-center gap-2"><Award className="w-4 h-4 text-cyan-500" /><span className="text-sm font-bold">Community NFT Badges</span><span className="text-[10px] text-muted-foreground">{nftBadges.length} minted</span></div>
-                {isMember && <button onClick={handleMintNft} disabled={mintingNft} className="flex items-center gap-1 px-2.5 py-1.5 bg-cyan-500 text-white rounded-xl text-xs font-bold disabled:opacity-50 hover:opacity-90">{mintingNft ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}{mintingNft ? 'Minting…' : 'Mint Badge'}</button>}
-              </div>
-              {nftBadges.length === 0 ? <p className="text-xs text-muted-foreground text-center py-4">No badges minted yet — be the first!</p> : (
-                <div className="flex gap-3 px-4 py-3 overflow-x-auto scrollbar-hide">
-                  {nftBadges.slice(0, 8).map((b: any) => {
-                    const nftMeta = NFT_TIERS.find(t => t.tier === b.badge_tier) ?? NFT_TIERS[2];
-                    return (
-                      <div key={b.id} className={`flex flex-col items-center gap-1 p-2 rounded-xl bg-gradient-to-br ${nftMeta.color} border ${nftMeta.border} shrink-0 min-w-[60px]`}>
-                        <span className="text-2xl">{b.badge_emoji}</span>
-                        <p className="text-[9px] font-bold truncate w-full text-center">{b.user_profiles?.username}</p>
-                        <p className="text-[8px] text-muted-foreground">{nftMeta.label}</p>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center gap-3 px-4 py-3 bg-muted/40 border border-border rounded-xl">
-              <Lock className="w-4 h-4 text-muted-foreground shrink-0" />
-              <div><p className="text-xs font-semibold">NFT Badges locked</p><p className="text-[10px] text-muted-foreground">Contact @Shee to unlock</p></div>
-            </div>
-          )}
-          {loadingShop ? <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div> :
-           shopProducts.length === 0 ? <div className="text-center py-12 text-muted-foreground"><ShoppingBag className="w-14 h-14 mx-auto mb-3 opacity-20" /><p className="font-semibold">No products yet</p></div> : (
-            <div className="grid grid-cols-2 gap-3">
-              {shopProducts.map((p: any) => (
-                <div key={p.id} className="bg-card border border-border rounded-2xl overflow-hidden hover:border-primary/20 transition-colors">
-                  <div className="aspect-square bg-muted overflow-hidden">
-                    {p.image_url ? <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><ShoppingBag className="w-8 h-8 text-muted-foreground opacity-30" /></div>}
-                  </div>
-                  <div className="p-3">
-                    <p className="font-bold text-sm line-clamp-2 leading-snug">{p.name}</p>
-                    {p.description && <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{p.description}</p>}
-                    <div className="flex items-center justify-between mt-2">
-                      <span className="font-black text-base text-primary">${Number(p.price).toFixed(2)}</span>
-                      {(p.avg_rating ?? 0) > 0 && <span className="flex items-center gap-0.5 text-[10px] text-amber-500 font-bold"><Star className="w-2.5 h-2.5 fill-current" />{Number(p.avg_rating).toFixed(1)}</span>}
-                    </div>
-                    <div className="flex items-center gap-1 mt-1">
-                      <div className="w-4 h-4 rounded-full bg-muted overflow-hidden shrink-0">{p.user_profiles?.avatar_url ? <img src={p.user_profiles.avatar_url} className="w-full h-full object-cover" alt="" /> : null}</div>
-                      <span className="text-[9px] text-muted-foreground truncate">@{p.user_profiles?.username}</span>
-                    </div>
-                    {p.external_link && (
-                      <a href={p.external_link} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center justify-center gap-1 w-full py-2 bg-primary text-primary-foreground rounded-xl text-xs font-bold hover:opacity-90">
-                        <ExternalLink className="w-3 h-3" />Buy Now
-                      </a>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
