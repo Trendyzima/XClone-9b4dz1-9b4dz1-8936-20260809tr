@@ -107,8 +107,10 @@ language sql
 stable
 security definer
 set search_path = ''
-as $$
-  select cm.role
+as $
+  select case when cm.role = 'owner' then 'owner'
+              when cm.role = 'moderator' then 'moderator'
+              else 'member' end
   from public.community_members cm
   where cm.community_id = p_community_id
     and cm.user_id = (select auth.uid())
@@ -355,7 +357,8 @@ begin
 
   select coalesce(sum(p.likes_count),0) into v_likes
   from public.posts p
-  where p.community_id = p_community_id and p.user_id = (select auth.uid());
+  where p.community_id = mint_community_badge.p_community_id
+    and p.user_id = (select auth.uid());
 
   if v_likes >= 10 then v_badge := 'legendary'; v_emoji := '💎';
   elsif v_likes >= 5 then v_badge := 'epic'; v_emoji := '🔮';
@@ -492,3 +495,11 @@ $$;
 
 revoke execute on function public.get_trending_communities(integer) from public;
 grant execute on function public.get_trending_communities(integer) to anon, authenticated;
+
+-- Explicit Data API grants for tables exposed to authenticated clients.
+grant select on public.community_events to authenticated;
+grant select, insert, delete on public.community_event_rsvps to authenticated;
+
+-- Do not expose privileged helper functions through the anonymous API.
+revoke execute on function public.community_actor_role(uuid) from anon;
+
