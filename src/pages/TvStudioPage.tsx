@@ -464,30 +464,54 @@ export default function TvStudioPage() {
       if (!mv || !multiview) return;
       const mctx = mv.getContext('2d'); if (!mctx) return;
       const w = mv.width, h = mv.height;
+      const cellW = w / 4, cellH = h / 2;
       mctx.fillStyle = '#09090b'; mctx.fillRect(0, 0, w, h);
-      const cells: Array<[TvSceneId, number, number]> = [
-        ['camera',0,0],['video',w/2,0],['screen',0,h/2],['replay',w/2,h/2]
-      ];
-      for (const [scene,x,y] of cells) {
-        const cellIndex = (x ? 1 : 0) + (y ? 2 : 0);
-        const cell = multiviewCellCanvasRefs.current[cellIndex] ?? document.createElement('canvas');
-        if (cell.width !== w / 2) cell.width = w / 2;
-        if (cell.height !== h / 2) cell.height = h / 2;
-        multiviewCellCanvasRefs.current[cellIndex] = cell;
-        const cctx = cell.getContext('2d'); if (!cctx) continue;
-        cctx.fillStyle = '#000'; cctx.fillRect(0,0,cell.width,cell.height);
-        if (scene === 'camera') fitCameraLandscape(cctx,camera);
-        else if (scene === 'video' && sourceVideo) fit(cctx,sourceVideo,true);
-        else if (scene === 'screen') fit(cctx,screenVideo,true);
-        else {
-          const frame = replayBufferRef.current.latestCanvas();
-          if (frame) cctx.drawImage(frame,0,0,cell.width,cell.height);
-        }
-        mctx.drawImage(cell,x,y);
-        mctx.fillStyle='#fff'; mctx.font='600 12px sans-serif'; mctx.fillText(scene.toUpperCase(),x+8,y+18);
-      }
-    };
 
+      const statusFor = (scene: TvSceneId | 'program' | 'preview') => {
+        if (scene === 'program') return liveRef.current ? 'ON AIR' : 'PROGRAM';
+        if (scene === 'preview') return previewSceneRef.current.toUpperCase();
+        if (scene === 'guest') return guestVideoReady && guestAudioReady ? 'CONNECTED' : guestVideoReady || guestAudioReady ? 'PARTIAL' : 'OFFLINE';
+        if (scene === 'replay') return replayBufferRef.current.frameCount ? `${Math.round(replayBufferRef.current.durationMs / 1000)}s READY` : 'EMPTY';
+        if (scene === 'camera') return sourceHealth.camera.toUpperCase();
+        if (scene === 'video') return sourceVideo ? 'READY' : 'IDLE';
+        if (scene === 'screen') return screenStreamRef.current ? 'READY' : 'IDLE';
+        return 'IDLE';
+      };
+
+      const cells: Array<{ scene: TvSceneId | 'program' | 'preview'; x: number; y: number; width: number; label: string }> = [
+        { scene: 'camera', x: 0, y: 0, width: cellW, label: 'CAMERA' },
+        { scene: 'video', x: cellW, y: 0, width: cellW, label: 'VIDEO' },
+        { scene: 'screen', x: cellW * 2, y: 0, width: cellW, label: 'SCREEN' },
+        { scene: 'guest', x: cellW * 3, y: 0, width: cellW, label: 'GUEST' },
+        { scene: 'replay', x: 0, y: cellH, width: cellW, label: 'REPLAY' },
+        { scene: 'preview', x: cellW, y: cellH, width: cellW, label: 'PREVIEW' },
+        { scene: 'program', x: cellW * 2, y: cellH, width: cellW * 2, label: 'PROGRAM' },
+      ];
+
+      const drawTile = (item: typeof cells[number]) => {
+        const index = cells.indexOf(item);
+        const cell = multiviewCellCanvasRefs.current[index] ?? document.createElement('canvas');
+        const tileW = item.width, tileH = cellH;
+        if (cell.width !== tileW) cell.width = tileW;
+        if (cell.height !== tileH) cell.height = tileH;
+        multiviewCellCanvasRefs.current[index] = cell;
+        const cctx = cell.getContext('2d'); if (!cctx) return;
+        cctx.fillStyle = '#000'; cctx.fillRect(0, 0, tileW, tileH);
+        if (item.scene === 'camera') fitCameraLandscape(cctx, camera, tileW, tileH);
+        else if (item.scene === 'video' && sourceVideo) fit(cctx, sourceVideo, true, tileW, tileH);
+        else if (item.scene === 'screen') fit(cctx, screenVideo, true, tileW, tileH);
+        else if (item.scene === 'guest') fit(cctx, remoteGuestVideoRef.current, true, tileW, tileH);
+        else if (item.scene === 'replay') { const frame = replayBufferRef.current.latestCanvas(); if (frame) cctx.drawImage(frame, 0, 0, tileW, tileH); }
+        else if (item.scene === 'preview') { const preview = previewCanvasRef.current; if (preview && preview.width && preview.height) cctx.drawImage(preview, 0, 0, tileW, tileH); }
+        else if (item.scene === 'program') cctx.drawImage(canvas, 0, 0, tileW, tileH);
+        mctx.drawImage(cell, item.x, item.y);
+        mctx.fillStyle = 'rgba(9,9,11,.88)'; mctx.fillRect(item.x, item.y, item.width, 28);
+        mctx.fillStyle = '#fff'; mctx.font = '800 10px sans-serif'; mctx.fillText(item.label, item.x + 7, item.y + 12);
+        mctx.fillStyle = liveRef.current && item.scene === 'program' ? '#f87171' : '#a1a1aa'; mctx.font = '700 9px sans-serif'; mctx.fillText(statusFor(item.scene), item.x + 7, item.y + 23);
+        if (item.scene === 'program' && liveRef.current) { mctx.fillStyle = '#ef4444'; mctx.beginPath(); mctx.arc(item.x + item.width - 12, item.y + 14, 4, 0, Math.PI * 2); mctx.fill(); }
+      };
+      for (const item of cells) drawTile(item);
+    };
     const fromCanvas = transitionFromCanvasRef.current;
     const previewCanvas = previewCanvasRef.current;
     const previewCtx = previewCanvas?.getContext('2d');
