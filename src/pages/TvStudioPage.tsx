@@ -2045,7 +2045,7 @@ export default function TvStudioPage() {
                 </div>
               </div>
               <Button size="sm" variant={!muted ? 'default' : 'destructive'} onClick={() => void toggleMic()}><Mic className="w-4 h-4 mr-1" />{muted ? 'Mic off' : 'Mic'}</Button>
-              <Button size="sm" disabled={!getDisplayMedia()} variant={sharing ? 'secondary' : 'outline'} onClick={() => void shareScreen()}><MonitorUp className="w-4 h-4 mr-1" />{sharing ? 'Stop screen' : getDisplayMedia() ? 'Screen' : 'Screen unavailable'}</Button>
+              <Button size="sm" variant={sharing ? 'secondary' : 'outline'} onClick={() => void shareScreen()}><MonitorUp className="w-4 h-4 mr-1" />{sharing ? 'Stop screen' : 'Screen'}</Button>
               {!recording ? <Button size="sm" disabled={saving} onClick={() => void startRecording()}><Circle className="w-4 h-4 mr-1" />Record locally</Button> : <Button size="sm" variant="destructive" onClick={stopRecording}><Square className="w-4 h-4 mr-1" />Stop & save</Button>}
               {!live ? <Button size="sm" disabled={broadcastStage !== 'idle'} className="bg-red-600 hover:bg-red-700" onClick={() => void startLive()}><Radio className="w-4 h-4 mr-1" />{broadcastStage === 'idle' ? 'Go live' : broadcastStage === 'on-air' ? 'ON AIR' : 'Connecting…'}</Button> : <><Button size="sm" variant="outline" onClick={() => void shareLiveLink()}><Radio className="w-4 h-4 mr-1" />Share TV</Button><Button size="sm" variant="destructive" onClick={() => void stopLive()}>End live</Button></>}
             </div>
@@ -2074,8 +2074,8 @@ export default function TvStudioPage() {
                   const selected = previewScene === scene;
                   const available = scene === 'camera' || scene === 'video' || scene === 'screen' || scene === 'guest' || scene === 'replay';
                   return (
-                    <button key={scene} type="button" disabled={!available || (scene === 'guest' && !guestConnected) || (scene === 'screen' && !getDisplayMedia())} onClick={() => {
-                      if (scene === 'camera' || scene === 'video') void activateScene(scene); else if (scene === 'guest') { setPreviewScene('guest'); previewSceneRef.current = 'guest'; }
+                    <button key={scene} type="button" disabled={!available || (scene === 'guest' && guestLifecycle === 'connecting')} onClick={() => {
+                      if (scene === 'camera' || scene === 'video') void activateScene(scene); else if (scene === 'guest') { if (guestConnected) { setPreviewScene('guest'); previewSceneRef.current = 'guest'; } else void createGuestInvite(); }
                       else if (scene === 'screen') void shareScreen();
                       else { setPreviewScene('replay'); previewSceneRef.current = 'replay'; }
                     }} className={`group rounded-xl border p-3 text-left transition ${selected ? 'border-red-500/60 bg-red-500/10 ring-1 ring-red-500/30' : 'border-white/10 bg-zinc-900/70 hover:border-white/20 hover:bg-zinc-900'} disabled:cursor-not-allowed disabled:opacity-45`}>
@@ -2084,7 +2084,7 @@ export default function TvStudioPage() {
                         <span className={`h-2 w-2 rounded-full ${ready ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
                       </div>
                       <div className="mt-2 text-xs font-semibold">{label}</div>
-                      <div className="mt-0.5 text-[9px] uppercase tracking-wide text-zinc-500">{scene === 'screen' && !getDisplayMedia() ? 'Unavailable' : selected ? 'Preview' : ready ? 'Ready' : 'Idle'}</div>
+                      <div className="mt-0.5 text-[9px] uppercase tracking-wide text-zinc-500">{scene === 'screen' && !getDisplayMedia() ? 'Tap to check' : scene === 'guest' && !guestConnected ? (guestLifecycle === 'connecting' ? 'Connecting…' : 'Invite guest') : selected ? 'Preview' : ready ? 'Ready' : 'Idle'}</div>
                     </button>
                   );
                 })}
