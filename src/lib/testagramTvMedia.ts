@@ -127,7 +127,13 @@ export class TestagramTvMediaSession {
   static async connectViewer(streamId: string, onRemoteStream: (stream: MediaStream) => void) {
     const session = new TestagramTvMediaSession('viewer', streamId);
     session.onRemoteStream = onRemoteStream;
-    await session.start('viewer');
+    await Promise.race([
+      session.start('viewer'),
+      new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error('Testagram native TV viewer handshake timed out.')), 6000)),
+    ]).catch(async error => {
+      await session.close().catch(() => undefined);
+      throw error;
+    });
     return session;
   }
 
