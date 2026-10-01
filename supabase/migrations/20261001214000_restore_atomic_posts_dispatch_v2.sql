@@ -1,58 +1,110 @@
+-- Canonical posts capability contract.
+-- The live posts table uses content/media_urls/image_url/video_url and the live
+-- poll tables use creator_id/allow_multiple/ends_at + position. This migration
+-- deliberately contains no legacy posts.body/media_url/media_type/visibility
+-- columns and no legacy poll sort_order/multiple_choice column references.
+
 create or replace function public.create_post_atomic(p_input jsonb)
-returns jsonb language plpgsql security invoker set search_path to 'public' as $function$
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $function$
 declare
-  u uuid := auth.uid();
-  post_id uuid;
-  poll_id uuid;
-  poll jsonb;
-  option_value text;
-  expires_at timestamptz;
+  v_user_id uuid := auth.uid();
+  v_post_id uuid;
+  v_poll_id uuid;
+  v_question text;
+  v_options text[];
+  v_duration integer;
+  v_ends_at timestamptz;
+  v_community_id uuid := nullif(p_input->>'community_id','')::uuid;
 begin
-  if u is null then raise exception 'AUTH_REQUIRED'; end if;
-  if nullif(trim(coalesce(p_input->>'content', p_input->>'body', '')), '') is null
-     and coalesce(jsonb_array_length(coalesce(p_input->'media_urls','[]'::jsonb)),0)=0
+  if v_user_id is null then
+    raise exception using errcode='28000', message='Authentication required';
+  end if;
+
+  if nullif(trim(coalesce(p_input->>'content',p_input->>'body','')),'') is null
+     and jsonb_typeof(p_input->'poll') <> 'object'
      and nullif(p_input->>'image_url','') is null
-     and nullif(p_input->>'video_url','') is null then
-    raise exception 'POST_CONTENT_REQUIRED';
+     and nullif(p_input->>'video_url','') is null
+     and coalesce(jsonb_array_length(p_input->'media_urls'),0)=0 then
+    raise exception using errcode='22023', message='Post content is required';
+  end if;
+
+  if v_community_id is not null and not exists (
+    select 1 from public.communities c
+    where c.id=v_community_id
+      and (
+        c.visibility='public'
+        or c.owner_id=v_user_id
+        or exists (
+          select 1 from public.community_members m
+          where m.community_id=c.id and m.user_id=v_user_id and m.status='active'
+        )
+      )
+  ) then
+    raise exception using errcode='42501', message='You are not allowed to post in this community';
   end if;
 
   insert into public.posts(
-    user_id, author_id, content, media_urls, image_url, video_url, is_video,
-    community_id, quoted_post_id, media_count
+    user_id,author_id,content,image_url,video_url,is_video,
+    community_id,media_urls,media_count,quoted_post_id
   )
   values(
-    u, u, coalesce(p_input->>'content',p_input->>'body',''),
-    coalesce(p_input->'media_urls','[]'::jsonb),
+    v_user_id,v_user_id,
+    coalesce(p_input->>'content',p_input->>'body',''),
     nullif(p_input->>'image_url',''),
     nullif(p_input->>'video_url',''),
     coalesce((p_input->>'is_video')::boolean,false),
-    nullif(p_input->>'community_id','')::uuid,
-    nullif(p_input->>'quoted_post_id','')::uuid,
-    coalesce((p_input->>'media_count')::int,0)
+    v_community_id,
+    case when jsonb_typeof(p_input->'media_urls')='array'
+      then array(select jsonb_array_elements_text(p_input->'media_urls'))
+      else '{}'::text[] end,
+    coalesce((p_input->>'media_count')::integer,
+      case when jsonb_typeof(p_input->'media_urls')='array'
+        then jsonb_array_length(p_input->'media_urls') else 0 end),
+    nullif(coalesce(p_input->>'quoted_post_id',p_input->>'quote_post_id'),'')::uuid
   )
-  returning id into post_id;
+  returning id into v_post_id;
 
-  poll := p_input->'poll';
-  if jsonb_typeof(poll)='object' then
-    expires_at := case
-      when nullif(poll->>'expires_at','') is not null then (poll->>'expires_at')::timestamptz
-      when nullif(poll->>'duration_minutes','') is not null then now()+((poll->>'duration_minutes')::int*interval '1 minute')
-      else null
-    end;
+  if jsonb_typeof(p_input->'poll')='object' then
+    v_question := nullif(trim(p_input->'poll'->>'question'),'');
+    if v_question is null or char_length(v_question)<5 then
+      raise exception using errcode='22023', message='Poll question is too short';
+    end if;
 
-    insert into public.polls(post_id,question,expires_at,multiple_choice)
-    values(post_id,coalesce(nullif(trim(poll->>'question'),''),'Poll'),expires_at,coalesce((poll->>'multiple_choice')::boolean,false))
-    returning id into poll_id;
+    select coalesce(
+      array_agg(trim(value) order by ordinality) filter(where char_length(trim(value))>0),
+      '{}'::text[]
+    )
+    into v_options
+    from jsonb_array_elements_text(coalesce(p_input->'poll'->'options','[]'::jsonb))
+      with ordinality;
 
-    for option_value in select value from jsonb_array_elements_text(coalesce(poll->'options','[]'::jsonb)) loop
-      if nullif(trim(option_value),'') is not null then
-        insert into public.poll_options(poll_id,label,sort_order)
-        values(poll_id,trim(option_value),(select count(*)::smallint from public.poll_options where poll_id=poll_id));
-      end if;
-    end loop;
+    if coalesce(array_length(v_options,1),0)<2 or coalesce(array_length(v_options,1),0)>8 then
+      raise exception using errcode='22023', message='A poll needs 2 to 8 answers';
+    end if;
+
+    v_duration := greatest(1,least(coalesce((p_input->'poll'->>'duration_minutes')::integer,1440),10080));
+    v_ends_at := now()+make_interval(mins=>v_duration);
+
+    insert into public.polls(
+      post_id,creator_id,question,description,allow_multiple,visibility,ends_at
+    )
+    values(
+      v_post_id,v_user_id,v_question,null,
+      coalesce((p_input->'poll'->>'multiple_choice')::boolean,false),
+      'public',v_ends_at
+    )
+    returning id into v_poll_id;
+
+    insert into public.poll_options(poll_id,label,position)
+    select v_poll_id,trim(value),(ordinality::integer-1)::smallint
+    from unnest(v_options) with ordinality as x(value,ordinality);
   end if;
 
-  return jsonb_build_object('post_id',post_id,'poll_id',poll_id,'created',true);
+  return jsonb_build_object('post_id',v_post_id,'poll_id',v_poll_id,'created',true);
 end;
 $function$;
 
@@ -75,36 +127,22 @@ begin
 
   if p_capability not in ('testagram.capabilities.list', 'testagram.health.read')
      and v_user_id is null then
-    raise exception using errcode = '28000', message = 'Authentication required';
+    raise exception using errcode='28000', message='Authentication required';
   end if;
 
   case p_capability
-    when 'testagram.posts.create' then
-      return public.create_post_atomic(p_input);
-    else
-      return public.capability_dispatch_legacy(p_capability, p_input);
+    when 'testagram.posts.create' then return public.create_post_atomic(p_input);
+    else return public.capability_dispatch_legacy(p_capability,p_input);
   end case;
 end;
 $function$;
 
 revoke all on function public.capability_dispatch(text,jsonb) from public;
-grant execute on function public.capability_dispatch(text,jsonb) to anon, authenticated;
+grant execute on function public.capability_dispatch(text,jsonb) to anon,authenticated;
 
-insert into public.capability_registry(
-  name, version, access, readonly, enabled, description
-)
-values (
-  'testagram.posts.create',
-  2,
-  'authenticated',
-  false,
-  true,
-  'Create a native Testagram post, including polls, atomically.'
-)
-on conflict (name) do update set
-  version = excluded.version,
-  access = excluded.access,
-  readonly = excluded.readonly,
-  enabled = true,
-  description = excluded.description,
-  updated_at = now();
+insert into public.capability_registry(name,version,access,readonly,enabled,description)
+values('testagram.posts.create',2,'authenticated',false,true,
+       'Create a native Testagram post, including polls, atomically.')
+on conflict(name) do update set
+  version=excluded.version, access=excluded.access, readonly=excluded.readonly,
+  enabled=true, description=excluded.description, updated_at=now();
