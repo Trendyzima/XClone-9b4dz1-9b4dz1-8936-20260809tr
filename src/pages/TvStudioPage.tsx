@@ -170,6 +170,8 @@ export default function TvStudioPage() {
   const [multiview, setMultiview] = useState(false);
   const [replaySeconds, setReplaySeconds] = useState(30);
   const [audioDucking, setAudioDucking] = useState(false);
+  const [duckingActive, setDuckingActive] = useState(false);
+  const [duckingReduction, setDuckingReduction] = useState(0);
   const [uploadedVideoName, setUploadedVideoName] = useState<string | null>(null);
   const [pipEnabled, setPipEnabled] = useState(true);
   const [sourceVideoPlaying, setSourceVideoPlaying] = useState(false);
@@ -636,15 +638,38 @@ export default function TvStudioPage() {
     wireLocalAudioBus(sfxAudioRef.current, productionSfxSourceRef, productionSfxGainRef, sfxLevel);
 
     if (duckingTimerRef.current) window.clearInterval(duckingTimerRef.current);
-    if (productionCommentaryAnalyserRef.current && productionSourceGainRef.current) {
+    if (productionCommentaryAnalyserRef.current) {
       const data = new Uint8Array(productionCommentaryAnalyserRef.current.fftSize);
+      let lastUiUpdate = 0;
       duckingTimerRef.current = window.setInterval(() => {
-        if (!productionCommentaryAnalyserRef.current || !productionSourceGainRef.current) return;
+        if (!productionCommentaryAnalyserRef.current) return;
         productionCommentaryAnalyserRef.current.getByteTimeDomainData(data);
-        let sum = 0; for (const v of data) { const n=(v-128)/128; sum += n*n; }
+        let sum = 0; for (const v of data) { const n = (v - 128) / 128; sum += n * n; }
         const rms = Math.sqrt(sum / data.length);
-        const target = audioDucking && programSceneRef.current === 'video' && rms > 0.035 ? programLevel * 0.28 : (programSceneRef.current === 'video' && !sourceVideoMuted ? programLevel : 0);
-        productionSourceGainRef.current.gain.setTargetAtTime(target, audioContext!.currentTime, 0.045);
+        const speech = rms > 0.035;
+        const duck = audioDucking && speech;
+        const time = performance.now();
+        if (time - lastUiUpdate >= 200) {
+          lastUiUpdate = time;
+          setDuckingActive(duck);
+          setDuckingReduction(duck ? 72 : 0);
+        }
+        const now = audioContext!.currentTime;
+        const release = 0.12;
+        const duckFactor = duck ? 0.28 : 1;
+        if (productionSourceGainRef.current) {
+          const programTarget = programSceneRef.current === 'video' && !sourceVideoMuted ? programLevel * duckFactor : 0;
+          productionSourceGainRef.current.gain.setTargetAtTime(programTarget, now, release);
+        }
+        if (productionMusicGainRef.current) {
+          productionMusicGainRef.current.gain.setTargetAtTime(musicLevel * duckFactor, now, release);
+        }
+        if (productionSfxGainRef.current) {
+          productionSfxGainRef.current.gain.setTargetAtTime(sfxLevel * duckFactor, now, release);
+        }
+        if (productionGuestGainRef.current) {
+          productionGuestGainRef.current.gain.setTargetAtTime(duck ? 0.28 : 1, now, release);
+        }
       }, 40);
     }
 
@@ -1783,7 +1808,15 @@ export default function TvStudioPage() {
                   <Button size="sm" variant={multiview ? 'default' : 'outline'} onClick={() => setMultiview(v => !v)}>Multiview</Button>
                   <Button size="sm" variant="outline" onClick={() => void createGuestInvite()} disabled={!live}>Invite Guest</Button>
                   <Button size="sm" variant={replayState === 'playing' ? 'default' : 'outline'} disabled={!replayBufferRef.current.frameCount} onClick={() => void takeScene('replay')}>REPLAY</Button>
-                  <Button size="sm" variant={audioDucking ? 'default' : 'outline'} onClick={() => setAudioDucking(v => !v)}>Auto ducking</Button>
+                  <Button size="sm" variant={audioDucking ? 'default' : 'outline'} onClick={() => { setAudioDucking(v => !v); if (audioDucking) { setDuckingActive(false); setDuckingReduction(0); } }}>Auto ducking</Button>
+                </div>
+                <div className="rounded-lg border border-white/10 bg-zinc-900/70 px-2.5 py-2 text-[10px]">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold">AUTO DUCKING</span>
+                    <span className={audioDucking ? 'text-emerald-300 font-bold' : 'text-zinc-500'}>{audioDucking ? 'ON' : 'OFF'}</span>
+                  </div>
+                  <div className="mt-1 text-zinc-500">{duckingActive ? 'Speech detected · Program / Guest / Music / SFX ducked' : audioDucking ? 'Monitoring commentary for speech' : 'Manual mixer levels'}</div>
+                  {audioDucking && <div className="mt-1 text-zinc-400">Gain reduction: {duckingReduction}%</div>}
                 </div>
                 {guestInviteUrl && <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-2 text-[10px]">
                   <div className="font-semibold text-emerald-300">Guest · {guestLabel}</div>
