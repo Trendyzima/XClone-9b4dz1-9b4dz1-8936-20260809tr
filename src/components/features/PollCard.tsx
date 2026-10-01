@@ -187,7 +187,7 @@ export function PollCard({ poll, postId, repliesCount = 0 }: PollCardProps) {
           <div className="px-4 pb-4 flex items-center justify-between">
             {!user && !isExpired && <button onClick={() => navigate('/auth')} className="text-xs font-semibold text-primary">Sign in to vote</button>}
             {user && !showResults && <span className="text-xs font-semibold text-primary">Choose an answer</span>}
-            <button onClick={() => navigate(`/thread/${postId}`)} className="ml-auto inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-primary">
+            <button onClick={() => navigate(`/post/${encodeURIComponent(postId)}`)} className="ml-auto inline-flex items-center gap-1.5 text-xs font-semibold text-muted-foreground hover:text-primary">
               <MessageCircle className="w-3.5 h-3.5" /> {repliesCount} repl{repliesCount === 1 ? 'y' : 'ies'}
             </button>
           </div>
