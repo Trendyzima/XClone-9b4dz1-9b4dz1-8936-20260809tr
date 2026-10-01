@@ -183,9 +183,13 @@ Deno.serve(async req=>{
   if(!invite)return json({ok:false,error:{code:"INVITE_REQUIRED",message:"A TV guest invite is required."}},401);
   if(!user)return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Authentication is required to join the TV guest session."}},401);
   if(!secret)return json({ok:false,error:{code:"TV_CONTROL_MISCONFIGURED",message:"TV guest claiming requires the Supabase server secret."}},503);
-  const now=new Date().toISOString(),{data:claimed,error:e}=await adminClient.from("tv_guest_invites").update({used_at:now,claimed_by:user.id,claimed_at:now}).eq("stream_id",id).eq("token_hash",await hash(invite)).is("used_at",null).gt("expires_at",now).select("id,slot_number").maybeSingle();
+  const now=new Date().toISOString();
+  const {data:inviteRow,error:ie}=await adminClient.from("tv_guest_invites").select("id,slot_number,blocked,muted").eq("stream_id",id).eq("token_hash",await hash(invite)).is("used_at",null).gt("expires_at",now).maybeSingle();
+  if(ie||!inviteRow)return json({ok:false,error:{code:"INVITE_INVALID",message:"This TV guest invite is invalid, expired, or already claimed."}},401);
+  if(Boolean(inviteRow.blocked))return json({ok:false,error:{code:"GUEST_BLOCKED",message:"This guest slot has been blocked by the studio."}},403);
+  const {data:claimed,error:e}=await adminClient.from("tv_guest_invites").update({used_at:now,claimed_by:user.id,claimed_at:now}).eq("id",inviteRow.id).is("used_at",null).select("id,slot_number,blocked,muted").maybeSingle();
   if(e||!claimed)return json({ok:false,error:{code:"INVITE_INVALID",message:"This TV guest invite is invalid, expired, or already claimed."}},401);
-  return json({ok:true,data:{...(await contract("guest")),guest_token:invite,guest_slot:Number(claimed.slot_number||0),guest_label:"Guest "+Number(claimed.slot_number||0)},error:null});
+  return json({ok:true,data:{...(await contract("guest")),guest_token:invite,guest_slot:Number(claimed.slot_number||0),guest_label:"Guest "+Number(claimed.slot_number||0),muted:Boolean(claimed.muted),blocked:Boolean(claimed.blocked)},error:null});
  }
  if(action==="viewer"&&platformOwner&&!s.is_live)return json({ok:true,data:await contract("host",{preview:true,on_air:false}),error:null});
  if(!s.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
