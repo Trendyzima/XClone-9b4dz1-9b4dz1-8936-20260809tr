@@ -180,6 +180,7 @@ export default function TvStudioPage() {
   const [transitionType, setTransitionType] = useState<TransitionType>('cut');
   const [transitionDuration, setTransitionDuration] = useState(300);
   const [graphics, setGraphics] = useState<TvGraphic[]>(makeDefaultGraphics);
+  const [graphicsPreview, setGraphicsPreview] = useState<TvGraphic[]>([]);
   const [lowerThirdText, setLowerThirdText] = useState('');
   const [lowerThirdSecondary, setLowerThirdSecondary] = useState('');
   const [tickerText, setTickerText] = useState('');
@@ -662,7 +663,7 @@ export default function TvStudioPage() {
       }
 
       if (activeProgram !== 'replay' && activeProgram !== 'black') {
-        drawTvGraphics(ctx, canvas.width, canvas.height, graphics, now / 8, { live: liveRef.current, watermark: true });
+        drawTvGraphics(ctx, canvas.width, canvas.height, graphics, now / 8, { live: liveRef.current, watermark: true, graphicsEnabled: graphicsMaster });
         const slateUntil = openingSlateUntilRef.current;
         if (slateUntil && now < slateUntil) {
           drawTvOpeningSlate(ctx, canvas.width, canvas.height, 1 - ((slateUntil - now) / 2600));
@@ -893,6 +894,48 @@ export default function TvStudioPage() {
       await createProductionProgram();
       setStatus('preview');
     } catch (e: any) { toast.error(e?.message || 'Could not prepare scene'); }
+  };
+
+  const prepareGraphic = (id: string) => {
+    const next = graphics.map(item => {
+      if (item.id === id) {
+        if (id === 'lower-third') return { ...item, text: lowerThirdText, secondary: lowerThirdSecondary, visible: true };
+        if (id === 'ticker') return { ...item, text: tickerText, visible: true };
+        if (id === 'breaking-banner') return { ...item, text: bannerText, visible: true };
+        if (id === 'fullscreen') return { ...item, text: fullscreenText, visible: true };
+        if (id === 'next') return { ...item, text: nextText, visible: true };
+        return { ...item, visible: true };
+      }
+      return { ...item, visible: false };
+    });
+    setGraphicsPreview(next);
+    toast.success('Graphic prepared in Preview. TAKE it when ready.');
+  };
+  const takeGraphic = (id: string) => {
+    setGraphics(current => current.map(item => {
+      if (item.id !== id) return item;
+      if (id === 'lower-third') return { ...item, text: lowerThirdText, secondary: lowerThirdSecondary, visible: graphicsMaster };
+      if (id === 'ticker') return { ...item, text: tickerText, visible: graphicsMaster };
+      if (id === 'breaking-banner') return { ...item, text: bannerText, visible: graphicsMaster };
+      if (id === 'fullscreen') return { ...item, text: fullscreenText, visible: graphicsMaster };
+      if (id === 'next') return { ...item, text: nextText, visible: graphicsMaster };
+      return { ...item, visible: graphicsMaster };
+    }));
+  };
+  const clearGraphic = (id: string) => {
+    setGraphics(current => current.map(item => item.id === id ? { ...item, visible: false } : item));
+    setGraphicsPreview(current => current.map(item => item.id === id ? { ...item, visible: false } : item));
+  };
+  const stopReplay = () => {
+    if (!replayPlayingRef.current) return;
+    replayPlayingRef.current = false;
+    replayPlaybackStartRef.current = null;
+    replayPlaybackBaseRef.current = null;
+    setReplayState('ready');
+    const restore = transitionFromSceneRef.current;
+    programSceneRef.current = restore;
+    setProgramScene(restore);
+    toast.info('Replay stopped; previous Program scene restored.');
   };
 
   const loadLocalAudio = (kind: 'music' | 'sfx', file?: File) => {
@@ -1928,38 +1971,56 @@ export default function TvStudioPage() {
                   <p className="text-[10px] text-zinc-500">Viewers see the vote beside the live player and can vote once per broadcast poll.</p>
                 </div>
                 <div className="rounded-lg bg-black/30 p-2 space-y-2">
-                  <div className="text-xs font-semibold">GRAPHICS</div>
-                  <input value={lowerThirdText} onChange={e => setLowerThirdText(e.target.value)} placeholder="Lower third name/title" className="w-full rounded bg-zinc-800 p-2 text-xs" />
-                  <input value={lowerThirdSecondary} onChange={e => setLowerThirdSecondary(e.target.value)} placeholder="Lower third secondary" className="w-full rounded bg-zinc-800 p-2 text-xs" />
-                  <input value={tickerText} onChange={e => setTickerText(e.target.value)} placeholder="Ticker / breaking news" className="w-full rounded bg-zinc-800 p-2 text-xs" />
-                  <input value={bannerText} onChange={e => setBannerText(e.target.value)} placeholder="Breaking banner" className="w-full rounded bg-zinc-800 p-2 text-xs" />
-                  <input value={fullscreenText} onChange={e => setFullscreenText(e.target.value)} placeholder="Fullscreen title" className="w-full rounded bg-zinc-800 p-2 text-xs" />
-                  <input value={nextText} onChange={e => setNextText(e.target.value)} placeholder="Coming up / next segment" className="w-full rounded bg-zinc-800 p-2 text-xs" />
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1">
-                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'lower-third' ? { ...x, text: lowerThirdText, secondary: lowerThirdSecondary, visible: true } : x))}>Lower 3rd</Button>
-                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'lower-third' ? { ...x, visible: false } : x))}>Hide 3rd</Button>
-                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'ticker' ? { ...x, text: tickerText, visible: true } : x))}>Ticker</Button>
-                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'ticker' ? { ...x, visible: false } : x))}>Hide ticker</Button>
-                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'station-bug' ? { ...x, visible: !x.visible } : x))}>Bug</Button>
-                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'breaking-banner' ? { ...x, text: bannerText, visible: true } : x))}>Banner</Button>
-                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'breaking-banner' ? { ...x, visible: false } : x))}>Hide banner</Button>
-                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'fullscreen' ? { ...x, text: fullscreenText, visible: true } : x))}>Fullscreen</Button>
-                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'fullscreen' ? { ...x, visible: false } : x))}>Hide full</Button>
-                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'next' ? { ...x, text: nextText, visible: true } : x))}>Next</Button>
-                    <Button size="sm" variant="outline" onClick={() => setGraphics(g => g.map(x => x.id === 'next' ? { ...x, visible: false } : x))}>Hide next</Button>
+                  <div className="flex items-center justify-between gap-2">
+                    <div><div className="text-xs font-semibold">GRAPHICS</div><div className="text-[10px] text-zinc-500">Prepare in Preview, then TAKE to Program.</div></div>
+                    <Button size="sm" variant={graphicsMaster ? 'default' : 'outline'} onClick={() => setGraphicsMaster(v => !v)}>{graphicsMaster ? 'GRAPHICS ON' : 'GRAPHICS OFF'}</Button>
                   </div>
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-[10px]">
-                  {[15,30,60].map(seconds => <button key={seconds} className={`rounded bg-zinc-800 p-2 ${replaySeconds === seconds ? 'ring-1 ring-emerald-400' : ''}`} onClick={() => setReplaySeconds(seconds)}>{seconds}s Replay</button>)}
+                  <input value={lowerThirdText} onChange={e => setLowerThirdText(e.target.value.slice(0,54))} placeholder="Lower third name/title" className="w-full rounded bg-zinc-800 p-2 text-xs" />
+                  <input value={lowerThirdSecondary} onChange={e => setLowerThirdSecondary(e.target.value.slice(0,76))} placeholder="Lower third secondary" className="w-full rounded bg-zinc-800 p-2 text-xs" />
+                  <input value={tickerText} onChange={e => setTickerText(e.target.value.slice(0,180))} placeholder="Ticker text" className="w-full rounded bg-zinc-800 p-2 text-xs" />
+                  <input value={bannerText} onChange={e => setBannerText(e.target.value.slice(0,100))} placeholder="Breaking banner headline" className="w-full rounded bg-zinc-800 p-2 text-xs" />
+                  <input value={fullscreenText} onChange={e => setFullscreenText(e.target.value.slice(0,54))} placeholder="Full-frame title" className="w-full rounded bg-zinc-800 p-2 text-xs" />
+                  <input value={nextText} onChange={e => setNextText(e.target.value.slice(0,48))} placeholder="Coming up / next segment" className="w-full rounded bg-zinc-800 p-2 text-xs" />
+                  <div className="space-y-1">
+                    {[
+                      ['lower-third','Lower 3rd'],['ticker','Ticker'],['station-bug','Bug'],['breaking-banner','Banner'],['fullscreen','Full Frame'],['next','Next'],
+                    ].map(([id,label]) => <div key={id} className="grid grid-cols-[1fr_auto_auto_auto] items-center gap-1 rounded bg-zinc-900 p-1">
+                      <span className="px-1 text-[10px]">{label} <b className={graphics.find(x => x.id === id)?.visible && graphicsMaster ? 'text-emerald-300' : 'text-zinc-600'}>{graphics.find(x => x.id === id)?.visible && graphicsMaster ? 'ON AIR' : 'OFF'}</b></span>
+                      <Button size="sm" variant="ghost" onClick={() => prepareGraphic(id)}>Preview</Button>
+                      <Button size="sm" variant="outline" onClick={() => takeGraphic(id)}>TAKE</Button>
+                      <Button size="sm" variant="ghost" onClick={() => clearGraphic(id)}>Clear</Button>
+                    </div>)}
+                  </div>
                 </div>
                 <div className="rounded-lg bg-black/30 p-2 space-y-2">
-                  <div className="text-xs font-semibold">AUDIO BUSES</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <label className="rounded bg-zinc-800 p-2 text-[10px]">Music<input type="file" accept="audio/*" className="block w-full mt-1" onChange={e => loadLocalAudio('music', e.target.files?.[0])} /><span className="text-zinc-500">{musicName || 'none'}</span></label>
-                    <label className="rounded bg-zinc-800 p-2 text-[10px]">SFX<input type="file" accept="audio/*" className="block w-full mt-1" onChange={e => loadLocalAudio('sfx', e.target.files?.[0])} /><span className="text-zinc-500">{sfxName || 'none'}</span></label>
+                  <div className="flex items-center justify-between"><span className="text-xs font-semibold">REPLAY</span><span className="text-[10px] text-zinc-500">{Math.min(60, Math.round(replayBufferRef.current.durationMs / 1000))}s available · {replayState.toUpperCase()}</span></div>
+                  <div className="grid grid-cols-3 gap-2 text-[10px]">
+                    {[15,30,60].map(seconds => <button key={seconds} className={`rounded bg-zinc-800 p-2 ${replaySeconds === seconds ? 'ring-1 ring-emerald-400' : ''}`} onClick={() => setReplaySeconds(seconds)}>{seconds}s window</button>)}
                   </div>
-                  <div><span className="text-[10px] text-zinc-400">Music</span><input type="range" min="0" max="1" step="0.05" value={musicLevel} onChange={e => setMusicLevel(Number(e.target.value))} className="w-full" /></div>
-                  <div><span className="text-[10px] text-zinc-400">SFX</span><input type="range" min="0" max="1" step="0.05" value={sfxLevel} onChange={e => setSfxLevel(Number(e.target.value))} className="w-full" /></div>
+                  <div className="flex gap-2"><Button size="sm" variant={replayState === 'playing' ? 'default' : 'outline'} disabled={!replayBufferRef.current.frameCount || replayState === 'playing'} onClick={() => void takeScene('replay')}>PLAY REPLAY</Button><Button size="sm" variant="outline" disabled={replayState !== 'playing'} onClick={stopReplay}>STOP</Button></div>
+                  <div className="text-[10px] text-zinc-500">Master buffer stays at 60 seconds; the selected window only changes playback selection.</div>
+                </div>
+                <div className="rounded-lg bg-black/30 p-2 space-y-2">
+                  <div className="flex items-center justify-between"><div className="text-xs font-semibold">AUDIO BUSES</div><span className="text-[10px] text-zinc-500">0 = silent · 100 = peak</span></div>
+                  {[
+                    ['mic','MIC',muted,() => void toggleMic(),commentaryLevel,setCommentaryLevel],
+                    ['program','PROGRAM',programMuted,() => setProgramMuted(v => !v),programLevel,setProgramLevel],
+                    ['guest','GUEST',guestMuted,() => setGuestMuted(v => !v),guestLevel,setGuestLevel],
+                    ['music','MUSIC',musicMuted,() => setMusicMuted(v => !v),musicLevel,setMusicLevel],
+                    ['sfx','SFX',sfxMuted,() => setSfxMuted(v => !v),sfxLevel,setSfxLevel],
+                  ].map(([id,label,isMuted,toggle,level,setLevel]) => <div key={String(id)} className="rounded bg-zinc-900 p-2">
+                    <div className="flex items-center gap-2"><span className="w-16 text-[10px] font-semibold">{String(label)}</span><div className="h-2 flex-1 overflow-hidden rounded bg-zinc-800"><div className="h-full bg-emerald-400 transition-all" style={{width: (audioBusMeters[String(id)] || 0) + '%'}} /></div><span className="w-7 text-right text-[9px] text-zinc-500">{audioBusMeters[String(id)] || 0}</span><Button size="sm" variant={isMuted ? 'destructive' : 'outline'} onClick={toggle as any}>{isMuted ? 'MUTE' : 'ON'}</Button></div>
+                    <input aria-label={String(label)+' level'} type="range" min="0" max="1" step="0.05" value={Number(level)} onChange={e => (setLevel as any)(Number(e.target.value))} className="w-full" />
+                  </div>)}
+                  <div className="rounded bg-zinc-900 p-2"><div className="flex items-center gap-2"><span className="w-16 text-[10px] font-semibold">MASTER</span><div className="h-2 flex-1 overflow-hidden rounded bg-zinc-800"><div className="h-full bg-emerald-400 transition-all" style={{width: audioBusMeters.master + '%'}} /></div><span className="w-7 text-right text-[9px]">{audioBusMeters.master}</span><Button size="sm" variant={masterMuted ? 'destructive' : 'outline'} onClick={() => setMasterMuted(v => !v)}>{masterMuted ? 'MUTE' : 'ON'}</Button></div><input aria-label="Master level" type="range" min="0" max="1" step="0.05" value={masterLevel} onChange={e => setMasterLevel(Number(e.target.value))} className="w-full" /></div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded bg-zinc-900 p-2"><div className="text-[10px] text-zinc-500">Music · {musicState.toUpperCase()}</div><div className="mt-1 flex gap-1"><Button size="sm" disabled={!musicName} onClick={() => void playMusic()}>Play</Button><Button size="sm" variant="outline" disabled={musicState !== 'playing'} onClick={pauseMusic}>Pause</Button><Button size="sm" variant="outline" disabled={!musicName} onClick={stopMusic}>Stop</Button></div><div className="mt-1 text-[9px] text-zinc-600 truncate">{musicName || 'No track loaded'}</div></div>
+                    <div className="rounded bg-zinc-900 p-2"><div className="text-[10px] text-zinc-500">SFX · {sfxState.toUpperCase()}</div><div className="mt-1 flex gap-1"><Button size="sm" disabled={!sfxName} onClick={() => void triggerSfx()}>Trigger</Button><Button size="sm" variant="outline" disabled={sfxState !== 'playing'} onClick={stopSfx}>Stop</Button></div><div className="mt-1 text-[9px] text-zinc-600 truncate">{sfxName || 'No SFX loaded'}</div></div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <label className="rounded bg-zinc-800 p-2 text-[10px]">Load music<input type="file" accept="audio/*" className="block w-full mt-1" onChange={e => loadLocalAudio('music', e.target.files?.[0])} /></label>
+                    <label className="rounded bg-zinc-800 p-2 text-[10px]">Load SFX<input type="file" accept="audio/*" className="block w-full mt-1" onChange={e => loadLocalAudio('sfx', e.target.files?.[0])} /></label>
+                  </div>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <Button size="sm" variant={multiview ? 'default' : 'outline'} onClick={() => setMultiview(v => !v)}>Multiview</Button>
