@@ -1030,6 +1030,13 @@ export default function CommunityPage({ section, standalone = false }: { section
             )}
             {loadingPosts ? (
               <div className="flex items-center justify-center py-16"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+            ) : postsError ? (
+              <div className="flex flex-col items-center text-center py-12 px-6">
+                <div className="w-12 h-12 rounded-full bg-destructive/10 flex items-center justify-center mb-3"><Image className="w-6 h-6 text-destructive" /></div>
+                <p className="font-semibold">Community posts could not be loaded</p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-sm">{postsError}</p>
+                <button onClick={() => void fetchPosts(true)} className="mt-4 px-4 py-2 rounded-full bg-primary text-primary-foreground text-xs font-bold">Retry</button>
+              </div>
             ) : posts.length === 0 ? (
               <div className="flex flex-col items-center text-center py-12 text-muted-foreground"><Image className="w-12 h-12 mb-3 opacity-40" /><p className="font-semibold">No posts yet</p></div>
             ) : (
