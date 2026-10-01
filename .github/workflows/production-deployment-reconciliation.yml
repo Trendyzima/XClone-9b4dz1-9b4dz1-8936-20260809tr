@@ -1094,3 +1094,5 @@ jobs:
 # Live reconciliation trigger: verify the repaired production gate on the next main push.
 # Search reconciliation trigger: deploy the direct-RPC and live-Fediverse search path.
 # Mall canonical-profile typecheck reconciliation: 2026-09-20.
+
+# Poll-card hydration + exact-SHA production reconciliation trigger: 2026-10-01.
