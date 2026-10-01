@@ -173,7 +173,6 @@ Deno.serve(async req=>{
   return json({ok:true,data:{invite_token:t,room_id:id,signaling_topic:"tv:"+id,ice_servers:await ice()},error:null});
  }
  if(action==="guest"){
-  if(!s.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
   if(!invite)return json({ok:false,error:{code:"INVITE_REQUIRED",message:"A TV guest invite is required."}},401);
   if(!user)return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Authentication is required to join the TV guest session."}},401);
   if(!secret)return json({ok:false,error:{code:"TV_CONTROL_MISCONFIGURED",message:"TV guest claiming requires the Supabase server secret."}},503);
