@@ -973,6 +973,7 @@ export default function TvStudioPage() {
       // Guest WebRTC is an optional interactive feature. It must never block
       // the primary YouTube ON AIR path. Start it in the background after the
       // public delivery transport is connected.
+      setGuestLifecycle('connecting');
       void TestagramTvMediaSession.connectHostGuestBridge(id, program).then(nextGuestSession => {
         if (!liveRef.current && !roomRef.current) {
           void nextGuestSession.close().catch(() => undefined);
@@ -1136,6 +1137,11 @@ export default function TvStudioPage() {
       if (error || !data?.data?.invite_token) throw new Error(data?.error?.message || error?.message || 'Could not create guest invitation');
       const url = `${window.location.origin}/tv/live/${activeStreamId}?guest=${encodeURIComponent(data.data.invite_token)}`;
       setGuestInviteUrl(url);
+      setGuestVideoReady(false);
+      setGuestAudioReady(false);
+      setGuestConnected(false);
+      setGuestLifecycle('invited');
+      setSourceHealth(prev => ({ ...prev, guest: 'idle' }));
       try { await navigator.clipboard.writeText(url); toast.success('Guest invitation copied'); } catch { toast.success('Guest invitation created'); }
     } catch (e: any) { toast.error(e?.message || 'Could not create guest invitation'); }
   };
@@ -1170,6 +1176,9 @@ export default function TvStudioPage() {
     guestRoomRef.current = null;
     setViewerCount(0);
     setGuestConnected(false);
+    setGuestVideoReady(false);
+    setGuestAudioReady(false);
+    setGuestLifecycle('offline');
     setBroadcastStage('idle');
     setBroadcastDiagnostics(null);
     setGuestInviteUrl(null);
