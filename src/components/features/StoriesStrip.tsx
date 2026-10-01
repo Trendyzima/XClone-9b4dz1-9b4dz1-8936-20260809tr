@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, type ReactNode } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
@@ -27,7 +27,7 @@ interface StoryGroup {
   hasUnseen: boolean;
 }
 
-export function StoriesStrip() {
+export function StoriesStrip({ tv }: { tv?: ReactNode }) {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [groups, setGroups] = useState<StoryGroup[]>([]);
@@ -1036,7 +1036,8 @@ export function StoriesStrip() {
           </button>
         )}
         <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple className="hidden" onChange={handleFileSelected} />
-        {/* Explore Stories button */}
+        {tv}
+                {/* Explore Stories button */}
         <button
           onClick={() => { setShowExplore(true); fetchExploreStories(); }}
           className="flex flex-col items-center gap-1.5 flex-shrink-0 group"
