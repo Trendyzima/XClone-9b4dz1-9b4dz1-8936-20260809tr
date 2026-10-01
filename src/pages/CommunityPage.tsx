@@ -631,7 +631,16 @@ export default function CommunityPage({ section, standalone = false }: { section
         .limit(25);
       if (!reset && postsCursor) query = query.lt('created_at', postsCursor);
       const { data, error } = await query;
-      if (error) throw error;
+      if (error) {
+        console.error('Community posts query failed', {
+          communityId: community.id,
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+        throw error;
+      }
       const page = data ?? [];
       setPosts(prev => reset ? page : [...prev, ...page]);
       setHasMorePosts(page.length === 25);
