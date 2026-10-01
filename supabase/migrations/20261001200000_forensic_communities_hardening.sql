@@ -107,7 +107,7 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $$
   select case when cm.role = 'owner' then 'owner'
               when cm.role = 'moderator' then 'moderator'
               else 'member' end
