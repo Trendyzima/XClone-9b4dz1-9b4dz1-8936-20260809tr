@@ -364,32 +364,76 @@ export default function TvStudioPage() {
 
   const switchCameraFacing = async (requestedFacing: 'front' | 'back') => {
     if (requestedFacing === cameraFacing) return;
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast.error('This browser cannot switch cameras.');
+      return;
+    }
     const current = cameraStreamRef.current;
     if (!current) {
-      setCameraFacing(requestedFacing);
+      try {
+        await getCamera(requestedFacing);
+        setCameraFacing(requestedFacing);
+      } catch {}
       return;
     }
     const currentVideo = current.getVideoTracks()[0];
-    if (!currentVideo) return;
+    if (!currentVideo) {
+      toast.error('The active camera has no video track.');
+      return;
+    }
+
+    const requestedMode = requestedFacing === 'front' ? 'user' : 'environment';
+    const previousSettings = currentVideo.getSettings();
+    let replacement: MediaStream | null = null;
+    let nextVideo: MediaStreamTrack | null = null;
+
     try {
+      // Do NOT rely on applyConstraints() here. Some mobile browsers resolve it
+      // without actually changing the physical camera. A real getUserMedia
+      // acquisition gives us a new track that can be verified before swapping.
       try {
-        await currentVideo.applyConstraints({ facingMode: requestedFacing === 'front' ? 'user' : 'environment' });
-        setCameraFacing(requestedFacing);
-        const settings = currentVideo.getSettings();
-        if (settings.width && settings.height) setCameraResolution(String(settings.width) + '×' + settings.height + ' @ ' + Math.round(settings.frameRate || VIDEO_PRESETS[quality].fps) + 'fps');
-        setPermissionError(null);
-        return;
-      } catch {
-        // Some mobile browsers expose facingMode only at getUserMedia time.
+        replacement = await navigator.mediaDevices.getUserMedia({
+          video: {
+            ...CAMERA_CONSTRAINTS[quality],
+            facingMode: { exact: requestedMode },
+          },
+          audio: false,
+        });
+      } catch (error) {
+        if ((error as DOMException)?.name !== 'OverconstrainedError') throw error;
+
+        // A few browsers reject the full quality constraints even though the
+        // requested lens exists. Retry with only the physical-camera selector.
+        replacement = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { exact: requestedMode } },
+          audio: false,
+        });
       }
-      const replacement = await navigator.mediaDevices.getUserMedia({
-        video: { ...CAMERA_CONSTRAINTS[quality], facingMode: { exact: requestedFacing === 'front' ? 'user' : 'environment' } },
-      });
-      const nextVideo = replacement.getVideoTracks()[0];
+
+      nextVideo = replacement.getVideoTracks()[0] ?? null;
       if (!nextVideo) throw new Error('The selected camera did not provide a video track.');
+
+      const nextSettings = nextVideo.getSettings();
+      const facingVerified = nextSettings.facingMode === requestedMode;
+      const deviceChanged = Boolean(
+        previousSettings.deviceId &&
+        nextSettings.deviceId &&
+        previousSettings.deviceId !== nextSettings.deviceId,
+      );
+
+      // A switch is only committed when the browser gives us evidence that the
+      // physical camera changed. This prevents the UI from saying "Front"
+      // while the old rear track is still producing frames.
+      if (!facingVerified && !deviceChanged) {
+        throw new Error('The browser did not confirm a physical camera change. The previous camera remains active.');
+      }
+
+      // Replace the track inside the existing stream so all consumers of the
+      // production camera stream keep the same MediaStream object.
       current.removeTrack(currentVideo);
       current.addTrack(nextVideo);
       currentVideo.stop();
+
       nextVideo.onended = () => {
         setCamera(false);
         setDeviceReady(false);
@@ -397,19 +441,47 @@ export default function TvStudioPage() {
         if (liveRef.current && programSceneRef.current === 'camera') void takeScene('black').catch(() => undefined);
         toast.error('Camera signal lost. Testagram TV switched to a safe fallback.');
       };
+
+      // Rebind the actual production camera element and wait for it to expose
+      // a real video frame. The compositor reads this element, not the button
+      // state, so this is the point where the physical lens change becomes
+      // visible to Preview, Program and the live canvas.
+      if (productionCameraVideoRef.current) {
+        productionCameraVideoRef.current.srcObject = null;
+        productionCameraVideoRef.current.srcObject = current;
+        await productionCameraVideoRef.current.play().catch(() => undefined);
+      }
+      if (videoRef.current && videoRef.current.srcObject === current) {
+        await videoRef.current.play().catch(() => undefined);
+      }
+
       setCameraFacing(requestedFacing);
-      const settings = nextVideo.getSettings();
-      if (settings.width && settings.height) setCameraResolution(String(settings.width) + '×' + settings.height + ' @ ' + Math.round(settings.frameRate || VIDEO_PRESETS[quality].fps) + 'fps');
-      if (videoRef.current) videoRef.current.srcObject = current;
-      if (productionCameraVideoRef.current) productionCameraVideoRef.current.srcObject = current;
-      await productionCameraVideoRef.current?.play().catch(() => undefined);
+      if (nextSettings.width && nextSettings.height) {
+        setCameraResolution(
+          String(nextSettings.width) + '×' + nextSettings.height + ' @ ' +
+          Math.round(nextSettings.frameRate || VIDEO_PRESETS[quality].fps) + 'fps',
+        );
+      }
+      setDeviceReady(true);
+      setCamera(true);
       setPermissionError(null);
+      toast.success((requestedFacing === 'front' ? 'Front' : 'Back') + ' camera is now active.');
     } catch (error) {
+      // Never change the facing-state indicator unless the physical track was
+      // actually replaced. Clean up a failed candidate and keep the old camera.
+      if (replacement && nextVideo && nextVideo !== currentVideo) {
+        nextVideo.stop();
+        replacement.getTracks().forEach(track => {
+          if (track !== nextVideo) track.stop();
+        });
+      }
       const message = error instanceof DOMException && error.name === 'NotAllowedError'
         ? 'Camera permission is required to switch cameras. Allow camera access and try again.'
         : error instanceof DOMException && error.name === 'OverconstrainedError'
           ? 'The ' + requestedFacing + ' camera is not available on this device.'
-          : explainMediaError(error);
+          : error instanceof Error
+            ? error.message
+            : explainMediaError(error);
       setPermissionError(message);
       toast.error(message);
     }
