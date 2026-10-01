@@ -1,6 +1,7 @@
--- Production-safe community post visibility contract.
--- Some historical production baselines do not contain the canonical helper,
--- so provision it before policies reference it.
+-- Compatibility follow-up for the community post visibility repair.
+-- The authoritative repair lives in 20261001203000_community_post_visibility_fix.
+-- Keep this migration idempotent for production histories that already contain
+-- the helper/policies, and do not assume the optional post_replies table exists.
 
 create or replace function public.testagram_post_is_visible_to_viewer(
   p_post_id uuid,
@@ -63,40 +64,3 @@ $$;
 
 revoke all on function public.testagram_post_is_visible_to_viewer(uuid, uuid) from public;
 grant execute on function public.testagram_post_is_visible_to_viewer(uuid, uuid) to anon, authenticated;
-
-drop policy if exists posts_public_read on public.posts;
-create policy posts_public_read
-on public.posts
-for select
-to anon, authenticated
-using (
-  public.testagram_post_is_visible_to_viewer(id, (select auth.uid()))
-);
-
-drop policy if exists post_media_public_read on public.post_media;
-create policy post_media_public_read
-on public.post_media
-for select
-to anon, authenticated
-using (
-  exists (
-    select 1
-    from public.posts p
-    where p.id = post_media.post_id
-      and public.testagram_post_is_visible_to_viewer(p.id, (select auth.uid()))
-  )
-);
-
-drop policy if exists post_replies_public_read on public.post_replies;
-create policy post_replies_public_read
-on public.post_replies
-for select
-to anon, authenticated
-using (
-  exists (
-    select 1
-    from public.posts p
-    where p.id = post_replies.post_id
-      and public.testagram_post_is_visible_to_viewer(p.id, (select auth.uid()))
-  )
-);
