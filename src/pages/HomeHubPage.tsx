@@ -2,6 +2,7 @@ import { lazy, Suspense, useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom';
 import { ComposePost } from '@/components/features/ComposePost';
 import { PostCard } from '@/components/features/PostCard';
+import { PollCard as FeedPollCard } from '@/components/features/PollCard';
 import { ThreadCard } from '@/components/features/ThreadCard';
 
 import { TopBar } from '@/components/layout/TopBar';
@@ -67,7 +68,7 @@ function HomeFeedItem({item,index,lastElementRef,tab,onUpdate,onNavigate}:{item:
     {item.type==='thread'&&<ThreadCard thread={item.data}/>}
     {item.type==='fedpost'&&(item.data?.is_federated_discovery?<FederatedOrganicCard item={item.data}/>:<PostCard post={item.data} onUpdate={onUpdate}/>)}
     {item.type==='community'&&<CommunityCard community={item.data} onOpen={()=>onNavigate('/c/'+item.data.name)}/>}
-    {item.type==='poll'&&<PollCard poll={item.data} onOpen={()=>onNavigate('/polls')}/>}
+    {item.type==='poll'&&<FeedPollCard poll={item.data} postId={item.data?.post_id} repliesCount={item.data?.replies_count ?? 0} />}
     {item.type==='product'&&<ProductCard product={item.data} onOpen={()=>onNavigate('/p/'+item.data.id)}/>}
     {item.type==='publisher'&&<PublisherFeedCard item={item.data as FeedItem}/>}
     {tab==='all'&&index>0&&index%4===0&&<FederatedOrganicInjection surface="home"/>}
@@ -341,7 +342,5 @@ export default function HomeHubPage(){
 }
 
 function CommunityCard({community,onOpen}:{community:any;onOpen:()=>void}){return <button onClick={onOpen} className="w-full text-left p-4 border-b border-border hover:bg-muted/30"><div className="flex items-center gap-3"><div className="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center"><Users className="w-5 h-5 text-primary"/></div><div className="min-w-0"><p className="font-bold truncate">{community.display_name??community.name}</p><p className="text-xs text-muted-foreground">{Number(community.member_count??0).toLocaleString()} members</p></div><ArrowRight className="ml-auto w-4 h-4 text-muted-foreground"/></div>{community.description&&<p className="text-sm text-muted-foreground mt-3 line-clamp-2">{community.description}</p>}</button>;}
-
-function PollCard({poll,onOpen}:{poll:any;onOpen:()=>void}){return <button onClick={onOpen} className="w-full text-left p-4 border-b border-border hover:bg-muted/30"><div className="flex items-center gap-2 mb-2"><BarChart3 className="w-4 h-4 text-primary"/><span className="font-bold text-sm">Community poll</span></div><p className="font-semibold">{poll.question??poll.title??'Community poll'}</p>{Array.isArray(poll.options)&&<div className="mt-3 space-y-2">{poll.options.slice(0,4).map((o:any,i:number)=><div key={i} className="rounded-lg bg-muted px-3 py-2 text-xs">{typeof o==='string'?o:(o.text??o.label??('Option '+(i+1)))}</div>)}</div>}</button>;}
 
 function ProductCard({product,onOpen}:{product:any;onOpen:()=>void}){return <button onClick={onOpen} className="w-full text-left p-4 border-b border-border hover:bg-muted/30"><div className="flex gap-3"><div className="w-20 h-20 rounded-xl overflow-hidden bg-muted shrink-0">{product.image_url?<img src={product.image_url} alt="" className="w-full h-full object-cover" loading="lazy"/>:<ShoppingBag className="w-7 h-7 m-6 text-muted-foreground"/>}</div><div className="min-w-0"><p className="font-bold line-clamp-1">{product.name??'Product'}</p><p className="text-primary font-black mt-1">{'$'+Number(product.price??0).toFixed(2)}</p>{product.description&&<p className="text-xs text-muted-foreground line-clamp-2 mt-1">{product.description}</p>}<span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground mt-2"><ShoppingBag className="w-3 h-3"/>View in Shopping Mall</span></div></div></button>;}
