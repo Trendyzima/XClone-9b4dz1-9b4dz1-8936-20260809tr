@@ -9,7 +9,7 @@ function pickMime(){
 }
 
 export class TestagramTvYouTubeSession{
- private readonly options:Options;private socket:WebSocket|null=null;private recorder:MediaRecorder|null=null;private stopped=false;private reconnectTimer:number|null=null;private rotationTimer:number|null=null;private reconnectAttempts=0;private connectPromise:Promise<void>|null=null;private status:YouTubeSessionStatus="connecting";
+ private readonly options:Options;private socket:WebSocket|null=null;private recorder:MediaRecorder|null=null;private stopped=false;private reconnectTimer:number|null=null;private rotationTimer:number|null=null;private reconnectAttempts=0;private consecutiveEncodingErrors=0;private connectPromise:Promise<void>|null=null;private status:YouTubeSessionStatus="connecting";
  constructor(o:Options){this.options=o}
  static async connect(o:Options){const s=new TestagramTvYouTubeSession(o);await s.openTransport();return s}
  private setStatus(s:YouTubeSessionStatus,d?:string){this.status=s;this.options.onStatus?.(s,d)}
@@ -48,11 +48,13 @@ export class TestagramTvYouTubeSession{
   this.stopRecorder();const mime=pickMime();if(!mime)throw new Error("This browser cannot encode a WebM live contribution for the YouTube encoder.");
   const r=new MediaRecorder(this.options.program,{mimeType:mime,videoBitsPerSecond:this.options.videoBitsPerSecond,audioBitsPerSecond:128000});
   r.ondataavailable=e=>{if(e.data.size&&this.socket?.readyState===WebSocket.OPEN)this.socket.send(e.data)};
-  r.onerror=()=>this.scheduleReconnect();r.onstop=()=>{if(!this.stopped&&this.socket?.readyState===WebSocket.OPEN)this.scheduleReconnect()};
+  r.onerror=()=>this.scheduleReconnect();
+  r.onstop=()=>{if(!this.stopped&&this.socket?.readyState===WebSocket.OPEN)this.scheduleReconnect()};
+  r.onstart=()=>{this.setStatus("encoding");};
   this.recorder=r;r.start(1000);
  }
  getStatus(){return this.status}
- getDiagnostics(){return{provider:"youtube",status:this.status,streamId:this.options.streamId,transport:"websocket-webm-ffmpeg-rtmps-youtube"}}
+ getDiagnostics(){return{provider:"youtube",status:this.status,streamId:this.options.streamId,transport:"websocket-webm-ffmpeg-rtmps-youtube",reconnectWindowMs:10000,plannedRotationMs:240000,liveOutputResolution:"1920x1080"}}
  async close(){return this.stop()}
  async stop(){this.stopped=true;if(this.reconnectTimer!==null)window.clearTimeout(this.reconnectTimer);if(this.rotationTimer!==null)window.clearTimeout(this.rotationTimer);this.stopRecorder();const s=this.socket;this.socket=null;if(s&&s.readyState!==WebSocket.CLOSED)s.close(1000,"broadcast stopped");this.setStatus("stopped")}
 }
