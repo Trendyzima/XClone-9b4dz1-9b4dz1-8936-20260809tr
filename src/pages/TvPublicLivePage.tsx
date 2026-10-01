@@ -46,6 +46,7 @@ export default function TvPublicLivePage() {
   const inviteToken = searchParams.get('guest');
   const isGuest = Boolean(inviteToken);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const studioMultiviewRef = useRef<HTMLVideoElement>(null);
   const youtubeRef = useRef<HTMLIFrameElement>(null);
   const sessionRef = useRef<TestagramTvMediaSession | null>(null);
   const guestMediaRef = useRef<MediaStream | null>(null);
@@ -187,6 +188,15 @@ export default function TvPublicLivePage() {
             streamId,
             inviteToken,
             media,
+            (remote) => {
+              const player = studioMultiviewRef.current;
+              if (player && player.srcObject !== remote) {
+                player.srcObject = remote;
+                player.muted = true;
+                player.playsInline = true;
+                void player.play().catch(() => undefined);
+              }
+            },
           );
           session.setGuestControlHandler((control) => {
             if (control === 'mute') {
@@ -464,14 +474,17 @@ export default function TvPublicLivePage() {
                 setYoutubePlayerError(true);
               }}
             />
+          ) : isGuest ? (
+            <div className="relative w-full h-full bg-zinc-950">
+              <video ref={studioMultiviewRef} autoPlay playsInline muted className="w-full h-full object-contain" />
+              <div className="absolute right-3 bottom-3 w-32 sm:w-44 aspect-video overflow-hidden rounded-lg border border-white/30 bg-black shadow-2xl">
+                <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+                <span className="absolute left-1.5 bottom-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-bold">YOU · GUEST {guestSlot || ''}</span>
+              </div>
+              {!live && !connecting && <div className="absolute inset-0 flex items-center justify-center text-sm text-zinc-500">Waiting for the studio multiview…</div>}
+            </div>
           ) : (
-            <video
-              ref={videoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full h-full object-contain"
-            />
+            <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-contain" />
           )}
         </div>
 

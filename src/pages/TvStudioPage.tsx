@@ -742,7 +742,7 @@ export default function TvStudioPage() {
       if (replayBufferRef.current.shouldCapture(now) && programSceneRef.current !== 'replay') replayBufferRef.current.push(canvas, now);
       // Multiview is diagnostic UI; keep it off the hot path and update it
       // less frequently than the program bus.
-      if (multiview && frameStats.count % (lightModeRef.current ? 4 : 2) === 0) renderMultiview();
+      if ((multiview || guestMultiviewStreamRef.current) && frameStats.count % (lightModeRef.current ? 4 : 2) === 0) renderMultiview();
       sceneAnimationRef.current = requestAnimationFrame(draw);
     };
 
