@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 
 type TvRole = 'host' | 'viewer' | 'guest';
-type Signal = { from: string; to?: string; peerRole?: TvRole; guestSlot?: number; toGuestSlot?: number; sdp?: string; candidate?: RTCIceCandidateInit; count?: number; guestCount?: number; videoBytes?: number; audioBytes?: number; videoPackets?: number; audioPackets?: number; width?: number; height?: number };
+type Signal = { from: string; to?: string; peerRole?: TvRole; guestSlot?: number; toGuestSlot?: number; control?: 'mute' | 'unmute' | 'block' | 'unblock'; sdp?: string; candidate?: RTCIceCandidateInit; count?: number; guestCount?: number; videoBytes?: number; audioBytes?: number; videoPackets?: number; audioPackets?: number; width?: number; height?: number };
 type VideoOptions = { maxBitrate: number; maxFramerate?: number; maintainResolution?: boolean };
 type TvNetworkProfile = 'excellent' | 'good' | 'constrained' | 'poor';
 
