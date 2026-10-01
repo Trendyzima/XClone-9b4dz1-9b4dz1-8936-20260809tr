@@ -634,7 +634,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
         const guestVideos = activeGuests.map(g => guestVideoElementsRef.current.get(g.slot) || null).filter((v): v is HTMLVideoElement => Boolean(v && v.readyState >= 2 && v.videoWidth > 0));
         const sources: Array<{ kind: 'video' | 'camera' | 'guest'; media: HTMLVideoElement }> = [
           { kind: 'video', media: currentSourceVideo },
-          ...(hostReady ? [{ kind: 'camera' as const, media: camera }] : []),
+          ...(hostReady ? [{ kind: 'camera' as const, media: currentCamera }] : []),
           ...guestVideos.map(media => ({ kind: 'guest' as const, media })),
         ];
         // Build the composition only from sources that actually have usable video.
