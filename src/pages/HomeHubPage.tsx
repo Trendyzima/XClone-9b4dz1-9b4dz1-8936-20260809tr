@@ -316,10 +316,9 @@ export default function HomeHubPage(){
 
   return <div className="min-h-screen bg-background pb-16 lg:pb-0">
     <TopBar title="Home"/>
-    <Suspense fallback={<div className="h-20 border-b border-border bg-background" aria-hidden="true" />}><StoriesStrip/></Suspense>
+    <Suspense fallback={<div className="h-20 border-b border-border bg-background" aria-hidden="true" />}><StoriesStrip tv={<TvPostStream index={0} compact />} /></Suspense>
 
-    {/* Live + discovery surfaces sit above the main feed so important Testagram activity is visible without replacing the feed. */}
-    <TvPostStream index={0}/>
+    {/* Testagram TV is a status-style live tile inside the Stories strip; the player opens only after the user taps it. */}
     <Suspense fallback={null}><LiveSpacesDiscoveryStrip/></Suspense>
 
     <div className="sticky top-14 z-30 bg-background/95 backdrop-blur border-b border-border"><div className="flex overflow-x-auto scrollbar-hide">
