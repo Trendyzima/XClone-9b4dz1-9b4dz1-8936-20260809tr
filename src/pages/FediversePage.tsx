@@ -388,7 +388,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
     // Never put the initial empty state behind a loading spinner.
     const { data: cached, error } = await supabase
       .from('federated_objects')
-      .select('id,uri,object_type,actor_uri,url,content,summary,published_at,updated_at,sensitive,in_reply_to_uri,quote_uri,language_code,attachments,tags,like_count,announce_count,reply_count,quote_count,view_count,content_warning,raw_object')
+      .select('id,uri,object_type,actor_uri,url,content,summary,published_at,updated_at,sensitive,in_reply_to_uri,quote_uri,language_code,attachments,tags,like_count,announce_count,reply_count,quote_count,view_count,content_warning')
       .is('deleted_at', null)
       .eq('tombstone', false)
       .order('published_at', { ascending: false })
