@@ -1,7 +1,9 @@
 import { supabase } from '@/lib/supabase';
 
 type TvRole = 'host' | 'viewer' | 'guest';
-type Signal = { from: string; to?: string; peerRole?: TvRole; guestSlot?: number; toGuestSlot?: number; control?: 'mute' | 'unmute' | 'block' | 'unblock'; sdp?: string; candidate?: RTCIceCandidateInit; count?: number; guestCount?: number; videoBytes?: number; audioBytes?: number; videoPackets?: number; audioPackets?: number; width?: number; height?: number };
+type GuestControl = 'mute' | 'unmute' | 'block' | 'unblock' | 'grant-speak' | 'deny-speak';
+type GuestSignalKind = 'raise-hand' | 'add-to-point' | 'second-point';
+type Signal = { from: string; to?: string; peerRole?: TvRole; guestSlot?: number; toGuestSlot?: number; control?: GuestControl; guestSignal?: GuestSignalKind; sdp?: string; candidate?: RTCIceCandidateInit; count?: number; guestCount?: number; videoBytes?: number; audioBytes?: number; videoPackets?: number; audioPackets?: number; width?: number; height?: number };
 type VideoOptions = { maxBitrate: number; maxFramerate?: number; maintainResolution?: boolean };
 type TvNetworkProfile = 'excellent' | 'good' | 'constrained' | 'poor';
 
@@ -63,7 +65,8 @@ export class TestagramTvMediaSession {
   private onRemoteTrack?: (track: MediaStreamTrack, peerId: string, guestSlot?: number) => void;
   private onRemotePeerLeave?: (peerId: string, peerRole: TvRole, guestSlot?: number) => void;
   private onViewerCount?: (count: number, guests: number) => void;
-  private onGuestControl?: (control: 'mute' | 'unmute' | 'block' | 'unblock') => void;
+  private onGuestControl?: (control: GuestControl) => void;
+  private onGuestSignal?: (signal: GuestSignalKind, guestSlot: number) => void;
   private videoOptions: VideoOptions | null = null;
   private readyPromise: Promise<void> | null = null;
   private readyResolve?: () => void;
@@ -138,8 +141,13 @@ export class TestagramTvMediaSession {
 
   private guestToken = '';
   public guestSlot = 0;
-  setGuestControlHandler(handler: (control: 'mute' | 'unmute' | 'block' | 'unblock') => void) { this.onGuestControl = handler; }
-  async sendGuestControl(slot: number, control: 'mute' | 'unmute' | 'block' | 'unblock') { await this.send({ event: 'tv-guest-control', payload: { from: this.peerId, toGuestSlot: slot, control } }); }
+  setGuestControlHandler(handler: (control: GuestControl) => void) { this.onGuestControl = handler; }
+  setGuestSignalHandler(handler: (signal: GuestSignalKind, guestSlot: number) => void) { this.onGuestSignal = handler; }
+  async sendGuestControl(slot: number, control: GuestControl) { await this.send({ event: 'tv-guest-control', payload: { from: this.peerId, toGuestSlot: slot, control } }); }
+  async sendGuestSignal(signal: GuestSignalKind) {
+    if (this.role !== 'guest' || !this.guestSlot) throw new Error('Guest signaling is not available.');
+    await this.send({ event: 'tv-guest-signal', payload: { from: this.peerId, guestSlot: this.guestSlot, guestSignal: signal } });
+  }
 
   private async startHostGuestBridge() {
     const realtimeSession = await ensureRealtimeAuth(false);
@@ -161,8 +169,12 @@ export class TestagramTvMediaSession {
       .on('broadcast', { event: 'tv-reconnect' }, payload => void this.onReconnect(payload.payload as Signal))
       .on('broadcast', { event: 'tv-media-received' }, payload => this.onMediaReceived(payload.payload as Signal))
       .on('broadcast', { event: 'tv-guest-control' }, payload => {
-        const p = payload.payload as Signal & { toGuestSlot?: number; control?: 'mute' | 'unmute' | 'block' | 'unblock' };
+        const p = payload.payload as Signal;
         if (this.role === 'guest' && Number(p.toGuestSlot) === this.guestSlot && p.control) this.onGuestControl?.(p.control);
+      })
+      .on('broadcast', { event: 'tv-guest-signal' }, payload => {
+        const p = payload.payload as Signal;
+        if (this.role === 'host' && Number(p.guestSlot) > 0 && p.guestSignal) this.onGuestSignal?.(p.guestSignal, Number(p.guestSlot));
       });
     await new Promise<void>((resolve, reject) => {
       this.channel!.subscribe((status, err) => {
@@ -747,3 +759,4 @@ export class TestagramTvMediaSession {
     this.localStream = null;
   }
 }
+
