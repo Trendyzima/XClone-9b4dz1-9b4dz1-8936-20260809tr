@@ -31,7 +31,7 @@ begin
   end if;
 
   insert into public.posts(
-    user_id, author_id, body, content,
+    user_id, author_id, content,
     media_url, media_type, media_urls, image_url, video_url,
     is_video, visibility, community_id,
     reply_to_post_id, quoted_post_id, quote_post_id, quote_of_post_id,
@@ -39,7 +39,6 @@ begin
   )
   values(
     v_user_id, v_user_id,
-    coalesce(p_input->>'body', p_input->>'content', ''),
     coalesce(p_input->>'content', p_input->>'body', ''),
     nullif(p_input->>'media_url',''),
     nullif(p_input->>'media_type',''),
