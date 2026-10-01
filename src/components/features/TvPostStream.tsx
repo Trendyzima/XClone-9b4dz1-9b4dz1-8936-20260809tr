@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { Radio, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
@@ -19,7 +19,7 @@ const HIDDEN = /^\/(auth|admin|settings|wallet|messages|notifications|help|premi
 
 export function TvPostStream({ index = 0 }: { index?: number }) {
   const { pathname } = useLocation();
-  const navigate = useNavigate();
+  const [open, setOpen] = useState(false);
   const hostRef = useRef<HTMLElement>(null);
   const [nearViewport, setNearViewport] = useState(false);
   const [live, setLive] = useState<TestagramLive | null>(null);
@@ -105,8 +105,8 @@ export function TvPostStream({ index = 0 }: { index?: number }) {
           <button
             type='button'
             className='block w-full text-left group'
-            aria-label={`Watch ${live.title || 'Testagram TV'} live`}
-            onClick={() => navigate(`/tv/live/${live.id}`)}
+            aria-label={open ? 'Close Testagram TV live player' : `Watch ${live.title || 'Testagram TV'} live on this page`}
+            onClick={() => setOpen(prev => !prev)}
           >
             <div className='px-4 pt-3 pb-2 flex items-center gap-3'>
               <span className='flex h-9 w-9 items-center justify-center rounded-full bg-red-500/10'>
@@ -122,7 +122,16 @@ export function TvPostStream({ index = 0 }: { index?: number }) {
             </div>
 
             <div className='relative aspect-video bg-zinc-950 overflow-hidden'>
-              {live.youtube_video_id ? (
+              {open && live.youtube_video_id ? (
+                <iframe
+                  data-testagram-home-tv='true'
+                  className='absolute inset-0 h-full w-full border-0'
+                  src={`https://www.youtube.com/embed/${encodeURIComponent(live.youtube_video_id)}?autoplay=1&playsinline=1&mute=0&enablejsapi=1&origin=${encodeURIComponent(typeof window === 'undefined' ? '' : window.location.origin)}`}
+                  title={`${live.title || 'Testagram TV'} — Live`}
+                  allow='autoplay; encrypted-media; picture-in-picture; fullscreen'
+                  allowFullScreen
+                />
+              ) : live.youtube_video_id ? (
                 <img
                   src={`https://img.youtube.com/vi/${encodeURIComponent(live.youtube_video_id)}/hqdefault.jpg`}
                   alt=''
@@ -132,22 +141,17 @@ export function TvPostStream({ index = 0 }: { index?: number }) {
               ) : (
                 <div className='absolute inset-0 bg-gradient-to-br from-zinc-900 to-black' />
               )}
-              <div className='absolute inset-0 bg-black/35 transition group-hover:bg-black/20' />
-              <div className='absolute inset-0 flex items-center justify-center'>
-                <span className='flex h-16 w-16 items-center justify-center rounded-full bg-red-600 text-white shadow-xl transition group-hover:scale-105'>
-                  <span className='ml-1 text-2xl'>▶</span>
-                </span>
-              </div>
-              <div className='absolute bottom-3 left-3 rounded-md bg-black/75 px-2 py-1 text-[10px] font-bold text-white'>
-                TAP TO WATCH · LIVE
-              </div>
+              {!open && <div className='absolute inset-0 bg-black/35 transition group-hover:bg-black/20' />}
+              {!open && <><div className='absolute inset-0 flex items-center justify-center'>
+                <span className='flex h-16 w-16 items-center justify-center rounded-full bg-red-600 text-white shadow-xl transition group-hover:scale-105'><span className='ml-1 text-2xl'>▶</span></span>
+              </div><div className='absolute bottom-3 left-3 rounded-md bg-black/75 px-2 py-1 text-[10px] font-bold text-white'>TAP TO WATCH · LIVE</div></>}
             </div>
 
             <div className='px-4 py-2 flex items-center gap-2 text-[10px] text-muted-foreground'>
               <span className='font-semibold text-foreground'>Testagram TV</span>
               <span>·</span>
               <span>{Number(live.viewer_count ?? 0).toLocaleString()} watching</span>
-              <span className='ml-auto font-semibold text-red-500'>Watch live →</span>
+              <span className='ml-auto font-semibold text-red-500'>{open ? 'Close live' : 'Watch live →'}</span>
             </div>
           </button>
         </>
