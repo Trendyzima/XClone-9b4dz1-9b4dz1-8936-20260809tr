@@ -1587,53 +1587,84 @@ export default function TvStudioPage() {
           </section>
 
           <aside className="space-y-3">
-                          <div className="rounded-xl border border-white/10 bg-black/30 p-3 space-y-3">
-                <div className="flex items-center gap-2 font-semibold text-sm"><Layers3 className="w-4 h-4" />Program / scenes</div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <Button size="sm" variant={previewScene === 'camera' ? 'default' : 'outline'} onClick={() => void activateScene('camera')}><Camera className="w-4 h-4 mr-1" />Camera</Button>
-                  <Button size="sm" variant={previewScene === 'video' ? 'default' : 'outline'} onClick={() => void activateScene('video')}><Upload className="w-4 h-4 mr-1" />Video</Button>
-                  <Button size="sm" variant={previewScene === 'screen' ? 'default' : 'outline'} onClick={() => void shareScreen()}><MonitorUp className="w-4 h-4 mr-1" />Screen</Button>
-                  <Button size="sm" variant={previewScene === 'guest' ? 'default' : 'outline'} disabled={!guestConnected} onClick={() => void activateScene('guest')}>Guest</Button>
+            <section className="rounded-2xl border border-white/10 bg-black/35 p-3 sm:p-4 space-y-4 shadow-2xl">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 font-semibold"><Layers3 className="w-4 h-4 text-red-400" />Program / scenes</div>
+                  <p className="mt-1 text-[11px] text-zinc-500">Build the preview, then TAKE it to Program. Only Program reaches the broadcast bus.</p>
                 </div>
-                <input ref={videoFileInputRef} type="file" accept="video/*" className="hidden" onChange={e => void loadProductionVideo(e.target.files?.[0])} />
-                {uploadedVideoName && <div className="text-[11px] text-zinc-400 truncate">{uploadedVideoName}</div>}
-                {activeScene === 'video' && sourceVideoRef.current && <div className="grid grid-cols-2 gap-2">
-                  <Button size="sm" variant="outline" onClick={() => void toggleProductionVideo()}>{sourceVideoPlaying ? 'Pause video' : 'Play video'}</Button>
-                  <Button size="sm" variant="outline" onClick={() => setPipEnabled(v => !v)}><PictureInPicture2 className="w-4 h-4 mr-1" />PiP {pipEnabled ? 'on' : 'off'}</Button>
-                </div>}
-                <div><div className="flex justify-between text-[11px] text-zinc-400"><span>Video audio</span><span>{Math.round(programLevel * 100)}%</span></div><input type="range" min="0" max="1" step="0.05" value={programLevel} onChange={e => setProgramLevel(Number(e.target.value))} className="w-full" /></div>
-                <div><div className="flex justify-between text-[11px] text-zinc-400"><span>Commentary voice</span><span>{Math.round(commentaryLevel * 100)}%</span></div><input type="range" min="0" max="1.5" step="0.05" value={commentaryLevel} onChange={e => setCommentaryLevel(Number(e.target.value))} className="w-full" /></div>
-                <p className="text-[10px] text-zinc-500">Preview → TAKE → Program. Graphics and transitions are rendered into the program bus.</p>
-                <div className="rounded-lg bg-black/30 p-2 space-y-2">
-                  <div className="flex items-center justify-between"><span className="text-xs font-semibold">SCENE PRESETS</span><Button size="sm" variant="outline" onClick={() => saveScenePreset(window.prompt('Preset name') || '')}>Save</Button></div>
-                  <div className="flex flex-wrap gap-1">
-                    {Object.keys(scenePresets).map(name => <button key={name} className="rounded bg-zinc-800 px-2 py-1 text-[10px] hover:bg-zinc-700" onClick={() => loadScenePreset(name)}>{name}</button>)}
-                    {!Object.keys(scenePresets).length && <span className="text-[10px] text-zinc-500">Save a camera/video/screen setup for one-tap recall.</span>}
+                <div className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
+                  ON AIR · {programScene}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {([
+                  ['camera','Camera',Camera,sourceHealth.camera === 'ready'],
+                  ['video','Video',Upload,Boolean(sourceVideoRef.current)],
+                  ['screen','Screen',MonitorUp,Boolean(screenStreamRef.current)],
+                  ['guest','Guest',Users,guestConnected],
+                  ['replay','Replay',Clapperboard,replayBufferRef.current.frameCount > 0],
+                ] as const).map(([scene,label,Icon,ready]) => {
+                  const selected = previewScene === scene;
+                  const available = scene === 'camera' || scene === 'video' || scene === 'screen' || scene === 'guest' || scene === 'replay';
+                  return (
+                    <button key={scene} type="button" disabled={!available || (scene === 'guest' && !guestConnected)} onClick={() => {
+                      if (scene === 'camera' || scene === 'video' || scene === 'guest') void activateScene(scene);
+                      else if (scene === 'screen') void shareScreen();
+                      else { setPreviewScene('replay'); previewSceneRef.current = 'replay'; }
+                    }} className={`group rounded-xl border p-3 text-left transition ${selected ? 'border-red-500/60 bg-red-500/10 ring-1 ring-red-500/30' : 'border-white/10 bg-zinc-900/70 hover:border-white/20 hover:bg-zinc-900'} disabled:cursor-not-allowed disabled:opacity-45`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <Icon className={`h-4 w-4 ${selected ? 'text-red-400' : 'text-zinc-400'}`} />
+                        <span className={`h-2 w-2 rounded-full ${ready ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
+                      </div>
+                      <div className="mt-2 text-xs font-semibold">{label}</div>
+                      <div className="mt-0.5 text-[9px] uppercase tracking-wide text-zinc-500">{selected ? 'Preview' : ready ? 'Ready' : 'Idle'}</div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <input ref={videoFileInputRef} type="file" accept="video/*" className="hidden" onChange={e => void loadProductionVideo(e.target.files?.[0])} />
+              <div className="rounded-xl border border-white/10 bg-zinc-950/50 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Preview source</div>
+                    <div className="mt-1 text-sm font-medium">{previewScene.toUpperCase()}</div>
+                    <div className="mt-0.5 text-[10px] text-zinc-500">
+                      {previewScene === 'camera' ? 'Live camera feed' : previewScene === 'video' ? (uploadedVideoName || 'Choose a local video') : previewScene === 'screen' ? (sharing ? 'Screen capture active' : 'Screen capture not started') : previewScene === 'guest' ? (guestConnected ? 'Guest camera connected' : 'Waiting for guest') : 'Replay buffer'}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    {previewScene === 'video' && !sourceVideoRef.current && <Button size="sm" variant="outline" onClick={() => videoFileInputRef.current?.click()}><Upload className="w-4 h-4 mr-1" />Choose video</Button>}
+                    {previewScene === 'video' && sourceVideoRef.current && <Button size="sm" variant="outline" onClick={() => void toggleProductionVideo()}>{sourceVideoPlaying ? 'Pause' : 'Play'}</Button>}
+                    {previewScene === 'video' && sourceVideoRef.current && <Button size="sm" variant="outline" onClick={() => setPipEnabled(v => !v)}><PictureInPicture2 className="w-4 h-4 mr-1" />PiP {pipEnabled ? 'On' : 'Off'}</Button>}
+                    {previewScene === 'screen' && <Button size="sm" variant="outline" onClick={() => void shareScreen()}>{sharing ? 'Stop screen' : 'Start screen'}</Button>}
                   </div>
                 </div>
-                <div className="grid grid-cols-4 gap-1 text-[9px] uppercase tracking-wide">
-                  {(['camera','video','screen','guest'] as const).map(source => <span key={source} className={`rounded px-2 py-1 text-center ${sourceHealth[source] === 'ready' ? 'bg-emerald-500/15 text-emerald-300' : sourceHealth[source] === 'lost' ? 'bg-red-500/15 text-red-300' : 'bg-zinc-800 text-zinc-500'}`}>{source}: {sourceHealth[source]}</span>)}
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button size="sm" variant="outline" onClick={() => void takeScene(previewScene)}>TAKE {previewScene.toUpperCase()}</Button>
-                  <Button size="sm" variant="outline" onClick={() => void takeScene('black')}>DIP TO BLACK</Button>
-                  <select value={transitionType} onChange={e => setTransitionType(e.target.value as TransitionType)} className="rounded-lg bg-zinc-800 p-2 text-xs">
-                    <option value="cut">CUT</option><option value="fade">FADE</option><option value="dip">DIP</option>
-                  </select>
-                  <select value={transitionDuration} onChange={e => setTransitionDuration(Number(e.target.value))} className="rounded-lg bg-zinc-800 p-2 text-xs">
-                    <option value="150">150ms</option><option value="300">300ms</option><option value="500">500ms</option><option value="1000">1s</option>
-                  </select>
-                </div>
-                <div className="rounded-lg bg-black/30 p-2 space-y-2">
-                  <div className="flex items-center justify-between text-xs font-semibold"><span>PROGRAM / PREVIEW</span><span className="text-emerald-400">ON AIR: {programScene}</span></div>
-                  <div className="grid grid-cols-2 gap-2 text-[11px]">
-                    <button className="rounded bg-zinc-800 p-2" onClick={() => { setPreviewScene('camera'); previewSceneRef.current='camera'; }}>Preview Camera</button>
-                    <button className="rounded bg-zinc-800 p-2" onClick={() => { setPreviewScene('video'); previewSceneRef.current='video'; }}>Preview Video</button>
-                    <button className="rounded bg-zinc-800 p-2" onClick={() => { setPreviewScene('screen'); previewSceneRef.current='screen'; }}>Preview Screen</button>
-                    <button className="rounded bg-zinc-800 p-2" onClick={() => { setPreviewScene('replay'); previewSceneRef.current='replay'; }}>Preview Replay</button>
-                    <button className="rounded bg-zinc-800 p-2" disabled={!guestConnected} onClick={() => { setPreviewScene('guest'); previewSceneRef.current='guest'; }}>Preview Guest</button>
-                  </div>
-                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="space-y-1.5"><span className="flex justify-between text-[10px] font-semibold uppercase tracking-wide text-zinc-500"><span>Video audio</span><span>{Math.round(programLevel * 100)}%</span></span><input aria-label="Video audio level" type="range" min="0" max="1" step="0.05" value={programLevel} onChange={e => setProgramLevel(Number(e.target.value))} className="w-full" /></label>
+                <label className="space-y-1.5"><span className="flex justify-between text-[10px] font-semibold uppercase tracking-wide text-zinc-500"><span>Commentary</span><span>{Math.round(commentaryLevel * 100)}%</span></span><input aria-label="Commentary voice level" type="range" min="0" max="1.5" step="0.05" value={commentaryLevel} onChange={e => setCommentaryLevel(Number(e.target.value))} className="w-full" /></label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button size="sm" className="font-semibold" onClick={() => void takeScene(previewScene)}>TAKE {previewScene.toUpperCase()}</Button>
+                <Button size="sm" variant="outline" onClick={() => void takeScene('black')}>DIP TO BLACK</Button>
+                <label className="flex items-center gap-2 rounded-lg bg-zinc-900 px-2"><span className="text-[9px] uppercase text-zinc-500">Transition</span><select aria-label="Transition type" value={transitionType} onChange={e => setTransitionType(e.target.value as TransitionType)} className="min-w-0 flex-1 bg-transparent p-2 text-xs outline-none"><option value="cut">CUT</option><option value="fade">FADE</option><option value="dip">DIP</option></select></label>
+                <label className="flex items-center gap-2 rounded-lg bg-zinc-900 px-2"><span className="text-[9px] uppercase text-zinc-500">Duration</span><select aria-label="Transition duration" value={transitionDuration} onChange={e => setTransitionDuration(Number(e.target.value))} className="min-w-0 flex-1 bg-transparent p-2 text-xs outline-none"><option value="150">150ms</option><option value="300">300ms</option><option value="500">500ms</option><option value="1000">1s</option></select></label>
+              </div>
+
+              <div className="rounded-xl border border-white/10 bg-zinc-950/50 p-3 space-y-3">
+                <div className="flex items-center justify-between gap-2"><div><div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Scene presets</div><div className="text-[10px] text-zinc-600">Recall preview + transition + graphics together.</div></div><Button size="sm" variant="outline" onClick={() => saveScenePreset(window.prompt('Preset name') || '')}>Save preset</Button></div>
+                <div className="flex flex-wrap gap-2">{Object.keys(scenePresets).map(name => <button key={name} type="button" className="rounded-lg border border-white/10 bg-zinc-900 px-2.5 py-1.5 text-[10px] hover:border-white/20" onClick={() => loadScenePreset(name)}>{name}</button>)}{!Object.keys(scenePresets).length && <span className="text-[10px] text-zinc-600">No presets yet.</span>}</div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {(['camera','video','screen','guest'] as const).map(source => <div key={source} className={`rounded-lg border border-white/5 px-2 py-2 text-center ${sourceHealth[source] === 'ready' ? 'bg-emerald-500/10 text-emerald-300' : sourceHealth[source] === 'lost' ? 'bg-red-500/10 text-red-300' : 'bg-zinc-900 text-zinc-500'}`}><div className="text-[9px] uppercase tracking-wide">{source}</div><div className="text-[10px] font-semibold">{sourceHealth[source]}</div></div>)}
+              </div>
+            </section>
                 <div className="rounded-lg bg-black/30 p-2 space-y-2">
                   <div className="flex items-center gap-2 text-xs font-semibold"><BarChart3 className="w-4 h-4" />LIVE VIEWER VOTE</div>
                   <input value={pollQuestion} onChange={e => setPollQuestion(e.target.value)} placeholder="Question for viewers" className="w-full rounded bg-zinc-800 p-2 text-xs" disabled={!live} />
