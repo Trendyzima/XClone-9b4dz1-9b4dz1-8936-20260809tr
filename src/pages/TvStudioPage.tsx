@@ -1230,18 +1230,36 @@ export default function TvStudioPage() {
     if (!live) setStatus(cameraStreamRef.current ? 'preview' : 'idle');
   };
 
-  const toggleMic = () => {
-    const t = cameraStreamRef.current?.getAudioTracks()[0];
-    if (t) {
+  const toggleMic = async () => {
+    try {
+      if (!cameraStreamRef.current) await activateScene('camera');
+      const t = cameraStreamRef.current?.getAudioTracks()[0];
+      if (!t) { toast.info('Microphone is not available. Tap Preview first and allow microphone access.'); return; }
       t.enabled = !t.enabled;
       setMuted(!t.enabled);
       if (productionCommentaryGainRef.current) productionCommentaryGainRef.current.gain.value = t.enabled ? commentaryLevel : 0;
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not access the microphone');
     }
   };
 
-  const toggleCamera = () => {
-    const t = cameraStreamRef.current?.getVideoTracks()[0];
-    if (t) { t.enabled = !t.enabled; setCamera(t.enabled); }
+  const toggleCamera = async () => {
+    try {
+      if (!cameraStreamRef.current) await activateScene('camera');
+      const t = cameraStreamRef.current?.getVideoTracks()[0];
+      if (!t) { toast.info('Camera is not available. Tap Preview first and allow camera access.'); return; }
+      if (liveRef.current && programSceneRef.current === 'camera' && t.enabled) {
+        await takeScene('black');
+      }
+      t.enabled = !t.enabled;
+      setCamera(t.enabled);
+      if (t.enabled && programSceneRef.current === 'black' && !liveRef.current) {
+        setPreviewScene('camera');
+        previewSceneRef.current = 'camera';
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not access the camera');
+    }
   };
 
   const shareScreen = async () => {
@@ -1569,11 +1587,11 @@ export default function TvStudioPage() {
               </div>
             </div>
             <div className="p-3 border-t border-zinc-800/80 flex flex-wrap gap-2">
-              <Button size="sm" disabled={saving} onClick={() => void activateScene('camera')}><Camera className="w-4 h-4 mr-1" />Preview</Button>
+              <Button size="sm" disabled={saving} onClick={() => void activateScene('camera')}><Camera className="w-4 h-4 mr-1" />{deviceReady ? 'Preview' : 'Start preview'}</Button>
               <Button size="sm" variant="outline" onClick={() => setShortcutHint(v => !v)}>Shortcuts</Button>
-              <Button size="sm" variant={camera ? 'default' : 'destructive'} onClick={toggleCamera}><Camera className="w-4 h-4 mr-1" />{camera ? 'Camera' : 'Camera off'}</Button>
-              <Button size="sm" variant={!muted ? 'default' : 'destructive'} onClick={toggleMic}><Mic className="w-4 h-4 mr-1" />{muted ? 'Mic off' : 'Mic'}</Button>
-              <Button size="sm" variant={sharing ? 'secondary' : 'outline'} onClick={() => void shareScreen()}><MonitorUp className="w-4 h-4 mr-1" />{sharing ? 'Stop screen' : 'Screen'}</Button>
+              <Button size="sm" variant={camera ? 'default' : 'destructive'} onClick={() => void toggleCamera()}><Camera className="w-4 h-4 mr-1" />{camera ? 'Camera' : 'Camera off'}</Button>
+              <Button size="sm" variant={!muted ? 'default' : 'destructive'} onClick={() => void toggleMic()}><Mic className="w-4 h-4 mr-1" />{muted ? 'Mic off' : 'Mic'}</Button>
+              <Button size="sm" disabled={!getDisplayMedia()} variant={sharing ? 'secondary' : 'outline'} onClick={() => void shareScreen()}><MonitorUp className="w-4 h-4 mr-1" />{sharing ? 'Stop screen' : getDisplayMedia() ? 'Screen' : 'Screen unavailable'}</Button>
               {!recording ? <Button size="sm" disabled={saving} onClick={() => void startRecording()}><Circle className="w-4 h-4 mr-1" />Record locally</Button> : <Button size="sm" variant="destructive" onClick={stopRecording}><Square className="w-4 h-4 mr-1" />Stop & save</Button>}
               {!live ? <Button size="sm" disabled={broadcastStage !== 'idle'} className="bg-red-600 hover:bg-red-700" onClick={() => void startLive()}><Radio className="w-4 h-4 mr-1" />{broadcastStage === 'idle' ? 'Go live' : broadcastStage === 'on-air' ? 'ON AIR' : 'Connecting…'}</Button> : <><Button size="sm" variant="outline" onClick={() => void shareLiveLink()}><Radio className="w-4 h-4 mr-1" />Share TV</Button><Button size="sm" variant="destructive" onClick={() => void stopLive()}>End live</Button></>}
             </div>
@@ -1587,7 +1605,7 @@ export default function TvStudioPage() {
                   <p className="mt-1 text-[11px] text-zinc-500">Build the preview, then TAKE it to Program. Only Program reaches the broadcast bus.</p>
                 </div>
                 <div className="shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
-                  ON AIR · {programScene}
+                  {live ? 'ON AIR' : 'PROGRAM'} · {programScene}
                 </div>
               </div>
 
@@ -1623,7 +1641,10 @@ export default function TvStudioPage() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <div className="text-[10px] font-semibold uppercase tracking-wider text-zinc-400">Preview source</div>
-                    <div className="mt-1 text-sm font-medium">{previewScene.toUpperCase()}</div>
+                    <div className="mt-1 flex items-center gap-2 text-sm font-medium">
+                    <span>{previewScene.toUpperCase()}</span>
+                    <span className={`h-2 w-2 rounded-full ${previewScene === 'camera' ? sourceHealth.camera === 'ready' : previewScene === 'video' ? sourceHealth.video === 'ready' : previewScene === 'screen' ? sourceHealth.screen === 'ready' : previewScene === 'guest' ? sourceHealth.guest === 'ready' : replayBufferRef.current.frameCount > 0 ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
+                  </div>
                     <div className="mt-0.5 text-[10px] text-zinc-500">
                       {previewScene === 'camera' ? 'Live camera feed' : previewScene === 'video' ? (uploadedVideoName || 'Choose a local video') : previewScene === 'screen' ? (sharing ? 'Screen capture active' : 'Screen capture not started') : previewScene === 'guest' ? (guestConnected ? 'Guest camera connected' : 'Waiting for guest') : 'Replay buffer'}
                     </div>
@@ -1643,7 +1664,7 @@ export default function TvStudioPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-2">
-                <Button size="sm" className="font-semibold" onClick={() => void takeScene(previewScene)}>TAKE {previewScene.toUpperCase()}</Button>
+                <Button size="sm" className="font-semibold" disabled={previewScene !== 'black' && ((previewScene === 'camera' && sourceHealth.camera !== 'ready') || (previewScene === 'video' && sourceHealth.video !== 'ready') || (previewScene === 'screen' && sourceHealth.screen !== 'ready') || (previewScene === 'guest' && sourceHealth.guest !== 'ready') || (previewScene === 'replay' && replayBufferRef.current.frameCount === 0))} onClick={() => void takeScene(previewScene)}>TAKE {previewScene.toUpperCase()}</Button>
                 <Button size="sm" variant="outline" onClick={() => void takeScene('black')}>DIP TO BLACK</Button>
                 <label className="flex items-center gap-2 rounded-lg bg-zinc-900 px-2"><span className="text-[9px] uppercase text-zinc-500">Transition</span><select aria-label="Transition type" value={transitionType} onChange={e => setTransitionType(e.target.value as TransitionType)} className="min-w-0 flex-1 bg-transparent p-2 text-xs outline-none"><option value="cut">CUT</option><option value="fade">FADE</option><option value="dip">DIP</option></select></label>
                 <label className="flex items-center gap-2 rounded-lg bg-zinc-900 px-2"><span className="text-[9px] uppercase text-zinc-500">Duration</span><select aria-label="Transition duration" value={transitionDuration} onChange={e => setTransitionDuration(Number(e.target.value))} className="min-w-0 flex-1 bg-transparent p-2 text-xs outline-none"><option value="150">150ms</option><option value="300">300ms</option><option value="500">500ms</option><option value="1000">1s</option></select></label>
