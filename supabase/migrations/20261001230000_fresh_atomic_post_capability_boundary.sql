@@ -144,3 +144,31 @@ $function$;
 
 revoke all on function public.capability_dispatch_v2(text,jsonb) from public;
 grant execute on function public.capability_dispatch_v2(text,jsonb) to anon, authenticated;
+
+
+create or replace function public.capability_dispatch(
+  p_capability text,
+  p_input jsonb default '{}'::jsonb
+)
+returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $function$
+declare
+  v_user_id uuid := auth.uid();
+begin
+  p_capability := btrim(coalesce(p_capability,''));
+
+  if p_capability not in ('testagram.capabilities.list','testagram.health.read')
+     and v_user_id is null then
+    raise exception using errcode='28000', message='Authentication required';
+  end if;
+
+  if p_capability='testagram.posts.create' then
+    return public.create_post_atomic_v3(p_input);
+  end if;
+
+  return public.capability_dispatch_legacy(p_capability,p_input);
+end;
+$function$;
