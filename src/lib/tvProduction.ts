@@ -74,10 +74,11 @@ export function drawTvGraphics(
   height: number,
   graphics: TvGraphic[],
   tickerOffset: number,
-  options: { live?: boolean; watermark?: boolean } = {},
+  options: { live?: boolean; watermark?: boolean; graphicsEnabled?: boolean } = {},
 ) {
   const live = options.live ?? false;
   const watermark = options.watermark ?? true;
+  const graphicsEnabled = options.graphicsEnabled ?? true;
   const safeX = Math.max(28, Math.round(width * 0.055));
   const safeY = Math.max(22, Math.round(height * 0.055));
   const safeW = width - safeX * 2;
@@ -132,10 +133,10 @@ export function drawTvGraphics(
   };
 
   const stationBug = graphics.find(g => g.id === 'station-bug');
-  if (stationBug?.visible) drawBrandBug();
+  if (graphicsEnabled && stationBug?.visible) drawBrandBug();
   drawWatermark();
 
-  const ordered = [...graphics].filter(g => g.visible && g.id !== 'station-bug').sort((a, b) => a.z - b.z);
+  const ordered = graphicsEnabled ? [...graphics].filter(g => g.visible && g.id !== 'station-bug').sort((a, b) => a.z - b.z) : [];
   for (const g of ordered) {
     if (g.kind === 'bug') {
       // The station bug is rendered by the broadcast branding layer above.
