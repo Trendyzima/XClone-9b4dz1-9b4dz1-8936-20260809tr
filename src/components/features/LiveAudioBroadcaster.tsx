@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { Mic, Square, Loader2, Radio, SlidersHorizontal } from 'lucide-react';
+import { Mic, Square, Loader2, Radio, SlidersHorizontal, Check, X } from 'lucide-react';
 import { createStudioAudioPipeline, requestStudioMicrophone, chooseAudioMimeType, type StudioAudioPipeline } from '@/lib/studioAudio';
 import { TestagramMediaSession } from '@/lib/testagramMedia';
 
@@ -36,6 +36,7 @@ export function LiveAudioBroadcaster({
   const [uploading, setUploading] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [transportReady, setTransportReady] = useState(false);
+  const [speakerRequests, setSpeakerRequests] = useState<any[]>([]);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -45,6 +46,39 @@ export function LiveAudioBroadcaster({
   const mediaSessionRef = useRef<TestagramMediaSession | null>(null);
   const startedAtRef = useRef<number | null>(null);
   const stoppingRef = useRef(false);
+
+  const loadSpeakerRequests = useCallback(async () => {
+    if (!isHost) return;
+    const { data, error } = await supabase
+      .from('audio_space_speaker_requests')
+      .select('space_id,user_id,status,requested_at,profiles:user_id(id,username,avatar_url)')
+      .eq('space_id', spaceId)
+      .eq('status', 'pending')
+      .order('requested_at', { ascending: true });
+    if (!error) setSpeakerRequests(data || []);
+    else console.warn('[Audio Space] speaker request fetch failed', error);
+  }, [isHost, spaceId]);
+
+  useEffect(() => {
+    void loadSpeakerRequests();
+    if (!isHost) return;
+    const timer = window.setInterval(() => void loadSpeakerRequests(), 2500);
+    return () => window.clearInterval(timer);
+  }, [isHost, loadSpeakerRequests]);
+
+  const decideSpeakerRequest = async (userId: string, decision: 'approved' | 'denied') => {
+    const { error } = await supabase.rpc('decide_audio_space_speaker_request', {
+      p_space_id: spaceId,
+      p_user_id: userId,
+      p_decision: decision,
+    });
+    if (error) {
+      toast({ title: 'Speaker request failed', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setSpeakerRequests(current => current.filter(request => request.user_id !== userId));
+    toast({ title: decision === 'approved' ? 'Speaker approved' : 'Request denied' });
+  };
 
   const cleanup = useCallback(async () => {
     if (timerRef.current !== null) {
@@ -232,6 +266,26 @@ export function LiveAudioBroadcaster({
         <div className="flex items-center justify-center space-x-2 py-3">
           <Loader2 className="w-5 h-5 animate-spin" />
           <span className="text-sm text-muted-foreground">Saving recording…</span>
+        </div>
+      )}
+
+      {isBroadcasting && speakerRequests.length > 0 && (
+        <div className="rounded-lg border border-border p-3 space-y-2">
+          <div className="text-sm font-semibold">Speaking requests ({speakerRequests.length})</div>
+          {speakerRequests.map(request => (
+            <div key={request.user_id} className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium truncate">{request.profiles?.username || 'Listener'}</p>
+                <p className="text-xs text-muted-foreground">wants to join the stage</p>
+              </div>
+              <Button size="icon" variant="outline" onClick={() => void decideSpeakerRequest(request.user_id, 'approved')} aria-label="Approve speaker">
+                <Check className="w-4 h-4" />
+              </Button>
+              <Button size="icon" variant="ghost" onClick={() => void decideSpeakerRequest(request.user_id, 'denied')} aria-label="Deny speaker">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          ))}
         </div>
       )}
 
