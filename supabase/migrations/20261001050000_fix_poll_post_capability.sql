@@ -383,5 +383,4 @@ begin
       raise exception using errcode='0A000',message='Capability not implemented: '||p_capability;
   end case;
 end;
-$function$
-
+$function$;
