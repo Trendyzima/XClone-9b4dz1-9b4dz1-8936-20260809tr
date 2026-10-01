@@ -29,6 +29,7 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
   const [space, setSpace] = useState<any>(null);
   const [isMuted, setIsMuted] = useState(true);
   const [role, setRole] = useState<'listener' | 'speaker'>('listener');
+  const [speakerRequestStatus, setSpeakerRequestStatus] = useState<'none' | 'pending' | 'approved' | 'denied'>('none');
   const [joined, setJoined] = useState(false);
   const [liveConnected, setLiveConnected] = useState(false);
 
@@ -113,6 +114,23 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
   }, [joined, space?.is_live, spaceId, role, user?.id, space?.host?.id]);
 
   useEffect(() => {
+    if (!joined || !spaceId || !user || space.host?.id === user.id) return;
+    let cancelled = false;
+    const syncRole = async () => {
+      const [{ data: participant }, { data: request }] = await Promise.all([
+        supabase.from('space_participants').select('role').eq('space_id', spaceId).eq('user_id', user.id).is('left_at', null).maybeSingle(),
+        supabase.from('audio_space_speaker_requests').select('status').eq('space_id', spaceId).eq('user_id', user.id).maybeSingle(),
+      ]);
+      if (cancelled) return;
+      if (participant?.role === 'speaker') setRole('speaker');
+      setSpeakerRequestStatus((request?.status as any) || 'none');
+    };
+    void syncRole();
+    const timer = window.setInterval(() => void syncRole(), 2500);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [joined, spaceId, user?.id, space?.host?.id]);
+
+  useEffect(() => {
     localMediaStreamRef.current?.getAudioTracks().forEach(track => { track.enabled = !isMuted; });
   }, [isMuted]);
 
@@ -122,6 +140,8 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
     try {
       const { error } = await supabase.rpc('join_audio_space', { p_space_id: spaceId });
       if (error) throw error;
+      setRole('listener');
+      setSpeakerRequestStatus('none');
       setJoined(true);
       toast({ title: 'Joined Space', description: `You're now ${role === 'listener' ? 'listening to' : 'speaking in'} this Space` });
       await fetchSpace();
@@ -218,21 +238,29 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
             {!joined ? (
               <div className="space-y-4">
                 <div className="flex items-center space-x-2">
-                  <Button
-                    variant={role === 'listener' ? 'default' : 'outline'}
-                    onClick={() => setRole('listener')}
-                    className="flex-1"
-                  >
+                  <Button variant="default" className="flex-1" disabled>
                     <Users className="w-4 h-4 mr-2" />
                     Listen
                   </Button>
                   <Button
-                    variant={role === 'speaker' ? 'default' : 'outline'}
-                    onClick={() => setRole('speaker')}
+                    variant="outline"
                     className="flex-1"
+                    onClick={async () => {
+                      if (!joined) {
+                        await handleJoin();
+                        return;
+                      }
+                      const { error } = await supabase.rpc('request_audio_space_speaker', { p_space_id: spaceId });
+                      if (error) {
+                        toast({ title: 'Speaker request failed', description: error.message, variant: 'destructive' });
+                        return;
+                      }
+                      setSpeakerRequestStatus('pending');
+                      toast({ title: 'Request sent', description: 'The host will decide whether to bring you on stage.' });
+                    }}
                   >
                     <Mic className="w-4 h-4 mr-2" />
-                    Speak
+                    Request to speak
                   </Button>
                 </div>
 
@@ -267,6 +295,26 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
                     <p className="text-sm text-muted-foreground">
                       You're in this Space as a {role}
                     </p>
+                    {role === 'listener' && speakerRequestStatus !== 'approved' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="mt-3"
+                        disabled={speakerRequestStatus === 'pending'}
+                        onClick={async () => {
+                          const { error } = await supabase.rpc('request_audio_space_speaker', { p_space_id: spaceId });
+                          if (error) {
+                            toast({ title: 'Speaker request failed', description: error.message, variant: 'destructive' });
+                            return;
+                          }
+                          setSpeakerRequestStatus('pending');
+                          toast({ title: 'Request sent', description: 'Waiting for the host.' });
+                        }}
+                      >
+                        <Mic className="w-4 h-4 mr-2" />
+                        {speakerRequestStatus === 'pending' ? 'Speaker request pending' : 'Request to speak'}
+                      </Button>
+                    )}
                   </div>
                 </div>
 
