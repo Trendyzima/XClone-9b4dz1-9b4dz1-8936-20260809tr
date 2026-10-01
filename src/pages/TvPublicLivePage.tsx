@@ -58,6 +58,7 @@ export default function TvPublicLivePage() {
   const [error, setError] = useState('');
   const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
   const [youtubePlayerError, setYoutubePlayerError] = useState(false);
+  const [guestSlot, setGuestSlot] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -189,6 +190,7 @@ export default function TvPublicLivePage() {
           );
 
           sessionRef.current = session;
+          setGuestSlot(Number((session as any).guestSlot || 0) || null);
           setLive(true);
           setConnecting(false);
           return;
@@ -344,7 +346,7 @@ export default function TvPublicLivePage() {
         <div className="min-w-0">
           <div className="flex items-center gap-2 font-semibold truncate">
             <Radio className="w-4 h-4 text-red-500" />
-            {isGuest ? 'TV Guest' : title}
+            {isGuest ? (guestSlot ? 'TV Guest ' + guestSlot : 'TV Guest') : title}
           </div>
           <div className="text-xs text-zinc-500">
             {viewerStatus}
@@ -396,7 +398,7 @@ export default function TvPublicLivePage() {
 
       <main className="flex-1 flex flex-col items-center justify-center gap-3 p-3">
         <div className="w-full max-w-6xl flex items-center justify-between gap-3 text-xs text-zinc-500">
-          <span>{isGuest ? 'Studio guest connection' : 'Testagram TV live player'}</span>
+          <span>{isGuest ? (guestSlot ? 'Studio guest slot ' + guestSlot : 'Studio guest connection') : 'Testagram TV live player'}</span>
           {!isGuest && live ? (
             <span className="inline-flex items-center gap-1 text-red-400 font-semibold">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
