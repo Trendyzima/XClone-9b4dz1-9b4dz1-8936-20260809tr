@@ -1904,6 +1904,21 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
   const fmt = (n: number) => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
   const guestLabel = guestLifecycle === 'connected' ? 'CONNECTED' : guestLifecycle === 'partial' ? 'PARTIAL · WAITING FOR MEDIA' : guestLifecycle === 'connecting' ? 'CONNECTING' : guestLifecycle === 'invited' ? 'INVITE ACTIVE' : guestLifecycle === 'lost' ? 'SIGNAL LOST' : 'OFFLINE';
 
+  const previewSceneSlots: Array<{ scene: TvSceneId; label: string; detail: string; ready: boolean; active: boolean }> = [
+    { scene: 'camera', label: 'CAMERA', detail: sourceHealth.camera === 'ready' ? 'Live camera' : 'Start camera', ready: sourceHealth.camera === 'ready', active: previewScene === 'camera' },
+    { scene: 'video', label: 'VIDEO', detail: uploadedVideoName || 'Load media', ready: sourceHealth.video === 'ready', active: previewScene === 'video' },
+    { scene: 'screen', label: 'SCREEN', detail: sharing ? 'Screen ready' : 'Share screen', ready: sourceHealth.screen === 'ready', active: previewScene === 'screen' },
+    { scene: 'guest', label: activeGuestSlot ? 'GUEST ' + activeGuestSlot : 'GUEST', detail: guestConnected ? 'Guest ready' : 'Waiting for guest', ready: guestConnected, active: previewScene === 'guest' },
+    { scene: 'replay', label: 'REPLAY', detail: replayBufferRef.current.frameCount ? Math.round(replayBufferRef.current.durationMs / 1000) + 's buffered' : 'Buffer empty', ready: replayBufferRef.current.frameCount > 0, active: previewScene === 'replay' },
+    { scene: 'black', label: 'BLACK', detail: 'Clear programme', ready: true, active: previewScene === 'black' },
+  ];
+
+  const playPreviewSlot = async (scene: TvSceneId) => {
+    previewSceneRef.current = scene;
+    setPreviewScene(scene);
+    await takeScene(scene);
+  };
+
   if (persistentDock) {
     return (
       <div className="fixed inset-x-0 top-0 z-[160] border-b border-white/10 bg-zinc-950/95 shadow-2xl backdrop-blur-xl">
@@ -2027,6 +2042,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
               <div className="aspect-video relative rounded-lg overflow-hidden border border-blue-500/30 bg-black">
                 <canvas ref={previewCanvasRef} className="w-full h-full object-contain" />
                 <span className="absolute top-2 left-2 rounded bg-zinc-950/90 border border-zinc-700/70 px-2 py-1 text-[10px] font-bold tracking-wider">TESTAGRAM TV · PREVIEW · {previewScene.toUpperCase()}</span>
+                <span className="absolute top-2 right-2 rounded bg-blue-600/90 px-2 py-1 text-[9px] font-black tracking-wider">CLICK A SLOT → PROGRAM</span>
               </div>
               <div className="aspect-video relative rounded-lg overflow-hidden border border-red-500/30 bg-black">
                 {status === 'idle' && <div className="absolute inset-0 z-10 flex flex-col items-center justify-center text-zinc-500"><Radio className="w-10 h-10 mb-2" /><span>Program monitor</span><span className="text-xs mt-1">Tap Preview to start the camera and microphone</span></div>}
@@ -2042,6 +2058,34 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
                   <span className="rounded bg-red-600/90 px-2 py-1 text-[10px] font-bold tracking-wider">{live ? '● LIVE · TESTAGRAM TV' : 'TESTAGRAM TV · PROGRAM'}</span>
                   {sharing && <span className="rounded bg-blue-600/90 px-2 py-1 text-[10px] font-bold">SCREEN</span>}
                 </div>
+              </div>
+            </div>
+            <div className="border-t border-zinc-800/80 bg-zinc-950/90 p-3">
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div>
+                  <div className="text-[10px] font-black tracking-[0.18em] text-zinc-300">PREVIEW SCENE BANK</div>
+                  <div className="text-[10px] text-zinc-500">Every slot is a ready-to-feed source. Tap once to take it to Program.</div>
+                </div>
+                <span className="rounded-full border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-[9px] font-bold text-blue-300">{previewSceneSlots.length} SLOTS</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                {previewSceneSlots.map(slot => (
+                  <button
+                    key={slot.scene}
+                    type="button"
+                    onClick={() => void playPreviewSlot(slot.scene)}
+                    disabled={saving || (slot.scene === 'guest' && !slot.ready)}
+                    className={`group min-w-0 rounded-xl border p-2 text-left transition-all ${slot.active ? 'border-blue-400 bg-blue-500/15 ring-1 ring-blue-400/40' : 'border-white/10 bg-black/30 hover:border-white/25 hover:bg-white/5'} disabled:cursor-not-allowed disabled:opacity-50`}
+                    aria-label={`Take ${slot.label} to Program`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[10px] font-black tracking-wider">{slot.label}</span>
+                      <span className={`h-2 w-2 rounded-full ${slot.ready ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
+                    </div>
+                    <div className="mt-1 truncate text-[9px] text-zinc-500">{slot.detail}</div>
+                    <div className={`mt-2 text-[9px] font-black ${slot.active ? 'text-blue-300' : 'text-zinc-400'}`}>{slot.active ? 'PROGRAM READY' : 'TAKE →'}</div>
+                  </button>
+                ))}
               </div>
             </div>
             <div className="p-3 border-t border-zinc-800/80 flex flex-wrap gap-2">
