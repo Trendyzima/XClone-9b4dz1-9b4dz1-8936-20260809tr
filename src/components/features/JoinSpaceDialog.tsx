@@ -30,6 +30,7 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
   const [isMuted, setIsMuted] = useState(true);
   const [role, setRole] = useState<'listener' | 'speaker'>('listener');
   const [joined, setJoined] = useState(false);
+  const [liveConnected, setLiveConnected] = useState(false);
 
   useEffect(() => {
     if (spaceId && open) {
@@ -71,6 +72,7 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
   useEffect(() => {
     if (!joined || !space?.is_live || !spaceId || !user || space.host?.id === user.id) return;
     let cancelled = false;
+    setLiveConnected(false);
     const connect = async () => {
       try {
         let local: MediaStream | undefined;
@@ -82,6 +84,7 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
           local.getAudioTracks().forEach(track => { track.enabled = !isMuted; });
         }
         const session = await TestagramMediaSession.connectSpace(spaceId, role, local, remote => {
+          setLiveConnected(true);
           if (!liveAudioRef.current) return;
           liveAudioRef.current.srcObject = remote;
           liveAudioRef.current.muted = false;
@@ -102,6 +105,7 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
       cancelled = true;
       void mediaSessionRef.current?.close();
       mediaSessionRef.current = null;
+      setLiveConnected(false);
       localMediaStreamRef.current?.getTracks().forEach(track => track.stop());
       localMediaStreamRef.current = null;
       if (liveAudioRef.current) liveAudioRef.current.srcObject = null;
@@ -274,7 +278,13 @@ export function JoinSpaceDialog({ open, onOpenChange, spaceId }: JoinSpaceDialog
                   />
                 )}
 
-                {/* Live Audio Player (All Participants) */}
+                <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${liveConnected ? 'border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400' : 'border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400'}`}>
+                  <span className={`w-2 h-2 rounded-full ${liveConnected ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'}`} />
+                  <span className="font-semibold">{liveConnected ? 'Live audio connected' : 'Connecting to live audio…'}</span>
+                  <span className="ml-auto text-muted-foreground">Testagram native transport</span>
+                </div>
+
+                {/* Replay is deliberately separate from the live transport. */}
                 <LiveAudioPlayer
                   spaceId={spaceId!}
                   isLive={space.is_live}
