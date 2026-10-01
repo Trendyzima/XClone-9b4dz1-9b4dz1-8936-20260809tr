@@ -596,13 +596,33 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       if (scene === 'camera') {
         fitCameraLandscape(target, camera);
       } else if (scene === 'video' && sourceVideo) {
-        fit(target, sourceVideo, true);
-        if (pipEnabledRef.current && camera.readyState >= 2 && camera.videoWidth) {
-          const pw = Math.round(canvas.width * 0.28), ph = Math.round(pw * (camera.videoHeight / camera.videoWidth));
-          const px = canvas.width - pw - 28, py = canvas.height - ph - 28;
-          target.save(); target.shadowColor = 'rgba(0,0,0,.65)'; target.shadowBlur = 18;
-          target.fillStyle = '#000'; target.fillRect(px - 5, py - 5, pw + 10, ph + 10); target.restore();
-          target.drawImage(camera, px, py, pw, ph);
+        const activeGuests = guestSlotsRef.current.filter(g => (g.lifecycle === 'connected' || g.lifecycle === 'partial') && g.videoReady).sort((x, y) => x.slot - y.slot);
+        const hostReady = camera.readyState >= 2 && camera.videoWidth > 0;
+        const guestVideos = activeGuests.map(g => guestVideoElementsRef.current.get(g.slot) || null).filter((v): v is HTMLVideoElement => Boolean(v && v.readyState >= 2 && v.videoWidth > 0));
+        const sources: Array<{ kind: 'video' | 'camera' | 'guest'; media: HTMLVideoElement }> = [
+          { kind: 'video', media: sourceVideo },
+          ...(hostReady ? [{ kind: 'camera' as const, media: camera }] : []),
+          ...guestVideos.map(media => ({ kind: 'guest' as const, media })),
+        ];
+        if (sources.length <= 2) {
+          fit(target, sourceVideo, true);
+          if (hostReady && pipEnabledRef.current) {
+            const pw = Math.round(canvas.width * 0.28), ph = Math.round(pw * (camera.videoHeight / camera.videoWidth));
+            const px = canvas.width - pw - 28, py = canvas.height - ph - 28;
+            target.save(); target.shadowColor = 'rgba(0,0,0,.65)'; target.shadowBlur = 18; target.fillStyle = '#000'; target.fillRect(px - 5, py - 5, pw + 10, ph + 10); target.restore();
+            target.drawImage(camera, px, py, pw, ph);
+          }
+        } else {
+          const gap = Math.max(6, Math.round(canvas.width * 0.008)), mediaWidth = Math.round(canvas.width * 0.58);
+          const sideX = mediaWidth + gap, sideWidth = canvas.width - sideX, sideCount = sources.length - 1;
+          const sideHeight = Math.floor((canvas.height - gap * (sideCount - 1)) / sideCount);
+          fit(target, sourceVideo, false, mediaWidth, canvas.height);
+          sources.slice(1).forEach((entry, index) => {
+            const y = index * (sideHeight + gap);
+            target.save(); target.fillStyle = '#050505'; target.fillRect(sideX, y, sideWidth, sideHeight); target.restore();
+            fit(target, entry.media, false, sideWidth, sideHeight);
+            target.save(); target.fillStyle = 'rgba(0,0,0,.72)'; target.fillRect(sideX + 8, y + 8, 88, 20); target.fillStyle = '#fff'; target.font = '800 10px sans-serif'; target.fillText(entry.kind === 'camera' ? 'HOST' : 'GUEST', sideX + 14, y + 22); target.restore();
+          });
         }
       } else if (scene === 'screen') {
         if (screenStreamRef.current && screenVideo.srcObject !== screenStreamRef.current) screenVideo.srcObject = screenStreamRef.current;
@@ -620,18 +640,18 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       const mv = multiviewCanvasRef.current;
       if (!mv || !multiview) return;
       const mctx = mv.getContext('2d'); if (!mctx) return;
-      const w=mv.width,h=mv.height,cols=4,cellW=w/cols,cellH=h/3;
+      const w=mv.width,h=mv.height;
       mctx.fillStyle='#09090b';mctx.fillRect(0,0,w,h);
-      const guests=guestSlotsRef.current.slice().sort((a,b)=>a.slot-b.slot);
+      const guests=guestSlotsRef.current.filter(g => (g.lifecycle === 'connected' || g.lifecycle === 'partial') && g.videoReady).sort((a,b)=>a.slot-b.slot);
       const cells:any[]=[
-        {scene:'camera',label:'CAMERA',x:0,y:0,width:cellW},
-        {scene:'video',label:'VIDEO',x:cellW,y:0,width:cellW},
-        {scene:'screen',label:'SCREEN',x:cellW*2,y:0,width:cellW},
-        {scene:'replay',label:'REPLAY',x:cellW*3,y:0,width:cellW},
-        {scene:'preview',label:'PREVIEW',x:0,y:cellH,width:cellW},
-        {scene:'program',label:'PROGRAM',x:cellW,y:cellH,width:cellW*3},
+        {scene:'camera',label:'CAMERA'}, {scene:'video',label:'VIDEO'}, {scene:'screen',label:'SCREEN'}, {scene:'replay',label:'REPLAY'}, {scene:'preview',label:'PREVIEW'}, {scene:'program',label:'PROGRAM'},
+        ...guests.map(g=>({scene:'guest:'+g.slot,label:g.label.toUpperCase()})),
       ];
-      guests.forEach((g,i)=>cells.push({scene:'guest:'+g.slot,label:g.label.toUpperCase(),x:(i%4)*cellW,y:cellH*2,width:cellW}));
+      const cols = cells.length <= 2 ? cells.length : cells.length <= 4 ? 2 : cells.length <= 6 ? 3 : 4;
+      const rows = Math.max(1, Math.ceil(cells.length / cols));
+      const gap = Math.max(4, Math.round(w * 0.006));
+      const cellW = Math.floor((w - gap * (cols - 1)) / cols), cellH = Math.floor((h - gap * (rows - 1)) / rows);
+      cells.forEach((item:any,i)=>{ item.x=(i%cols)*(cellW+gap); item.y=Math.floor(i/cols)*(cellH+gap); item.width=cellW; item.height=cellH; });
       const status=(scene:string)=>{
         if(scene.startsWith('guest:')) return guests.find(g=>g.slot===Number(scene.split(':')[1]))?.lifecycle.toUpperCase()||'OFFLINE';
         if(scene==='program') return liveRef.current?'ON AIR':'PROGRAM';
@@ -644,16 +664,16 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       };
       cells.slice(0,12).forEach((item:any,i)=>{
         const cell=multiviewCellCanvasRefs.current[i]??document.createElement('canvas');
-        if(cell.width!==item.width)cell.width=item.width;if(cell.height!==cellH)cell.height=cellH;
+        if(cell.width!==item.width)cell.width=item.width;if(cell.height!==item.height)cell.height=item.height;
         multiviewCellCanvasRefs.current[i]=cell;
         const c=cell.getContext('2d');if(!c)return;c.fillStyle='#000';c.fillRect(0,0,item.width,cellH);
-        if(item.scene==='camera')fitCameraLandscape(c,camera,item.width,cellH);
-        else if(item.scene==='video'&&sourceVideo)fit(c,sourceVideo,true,item.width,cellH);
-        else if(item.scene==='screen')fit(c,screenVideo,true,item.width,cellH);
+        if(item.scene==='camera')fitCameraLandscape(c,camera,item.width,item.height);
+        else if(item.scene==='video'&&sourceVideo)fit(c,sourceVideo,true,item.width,item.height);
+        else if(item.scene==='screen')fit(c,screenVideo,true,item.width,item.height);
         else if(item.scene==='replay'){const f=replayBufferRef.current.latestCanvas();if(f)c.drawImage(f,0,0,item.width,cellH);}
         else if(item.scene==='preview'){const p=previewCanvasRef.current;if(p&&p.width)c.drawImage(p,0,0,item.width,cellH);}
         else if(item.scene==='program')c.drawImage(canvas,0,0,item.width,cellH);
-        else if(item.scene.startsWith('guest:'))fit(c,guestVideoElementsRef.current.get(Number(item.scene.split(':')[1]))||null,true,item.width,cellH);
+        else if(item.scene.startsWith('guest:'))fit(c,guestVideoElementsRef.current.get(Number(item.scene.split(':')[1]))||null,true,item.width,item.height);
         mctx.drawImage(cell,item.x,item.y);mctx.fillStyle='rgba(9,9,11,.88)';mctx.fillRect(item.x,item.y,item.width,28);
         mctx.fillStyle='#fff';mctx.font='800 10px sans-serif';mctx.fillText(item.label,item.x+7,item.y+12);
         mctx.fillStyle=item.scene==='program'&&liveRef.current?'#f87171':'#a1a1aa';mctx.font='700 9px sans-serif';mctx.fillText(status(item.scene),item.x+7,item.y+23);
@@ -784,6 +804,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       productionSourceGainRef.current.gain.value =
         programSceneRef.current === 'video' && !sourceVideoMuted && !programMuted ? programLevel : 0;
     }
+    if (sourceVideo && sourceVideo.muted !== sourceVideoMuted) sourceVideo.muted = sourceVideoMuted;
 
     if (audioPipelineRef.current && !productionCommentaryGainRef.current) {
       const commentary = audioContext.createMediaStreamSource(audioPipelineRef.current.stream);
@@ -1104,6 +1125,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     }
     const nextMuted = !sourceVideoMuted;
     setSourceVideoMuted(nextMuted);
+    sourceVideoRef.current.muted = nextMuted;
     const gain = productionSourceGainRef.current;
     if (gain) {
       const context = productionAudioContextRef.current;
