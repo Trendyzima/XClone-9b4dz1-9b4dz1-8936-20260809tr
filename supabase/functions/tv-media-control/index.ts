@@ -191,7 +191,7 @@ Deno.serve(async req=>{
   if(e||!claimed)return json({ok:false,error:{code:"INVITE_INVALID",message:"This TV guest invite is invalid, expired, or already claimed."}},401);
   return json({ok:true,data:{...(await contract("guest")),guest_token:invite,guest_slot:Number(claimed.slot_number||0),guest_label:"Guest "+Number(claimed.slot_number||0),muted:Boolean(claimed.muted),blocked:Boolean(claimed.blocked)},error:null});
  }
- if(action==="viewer"&&platformOwner&&!s.is_live)return json({ok:true,data:await contract("host",{preview:true,on_air:false}),error:null});
+ if((action==="viewer"||action==="guest")&&platformOwner&&!s.is_live)return json({ok:true,data:await contract(action==="guest"?"guest":"host",{preview:true,on_air:false}),error:null});
  if(!s.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
  return json({ok:true,data:await contract(action==="viewer"?"viewer":"unknown"),error:null});
 });
