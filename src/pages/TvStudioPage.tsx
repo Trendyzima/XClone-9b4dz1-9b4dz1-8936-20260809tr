@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { TestagramTvMediaSession } from '@/lib/testagramTvMedia';
 import { TestagramTvYouTubeSession } from '@/lib/testagramTvYouTube';
-import { Camera, Mic, MonitorUp, Circle, Square, Radio, Users, Download, Clapperboard, Settings2, Activity, ShieldCheck, Upload, PictureInPicture2, Layers3, BarChart3 } from 'lucide-react';
+import { Camera, Mic, MonitorUp, Circle, Square, Radio, Users, Download, Clapperboard, Settings2, Activity, ShieldCheck, Upload, PictureInPicture2, Layers3, BarChart3, Copy, Share2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -2166,7 +2166,8 @@ export default function TvStudioPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <Button size="sm" variant={multiview ? 'default' : 'outline'} onClick={() => setMultiview(v => !v)}>Multiview</Button>
-                  <Button size="sm" variant="outline" aria-label="Generate guest link" title="Generate the next guest link" onPointerDown={() => void createGuestInvite()} onClick={() => void createGuestInvite()} disabled={guestSlots.length >= TV_GUEST_CAPACITY}><Users className="w-4 h-4 mr-1" />{guestSlots.length>=TV_GUEST_CAPACITY?'Guest slots full':'Guest '+(guestSlots.length+1)}</Button>
+                  <Button type="button" size="sm" variant="outline" aria-label="Generate guest link" title="Generate the next guest link" onClick={() => void createGuestInvite()} disabled={guestSlots.length >= TV_GUEST_CAPACITY}><Users className="w-4 h-4 mr-1" />{guestSlots.length>=TV_GUEST_CAPACITY?'Guest slots full':'Guest '+(guestSlots.length+1)}</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => nav(activeStreamId ? '/tv-studio/'+activeStreamId+'/guests' : '/tv-studio')}><ShieldCheck className="w-4 h-4 mr-1" />Guest Control</Button>
                   <Button size="sm" variant={replayState === 'playing' ? 'default' : 'outline'} disabled={!replayBufferRef.current.frameCount} onClick={() => void takeScene('replay')}>REPLAY</Button>
                   <Button size="sm" variant={audioDucking ? 'default' : 'outline'} onClick={() => { setAudioDucking(v => !v); if (audioDucking) { setDuckingActive(false); setDuckingReduction(0); } }}>Auto ducking</Button>
                 </div>
@@ -2178,6 +2179,11 @@ export default function TvStudioPage() {
                   <div className="mt-1 text-zinc-500">{duckingActive ? 'Speech detected · Program / Guest / Music / SFX ducked' : audioDucking ? 'Monitoring commentary for speech' : 'Manual mixer levels'}</div>
                   {audioDucking && <div className="mt-1 text-zinc-400">Gain reduction: {duckingReduction}%</div>}
                 </div>
+                {guestInviteUrl && <div className="rounded-lg border border-blue-500/20 bg-blue-500/10 p-2 text-[10px] space-y-2">
+                  <div className="font-semibold text-blue-300">GUEST LINK READY · {guestSlots.find(g => g.inviteUrl === guestInviteUrl)?.label || 'Guest'}</div>
+                  <div className="break-all rounded bg-black/40 p-2 text-zinc-300">{guestInviteUrl}</div>
+                  <div className="flex gap-2"><Button size="sm" onClick={() => {void navigator.clipboard.writeText(guestInviteUrl);toast.success('Guest link copied');}}><Copy className="w-4 h-4 mr-1"/>Copy</Button><Button size="sm" variant="outline" onClick={() => {if(navigator.share)void navigator.share({title:'Testagram TV guest invitation',text:'Join my Testagram TV guest slot',url:guestInviteUrl});else{void navigator.clipboard.writeText(guestInviteUrl);toast.success('Guest link copied');}}}><Share2 className="w-4 h-4 mr-1"/>Share</Button></div>
+                </div>}
                 {guestSlots.length > 0 && <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-2 text-[10px] space-y-2"><div className="font-semibold text-emerald-300">GUEST SLOTS · {guestSlots.length}/{TV_GUEST_CAPACITY}</div>{guestSlots.map(guest => <div key={guest.slot} className="rounded bg-zinc-950/60 p-2"><div className="flex items-center justify-between"><button type="button" className="font-semibold" onClick={() => {setActiveGuestSlot(guest.slot);setPreviewScene('guest');previewSceneRef.current='guest';}}>{guest.label}</button><span>{guest.lifecycle.toUpperCase()}</span></div><div className="mt-1 break-all text-zinc-500">{guest.inviteUrl}</div>{guest.inviteUrl && <div className="mt-1 flex gap-1"><Button size="sm" onClick={() => {void navigator.clipboard?.writeText(guest.inviteUrl);toast.success(guest.label+' link copied');}}>Copy</Button><Button size="sm" variant="outline" onClick={() => {if(navigator.share)void navigator.share({title:guest.label,text:'Join '+guest.label+' on Testagram TV',url:guest.inviteUrl}).catch(()=>undefined);else{void navigator.clipboard?.writeText(guest.inviteUrl);toast.success('Guest link copied');}}}>Share</Button></div>}</div>)}</div>}
               </div>
             <div className="rounded-2xl border border-white/10 bg-zinc-900 p-4">

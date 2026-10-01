@@ -63,6 +63,7 @@ export class TestagramTvMediaSession {
   private onRemoteTrack?: (track: MediaStreamTrack, peerId: string, guestSlot?: number) => void;
   private onRemotePeerLeave?: (peerId: string, peerRole: TvRole, guestSlot?: number) => void;
   private onViewerCount?: (count: number, guests: number) => void;
+  private onGuestControl?: (control: 'mute' | 'unmute' | 'block' | 'unblock') => void;
   private videoOptions: VideoOptions | null = null;
   private readyPromise: Promise<void> | null = null;
   private readyResolve?: () => void;
@@ -137,6 +138,8 @@ export class TestagramTvMediaSession {
 
   private guestToken = '';
   public guestSlot = 0;
+  setGuestControlHandler(handler: (control: 'mute' | 'unmute' | 'block' | 'unblock') => void) { this.onGuestControl = handler; }
+  async sendGuestControl(slot: number, control: 'mute' | 'unmute' | 'block' | 'unblock') { await this.send({ event: 'tv-guest-control', payload: { from: this.peerId, toGuestSlot: slot, control } }); }
 
   private async startHostGuestBridge() {
     const realtimeSession = await ensureRealtimeAuth(false);
@@ -156,7 +159,11 @@ export class TestagramTvMediaSession {
       .on('broadcast', { event: 'tv-candidate' }, payload => void this.onCandidate(payload.payload as Signal))
       .on('broadcast', { event: 'tv-leave' }, payload => void this.onLeave(payload.payload as Signal))
       .on('broadcast', { event: 'tv-reconnect' }, payload => void this.onReconnect(payload.payload as Signal))
-      .on('broadcast', { event: 'tv-media-received' }, payload => this.onMediaReceived(payload.payload as Signal));
+      .on('broadcast', { event: 'tv-media-received' }, payload => this.onMediaReceived(payload.payload as Signal))
+      .on('broadcast', { event: 'tv-guest-control' }, payload => {
+        const p = payload.payload as Signal & { toGuestSlot?: number; control?: 'mute' | 'unmute' | 'block' | 'unblock' };
+        if (this.role === 'guest' && Number(p.toGuestSlot) === this.guestSlot && p.control) this.onGuestControl?.(p.control);
+      });
     await new Promise<void>((resolve, reject) => {
       this.channel!.subscribe((status, err) => {
         if (status === 'SUBSCRIBED') resolve();

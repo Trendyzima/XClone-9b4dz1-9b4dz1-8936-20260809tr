@@ -188,6 +188,25 @@ export default function TvPublicLivePage() {
             inviteToken,
             media,
           );
+          session.setGuestControlHandler((control) => {
+            if (control === 'mute') {
+              const track = guestMediaRef.current?.getAudioTracks()[0];
+              if (track) { track.enabled = false; setMicOn(false); }
+              toast.info('The studio muted your microphone.');
+            } else if (control === 'unmute') {
+              const track = guestMediaRef.current?.getAudioTracks()[0];
+              if (track) { track.enabled = true; setMicOn(true); }
+              toast.info('The studio enabled your microphone.');
+            } else if (control === 'block') {
+              guestMediaRef.current?.getTracks().forEach((track) => track.stop());
+              guestMediaRef.current = null;
+              setLive(false);
+              setError('The studio has blocked this guest slot.');
+              toast.error('You have been blocked from the TV guest slot.');
+            } else if (control === 'unblock') {
+              toast.info('The studio has unblocked your guest slot. Reload to reconnect.');
+            }
+          });
 
           sessionRef.current = session;
           setGuestSlot(Number((session as any).guestSlot || 0) || null);
