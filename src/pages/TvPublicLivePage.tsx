@@ -49,6 +49,8 @@ export default function TvPublicLivePage() {
   const inviteToken = searchParams.get('guest');
   const isGuest = Boolean(inviteToken);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const nativeVideoRef = useRef<HTMLVideoElement>(null);
+  const nativeSessionRef = useRef<TestagramTvMediaSession | null>(null);
   const studioMultiviewRef = useRef<HTMLVideoElement>(null);
   const youtubeRef = useRef<HTMLIFrameElement>(null);
   const sessionRef = useRef<TestagramTvMediaSession | null>(null);
@@ -62,6 +64,8 @@ export default function TvPublicLivePage() {
   const [error, setError] = useState('');
   const [youtubeVideoId, setYoutubeVideoId] = useState<string | null>(null);
   const [youtubePlayerError, setYoutubePlayerError] = useState(false);
+  const [nativeLive, setNativeLive] = useState(false);
+  const [nativeError, setNativeError] = useState('');
   const [guestSlot, setGuestSlot] = useState<number | null>(null);
   const [speakingGranted, setSpeakingGranted] = useState(false);
   const [sentGuestSignal, setSentGuestSignal] = useState<'raise-hand' | 'add-to-point' | 'second-point' | null>(null);
@@ -145,6 +149,42 @@ export default function TvPublicLivePage() {
 
           setTitle(contract.title || 'Testagram TV');
           setYoutubeVideoId(videoId);
+          setNativeLive(false);
+          setNativeError('');
+          // Prefer Testagram-native low-latency media when the host has capacity.
+          // If the host fan-out is full/unavailable, fall back to the CDN-backed
+          // YouTube player without making the viewer experience a dead end.
+          try {
+            const native = await TestagramTvMediaSession.connectViewer(streamId, (remote) => {
+              if (nativeVideoRef.current && nativeVideoRef.current.srcObject !== remote) {
+                nativeVideoRef.current.srcObject = remote;
+                nativeVideoRef.current.muted = false;
+                nativeVideoRef.current.playsInline = true;
+                void nativeVideoRef.current.play().catch(() => undefined);
+              }
+            });
+            nativeSessionRef.current = native;
+            await Promise.race([
+              new Promise<void>(resolve => {
+                const check = () => {
+                  if (nativeVideoRef.current?.srcObject) resolve(); else window.setTimeout(check, 100);
+                };
+                check();
+              }),
+              new Promise<void>((_, reject) => window.setTimeout(() => reject(new Error('Native TV media timed out.')), 5000)),
+            ]);
+            setNativeLive(true);
+            setLive(true);
+            setConnecting(false);
+            setError('');
+            retryCount = 0;
+            return;
+          } catch (nativeFailure) {
+            await nativeSessionRef.current?.close().catch(() => undefined);
+            nativeSessionRef.current = null;
+            setNativeLive(false);
+            setNativeError(nativeFailure instanceof Error ? nativeFailure.message : String(nativeFailure));
+          }
           setLive(true);
           setConnecting(false);
           setError('');
@@ -262,6 +302,8 @@ export default function TvPublicLivePage() {
 
     return () => {
       cancelled = true;
+      void nativeSessionRef.current?.close().catch(() => undefined);
+      nativeSessionRef.current = null;
       connectingAttempt = false;
 
       if (retryTimer) clearTimeout(retryTimer);
@@ -462,7 +504,17 @@ export default function TvPublicLivePage() {
         </div>
 
         <div className="w-full max-w-6xl aspect-video bg-zinc-950 rounded-xl overflow-hidden border border-white/10">
-          {youtubeVideoId && !isGuest ? (
+          {nativeLive && !isGuest ? (
+            <video
+              ref={nativeVideoRef}
+              data-testagram-native-player="true"
+              className="w-full h-full object-contain bg-black"
+              autoPlay
+              playsInline
+              controls
+              onError={() => setNativeLive(false)}
+            />
+          ) : youtubeVideoId && !isGuest ? (
             <iframe
               ref={youtubeRef}
               data-testagram-youtube-player="true"
@@ -496,6 +548,9 @@ export default function TvPublicLivePage() {
         {!isGuest && live && streamId ? <div className="w-full max-w-6xl"><TvMeetupPanel streamId={streamId} /></div> : null}
 
         <div className="w-full max-w-6xl min-h-10 flex items-center justify-center text-center">
+          {nativeError && !nativeLive && youtubeVideoId && !isGuest && (
+            <div className="text-[10px] text-zinc-500">Native Testagram media unavailable here; using CDN-backed live playback.</div>
+          )}
           {connecting && (
             <div className="inline-flex items-center gap-2 text-sm text-zinc-400">
               <Loader2 className="w-5 h-5 animate-spin" />
