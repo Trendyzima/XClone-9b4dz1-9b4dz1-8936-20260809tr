@@ -781,7 +781,8 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       productionSourceAudioRef.current.connect(productionSourceGainRef.current).connect(productionSourceMeterRef.current).connect(productionMasterGainRef.current);
     }
     if (productionSourceGainRef.current) {
-      productionSourceGainRef.current.gain.value = programSceneRef.current === 'video' && !sourceVideoMuted ? programLevel : 0;
+      productionSourceGainRef.current.gain.value =
+        programSceneRef.current === 'video' && !sourceVideoMuted && !programMuted ? programLevel : 0;
     }
 
     if (audioPipelineRef.current && !productionCommentaryGainRef.current) {
@@ -1094,6 +1095,23 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     if (video.paused) await video.play().catch(() => undefined);
     else video.pause();
     setSourceVideoPlaying(!video.paused);
+  };
+
+  const toggleSourceVideoAudio = () => {
+    if (!sourceVideoRef.current) {
+      toast.info('Load a video into Preview first.');
+      return;
+    }
+    const nextMuted = !sourceVideoMuted;
+    setSourceVideoMuted(nextMuted);
+    const gain = productionSourceGainRef.current;
+    if (gain) {
+      const context = productionAudioContextRef.current;
+      const target = programSceneRef.current === 'video' && !programMuted && !nextMuted ? programLevel : 0;
+      if (context) gain.gain.setTargetAtTime(target, context.currentTime, 0.02);
+      else gain.gain.value = target;
+    }
+    toast.success(nextMuted ? 'Uploaded video audio muted' : 'Uploaded video audio unmuted');
   };
 
   const assertProductionReady = async (program: MediaStream) => {
@@ -2167,6 +2185,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
                   <div className="flex gap-2">
                     {previewScene === 'video' && !sourceVideoRef.current && <Button size="sm" variant="outline" onClick={() => videoFileInputRef.current?.click()}><Upload className="w-4 h-4 mr-1" />Choose video</Button>}
                     {previewScene === 'video' && sourceVideoRef.current && <Button size="sm" variant="outline" onClick={() => void toggleProductionVideo()}>{sourceVideoPlaying ? 'Pause' : 'Play'}</Button>}
+                    {previewScene === 'video' && sourceVideoRef.current && <Button size="sm" variant={sourceVideoMuted ? 'destructive' : 'outline'} onClick={toggleSourceVideoAudio} aria-pressed={sourceVideoMuted}>{sourceVideoMuted ? 'Unmute audio' : 'Mute audio'}</Button>}
                     {previewScene === 'video' && sourceVideoRef.current && <Button size="sm" variant="outline" onClick={() => setPipEnabled(v => !v)}><PictureInPicture2 className="w-4 h-4 mr-1" />PiP {pipEnabled ? 'On' : 'Off'}</Button>}
                     {previewScene === 'screen' && <Button size="sm" variant="outline" onClick={() => void shareScreen()}>{sharing ? 'Stop screen' : 'Start screen'}</Button>}
                   </div>
@@ -2174,7 +2193,13 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
               </div>
 
               <div className="grid grid-cols-2 gap-3">
-                <label className="space-y-1.5"><span className="flex justify-between text-[10px] font-semibold uppercase tracking-wide text-zinc-500"><span>Video audio</span><span>{Math.round(programLevel * 100)}%</span></span><input aria-label="Video audio level" type="range" min="0" max="1" step="0.05" value={programLevel} onChange={e => setProgramLevel(Number(e.target.value))} className="w-full" /></label>
+                <label className="space-y-1.5"><span className="flex justify-between text-[10px] font-semibold uppercase tracking-wide text-zinc-500"><span>Video audio</span><span>{sourceVideoMuted ? 'MUTED' : Math.round(programLevel * 100) + '%'}</span></span><input aria-label="Video audio level" type="range" min="0" max="1" step="0.05" value={programLevel} onChange={e => {
+                  const nextLevel = Number(e.target.value);
+                  setProgramLevel(nextLevel);
+                  if (productionSourceGainRef.current && !sourceVideoMuted && !programMuted && programSceneRef.current === 'video') {
+                    productionSourceGainRef.current.gain.value = nextLevel;
+                  }
+                }} className="w-full" /><Button type="button" size="sm" variant={sourceVideoMuted ? 'destructive' : 'outline'} onClick={toggleSourceVideoAudio} disabled={!sourceVideoRef.current}>{sourceVideoMuted ? 'UNMUTE VIDEO' : 'MUTE VIDEO'}</Button></label>
                 <label className="space-y-1.5"><span className="flex justify-between text-[10px] font-semibold uppercase tracking-wide text-zinc-500"><span>Commentary</span><span>{Math.round(commentaryLevel * 100)}%</span></span><input aria-label="Commentary voice level" type="range" min="0" max="1.5" step="0.05" value={commentaryLevel} onChange={e => setCommentaryLevel(Number(e.target.value))} className="w-full" /></label>
               </div>
 
