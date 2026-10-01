@@ -1620,7 +1620,7 @@ export default function TvStudioPage() {
                   const selected = previewScene === scene;
                   const available = scene === 'camera' || scene === 'video' || scene === 'screen' || scene === 'guest' || scene === 'replay';
                   return (
-                    <button key={scene} type="button" disabled={!available || (scene === 'guest' && !guestConnected)} onClick={() => {
+                    <button key={scene} type="button" disabled={!available || (scene === 'guest' && !guestConnected) || (scene === 'screen' && !getDisplayMedia())} onClick={() => {
                       if (scene === 'camera' || scene === 'video') void activateScene(scene); else if (scene === 'guest') { setPreviewScene('guest'); previewSceneRef.current = 'guest'; }
                       else if (scene === 'screen') void shareScreen();
                       else { setPreviewScene('replay'); previewSceneRef.current = 'replay'; }
@@ -1630,7 +1630,7 @@ export default function TvStudioPage() {
                         <span className={`h-2 w-2 rounded-full ${ready ? 'bg-emerald-400' : 'bg-zinc-600'}`} />
                       </div>
                       <div className="mt-2 text-xs font-semibold">{label}</div>
-                      <div className="mt-0.5 text-[9px] uppercase tracking-wide text-zinc-500">{selected ? 'Preview' : ready ? 'Ready' : 'Idle'}</div>
+                      <div className="mt-0.5 text-[9px] uppercase tracking-wide text-zinc-500">{scene === 'screen' && !getDisplayMedia() ? 'Unavailable' : selected ? 'Preview' : ready ? 'Ready' : 'Idle'}</div>
                     </button>
                   );
                 })}
