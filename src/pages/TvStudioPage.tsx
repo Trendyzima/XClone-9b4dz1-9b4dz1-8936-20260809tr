@@ -738,13 +738,6 @@ export default function TvStudioPage() {
         if (!sourceVideoRef.current) { videoFileInputRef.current?.click(); return; }
         await ensureStudio(); await sourceVideoRef.current.play().catch(() => undefined);
         setSourceVideoPlaying(!sourceVideoRef.current.paused); setProductionSource('video');
-      } else if (scene === 'guest') {
-        if (!guestConnected || !remoteGuestVideoRef.current) {
-          toast.info('Connect a TV guest before previewing the Guest scene.');
-          return;
-        }
-        await ensureStudio();
-        setProductionSource('camera');
       } else {
         const requestDisplayMedia = getDisplayMedia();
         if (!requestDisplayMedia) {
