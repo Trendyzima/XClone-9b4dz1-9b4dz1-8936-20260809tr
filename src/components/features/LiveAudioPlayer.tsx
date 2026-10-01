@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
-import { Play, Pause, Volume2, VolumeX, Loader2 } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface LiveAudioPlayerProps {
@@ -14,7 +14,6 @@ export function LiveAudioPlayer({ spaceId, isLive = false }: LiveAudioPlayerProp
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [volume, setVolume] = useState(100);
-  const [recordings, setRecordings] = useState<any[]>([]);
   const [currentRecording, setCurrentRecording] = useState<any>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -39,7 +38,6 @@ export function LiveAudioPlayer({ spaceId, isLive = false }: LiveAudioPlayerProp
         .limit(1);
       if (error) throw error;
       if (data?.length) {
-        setRecordings(data);
         setCurrentRecording(prev => prev ?? data[0]);
       }
     } catch (error) {
