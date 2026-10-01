@@ -62,7 +62,7 @@ export default async function handler(request: Request) {
       return response({ ok: true, data, error: null, request_id: requestId });
     }
 
-    const upstream = await fetch(`${supabaseUrl.replace(/\/$/, "")}/rest/v1/rpc/capability_dispatch`, {
+    const upstream = await fetch(`${supabaseUrl.replace(/\/$/, "")}/rest/v1/rpc/capability_dispatch_v2`, {
       method: "POST",
       headers: { apikey: anonKey, Authorization: authorization || `Bearer ${anonKey}`, "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ p_capability: capability, p_input: input }),
