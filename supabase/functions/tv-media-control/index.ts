@@ -127,7 +127,7 @@ Deno.serve(async req=>{
   if(!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can start this TV broadcast."}},403);
   if(s.is_live)return json({ok:false,error:{code:"STREAM_ALREADY_LIVE",message:"This TV broadcast is already live."}},409);
   if(!ytApiReady())return json({ok:false,error:{code:"YOUTUBE_NOT_CONFIGURED",message:"YouTube Live credentials are not configured on the TV control plane."}},503);
-  const {data:claim,error:claimError}=await adminClient.from("live_streams").update({tv_connection_state:"starting",youtube_status:"preparing",youtube_error:null,tv_last_heartbeat_at:new Date().toISOString()}).eq("id",id).eq("user_id",s.user_id).eq("is_live",false).eq("tv_connection_state","offline").select("id,slot_number").maybeSingle();
+  const {data:claim,error:claimError}=await adminClient.from("live_streams").update({tv_connection_state:"starting",youtube_status:"preparing",youtube_error:null,tv_last_heartbeat_at:new Date().toISOString()}).eq("id",id).eq("user_id",s.user_id).eq("is_live",false).eq("tv_connection_state","offline").select("id").maybeSingle();
   if(claimError)return json({ok:false,error:{code:"TV_START_CLAIM_FAILED",message:"Could not reserve this TV broadcast for startup."}},409);
   if(!claim)return json({ok:false,error:{code:"TV_START_IN_PROGRESS",message:"This TV broadcast is already being started by another studio session."}},409);
   let y:any;try{y=await ytPrepare(s)}catch(e:any){const ye=e instanceof YouTubeStageError?e:new YouTubeStageError("prepare",e?.message||"YouTube preparation failed.");await adminClient.from("live_streams").update({youtube_status:"error",youtube_error:JSON.stringify({message:ye.message,phase:ye.phase,http_status:ye.httpStatus,reason:ye.reason}),tv_connection_state:"offline",tv_last_heartbeat_at:null}).eq("id",id).eq("user_id",s.user_id);return json({ok:false,error:{code:"YOUTUBE_SETUP_FAILED",message:ye.message,phase:ye.phase,http_status:ye.httpStatus,reason:ye.reason}},502)}
@@ -183,7 +183,7 @@ Deno.serve(async req=>{
   if(!invite)return json({ok:false,error:{code:"INVITE_REQUIRED",message:"A TV guest invite is required."}},401);
   if(!user)return json({ok:false,error:{code:"AUTH_REQUIRED",message:"Authentication is required to join the TV guest session."}},401);
   if(!secret)return json({ok:false,error:{code:"TV_CONTROL_MISCONFIGURED",message:"TV guest claiming requires the Supabase server secret."}},503);
-  const now=new Date().toISOString(),{data:claimed,error:e}=await adminClient.from("tv_guest_invites").update({used_at:now,claimed_by:user.id,claimed_at:now}).eq("stream_id",id).eq("token_hash",await hash(invite)).is("used_at",null).gt("expires_at",now).select("id").maybeSingle();
+  const now=new Date().toISOString(),{data:claimed,error:e}=await adminClient.from("tv_guest_invites").update({used_at:now,claimed_by:user.id,claimed_at:now}).eq("stream_id",id).eq("token_hash",await hash(invite)).is("used_at",null).gt("expires_at",now).select("id,slot_number").maybeSingle();
   if(e||!claimed)return json({ok:false,error:{code:"INVITE_INVALID",message:"This TV guest invite is invalid, expired, or already claimed."}},401);
   return json({ok:true,data:{...(await contract("guest")),guest_token:invite,guest_slot:Number(claimed.slot_number||0),guest_label:"Guest "+Number(claimed.slot_number||0)},error:null});
  }
