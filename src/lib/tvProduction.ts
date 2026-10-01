@@ -131,7 +131,8 @@ export function drawTvGraphics(
     ctx.restore();
   };
 
-  drawBrandBug();
+  const stationBug = graphics.find(g => g.id === 'station-bug');
+  if (stationBug?.visible) drawBrandBug();
   drawWatermark();
 
   const ordered = [...graphics].filter(g => g.visible && g.id !== 'station-bug').sort((a, b) => a.z - b.z);
