@@ -173,7 +173,9 @@ export function PollCard({ poll, postId, repliesCount = 0 }: PollCardProps) {
                   </span>
                 </button>
               );
-            })}
+            }) : (
+              <p className="px-1 py-3 text-sm text-muted-foreground">No poll options are available yet.</p>
+            )}
           </div>
 
           <div className="px-4 pb-3 flex items-center justify-between gap-3 text-xs text-muted-foreground">
