@@ -335,6 +335,41 @@ begin
 end;
 $$;
 
+create table if not exists public.community_nft_badges (
+  id uuid primary key default gen_random_uuid(),
+  community_id uuid not null references public.communities(id) on delete cascade,
+  owner_id uuid not null references public.profiles(id) on delete cascade,
+  badge_name text not null,
+  badge_emoji text not null,
+  badge_tier text not null check (badge_tier in ('rare','epic','legendary')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (community_id, owner_id)
+);
+
+alter table public.community_nft_badges enable row level security;
+
+drop policy if exists "community badges member read" on public.community_nft_badges;
+create policy "community badges member read"
+on public.community_nft_badges
+for select
+to authenticated
+using (
+  exists (
+    select 1
+    from public.community_members cm
+    where cm.community_id = community_nft_badges.community_id
+      and cm.user_id = (select auth.uid())
+      and cm.status = 'active'
+  )
+);
+
+grant select on public.community_nft_badges to authenticated;
+revoke insert, update, delete on public.community_nft_badges from authenticated, anon;
+
+create index if not exists community_nft_badges_community_idx
+  on public.community_nft_badges (community_id, created_at desc);
+
 create or replace function public.mint_community_badge(p_community_id uuid)
 returns public.community_nft_badges
 language plpgsql
