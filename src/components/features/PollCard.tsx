@@ -25,7 +25,12 @@ interface PollCardProps {
 export function PollCard({ poll, postId, repliesCount = 0 }: PollCardProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  // Feed endpoints can embed a lightweight poll row before its options are hydrated.\n  // Never let an incomplete poll shape reach the render path.\n  const initialPoll = poll\n    ? { ...poll, options: Array.isArray((poll as any).options) ? (poll as any).options : [] }\n    : null;\n  const [pollData, setPollData] = useState<PollData | null>(initialPoll);
+  // Feed endpoints can embed a lightweight poll row before its options are hydrated.
+  // Never let an incomplete poll shape reach the render path.
+  const initialPoll = poll
+    ? { ...poll, options: Array.isArray((poll as any).options) ? (poll as any).options : [] }
+    : null;
+  const [pollData, setPollData] = useState<PollData | null>(initialPoll);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [voted, setVoted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -34,7 +39,16 @@ export function PollCard({ poll, postId, repliesCount = 0 }: PollCardProps) {
   const loadResults = async (pollId: string) => {
     const { data, error } = await supabase.rpc('poll_results', { p_poll_id: pollId });
     if (error) throw error;
-    const result = data as PollData;
+    const raw = data as Partial<PollData> | null;
+    const result: PollData = {
+      id: String(raw?.id ?? pollId),
+      question: String(raw?.question ?? ''),
+      description: raw?.description ?? null,
+      status: String(raw?.status ?? 'open'),
+      ends_at: raw?.ends_at ?? null,
+      total_votes: Number(raw?.total_votes ?? 0),
+      options: Array.isArray(raw?.options) ? raw.options : [],
+    };
     setPollData(result);
     if (user) {
       const { data: vote } = await supabase
