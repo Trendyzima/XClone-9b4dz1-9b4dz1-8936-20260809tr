@@ -370,8 +370,14 @@ export class TestagramMediaSession {
     this.createPeerConnection(this.info.ice_servers || []);
 
     if (this.roomType === 'space') {
-      if (this.role === 'listener') this.pc.addTransceiver('audio', { direction: 'recvonly' });
-      else this.localStream?.getTracks().forEach(track => this.pc.addTrack(track, this.localStream!));
+      // Every Space participant needs an inbound audio path. Speakers/hosts
+      // additionally publish their local program. The previous speaker path
+      // only added an outbound track, leaving speakers unable to hear the
+      // Space after promotion.
+      this.pc.addTransceiver('audio', { direction: 'recvonly' });
+      if (this.role === 'host' || this.role === 'speaker') {
+        this.localStream?.getAudioTracks().forEach(track => this.pc.addTrack(track, this.localStream!));
+      }
     } else {
       this.localStream?.getTracks().forEach(track => this.pc.addTrack(track, this.localStream!));
     }
