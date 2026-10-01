@@ -612,24 +612,51 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
           ...(hostReady ? [{ kind: 'camera' as const, media: camera }] : []),
           ...guestVideos.map(media => ({ kind: 'guest' as const, media })),
         ];
-        if (sources.length <= 2) {
-          fit(target, sourceVideo, true);
-          if (hostReady && pipEnabledRef.current) {
-            const pw = Math.round(canvas.width * 0.28), ph = Math.round(pw * (camera.videoHeight / camera.videoWidth));
-            const px = canvas.width - pw - 28, py = canvas.height - ph - 28;
-            target.save(); target.shadowColor = 'rgba(0,0,0,.65)'; target.shadowBlur = 18; target.fillStyle = '#000'; target.fillRect(px - 5, py - 5, pw + 10, ph + 10); target.restore();
-            target.drawImage(camera, px, py, pw, ph);
-          }
+        // Build the composition only from sources that actually have usable video.
+        // An invitation alone must never reserve a visual cell. This keeps Preview/Program
+        // packed until a guest's video track is genuinely connected and ready.
+        const readySources = sources.filter(entry => entry.media.readyState >= 2 && entry.media.videoWidth > 0);
+        const drawSourceTile = (entry: typeof sources[number], x: number, y: number, width: number, height: number) => {
+          target.save();
+          target.fillStyle = '#050505';
+          target.fillRect(x, y, width, height);
+          fit(target, entry.media, true, width, height);
+          target.fillStyle = 'rgba(9,9,11,.78)';
+          target.fillRect(x + 8, y + 8, entry.kind === 'video' ? 82 : 76, 20);
+          target.fillStyle = '#fff';
+          target.font = '800 10px sans-serif';
+          target.fillText(entry.kind === 'video' ? 'MEDIA' : entry.kind === 'camera' ? 'HOST' : 'GUEST', x + 14, y + 22);
+          target.restore();
+        };
+        if (readySources.length === 0) {
+          target.fillStyle = '#050505';
+          target.fillRect(0, 0, canvas.width, canvas.height);
+        } else if (readySources.length === 1) {
+          fit(target, readySources[0].media, true);
+        } else if (readySources.length === 2) {
+          // Uploaded media + host camera: two real sources fill the entire raster.
+          const gap = Math.max(6, Math.round(canvas.width * 0.008));
+          const tileW = Math.floor((canvas.width - gap) / 2);
+          drawSourceTile(readySources[0], 0, 0, tileW, canvas.height);
+          drawSourceTile(readySources[1], tileW + gap, 0, canvas.width - tileW - gap, canvas.height);
         } else {
-          const gap = Math.max(6, Math.round(canvas.width * 0.008)), mediaWidth = Math.round(canvas.width * 0.58);
-          const sideX = mediaWidth + gap, sideWidth = canvas.width - sideX, sideCount = sources.length - 1;
-          const sideHeight = Math.floor((canvas.height - gap * (sideCount - 1)) / sideCount);
-          fit(target, sourceVideo, false, mediaWidth, canvas.height);
-          sources.slice(1).forEach((entry, index) => {
-            const y = index * (sideHeight + gap);
-            target.save(); target.fillStyle = '#050505'; target.fillRect(sideX, y, sideWidth, sideHeight); target.restore();
-            fit(target, entry.media, false, sideWidth, sideHeight);
-            target.save(); target.fillStyle = 'rgba(0,0,0,.72)'; target.fillRect(sideX + 8, y + 8, 88, 20); target.fillStyle = '#fff'; target.font = '800 10px sans-serif'; target.fillText(entry.kind === 'camera' ? 'HOST' : 'GUEST', sideX + 14, y + 22); target.restore();
+          // With guests, give the media a primary tile and pack only connected guest/host
+          // sources into the remaining area. No placeholder guest tile is ever rendered.
+          const gap = Math.max(6, Math.round(canvas.width * 0.008));
+          const mediaWidth = Math.floor(canvas.width * 0.58);
+          const sideX = mediaWidth + gap;
+          const sideWidth = canvas.width - sideX;
+          const sideSources = readySources.slice(1);
+          const sideCols = sideSources.length <= 2 ? 1 : 2;
+          const sideRows = Math.ceil(sideSources.length / sideCols);
+          const sideGap = gap;
+          const tileW = Math.floor((sideWidth - sideGap * (sideCols - 1)) / sideCols);
+          const tileH = Math.floor((canvas.height - sideGap * (sideRows - 1)) / sideRows);
+          drawSourceTile(readySources[0], 0, 0, mediaWidth, canvas.height);
+          sideSources.forEach((entry, index) => {
+            const col = index % sideCols;
+            const row = Math.floor(index / sideCols);
+            drawSourceTile(entry, sideX + col * (tileW + sideGap), row * (tileH + sideGap), tileW, tileH);
           });
         }
       } else if (scene === 'screen') {
