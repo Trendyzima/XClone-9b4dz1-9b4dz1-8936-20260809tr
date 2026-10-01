@@ -25,7 +25,7 @@ interface PollCardProps {
 export function PollCard({ poll, postId, repliesCount = 0 }: PollCardProps) {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [pollData, setPollData] = useState<PollData | null>(poll ?? null);
+  // Feed endpoints can embed a lightweight poll row before its options are hydrated.\n  // Never let an incomplete poll shape reach the render path.\n  const initialPoll = poll\n    ? { ...poll, options: Array.isArray((poll as any).options) ? (poll as any).options : [] }\n    : null;\n  const [pollData, setPollData] = useState<PollData | null>(initialPoll);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [voted, setVoted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -136,7 +136,7 @@ export function PollCard({ poll, postId, repliesCount = 0 }: PollCardProps) {
         <>
           {pollData.description && <p className="px-4 pt-3 text-sm text-muted-foreground">{pollData.description}</p>}
           <div className="p-3 space-y-2">
-            {pollData.options.map(option => {
+            {pollData.options.length > 0 ? pollData.options.map(option => {
               const percent = pct(option.votes);
               const selected = selectedOption === option.id;
               const leading = leader?.id === option.id && percent > 0;
