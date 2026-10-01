@@ -461,3 +461,34 @@ revoke all on public.community_event_rsvps from anon;
 
 create index if not exists community_event_rsvps_event_idx
   on public.community_event_rsvps (event_id, created_at desc);
+
+
+create or replace function public.get_trending_communities(p_limit integer default 5)
+returns jsonb
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select coalesce(
+    jsonb_agg(
+      to_jsonb(x.c)
+      || jsonb_build_object('recent_posts', x.recent_posts)
+      order by x.recent_posts desc, x.member_count desc
+    ),
+    '[]'::jsonb
+  )
+  from (
+    select c, count(p.id)::bigint as recent_posts
+    from public.communities c
+    left join public.posts p
+      on p.community_id = c.id
+     and p.created_at >= now() - interval '48 hours'
+    group by c.id
+    order by count(p.id) desc, c.member_count desc
+    limit greatest(1, least(coalesce(p_limit, 5), 20))
+  ) x;
+$$;
+
+revoke execute on function public.get_trending_communities(integer) from public;
+grant execute on function public.get_trending_communities(integer) to anon, authenticated;
