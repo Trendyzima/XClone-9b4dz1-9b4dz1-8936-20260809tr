@@ -902,12 +902,34 @@ export function ComposePost({ onSuccess, communityId }: ComposePostProps) {
 
           {/* Poll, schedule, products, GIF chips */}
           {pollData && (
-            <div className="mt-2 p-3 border border-border rounded-lg">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 text-sm font-medium"><BarChart3 className="w-4 h-4" />Poll attached</div>
-                <button onClick={() => setPollData(null)} className="text-sm text-muted-foreground hover:text-foreground">Remove</button>
+            <div className="mt-3 overflow-hidden rounded-2xl border border-primary/20 bg-card shadow-sm">
+              <div className="flex items-center justify-between gap-3 border-b border-border bg-primary/[0.04] px-4 py-3">
+                <div className="flex min-w-0 items-center gap-2">
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                    <BarChart3 className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-bold uppercase tracking-wide text-primary">Poll preview</p>
+                    <p className="truncate text-sm font-bold">Your audience will vote on this post</p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setPollData(null)} className="shrink-0 rounded-lg px-2 py-1 text-xs font-semibold text-muted-foreground hover:bg-muted hover:text-foreground">Remove</button>
               </div>
-              <p className="text-sm text-muted-foreground break-words">{pollData.question}</p>
+              <div className="space-y-3 p-4">
+                <p className="break-words text-base font-bold leading-snug">{pollData.question}</p>
+                <div className="space-y-2">
+                  {pollData.options.map((option: string, index: number) => (
+                    <div key={index} className="flex items-center gap-3 rounded-xl border-2 border-border px-3.5 py-3">
+                      <span className="h-4 w-4 shrink-0 rounded-full border-2 border-border" />
+                      <span className="min-w-0 flex-1 truncate text-sm font-medium">{option}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                  <span>{pollData.options.length} choices</span>
+                  <span>{pollData.duration >= 1440 ? `${Math.round(pollData.duration / 1440)} day${pollData.duration >= 2880 ? 's' : ''}` : pollData.duration >= 60 ? `${Math.round(pollData.duration / 60)} hour${pollData.duration >= 120 ? 's' : ''}` : `${pollData.duration} minutes`} · Results update after votes</span>
+                </div>
+              </div>
             </div>
           )}
           {scheduledDate && (
