@@ -388,9 +388,12 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
     // Never put the initial empty state behind a loading spinner.
     const { data: cached, error } = await supabase
       .from('federated_objects')
-      .select('*')
+      .select('id,uri,object_type,actor_uri,url,content,summary,published_at,updated_at,sensitive,in_reply_to_uri,quote_uri,language_code,attachments,tags,like_count,announce_count,reply_count,quote_count,view_count,content_warning,raw_object')
+      .is('deleted_at', null)
+      .eq('tombstone', false)
       .order('published_at', { ascending: false })
-      .limit(30);
+      .order('id', { ascending: false })
+      .limit(20);
 
     if (!error && cached && cached.length > 0) {
       setRemotePosts(cached);
@@ -470,7 +473,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
       entries => {
         if (entries.some(entry => entry.isIntersecting)) void loadMoreFederatedFeed();
       },
-      { rootMargin: '900px 0px 900px 0px' }
+      { rootMargin: '500px 0px 500px 0px' }
     );
 
     observer.observe(sentinel);
@@ -878,6 +881,47 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
   };
 
   // ─── Render helpers ────────────────────────────────────────────────────────
+  function RemotePostMedia({ attachments, compact = false }: { attachments: any[]; compact?: boolean }) {
+    const media = Array.isArray(attachments) ? attachments.filter((a: any) => a && (a.preview_url || a.url || a.remote_url)) : [];
+    if (!media.length) return null;
+
+    const proxy = (value: unknown) => {
+      const raw = String(value || '').trim();
+      if (!/^https:\/\//i.test(raw)) return '';
+      return `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/federated-media-proxy?url=${encodeURIComponent(raw)}&source=${encodeURIComponent(raw)}`;
+    };
+
+    return (
+      <div className={`mt-3 grid gap-1.5 ${media.length === 1 ? 'grid-cols-1' : 'grid-cols-2'}`}>
+        {media.slice(0, 4).map((attachment: any, index: number) => {
+          const previewRaw = attachment.preview_url || attachment.preview_remote_url || attachment.url || attachment.remote_url;
+          const originalRaw = attachment.remote_url || attachment.url || previewRaw;
+          const preview = proxy(previewRaw);
+          const original = proxy(originalRaw);
+          const type = String(attachment.type || '').toLowerCase();
+          const isVideo = type === 'video' || type === 'gifv' || /\.(?:mp4|webm|mov)(?:[?#]|$)/i.test(originalRaw);
+          const isAudio = type === 'audio' || /\.(?:mp3|ogg|wav|m4a|opus)(?:[?#]|$)/i.test(originalRaw);
+
+          if (isVideo) return <video key={attachment.id ?? index} src={original} poster={preview || undefined} controls playsInline preload="metadata" className="w-full max-h-[420px] rounded-xl bg-black object-contain" />;
+          if (isAudio) return <audio key={attachment.id ?? index} src={original} controls preload="none" className="w-full" />;
+
+          return (
+            <a key={attachment.id ?? index} href={original || previewRaw} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl bg-muted">
+              <img src={preview} alt={attachment.description || ''} loading="lazy" decoding="async" fetchPriority="low"
+                className={`w-full ${media.length === 1 ? 'max-h-[520px]' : 'aspect-square'} object-cover`}
+                onError={(event) => {
+                  const img = event.currentTarget;
+                  const fallback = proxy(attachment.remote_url || attachment.url);
+                  if (fallback && img.src !== fallback) img.src = fallback;
+                  else img.style.display = 'none';
+                }} />
+            </a>
+          );
+        })}
+      </div>
+    );
+  }
+
   function RemotePostRow({ p, compact = false }: { p: any; compact?: boolean }) {
     const rawActor = p.raw_object?.attributedTo;
     const rawActorUri = typeof rawActor === 'string' ? rawActor : rawActor?.id ?? '';
@@ -930,6 +974,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
               {created && <span className="text-xs text-muted-foreground">· {formatDistanceToNow(new Date(created), { addSuffix: true })}</span>}
             </div>
             <div className={`${compact ? 'text-xs' : 'text-sm'} leading-relaxed line-clamp-3`} dangerouslySetInnerHTML={{ __html: content }} />
+            <RemotePostMedia attachments={p.attachments ?? p.media_attachments ?? p.raw_object?.media_attachments ?? []} compact={compact} />
             <div className="mt-2 flex items-center gap-1 flex-wrap">
               <button onClick={() => handleFedLike({ ...p, object_url: key })}
                 className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${ps.liked ? 'bg-pink-500/15 text-pink-600' : 'hover:bg-muted text-muted-foreground hover:text-pink-600'}`}>
