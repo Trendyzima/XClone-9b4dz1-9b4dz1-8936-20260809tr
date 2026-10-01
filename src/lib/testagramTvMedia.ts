@@ -80,6 +80,7 @@ export class TestagramTvMediaSession {
   private peerStats = new Map<string, { lastBytes: number; lastLost: number; lastSentPackets: number; lastAt: number; stableSamples: number; profile: TvNetworkProfile }>();
   private inboundMediaReady = false;
   private videoCeilingBitrate = 8_000_000;
+  private static readonly MAX_NATIVE_VIEWERS = 20;
   private iceServers: RTCIceServer[] = [
     { urls: ['stun:stun.l.google.com:19302', 'stun:stun1.l.google.com:19302'] },
   ];
@@ -126,7 +127,13 @@ export class TestagramTvMediaSession {
   static async connectViewer(streamId: string, onRemoteStream: (stream: MediaStream) => void) {
     const session = new TestagramTvMediaSession('viewer', streamId);
     session.onRemoteStream = onRemoteStream;
-    await session.start('viewer');
+    await Promise.race([
+      session.start('viewer'),
+      new Promise<never>((_, reject) => window.setTimeout(() => reject(new Error('Testagram native TV viewer handshake timed out.')), 6000)),
+    ]).catch(async error => {
+      await session.close().catch(() => undefined);
+      throw error;
+    });
     return session;
   }
 
@@ -168,6 +175,14 @@ export class TestagramTvMediaSession {
       .on('broadcast', { event: 'tv-leave' }, payload => void this.onLeave(payload.payload as Signal))
       .on('broadcast', { event: 'tv-reconnect' }, payload => void this.onReconnect(payload.payload as Signal))
       .on('broadcast', { event: 'tv-media-received' }, payload => this.onMediaReceived(payload.payload as Signal))
+      .on('broadcast', { event: 'tv-native-capacity' }, payload => {
+        const p = payload.payload as Signal;
+        if (this.role === 'viewer' && p.to === this.peerId) {
+          this.lastDiagnostics = { ...this.lastDiagnostics, nativeCapacity: 'full', nativeViewerLimit: TestagramTvMediaSession.MAX_NATIVE_VIEWERS, nativeViewerCount: Number(p.count || 0) };
+          this.readyResolve?.();
+          this.readyResolve = undefined;
+        }
+      })
       .on('broadcast', { event: 'tv-guest-control' }, payload => {
         const p = payload.payload as Signal;
         if (this.role === 'guest' && Number(p.toGuestSlot) === this.guestSlot && p.control) this.onGuestControl?.(p.control);
@@ -350,6 +365,10 @@ export class TestagramTvMediaSession {
   private async onJoin(message: Signal) {
     if (this.role !== 'host' || !message.from || message.from === this.peerId) return;
     const peerRole = message.peerRole === 'guest' ? 'guest' : 'viewer';
+    if (peerRole === 'viewer' && this.peers.size >= TestagramTvMediaSession.MAX_NATIVE_VIEWERS) {
+      await this.send({ event: 'tv-native-capacity', payload: { from: this.peerId, to: message.from, peerRole: 'host', count: this.peers.size } });
+      return;
+    }
     if (peerRole === 'guest' && Number.isInteger(message.guestSlot) && Number(message.guestSlot) > 0) this.peerGuestSlots.set(message.from, Number(message.guestSlot));
     const pc = this.createPeer(message.from, peerRole);
     const offer = await pc.createOffer();

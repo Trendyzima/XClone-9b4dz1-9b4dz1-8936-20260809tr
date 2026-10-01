@@ -23,6 +23,7 @@ wss.on("connection",(socket,request)=>{
  if(!ffmpegPath){socket.close(1011,"FFmpeg encoder binary is unavailable.");return}
  let ffmpeg:ChildProcessWithoutNullStreams|null=null,initialized=false,initializing=false,closed=false;
  const pending:Buffer[]=[];
+ const maxBufferedChunks=12;
  const close=()=>{closed=true;pending.length=0;if(!ffmpeg)return;try{ffmpeg.stdin.end()}catch{}try{ffmpeg.kill("SIGTERM")}catch{}ffmpeg=null};
  const sendError=(message:string)=>{try{if(socket.readyState===1)socket.send(JSON.stringify({type:"error",message}))}catch{}};
  const initialize=async()=>{
@@ -31,7 +32,7 @@ wss.on("connection",(socket,request)=>{
   try{
    const c=await config(id,token),ingest=c.rtmps_ingestion_address.replace(/\/$/,"")+"/"+c.stream_name;
    if(closed)return;
-   ffmpeg=spawn(ffmpegPath as string,["-hide_banner","-loglevel","warning","-fflags","+genpts","-f","webm","-i","pipe:0","-c:v","libx264","-preset","veryfast","-tune","zerolatency","-profile:v","main","-pix_fmt","yuv420p","-r","30","-g","60","-keyint_min","60","-sc_threshold","0","-b:v",quality==="4k"?"24M":quality==="1440p"?"15M":quality==="1080p"?"10M":quality==="720p"?"6M":"4M","-maxrate",quality==="4k"?"24M":quality==="1440p"?"15M":quality==="1080p"?"10M":quality==="720p"?"6M":"4M","-bufsize",quality==="4k"?"48M":quality==="1440p"?"30M":quality==="1080p"?"20M":quality==="720p"?"12M":"8M","-c:a","aac","-ar","48000","-ac","2","-b:a","128k","-f","flv",ingest]);
+   ffmpeg=spawn(ffmpegPath as string,["-hide_banner","-loglevel","warning","-fflags","+genpts","-f","webm","-i","pipe:0","-c:v","libx264","-preset","veryfast","-tune","zerolatency","-profile:v","main","-pix_fmt","yuv420p","-vf","scale=w=1920:h=1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2","-r","30","-g","60","-keyint_min","60","-sc_threshold","0","-b:v",quality==="4k"?"24M":quality==="1440p"?"15M":quality==="1080p"?"10M":quality==="720p"?"6M":"4M","-maxrate",quality==="4k"?"24M":quality==="1440p"?"15M":quality==="1080p"?"10M":quality==="720p"?"6M":"4M","-bufsize",quality==="4k"?"48M":quality==="1440p"?"30M":quality==="1080p"?"20M":quality==="720p"?"12M":"8M","-c:a","aac","-ar","48000","-ac","2","-b:a","128k","-f","flv",ingest]);
    ffmpeg.stderr.on("data",c=>{const line=String(c).trim();if(line)console.warn("[Testagram TV YouTube encoder]",line.slice(0,500))});
    ffmpeg.on("error",e=>{sendError("YouTube encoder process failed: "+e.message);close();try{socket.close(1011,"encoder failed")}catch{}});
    ffmpeg.on("exit",code=>{if(code!==0&&!closed)sendError("YouTube encoder stopped unexpectedly ("+code+").");ffmpeg=null});
@@ -45,7 +46,7 @@ wss.on("connection",(socket,request)=>{
   if(!isBinary)return;
   const chunk=Buffer.isBuffer(data)?data:Buffer.from(data as any);
   if(ffmpeg?.stdin.writable){ffmpeg.stdin.write(chunk);return}
-  if(!initialized||initializing){pending.push(chunk);return}
+  if(!initialized||initializing){if(pending.length<maxBufferedChunks)pending.push(chunk);else {sendError("YouTube encoder setup is taking too long; media backlog was capped.");}return}
   sendError("YouTube encoder is unavailable.");close();try{socket.close(1011,"encoder unavailable")}catch{}
  });
  socket.on("close",close);socket.on("error",close);
