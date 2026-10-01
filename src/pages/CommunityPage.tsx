@@ -281,6 +281,19 @@ export default function CommunityPage({ section, standalone = false }: { section
   const reactionsTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showChatGifPicker, setShowChatGifPicker] = useState(false);
 
+  const fetchChat = useCallback(async () => {
+    if (!community) return;
+    const { data } = await supabase.from('community_chat')
+      .select('*, profiles(id, username, avatar_url, verified_tier)')
+      .eq('community_id', community.id).order('created_at', { ascending: true }).limit(100);
+    if (data) {
+      setChatMessages(data);
+      try { const rr = localStorage.getItem(`chat_reactions_${community.id}`); if (rr) { const parsed = JSON.parse(rr); const ids = Object.keys(parsed); setReactionMsgIds(ids); setReactionData(ids.map((k: string) => parsed[k])); } } catch { /* ignore */ }
+      const raw = localStorage.getItem(`chat_pinned_${community.id}`);
+      if (raw) setPinnedChatIds(JSON.parse(raw));
+    }
+  }, [community]);
+
   const handleSendGif = useCallback(async (gifUrl: string) => {
     if (!user || !community || chatSending || !isMember || !GIF_URL_RE.test(gifUrl)) return;
     setShowChatGifPicker(false); setChatSending(true);
@@ -318,18 +331,7 @@ export default function CommunityPage({ section, standalone = false }: { section
     reactionsTimerRef.current = setTimeout(() => setFloatingReactions(prev => prev.filter(r => r.id !== fr.id)), 2000);
   }, []);
 
-  const fetchChat = useCallback(async () => {
-    if (!community) return;
-    const { data } = await supabase.from('community_chat')
-      .select('*, profiles(id, username, avatar_url, verified_tier)')
-      .eq('community_id', community.id).order('created_at', { ascending: true }).limit(100);
-    if (data) {
-      setChatMessages(data);
-      try { const rr = localStorage.getItem(`chat_reactions_${community.id}`); if (rr) { const parsed = JSON.parse(rr); const ids = Object.keys(parsed); setReactionMsgIds(ids); setReactionData(ids.map((k: string) => parsed[k])); } } catch { /* ignore */ }
-      const raw = localStorage.getItem(`chat_pinned_${community.id}`);
-      if (raw) setPinnedChatIds(JSON.parse(raw));
-    }
-  }, [community]);
+
 
   const handleAddReaction = useCallback((msgId: string, emoji: string) => {
     if (!community) return;
