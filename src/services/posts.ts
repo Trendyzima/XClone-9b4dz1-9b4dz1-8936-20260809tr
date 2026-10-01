@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { backendCapabilities } from './backendClient';
 import { deleteMedia, uploadMedia, type MediaUploadResult } from '../lib/media';
 import { TestagramEvent, trackTestagramEvent } from '../lib/testagram-analytics';
 
@@ -31,21 +32,16 @@ export async function createPost(input: CreatePostInput): Promise<CreatedPost> {
   if (!user) throw new Error('Authentication required');
 
   const files = input.media ?? [];
-  const { data: post, error: postError } = await supabase
-    .from('posts')
-    .insert({
-      author_id: user.id,
-      user_id: user.id,
-      body,
-      content: body,
-      community_id: input.communityId ?? null,
-      media_count: 0,
-      media_urls: [],
-    })
-    .select('id,author_id,body,content')
-    .single();
-
-  if (postError || !post) throw postError ?? new Error('Unable to create post');
+  // Keep all post creation on the canonical capability boundary. The former
+  // direct table INSERT duplicated the write contract and was the source of
+  // production RLS failures when Auth hydration and the PostgREST JWT diverged.
+  const postResult = await backendCapabilities.createPost({
+    content: body,
+    communityId: input.communityId ?? undefined,
+  });
+  const postId = String(postResult?.post_id ?? '');
+  if (!postId) throw new Error('Post was created but the backend did not return its post ID.');
+  const post = { id: postId, author_id: user.id, body, content: body };
 
   const uploaded: MediaUploadResult[] = [];
   try {
@@ -73,7 +69,7 @@ export async function createPost(input: CreatePostInput): Promise<CreatedPost> {
       if (updateError) throw updateError;
     }
 
-    const result = { ...post, media: uploaded };
+    const result = { ...post, media: uploaded } as CreatedPost;
     trackTestagramEvent(TestagramEvent.POST_CREATED, {
       post_id: post.id,
       media_count: uploaded.length,
