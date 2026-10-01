@@ -1944,16 +1944,31 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
   const fmt = (n: number) => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
   const guestLabel = guestLifecycle === 'connected' ? 'CONNECTED' : guestLifecycle === 'partial' ? 'PARTIAL · WAITING FOR MEDIA' : guestLifecycle === 'connecting' ? 'CONNECTING' : guestLifecycle === 'invited' ? 'INVITE ACTIVE' : guestLifecycle === 'lost' ? 'SIGNAL LOST' : 'OFFLINE';
 
-  const previewSceneSlots: Array<{ scene: TvSceneId; label: string; detail: string; ready: boolean; active: boolean }> = [
+  const activeGuestVideoSlots = guestSlots
+    .filter(g => (g.lifecycle === 'connected' || g.lifecycle === 'partial') && g.videoReady)
+    .sort((a, b) => a.slot - b.slot);
+
+  const previewSceneSlots: Array<{ scene: TvSceneId; guestSlot?: number; label: string; detail: string; ready: boolean; active: boolean }> = [
     { scene: 'camera', label: 'CAMERA', detail: sourceHealth.camera === 'ready' ? 'Live camera' : 'Start camera', ready: sourceHealth.camera === 'ready', active: previewScene === 'camera' },
     { scene: 'video', label: 'VIDEO', detail: uploadedVideoName || 'Load media', ready: sourceHealth.video === 'ready', active: previewScene === 'video' },
     { scene: 'screen', label: 'SCREEN', detail: sharing ? 'Screen ready' : 'Share screen', ready: sourceHealth.screen === 'ready', active: previewScene === 'screen' },
-    { scene: 'guest', label: activeGuestSlot ? 'GUEST ' + activeGuestSlot : 'GUEST', detail: guestConnected ? 'Guest ready' : 'Waiting for guest', ready: guestConnected, active: previewScene === 'guest' },
+    ...activeGuestVideoSlots.map(g => ({
+      scene: 'guest' as TvSceneId,
+      guestSlot: g.slot,
+      label: g.label.toUpperCase(),
+      detail: 'Guest camera ready',
+      ready: true,
+      active: previewScene === 'guest' && activeGuestSlot === g.slot,
+    })),
     { scene: 'replay', label: 'REPLAY', detail: replayBufferRef.current.frameCount ? Math.round(replayBufferRef.current.durationMs / 1000) + 's buffered' : 'Buffer empty', ready: replayBufferRef.current.frameCount > 0, active: previewScene === 'replay' },
     { scene: 'black', label: 'BLACK', detail: 'Clear programme', ready: true, active: previewScene === 'black' },
   ];
 
-  const playPreviewSlot = async (scene: TvSceneId) => {
+  const playPreviewSlot = async (scene: TvSceneId, guestSlot?: number) => {
+    if (scene === 'guest' && guestSlot != null) {
+      setActiveGuestSlot(guestSlot);
+      activeGuestSlotRef.current = guestSlot;
+    }
     previewSceneRef.current = scene;
     setPreviewScene(scene);
     await takeScene(scene);
@@ -2113,8 +2128,8 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
                   <button
                     key={slot.scene}
                     type="button"
-                    onClick={() => void playPreviewSlot(slot.scene)}
-                    disabled={saving || (slot.scene === 'guest' && !slot.ready)}
+                    onClick={() => void playPreviewSlot(slot.scene, slot.guestSlot)}
+                    disabled={saving || !slot.ready}
                     className={`group min-w-0 rounded-xl border p-2 text-left transition-all ${slot.active ? 'border-blue-400 bg-blue-500/15 ring-1 ring-blue-400/40' : 'border-white/10 bg-black/30 hover:border-white/25 hover:bg-white/5'} disabled:cursor-not-allowed disabled:opacity-50`}
                     aria-label={`Take ${slot.label} to Program`}
                   >
