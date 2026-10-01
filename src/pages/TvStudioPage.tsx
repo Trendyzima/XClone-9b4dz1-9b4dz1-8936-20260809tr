@@ -470,11 +470,15 @@ export default function TvStudioPage() {
       const statusFor = (scene: TvSceneId | 'program' | 'preview') => {
         if (scene === 'program') return liveRef.current ? 'ON AIR' : 'PROGRAM';
         if (scene === 'preview') return previewSceneRef.current.toUpperCase();
-        if (scene === 'guest') return guestVideoReady && guestAudioReady ? 'CONNECTED' : guestVideoReady || guestAudioReady ? 'PARTIAL' : 'OFFLINE';
+        if (scene === 'guest') {
+          const videoReady = remoteGuestVideoRef.current?.readyState === 4 || remoteGuestVideoRef.current?.readyState === 3 || remoteGuestVideoRef.current?.readyState === 2;
+          const audioReady = Boolean(remoteGuestAudioRef.current?.srcObject?.getAudioTracks().some(track => track.readyState === 'live'));
+          return videoReady && audioReady ? 'CONNECTED' : videoReady || audioReady ? 'PARTIAL' : 'OFFLINE';
+        }
         if (scene === 'replay') return replayBufferRef.current.frameCount ? `${Math.round(replayBufferRef.current.durationMs / 1000)}s READY` : 'EMPTY';
-        if (scene === 'camera') return sourceHealth.camera.toUpperCase();
-        if (scene === 'video') return sourceVideo ? 'READY' : 'IDLE';
-        if (scene === 'screen') return screenStreamRef.current ? 'READY' : 'IDLE';
+        if (scene === 'camera') return cameraStreamRef.current?.getVideoTracks().some(track => track.readyState === 'live') ? 'READY' : 'IDLE';
+        if (scene === 'video') return sourceVideo && sourceVideo.readyState >= 2 ? 'READY' : 'IDLE';
+        if (scene === 'screen') return screenStreamRef.current?.getVideoTracks().some(track => track.readyState === 'live') ? 'READY' : 'IDLE';
         return 'IDLE';
       };
 
