@@ -181,7 +181,7 @@ grant execute on function public.decide_audio_space_speaker_request(uuid,uuid,te
 grant execute on function public.revoke_audio_space_speaker(uuid,uuid) to authenticated;
 grant execute on function public.leave_audio_space(uuid) to authenticated;
 
-revoke update,delete on table public.space_participants from authenticated;
+revoke insert,update,delete on table public.space_participants from authenticated;
 grant select on table public.space_participants to authenticated;
 
 commit;
