@@ -285,46 +285,6 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
 
   useEffect(() => {
     void readPermissionState();
-    if (persistentDock) {
-    return (
-      <div className="fixed inset-x-0 top-0 z-[160] border-b border-white/10 bg-zinc-950/95 shadow-2xl backdrop-blur-xl">
-        <div className="mx-auto w-full max-w-5xl px-2 py-2 sm:px-3">
-          <div className="flex items-center justify-between gap-2 mb-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="text-[10px] font-black tracking-[0.18em] text-zinc-300">TESTAGRAM TV</span>
-              <span className={live ? "rounded-full bg-red-600 px-2 py-0.5 text-[9px] font-bold text-white" : "rounded-full bg-zinc-800 px-2 py-0.5 text-[9px] font-bold text-zinc-300"}>{live ? "● ON AIR" : "● PREVIEW"}</span>
-              <span className="hidden sm:inline text-[9px] text-zinc-500">{studioHealth === 'ready' ? 'SIGNAL READY' : studioHealth === 'degraded' ? 'SIGNAL DEGRADED' : 'SIGNAL OFFLINE'}</span>
-            </div>
-            <div className="flex shrink-0 items-center gap-1">
-              <Button size="sm" variant={recording ? 'destructive' : 'outline'} onClick={() => void toggleRecording()} disabled={!deviceReady && !recording}>{recording ? 'STOP REC' : 'REC'}</Button>
-              <Button size="sm" variant={live ? 'destructive' : 'default'} onClick={() => live ? void stopLive() : void startLive()} disabled={saving}>{live ? 'STOP LIVE' : 'GO LIVE'}</Button>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="relative aspect-video overflow-hidden rounded-lg border border-blue-500/30 bg-black">
-              <canvas ref={previewCanvasRef} className="h-full w-full object-contain" />
-              <span className="absolute left-1.5 top-1.5 rounded bg-zinc-950/90 px-1.5 py-0.5 text-[8px] font-bold tracking-wider">PREVIEW · {previewScene.toUpperCase()}</span>
-            </div>
-            <div className="relative aspect-video overflow-hidden rounded-lg border border-red-500/30 bg-black">
-              {status === 'idle' && <div className="absolute inset-0 z-10 flex flex-col items-center justify-center text-zinc-500"><Radio className="mb-1 h-5 w-5" /><span className="text-[9px]">Tap Preview to start camera + mic</span></div>}
-              <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-contain" />
-              {multiview && <canvas ref={multiviewCanvasRef} width={640} height={360} className="absolute inset-0 h-full w-full object-contain pointer-events-none" />}
-              <div className="absolute left-1.5 top-1.5 flex gap-1"><span className="rounded bg-red-600/90 px-1.5 py-0.5 text-[8px] font-bold">{live ? '● LIVE · PROGRAM' : 'PROGRAM'}</span><span className={studioHealth === 'ready' ? 'rounded bg-emerald-600/90 px-1.5 py-0.5 text-[8px] font-bold' : 'rounded bg-zinc-700/90 px-1.5 py-0.5 text-[8px] font-bold'}>{studioHealth.toUpperCase()}</span></div>
-            </div>
-          </div>
-          <div className="mt-2 flex flex-wrap items-center gap-1.5">
-            <Button size="sm" onClick={() => void activateScene('camera')} disabled={saving}><Camera className="mr-1 h-3.5 w-3.5" />Preview</Button>
-            <Button size="sm" variant="outline" onClick={() => void toggleMic()} disabled={!deviceReady}>{muted ? 'Unmute mic' : 'Mute mic'}</Button>
-            <Button size="sm" variant="outline" onClick={() => void toggleCamera()} disabled={!deviceReady}>{camera ? 'Camera on' : 'Camera off'}</Button>
-            <Button size="sm" variant="outline" onClick={() => void takeScene('camera')} disabled={previewScene !== 'camera' || sourceHealth.camera !== 'ready'}>TAKE CAMERA</Button>
-            <Button size="sm" variant="outline" onClick={() => nav(activeStreamId ? '/tv-studio/'+activeStreamId+'/guests' : '/tv-studio')}>Guest Control</Button>
-            <span className="ml-auto text-[9px] text-zinc-500">Mic {Math.round(audioBusMeters.mic)}% · Master {Math.round(audioBusMeters.master)}% · {viewerCount} viewers</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return () => {
       if (sceneAnimationRef.current) cancelAnimationFrame(sceneAnimationRef.current);
       if (duckingTimerRef.current) window.clearInterval(duckingTimerRef.current);
@@ -1943,6 +1903,45 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
 
   const fmt = (n: number) => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
   const guestLabel = guestLifecycle === 'connected' ? 'CONNECTED' : guestLifecycle === 'partial' ? 'PARTIAL · WAITING FOR MEDIA' : guestLifecycle === 'connecting' ? 'CONNECTING' : guestLifecycle === 'invited' ? 'INVITE ACTIVE' : guestLifecycle === 'lost' ? 'SIGNAL LOST' : 'OFFLINE';
+
+  if (persistentDock) {
+    return (
+      <div className="fixed inset-x-0 top-0 z-[160] border-b border-white/10 bg-zinc-950/95 shadow-2xl backdrop-blur-xl">
+        <div className="mx-auto w-full max-w-5xl px-2 py-2 sm:px-3">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="text-[10px] font-black tracking-[0.18em] text-zinc-300">TESTAGRAM TV</span>
+              <span className={live ? "rounded-full bg-red-600 px-2 py-0.5 text-[9px] font-bold text-white" : "rounded-full bg-zinc-800 px-2 py-0.5 text-[9px] font-bold text-zinc-300"}>{live ? "● ON AIR" : "● PREVIEW"}</span>
+              <span className="hidden sm:inline text-[9px] text-zinc-500">{studioHealth === 'ready' ? 'SIGNAL READY' : studioHealth === 'degraded' ? 'SIGNAL DEGRADED' : 'SIGNAL OFFLINE'}</span>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              <Button size="sm" variant={recording ? 'destructive' : 'outline'} onClick={() => recording ? stopRecording() : void startRecording()} disabled={saving || (!deviceReady && !recording)}>{recording ? 'STOP REC' : 'REC'}</Button>
+              <Button size="sm" variant={live ? 'destructive' : 'default'} onClick={() => live ? void stopLive() : void startLive()} disabled={saving}>{live ? 'STOP LIVE' : 'GO LIVE'}</Button>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="relative aspect-video overflow-hidden rounded-lg border border-blue-500/30 bg-black">
+              <canvas ref={previewCanvasRef} className="h-full w-full object-contain" />
+              <span className="absolute left-1.5 top-1.5 rounded bg-zinc-950/90 px-1.5 py-0.5 text-[8px] font-bold tracking-wider">PREVIEW · {previewScene.toUpperCase()}</span>
+            </div>
+            <div className="relative aspect-video overflow-hidden rounded-lg border border-red-500/30 bg-black">
+              {status === 'idle' && <div className="absolute inset-0 z-10 flex flex-col items-center justify-center text-zinc-500"><Radio className="mb-1 h-5 w-5" /><span className="text-[9px]">Tap Preview to start camera + mic</span></div>}
+              <video ref={videoRef} autoPlay muted playsInline className="h-full w-full object-contain" />
+              {multiview && <canvas ref={multiviewCanvasRef} width={640} height={360} className="absolute inset-0 h-full w-full object-contain pointer-events-none" />}
+              <div className="absolute left-1.5 top-1.5 flex gap-1"><span className="rounded bg-red-600/90 px-1.5 py-0.5 text-[8px] font-bold">{live ? '● LIVE · PROGRAM' : 'PROGRAM'}</span><span className={studioHealth === 'ready' ? 'rounded bg-emerald-600/90 px-1.5 py-0.5 text-[8px] font-bold' : 'rounded bg-zinc-700/90 px-1.5 py-0.5 text-[8px] font-bold'}>{studioHealth.toUpperCase()}</span></div>
+            </div>
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-1.5">
+            <Button size="sm" onClick={() => void activateScene('camera')} disabled={saving}><Camera className="mr-1 h-3.5 w-3.5" />Preview</Button>
+            <Button size="sm" variant="outline" onClick={() => void toggleMic()} disabled={!deviceReady}>{muted ? 'Unmute mic' : 'Mute mic'}</Button>
+            <Button size="sm" variant="outline" onClick={() => void toggleCamera()} disabled={!deviceReady}>{camera ? 'Camera on' : 'Camera off'}</Button>
+            <Button size="sm" variant="outline" onClick={() => void takeScene('camera')} disabled={previewScene !== 'camera' || sourceHealth.camera !== 'ready'}>TAKE CAMERA</Button>
+            <Button size="sm" variant="outline" onClick={() => nav(activeStreamId ? '/tv-studio/'+activeStreamId+'/guests' : '/tv-studio')}>Guest Control</Button>
+            <span className="ml-auto text-[9px] text-zinc-500">Mic {Math.round(audioBusMeters.mic)}% · Master {Math.round(audioBusMeters.master)}% · {viewerCount} viewers</span>
+          </div>
+        </div>
+      </div>
+    );  }
 
   return (
     <div className="tv-studio min-h-screen bg-zinc-950 text-zinc-100">
