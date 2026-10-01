@@ -40,6 +40,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
   const roomRef = useRef<TestagramTvYouTubeSession | TestagramTvMediaSession | null>(null);
+  const nativeViewerRoomRef = useRef<TestagramTvMediaSession | null>(null);
   const guestRoomRef = useRef<TestagramTvMediaSession | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
   const programStreamRef = useRef<MediaStream | null>(null);
@@ -1375,6 +1376,18 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
 
       roomRef.current = session;
 
+      // Testagram-native public delivery runs alongside YouTube. It is deliberately
+      // capped to a small host-fanout ceiling; larger audiences use the CDN-backed
+      // YouTube path instead of turning one broadcaster's browser into a media CDN.
+      try {
+        const nativeSession = await TestagramTvMediaSession.connectHostExisting(id, program);
+        nativeSession.setViewerCountHandler?.((count) => setViewerCount(count));
+        nativeViewerRoomRef.current = nativeSession;
+        setBroadcastDiagnostics(prev => ({ ...(prev || {}), native_public_media: 'ready', native_viewer_limit: 20 }));
+      } catch (nativeError) {
+        setBroadcastDiagnostics(prev => ({ ...(prev || {}), native_public_media: 'degraded', native_public_media_error: nativeError instanceof Error ? nativeError.message : String(nativeError) }));
+      }
+
       // Guest WebRTC is an optional interactive feature. It must never block
       // the primary YouTube ON AIR path. Start it in the background after the
       // public delivery transport is connected.
@@ -1509,6 +1522,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       toast.success(`Testagram TV is ON AIR · YouTube: ${youtubeStatus}`);
     } catch (e: any) {
       if (guestSession) await guestSession.close().catch(() => undefined);
+      if (nativeViewerRoomRef.current) { await nativeViewerRoomRef.current.close().catch(() => undefined); nativeViewerRoomRef.current = null; }
       if (session) {
         setBroadcastDiagnostics(session.getDiagnostics());
         await session.close().catch(() => undefined);
@@ -1649,6 +1663,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     const activeSession = roomRef.current;
     const activeGuestSession = guestRoomRef.current;
     if (activeGuestSession) await activeGuestSession.close().catch(() => undefined);
+    if (nativeViewerRoomRef.current) { await nativeViewerRoomRef.current.close().catch(() => undefined); nativeViewerRoomRef.current = null; }
     if (activeSession) await activeSession.close().catch(() => undefined);
 
     if (activeStreamId && user) {
@@ -2463,16 +2478,16 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
               <div className="flex items-center gap-2 font-semibold mb-3"><Settings2 className="w-4 h-4" />Production controls</div>
               <label className="text-xs text-zinc-400">Capture quality</label>
               <select value={quality} disabled={live || recording} onChange={e => setQuality(e.target.value as Quality)} className="w-full mt-1 rounded-lg bg-zinc-800 p-2">
-                <option value="4k">4K UHD (3840×2160)</option><option value="1440p">1440p QHD (2560×1440)</option><option value="1080p">1080p Full HD</option><option value="720p">720p HD</option><option value="480p">480p</option>
+                <option value="4k">4K UHD (local capture)</option><option value="1440p">1440p QHD (local capture)</option><option value="1080p">1080p Full HD · live output</option><option value="720p">720p HD</option><option value="480p">480p</option>
               </select>
               <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
-                <div className="rounded-lg bg-black/30 p-2"><Activity className="w-3.5 h-3.5 mb-1 text-emerald-400" /><span>{quality === '4k' ? '4K UHD' : quality}</span><p className="text-zinc-500">production output</p></div>
+                <div className="rounded-lg bg-black/30 p-2"><Activity className="w-3.5 h-3.5 mb-1 text-emerald-400" /><span>{quality === '4k' ? '4K UHD' : quality}</span><p className="text-zinc-500">{quality === '4k' || quality === '1440p' ? 'capture · live capped at 1080p' : 'capture + live output'}</p></div>
                 <div className="rounded-lg bg-black/30 p-2"><Mic className="w-3.5 h-3.5 mb-1 text-emerald-400" /><span>48 kHz</span><p className="text-zinc-500">processed audio</p></div>
                 <div className="rounded-lg bg-black/30 p-2"><Users className="w-3.5 h-3.5 mb-1 text-blue-400" /><span>{viewerCount}</span><p className="text-zinc-500">live viewers</p></div>
                 <div className="rounded-lg bg-black/30 p-2"><ShieldCheck className="w-3.5 h-3.5 mb-1 text-emerald-400" /><span>Local</span><p className="text-zinc-500">recording storage</p></div>
               </div>
               <div className="mt-2 text-[10px] text-zinc-500">Replay buffer: {replayBufferRef.current.frameCount} frames / {Math.round(replayBufferRef.current.durationMs / 1000)}s · Guest: {guestLabel} · Video {guestVideoReady ? 'ready' : 'waiting'} · Audio {guestAudioReady ? 'ready' : 'waiting'}</div>
-              <div className="mt-1 text-[10px] text-zinc-500">Render: {programFps} FPS · delayed {programDropped}</div>
+              <div className="mt-1 text-[10px] text-zinc-500">Render: {programFps} FPS · delayed {programDropped} · live delivery: 1080p/30 max</div>
               <div className="mt-4 flex items-center justify-between text-[10px] text-zinc-500"><span>Studio signal</span><span className={`uppercase tracking-wider font-semibold ${studioHealth === 'ready' ? 'text-emerald-400' : studioHealth === 'degraded' ? 'text-amber-400' : 'text-zinc-500'}`}>{studioHealth}</span></div>
               <div className="mt-1 h-2 rounded-full bg-zinc-700/50 overflow-hidden"><div className="h-full bg-emerald-400 transition-all" style={{ width: `${Math.min(100, audioLevel)}%` }} /></div>
               <p className="text-[10px] text-zinc-500 mt-1">Camera: {cameraResolution} · browser noise suppression + studio gate/compressor</p>
