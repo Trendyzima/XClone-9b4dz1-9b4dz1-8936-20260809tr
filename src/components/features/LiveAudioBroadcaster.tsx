@@ -87,7 +87,7 @@ export function LiveAudioBroadcaster({
 
     const recorder = mediaRecorderRef.current;
     const startedAt = startedAtRef.current;
-    const durationSeconds = startedAt ? (Date.now() - startedAt) / 1000 : recordingTime;
+    const durationSeconds = startedAt ? (Date.now() - startedAt) / 1000 : 0;
 
     try {
       if (recorder && recorder.state !== 'inactive') {
@@ -119,7 +119,7 @@ export function LiveAudioBroadcaster({
       onBroadcastStop?.();
       stoppingRef.current = false;
     }
-  }, [cleanup, onBroadcastStop, recordingTime, spaceId, toast, uploadRecording]);
+  }, [cleanup, onBroadcastStop, spaceId, toast, uploadRecording]);
 
   useEffect(() => () => {
     // Do not rely on the render-time isBroadcasting value during unmount.
