@@ -1,11 +1,10 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
-import { Mic, Square, Loader2, Radio, SlidersHorizontal } from 'lucide-react';
+import { Mic, Square, Loader2, Radio, SlidersHorizontal, Check, X } from 'lucide-react';
 import { createStudioAudioPipeline, requestStudioMicrophone, chooseAudioMimeType, type StudioAudioPipeline } from '@/lib/studioAudio';
 import { TestagramMediaSession } from '@/lib/testagramMedia';
-
 
 interface LiveAudioBroadcasterProps {
   spaceId: string;
@@ -14,17 +13,30 @@ interface LiveAudioBroadcasterProps {
   onBroadcastStop?: () => void;
 }
 
-export function LiveAudioBroadcaster({ 
-  spaceId, 
+/**
+ * Space broadcaster:
+ *  - captures one microphone source
+ *  - runs it through the studio voice chain
+ *  - publishes the processed stream through the native Testagram media engine
+ *  - records the same processed program locally for the Space replay
+ *
+ * The previous implementation only recorded audio. It never connected the
+ * host to the native media session, so "live" Spaces could be silent for
+ * listeners until a recording existed. Keep the live transport and recording
+ * paths explicit and independently observable.
+ */
+export function LiveAudioBroadcaster({
+  spaceId,
   isHost,
-  onBroadcastStart, 
-  onBroadcastStop 
+  onBroadcastStart,
+  onBroadcastStop,
 }: LiveAudioBroadcasterProps) {
   const { toast } = useToast();
   const [isBroadcasting, setIsBroadcasting] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
-
+  const [transportReady, setTransportReady] = useState(false);
+  const [speakerRequests, setSpeakerRequests] = useState<any[]>([]);
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
@@ -32,117 +44,185 @@ export function LiveAudioBroadcaster({
   const streamRef = useRef<MediaStream | null>(null);
   const pipelineRef = useRef<StudioAudioPipeline | null>(null);
   const mediaSessionRef = useRef<TestagramMediaSession | null>(null);
+  const startedAtRef = useRef<number | null>(null);
+  const stoppingRef = useRef(false);
+
+  const loadSpeakerRequests = useCallback(async () => {
+    if (!isHost) return;
+    const { data, error } = await supabase
+      .from('audio_space_speaker_requests')
+      .select('space_id,user_id,status,requested_at,profiles:user_id(id,username,avatar_url)')
+      .eq('space_id', spaceId)
+      .eq('status', 'pending')
+      .order('requested_at', { ascending: true });
+    if (!error) setSpeakerRequests(data || []);
+    else console.warn('[Audio Space] speaker request fetch failed', error);
+  }, [isHost, spaceId]);
 
   useEffect(() => {
-    return () => { void stopBroadcast(); };
+    void loadSpeakerRequests();
+    if (!isHost) return;
+    const timer = window.setInterval(() => void loadSpeakerRequests(), 2500);
+    return () => window.clearInterval(timer);
+  }, [isHost, loadSpeakerRequests]);
+
+  const decideSpeakerRequest = async (userId: string, decision: 'approved' | 'denied') => {
+    const { error } = await supabase.rpc('decide_audio_space_speaker_request', {
+      p_space_id: spaceId,
+      p_user_id: userId,
+      p_decision: decision,
+    });
+    if (error) {
+      toast({ title: 'Speaker request failed', description: error.message, variant: 'destructive' });
+      return;
+    }
+    setSpeakerRequests(current => current.filter(request => request.user_id !== userId));
+    toast({ title: decision === 'approved' ? 'Speaker approved' : 'Request denied' });
+  };
+
+  const cleanup = useCallback(async () => {
+    if (timerRef.current !== null) {
+      window.clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    await mediaSessionRef.current?.close().catch(() => undefined);
+    mediaSessionRef.current = null;
+    streamRef.current?.getTracks().forEach(track => track.stop());
+    streamRef.current = null;
+    await pipelineRef.current?.stop().catch(() => undefined);
+    pipelineRef.current = null;
+    startedAtRef.current = null;
+    setTransportReady(false);
   }, []);
 
+  const uploadRecording = useCallback(async (audioBlob: Blob, durationSeconds: number) => {
+    if (!audioBlob.size) throw new Error('No audio data was captured.');
+
+    const fileName = `spaces/${spaceId}/${Date.now()}.webm`;
+    const { error: uploadError } = await supabase.storage
+      .from('posts')
+      .upload(fileName, audioBlob, { cacheControl: '31536000', upsert: false, contentType: audioBlob.type || 'audio/webm' });
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase.storage.from('posts').getPublicUrl(fileName);
+    const { error: dbError } = await supabase.from('space_recordings').insert({
+      space_id: spaceId,
+      user_id: (await supabase.auth.getUser()).data.user?.id,
+      title: `Recording ${new Date().toLocaleString()}`,
+      audio_url: publicUrl,
+      duration: Math.max(1, Math.round(durationSeconds)),
+    });
+    if (dbError) throw dbError;
+  }, [spaceId]);
+
+  const stopBroadcast = useCallback(async () => {
+    if (stoppingRef.current) return;
+    stoppingRef.current = true;
+
+    const recorder = mediaRecorderRef.current;
+    const startedAt = startedAtRef.current;
+    const durationSeconds = startedAt ? (Date.now() - startedAt) / 1000 : 0;
+
+    try {
+      if (recorder && recorder.state !== 'inactive') {
+        await new Promise<void>(resolve => {
+          recorder.addEventListener('stop', () => resolve(), { once: true });
+          recorder.stop();
+        });
+      }
+      setIsBroadcasting(false);
+      setUploading(audioChunksRef.current.length > 0);
+
+      if (audioChunksRef.current.length) {
+        const mimeType = recorder?.mimeType || 'audio/webm';
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        try {
+          await uploadRecording(blob, durationSeconds);
+          toast({ title: 'Recording saved', description: 'Your Space recording is ready for playback.' });
+        } catch (error: any) {
+          console.error('[Audio Space] recording upload failed', error);
+          toast({ title: 'Recording save failed', description: error?.message || 'The live broadcast ended, but the replay could not be saved.', variant: 'destructive' });
+        }
+      }
+    } finally {
+      mediaRecorderRef.current = null;
+      audioChunksRef.current = [];
+      setUploading(false);
+      await cleanup();
+      await supabase.from('spaces').update({ is_recording: false }).eq('id', spaceId);
+      onBroadcastStop?.();
+      stoppingRef.current = false;
+    }
+  }, [cleanup, onBroadcastStop, spaceId, toast, uploadRecording]);
+
+  useEffect(() => () => {
+    // Do not rely on the render-time isBroadcasting value during unmount.
+    // Refs are the source of truth for long-lived media resources.
+    void stopBroadcast();
+  }, [stopBroadcast]);
+
   const startBroadcast = async () => {
-    if (!isHost) {
-      toast({
-        title: 'Permission denied',
-        description: 'Only the host can broadcast',
-        variant: 'destructive',
-      });
+    if (!isHost || isBroadcasting || stoppingRef.current) {
+      if (!isHost) toast({ title: 'Permission denied', description: 'Only the host can broadcast', variant: 'destructive' });
       return;
     }
 
     try {
-      const stream = await requestStudioMicrophone();
-      streamRef.current = stream;
-      const pipeline = await createStudioAudioPipeline(stream);
-      pipelineRef.current = pipeline;
-      const mimeType = chooseAudioMimeType();
-      const mediaRecorder = new MediaRecorder(pipeline.stream, mimeType ? { mimeType, audioBitsPerSecond: 192000 } : { audioBitsPerSecond: 192000 });
-      
-      mediaRecorderRef.current = mediaRecorder;
+      setUploading(false);
       audioChunksRef.current = [];
 
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
+      const microphone = await requestStudioMicrophone();
+      streamRef.current = microphone;
+
+      const pipeline = await createStudioAudioPipeline(microphone);
+      pipelineRef.current = pipeline;
+
+      // Publish the processed studio stream, not the raw microphone.
+      const session = await TestagramMediaSession.connectSpace(spaceId, 'host', pipeline.stream);
+      mediaSessionRef.current = session;
+
+      const mimeType = chooseAudioMimeType();
+      const recorder = new MediaRecorder(
+        pipeline.stream,
+        mimeType ? { mimeType, audioBitsPerSecond: 192000 } : { audioBitsPerSecond: 192000 },
+      );
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = event => {
+        if (event.data.size > 0) audioChunksRef.current.push(event.data);
+      };
+      recorder.onerror = event => {
+        console.error('[Audio Space] MediaRecorder error', event);
       };
 
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType || 'audio/webm' });
-        await uploadRecording(audioBlob);
-        await pipeline.stop();
-        pipelineRef.current = null;
-      };
-
-      mediaRecorder.start(5000); // Record in 5-second chunks
-      setIsBroadcasting(true);
+      recorder.start(5000);
+      startedAtRef.current = Date.now();
       setRecordingTime(0);
+      setIsBroadcasting(true);
+      setTransportReady(true);
 
-      await supabase.from('spaces').update({ is_recording: true }).eq('id', spaceId);
+      const { error: stateError } = await supabase
+        .from('spaces')
+        .update({ is_recording: true })
+        .eq('id', spaceId);
+      if (stateError) console.warn('[Audio Space] failed to persist recording state', stateError);
 
       timerRef.current = window.setInterval(() => {
-        setRecordingTime((prev) => prev + 1);
+        setRecordingTime(Math.max(0, Math.floor((Date.now() - (startedAtRef.current ?? Date.now())) / 1000)));
       }, 1000);
 
-      toast({ title: 'Broadcasting started', description: 'Your audio is now live' });
+      toast({ title: 'Broadcasting started', description: 'Your processed audio is now live.' });
       onBroadcastStart?.('live');
     } catch (error: any) {
-      console.error('Error starting broadcast:', error);
+      console.error('[Audio Space] start failed', error);
+      await cleanup();
+      await supabase.from('spaces').update({ is_recording: false }).eq('id', spaceId);
+      setIsBroadcasting(false);
       toast({
-        title: 'Error',
-        description: 'Failed to access microphone. Please check permissions.',
+        title: 'Audio broadcast unavailable',
+        description: error?.message || 'Could not establish the live audio transport.',
         variant: 'destructive',
       });
-    }
-  };
-
-  const stopBroadcast = async () => {
-    if (mediaRecorderRef.current && isBroadcasting) {
-      mediaRecorderRef.current.stop();
-      setIsBroadcasting(false);
-
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-
-      await mediaSessionRef.current?.close();
-       mediaSessionRef.current = null;
-
-       if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
-      }
-
-      await supabase.from('spaces').update({ is_recording: false }).eq('id', spaceId);
-
-      onBroadcastStop?.();
-    }
-  };
-
-  const uploadRecording = async (audioBlob: Blob) => {
-    setUploading(true);
-    try {
-      const fileName = `spaces/${spaceId}/${Date.now()}.webm`;
-      const { error: uploadError } = await supabase.storage.from('posts').upload(fileName, audioBlob, { cacheControl: '31536000', upsert: false });
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage.from('posts').getPublicUrl(fileName);
-
-      const { error: dbError } = await supabase.from('space_recordings').insert({
-        space_id: spaceId,
-        user_id: (await supabase.auth.getUser()).data.user?.id,
-        title: `Recording ${new Date().toLocaleString()}`,
-        audio_url: publicUrl,
-        duration: recordingTime,
-      });
-
-      if (dbError) throw dbError;
-
-      toast({ title: 'Recording saved', description: 'Your broadcast has been saved' });
-    } catch (error: any) {
-      console.error('Error uploading recording:', error);
-      toast({ title: 'Error', description: 'Failed to save recording', variant: 'destructive' });
-    } finally {
-      setUploading(false);
     }
   };
 
@@ -150,7 +230,7 @@ export function LiveAudioBroadcaster({
     const hrs = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
     const secs = seconds % 60;
-    return hrs > 0 ? `${hrs}:${mins.toString().padStart(2,'0')}:${secs.toString().padStart(2,'0')}` : `${mins}:${secs.toString().padStart(2,'0')}`;
+    return hrs > 0 ? `${hrs}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}` : `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   if (!isHost) return null;
@@ -164,7 +244,7 @@ export function LiveAudioBroadcaster({
         </p>
         {isBroadcasting && (
           <div className="flex items-center space-x-2">
-            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+            <div className={`w-2 h-2 rounded-full animate-pulse ${transportReady ? 'bg-red-500' : 'bg-amber-500'}`} />
             <span className="text-sm font-mono">{formatTime(recordingTime)}</span>
           </div>
         )}
@@ -177,7 +257,7 @@ export function LiveAudioBroadcaster({
       )}
 
       {isBroadcasting && (
-        <Button onClick={stopBroadcast} variant="destructive" className="w-full" size="lg">
+        <Button onClick={() => void stopBroadcast()} variant="destructive" className="w-full" size="lg">
           <Square className="w-4 h-4 mr-2" /> Stop Broadcast
         </Button>
       )}
@@ -185,15 +265,38 @@ export function LiveAudioBroadcaster({
       {uploading && (
         <div className="flex items-center justify-center space-x-2 py-3">
           <Loader2 className="w-5 h-5 animate-spin" />
-          <span className="text-sm text-muted-foreground">Saving recording...</span>
+          <span className="text-sm text-muted-foreground">Saving recording…</span>
         </div>
       )}
 
-      <div className="flex items-center gap-2 text-xs text-muted-foreground"><SlidersHorizontal className="w-3.5 h-3.5 text-primary" /> Studio voice chain active · noise suppression · rumble removal · dynamics control</div>
+      {isBroadcasting && speakerRequests.length > 0 && (
+        <div className="rounded-lg border border-border p-3 space-y-2">
+          <div className="text-sm font-semibold">Speaking requests ({speakerRequests.length})</div>
+          {speakerRequests.map(request => (
+            <div key={request.user_id} className="flex items-center gap-2">
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium truncate">{request.profiles?.username || 'Listener'}</p>
+                <p className="text-xs text-muted-foreground">wants to join the stage</p>
+              </div>
+              <Button size="icon" variant="outline" onClick={() => void decideSpeakerRequest(request.user_id, 'approved')} aria-label="Approve speaker">
+                <Check className="w-4 h-4" />
+              </Button>
+              <Button size="icon" variant="ghost" onClick={() => void decideSpeakerRequest(request.user_id, 'denied')} aria-label="Deny speaker">
+                <X className="w-4 h-4" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <SlidersHorizontal className="w-3.5 h-3.5 text-primary" />
+        Studio voice chain active · noise suppression · rumble removal · dynamics control
+      </div>
       <p className="text-xs text-muted-foreground">
-        {isBroadcasting 
-          ? 'Your audio is being broadcast live to all listeners. Recording will be saved automatically.'
-          : 'Click to start broadcasting live audio. The recording will be saved for playback.'}
+        {isBroadcasting
+          ? (transportReady ? 'LIVE transport connected. Your processed voice is being delivered to listeners.' : 'Connecting live transport…')
+          : 'Start the live transport and the local replay recording together.'}
       </p>
     </div>
   );
