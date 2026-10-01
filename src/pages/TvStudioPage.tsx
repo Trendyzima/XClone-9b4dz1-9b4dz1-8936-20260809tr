@@ -616,18 +616,24 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     };
 
     const renderScene = (target: CanvasRenderingContext2D, scene: TvSceneId) => {
+      // Resolve current media elements on every frame. Uploads, camera switches,
+      // guest connections and the persistent production dock can rebind DOM
+      // elements after this compositor was created; never render from stale refs.
+      const currentCamera = productionCameraVideoRef.current ?? camera;
+      const currentSourceVideo = sourceVideoRef.current;
+      const currentScreenVideo = screenVideoRef.current ?? screenVideo;
       // This renderer feeds both the production raster and the smaller Preview monitor.
       const targetWidth = target.canvas.width || canvas.width;
       const targetHeight = target.canvas.height || canvas.height;
       target.fillStyle = '#000'; target.fillRect(0, 0, targetWidth, targetHeight);
       if (scene === 'camera') {
-        fitCameraLandscape(target, camera);
-      } else if (scene === 'video' && sourceVideo) {
+        fitCameraLandscape(target, currentCamera);
+      } else if (scene === 'video' && currentSourceVideo) {
         const activeGuests = guestSlotsRef.current.filter(g => (g.lifecycle === 'connected' || g.lifecycle === 'partial') && g.videoReady).sort((x, y) => x.slot - y.slot);
-        const hostReady = camera.readyState >= 2 && camera.videoWidth > 0;
+        const hostReady = currentCamera.readyState >= 2 && currentCamera.videoWidth > 0;
         const guestVideos = activeGuests.map(g => guestVideoElementsRef.current.get(g.slot) || null).filter((v): v is HTMLVideoElement => Boolean(v && v.readyState >= 2 && v.videoWidth > 0));
         const sources: Array<{ kind: 'video' | 'camera' | 'guest'; media: HTMLVideoElement }> = [
-          { kind: 'video', media: sourceVideo },
+          { kind: 'video', media: currentSourceVideo },
           ...(hostReady ? [{ kind: 'camera' as const, media: camera }] : []),
           ...guestVideos.map(media => ({ kind: 'guest' as const, media })),
         ];
@@ -679,8 +685,8 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
           });
         }
       } else if (scene === 'screen') {
-        if (screenStreamRef.current && screenVideo.srcObject !== screenStreamRef.current) screenVideo.srcObject = screenStreamRef.current;
-        fit(target, screenVideo, true);
+        if (screenStreamRef.current && currentScreenVideo.srcObject !== screenStreamRef.current) currentScreenVideo.srcObject = screenStreamRef.current;
+        fit(target, currentScreenVideo, true);
       } else if (scene === 'guest') {
         fit(target, guestVideoElementsRef.current.get(activeGuestSlotRef.current || guestSlotsRef.current[0]?.slot || 0) || remoteGuestVideoRef.current, true);
       } else if (scene === 'replay') {
@@ -1161,6 +1167,14 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     await video.play().catch(() => undefined);
     setSourceVideoPlaying(!video.paused);
     setStatus('preview');
+    try {
+      await createProductionProgram();
+      previewSceneRef.current = 'video';
+      setPreviewScene('video');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Could not wire uploaded video into the production bus.');
+      return;
+    }
     toast.success('Video loaded locally. It will be sent through the live program, not stored on Testagram.');
   };
 
@@ -2180,7 +2194,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
                 {previewSceneSlots.map(slot => (
                   <button
-                    key={slot.scene}
+                    key={`${slot.scene}-${slot.guestSlot ?? 'main'}`}
                     type="button"
                     onClick={() => void playPreviewSlot(slot.scene, slot.guestSlot)}
                     disabled={saving || !slot.ready}
