@@ -55,11 +55,13 @@ export class TestagramTvMediaSession {
   private localStream: MediaStream | null = null;
   private peers = new Map<string, RTCPeerConnection>();
   private peerRoles = new Map<string, TvRole>();
+  private peerGuestSlots = new Map<string, number>();
   private remoteStream = new MediaStream();
   private closed = false;
   private peerId = crypto.randomUUID();
   private onRemoteStream?: (stream: MediaStream) => void;
-  private onRemoteTrack?: (track: MediaStreamTrack) => void;
+  private onRemoteTrack?: (track: MediaStreamTrack, peerId: string, guestSlot?: number) => void;
+  private onRemotePeerLeave?: (peerId: string, peerRole: TvRole, guestSlot?: number) => void;
   private onViewerCount?: (count: number, guests: number) => void;
   private videoOptions: VideoOptions | null = null;
   private readyPromise: Promise<void> | null = null;
@@ -134,6 +136,7 @@ export class TestagramTvMediaSession {
   }
 
   private guestToken = '';
+  public guestSlot = 0;
 
   private async startHostGuestBridge() {
     const realtimeSession = await ensureRealtimeAuth(false);
@@ -182,6 +185,7 @@ export class TestagramTvMediaSession {
       if (Array.isArray(data?.ice_servers) && data.ice_servers.length) {
         this.iceServers = data.ice_servers as RTCIceServer[];
       }
+      if (action === 'guest') this.guestSlot = Number(data?.guest_slot || 0);
     }
 
     if (realtimeSession?.access_token) await supabase.realtime.setAuth(realtimeSession.access_token);
@@ -227,7 +231,7 @@ export class TestagramTvMediaSession {
 
     if (this.role !== 'host') {
       this.readyPromise = new Promise<void>(resolve => { this.readyResolve = resolve; });
-      await this.send({ event: 'tv-join', payload: { from: this.peerId, peerRole: this.role } });
+      await this.send({ event: 'tv-join', payload: { from: this.peerId, peerRole: this.role, guestSlot: this.role === 'guest' ? this.guestSlot : undefined } });
     } else {
       this.lastDiagnostics = { ...this.lastDiagnostics, programTracks: this.localStream?.getTracks().map(t => t.kind) || [] };
       this.startHeartbeat('starting');
@@ -290,7 +294,7 @@ export class TestagramTvMediaSession {
       this.configureReceiverBuffering(pc);
 
       if (!this.remoteStream.getTracks().some(t => t.id === e.track.id)) this.remoteStream.addTrack(e.track);
-      this.onRemoteTrack?.(e.track);
+      this.onRemoteTrack?.(e.track, peerId, this.peerGuestSlots.get(peerId));
       this.onRemoteStream?.(this.remoteStream);
       if (this.readyResolve) {
         this.readyResolve();
@@ -315,6 +319,7 @@ export class TestagramTvMediaSession {
   private async onJoin(message: Signal) {
     if (this.role !== 'host' || !message.from || message.from === this.peerId) return;
     const peerRole = message.peerRole === 'guest' ? 'guest' : 'viewer';
+    if (peerRole === 'guest' && Number.isInteger(message.guestSlot) && Number(message.guestSlot) > 0) this.peerGuestSlots.set(message.from, Number(message.guestSlot));
     const pc = this.createPeer(message.from, peerRole);
     const offer = await pc.createOffer();
     await pc.setLocalDescription(offer);
@@ -472,7 +477,11 @@ export class TestagramTvMediaSession {
     const pc = this.peers.get(message.from);
     pc?.close();
     this.peers.delete(message.from);
+    const role = this.peerRoles.get(message.from) || 'viewer';
+    const guestSlot = this.peerGuestSlots.get(message.from);
     this.peerRoles.delete(message.from);
+    this.peerGuestSlots.delete(message.from);
+    this.onRemotePeerLeave?.(message.from, role, guestSlot);
     this.publishPresence();
   }
 
@@ -524,7 +533,8 @@ export class TestagramTvMediaSession {
     }
   }
 
-  setRemoteTrackHandler(handler: (track: MediaStreamTrack) => void) { this.onRemoteTrack = handler; }
+  setRemoteTrackHandler(handler: (track: MediaStreamTrack, peerId: string, guestSlot?: number) => void) { this.onRemoteTrack = handler; }
+  setRemotePeerLeaveHandler(handler: (peerId: string, peerRole: TvRole, guestSlot?: number) => void) { this.onRemotePeerLeave = handler; }
   setViewerCountHandler(handler: (count: number, guests: number) => void) { this.onViewerCount = handler; }
 
   async configureVideoSender(options: VideoOptions) {
