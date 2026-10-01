@@ -242,6 +242,22 @@ export default async function handler(request: RequestLike) {
         .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
         .in('id', recommendedIds).is('community_id', null).is('deleted_at', null).limit(sourceLimit)
       : { data: [], error: null };
+    const feedPostIds = [...(postsResult.data || []), ...(followingPostsResult.data || []), ...(recommendedResult.data || [])]
+      .map((p: any) => String(p.id || ''))
+      .filter(Boolean);
+    const pollByPostId = new Map<string, any>();
+    if (feedPostIds.length) {
+      const { data: pollRows, error: pollError } = await admin
+        .from('polls')
+        .select('id,post_id,question,description,status,ends_at,allow_multiple,visibility')
+        .in('post_id', feedPostIds)
+        .eq('visibility', 'public');
+      if (pollError) console.warn('[home-feed] polls', pollError);
+      for (const poll of (pollRows || [])) {
+        if (poll?.post_id) pollByPostId.set(String(poll.post_id), poll);
+      }
+    }
+
     const recommendationById = new Map<string, RecommendationRow>(
       recommendationRows.map((r): [string, RecommendationRow] => [String(r.recommended_post_id), r])
     );
@@ -253,11 +269,11 @@ export default async function handler(request: RequestLike) {
 
     const followingLocal = (followingPostsResult.data || []).map((p: any) => ({
       type: 'post', source: 'following-local',
-      data: { ...p, is_federated: false, feed_reason: 'From someone you follow' },
+      data: { ...p, poll: pollByPostId.get(String(p.id)) ?? null, is_federated: false, feed_reason: 'From someone you follow' },
     }));
     const local = (postsResult.data || [])
       .filter((p: any) => !followedLocalIds.includes(String(p.author_id || p.user_id || '')))
-      .map((p: any) => ({ type: 'post', source: 'local', data: { ...p, is_federated: false } }));
+      .map((p: any) => ({ type: 'post', source: 'local', data: { ...p, poll: pollByPostId.get(String(p.id)) ?? null, is_federated: false } }));
     const followingThreads = (followingThreadsResult.data || []).map((t: any) => ({
       type: 'thread', source: 'following-thread',
       data: { ...t, is_federated: false, feed_reason: 'From someone you follow' },
