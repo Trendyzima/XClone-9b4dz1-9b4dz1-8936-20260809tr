@@ -1238,6 +1238,7 @@ export default function TvStudioPage() {
       // Guest WebRTC is an optional interactive feature. It must never block
       // the primary YouTube ON AIR path. Start it in the background after the
       // public delivery transport is connected.
+      if (!guestRoomRef.current) {
       setGuestLifecycle('connecting');
       void TestagramTvMediaSession.connectHostGuestBridge(id, program).then(nextGuestSession => {
         if (!liveRef.current && !roomRef.current) {
@@ -1309,6 +1310,10 @@ export default function TvStudioPage() {
         setSourceHealth(prev => ({ ...prev, guest: 'idle' }));
         setBroadcastDiagnostics(prev => ({ ...(prev || {}), guest_bridge: 'offline', guest_bridge_error: error instanceof Error ? error.message : String(error) }));
       });
+      } else {
+        guestSession = guestRoomRef.current;
+        setGuestLifecycle(guestConnected ? (guestVideoReady && guestAudioReady ? 'connected' : 'partial') : 'connecting');
+      }
 
       setBroadcastStage('verifying');
       const verifyDeadline = Date.now() + 60_000;
@@ -1389,19 +1394,115 @@ export default function TvStudioPage() {
     }
   };
 
+  const attachGuestPreviewSession = (nextGuestSession: TestagramTvMediaSession) => {
+    nextGuestSession.setRemoteTrackHandler(track => {
+      track.onended = () => {
+        productionGuestSourceRef.current?.disconnect();
+        productionGuestSourceRef.current = null;
+        productionGuestGainRef.current?.disconnect();
+        productionGuestGainRef.current = null;
+        if (remoteGuestVideoRef.current) remoteGuestVideoRef.current.srcObject = null;
+        if (remoteGuestAudioRef.current) remoteGuestAudioRef.current.srcObject = null;
+        setGuestConnected(false);
+        setGuestVideoReady(false);
+        setGuestAudioReady(false);
+        setGuestLifecycle('lost');
+        setSourceHealth(prev => ({ ...prev, guest: 'lost' }));
+        toast.warning('Guest preview signal lost. Invite the guest again to reconnect.');
+      };
+      if (track.kind === 'video') {
+        const media = new MediaStream([track]);
+        if (remoteGuestVideoRef.current) {
+          remoteGuestVideoRef.current.srcObject = media;
+          remoteGuestVideoRef.current.muted = true;
+          remoteGuestVideoRef.current.playsInline = true;
+          void remoteGuestVideoRef.current.play().catch(() => undefined);
+        }
+        setGuestVideoReady(true);
+        setGuestConnected(true);
+        setGuestLifecycle(guestAudioReady ? 'connected' : 'partial');
+        setSourceHealth(prev => ({ ...prev, guest: 'ready' }));
+      } else if (track.kind === 'audio') {
+        const media = new MediaStream([track]);
+        if (remoteGuestAudioRef.current) {
+          remoteGuestAudioRef.current.srcObject = media;
+          remoteGuestAudioRef.current.muted = true;
+          remoteGuestAudioRef.current.autoplay = true;
+          void remoteGuestAudioRef.current.play().catch(() => undefined);
+        }
+        setGuestAudioReady(true);
+        setGuestConnected(true);
+        setGuestLifecycle(guestVideoReady ? 'connected' : 'partial');
+        const audioContext = productionAudioContextRef.current;
+        const masterGain = productionMasterGainRef.current;
+        if (audioContext && masterGain) {
+          try {
+            productionGuestSourceRef.current?.disconnect();
+            productionGuestSourceRef.current = audioContext.createMediaStreamSource(media);
+            if (!productionGuestGainRef.current) productionGuestGainRef.current = audioContext.createGain();
+            if (!productionGuestMeterRef.current) {
+              productionGuestMeterRef.current = audioContext.createAnalyser();
+              productionGuestMeterRef.current.fftSize = 256;
+            }
+            productionGuestGainRef.current.gain.value = guestMuted ? 0 : guestLevel;
+            productionGuestSourceRef.current.connect(productionGuestGainRef.current).connect(productionGuestMeterRef.current).connect(masterGain);
+          } catch (error) {
+            setBroadcastDiagnostics(prev => ({ ...(prev || {}), guest_audio_error: error instanceof Error ? error.message : String(error) }));
+          }
+        }
+      }
+    });
+    guestRoomRef.current = nextGuestSession;
+  };
+
   const createGuestInvite = async () => {
-    const streamId = activeStreamId || stream?.id || null;
-    if (!live || !streamId) { toast.info('Go live first, then invite a guest.'); return; }
     try {
+      let streamId = activeStreamId || stream?.id || null;
+
+      // Preview is a real production state, so create the draft broadcast record
+      // here instead of forcing the producer to go ON AIR just to invite someone.
+      if (!streamId) {
+        if (!user) {
+          toast.info('Sign in to invite a guest.');
+          return;
+        }
+        const { data, error } = await supabase.from('live_streams').insert({
+          user_id: user.id,
+          title: broadcastTitle,
+          description: broadcastDescription,
+          category: broadcastCategory,
+          is_live: false,
+          tv_provider: 'youtube',
+        }).select('id,title,description,category,is_live,tv_provider').single();
+        if (error || !data) throw new Error(error?.message || 'Could not prepare a TV preview session.');
+        streamId = data.id;
+        setActiveStreamId(streamId);
+        setStream(data);
+      }
+
       const { data: auth } = await supabase.auth.getSession();
+      const headers = { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: 'Bearer ' + auth.session.access_token } : {}) };
       const response = await fetch('/api/live', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: `Bearer ${auth.session.access_token}` } : {}) },
+        headers,
         body: JSON.stringify({ action: 'create-guest', stream_id: streamId }),
       });
       const data = await response.json().catch(() => null);
-      const error = response.ok ? null : new Error(String(data?.error?.message || `Guest invitation request failed (${response.status})`));
-      if (error || !data?.data?.invite_token) throw new Error(data?.error?.message || error?.message || 'Could not create guest invitation');
+      if (!response.ok || !data?.data?.invite_token) {
+        throw new Error(String(data?.error?.message || `Guest invitation request failed (${response.status})`));
+      }
+
+      // Establish the host signaling bridge while still in Preview. The guest
+      // can therefore join immediately; when the producer goes ON AIR we reuse
+      // this same bridge instead of creating a second host peer.
+      if (!guestRoomRef.current) {
+        await ensureStudio();
+        const program = await createProductionProgram();
+        setGuestLifecycle('connecting');
+        const previewSession = await TestagramTvMediaSession.connectHostGuestBridge(streamId, program);
+        attachGuestPreviewSession(previewSession);
+      }
+
       const url = `${window.location.origin}/tv/live/${streamId}?guest=${encodeURIComponent(data.data.invite_token)}`;
       setGuestInviteUrl(url);
       setGuestVideoReady(false);
@@ -1409,8 +1510,11 @@ export default function TvStudioPage() {
       setGuestConnected(false);
       setGuestLifecycle('invited');
       setSourceHealth(prev => ({ ...prev, guest: 'idle' }));
-      try { await navigator.clipboard.writeText(url); toast.success('Guest invitation copied'); } catch { toast.success('Guest invitation created'); }
-    } catch (e: any) { toast.error(e?.message || 'Could not create guest invitation'); }
+      try { await navigator.clipboard.writeText(url); toast.success('Guest invite ready in Preview'); } catch { toast.success('Guest invite created'); }
+    } catch (e: any) {
+      setGuestLifecycle('offline');
+      toast.error(e?.message || 'Could not create guest invitation');
+    }
   };
 
   const shareLiveLink = async () => {
@@ -2096,7 +2200,7 @@ export default function TvStudioPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <Button size="sm" variant={multiview ? 'default' : 'outline'} onClick={() => setMultiview(v => !v)}>Multiview</Button>
-                  <Button size="sm" variant="outline" aria-label="Invite guest" title={live ? "Create a guest invitation" : "Go live first"} onClick={() => void createGuestInvite()} disabled={!live || !(activeStreamId || stream?.id)}><Users className="w-4 h-4 mr-1" />Invite Guest</Button>
+                  <Button size="sm" variant="outline" aria-label="Invite guest" title={live ? "Create a guest invitation" : "Invite a guest while in Preview"} onClick={() => void createGuestInvite()} disabled={guestLifecycle === 'connecting'}><Users className="w-4 h-4 mr-1" />{live ? 'Invite Guest' : 'Invite in Preview'}</Button>
                   <Button size="sm" variant={replayState === 'playing' ? 'default' : 'outline'} disabled={!replayBufferRef.current.frameCount} onClick={() => void takeScene('replay')}>REPLAY</Button>
                   <Button size="sm" variant={audioDucking ? 'default' : 'outline'} onClick={() => { setAudioDucking(v => !v); if (audioDucking) { setDuckingActive(false); setDuckingReduction(0); } }}>Auto ducking</Button>
                 </div>
