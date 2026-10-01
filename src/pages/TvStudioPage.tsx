@@ -1178,18 +1178,19 @@ export default function TvStudioPage() {
   };
 
   const createGuestInvite = async () => {
-    if (!activeStreamId || !live) { toast.info('Go live first, then invite a guest.'); return; }
+    const streamId = activeStreamId || stream?.id || null;
+    if (!live || !streamId) { toast.info('Go live first, then invite a guest.'); return; }
     try {
       const { data: auth } = await supabase.auth.getSession();
       const response = await fetch('/api/live', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: `Bearer ${auth.session.access_token}` } : {}) },
-        body: JSON.stringify({ action: 'create-guest', stream_id: activeStreamId }),
+        body: JSON.stringify({ action: 'create-guest', stream_id: streamId }),
       });
-      const data = await response.json();
-      const error = response.ok ? null : new Error('Guest invitation request failed');
+      const data = await response.json().catch(() => null);
+      const error = response.ok ? null : new Error(String(data?.error?.message || `Guest invitation request failed (${response.status})`));
       if (error || !data?.data?.invite_token) throw new Error(data?.error?.message || error?.message || 'Could not create guest invitation');
-      const url = `${window.location.origin}/tv/live/${activeStreamId}?guest=${encodeURIComponent(data.data.invite_token)}`;
+      const url = `${window.location.origin}/tv/live/${streamId}?guest=${encodeURIComponent(data.data.invite_token)}`;
       setGuestInviteUrl(url);
       setGuestVideoReady(false);
       setGuestAudioReady(false);
@@ -1835,7 +1836,7 @@ export default function TvStudioPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2">
                   <Button size="sm" variant={multiview ? 'default' : 'outline'} onClick={() => setMultiview(v => !v)}>Multiview</Button>
-                  <Button size="sm" variant="outline" onClick={() => void createGuestInvite()} disabled={!live}>Invite Guest</Button>
+                  <Button size="sm" variant="outline" aria-label="Invite guest" title={live ? "Create a guest invitation" : "Go live first"} onClick={() => void createGuestInvite()} disabled={!live || !(activeStreamId || stream?.id)}><Users className="w-4 h-4 mr-1" />Invite Guest</Button>
                   <Button size="sm" variant={replayState === 'playing' ? 'default' : 'outline'} disabled={!replayBufferRef.current.frameCount} onClick={() => void takeScene('replay')}>REPLAY</Button>
                   <Button size="sm" variant={audioDucking ? 'default' : 'outline'} onClick={() => { setAudioDucking(v => !v); if (audioDucking) { setDuckingActive(false); setDuckingReduction(0); } }}>Auto ducking</Button>
                 </div>
