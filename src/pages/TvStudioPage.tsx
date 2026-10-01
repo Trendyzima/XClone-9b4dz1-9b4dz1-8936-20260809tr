@@ -472,7 +472,8 @@ export default function TvStudioPage() {
         if (scene === 'preview') return previewSceneRef.current.toUpperCase();
         if (scene === 'guest') {
           const videoReady = remoteGuestVideoRef.current?.readyState === 4 || remoteGuestVideoRef.current?.readyState === 3 || remoteGuestVideoRef.current?.readyState === 2;
-          const audioReady = Boolean(remoteGuestAudioRef.current?.srcObject?.getAudioTracks().some(track => track.readyState === 'live'));
+          const guestAudioStream = remoteGuestAudioRef.current?.srcObject;
+          const audioReady = guestAudioStream instanceof MediaStream && guestAudioStream.getAudioTracks().some(track => track.readyState === 'live');
           return videoReady && audioReady ? 'CONNECTED' : videoReady || audioReady ? 'PARTIAL' : 'OFFLINE';
         }
         if (scene === 'replay') return replayBufferRef.current.frameCount ? `${Math.round(replayBufferRef.current.durationMs / 1000)}s READY` : 'EMPTY';
