@@ -95,6 +95,9 @@ export default function TvStudioPage() {
   const [programDropped, setProgramDropped] = useState(0);
   const programFrameRef = useRef({ last: 0, count: 0, dropped: 0 });
   const [guestConnected, setGuestConnected] = useState(false);
+  const [guestVideoReady, setGuestVideoReady] = useState(false);
+  const [guestAudioReady, setGuestAudioReady] = useState(false);
+  const [guestLifecycle, setGuestLifecycle] = useState<'offline' | 'invited' | 'connecting' | 'connected' | 'partial' | 'lost'>('offline');
   const [guestInviteUrl, setGuestInviteUrl] = useState<string | null>(null);
   const [bannerText, setBannerText] = useState('');
   const [fullscreenText, setFullscreenText] = useState('');
@@ -985,6 +988,9 @@ export default function TvStudioPage() {
             if (remoteGuestVideoRef.current) remoteGuestVideoRef.current.srcObject = null;
             if (remoteGuestAudioRef.current) remoteGuestAudioRef.current.srcObject = null;
             setGuestConnected(false);
+            setGuestVideoReady(false);
+            setGuestAudioReady(false);
+            setGuestLifecycle('lost');
             setSourceHealth(prev => ({ ...prev, guest: 'lost' }));
             if (liveRef.current && programSceneRef.current === 'guest') void takeScene('black').catch(() => undefined);
             toast.warning('Guest signal lost. Testagram TV removed the guest from Program safely.');
@@ -997,7 +1003,9 @@ export default function TvStudioPage() {
               remoteGuestVideoRef.current.playsInline = true;
               void remoteGuestVideoRef.current.play().catch(() => undefined);
             }
+            setGuestVideoReady(true);
             setGuestConnected(true);
+            setGuestLifecycle(guestAudioReady ? 'connected' : 'partial');
             setSourceHealth(prev => ({ ...prev, guest: 'ready' }));
           } else if (track.kind === 'audio') {
             const stream = new MediaStream([track]);
@@ -1009,6 +1017,9 @@ export default function TvStudioPage() {
             }
             const audioContext = productionAudioContextRef.current;
             const masterGain = productionMasterGainRef.current;
+            setGuestAudioReady(true);
+            setGuestConnected(true);
+            setGuestLifecycle(guestVideoReady ? 'connected' : 'partial');
             if (audioContext && masterGain) {
               try {
                 productionGuestSourceRef.current?.disconnect();
@@ -1025,6 +1036,9 @@ export default function TvStudioPage() {
         guestRoomRef.current = nextGuestSession;
       }).catch(error => {
         setGuestConnected(false);
+        setGuestVideoReady(false);
+        setGuestAudioReady(false);
+        setGuestLifecycle('offline');
         setSourceHealth(prev => ({ ...prev, guest: 'idle' }));
         setBroadcastDiagnostics(prev => ({ ...(prev || {}), guest_bridge: 'offline', guest_bridge_error: error instanceof Error ? error.message : String(error) }));
       });
@@ -1093,6 +1107,9 @@ export default function TvStudioPage() {
       guestRoomRef.current = null;
       roomRef.current = null;
       setGuestConnected(false);
+      setGuestVideoReady(false);
+      setGuestAudioReady(false);
+      setGuestLifecycle('offline');
       setViewerCount(0);
       setLive(false);
       setMode('studio');
@@ -1510,6 +1527,7 @@ export default function TvStudioPage() {
   }, []);
 
   const fmt = (n: number) => `${String(Math.floor(n / 60)).padStart(2, '0')}:${String(n % 60).padStart(2, '0')}`;
+  const guestLabel = guestLifecycle === 'connected' ? 'CONNECTED' : guestLifecycle === 'partial' ? 'PARTIAL · WAITING FOR MEDIA' : guestLifecycle === 'connecting' ? 'CONNECTING' : guestLifecycle === 'invited' ? 'INVITE ACTIVE' : guestLifecycle === 'lost' ? 'SIGNAL LOST' : 'OFFLINE';
 
   return (
     <div className="tv-studio min-h-screen bg-zinc-950 text-zinc-100">
@@ -1759,7 +1777,8 @@ export default function TvStudioPage() {
                   <Button size="sm" variant={audioDucking ? 'default' : 'outline'} onClick={() => setAudioDucking(v => !v)}>Auto ducking</Button>
                 </div>
                 {guestInviteUrl && <div className="rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-2 text-[10px]">
-                  <div className="font-semibold text-emerald-300">Guest invite ready · expires in 60 minutes</div>
+                  <div className="font-semibold text-emerald-300">Guest · {guestLabel}</div>
+                  <div className="mt-1 text-zinc-400">Video: {guestVideoReady ? 'READY' : 'WAITING'} · Audio: {guestAudioReady ? 'READY' : 'WAITING'}</div>
                   <div className="mt-1 break-all text-zinc-400">{guestInviteUrl}</div>
                   <Button size="sm" className="mt-2" onClick={() => { void navigator.clipboard?.writeText(guestInviteUrl); toast.success('Guest invite copied'); }}>Copy invite</Button>
                 </div>}
@@ -1776,7 +1795,7 @@ export default function TvStudioPage() {
                 <div className="rounded-lg bg-black/30 p-2"><Users className="w-3.5 h-3.5 mb-1 text-blue-400" /><span>{viewerCount}</span><p className="text-zinc-500">live viewers</p></div>
                 <div className="rounded-lg bg-black/30 p-2"><ShieldCheck className="w-3.5 h-3.5 mb-1 text-emerald-400" /><span>Local</span><p className="text-zinc-500">recording storage</p></div>
               </div>
-              <div className="mt-2 text-[10px] text-zinc-500">Replay buffer: {replayBufferRef.current.frameCount} frames / {Math.round(replayBufferRef.current.durationMs / 1000)}s · Guest: {guestConnected ? 'ready' : 'offline'}</div>
+              <div className="mt-2 text-[10px] text-zinc-500">Replay buffer: {replayBufferRef.current.frameCount} frames / {Math.round(replayBufferRef.current.durationMs / 1000)}s · Guest: {guestLabel} · Video {guestVideoReady ? 'ready' : 'waiting'} · Audio {guestAudioReady ? 'ready' : 'waiting'}</div>
               <div className="mt-1 text-[10px] text-zinc-500">Render: {programFps} FPS · delayed {programDropped}</div>
               <div className="mt-4 flex items-center justify-between text-[10px] text-zinc-500"><span>Studio signal</span><span className={`uppercase tracking-wider font-semibold ${studioHealth === 'ready' ? 'text-emerald-400' : studioHealth === 'degraded' ? 'text-amber-400' : 'text-zinc-500'}`}>{studioHealth}</span></div>
               <div className="mt-1 h-2 rounded-full bg-zinc-700/50 overflow-hidden"><div className="h-full bg-emerald-400 transition-all" style={{ width: `${Math.min(100, audioLevel)}%` }} /></div>
