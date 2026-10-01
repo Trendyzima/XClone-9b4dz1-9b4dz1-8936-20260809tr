@@ -570,9 +570,12 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     // Every TV output is a true landscape 16:9 raster. Camera sources that
     // arrive portrait are cropped into that raster instead of being letterboxed
     // as a portrait video. This keeps both preview and program buses landscape.
-    const fit = (target: CanvasRenderingContext2D, media: HTMLVideoElement | null, contain = true, targetWidth = canvas.width, targetHeight = canvas.height) => {
+    const fit = (target: CanvasRenderingContext2D, media: HTMLVideoElement | null, contain = true, targetWidth?: number, targetHeight?: number) => {
       if (!media || media.readyState < 2 || !media.videoWidth || !media.videoHeight) return;
-      const w = targetWidth, h = targetHeight;
+      // Resolve dimensions from the canvas actually being rendered. Preview and Program
+      // are different raster sizes; sharing Program dimensions makes Preview crop/blank.
+      const w = targetWidth ?? target.canvas.width;
+      const h = targetHeight ?? target.canvas.height;
       const ratio = media.videoWidth / media.videoHeight;
       const targetRatio = w / h;
       let dw = w, dh = h, dx = 0, dy = 0;
@@ -586,9 +589,10 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       target.drawImage(media, dx, dy, dw, dh);
     };
 
-    const fitCameraLandscape = (target: CanvasRenderingContext2D, media: HTMLVideoElement | null, targetWidth = canvas.width, targetHeight = canvas.height) => {
+    const fitCameraLandscape = (target: CanvasRenderingContext2D, media: HTMLVideoElement | null, targetWidth?: number, targetHeight?: number) => {
       if (!media || media.readyState < 2 || !media.videoWidth || !media.videoHeight) return;
-      const w = targetWidth, h = targetHeight;
+      const w = targetWidth ?? target.canvas.width;
+      const h = targetHeight ?? target.canvas.height;
       const sourceRatio = media.videoWidth / media.videoHeight;
       const targetRatio = w / h;
       // Portrait camera tracks must never become a portrait TV frame. Crop the
@@ -612,7 +616,10 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     };
 
     const renderScene = (target: CanvasRenderingContext2D, scene: TvSceneId) => {
-      target.fillStyle = '#000'; target.fillRect(0, 0, canvas.width, canvas.height);
+      // This renderer feeds both the production raster and the smaller Preview monitor.
+      const targetWidth = target.canvas.width || canvas.width;
+      const targetHeight = target.canvas.height || canvas.height;
+      target.fillStyle = '#000'; target.fillRect(0, 0, targetWidth, targetHeight);
       if (scene === 'camera') {
         fitCameraLandscape(target, camera);
       } else if (scene === 'video' && sourceVideo) {
@@ -679,7 +686,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       } else if (scene === 'replay') {
         const frames = replayBufferRef.current.getFrames(replaySeconds * 1000);
         const frame = frames[Math.min(replayIndexRef.current, Math.max(frames.length - 1, 0))];
-        if (frame) target.drawImage(frame.canvas, 0, 0, canvas.width, canvas.height);
+        if (frame) target.drawImage(frame.canvas, 0, 0, targetWidth, targetHeight);
       }
     };
 
