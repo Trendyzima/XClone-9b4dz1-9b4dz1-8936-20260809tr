@@ -1610,7 +1610,7 @@ export default function TvStudioPage() {
                   const available = scene === 'camera' || scene === 'video' || scene === 'screen' || scene === 'guest' || scene === 'replay';
                   return (
                     <button key={scene} type="button" disabled={!available || (scene === 'guest' && !guestConnected)} onClick={() => {
-                      if (scene === 'camera' || scene === 'video' || scene === 'guest') void activateScene(scene);
+                      if (scene === 'camera' || scene === 'video') void activateScene(scene); else if (scene === 'guest') void activateScene('guest');
                       else if (scene === 'screen') void shareScreen();
                       else { setPreviewScene('replay'); previewSceneRef.current = 'replay'; }
                     }} className={`group rounded-xl border p-3 text-left transition ${selected ? 'border-red-500/60 bg-red-500/10 ring-1 ring-red-500/30' : 'border-white/10 bg-zinc-900/70 hover:border-white/20 hover:bg-zinc-900'} disabled:cursor-not-allowed disabled:opacity-45`}>
