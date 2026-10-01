@@ -66,6 +66,7 @@ export default function TvStudioPage() {
   const productionAudioTrackRef = useRef<MediaStreamTrack | null>(null);
   const productionMasterGainRef = useRef<GainNode | null>(null);
   const productionGuestGainRef = useRef<GainNode | null>(null);
+  const productionGuestSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const productionMusicSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
   const productionMusicGainRef = useRef<GainNode | null>(null);
   const productionSfxSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
@@ -708,7 +709,7 @@ export default function TvStudioPage() {
       transitionStartedRef.current = performance.now();
       programSceneRef.current = 'black'; setProgramScene('black'); return;
     }
-    if (scene === 'guest' && (!guestConnected || !remoteGuestVideoRef.current)) { toast.info('No TV guest is connected.'); return; }
+    if (scene === 'guest' && (!guestConnected || !remoteGuestVideoRef.current || remoteGuestVideoRef.current.readyState < 2)) { toast.info('Guest video is not ready yet.'); return; }
     transitionFromSceneRef.current = programSceneRef.current;
     if (sceneCanvasRef.current) {
       const source = sceneCanvasRef.current;
@@ -977,6 +978,12 @@ export default function TvStudioPage() {
         guestSession = nextGuestSession;
         nextGuestSession.setRemoteTrackHandler(track => {
           track.onended = () => {
+            productionGuestSourceRef.current?.disconnect();
+            productionGuestSourceRef.current = null;
+            productionGuestGainRef.current?.disconnect();
+            productionGuestGainRef.current = null;
+            if (remoteGuestVideoRef.current) remoteGuestVideoRef.current.srcObject = null;
+            if (remoteGuestAudioRef.current) remoteGuestAudioRef.current.srcObject = null;
             setGuestConnected(false);
             setSourceHealth(prev => ({ ...prev, guest: 'lost' }));
             if (liveRef.current && programSceneRef.current === 'guest') void takeScene('black').catch(() => undefined);
@@ -990,17 +997,30 @@ export default function TvStudioPage() {
               remoteGuestVideoRef.current.playsInline = true;
               void remoteGuestVideoRef.current.play().catch(() => undefined);
             }
+            setGuestConnected(true);
+            setSourceHealth(prev => ({ ...prev, guest: 'ready' }));
           } else if (track.kind === 'audio') {
             const stream = new MediaStream([track]);
             if (remoteGuestAudioRef.current) {
               remoteGuestAudioRef.current.srcObject = stream;
-              remoteGuestAudioRef.current.muted = false;
+              remoteGuestAudioRef.current.muted = true;
               remoteGuestAudioRef.current.autoplay = true;
               void remoteGuestAudioRef.current.play().catch(() => undefined);
             }
+            const audioContext = productionAudioContextRef.current;
+            const masterGain = productionMasterGainRef.current;
+            if (audioContext && masterGain) {
+              try {
+                productionGuestSourceRef.current?.disconnect();
+                productionGuestSourceRef.current = audioContext.createMediaStreamSource(stream);
+                if (!productionGuestGainRef.current) productionGuestGainRef.current = audioContext.createGain();
+                productionGuestGainRef.current.gain.value = 1;
+                productionGuestSourceRef.current.connect(productionGuestGainRef.current).connect(masterGain);
+              } catch (error) {
+                setBroadcastDiagnostics(prev => ({ ...(prev || {}), guest_audio_error: error instanceof Error ? error.message : String(error) }));
+              }
+            }
           }
-          setGuestConnected(true);
-          setSourceHealth(prev => ({ ...prev, guest: 'ready' }));
         });
         guestRoomRef.current = nextGuestSession;
       }).catch(error => {
@@ -1139,7 +1159,11 @@ export default function TvStudioPage() {
     remoteGuestVideoRef.current?.pause();
     remoteGuestVideoRef.current = null;
     remoteGuestAudioRef.current?.pause();
-    remoteGuestAudioRef.current = null;
+    remoteGuestAudioRef.current.srcObject = null;
+    productionGuestSourceRef.current?.disconnect();
+    productionGuestSourceRef.current = null;
+    productionGuestGainRef.current?.disconnect();
+    productionGuestGainRef.current = null;
     liveRef.current = false;
     setLive(false);
     if (!recording) setStatus(cameraStreamRef.current ? 'preview' : 'idle');
@@ -1579,6 +1603,8 @@ export default function TvStudioPage() {
                   {live && <span className="rounded bg-zinc-950/90 border border-zinc-700 px-2 py-1 text-[9px] font-bold">ENC {String(broadcastDiagnostics?.encoder_status || 'starting').toUpperCase()}</span>}
                 </div>
                 <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-contain" />
+                <video ref={remoteGuestVideoRef} autoPlay muted playsInline className="hidden" aria-hidden="true" />
+                <audio ref={remoteGuestAudioRef} autoPlay muted className="hidden" aria-hidden="true" />
                 {multiview && <canvas ref={multiviewCanvasRef} width={640} height={360} className="absolute inset-0 w-full h-full object-contain pointer-events-none" />}
                 <div className="absolute top-2 left-2 flex gap-2 pointer-events-none">
                   <span className="rounded bg-red-600/90 px-2 py-1 text-[10px] font-bold tracking-wider">{live ? '● LIVE · TESTAGRAM TV' : 'TESTAGRAM TV · PROGRAM'}</span>
