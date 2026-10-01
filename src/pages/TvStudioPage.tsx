@@ -570,7 +570,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     // Every TV output is a true landscape 16:9 raster. Camera sources that
     // arrive portrait are cropped into that raster instead of being letterboxed
     // as a portrait video. This keeps both preview and program buses landscape.
-    const fit = (target: CanvasRenderingContext2D, media: HTMLVideoElement | null, contain = true, targetWidth?: number, targetHeight?: number) => {
+    const fit = (target: CanvasRenderingContext2D, media: HTMLVideoElement | null, contain = true, targetWidth?: number, targetHeight?: number, offsetX = 0, offsetY = 0) => {
       if (!media || media.readyState < 2 || !media.videoWidth || !media.videoHeight) return;
       // Resolve dimensions from the canvas actually being rendered. Preview and Program
       // are different raster sizes; sharing Program dimensions makes Preview crop/blank.
@@ -586,7 +586,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
         if (ratio > targetRatio) { dw = h * ratio; dx = (w - dw) / 2; }
         else { dh = w * ratio; dy = (h - dh) / 2; }
       }
-      target.drawImage(media, dx, dy, dw, dh);
+      target.drawImage(media, offsetX + dx, offsetY + dy, dw, dh);
     };
 
     const fitCameraLandscape = (target: CanvasRenderingContext2D, media: HTMLVideoElement | null, targetWidth?: number, targetHeight?: number) => {
@@ -645,7 +645,12 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
           target.save();
           target.fillStyle = '#050505';
           target.fillRect(x, y, width, height);
-          fit(target, entry.media, true, width, height);
+          target.save();
+          target.beginPath();
+          target.rect(x, y, width, height);
+          target.clip();
+          fit(target, entry.media, true, width, height, x, y);
+          target.restore();
           target.fillStyle = 'rgba(9,9,11,.78)';
           target.fillRect(x + 8, y + 8, entry.kind === 'video' ? 82 : 76, 20);
           target.fillStyle = '#fff';
