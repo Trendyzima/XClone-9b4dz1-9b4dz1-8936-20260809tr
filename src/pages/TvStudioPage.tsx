@@ -715,8 +715,6 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       });
     };
     const fromCanvas = transitionFromCanvasRef.current;
-    const previewCanvas = previewCanvasRef.current;
-    const previewCtx = previewCanvas?.getContext('2d');
     const draw = () => {
       const now = performance.now();
       const targetFrameMs = lightModeRef.current ? 1000 / 24 : 1000 / 30;
@@ -736,6 +734,10 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       frameStats.last = now; frameStats.count += 1;
       const activeProgram = programSceneRef.current;
       const transition = transitionRef.current;
+      // Resolve DOM monitor refs on every frame. The persistent TV dock swaps the
+      // monitor elements without remounting this production compositor.
+      const previewCanvas = previewCanvasRef.current;
+      const previewCtx = previewCanvas?.getContext('2d');
       let progress = 1;
       if (transitionStartedRef.current != null && transition.type !== 'cut') {
         progress = Math.min(1, (now - transitionStartedRef.current) / Math.max(transition.durationMs, 1));
