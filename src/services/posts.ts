@@ -57,8 +57,6 @@ export async function createPost(input: CreatePostInput): Promise<CreatedPost> {
         .update({
           media_count: uploaded.length,
           media_urls: mediaUrls,
-          media_url: first.public_url,
-          media_type: first.media_type,
           image_url: first.media_type === 'image' ? first.public_url : null,
           video_url: first.media_type === 'video' ? first.public_url : null,
           is_video: first.media_type === 'video',
