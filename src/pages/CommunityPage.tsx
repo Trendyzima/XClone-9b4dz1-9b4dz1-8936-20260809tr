@@ -79,6 +79,7 @@ export default function CommunityPage({ section, standalone = false }: { section
   });
 
   const [posts, setPosts] = useState<Post[]>([]);
+  const [postsError, setPostsError] = useState<string | null>(null);
   const [isMember, setIsMember] = useState(false);
   const [memberStatus, setMemberStatus] = useState<'active' | 'pending' | null>(null);
   const [userRole, setUserRole] = useState<string>('member');
@@ -639,7 +640,7 @@ export default function CommunityPage({ section, standalone = false }: { section
     setLoadingPosts(true);
     try {
       let query = supabase.from('posts')
-        .select('*, user_profiles:profiles(*)')
+        .select('*, user_profiles:profiles!posts_author_id_fkey(*)')
         .eq('community_id', community.id)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
@@ -654,9 +655,11 @@ export default function CommunityPage({ section, standalone = false }: { section
           details: error.details,
           hint: error.hint,
         });
+        if (reset) setPostsError(error.message || 'Unable to load community posts');
         throw error;
       }
-      const page = data ?? [];
+      if (reset) setPostsError(null);
+      const page = Array.isArray(data) ? data : [];
       setPosts(prev => reset ? page : [...prev, ...page]);
       setHasMorePosts(page.length === 25);
       if (page.length) setPostsCursor(page[page.length - 1].created_at);
