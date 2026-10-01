@@ -221,6 +221,19 @@ const BlockedUsersPage = lazy(() => import('@/pages/BlockedUsersPage'));
 const SellerStorefrontPage = lazy(() => import('@/pages/SellerStorefrontPage'));
 const OrdersPage = lazy(() => import('@/pages/OrdersPage'));
 function PageLoader(){return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="w-8 h-8 animate-spin text-primary"/></div>}
+function TvProductionShell() {
+  const location = useLocation();
+  const guestWorkspace = /^\/tv-studio\/[^/]+\/guests\/?$/.test(location.pathname);
+  return (
+    <OwnerOnlyAdminRoute>
+      <div className={guestWorkspace ? "min-h-screen pt-[214px] sm:pt-[250px]" : "min-h-screen"}>
+        <TvStudioPage persistentDock={guestWorkspace} />
+        {guestWorkspace && <TvGuestControlPage />}
+      </div>
+    </OwnerOnlyAdminRoute>
+  );
+}
+
 function AppearanceBootstrap() {
   const { user } = useAuth();
   useEffect(() => {
@@ -286,7 +299,7 @@ function AppInner(){useCreatorTierAlert();const location=useLocation();const isP
 <Route path="/creator-studio/analytics" element={<CreatorAnalyticsPage/>}/>
 <Route path="/creator-studio/videos" element={<CreatorVideosPage/>}/>
 <Route path="/creator-studio/earnings" element={<CreatorEarningsPage/>}/>
-<Route path="/creator-studio/revenue" element={<CreatorRevenuePage/>}/><Route path="/premium" element={<PremiumPage/>}/><Route path="/stream/:streamId" element={<LiveStreamPage/>}/><Route path="/start-stream" element={<StartStreamPage/>}/><Route path="/tv-studio" element={<OwnerOnlyAdminRoute><TvStudioPage/></OwnerOnlyAdminRoute>}/><Route path="/tv-studio/:streamId" element={<OwnerOnlyAdminRoute><TvStudioPage/></OwnerOnlyAdminRoute>}/><Route path="/tv-studio/:streamId/guests" element={<OwnerOnlyAdminRoute><TvGuestControlPage/></OwnerOnlyAdminRoute>}/><Route path="/tv/live/:streamId" element={<TvPublicLivePage/>}/><Route path="/tv" element={<TvChannelsPage/>}/><Route path="/channel/:handle" element={<ChannelProfilePage/>}/><Route path="/tv/channels" element={<TvChannelsPage/>}/><Route path="/tv/reels" element={<TvChannelsPage/>}/><Route path="/settings" element={<SettingsPage/>}/>
+<Route path="/creator-studio/revenue" element={<CreatorRevenuePage/>}/><Route path="/premium" element={<PremiumPage/>}/><Route path="/stream/:streamId" element={<LiveStreamPage/>}/><Route path="/start-stream" element={<StartStreamPage/>}/><Route path="/tv-studio" element={<TvProductionShell/>}/><Route path="/tv-studio/:streamId" element={<TvProductionShell/>}/><Route path="/tv-studio/:streamId/guests" element={<TvProductionShell/>}/><Route path="/tv/live/:streamId" element={<TvPublicLivePage/>}/><Route path="/tv" element={<TvChannelsPage/>}/><Route path="/channel/:handle" element={<ChannelProfilePage/>}/><Route path="/tv/channels" element={<TvChannelsPage/>}/><Route path="/tv/reels" element={<TvChannelsPage/>}/><Route path="/settings" element={<SettingsPage/>}/>
 <Route path="/settings/account" element={<SettingsAccountPage/>}/>
 <Route path="/settings/appearance" element={<SettingsAppearancePage/>}/>
 <Route path="/settings/connections" element={<SettingsConnectionsPage/>}/>
