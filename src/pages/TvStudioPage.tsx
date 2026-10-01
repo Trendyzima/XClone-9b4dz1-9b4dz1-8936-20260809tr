@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { TestagramTvMediaSession } from '@/lib/testagramTvMedia';
 import { TestagramTvYouTubeSession } from '@/lib/testagramTvYouTube';
-import { Camera, Mic, MonitorUp, Circle, Square, Radio, Users, Download, Clapperboard, Settings2, Activity, ShieldCheck, Upload, PictureInPicture2, Layers3, BarChart3, Copy, Share2, Hand, MessageCirclePlus, ThumbsUp } from 'lucide-react';
+import { Camera, Mic, MonitorUp, Circle, Square, Radio, Users, Download, Clapperboard, Settings2, Activity, ShieldCheck, Upload, PictureInPicture2, Layers3, BarChart3, Copy, Share2, Hand } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
