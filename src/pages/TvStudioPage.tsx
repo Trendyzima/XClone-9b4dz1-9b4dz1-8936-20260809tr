@@ -1926,7 +1926,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
           : 0;
     }
     if (commentaryGain) commentaryGain.gain.value = muted ? 0 : commentaryLevel;
-  }, [programLevel, commentaryLevel, muted, sourceVideoMuted, programMuted]);
+  }, [programLevel, commentaryLevel, muted, sourceVideoMuted, programMuted, programScene]);
 
   const toggleLandscape = async () => {
     try {
