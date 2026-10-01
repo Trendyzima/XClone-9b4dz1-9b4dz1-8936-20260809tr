@@ -166,6 +166,25 @@ Deno.serve(async req=>{
   if(e)return json({ok:false,error:{code:"TV_HEARTBEAT_FAILED",message:"Could not update TV broadcast health."}},409);
   return json({ok:true,data:{heartbeat_ok:true,connection_state:state,viewer_count:count},error:null});
  }
+ if(action==="guest-control-list"){
+  if(!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can manage TV guests."}},403);
+  const now=new Date().toISOString();
+  const {data:rows,error:e}=await adminClient.from("tv_guest_invites").select("id,slot_number,expires_at,claimed_by,claimed_at,muted,blocked,used_at").eq("stream_id",id).gt("expires_at",now).order("slot_number",{ascending:true});
+  if(e)return json({ok:false,error:{code:"GUEST_CONTROL_LIST_FAILED",message:"Could not load TV guest slots."}},409);
+  return json({ok:true,data:{capacity:6,slots:(rows||[]).map((g:any)=>({id:g.id,slot:Number(g.slot_number),label:"Guest "+Number(g.slot_number),status:g.used_at?"connected":"invited",expires_at:g.expires_at,claimed_by:g.claimed_by??null,muted:Boolean(g.muted),blocked:Boolean(g.blocked)}))},error:null});
+ }
+ if(action==="guest-control"){
+  if(!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can control TV guests."}},403);
+  const slot=Number(b.guest_slot||0),control=typeof b.control==="string"?b.control:"";
+  if(!Number.isInteger(slot)||slot<1||slot>6)return json({ok:false,error:{code:"GUEST_SLOT_INVALID",message:"Guest slot must be between 1 and 6."}},400);
+  if(!["mute","unmute","block","unblock"].includes(control))return json({ok:false,error:{code:"GUEST_CONTROL_INVALID",message:"Unsupported guest control."}},400);
+  const {data:g,error:ge}=await adminClient.from("tv_guest_invites").select("id,slot_number,expires_at,used_at").eq("stream_id",id).eq("slot_number",slot).gt("expires_at",new Date().toISOString()).order("created_at",{ascending:false}).limit(1).maybeSingle();
+  if(ge||!g)return json({ok:false,error:{code:"GUEST_SLOT_NOT_FOUND",message:"That guest slot is not currently allocated."}},404);
+  const patch=control==="mute"?{muted:true}:control==="unmute"?{muted:false}:control==="block"?{blocked:true}: {blocked:false};
+  const {error:ue}=await adminClient.from("tv_guest_invites").update(patch).eq("id",g.id);
+  if(ue)return json({ok:false,error:{code:"GUEST_CONTROL_FAILED",message:"Could not update the guest control state."}},409);
+  return json({ok:true,data:{slot,control,...patch},error:null});
+ }
  if(action==="create-guest"){
   if(!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can create a guest invite."}},403);
   const now=new Date().toISOString();
