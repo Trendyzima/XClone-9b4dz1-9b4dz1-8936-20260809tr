@@ -8,7 +8,7 @@ language sql
 stable
 security definer
 set search_path = ''
-as $
+as $$
   select exists (
     select 1
     from public.community_members cm
@@ -16,12 +16,12 @@ as $
       and cm.user_id = p_user_id
       and cm.status = 'active'
   );
-$;
+$$;
 
 revoke execute on function public.is_community_member(uuid, uuid) from public, anon;
 grant execute on function public.is_community_member(uuid, uuid) to authenticated;
 
-do $
+do $$
 declare
   p record;
 begin
@@ -34,7 +34,7 @@ begin
     execute format('drop policy if exists %I on public.community_members', p.policyname);
   end loop;
 end
-$;
+$$;
 
 create policy "community members self read"
 on public.community_members
