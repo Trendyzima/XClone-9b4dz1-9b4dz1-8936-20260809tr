@@ -1398,6 +1398,11 @@ export default function TvStudioPage() {
   };
 
   const attachGuestPreviewSession = (nextGuestSession: TestagramTvMediaSession) => {
+    nextGuestSession.setGuestSignalHandler((signal, slot) => {
+      setGuestSignalRequests(prev => ({ ...prev, [slot]: { kind: signal, at: Date.now() } }));
+      const label = signal === 'raise-hand' ? 'raised a hand' : signal === 'add-to-point' ? 'wants to add to the point' : 'seconds the point and wants to add';
+      toast.info('Guest ' + slot + ' ' + label + '.', { duration: 5000 });
+    });
     nextGuestSession.setRemotePeerLeaveHandler((_peerId, _role, guestSlot) => {
       if (!guestSlot) return;
       const video = guestVideoElementsRef.current.get(guestSlot);
@@ -2174,7 +2179,7 @@ export default function TvStudioPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <Button size="sm" variant={multiview ? 'default' : 'outline'} onClick={() => setMultiview(v => !v)}>Multiview</Button>
                   <Button type="button" size="sm" variant="outline" aria-label="Generate guest link" title="Generate the next guest link" onClick={() => void createGuestInvite()} disabled={guestSlots.length >= TV_GUEST_CAPACITY}><Users className="w-4 h-4 mr-1" />{guestSlots.length>=TV_GUEST_CAPACITY?'Guest slots full':'Guest '+(guestSlots.length+1)}</Button>
-                  <Button type="button" size="sm" variant="outline" onClick={() => nav(activeStreamId ? '/tv-studio/'+activeStreamId+'/guests' : '/tv-studio')}><ShieldCheck className="w-4 h-4 mr-1" />Guest Control</Button>
+                  <Button type="button" size="sm" variant={Object.keys(guestSignalRequests).length ? 'default' : 'outline'} className={Object.keys(guestSignalRequests).length ? 'relative bg-amber-500 text-black hover:bg-amber-400' : ''} onClick={() => nav(activeStreamId ? '/tv-studio/'+activeStreamId+'/guests' : '/tv-studio')}><ShieldCheck className="w-4 h-4 mr-1" />Guest Control{Object.keys(guestSignalRequests).length > 0 && <span className="ml-1 rounded-full bg-black px-1.5 py-0.5 text-[9px] font-bold text-amber-300">{Object.keys(guestSignalRequests).length} SPEAK</span>}</Button>
                   <Button size="sm" variant={replayState === 'playing' ? 'default' : 'outline'} disabled={!replayBufferRef.current.frameCount} onClick={() => void takeScene('replay')}>REPLAY</Button>
                   <Button size="sm" variant={audioDucking ? 'default' : 'outline'} onClick={() => { setAudioDucking(v => !v); if (audioDucking) { setDuckingActive(false); setDuckingReduction(0); } }}>Auto ducking</Button>
                 </div>
@@ -2190,6 +2195,10 @@ export default function TvStudioPage() {
                   <div className="font-semibold text-blue-300">GUEST LINK READY · {guestSlots.find(g => g.inviteUrl === guestInviteUrl)?.label || 'Guest'}</div>
                   <div className="break-all rounded bg-black/40 p-2 text-zinc-300">{guestInviteUrl}</div>
                   <div className="flex gap-2"><Button size="sm" onClick={() => {void navigator.clipboard.writeText(guestInviteUrl);toast.success('Guest link copied');}}><Copy className="w-4 h-4 mr-1"/>Copy</Button><Button size="sm" variant="outline" onClick={() => {if(navigator.share)void navigator.share({title:'Testagram TV guest invitation',text:'Join my Testagram TV guest slot',url:guestInviteUrl});else{void navigator.clipboard.writeText(guestInviteUrl);toast.success('Guest link copied');}}}><Share2 className="w-4 h-4 mr-1"/>Share</Button></div>
+                </div>}
+                {Object.keys(guestSignalRequests).length > 0 && <div className="rounded-xl border border-amber-400/40 bg-amber-400/10 p-3 text-[10px] space-y-2 shadow-lg shadow-amber-500/5" role="status" aria-live="polite">
+                  <div className="flex items-center justify-between gap-2"><div className="flex items-center gap-2 font-bold text-amber-200"><Hand className="w-4 h-4" />SPEAKING REQUESTS</div><span className="rounded-full bg-amber-400/20 px-2 py-0.5 font-bold text-amber-200">{Object.keys(guestSignalRequests).length} waiting</span></div>
+                  <div className="text-zinc-400">Guests are signaling quietly. No guest is opened to the program until you approve.</div>
                 </div>}
                 {guestSlots.length > 0 && <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-2 text-[10px] space-y-2"><div className="font-semibold text-emerald-300">GUEST SLOTS · {guestSlots.length}/{TV_GUEST_CAPACITY}</div>{guestSlots.map(guest => <div key={guest.slot} className="rounded bg-zinc-950/60 p-2"><div className="flex items-center justify-between"><button type="button" className="font-semibold" onClick={() => {setActiveGuestSlot(guest.slot);setPreviewScene('guest');previewSceneRef.current='guest';}}>{guest.label}</button><span>{guest.lifecycle.toUpperCase()}</span></div>
                   {guestSignalRequests[guest.slot] && <div className="mt-2 rounded-lg border border-amber-400/30 bg-amber-400/10 p-2" role="status" aria-live="polite"><div className="flex items-center gap-2 text-[10px] font-bold text-amber-200"><Hand className="w-3.5 h-3.5" />{guestSignalRequests[guest.slot].kind === 'raise-hand' ? 'RAISED HAND' : guestSignalRequests[guest.slot].kind === 'add-to-point' ? 'WANTS TO ADD TO POINT' : 'SECONDS POINT · WANTS TO ADD'}</div><div className="mt-1 text-[10px] text-zinc-400">Guest {guest.slot} is requesting a chance to speak.</div><div className="mt-2 flex gap-1"><Button size="sm" onClick={() => {void guestRoomRef.current?.sendGuestControl(guest.slot,'grant-speak');setGuestSignalRequests(prev => {const next={...prev};delete next[guest.slot];return next;});toast.success(guest.label+' may speak now.');}}>Allow to speak</Button><Button size="sm" variant="outline" onClick={() => {void guestRoomRef.current?.sendGuestControl(guest.slot,'deny-speak');setGuestSignalRequests(prev => {const next={...prev};delete next[guest.slot];return next;});}}>Not now</Button></div></div>}
