@@ -551,12 +551,32 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     await camera.play().catch(() => undefined);
 
     const sourceVideo = sourceVideoRef.current;
-    if (sourceVideo && sourceVideo.readyState < 2) {
-      await new Promise<void>(resolve => {
-        const done = () => resolve();
-        sourceVideo.addEventListener('loadeddata', done, { once: true });
-        window.setTimeout(resolve, 1500);
-      });
+    if (sourceVideo) {
+      // Keep uploaded media muted at the element level. The production AudioContext
+      // is the single authoritative audio path, so autoplay policy cannot prevent
+      // decoded video frames from entering the compositor.
+      sourceVideo.muted = true;
+      sourceVideo.playsInline = true;
+      sourceVideo.preload = 'auto';
+      if (sourceVideo.readyState < 2) {
+        try { sourceVideo.load(); } catch {}
+        await new Promise<void>(resolve => {
+          if (sourceVideo.readyState >= 2) { resolve(); return; }
+          const done = () => { cleanup(); resolve(); };
+          const cleanup = () => {
+            sourceVideo.removeEventListener('loadeddata', done);
+            sourceVideo.removeEventListener('canplay', done);
+            sourceVideo.removeEventListener('error', done);
+          };
+          sourceVideo.addEventListener('loadeddata', done, { once: true });
+          sourceVideo.addEventListener('canplay', done, { once: true });
+          sourceVideo.addEventListener('error', done, { once: true });
+          window.setTimeout(() => { cleanup(); resolve(); }, 2500);
+        });
+      }
+      if (sourceVideo.paused && !sourceVideo.ended) {
+        await sourceVideo.play().catch(() => undefined);
+      }
     }
 
     const screenVideo = screenVideoRef.current ?? document.createElement('video');
@@ -1162,11 +1182,16 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     const url = URL.createObjectURL(file);
     sourceVideoUrlRef.current = url;
     const video = sourceVideoRef.current ?? document.createElement('video');
+    // Dedicated decode element: its audio never plays directly. The Web Audio
+    // graph owns the Program bus and therefore owns mute/level control.
     video.src = url;
     video.preload = 'auto';
     video.playsInline = true;
-    video.muted = false;
+    video.autoplay = false;
+    video.muted = true;
+    video.controls = false;
     sourceVideoRef.current = video;
+    try { video.load(); } catch {}
     setUploadedVideoName(file.name);
     setProductionSource('video');
     setActiveScene('video');
@@ -1994,7 +2019,8 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
   useEffect(() => {
     const monitor = window.setInterval(() => {
       const cameraLive = cameraStreamRef.current?.getVideoTracks()[0]?.readyState === 'live';
-      const videoReady = Boolean(sourceVideoRef.current && sourceVideoRef.current.readyState >= 2 && !sourceVideoRef.current.ended);
+      const sourceVideo = sourceVideoRef.current;
+      const videoReady = Boolean(sourceVideo && sourceVideo.readyState >= 2 && sourceVideo.videoWidth > 0 && sourceVideo.videoHeight > 0 && !sourceVideo.ended);
       const screenLive = screenStreamRef.current?.getVideoTracks()[0]?.readyState === 'live';
       const guestLive = Boolean(remoteGuestVideoRef.current?.srcObject && remoteGuestVideoRef.current.readyState >= 2);
       setSourceHealth({ camera: cameraLive ? 'ready' : cameraStreamRef.current ? 'lost' : 'idle', video: videoReady ? 'ready' : sourceVideoRef.current ? 'lost' : 'idle', screen: screenLive ? 'ready' : screenStreamRef.current ? 'lost' : 'idle', guest: guestConnected ? (guestLive ? 'ready' : 'lost') : 'idle' });
