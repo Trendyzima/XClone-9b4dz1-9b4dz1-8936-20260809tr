@@ -121,9 +121,10 @@ Deno.serve(async req=>{
  const {data:s,error}=await client.from("live_streams").select("id,user_id,is_live,title,description,viewer_count,tv_provider,tv_connection_state,tv_last_heartbeat_at,tv_host_peer_id,youtube_broadcast_id,youtube_stream_id,youtube_video_id,youtube_status,youtube_error").eq("id",id).maybeSingle();
  if(error||!s)return json({ok:false,error:{code:"STREAM_NOT_FOUND",message:"TV broadcast was not found."}},404);
  const user=auth.startsWith("Bearer ")?(await client.auth.getUser()).data.user:null,owner=Boolean(user&&user.id===s.user_id);
+ const platformOwner=Boolean(user&&(await client.rpc("testagram_is_owner")).data===true);
  const contract=async(role:string,extra:any={})=>({provider:"youtube",room_id:id,room_type:"tv",role,signaling_topic:"tv:"+id,title:s.title,viewer_count:s.viewer_count??0,ice_servers:role==="viewer"?[]:await ice(),playback_id:s.youtube_video_id||s.youtube_broadcast_id||null,playback_url:s.youtube_video_id||s.youtube_broadcast_id?embed(s.youtube_video_id||s.youtube_broadcast_id):null,testagram:{status:s.tv_connection_state||"offline"},youtube:{enabled:ytApiReady(),status:s.youtube_status||"disabled",broadcast_id:s.youtube_broadcast_id||null,stream_id:s.youtube_stream_id||null,video_id:s.youtube_video_id||s.youtube_broadcast_id||null,error:s.youtube_error||null},...extra});
  if(action==="start"){
-  if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can start this TV broadcast."}},403);
+  if(!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can start this TV broadcast."}},403);
   if(s.is_live)return json({ok:false,error:{code:"STREAM_ALREADY_LIVE",message:"This TV broadcast is already live."}},409);
   if(!ytApiReady())return json({ok:false,error:{code:"YOUTUBE_NOT_CONFIGURED",message:"YouTube Live credentials are not configured on the TV control plane."}},503);
   const {data:claim,error:claimError}=await adminClient.from("live_streams").update({tv_connection_state:"starting",youtube_status:"preparing",youtube_error:null,tv_last_heartbeat_at:new Date().toISOString()}).eq("id",id).eq("user_id",s.user_id).eq("is_live",false).eq("tv_connection_state","offline").select("id").maybeSingle();
@@ -138,7 +139,7 @@ Deno.serve(async req=>{
   return json({ok:true,data:await contract("host",{on_air:false,output_mode:"youtube",youtube:{enabled:true,status:"prepared",broadcast_id:y.broadcastId,stream_id:y.streamId,video_id:y.videoId,encoder_token:enc}}),error:null});
  }
  if(action==="verify"){
-  if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can verify this TV broadcast."}},403);
+  if(!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can verify this TV broadcast."}},403);
   if(!s.is_live)return json({ok:false,error:{code:"STREAM_NOT_LIVE",message:"TV broadcast is not live."}},409);
   if(!s.youtube_broadcast_id||!s.youtube_stream_id)return json({ok:false,error:{code:"YOUTUBE_SESSION_MISSING",message:"YouTube broadcast and stream are not configured."}},409);
   try{
@@ -150,7 +151,7 @@ Deno.serve(async req=>{
   }catch(e:any){const ye=e instanceof YouTubeStageError?e:new YouTubeStageError("verify",e?.message||"YouTube state verification failed.");return json({ok:false,error:{code:"YOUTUBE_VERIFY_FAILED",message:ye.message,phase:ye.phase,http_status:ye.httpStatus,reason:ye.reason}},502)}
  }
  if(action==="stop"){
-  if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can stop this TV broadcast."}},403);
+  if(!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can stop this TV broadcast."}},403);
   if(s.youtube_broadcast_id&&ytApiReady())try{await ytTransitionComplete(s.youtube_broadcast_id)}catch{}
   await adminClient.from("tv_youtube_encoder_sessions").update({revoked_at:new Date().toISOString()}).eq("stream_id",id).is("revoked_at",null);
   const {error:e}=await adminClient.from("live_streams").update({is_live:false,ended_at:new Date().toISOString(),tv_connection_state:"offline",tv_last_heartbeat_at:null,tv_host_peer_id:null,viewer_count:0,youtube_status:"stopped",youtube_error:null}).eq("id",id).eq("user_id",s.user_id);
@@ -158,7 +159,7 @@ Deno.serve(async req=>{
   return json({ok:true,data:await contract("host"),error:null});
  }
  if(action==="heartbeat"){
-  if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can send a TV heartbeat."}},403);
+  if(!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can send a TV heartbeat."}},403);
   if(!s.is_live)return json({ok:false,error:{code:"STREAM_NOT_LIVE",message:"Broadcast is not live."}},409);
   const state=["starting","connected","degraded","stale"].includes(b.connection_state)?b.connection_state:"degraded",count=Math.max(0,Math.min(100000,Number(b.viewer_count)||0)),peer=typeof b.peer_id==="string"&&b.peer_id.length<=128?b.peer_id:"";
   const {error:e}=await adminClient.from("live_streams").update({tv_last_heartbeat_at:new Date().toISOString(),tv_connection_state:state,tv_host_peer_id:peer||null,viewer_count:count}).eq("id",id).eq("user_id",s.user_id).eq("is_live",true);
@@ -166,7 +167,7 @@ Deno.serve(async req=>{
   return json({ok:true,data:{heartbeat_ok:true,connection_state:state,viewer_count:count},error:null});
  }
  if(action==="create-guest"){
-  if(!owner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can create a guest invite."}},403);
+  if(!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can create a guest invite."}},403);
   if(!s.is_live)return json({ok:false,error:{code:"STREAM_NOT_LIVE",message:"Start the TV broadcast before inviting a guest."}},409);
   const t=randomToken(),{error:e}=await adminClient.from("tv_guest_invites").insert({stream_id:id,token_hash:await hash(t),expires_at:new Date(Date.now()+3600000).toISOString()});
   if(e)return json({ok:false,error:{code:"GUEST_INVITE_FAILED",message:"Could not create the guest invite."}},409);
