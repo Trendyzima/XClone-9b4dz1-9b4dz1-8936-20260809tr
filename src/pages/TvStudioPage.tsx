@@ -6,7 +6,6 @@ import { Camera, Mic, MonitorUp, Circle, Square, Radio, Users, Download, Clapper
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import { useGovernance } from '@/lib/governance';
 import { toast } from 'sonner';
 import { createStudioAudioPipeline, requestStudioMicrophone, type StudioAudioPipeline } from '@/lib/studioAudio';
 import { drawTvGraphics, drawTvOpeningSlate, makeDefaultGraphics, TvReplayBuffer, type TvGraphic, type TvSceneId, type TransitionType } from '@/lib/tvProduction';
@@ -35,7 +34,6 @@ export default function TvStudioPage() {
   const nav = useNavigate();
   const [searchParams] = useSearchParams();
   const { user } = useAuth();
-  const { governance, loading: governanceLoading } = useGovernance();
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -140,9 +138,6 @@ export default function TvStudioPage() {
   const liveRef = useRef(false);
   const lightModeRef = useRef(false);
   const renderClockRef = useRef(0);
-
-  if (governanceLoading) return <div className="min-h-screen flex items-center justify-center"><Activity className="w-7 h-7 animate-spin" /></div>;
-  if (!governance.is_owner) return <div className="min-h-screen flex items-center justify-center p-6"><div className="max-w-md text-center space-y-3"><ShieldCheck className="w-12 h-12 mx-auto text-muted-foreground"/><h1 className="text-xl font-black">Testagram TV Studio</h1><p className="text-sm text-muted-foreground">TV production is reserved for the Testagram platform owner.</p><Button onClick={()=>nav('/tv')}>Back to Testagram TV</Button></div></div>;
 
   const [stream, setStream] = useState<any>(null);
   const [activeStreamId, setActiveStreamId] = useState<string | null>(streamId ?? null);
