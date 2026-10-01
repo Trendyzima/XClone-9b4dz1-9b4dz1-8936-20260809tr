@@ -29,6 +29,7 @@ import { formatNumber } from '@/lib/utils';
 import { toast as sonnerToast } from 'sonner';
 import { formatDistanceToNow, isPast } from 'date-fns';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
+import { backendCapabilities } from '@/services/backendClient';
 
 // ── Module-level constants (esbuild-safe) ────────────────────────────────────
 const LEADERBOARD_MEDALS = ['🥇', '🥈', '🥉'] as const;
@@ -312,16 +313,30 @@ export default function CommunityPage({ section, standalone = false }: { section
   const handleCommunityPollCreated = useCallback(async (pollData: { question: string; options: string[]; duration: number }) => {
     if (!user || !community) return;
     setShowCommunityPollDialog(false);
-    const { data: pollPost, error: ppErr } = await supabase.from('posts')
-      .insert({ user_id: user.id, content: pollData.question, community_id: community.id }).select().single();
-    if (ppErr || !pollPost) { sonnerToast.error('Failed to create poll'); return; }
-    const pollExpAt = new Date(Date.now() + pollData.duration * 60 * 1000);
-    const { data: pollRow, error: prErr } = await supabase.from('polls')
-      .insert({ post_id: pollPost.id, question: pollData.question, expires_at: pollExpAt.toISOString() }).select().single();
-    if (prErr || !pollRow) { sonnerToast.error('Failed to create poll'); return; }
-    await supabase.from('poll_options').insert(pollData.options.map((opt: string) => ({ poll_id: pollRow.id, option_text: opt })));
-    sonnerToast.success('Community poll created! 📊');
-    fetchPosts();
+    try {
+      // Use the canonical atomic post capability so the community post,
+      // poll and options are created together against the current schema.
+      await backendCapabilities.createPost({
+        content: pollData.question,
+        communityId: community.id,
+        poll: {
+          question: pollData.question,
+          options: pollData.options,
+          durationMinutes: pollData.duration,
+        },
+      });
+      sonnerToast.success('Community poll created! 📊');
+      setPostsCursor(null);
+      await fetchPosts(true);
+    } catch (error: any) {
+      console.error('Community poll creation failed', {
+        communityId: community.id,
+        code: error?.code,
+        message: error?.message,
+        details: error?.details,
+      });
+      sonnerToast.error(error?.message || 'Failed to create poll');
+    }
   }, [user, community]);
 
   const triggerFloat = useCallback((emoji: string) => {
@@ -624,7 +639,7 @@ export default function CommunityPage({ section, standalone = false }: { section
     setLoadingPosts(true);
     try {
       let query = supabase.from('posts')
-        .select('*, profiles(*)')
+        .select('*, user_profiles:profiles(*)')
         .eq('community_id', community.id)
         .order('created_at', { ascending: false })
         .order('id', { ascending: false })
