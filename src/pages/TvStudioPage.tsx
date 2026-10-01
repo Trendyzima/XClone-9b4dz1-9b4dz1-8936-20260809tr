@@ -193,7 +193,11 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
   const [transitionType, setTransitionType] = useState<TransitionType>('cut');
   const [transitionDuration, setTransitionDuration] = useState(300);
   const [graphics, setGraphics] = useState<TvGraphic[]>(makeDefaultGraphics);
-  const [graphicsPreview, setGraphicsPreview] = useState<TvGraphic[]>([]);
+  const [graphicsPreview, setGraphicsPreview] = useState<TvGraphic[]>(makeDefaultGraphics);
+  // The compositor loop is mounted once for media stability. Refs keep the hot path current.
+  const graphicsRef = useRef<TvGraphic[]>(makeDefaultGraphics());
+  const graphicsPreviewRef = useRef<TvGraphic[]>(makeDefaultGraphics());
+  const graphicsMasterRef = useRef(true);
   const [lowerThirdText, setLowerThirdText] = useState('');
   const [lowerThirdSecondary, setLowerThirdSecondary] = useState('');
   const [tickerText, setTickerText] = useState('');
@@ -221,6 +225,10 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
   const [shortcutHint, setShortcutHint] = useState(false);
   const [scenePresets, setScenePresets] = useState<Record<string, { preview: TvSceneId; transition: TransitionType; duration: number; pip: boolean; graphics: TvGraphic[] }>>({});
   const transitionSnapshotRef = useRef<HTMLCanvasElement | null>(null);
+  graphicsRef.current = graphics;
+  graphicsPreviewRef.current = graphicsPreview;
+  graphicsMasterRef.current = graphicsMaster;
+
   const broadcastTitle = searchParams.get('title')?.trim().slice(0, 100) || 'Testagram TV Live';
   const broadcastDescription = searchParams.get('description')?.trim().slice(0, 500) || 'Live from Testagram TV Studio';
   const broadcastCategory = searchParams.get('category')?.trim().slice(0, 50) || 'general';
@@ -736,6 +744,11 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
         previewCtx.fillStyle = '#000';
         previewCtx.fillRect(0, 0, 640, 360);
         renderScene(previewCtx, previewSceneRef.current);
+        if (previewSceneRef.current !== 'replay' && previewSceneRef.current !== 'black') {
+          drawTvGraphics(previewCtx, previewCanvas.width, previewCanvas.height, graphicsPreviewRef.current, now / 8, {
+            live: liveRef.current, watermark: true, graphicsEnabled: graphicsMasterRef.current,
+          });
+        }
       }
 
       if (transitionStartedRef.current != null && transition.type !== 'cut' && fromCanvas) {
@@ -753,7 +766,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       }
 
       if (activeProgram !== 'replay' && activeProgram !== 'black') {
-        drawTvGraphics(ctx, canvas.width, canvas.height, graphics, now / 8, { live: liveRef.current, watermark: true, graphicsEnabled: graphicsMaster });
+        drawTvGraphics(ctx, canvas.width, canvas.height, graphicsRef.current, now / 8, { live: liveRef.current, watermark: true, graphicsEnabled: graphicsMasterRef.current });
         const slateUntil = openingSlateUntilRef.current;
         if (slateUntil && now < slateUntil) {
           drawTvOpeningSlate(ctx, canvas.width, canvas.height, 1 - ((slateUntil - now) / 2600));
@@ -988,31 +1001,24 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     } catch (e: any) { toast.error(e?.message || 'Could not prepare scene'); }
   };
 
+  const graphicDraft = (id: string, visible: boolean): TvGraphic => {
+    const base = graphicsPreviewRef.current.find(item => item.id === id) ?? graphicsRef.current.find(item => item.id === id) ?? { id, kind: 'bug' as const, text: '', visible: false, z: 100 };
+    if (id === 'lower-third') return { ...base, text: lowerThirdText, secondary: lowerThirdSecondary, visible };
+    if (id === 'ticker') return { ...base, text: tickerText, visible };
+    if (id === 'breaking-banner') return { ...base, text: bannerText, visible };
+    if (id === 'fullscreen') return { ...base, text: fullscreenText, visible };
+    if (id === 'next') return { ...base, text: nextText, visible };
+    return { ...base, visible };
+  };
   const prepareGraphic = (id: string) => {
-    const next = graphics.map(item => {
-      if (item.id === id) {
-        if (id === 'lower-third') return { ...item, text: lowerThirdText, secondary: lowerThirdSecondary, visible: true };
-        if (id === 'ticker') return { ...item, text: tickerText, visible: true };
-        if (id === 'breaking-banner') return { ...item, text: bannerText, visible: true };
-        if (id === 'fullscreen') return { ...item, text: fullscreenText, visible: true };
-        if (id === 'next') return { ...item, text: nextText, visible: true };
-        return { ...item, visible: true };
-      }
-      return { ...item, visible: false };
-    });
-    setGraphicsPreview(next);
+    setGraphicsPreview(current => current.map(item => item.id === id ? graphicDraft(id, true) : item));
     toast.success('Graphic prepared in Preview. TAKE it when ready.');
   };
   const takeGraphic = (id: string) => {
-    setGraphics(current => current.map(item => {
-      if (item.id !== id) return item;
-      if (id === 'lower-third') return { ...item, text: lowerThirdText, secondary: lowerThirdSecondary, visible: graphicsMaster };
-      if (id === 'ticker') return { ...item, text: tickerText, visible: graphicsMaster };
-      if (id === 'breaking-banner') return { ...item, text: bannerText, visible: graphicsMaster };
-      if (id === 'fullscreen') return { ...item, text: fullscreenText, visible: graphicsMaster };
-      if (id === 'next') return { ...item, text: nextText, visible: graphicsMaster };
-      return { ...item, visible: graphicsMaster };
-    }));
+    const prepared = graphicsPreviewRef.current.find(item => item.id === id);
+    if (!prepared?.visible) { toast.info('Prepare this graphic in Preview first.'); return; }
+    setGraphics(current => current.map(item => item.id === id ? { ...prepared, visible: graphicsMaster } : item));
+    toast.success(graphicsMaster ? 'Graphic TAKEN to Program.' : 'Graphic prepared; Graphics Master is OFF.');
   };
   const clearGraphic = (id: string) => {
     setGraphics(current => current.map(item => item.id === id ? { ...item, visible: false } : item));
