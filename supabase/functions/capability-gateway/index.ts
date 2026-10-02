@@ -23,15 +23,7 @@ const json = (body: unknown, status = 200, requestId = crypto.randomUUID(), cach
     },
   });
 
-const PUBLIC_CAPABILITIES = new Set([
-  "testagram.search.users",
-  "testagram.search.posts",
-  "testagram.search.hashtags",
-  "testagram.search.communities",
-  "testagram.trends.list",
-  "testagram.profile.timeline",
-  "testagram.news.trending",
-]);
+// Keep this allowlist aligned with capability_registry.access='public'.\n// Read-only does not mean public: search, trends and profile timeline are authenticated.\nconst PUBLIC_CAPABILITIES = new Set([\n  "testagram.capabilities.list",\n  "testagram.health.read",\n  "testagram.news.trending",\n]);
 
 const SUCCESS_METRIC_SAMPLE_RATE = 0.01;
 const shouldSampleSuccess = () => crypto.getRandomValues(new Uint32Array(1))[0] / 0xffffffff < SUCCESS_METRIC_SAMPLE_RATE;
