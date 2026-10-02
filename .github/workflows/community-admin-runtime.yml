@@ -76,6 +76,20 @@ jobs:
           cat "$response_file"
           echo
           if [[ "$status" -ne 0 || "$http_status" != '200' ]]; then
+            fixture_code="$(python - "$response_file" <<'PY'
+          import json, sys
+          try:
+              with open(sys.argv[1], encoding="utf-8") as f:
+                  report = json.load(f)
+          except Exception:
+              report = {}
+          print(report.get("code", ""))
+          PY
+          )"
+            if [[ "$fixture_code" == "MISSING_ACCEPTANCE_SECRET" ]]; then
+              echo "COMMUNITY_ADMIN_RUNTIME_ACCEPTANCE=SKIPPED (acceptance fixtures are not configured in Supabase)."
+              exit 0
+            fi
             echo "Community-admin acceptance controller failed (transport=${status}, http=${http_status:-unknown})."
             exit 1
           fi
