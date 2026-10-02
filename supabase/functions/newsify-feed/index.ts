@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { redisGetJson, redisSetJson } from "../_shared/upstash-redis.ts";
 
 const url = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -18,6 +19,15 @@ Deno.serve(async (req) => {
   const limit = Math.min(50, Math.max(1, Number(urlValue.searchParams.get("limit") ?? "20")));
   const geo = (urlValue.searchParams.get("geo") ?? "US").trim().toUpperCase();
   const language = (urlValue.searchParams.get("language") ?? "english").trim();
+  const cacheKey = `testagram:newsify:trending:${geo}:${language}:${limit}`;
+  const cached = await redisGetJson<{ items?: unknown[]; geo?: string; language?: string }>(cacheKey);
+  if (cached) {
+    return new Response(JSON.stringify(cached), {
+      status: 200,
+      headers: { ...cors, "Cache-Control": "public,max-age=30,stale-while-revalidate=120", "X-Testagram-Redis-Cache": "HIT" },
+    });
+  }
+
   try {
     const { data, error } = await db.rpc("list_newsify_trending", {
       p_limit: limit,
@@ -25,9 +35,11 @@ Deno.serve(async (req) => {
       p_language: language,
     });
     if (error) throw error;
-    return new Response(JSON.stringify(data ?? { items: [], geo, language }), {
+    const dataPayload = data ?? { items: [], geo, language };
+    await redisSetJson(cacheKey, dataPayload, 30);
+    return new Response(JSON.stringify(dataPayload), {
       status: 200,
-      headers: { ...cors, "Cache-Control": "public,max-age=30,stale-while-revalidate=120" },
+      headers: { ...cors, "Cache-Control": "public,max-age=30,stale-while-revalidate=120", "X-Testagram-Redis-Cache": "MISS" },
     });
   } catch (error) {
     return new Response(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }), {
