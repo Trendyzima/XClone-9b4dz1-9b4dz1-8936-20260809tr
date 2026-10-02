@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Build;
 import android.webkit.CookieManager;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
@@ -14,10 +15,13 @@ import android.webkit.WebResourceRequest;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import org.json.JSONObject;
+
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
+import com.google.firebase.messaging.FirebaseMessaging;
 import androidx.webkit.WebSettingsCompat;
 import androidx.webkit.WebViewFeature;
 
@@ -54,6 +58,13 @@ public final class MainActivity extends AppCompatActivity {
         }
 
         web.setWebViewClient(new WebViewClient() {
+            @Override
+            public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                publishPushTokenToWeb();
+                handlePushIntent(getIntent());
+            }
+
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
@@ -97,15 +108,76 @@ public final class MainActivity extends AppCompatActivity {
             }
         });
 
+        createNotificationChannel();
+        requestNotificationPermission();
         web.loadUrl(APP_URL);
     }
 
     @Override
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
+        setIntent(intent);
+        handlePushIntent(intent);
         Uri data = intent.getData();
         if (data != null && "testagram.site".equalsIgnoreCase(data.getHost())) {
             if (webView != null) webView.loadUrl(data.toString());
+        }
+    }
+
+    private void publishPushTokenToWeb() {
+        FirebaseMessaging.getInstance().getToken().addOnSuccessListener(this, token -> {
+            getSharedPreferences(TestagramFirebaseMessagingService.PREFS, MODE_PRIVATE)
+                    .edit()
+                    .putString(TestagramFirebaseMessagingService.TOKEN_KEY, token)
+                    .apply();
+
+            try {
+                String json = JSONObject.quote(token);
+                String script =
+                        "window.__TESTAGRAM_FCM_TOKEN__=" + json + ";" +
+                        "window.dispatchEvent(new CustomEvent('testagram:fcm-token',{detail:{token:" + json + "}}));";
+                if (webView != null) webView.evaluateJavascript(script, null);
+            } catch (Exception ignored) {
+                // Token delivery to the page is best-effort; it will retry on the next page load.
+            }
+        });
+    }
+
+    private void handlePushIntent(Intent intent) {
+        if (intent == null || webView == null) return;
+        String url = intent.getStringExtra(TestagramFirebaseMessagingService.EXTRA_PUSH_URL);
+        if (url == null || url.trim().isEmpty()) return;
+
+        Uri uri = Uri.parse(url);
+        if ("https".equalsIgnoreCase(uri.getScheme())
+                && "testagram.site".equalsIgnoreCase(uri.getHost())) {
+            webView.loadUrl(uri.toString());
+        }
+        intent.removeExtra(TestagramFirebaseMessagingService.EXTRA_PUSH_URL);
+    }
+
+    private void createNotificationChannel() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
+        android.app.NotificationManager manager = getSystemService(android.app.NotificationManager.class);
+        if (manager == null) return;
+        android.app.NotificationChannel channel = new android.app.NotificationChannel(
+                TestagramFirebaseMessagingService.CHANNEL_ID,
+                "Testagram notifications",
+                android.app.NotificationManager.IMPORTANCE_DEFAULT
+        );
+        channel.setDescription("Messages, mentions, follows, calls and other Testagram alerts.");
+        manager.createNotificationChannel(channel);
+    }
+
+    private void requestNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(
+                    this,
+                    new String[]{Manifest.permission.POST_NOTIFICATIONS},
+                    4103
+            );
         }
     }
 
