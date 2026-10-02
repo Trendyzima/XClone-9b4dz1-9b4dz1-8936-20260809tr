@@ -1,10 +1,20 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { redisGetJson, redisSetJson } from "../_shared/upstash-redis.ts";
+import { redisGetJson, redisIncrWithExpiry, redisSetJson } from "../_shared/upstash-redis.ts";
 
 const url = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const db = createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+const rateLimit = async (req: Request, keyPart: string, limit: number) => {
+  const windowSeconds = 60;
+  const subject = req.headers.get("cf-connecting-ip")?.trim()
+    || req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    || "anonymous";
+  const key = `testagram:ratelimit:newsify:${keyPart}:${subject}:${Math.floor(Date.now() / 1000 / windowSeconds)}`;
+  const count = await redisIncrWithExpiry(key, windowSeconds + 2);
+  return count === null ? null : { allowed: count <= limit, count };
+};
+
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, content-type",

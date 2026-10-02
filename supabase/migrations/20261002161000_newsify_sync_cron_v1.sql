@@ -32,6 +32,6 @@ begin
   perform cron.schedule(
     'testagram-newsify-retention',
     '30 3 * * *',
-    $$delete from public.newsify_trending_items where expires_at < now() - interval '7 days';$$
+    $retention$delete from public.newsify_trending_items where expires_at < now() - interval '7 days';$retention$
   );
 end $$;
