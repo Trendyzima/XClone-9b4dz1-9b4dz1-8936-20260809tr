@@ -33,3 +33,6 @@ verify_jwt = true
 
 [functions.novu-notification-delivery]
 verify_jwt = false
+
+[functions.notification-delivery-worker]
+verify_jwt = false
