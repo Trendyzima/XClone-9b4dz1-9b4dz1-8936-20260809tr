@@ -38,8 +38,16 @@ Deno.serve(async (req) => {
   }
 
   const url = Deno.env.get("SUPABASE_URL");
-  const publishableKey = Deno.env.get("SUPABASE_PUBLISHABLE_KEY")
-    ?? Deno.env.get("SUPABASE_ANON_KEY");
+  const publishableKeys = Deno.env.get("SUPABASE_PUBLISHABLE_KEYS");
+  let publishableKey: string | undefined;
+  try {
+    publishableKey = publishableKeys
+      ? (JSON.parse(publishableKeys) as Record<string, string>)["default"]
+      : undefined;
+  } catch {
+    publishableKey = undefined;
+  }
+  publishableKey ??= Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? Deno.env.get("SUPABASE_ANON_KEY");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
   if (!url || !publishableKey || !serviceRoleKey) {
