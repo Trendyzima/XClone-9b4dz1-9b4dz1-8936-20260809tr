@@ -17,6 +17,8 @@ export default function CallPage() {
   const [connected, setConnected] = useState(false);
   const [micEnabled, setMicEnabled] = useState(true);
   const [cameraEnabled, setCameraEnabled] = useState(true);
+  const [conversationId] = useState(() => params.get('conversation') || '');
+  const [initiator] = useState(() => params.get('initiator') === '1');
   const [participantCount, setParticipantCount] = useState(1);
   const [kind] = useState<'voice' | 'video'>(() => params.get('kind') === 'voice' ? 'voice' : 'video');
   const sessionRef = useRef<TestagramMediaSession | null>(null);
@@ -68,7 +70,8 @@ export default function CallPage() {
       localStreamRef.current = local;
       local.getAudioTracks().forEach(track => { track.enabled = true; });
       local.getVideoTracks().forEach(track => { track.enabled = kind === 'video'; });
-      const session = await TestagramMediaSession.connectCall(callId, local, stream => {
+      if (!conversationId) throw new Error('Secure call conversation is missing.');
+      const session = await TestagramMediaSession.connectCall(callId, conversationId, local, initiator, stream => {
         for (const track of stream.getTracks()) attachRemoteTrack(track);
       });
       session.setParticipantCountHandler(count => setParticipantCount(Math.max(1, count)));
@@ -114,7 +117,7 @@ export default function CallPage() {
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <header className="h-14 border-b border-border flex items-center gap-3 px-4">
         <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-muted" aria-label="Back"><ArrowLeft className="h-5 w-5" /></button>
-        <div className="min-w-0"><h1 className="font-bold truncate">{kind === 'video' ? 'Video call' : 'Voice call'}</h1><p className="text-xs text-muted-foreground">{connected ? String(participantCount) + ' participant' + (participantCount === 1 ? '' : 's') : 'Testagram native secure call'}</p></div>
+        <div className="min-w-0"><h1 className="font-bold truncate">{kind === 'video' ? 'Video call' : 'Voice call'}</h1><p className="text-xs text-muted-foreground">{connected ? String(participantCount) + ' participant' + (participantCount === 1 ? '' : 's') : 'Testagram end-to-end encrypted peer call'}</p></div>
       </header>
       <main className="flex-1 p-3 sm:p-5 flex flex-col gap-4">
         <section className="relative flex-1 min-h-[55vh] rounded-3xl bg-black overflow-hidden border border-border">
