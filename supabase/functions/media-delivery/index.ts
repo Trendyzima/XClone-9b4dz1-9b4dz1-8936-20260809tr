@@ -1,0 +1,59 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { redisGetJson, redisSetJson } from "../_shared/upstash-redis.ts";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SECRET_KEY") ?? "";
+const R2_PUBLIC_BASE_URL = (Deno.env.get("R2_PUBLIC_BASE_URL") ?? "").replace(/\/$/, "");
+
+type MediaRoute = { url: string; media_type: string; mime_type: string; byte_size: number };
+const db = SUPABASE_URL && SERVICE_ROLE_KEY ? createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } }) : null;
+
+function response(body: string, status: number, headers: Record<string, string> = {}) {
+  return new Response(body, { status, headers: { "Cache-Control": "no-store", ...headers } });
+}
+function validKey(key: string) {
+  return key.length > 0 && key.length <= 512 && (key.startsWith("users/") || key.startsWith("profiles/"));
+}
+
+Deno.serve(async (req) => {
+  if (req.method !== "GET" && req.method !== "HEAD") return response("Method not allowed", 405, { Allow: "GET, HEAD" });
+  const key = new URL(req.url).searchParams.get("key")?.trim() ?? "";
+  if (!validKey(key)) return response("Invalid media key", 400);
+  if (!R2_PUBLIC_BASE_URL || !db) return response("Media delivery is not configured", 503);
+
+  const cacheKey = "media:route:v1:" + key;
+  let route = await redisGetJson<MediaRoute>(cacheKey);
+
+  if (!route) {
+    const { data, error } = await db.from("media_assets")
+      .select("storage_key,media_type,mime_type,byte_size,status")
+      .eq("storage_key", key).eq("status", "uploaded").maybeSingle();
+    if (error) {
+      console.error("[media-delivery] metadata lookup failed", error.message);
+      return response("Media metadata unavailable", 503);
+    }
+    const isProfile = key.startsWith("profiles/");
+    if (!data && !isProfile) return response("Media not found", 404);
+    route = {
+      url: R2_PUBLIC_BASE_URL + "/" + key,
+      media_type: data?.media_type ?? "image",
+      mime_type: data?.mime_type ?? "image/*",
+      byte_size: Number(data?.byte_size ?? 0),
+    };
+    await redisSetJson(cacheKey, route, isProfile ? 300 : 600);
+  }
+
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: route.url,
+      "Cache-Control": "public, max-age=60, s-maxage=600, stale-while-revalidate=3600",
+      "Vary": "Accept",
+      "X-Testagram-Media-Plane": "upstash-redis+r2-origin",
+      "X-Testagram-Media-Type": route.media_type,
+      "Content-Type": route.mime_type,
+      ...(route.byte_size > 0 ? { "Content-Length": String(route.byte_size) } : {}),
+    },
+  });
+});
