@@ -41,8 +41,6 @@ jobs:
           java-version: "21"
       - run: npm ci
       - run: npm run build
-      - name: Synchronize Capacitor Android project
-        run: npx cap sync android
       - name: Build Android
         working-directory: android
         run: chmod +x gradlew && ./gradlew --no-daemon assembleDebug
