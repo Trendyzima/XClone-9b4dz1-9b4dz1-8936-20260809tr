@@ -10,7 +10,11 @@ const ACCOUNT_ID = Deno.env.get("CLOUDFLARE_ACCOUNT_ID") ?? Deno.env.get("R2_ACC
 const ACCESS_KEY = Deno.env.get("CLOUDFLARE_R2_ACCESS_KEY_ID") ?? Deno.env.get("R2_ACCESS_KEY_ID") ?? "";
 const SECRET_KEY = Deno.env.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY") ?? Deno.env.get("R2_SECRET_ACCESS_KEY") ?? "";
 const BUCKET = Deno.env.get("CLOUDFLARE_R2_BUCKET") ?? Deno.env.get("R2_MEDIA_BUCKET") ?? "";
-const PUBLIC_BASE = (Deno.env.get("TESTAGRAM_CDN_BASE_URL") ?? Deno.env.get("R2_PUBLIC_BASE_URL") ?? "").replace(/\/$/, "");
+const R2_PUBLIC_BASE = (Deno.env.get("R2_PUBLIC_BASE_URL") ?? "").replace(/\/$/, "");
+const CDN_BASE = (Deno.env.get("TESTAGRAM_CDN_BASE_URL") ?? "").replace(/\/$/, "");
+const DELIVERY_BASE = CDN_BASE && CDN_BASE !== R2_PUBLIC_BASE
+  ? CDN_BASE
+  : SUPABASE_URL + "/functions/v1/media-delivery";
 
 const MAX_AVATAR = 2 * 1024 * 1024;
 const MAX_COVER = 5 * 1024 * 1024;
@@ -19,7 +23,7 @@ const cors = { ...corsHeaders, "Access-Control-Allow-Methods": "POST,OPTIONS" };
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
 
-const configured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY && ACCOUNT_ID && ACCESS_KEY && SECRET_KEY && BUCKET && PUBLIC_BASE);
+const configured = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY && ACCOUNT_ID && ACCESS_KEY && SECRET_KEY && BUCKET);
 const r2 = configured
   ? new S3Client({
       region: "auto",
@@ -63,7 +67,7 @@ async function detectImageMime(file: File): Promise<string | null> {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed", code: "METHOD_NOT_ALLOWED" }, 405);
-  if (!configured || !r2) return json({ error: "Cloudflare R2 media storage is not configured", code: "R2_NOT_CONFIGURED", missing: [!ACCOUNT_ID && "CLOUDFLARE_ACCOUNT_ID", !ACCESS_KEY && "CLOUDFLARE_R2_ACCESS_KEY_ID", !SECRET_KEY && "CLOUDFLARE_R2_SECRET_ACCESS_KEY", !BUCKET && "CLOUDFLARE_R2_BUCKET", !PUBLIC_BASE && "R2_PUBLIC_BASE_URL"].filter(Boolean) }, 503);
+  if (!configured || !r2) return json({ error: "Cloudflare R2 media storage is not configured", code: "R2_NOT_CONFIGURED", missing: [!ACCOUNT_ID && "CLOUDFLARE_ACCOUNT_ID", !ACCESS_KEY && "CLOUDFLARE_R2_ACCESS_KEY_ID", !SECRET_KEY && "CLOUDFLARE_R2_SECRET_ACCESS_KEY", !BUCKET && "CLOUDFLARE_R2_BUCKET"].filter(Boolean) }, 503);
 
   try {
     const user = await authenticate(req);
@@ -102,7 +106,7 @@ Deno.serve(async (req) => {
       Metadata: { ownerId: user.id, profileMedia: kind },
     }));
 
-    const deliveryUrl = `${PUBLIC_BASE}/${key}`;
+    const deliveryUrl = `${DELIVERY_BASE}?key=${encodeURIComponent(key)}`;
     return json({
       ok: true,
       kind,
