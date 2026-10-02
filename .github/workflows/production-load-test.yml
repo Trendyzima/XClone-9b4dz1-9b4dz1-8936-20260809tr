@@ -1,0 +1,68 @@
+name: Testagram Production Load Test
+
+on:
+  workflow_dispatch:
+    inputs:
+      path:
+        description: "Unauthenticated endpoint to test"
+        required: true
+        default: "/api/health"
+        type: string
+      requests:
+        description: "Total requests"
+        required: true
+        default: "10000"
+        type: string
+      concurrency:
+        description: "Concurrent requests"
+        required: true
+        default: "250"
+        type: string
+      max_p95_ms:
+        description: "Fail if p95 exceeds this value"
+        required: true
+        default: "3000"
+        type: string
+      max_error_rate:
+        description: "Fail if error rate exceeds this value"
+        required: true
+        default: "0.02"
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-load-test
+  cancel-in-progress: false
+
+jobs:
+  load:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: production
+    env:
+      LOAD_ORIGIN: "https://testagram.site"
+      LOAD_PATH: ${{ inputs.path }}
+      LOAD_REQUESTS: ${{ inputs.requests }}
+      LOAD_CONCURRENCY: ${{ inputs.concurrency }}
+      LOAD_MAX_P95_MS: ${{ inputs.max_p95_ms }}
+      LOAD_MAX_ERROR_RATE: ${{ inputs.max_error_rate }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Validate load-test target
+        run: |
+          set -euo pipefail
+          case "$LOAD_PATH" in
+            /api/health|/api/ready) ;;
+            *) echo "::error::Only the approved read-only health/readiness endpoints may be load-tested by this workflow."; exit 1 ;;
+          esac
+          [[ "$LOAD_REQUESTS" =~ ^[0-9]+$ ]] && (( LOAD_REQUESTS >= 1000 && LOAD_REQUESTS <= 1000000 ))
+          [[ "$LOAD_CONCURRENCY" =~ ^[0-9]+$ ]] && (( LOAD_CONCURRENCY >= 10 && LOAD_CONCURRENCY <= 5000 ))
+      - name: Run controlled production load test
+        run: node scripts/production-load-test.mjs
