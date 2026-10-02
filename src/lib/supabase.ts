@@ -15,9 +15,13 @@ export const supabasePublishableKey =
 
 export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   auth: {
+    // PKCE keeps browser and native-WebView auth codes out of the URL fragment
+    // and gives Testagram one session model across web, Android, and iOS.
+    flowType: 'pkce',
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
+    storageKey: 'testagram-auth',
   },
 });
 
