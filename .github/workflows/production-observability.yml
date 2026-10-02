@@ -54,5 +54,5 @@ jobs:
             if (existing) {
               await github.rest.issues.createComment({ owner, repo, issue_number: existing.number, body: 'Probe still failing at ' + new Date().toISOString() + '.\n\n' + body });
             } else {
-              await github.rest.issues.createIssue({ owner, repo, title, body });
+              await github.rest.issues.create({ owner, repo, title, body });
             }
