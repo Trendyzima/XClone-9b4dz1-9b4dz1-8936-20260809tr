@@ -1,0 +1,16 @@
+name = "testagram-cdn"
+account_id = "77dbe7a859196105dc84fbb6b7094019"
+main = "src/index.ts"
+compatibility_date = "2026-10-02"
+workers_dev = false
+
+[[r2_buckets]]
+binding = "MEDIA_BUCKET"
+bucket_name = "testagram-media"
+
+[[routes]]
+pattern = "cdn.testagram.site"
+custom_domain = true
+
+[observability]
+enabled = true
