@@ -43,6 +43,7 @@ interface MediaConfig {
   r2SecretAccessKey: string;
   r2Bucket: string;
   publicBaseUrl: string;
+  mediaDeliveryBaseUrl: string;
 }
 
 function config(): MediaConfig {
@@ -57,7 +58,7 @@ function config(): MediaConfig {
     r2AccessKeyId: env('R2_ACCESS_KEY_ID'),
     r2SecretAccessKey: env('R2_SECRET_ACCESS_KEY'),
     r2Bucket: env('R2_MEDIA_BUCKET', env('CLOUDFLARE_R2_BUCKET')),
-    // Testagram owns the public media URL contract. Keep R2_PUBLIC_BASE_URL as a safe\n    // compatibility fallback until the custom CDN hostname is configured.\n    publicBaseUrl: env('TESTAGRAM_CDN_BASE_URL', env('R2_PUBLIC_BASE_URL')).replace(/\/$/, ''),
+    // Testagram owns the public media URL contract. Keep R2_PUBLIC_BASE_URL as a safe\n    // compatibility fallback until the custom CDN hostname is configured.\n    publicBaseUrl: (() => {\n      const cdn = env('TESTAGRAM_CDN_BASE_URL').replace(/\/$/, '');\n      const r2Public = env('R2_PUBLIC_BASE_URL').replace(/\/$/, '');\n      return cdn && cdn !== r2Public ? cdn : `${CANONICAL_SUPABASE_URL}/functions/v1/media-delivery`;\n    })(),\n    mediaDeliveryBaseUrl: `${CANONICAL_SUPABASE_URL}/functions/v1/media-delivery`,
   };
 }
 
