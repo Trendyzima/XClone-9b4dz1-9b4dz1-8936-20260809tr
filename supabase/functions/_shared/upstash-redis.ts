@@ -40,7 +40,7 @@ export async function redisSetJson(key: string, value: unknown, ttlSeconds: numb
   const result = await command<string>(["SET", key, JSON.stringify(value), "EX", String(Math.max(1, Math.floor(ttlSeconds)))]);
   return result === "OK";
 }
-export async function redisIncrWithExpiry(key: string, ttlSeconds: number): Promise<number | null> {
+export async function redisDelete(key: string): Promise<boolean> {\n  const result = await command<number>(["DEL", key]);\n  return typeof result === "number" ? result >= 0 : false;\n}\n\nexport async function redisIncrWithExpiry(key: string, ttlSeconds: number): Promise<number | null> {
   const value = await command<number>(["INCR", key]);
   if (typeof value !== "number") return null;
   if (value === 1) {
