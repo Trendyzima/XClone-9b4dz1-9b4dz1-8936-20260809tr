@@ -1,10 +1,40 @@
-import { redisDelete, redisGetJson, redisSetJson } from "../_shared/upstash-redis.ts";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.51.0";
 import { SignJWT, importPKCS8 } from "npm:jose@6.2.12";
 const corsHeaders={"Access-Control-Allow-Origin":"https://testagram.site","Access-Control-Allow-Headers":"content-type, x-notification-worker-token","Content-Type":"application/json"};
 const json=(status:number,body:Record<string,unknown>)=>new Response(JSON.stringify(body),{status,headers:corsHeaders});
 type ServiceAccount={project_id:string;client_email:string;private_key:string};
+async function redisConfig(): Promise<{url:string;token:string}|null> {
+  try {
+    const db=createClient(SUPABASE_URL,SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
+    const [{data:urlData},{data:tokenData}]=await Promise.all([
+      db.rpc("get_secret_for_worker",{secret_name:"upstash_redis_rest_url"}),
+      db.rpc("get_secret_for_worker",{secret_name:"upstash_redis_rest_token"}),
+    ]);
+    const url=typeof urlData==="string"?urlData.replace(/\/$/,""):"";
+    const token=typeof tokenData==="string"?tokenData:"";
+    return url&&token?{url,token}:null;
+  }catch{return null;}
+}
+async function redisCommand<T>(args:string[]):Promise<T|null>{
+  const config=await redisConfig(); if(!config)return null;
+  try{
+    const response=await fetch(config.url,{method:"POST",headers:{Authorization:"Bearer "+config.token,"Content-Type":"application/json"},body:JSON.stringify(args)});
+    if(!response.ok)return null;
+    const payload=await response.json() as {result?:T};
+    return payload.result??null;
+  }catch{return null;}
+}
+async function redisGetJson<T>(key:string):Promise<T|null>{
+  const raw=await redisCommand<string>(["GET",key]); if(typeof raw!=="string"||!raw)return null;
+  try{return JSON.parse(raw) as T;}catch{return null;}
+}
+async function redisSetJson(key:string,value:unknown,ttlSeconds:number):Promise<boolean>{
+  return (await redisCommand<string>(["SET",key,JSON.stringify(value),"EX",String(ttlSeconds)]))==="OK";
+}
+async function redisDelete(key:string):Promise<boolean>{
+  const result=await redisCommand<number>(["DEL",key]); return typeof result==="number"&&result>=0;
+}
 function safeUrl(value:unknown):string{if(typeof value!=="string"||!value.trim())return"https://testagram.site/notifications";try{const u=new URL(value);if(u.protocol==="https:"&&(u.hostname==="testagram.site"||u.hostname==="www.testagram.site"))return u.toString();}catch{}return"https://testagram.site/notifications";}
 function copyFor(kind:string,actor:string,data:Record<string,unknown>){const name=actor||"Someone";const title=typeof data.title==="string"?data.title.slice(0,120):"";const body=typeof data.body==="string"?data.body.slice(0,240):"";if(title&&body)return{title,body};const map:Record<string,{title:string;body:string}>={like:{title:"New like",body:name+" liked your post."},repost:{title:"New repost",body:name+" reposted your post."},reply:{title:"New reply",body:name+" replied to your post."},quote:{title:"New quote",body:name+" quoted your post."},follow:{title:"New follower",body:name+" followed you."},mention:{title:"You were mentioned",body:name+" mentioned you."},verified:{title:"Testagram",body:"Your account has a new notification."},test_push:{title:"Testagram notifications",body:"Push notifications are working on this device."}};return map[kind]||{title:"Testagram",body:"You have a new notification."};}
 async function secret(admin:ReturnType<typeof createClient>,name:string):Promise<string|null>{const{data,error}=await admin.rpc("get_notification_secret",{p_name:name});if(error){console.error("[notification-worker] secret lookup failed:",error.message);return null;}return typeof data==="string"?data:null;}
