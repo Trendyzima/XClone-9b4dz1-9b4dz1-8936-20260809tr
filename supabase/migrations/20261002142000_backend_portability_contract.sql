@@ -14,10 +14,10 @@ create table if not exists public.backend_portability_identity (
 insert into public.backend_portability_identity (
   id, logical_backend_id, contract_version, canonical_domain
 )
-values (
-  gen_random_uuid(), gen_random_uuid(), 1, 'testagram.site'
-)
-on conflict do nothing;
+select gen_random_uuid(), gen_random_uuid(), 1, 'testagram.site'
+where not exists (
+  select 1 from public.backend_portability_identity
+);
 
 create table if not exists public.backend_migration_runs (
   id uuid primary key default gen_random_uuid(),
