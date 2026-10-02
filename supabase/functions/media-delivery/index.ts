@@ -1,6 +1,40 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { redisGetJson, redisSetJson } from "../_shared/upstash-redis.ts";
+async function redisConfig(): Promise<{url:string;token:string}|null> {
+  if (!SUPABASE_URL || !SERVICE_ROLE_KEY) return null;
+  try {
+    const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+    const [{ data: urlData }, { data: tokenData }] = await Promise.all([
+      db.rpc("get_secret_for_worker", { secret_name: "upstash_redis_rest_url" }),
+      db.rpc("get_secret_for_worker", { secret_name: "upstash_redis_rest_token" }),
+    ]);
+    const url = typeof urlData === "string" ? urlData.replace(/\/$/, "") : "";
+    const token = typeof tokenData === "string" ? tokenData : "";
+    return url && token ? { url, token } : null;
+  } catch { return null; }
+}
+async function redisCommand<T>(args: string[]): Promise<T|null> {
+  const config = await redisConfig();
+  if (!config) return null;
+  try {
+    const response = await fetch(config.url, {
+      method: "POST",
+      headers: { Authorization: "Bearer " + config.token, "Content-Type": "application/json" },
+      body: JSON.stringify(args),
+    });
+    if (!response.ok) return null;
+    const payload = await response.json() as { result?: T };
+    return payload.result ?? null;
+  } catch { return null; }
+}
+async function redisGetJson<T>(key: string): Promise<T|null> {
+  const raw = await redisCommand<string>(["GET", key]);
+  if (typeof raw !== "string" || !raw) return null;
+  try { return JSON.parse(raw) as T; } catch { return null; }
+}
+async function redisSetJson(key: string, value: unknown, ttlSeconds: number) {
+  return (await redisCommand<string>(["SET", key, JSON.stringify(value), "EX", String(ttlSeconds)])) === "OK";
+}
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SECRET_KEY") ?? "";
