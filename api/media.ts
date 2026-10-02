@@ -34,7 +34,18 @@ function extension(name: string, mime: string) {
 const CANONICAL_SUPABASE_URL = 'https://ffrhglgkukgsuhxenena.supabase.co';
 const CANONICAL_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya';
 
-function config() {
+interface MediaConfig {
+  supabaseUrl: string;
+  supabaseKey: string;
+  serviceRole: string;
+  r2AccountId: string;
+  r2AccessKeyId: string;
+  r2SecretAccessKey: string;
+  r2Bucket: string;
+  publicBaseUrl: string;
+}
+
+function config(): MediaConfig {
   return {
     // Keep media auth on the exact same Supabase project as the browser session
     // and /api/capability. Stale Vercel SUPABASE_URL values must not create a
