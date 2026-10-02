@@ -10,7 +10,7 @@ const ACCOUNT_ID = Deno.env.get("CLOUDFLARE_ACCOUNT_ID") ?? Deno.env.get("R2_ACC
 const ACCESS_KEY = Deno.env.get("CLOUDFLARE_R2_ACCESS_KEY_ID") ?? Deno.env.get("R2_ACCESS_KEY_ID") ?? "";
 const SECRET_KEY = Deno.env.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY") ?? Deno.env.get("R2_SECRET_ACCESS_KEY") ?? "";
 const BUCKET = Deno.env.get("CLOUDFLARE_R2_BUCKET") ?? Deno.env.get("R2_MEDIA_BUCKET") ?? "";
-const PUBLIC_BASE = (Deno.env.get("R2_PUBLIC_BASE_URL") ?? "").replace(/\/$/, "");
+const PUBLIC_BASE = (Deno.env.get("TESTAGRAM_CDN_BASE_URL") ?? Deno.env.get("R2_PUBLIC_BASE_URL") ?? "").replace(/\/$/, "");
 
 const MAX_AVATAR = 2 * 1024 * 1024;
 const MAX_COVER = 5 * 1024 * 1024;
@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
       Metadata: { ownerId: user.id, profileMedia: kind },
     }));
 
-    const deliveryUrl = `${PUBLIC_BASE}/${key}?v=${Date.now()}`;
+    const deliveryUrl = `${PUBLIC_BASE}/${key}`;
     return json({
       ok: true,
       kind,
