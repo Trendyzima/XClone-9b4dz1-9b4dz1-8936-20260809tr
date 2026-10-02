@@ -37,7 +37,7 @@ jobs:
         run: npm ci
       - name: Verify TypeScript version
         run: |
-          test "$(node -p \"require('./node_modules/typescript/package.json').version\")" = "5.9.3"
+          test "$(node -p "require('./node_modules/typescript/package.json').version")" = "5.9.3"
           npx tsc --version
       - name: Typecheck API media boundary
         run: npm run typecheck:api
