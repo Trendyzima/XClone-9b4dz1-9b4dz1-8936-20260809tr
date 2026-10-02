@@ -12,18 +12,18 @@ grant select, insert, update, delete on public.newsify_sync_leases to service_ro
 create or replace function public.newsify_sync_lock() returns boolean
 language plpgsql security definer set search_path=public,pg_temp as $$
 begin
-  insert into public.newsify_sync_leases(id, lease_until, updated_at)
-  values (1, now() + interval '5 minutes', now())
-  on conflict (id) do update
-    set lease_until = excluded.lease_until,
-        updated_at = excluded.updated_at
-    where public.newsify_sync_leases.lease_until <= now();
   return exists (
-    select 1 from public.newsify_sync_leases
-    where id=1 and lease_until > now()
-  ) and (
-    select updated_at from public.newsify_sync_leases where id=1
-  ) >= now() - interval '1 second';
+    with acquired as (
+      insert into public.newsify_sync_leases(id, lease_until, updated_at)
+      values (1, now() + interval '5 minutes', now())
+      on conflict (id) do update
+        set lease_until = excluded.lease_until,
+            updated_at = excluded.updated_at
+        where public.newsify_sync_leases.lease_until <= now()
+      returning id
+    )
+    select 1 from acquired
+  );
 end;
 $$;
 
