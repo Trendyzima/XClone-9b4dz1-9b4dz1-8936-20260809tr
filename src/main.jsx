@@ -17,6 +17,7 @@ window.addEventListener('vite:preloadError', (event) => {
 import { supabase } from './lib/supabase';
 import { analytics } from './lib/posthog';
 import { TestagramEvent, trackTestagramEvent } from './lib/testagram-analytics';
+import { startNativePushRegistration } from './services/nativePushService';
 
 try {
   analytics.init();
@@ -58,6 +59,7 @@ window.addEventListener('popstate', trackRouteView);
 window.addEventListener('hashchange', trackRouteView);
 trackRouteView();
 analytics.startSession();
+void startNativePushRegistration();
 
 const container = document.getElementById('root');
 if (!container) throw new Error('Testagram root element was not found');
