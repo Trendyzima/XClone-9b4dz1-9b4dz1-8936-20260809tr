@@ -67,29 +67,23 @@ jobs:
           ACCOUNT_ID="77dbe7a859196105dc84fbb6b7094019"
           echo "== Worker custom-domain attachment =="
           domains="$(curl -fsS "$API/accounts/$ACCOUNT_ID/workers/domains?hostname=cdn.testagram.site&service=testagram-cdn" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
-          echo "$domains" | jq -e '.success == true' >/dev/null
-          if [[ "$(echo "$domains" | jq '.result | length')" -eq 0 ]]; then
-            echo "::error::cdn.testagram.site is not attached to testagram-cdn in Cloudflare Workers Domains."
-            exit 1
-          fi
-          echo "$domains" | jq '{success,result:[.result[]|{hostname,service,zone_name,zone_id,cert_id}]}'
-          echo "== Public DNS =="
-          dns="$(curl -fsS "$API/zones?name=testagram.site&status=active" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
-          zone_id="$(echo "$dns" | jq -r '.result[0].id // empty')"
-          test -n "$zone_id"
-          records="$(curl -fsS "$API/zones/$zone_id/dns_records?name=cdn.testagram.site&per_page=100" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
-          echo "$records" | jq '{success,result:[.result[]|{type,name,content,proxied,status}]}'
-          echo "$records" | jq -e '.success == true and (.result | length > 0)' >/dev/null
-          echo "== HTTPS edge =="
-          for attempt in $(seq 1 12); do
-            status="$(curl -ksS --connect-timeout 5 --max-time 15 -o /tmp/cdn-body -D /tmp/cdn-headers -w '%{http_code}' https://cdn.testagram.site/ 2>/dev/null || true)"
-            if [[ "$status" != "000" ]]; then
-              echo "HTTP status: $status"
-              grep -i '^x-testagram-cdn:' /tmp/cdn-headers || true
-              exit 0
+          echo "$domains" | jq -e '.success == true and (.result | length > 0)' >/dev/null
+          echo "$domains" | jq '{success,result:[.result[]|{hostname,service,zone_name,cert_id}]}'
+          echo "== Public DNS + HTTPS =="
+          for attempt in $(seq 1 18); do
+            ips="$(getent ahosts cdn.testagram.site 2>/dev/null | awk '{print $1}' | sort -u | tr '\n' ' ' || true)"
+            if [[ -n "$ips" ]]; then
+              echo "Resolved IPs: $ips"
+              status="$(curl -ksS --connect-timeout 5 --max-time 15 -o /tmp/cdn-body -D /tmp/cdn-headers -w '%{http_code}' https://cdn.testagram.site/ 2>/dev/null || true)"
+              echo "HTTPS status: $status"
+              if [[ "$status" != "000" ]]; then
+                grep -i '^x-testagram-cdn:' /tmp/cdn-headers || true
+                echo "Cloudflare CDN hostname is publicly reachable."
+                exit 0
+              fi
             fi
-            echo "Attempt $attempt: hostname not reachable yet; waiting 10s."
+            echo "Attempt $attempt: DNS/HTTPS not ready yet; waiting 10s."
             sleep 10
           done
-          echo "::error::Cloudflare custom domain exists but cdn.testagram.site is still not reachable over HTTPS from GitHub Actions."
+          echo "::error::Cloudflare custom domain is attached, but cdn.testagram.site is not publicly reachable from GitHub Actions yet."
           exit 1
