@@ -1,10 +1,17 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { redisGetJson, redisSetJson } from "../_shared/upstash-redis.ts";
+
 const url = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const db = createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
-const cors = { "Access-Control-Allow-Origin":"*", "Access-Control-Allow-Headers":"authorization, apikey, x-client-info, content-type", "Access-Control-Allow-Methods":"GET, OPTIONS", "Content-Type":"application/json; charset=utf-8" };
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, content-type",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Content-Type": "application/json; charset=utf-8",
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
   if (req.method !== "GET") return Response.json({ error: "GET required" }, { status: 405, headers: cors });
@@ -14,14 +21,30 @@ Deno.serve(async (req) => {
   const language = (urlValue.searchParams.get("language") ?? "english").trim();
   const cacheKey = `testagram:newsify:trending:${geo}:${language}:${limit}`;
   const cached = await redisGetJson<{ items?: unknown[]; geo?: string; language?: string }>(cacheKey);
-  if (cached) return new Response(JSON.stringify(cached), { status:200, headers:{...cors, "Cache-Control":"public,max-age=30,stale-while-revalidate=120", "X-Testagram-Redis-Cache":"HIT"}});
+  if (cached) {
+    return new Response(JSON.stringify(cached), {
+      status: 200,
+      headers: { ...cors, "Cache-Control": "public,max-age=30,stale-while-revalidate=120", "X-Testagram-Redis-Cache": "HIT" },
+    });
+  }
+
   try {
-    const { data, error } = await db.rpc("list_newsify_trending", { p_limit:limit, p_geo:geo, p_language:language });
+    const { data, error } = await db.rpc("list_newsify_trending", {
+      p_limit: limit,
+      p_geo: geo,
+      p_language: language,
+    });
     if (error) throw error;
-    const dataPayload = data ?? { items:[], geo, language };
+    const dataPayload = data ?? { items: [], geo, language };
     await redisSetJson(cacheKey, dataPayload, 30);
-    return new Response(JSON.stringify(dataPayload), { status:200, headers:{...cors, "Cache-Control":"public,max-age=30,stale-while-revalidate=120", "X-Testagram-Redis-Cache":"MISS"}});
+    return new Response(JSON.stringify(dataPayload), {
+      status: 200,
+      headers: { ...cors, "Cache-Control": "public,max-age=30,stale-while-revalidate=120", "X-Testagram-Redis-Cache": "MISS" },
+    });
   } catch (error) {
-    return new Response(JSON.stringify({ error:error instanceof Error ? error.message : String(error) }), { status:500, headers:cors });
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }), {
+      status: 500,
+      headers: cors,
+    });
   }
 });
