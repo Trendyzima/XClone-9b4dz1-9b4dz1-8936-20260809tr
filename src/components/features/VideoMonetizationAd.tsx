@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
 import { X, Volume2, VolumeX } from 'lucide-react';
-import { Capacitor } from '@/lib/capacitor-stub';
 import { supabase } from '@/lib/supabase';
 
 interface VideoMonetizationAdProps {
@@ -26,13 +25,6 @@ export function VideoMonetizationAd({
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
-    // On native platform — skip overlay and complete immediately
-    if (Capacitor.isNativePlatform()) {
-      trackAdRevenue();
-      onAdComplete();
-      return;
-    }
-
     // Web: show countdown overlay
     timerRef.current = setInterval(() => {
       setCountdown(prev => {
@@ -71,7 +63,7 @@ export function VideoMonetizationAd({
     onAdComplete();
   };
 
-  if (adDismissed || Capacitor.isNativePlatform()) return null;
+  if (adDismissed) return null;
 
   return (
     <div className="absolute inset-0 z-40 flex flex-col pointer-events-auto">
