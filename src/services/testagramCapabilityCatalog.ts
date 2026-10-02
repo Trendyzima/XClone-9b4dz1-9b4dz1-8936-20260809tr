@@ -41,6 +41,7 @@ export const TESTAGRAM_CAPABILITY_NAMES = [
   "testagram.bookmarks.folders.list",
   "testagram.bookmarks.folders.create",
   "testagram.trends.list",
+  "testagram.news.trending",
   "testagram.follows.set",
   "testagram.follows.state",
   "testagram.posts.like",
@@ -86,7 +87,7 @@ export function isTestagramCapabilityName(value: string): value is TestagramCapa
  * authorization remains in the gateway and database.
  */
 export const TESTAGRAM_CAPABILITY_GROUPS = {
-  discovery: ["testagram.search.posts", "testagram.search.users", "testagram.trends.list", "testagram.recommendations.generate"],
+  discovery: ["testagram.search.posts", "testagram.search.users", "testagram.trends.list", "testagram.news.trending", "testagram.recommendations.generate"],
   social: ["testagram.follows.set", "testagram.follows.state", "testagram.posts.like", "testagram.posts.repost", "testagram.posts.create"],
   workspace: ["testagram.lists.list", "testagram.lists.create", "testagram.lists.member.add", "testagram.lists.member.remove", "testagram.lists.timeline", "testagram.bookmarks.list", "testagram.bookmarks.add", "testagram.bookmarks.remove", "testagram.bookmarks.folders.list", "testagram.bookmarks.folders.create"],
   media: ["testagram.media.list", "testagram.media.attach"],
