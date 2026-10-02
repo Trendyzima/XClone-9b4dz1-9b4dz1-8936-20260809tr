@@ -1,4 +1,4 @@
-import { BannerAdPosition } from '@/lib/capacitor-stub';
+export type BannerAdPosition = string;
 
 // ── Config (kept for call-site compatibility) ────────────────────────────────
 export const ADMOB_CONFIG = {
