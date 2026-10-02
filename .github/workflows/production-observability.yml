@@ -2,6 +2,11 @@ name: Testagram Production Observability
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/production-observability.mjs'
+      - '.github/workflows/production-observability.yml'
   schedule:
     - cron: "17,47 * * * *"
 
