@@ -29,6 +29,14 @@ Deno.serve(async (req) => {
   const limit = Math.min(50, Math.max(1, Number(urlValue.searchParams.get("limit") ?? "20")));
   const geo = (urlValue.searchParams.get("geo") ?? "US").trim().toUpperCase();
   const language = (urlValue.searchParams.get("language") ?? "english").trim();
+  const rate = await rateLimit(req, "feed", 120);
+  if (rate && !rate.allowed) {
+    return new Response(JSON.stringify({ error: "rate_limited", retry_after_seconds: 60 }), {
+      status: 429,
+      headers: { ...cors, "Retry-After": "60", "Cache-Control": "no-store" },
+    });
+  }
+
   const cacheKey = `testagram:newsify:trending:${geo}:${language}:${limit}`;
   const cached = await redisGetJson<{ items?: unknown[]; geo?: string; language?: string }>(cacheKey);
   if (cached) {
