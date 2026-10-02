@@ -81,3 +81,5 @@ language plpgsql security definer set search_path=public,pg_temp as $$
 begin return pg_advisory_unlock(hashtextextended('testagram:newsify-sync', 0)); end; $$;
 revoke all on function public.newsify_sync_unlock() from public, anon, authenticated;
 grant execute on function public.newsify_sync_unlock() to service_role;
+
+grant execute on function public.create_domain_notification(uuid,text,uuid,uuid,text,jsonb,text) to service_role;
