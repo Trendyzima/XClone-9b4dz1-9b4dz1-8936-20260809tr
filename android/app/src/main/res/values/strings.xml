@@ -1,7 +1,7 @@
-<?xml version='1.0' encoding='utf-8'?>
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">XClone</string>
-    <string name="title_activity_main">XClone</string>
+    <string name="app_name">Testagram</string>
+    <string name="title_activity_main">Testagram</string>
     <string name="package_name">com.xclone.app</string>
-    <string name="custom_url_scheme">com.xclone.app</string>
+    <string name="custom_url_scheme">site.testagram.app</string>
 </resources>
