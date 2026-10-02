@@ -258,6 +258,8 @@ export class TestagramMediaSession {
 
   setRemoteTrackHandler(handler: (track: MediaStreamTrack) => void) { this.onRemoteTrack = handler; }
   setViewerCountHandler(handler: (count: number, guests: number) => void) { this.onViewerCount = handler; }
+  getPeerConnection() { return this.pc; }
+
   setParticipantCountHandler(handler: (count: number) => void) { this.onParticipantCount = handler; }
   async configureVideoSender(options: { maxBitrate: number; maxFramerate?: number; maintainResolution?: boolean } ) {
     if (!this.pc) return;
