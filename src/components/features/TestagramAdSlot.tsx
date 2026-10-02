@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { ExternalLink, Megaphone } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { usePremium } from '@/hooks/usePremium';
-import { Capacitor } from '@/lib/capacitor-stub';
 
 export type TestagramAdPlacement =
   | 'HOME_FEED' | 'FOLLOWING_FEED' | 'VIDEO_FEED' | 'REELS'
@@ -71,7 +70,7 @@ export function TestagramAdSlot({ placement, context, className = '' }: {
       setAd(null);
       impressionRef.current = '';
       eventTokenRef.current = '';
-      if (isPremium || Capacitor.isNativePlatform()) { setLoading(false); return; }
+      if (isPremium) { setLoading(false); return; }
       try {
         const { data, error } = await supabase.functions.invoke('testagram-ads/serve', {
           body: { slot_code: SLOT[placement], request_id: requestId, placement, context: context ?? {} },
