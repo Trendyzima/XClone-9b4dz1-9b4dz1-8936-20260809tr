@@ -56,3 +56,40 @@ jobs:
           grep -Fq 'UPSTASH_REDIS_REST_URL' cloudflare/cdn-worker/src/index.ts
           grep -Fq 'x-testagram-cdn' cloudflare/cdn-worker/src/index.ts
           echo "Cloudflare CDN source invariants verified."
+
+      - name: Verify Cloudflare custom domain and public DNS
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          API="https://api.cloudflare.com/client/v4"
+          ACCOUNT_ID="77dbe7a859196105dc84fbb6b7094019"
+          echo "== Worker custom-domain attachment =="
+          domains="$(curl -fsS "$API/accounts/$ACCOUNT_ID/workers/domains?hostname=cdn.testagram.site&service=testagram-cdn" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
+          echo "$domains" | jq -e '.success == true' >/dev/null
+          if [[ "$(echo "$domains" | jq '.result | length')" -eq 0 ]]; then
+            echo "::error::cdn.testagram.site is not attached to testagram-cdn in Cloudflare Workers Domains."
+            exit 1
+          fi
+          echo "$domains" | jq '{success,result:[.result[]|{hostname,service,zone_name,zone_id,cert_id}]}'
+          echo "== Public DNS =="
+          dns="$(curl -fsS "$API/zones?name=testagram.site&status=active" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
+          zone_id="$(echo "$dns" | jq -r '.result[0].id // empty')"
+          test -n "$zone_id"
+          records="$(curl -fsS "$API/zones/$zone_id/dns_records?name=cdn.testagram.site&per_page=100" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
+          echo "$records" | jq '{success,result:[.result[]|{type,name,content,proxied,status}]}'
+          echo "$records" | jq -e '.success == true and (.result | length > 0)' >/dev/null
+          echo "== HTTPS edge =="
+          for attempt in $(seq 1 12); do
+            status="$(curl -ksS --connect-timeout 5 --max-time 15 -o /tmp/cdn-body -D /tmp/cdn-headers -w '%{http_code}' https://cdn.testagram.site/ 2>/dev/null || true)"
+            if [[ "$status" != "000" ]]; then
+              echo "HTTP status: $status"
+              grep -i '^x-testagram-cdn:' /tmp/cdn-headers || true
+              exit 0
+            fi
+            echo "Attempt $attempt: hostname not reachable yet; waiting 10s."
+            sleep 10
+          done
+          echo "::error::Cloudflare custom domain exists but cdn.testagram.site is still not reachable over HTTPS from GitHub Actions."
+          exit 1
