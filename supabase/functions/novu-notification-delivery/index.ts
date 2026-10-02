@@ -40,6 +40,31 @@ Deno.serve(async (req) => {
   for (const row of claimed) {
     try {
       const payload = row.payload && typeof row.payload === "object" ? row.payload : {};
+      const { data: pushRows, error: pushError } = await db
+        .from("app_push_tokens")
+        .select("token")
+        .eq("user_id", row.recipient_id)
+        .eq("provider", "fcm")
+        .eq("platform", "android")
+        .eq("enabled", true);
+
+      if (pushError) throw new Error(`Push token lookup failed: ${pushError.message}`);
+
+      const deviceTokens = Array.isArray(pushRows)
+        ? pushRows
+            .map((item) => typeof item.token === "string" ? item.token.trim() : "")
+            .filter(Boolean)
+            .slice(0, 100)
+        : [];
+
+      const target: Record<string, unknown> = { subscriberId: row.recipient_id };
+      if (deviceTokens.length > 0) {
+        target.channels = [{
+          providerId: "fcm",
+          credentials: { deviceTokens },
+        }];
+      }
+
       const response = await fetch(`${novuApiUrl}/v1/events/trigger`, {
         method: "POST",
         headers: {
@@ -49,7 +74,7 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
           name: novuWorkflowId,
-          to: [{ subscriberId: row.recipient_id }],
+          to: [target],
           payload: { ...payload, source: "testagram", notificationId: row.notification_id },
         }),
       });
