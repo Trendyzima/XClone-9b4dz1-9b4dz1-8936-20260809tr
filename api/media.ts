@@ -136,7 +136,8 @@ export default async function handler(req: any, res: any) {
       const mediaType = mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : mime.startsWith('audio/') ? 'audio' : 'file';
       const storageKey = 'users/' + user.id + '/' + crypto.randomUUID() + '.' + extension(name, mime);
       const uploadUrl = await getSignedUrl(r2, new PutObjectCommand({
-        Bucket: cfg.r2Bucket, Key: storageKey, ContentType: mime,\n        CacheControl: 'public, max-age=31536000, immutable',
+        Bucket: cfg.r2Bucket, Key: storageKey, ContentType: mime,
+        CacheControl: 'public, max-age=31536000, immutable',
       }), { expiresIn: 900 });
       const mediaUrl = cfg.publicBaseUrl ? cfg.publicBaseUrl + '/' + storageKey : null;
 
