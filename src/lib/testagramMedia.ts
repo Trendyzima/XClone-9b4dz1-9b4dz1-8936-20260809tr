@@ -128,6 +128,9 @@ export class TestagramMediaSession {
   private mediaSessionUrl: string | null = null;
   private remoteStream = new MediaStream();
   private lastDiagnostics: Record<string, unknown> = {};
+  private callConversationId: string | null = null;
+  private callInitiator = false;
+  private callSignalChannel: ReturnType<typeof supabase.channel> | null = null;
 
   getDiagnostics() { return { ...this.lastDiagnostics }; }
   getPlaybackUrl() { return this.info?.playback_url || (this.role === 'viewer' ? null : this.info?.whep_url) || null; }
@@ -244,10 +247,13 @@ export class TestagramMediaSession {
     await session.connect(true); return session;
   }
 
-  static async connectCall(callId: string, localStream: MediaStream, onRemoteStream: (stream: MediaStream) => void) {
+  static async connectCall(callId: string, conversationId: string, localStream: MediaStream, initiator: boolean, onRemoteStream: (stream: MediaStream) => void) {
+    if (!conversationId) throw new Error('Call conversation is required for secure peer signaling.');
     const session = new TestagramMediaSession('call', 'participant', callId);
+    session.callConversationId = conversationId;
+    session.callInitiator = initiator;
     session.localStream = localStream; session.onRemoteStream = onRemoteStream;
-    await session.connect(true); return session;
+    await session.connect(false); return session;
   }
 
   setRemoteTrackHandler(handler: (track: MediaStreamTrack) => void) { this.onRemoteTrack = handler; }
@@ -353,6 +359,10 @@ export class TestagramMediaSession {
 
   private async connect(createInitialOffer: boolean) {
     if (this.closed) return;
+    if (this.roomType === 'call') {
+      await this.connectPeerCall();
+      return;
+    }
     this.info ??= await getToken(this.roomId, this.roomType, this.role);
     this.answerReceived = false;
     if (this.roomType === 'tv') {
@@ -415,6 +425,77 @@ export class TestagramMediaSession {
     });
   }
 
+  private async connectPeerCall() {
+    if (!this.callConversationId) throw new Error('Call signaling conversation is unavailable.');
+    const { data: sessionData } = await supabase.auth.getSession();
+    const userId = sessionData.session?.user.id;
+    if (!userId) throw new Error('Authentication required for secure calling.');
+
+    const turnUrl = import.meta.env.VITE_TESTAGRAM_TURN_URL?.trim();
+    const turnUser = import.meta.env.VITE_TESTAGRAM_TURN_USERNAME?.trim();
+    const turnCredential = import.meta.env.VITE_TESTAGRAM_TURN_CREDENTIAL?.trim();
+    const iceServers: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
+    if (turnUrl && turnUser && turnCredential) iceServers.push({ urls: turnUrl, username: turnUser, credential: turnCredential });
+
+    this.createPeerConnection(iceServers);
+    for (const track of this.localStream?.getTracks() || []) this.pc.addTrack(track, this.localStream!);
+    this.lastDiagnostics = { transport: 'p2p', encryption: 'dtls-srtp', signaling: 'supabase-realtime', callId: this.roomId };
+
+    const channel = supabase.channel('call:' + this.roomId, { config: { private: true, broadcast: { self: false, ack: true } } });
+    this.callSignalChannel = channel;
+    const sendSignal = async (type: 'offer' | 'answer', sdp: string) => {
+      const result = await channel.send({ type: 'broadcast', event: 'call-signal', payload: { call_id: this.roomId, sender_id: userId, signal_type: type, sdp } });
+      if (result !== 'ok') throw new Error('Secure call signaling failed.');
+    };
+
+    channel.on('broadcast', { event: 'call-signal' }, async ({ payload }) => {
+      if (!payload || payload.call_id !== this.roomId || payload.sender_id === userId || typeof payload.sdp !== 'string') return;
+      try {
+        if (payload.signal_type === 'offer') {
+          await this.pc.setRemoteDescription({ type: 'offer', sdp: payload.sdp });
+          const answer = await this.pc.createAnswer();
+          await this.pc.setLocalDescription(answer);
+          await waitForIce(this.pc);
+          if (this.pc.localDescription?.sdp) await sendSignal('answer', this.pc.localDescription.sdp);
+        } else if (payload.signal_type === 'answer') {
+          await this.pc.setRemoteDescription({ type: 'answer', sdp: payload.sdp });
+        }
+      } catch (error) {
+        console.warn('[Testagram secure call] signaling error', error);
+      }
+    });
+
+    await new Promise<void>((resolve, reject) => {
+      const timeout = window.setTimeout(() => reject(new Error('Secure call signaling timed out.')), 20000);
+      channel.subscribe(async status => {
+        if (status !== 'SUBSCRIBED') return;
+        window.clearTimeout(timeout);
+        try {
+          if (this.callInitiator) {
+            const offer = await this.pc.createOffer();
+            await this.pc.setLocalDescription(offer);
+            await waitForIce(this.pc);
+            if (!this.pc.localDescription?.sdp) throw new Error('Secure call offer was not created.');
+            // Retry the offer briefly so a slower callee subscription does not lose the first signal.
+            for (let attempt = 0; attempt < 3 && !this.answerReceived; attempt += 1) {
+              await sendSignal('offer', this.pc.localDescription.sdp);
+              if (attempt < 2) await new Promise(r => window.setTimeout(r, 700));
+            }
+          }
+          resolve();
+        } catch (error) { reject(error); }
+      });
+    });
+
+    const started = Date.now();
+    while (this.pc.connectionState !== 'connected' && Date.now() - started < 20000) {
+      if (this.pc.connectionState === 'failed' || this.pc.iceConnectionState === 'failed') throw new Error('Secure peer connection failed.');
+      await new Promise(r => window.setTimeout(r, 100));
+    }
+    if (this.pc.connectionState !== 'connected') throw new Error('Secure peer connection timed out.');
+    this.lastDiagnostics = { ...this.lastDiagnostics, connectionState: this.pc.connectionState, iceConnectionState: this.pc.iceConnectionState, connectedAt: new Date().toISOString() };
+  }
+
   private async flushCandidates() {
     const candidates = this.pendingCandidates.splice(0);
     for (const candidate of candidates) { try { await this.pc.addIceCandidate(candidate); } catch {} }
@@ -445,6 +526,7 @@ export class TestagramMediaSession {
 
   async close() {
     this.closed = true;
+    if (this.callSignalChannel) { void supabase.removeChannel(this.callSignalChannel); this.callSignalChannel = null; }
     if (this.reconnectTimer !== null) window.clearTimeout(this.reconnectTimer);
     this.reconnectTimer = null; this.ws?.close(); this.ws = null;
     if (this.mediaSessionUrl) {
