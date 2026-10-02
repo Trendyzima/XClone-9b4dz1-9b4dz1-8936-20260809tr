@@ -159,7 +159,7 @@ async function syncNewsify() {
     }
     return { skipped: false, synced, created, notified, geo: DEFAULT_GEO, language: DEFAULT_LANGUAGE };
   } finally {
-    await db.rpc("newsify_sync_unlock").catch(() => undefined);
+    try { await db.rpc("newsify_sync_unlock"); } catch { /* unlock is best-effort after the worker run */ }
   }
 }
 
