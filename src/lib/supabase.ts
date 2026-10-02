@@ -1,12 +1,17 @@
 import { createClient } from '@supabase/supabase-js';
 
-const CANONICAL_SUPABASE_URL = 'https://ffrhglgkukgsuhxenena.supabase.co';
-const CANONICAL_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya';
+const DEFAULT_SUPABASE_URL = 'https://ffrhglgkukgsuhxenena.supabase.co';
+const DEFAULT_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya';
 
-// One backend identity plane for the entire app. Do not allow build-time VITE_*
-// variables to silently point Auth/PostgREST at a different Supabase project.
-export const supabaseUrl = CANONICAL_SUPABASE_URL;
-export const supabasePublishableKey = CANONICAL_SUPABASE_PUBLISHABLE_KEY;
+const configuredSupabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
+const configuredPublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim();
+
+// The backend identity is environment-selectable so the same web/desktop/Android
+// build can be pointed at a compatible Supabase backend during a controlled
+// migration. Production keeps the current backend when variables are absent.
+export const supabaseUrl = configuredSupabaseUrl || DEFAULT_SUPABASE_URL;
+export const supabasePublishableKey =
+  configuredPublishableKey || DEFAULT_SUPABASE_PUBLISHABLE_KEY;
 
 export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   auth: {
