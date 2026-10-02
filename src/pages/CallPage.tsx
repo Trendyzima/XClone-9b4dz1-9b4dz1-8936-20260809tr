@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { communicationService } from '@/services/communicationService';
 import { TestagramMediaSession } from '@/lib/testagramMedia';
+import { supabase } from '@/lib/supabase';
 
 export default function CallPage() {
   const { callId } = useParams<{ callId: string }>();
@@ -22,7 +23,7 @@ export default function CallPage() {
   const [callSeconds, setCallSeconds] = useState(0);
   const [conversationId] = useState(() => params.get('conversation') || '');
   const [initiator] = useState(() => params.get('initiator') === '1');
-  const [participantCount, setParticipantCount] = useState(1);
+  const [participantCount, setParticipantCount] = useState(1); const [callerPhone, setCallerPhone] = useState<string | null>(null); const [callerPhoneVerified, setCallerPhoneVerified] = useState(false);
   const [kind] = useState<'voice' | 'video'>(() => params.get('kind') === 'voice' ? 'voice' : 'video');
   const sessionRef = useRef<TestagramMediaSession | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
@@ -36,6 +37,7 @@ export default function CallPage() {
 
   useEffect(() => {
     if (!user) { navigate('/auth'); return; }
+    void (async () => { try { if (callId) { const { data } = await supabase.from('calls').select('metadata').eq('id', callId).maybeSingle(); const metadata = data?.metadata && typeof data.metadata === 'object' ? data.metadata as Record<string, unknown> : {}; if (metadata.caller_phone_verified && typeof metadata.caller_phone === 'string') { setCallerPhone(metadata.caller_phone); setCallerPhoneVerified(true); } } } catch { /* caller metadata is optional */ } })();
     setLoading(false);
     return () => {
       void sessionRef.current?.close();
@@ -152,7 +154,7 @@ export default function CallPage() {
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <header className="h-14 border-b border-border flex items-center gap-3 px-4">
         <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-muted" aria-label="Back"><ArrowLeft className="h-5 w-5" /></button>
-        <div className="min-w-0"><h1 className="font-bold truncate">{kind === 'video' ? 'Video call' : 'Voice call'}</h1><p className="text-xs text-muted-foreground">{connected ? `${formatDuration(callSeconds)} • ${participantCount} participant${participantCount === 1 ? '' : 's'} • End-to-end encrypted` : 'End-to-end encrypted peer call'}</p></div>
+        <div className="min-w-0"><h1 className="font-bold truncate">{kind === 'video' ? 'Video call' : 'Voice call'}</h1><p className="text-xs text-muted-foreground">{connected ? `${formatDuration(callSeconds)} • ${participantCount} participant${participantCount === 1 ? '' : 's'} • End-to-end encrypted` : 'End-to-end encrypted peer call'}</p>{callerPhoneVerified && callerPhone && <p className="text-xs font-semibold text-primary">Verified mobile · {callerPhone}</p>}</div>
       </header>
       <main className="flex-1 p-3 sm:p-5 flex flex-col gap-4">
         <section className="relative flex-1 min-h-[55vh] rounded-3xl bg-black overflow-hidden border border-border">
