@@ -20,6 +20,12 @@ const EDGE_CAPABILITY_PATH="/api/capability";
 // Keep every capability call on the same browser Supabase configuration used by Auth.
 // This prevents profile/search paths from falling back to a stale VITE_* key.
 const CAPABILITY_GATEWAY_ENDPOINT="/api/capability";
+const DIRECT_MUTATION_CAPABILITIES=new Set([
+ "testagram.posts.create",
+ "testagram.posts.like",
+ "testagram.posts.repost",
+ "testagram.replies.create",
+]);
 const limit=(n=20)=>Math.min(100,Math.max(1,Number.isFinite(n)?Math.floor(n):20));
 const cursor=(c?:string)=>c?{cursor:c}:{};
 const rid=()=>typeof crypto?.randomUUID==="function"?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -36,6 +42,18 @@ const capabilityEvent=(capability:string)=>{
 export class TestagramCapabilityClient{
  private endpoint:string;private token:()=>Promise<string|null>;private name:string;private version:string;private timeout:number;private apiKey:string;
  constructor(o:TestagramCapabilityClientOptions){if(!o.endpoint?.trim())throw new Error("Capability endpoint is required");this.endpoint=o.endpoint.replace(/\/$/,"");this.token=o.getAccessToken;this.name=o.clientName??"testagram-client";this.version=o.clientVersion??"2";this.timeout=Math.min(30000,Math.max(1000,Math.floor(o.timeoutMs??15000)));this.apiKey=o.apiKey??"";}
+ private async directMutation<T>(capability:string,input:Record<string,unknown>,token:string):Promise<{ok:true;data:T}|{ok:false;status:number;message:string}>{
+  const response=await fetch(supabaseUrl.replace(/\/$/,"")+"/rest/v1/rpc/capability_dispatch_v2",{
+    method:"POST",
+    headers:{apikey:supabasePublishableKey,Authorization:"Bearer "+token,"Content-Type":"application/json",Accept:"application/json"},
+    body:JSON.stringify({p_capability:capability,p_input:input}),
+  });
+  const raw=await response.text();
+  let data:unknown=null; try{data=raw?JSON.parse(raw):null}catch{}
+  if(response.ok)return {ok:true,data:data as T};
+  const message=typeof data==="object"&&data&&"message" in data?String((data as {message?:unknown}).message):"Capability request failed ("+response.status+")";
+  return {ok:false,status:response.status,message};
+ }
  private async request<T>(capability:string,input:Record<string,unknown>,token:string|null,id:string,ctl:AbortController){
   // Send the session JWT explicitly to PostgREST. The previous implementation
   // called supabase.rpc(), which relies on the client's mutable auth header. A
@@ -97,6 +115,25 @@ export class TestagramCapabilityClient{
   try{
     let attempt=0;
     while(true){
+      // Community engagement writes use the canonical Supabase RPC directly.
+      // This removes a stale Vercel gateway from the critical mutation path while
+      // preserving the same authenticated capability boundary in Postgres.
+      if(DIRECT_MUTATION_CAPABILITIES.has(capability)&&token){
+        const direct=await this.directMutation<T>(capability,input,token);
+        if(direct.ok){
+          trackTestagramEvent(TestagramEvent.CAPABILITY_SUCCEEDED,{capability,duration_ms:Date.now()-startedAt});
+          return direct.data;
+        }
+        if((direct.status===401||direct.status===403)&&attempt===0){
+          attempt++;
+          const refreshed=await supabase.auth.refreshSession();
+          token=refreshed.data.session?.access_token??null;
+          if(token)continue;
+        }
+        if(direct.status>=400&&direct.status<500){
+          throw new CapabilityClientError(direct.message,{code:direct.status===401||direct.status===403?"AUTH_REQUIRED":"CAPABILITY_REQUEST_FAILED",requestId:id,status:direct.status});
+        }
+      }
       const {r,p}=await this.request<T>(capability,input,token,id,ctl);
       if(r.ok&&p.ok){
         const event=capabilityEvent(capability);
