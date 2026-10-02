@@ -1,10 +1,20 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { redisGetJson, redisSetJson } from "../_shared/upstash-redis.ts";
+import { redisGetJson, redisIncrWithExpiry, redisSetJson } from "../_shared/upstash-redis.ts";
 
 const url = Deno.env.get("SUPABASE_URL") ?? "";
 const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const db = createClient(url, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
+const rateLimit = async (req: Request, keyPart: string, limit: number) => {
+  const windowSeconds = 60;
+  const subject = req.headers.get("cf-connecting-ip")?.trim()
+    || req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    || "anonymous";
+  const key = `testagram:ratelimit:newsify:${keyPart}:${subject}:${Math.floor(Date.now() / 1000 / windowSeconds)}`;
+  const count = await redisIncrWithExpiry(key, windowSeconds + 2);
+  return count === null ? null : { allowed: count <= limit, count };
+};
+
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, content-type",
@@ -19,6 +29,14 @@ Deno.serve(async (req) => {
   const limit = Math.min(50, Math.max(1, Number(urlValue.searchParams.get("limit") ?? "20")));
   const geo = (urlValue.searchParams.get("geo") ?? "US").trim().toUpperCase();
   const language = (urlValue.searchParams.get("language") ?? "english").trim();
+  const rate = await rateLimit(req, `${geo}:${language}`, 120);
+  if (rate && !rate.allowed) {
+    return new Response(JSON.stringify({ error: "Too many requests; retry shortly." }), {
+      status: 429,
+      headers: { ...cors, "Retry-After": "60", "X-RateLimit-Limit": "120", "X-RateLimit-Remaining": "0" },
+    });
+  }
+
   const cacheKey = `testagram:newsify:trending:${geo}:${language}:${limit}`;
   const cached = await redisGetJson<{ items?: unknown[]; geo?: string; language?: string }>(cacheKey);
   if (cached) {
