@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { redisGetJson, redisSetJson } from "../_shared/upstash-redis.ts";
+import { redisGetJson, redisIncrWithExpiry, redisSetJson } from "../_shared/upstash-redis.ts";
 
 const url = Deno.env.get("SUPABASE_URL") ?? "";
 const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? (() => {
@@ -63,6 +63,14 @@ const recordMetric = async (
   }).catch(() => undefined);
 };
 
+const rateLimit = async (req: Request, capability: string, subject: string, limit: number) => {
+  const windowSeconds = 60;
+  const key = `testagram:ratelimit:gateway:${capability}:${subject}:${Math.floor(Date.now() / 1000 / windowSeconds)}`;
+  const count = await redisIncrWithExpiry(key, windowSeconds + 2);
+  if (count === null) return null;
+  return { allowed: count <= limit, count, limit, retryAfter: windowSeconds };
+};
+
 const fail = (requestId: string, code: string, message: string, status: number) =>
   json({ ok: false, data: null, error: { code, message }, request_id: requestId }, status, requestId);
 
@@ -100,9 +108,24 @@ Deno.serve(async (req) => {
   const started = performance.now();
 
   try {
+    let rateLimitSubject = req.headers.get("cf-connecting-ip")?.trim()
+      || req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+      || "anonymous";
+    let rateLimitLimit = isPublicCapability ? 120 : 300;
+
     if (!isPublicCapability) {
       const { data: userResult, error: userError } = await db.auth.getUser();
       if (userError || !userResult.user) return fail(requestId, "AUTH_REQUIRED", "Authentication required", 401);
+      rateLimitSubject = userResult.user.id;
+    }
+
+    const rate = await rateLimit(req, capability, rateLimitSubject, rateLimitLimit);
+    if (rate && !rate.allowed) {
+      const response = fail(requestId, "RATE_LIMITED", "Too many requests; retry shortly.", 429);
+      response.headers.set("Retry-After", String(rate.retryAfter));
+      response.headers.set("X-RateLimit-Limit", String(rate.limit));
+      response.headers.set("X-RateLimit-Remaining", "0");
+      return response;
     }
 
     if (capability === "testagram.news.trending") {
