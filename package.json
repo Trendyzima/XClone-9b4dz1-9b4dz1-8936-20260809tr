@@ -10,7 +10,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "preview": "vite preview",
-    "tauri": "cargo tauri --manifest-path desktop/src-tauri/Cargo.toml",
+    "tauri": "cd desktop/src-tauri && cargo tauri",
     "tauri:dev": "npm run tauri -- dev",
     "tauri:build": "npm run tauri -- build"
   },
