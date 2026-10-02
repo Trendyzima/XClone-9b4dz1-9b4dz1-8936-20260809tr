@@ -149,6 +149,8 @@ async function syncNewsify() {
     for (const entry of normalizedRows) {
       const { item, newsifyItemId, title, publishedAt } = entry;
 
+      const score = int(item.importanceScore ?? item.importance_score);
+      const tier = int(item.displayImportanceTier ?? item.display_importance_tier ?? item.importanceTier ?? item.importance_tier);
       const fresh = Date.now() - new Date(publishedAt).getTime() <= 6 * 60 * 60 * 1000;
       const breaking = tier === 1 || (score !== null && score >= 80);
       if (!fresh || !breaking) continue;
