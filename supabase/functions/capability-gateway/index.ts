@@ -29,6 +29,7 @@ const PUBLIC_CAPABILITIES = new Set([
   "testagram.search.communities",
   "testagram.trends.list",
   "testagram.profile.timeline",
+  "testagram.news.trending",
 ]);
 
 const SUCCESS_METRIC_SAMPLE_RATE = 0.01;
@@ -97,6 +98,21 @@ Deno.serve(async (req) => {
     if (!isPublicCapability) {
       const { data: userResult, error: userError } = await db.auth.getUser();
       if (userError || !userResult.user) return fail(requestId, "AUTH_REQUIRED", "Authentication required", 401);
+    }
+
+    if (capability === "testagram.news.trending") {
+      const { data, error } = await db.rpc("list_newsify_trending", {
+        p_limit: typeof input.limit === "number" ? input.limit : 20,
+        p_geo: typeof input.geo === "string" ? input.geo : "US",
+        p_language: typeof input.language === "string" ? input.language : "english",
+      });
+      if (error) {
+        const message = error.message || "Newsify trend query failed";
+        await recordMetric(db, capability, "error", Math.round(performance.now() - started), requestId, message);
+        return fail(requestId, "NEWSIFY_TREND_QUERY_FAILED", message.slice(0, 300), 500);
+      }
+      await recordMetric(db, capability, "ok", Math.round(performance.now() - started), requestId);
+      return json({ ok: true, data: data ?? { items: [] }, error: null, request_id: requestId }, 200, requestId, "public,max-age=30,stale-while-revalidate=120");
     }
 
     const rpcName = capability === "testagram.profile.update" ? "profile_update" : "capability_dispatch";
