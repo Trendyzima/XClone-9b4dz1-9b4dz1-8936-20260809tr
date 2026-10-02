@@ -62,11 +62,39 @@ export async function finalizeAuthenticatedSession(user: User): Promise<AuthUser
 
 export async function mapSupabaseUserWithCanonicalProfile(user: User): Promise<AuthUser> {
   const mapped = mapSupabaseUser(user);
-  await ensureCanonicalProfile(user);
-  const { data: profile, error } = await supabase.from('profiles').select('id, username, avatar_url, verified_tier').eq('id', user.id).maybeSingle();
+
+  // User creation is provisioned by the auth.users trigger. For an existing
+  // session, keep the hot path read-only: one indexed profile lookup instead
+  // of a read + upsert + read sequence on every sign-in/session restore.
+  let { data: profile, error } = await supabase
+    .from('profiles')
+    .select('id, username, avatar_url, verified_tier')
+    .eq('id', user.id)
+    .maybeSingle();
+
   if (error) throw new Error(`Canonical profile lookup failed: ${error.message}`);
+
+  // Repair only legacy/incomplete accounts. New accounts should already have
+  // a profile because public.handle_new_user() runs in auth.users.
+  if (!profile?.username) {
+    await ensureCanonicalProfile(user);
+    const repaired = await supabase
+      .from('profiles')
+      .select('id, username, avatar_url, verified_tier')
+      .eq('id', user.id)
+      .maybeSingle();
+    profile = repaired.data;
+    error = repaired.error;
+    if (error) throw new Error(`Canonical profile repair lookup failed: ${error.message}`);
+  }
+
   if (!profile?.username) return mapped;
-  return { ...mapped, username: profile.username, avatar: profile.avatar_url || mapped.avatar, verified: !!profile.verified_tier && profile.verified_tier !== 'none' };
+  return {
+    ...mapped,
+    username: profile.username,
+    avatar: profile.avatar_url || mapped.avatar,
+    verified: !!profile.verified_tier && profile.verified_tier !== 'none',
+  };
 }
 
 const AUTH_REQUEST_TIMEOUT_MS = 15_000;
