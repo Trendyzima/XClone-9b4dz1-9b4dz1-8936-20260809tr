@@ -12,5 +12,16 @@ bucket_name = "testagram-media"
 pattern = "cdn.testagram.site"
 custom_domain = true
 
+[triggers]
+crons = ["*/5 * * * *"]
+
 [observability]
 enabled = true
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 0.25
+
+[observability.traces]
+enabled = true
+head_sampling_rate = 0.05
