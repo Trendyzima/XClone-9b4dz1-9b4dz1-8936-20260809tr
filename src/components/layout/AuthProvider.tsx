@@ -3,7 +3,6 @@ import { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { finalizeAuthenticatedSession } from '@/lib/auth';
-import { Capacitor, PushNotifications } from '@/lib/capacitor-stub';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 
 async function triggerKeygenForUser(userId: string) {
@@ -57,26 +56,6 @@ export async function sendActivityNotification({
   }
 }
 
-async function registerPushNotifications(userId: string) {
-  if (!Capacitor.isNativePlatform()) return;
-  try {
-    const permResult = await PushNotifications.requestPermissions();
-    if (permResult.receive !== 'granted') return;
-    await PushNotifications.register();
-    PushNotifications.addListener('registration', async (token) => {
-      await supabase.from('fcm_tokens').upsert({ user_id: userId, token: token.value, platform: Capacitor.getPlatform(), updated_at: new Date().toISOString() }, { onConflict: 'user_id,token' });
-    });
-    PushNotifications.addListener('registrationError', (error) => console.error('[Push] Registration error:', error));
-    PushNotifications.addListener('pushNotificationReceived', (notification) => console.log('[Push] Received:', notification));
-    PushNotifications.addListener('pushNotificationActionPerformed', (action) => {
-      const routeData = action.notification.data;
-      if (routeData?.route) window.location.href = routeData.route;
-    });
-  } catch (err) {
-    console.error('[Push] Setup error:', err);
-  }
-}
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { login, logout, setLoading, setAuthError, clearAuthError } = useAuthStore();
 
@@ -107,7 +86,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               if (!mounted) return;
               login(mappedUser);
               setLoading(false);
-              void registerPushNotifications(user.id);
               void triggerKeygenForUser(user.id);
               resolve();
             })
