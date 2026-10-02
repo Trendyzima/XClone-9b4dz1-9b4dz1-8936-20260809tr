@@ -120,17 +120,17 @@ export class TestagramCapabilityClient{
       // preserving the same authenticated capability boundary in Postgres.
       if(DIRECT_MUTATION_CAPABILITIES.has(capability)&&token){
         const direct=await this.directMutation<T>(capability,input,token);
-        if(direct.ok){
+        if(direct.ok === true){
           trackTestagramEvent(TestagramEvent.CAPABILITY_SUCCEEDED,{capability,duration_ms:Date.now()-startedAt});
           return direct.data;
         }
-        if((direct.status===401||direct.status===403)&&attempt===0){
+        if(direct.ok === false && (direct.status===401||direct.status===403)&&attempt===0){
           attempt++;
           const refreshed=await supabase.auth.refreshSession();
           token=refreshed.data.session?.access_token??null;
           if(token)continue;
         }
-        if(direct.status>=400&&direct.status<500){
+        if(direct.ok === false && direct.status>=400&&direct.status<500){
           throw new CapabilityClientError(direct.message,{code:direct.status===401||direct.status===403?"AUTH_REQUIRED":"CAPABILITY_REQUEST_FAILED",requestId:id,status:direct.status});
         }
       }
