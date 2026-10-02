@@ -43,6 +43,6 @@ export async function redisSetJson(key: string, value: unknown, ttlSeconds: numb
 export async function redisIncrWithExpiry(key: string, ttlSeconds: number): Promise<number | null> {
   const value = await command<number>(["INCR", key]);
   if (typeof value !== "number") return null;
-  if (value === 1) await command(["EXPIRE", key, String(Math.max(1, Math.floor(ttlSeconds)))]);
+  if (value === 1) {\n    const ttl = Math.max(1, Math.floor(ttlSeconds));\n    await command(["EXPIRE", key, String(ttl)]);\n  }
   return value;
 }
