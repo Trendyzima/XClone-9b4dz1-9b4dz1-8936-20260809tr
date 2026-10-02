@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { MutableRefObject } from 'react';
 import { Phone, PhoneCall, PhoneOff, ShieldCheck, Video } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -17,7 +18,7 @@ type IncomingCall = {
   phoneVerified: boolean;
 };
 
-function playRingTone(contextRef: React.MutableRefObject<AudioContext | null>) {
+function playRingTone(contextRef: MutableRefObject<AudioContext | null>) {
   try {
     const AudioContextCtor = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextCtor) return;
