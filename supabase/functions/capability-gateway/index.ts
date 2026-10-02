@@ -28,6 +28,12 @@ const json = (body: unknown, status = 200, requestId = crypto.randomUUID(), cach
 const PUBLIC_CAPABILITIES = new Set([
   "testagram.capabilities.list",
   "testagram.health.read",
+  "testagram.search.users",
+  "testagram.search.posts",
+  "testagram.search.hashtags",
+  "testagram.search.communities",
+  "testagram.trends.list",
+  "testagram.profile.timeline",
   "testagram.news.trending",
 ]);
 
