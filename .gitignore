@@ -27,3 +27,8 @@ dist-ssr
 .env
 .env.*
 !.env.example
+
+# Firebase credentials — never commit real service-account keys
+config/firebase-service-account*.json
+firebase-service-account*.json
+*-firebase-adminsdk-*.json
