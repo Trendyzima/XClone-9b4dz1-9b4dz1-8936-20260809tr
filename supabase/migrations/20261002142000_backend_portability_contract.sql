@@ -124,3 +124,17 @@ revoke all on public.backend_portability_identity from anon, authenticated;
 revoke all on public.backend_migration_runs from anon, authenticated;
 grant select, insert, update on public.backend_migration_runs to service_role;
 grant select on public.backend_portability_identity to service_role;
+
+create policy "backend portability identity service role"
+on public.backend_portability_identity
+for all
+to service_role
+using (true)
+with check (true);
+
+create policy "backend migration runs service role"
+on public.backend_migration_runs
+for all
+to service_role
+using (true)
+with check (true);
