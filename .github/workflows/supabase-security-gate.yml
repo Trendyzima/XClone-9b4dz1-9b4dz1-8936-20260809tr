@@ -26,6 +26,8 @@ jobs:
           set -euo pipefail
           test -n "$SUPABASE_ACCESS_TOKEN" || { echo "::error::Missing SUPABASE_ACCESS_TOKEN"; exit 1; }
           [[ "$SUPABASE_PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Missing/invalid SUPABASE_PROJECT_REF"; exit 1; }
+      - name: Link production project
+        run: supabase link --project-ref "$SUPABASE_PROJECT_REF" --skip-pooler
       - name: Run remote PL/pgSQL lint
         run: supabase db lint --linked --level warning --fail-on error
       - name: Verify security boundary migration is present
