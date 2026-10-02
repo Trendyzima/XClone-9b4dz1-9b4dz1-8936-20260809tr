@@ -9,7 +9,7 @@ declare global {
 let registeredToken: string | null = null;
 let pendingToken: string | null = null;
 let started = false;
-let retryTimer: ReturnType<typeof window.setTimeout> | null = null;
+let retryTimer: number | null = null;
 let retryAttempt = 0;
 
 async function registerToken(token: string): Promise<void> {
