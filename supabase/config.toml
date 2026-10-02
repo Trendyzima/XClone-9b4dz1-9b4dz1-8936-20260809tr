@@ -42,3 +42,6 @@ verify_jwt = false
 
 [functions.newsify-sync]
 verify_jwt = false
+
+[functions.notification-fcm-worker]
+verify_jwt = false
