@@ -74,7 +74,7 @@ export function QuotedPostPreview({ quotedPostId }: { quotedPostId?: string | nu
     );
   }
 
-  const profile = post.profiles ?? {};
+  const profile: NonNullable<QuotedPost['profiles']> = post.profiles ?? { id: '' };
   const username = String(profile.username ?? '').replace(/^@/, '');
   const displayName = String(profile.display_name ?? username ?? 'Profile').trim();
 
