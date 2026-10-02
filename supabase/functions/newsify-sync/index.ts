@@ -105,40 +105,50 @@ async function syncNewsify() {
 
     const now = new Date().toISOString();
     let synced = 0, created = 0, notified = 0;
+    const normalizedRows = items.slice(0, 25).map((item) => {
+      const newsifyItemId = str(item.id || item.newsId || item.articleId);
+      const title = str(item.title);
+      if (!newsifyItemId || !title) return null;
+      const geo = str(item.geo, DEFAULT_GEO) || DEFAULT_GEO;
+      const language = str(item.language, DEFAULT_LANGUAGE) || DEFAULT_LANGUAGE;
+      const publishedAt = date(item.publishedAt || item.published_at || item.createdAt);
+      return {
+        row: {
+          newsify_item_id: newsifyItemId,
+          newsify_trend_id: str(item.trendId || item.trend_id) || null,
+          trend_title: str(item.trendTitle || item.trend_title) || null,
+          title,
+          excerpt: str(item.excerpt || item.content) || null,
+          detail_url: str(item.detailUrl || item.detail_url || item.newsifyUrl || item.newsify_url) || null,
+          source_url: str(item.sourceUrl || item.source_url) || null,
+          source_name: "Newsify",
+          geo, language, importance_score: int(item.importanceScore ?? item.importance_score),
+          importance_tier: int(item.importanceTier ?? item.importance_tier),
+          trend_traffic: int(item.trendTraffic ?? item.trend_traffic),
+          published_at: publishedAt, fetched_at: now, updated_at: now,
+          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          metadata: item,
+        },
+        item, newsifyItemId, title, publishedAt,
+      };
+    }).filter(Boolean) as Array<{row: Record<string, unknown>; item: NewsifyItem; newsifyItemId: string; title: string; publishedAt: string}>;
+    if (normalizedRows.length) {
+      const { error: saveError } = await db.from("newsify_trending_items").upsert(
+        normalizedRows.map((entry) => entry.row),
+        { onConflict: "newsify_item_id,geo,language" },
+      );
+      if (saveError) throw saveError;
+      synced = normalizedRows.length;
+    }
+
     const { data: tokenRows, error: tokenError } = await db.from("app_push_tokens")
       .select("user_id").eq("provider", "fcm").eq("platform", "android").eq("enabled", true);
     if (tokenError) throw tokenError;
     const recipients = [...new Set((tokenRows ?? []).map((r: { user_id: string }) => r.user_id).filter(Boolean))];
 
-    for (const item of items.slice(0, 25)) {
-      const newsifyItemId = str(item.id || item.newsId || item.articleId);
-      const title = str(item.title);
-      if (!newsifyItemId || !title) continue;
-      const geo = str(item.geo, DEFAULT_GEO) || DEFAULT_GEO;
-      const language = str(item.language, DEFAULT_LANGUAGE) || DEFAULT_LANGUAGE;
-      const publishedAt = date(item.publishedAt || item.published_at || item.createdAt);
-      const score = int(item.importanceScore ?? item.importance_score);
-      const tier = int(item.importanceTier ?? item.importance_tier);
-      const row = {
-        newsify_item_id: newsifyItemId,
-        newsify_trend_id: str(item.trendId || item.trend_id) || null,
-        trend_title: str(item.trendTitle || item.trend_title) || null,
-        title,
-        excerpt: str(item.excerpt || item.content) || null,
-        detail_url: str(item.detailUrl || item.detail_url || item.newsifyUrl || item.newsify_url) || null,
-        source_url: str(item.sourceUrl || item.source_url) || null,
-        source_name: "Newsify",
-        geo, language, importance_score: score, importance_tier: tier,
-        trend_traffic: int(item.trendTraffic ?? item.trend_traffic),
-        published_at: publishedAt, fetched_at: now, updated_at: now,
-        expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-        metadata: item,
-      };
-      const existing = await db.from("newsify_trending_items").select("id").eq("newsify_item_id", newsifyItemId).eq("geo", geo).eq("language", language).maybeSingle();
-      if (existing.error) throw existing.error;
-      const { error: saveError } = await db.from("newsify_trending_items").upsert(row, { onConflict: "newsify_item_id,geo,language" });
-      if (saveError) throw saveError;
-      synced++;
+    for (const entry of normalizedRows) {
+      const { item, newsifyItemId, title, publishedAt } = entry;
+
       const fresh = Date.now() - new Date(publishedAt).getTime() <= 6 * 60 * 60 * 1000;
       const breaking = tier === 1 || (score !== null && score >= 80);
       if (!fresh || !breaking) continue;
