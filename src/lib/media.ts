@@ -37,7 +37,7 @@ export async function uploadMedia(file: File, postId?: string | null): Promise<M
   validateMedia(file);
   const initialized = await mediaFunction('init', { name:file.name, mime_type:file.type.toLowerCase() || 'application/octet-stream', size_bytes:file.size, post_id:postId ?? null });
   const response = await fetch(String(initialized.upload_url), { method:'PUT', headers:{'Content-Type':file.type.toLowerCase() || 'application/octet-stream'}, body:file });
-  if (!response.ok) { await mediaFunction('delete',{media_id:initialized.media_id}).catch(()=>undefined); throw new Error('Cloudflare media upload failed ('+response.status+').'); }
+  if (!response.ok) { await mediaFunction('delete',{media_id:initialized.media_id}).catch(()=>undefined); throw new Error('Media upload failed ('+response.status+').'); }
   return mediaFunction('complete',{media_id:initialized.media_id});
 }
 
