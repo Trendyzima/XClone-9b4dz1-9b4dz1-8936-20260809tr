@@ -1,81 +1,35 @@
 package com.xclone.app;
 
 import android.os.Bundle;
-import android.view.KeyEvent;
-import android.view.View;
-import android.widget.Toast;
+import android.view.Gravity;
+import android.widget.LinearLayout;
+import android.widget.TextView;
 
-import com.getcapacitor.BridgeActivity;
+import androidx.appcompat.app.AppCompatActivity;
 
-public class MainActivity extends BridgeActivity {
-
-    private long lastBackPressed = 0;
-
+public final class MainActivity extends AppCompatActivity {
     @Override
-    public void onCreate(Bundle savedInstanceState) {
-        registerPlugin(TestagramNativePlugin.class);
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // ================= Immersive Fullscreen =================
-        final View decorView = getWindow().getDecorView();
-        decorView.setSystemUiVisibility(
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY    // Keep immersive after swipe
-            | View.SYSTEM_UI_FLAG_FULLSCREEN        // Hide status bar
-            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION   // Hide navigation bar
-            | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-        );
-    }
+        LinearLayout root = new LinearLayout(this);
+        root.setOrientation(LinearLayout.VERTICAL);
+        root.setGravity(Gravity.CENTER);
+        root.setPadding(48, 48, 48, 48);
 
-    // Handle Android back button navigation
-    @Override
-    public boolean onKeyDown(int keyCode, KeyEvent event) {
+        TextView title = new TextView(this);
+        title.setText("Testagram");
+        title.setTextSize(32);
+        title.setGravity(Gravity.CENTER);
 
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
+        TextView status = new TextView(this);
+        status.setText("Native Android client\nCapacitor-free foundation");
+        status.setTextSize(16);
+        status.setGravity(Gravity.CENTER);
+        status.setPadding(0, 24, 0, 0);
 
-            if (this.bridge.getWebView().canGoBack()) {
-                this.bridge.getWebView().goBack();
-                return true;
-            } else {
-
-                if (lastBackPressed + 2000 > System.currentTimeMillis()) {
-                    finish();
-                    return true;
-                } else {
-                    Toast.makeText(this, "Press back again to exit", Toast.LENGTH_SHORT).show();
-                    lastBackPressed = System.currentTimeMillis();
-                    return true;
-                }
-            }
-        }
-
-        return super.onKeyDown(keyCode, event);
-    }
-
-    @Override
-    public void onResume() {
-        super.onResume();
-
-        // Re-enable immersive mode if user swiped to show bars
-        final View decorView = getWindow().getDecorView();
-        decorView.setSystemUiVisibility(
-            View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
-            | View.SYSTEM_UI_FLAG_FULLSCREEN
-            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-            | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-        );
-    }
-
-    @Override
-    public void onPause() {
-        super.onPause();
-    }
-
-    @Override
-    public void onDestroy() {
-        super.onDestroy();
+        root.addView(title);
+        root.addView(status);
+        setContentView(root);
     }
 }
