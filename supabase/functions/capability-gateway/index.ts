@@ -23,15 +23,11 @@ const json = (body: unknown, status = 200, requestId = crypto.randomUUID(), cach
     },
   });
 
+// Keep this allowlist aligned with capability_registry.access='public'.
+// Read-only does not mean public: search, trends and profile timeline are authenticated.
 const PUBLIC_CAPABILITIES = new Set([
   "testagram.capabilities.list",
   "testagram.health.read",
-  "testagram.search.users",
-  "testagram.search.posts",
-  "testagram.search.hashtags",
-  "testagram.search.communities",
-  "testagram.trends.list",
-  "testagram.profile.timeline",
   "testagram.news.trending",
 ]);
 
