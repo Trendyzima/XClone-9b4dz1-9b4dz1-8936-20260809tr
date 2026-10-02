@@ -1,0 +1,52 @@
+name: Testagram Encrypted Database Backup
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment: production
+    env:
+      SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+      BACKUP_ENCRYPTION_PASSPHRASE: ${{ secrets.BACKUP_ENCRYPTION_PASSPHRASE }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - uses: supabase/setup-cli@v2
+        with:
+          version: 2.118.0
+      - name: Validate backup credentials
+        run: |
+          set -euo pipefail
+          test -n "$SUPABASE_DB_URL" || { echo "::error::Add SUPABASE_DB_URL to the production environment before running this backup."; exit 1; }
+          test -n "$BACKUP_ENCRYPTION_PASSPHRASE" || { echo "::error::Add BACKUP_ENCRYPTION_PASSPHRASE to the production environment before running this backup."; exit 1; }
+      - name: Dump production roles, schema and data
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir -p /tmp/testagram-backup
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f /tmp/testagram-backup/schema.sql
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f /tmp/testagram-backup/roles.sql --role-only
+          supabase db dump --db-url "$SUPABASE_DB_URL" -f /tmp/testagram-backup/data.sql --data-only --use-copy
+          printf '%s\n' "${{ github.sha }}" > /tmp/testagram-backup/source-sha.txt
+          date -u +%Y-%m-%dT%H:%M:%SZ > /tmp/testagram-backup/created-at.txt
+      - name: Encrypt backup archive
+        run: |
+          set -euo pipefail
+          tar -C /tmp -czf /tmp/testagram-backup.tar.gz testagram-backup
+          gpg --batch --yes --pinentry-mode loopback --passphrase "$BACKUP_ENCRYPTION_PASSPHRASE" --symmetric --cipher-algo AES256 --output /tmp/testagram-backup.tar.gz.gpg /tmp/testagram-backup.tar.gz
+          rm -f /tmp/testagram-backup.tar.gz
+          rm -rf /tmp/testagram-backup
+      - name: Upload encrypted off-site backup artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: testagram-database-backup-${{ github.run_id }}
+          path: /tmp/testagram-backup.tar.gz.gpg
+          retention-days: 7
+          if-no-files-found: error
