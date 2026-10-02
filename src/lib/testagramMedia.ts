@@ -459,6 +459,7 @@ export class TestagramMediaSession {
           if (this.pc.localDescription?.sdp) await sendSignal('answer', this.pc.localDescription.sdp);
         } else if (payload.signal_type === 'answer') {
           await this.pc.setRemoteDescription({ type: 'answer', sdp: payload.sdp });
+          this.answerReceived = true;
         }
       } catch (error) {
         console.warn('[Testagram secure call] signaling error', error);
