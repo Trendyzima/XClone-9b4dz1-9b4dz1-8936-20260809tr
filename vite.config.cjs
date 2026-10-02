@@ -156,7 +156,7 @@ module.exports = defineConfig({
     extensions: ['.tsx', '.ts', '.jsx', '.js', '.mjs', '.json'],
     dedupe: ['react', 'react-dom'],
     alias: {
-      '@vercel/analytics/react':                  stub,
+      '@vercel/analytics/react':                  a('lib/analytics-stub.ts'),
       ...layoutAliases,
       '@': src,
     },
