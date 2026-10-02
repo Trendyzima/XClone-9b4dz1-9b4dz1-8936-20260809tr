@@ -10,7 +10,7 @@ const ACCOUNT_ID = Deno.env.get("CLOUDFLARE_ACCOUNT_ID") ?? Deno.env.get("R2_ACC
 const ACCESS_KEY = Deno.env.get("CLOUDFLARE_R2_ACCESS_KEY_ID") ?? Deno.env.get("R2_ACCESS_KEY_ID") ?? "";
 const SECRET_KEY = Deno.env.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY") ?? Deno.env.get("R2_SECRET_ACCESS_KEY") ?? "";
 const BUCKET = Deno.env.get("CLOUDFLARE_R2_BUCKET") ?? Deno.env.get("R2_MEDIA_BUCKET") ?? "";
-const PUBLIC_BASE = (Deno.env.get("R2_PUBLIC_BASE_URL") ?? "").replace(/\/$/, "");
+const PUBLIC_BASE = (Deno.env.get("TESTAGRAM_CDN_BASE_URL") ?? Deno.env.get("R2_PUBLIC_BASE_URL") ?? "").replace(/\/$/, "");
 const MAX_BYTES = 5 * 1024 * 1024;
 const ALLOWED = new Set(["image/jpeg","image/png","image/webp","image/gif","image/avif"]);
 const cors = { ...corsHeaders, "Access-Control-Allow-Methods": "POST,OPTIONS" };
@@ -65,7 +65,7 @@ Deno.serve(async req=>{
     const key=`communities/${entityId}/${kind}.${ext(mime)}`;
     const bytes=new Uint8Array(await file.arrayBuffer());
     await r2.send(new PutObjectCommand({Bucket:BUCKET,Key:key,Body:bytes,ContentType:mime,ContentLength:bytes.byteLength,CacheControl:"public, max-age=31536000, immutable",Metadata:{ownerId:user.id,entityId,entity:"community",kind}}));
-    const url=`${PUBLIC_BASE}/${key}?v=${Date.now()}`;
+    const url=`${PUBLIC_BASE}/${key}`;
     const patch=kind==="icon"?{icon_url:url,updated_at:new Date().toISOString()}:{banner_url:url,updated_at:new Date().toISOString()};
     const {error:updateError}=await admin.from("communities").update(patch).eq("id",entityId);
     if(updateError)return json({error:"Community media was uploaded but could not be saved"},500);
