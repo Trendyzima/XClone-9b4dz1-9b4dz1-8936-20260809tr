@@ -181,7 +181,7 @@ export class TestagramCapabilityClient{
   }finally{clearTimeout(timer)}
 }
  listCapabilities(){return this.call<{capabilities:unknown[]}>("testagram.capabilities.list")} health(){return this.call<{services:unknown[]}>("testagram.health.read")}
- listPosts(n=20,c?:string){return this.call<CapabilityPage<unknown>>("testagram.posts.list",{limit:limit(n),...cursor(c)})}
+ listPosts(n=20,c?:string,feed:"following"|"global"|"profile"|"community"="following",targetId?:string){return this.call<CapabilityPage<unknown>>("testagram.posts.list",{limit:limit(n),feed,...targetId?{target_id:targetId}:{},...cursor(c)})}
  searchPosts(q:string,n=20,c?:string,options:{mediaOnly?:boolean;verifiedOnly?:boolean}={}){return this.call<CapabilityPage<any>>("testagram.search.posts",{q,limit:limit(n),...options.mediaOnly?{media_only:true}:{},...options.verifiedOnly?{verified_only:true}:{},...cursor(c)})}
  searchUsers(q:string,n=20,c?:string){return this.call<CapabilityPage<any>>("testagram.search.users",{q,limit:limit(n),...cursor(c)})}
  searchHashtags(q:string,n=20,c?:string){return this.call<CapabilityPage<any>>("testagram.search.hashtags",{q,limit:limit(n),...cursor(c)})}

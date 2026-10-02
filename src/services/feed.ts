@@ -1,5 +1,4 @@
 import { backendCapabilities } from '@/services/backendClient';
-import { supabase } from '@/lib/supabase';
 import * as federation from '@/api/federation';
 
 export type Post = {
@@ -12,6 +11,8 @@ export type Post = {
   visibility?: string;
   [k: string]: any;
 };
+
+type MergedCursor = { local: string | null; fed: string | null };
 
 function normalizeMediaUrls(row: any): string[] {
   const raw = row?.media_urls ?? row?.mediaUrls ?? row?.attachments ?? [];
@@ -40,6 +41,7 @@ function normalizeLocal(row: any): Post {
     origin: 'local',
   };
 }
+
 function normalizeFederated(item: any): Post {
   const mediaUrls = normalizeMediaUrls(item);
   const remoteAccount = item.user_profiles ?? item.remote_account ?? item.account ?? item.author;
@@ -59,58 +61,59 @@ function normalizeFederated(item: any): Post {
     federation_id: item.id ?? item.federation_id,
   };
 }
-export async function getMergedHomeTimeline({ limit = 20, before }: { limit?: number; before?: string } = {}) {
-  // Canonical local timeline now comes through the authenticated capability gateway.
-  let localRes: any = { items: [] };
+
+function decodeMergedCursor(value?: string): MergedCursor {
+  if (!value) return { local: null, fed: null };
   try {
-    localRes = await backendCapabilities.listPosts(limit, before);
-  } catch (err) {
-    console.warn('[feed] failed to fetch native timeline', err);
-  }
-
-  let fedRes: any = { posts: [] };
-  try {
-    fedRes = await federation.getHomeTimeline({ limit, before });
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.warn('[feed] failed to fetch federated timeline', err);
-    fedRes = { posts: [] };
-  }
-
-  let localItems = Array.isArray(localRes?.items) ? localRes.items : [];
-
-  // The personalized ranking intentionally excludes self-authored and recently
-  // seen posts. That is useful for ranking, but it must never make Home appear
-  // empty in a small/new account or when the ranked candidate set is exhausted.
-  // Fall back to the canonical public posts read path before rendering an empty
-  // Home timeline.
-  if (localItems.length === 0) {
-    try {
-      const { data, error } = await supabase.from('posts')
-        .select('*, user_profiles:profiles!posts_user_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
-        .is('community_id', null)
-        .is('deleted_at', null)
-        .order('created_at', { ascending: false })
-        .limit(limit);
-      if (!error) localItems = data ?? [];
-    } catch (err) {
-      console.warn('[feed] chronological fallback failed', err);
+    const decoded = JSON.parse(atob(value.replace(/-/g, '+').replace(/_/g, '/')));
+    if (decoded && typeof decoded === 'object') {
+      return {
+        local: typeof decoded.local === 'string' ? decoded.local : null,
+        fed: typeof decoded.fed === 'string' ? decoded.fed : null,
+      };
     }
+  } catch {
+    // Accept an older local-only cursor during the rollout.
   }
+  return { local: value, fed: null };
+}
+
+function encodeMergedCursor(cursor: MergedCursor): string | undefined {
+  if (!cursor.local && !cursor.fed) return undefined;
+  return btoa(JSON.stringify(cursor)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+}
+
+export async function getMergedHomeTimeline({ limit = 20, before }: { limit?: number; before?: string } = {}) {
+  const size = Math.min(Math.max(Math.floor(limit), 1), 50);
+  const cursor = decodeMergedCursor(before);
+
+  const [localResult, federatedResult] = await Promise.all([
+    backendCapabilities.listPosts(size, cursor.local, 'following'),
+    federation.getFederatedTimelinePage({ limit: size, before: cursor.fed ?? undefined }),
+  ]);
+
+  const localItems = Array.isArray(localResult?.items) ? localResult.items : [];
+  const federatedItems = Array.isArray(federatedResult?.items) ? federatedResult.items : [];
 
   const localPosts = localItems.map(normalizeLocal);
-  const federatedItems = Array.isArray(fedRes) ? fedRes : (fedRes?.posts ?? fedRes?.items ?? []);
   const fedPosts = federatedItems.map(normalizeFederated);
 
-  // Merge and dedupe by federation_id or fallback to id
   const map = new Map<string, Post>();
-  [...localPosts, ...fedPosts].forEach((p) => {
-    const key = p.federation_id ?? p.id;
-    if (!map.has(key) || new Date(p.created_at) > new Date(map.get(key)!.created_at)) {
-      map.set(key, p);
+  [...localPosts, ...fedPosts].forEach((post) => {
+    const key = post.federation_id ?? post.id;
+    if (!map.has(key) || new Date(post.created_at) > new Date(map.get(key)!.created_at)) {
+      map.set(key, post);
     }
   });
 
-  const merged = Array.from(map.values()).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at));
-  return { posts: merged, next_cursor: undefined };
+  const posts = Array.from(map.values())
+    .sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
+    .slice(0, size);
+
+  const next_cursor = encodeMergedCursor({
+    local: localResult?.next_cursor ?? null,
+    fed: federatedResult?.pagination?.nextCursor ?? null,
+  });
+
+  return { posts, next_cursor };
 }
