@@ -1,4 +1,3 @@
-import { invokeNativeCapability, isTestagramNativeAndroidAvailable } from "./nativeCapabilityBridge";
 import { supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 export type CapabilityError={code:string;message:string};
@@ -43,10 +42,7 @@ const capabilityEvent=(capability:string)=>{
 export class TestagramCapabilityClient{
  private endpoint:string;private token:()=>Promise<string|null>;private name:string;private version:string;private timeout:number;private apiKey:string;
  constructor(o:TestagramCapabilityClientOptions){if(!o.endpoint?.trim())throw new Error("Capability endpoint is required");this.endpoint=o.endpoint.replace(/\/$/,"");this.token=o.getAccessToken;this.name=o.clientName??"testagram-client";this.version=o.clientVersion??"2";this.timeout=Math.min(30000,Math.max(1000,Math.floor(o.timeoutMs??15000)));this.apiKey=o.apiKey??"";}
- private async directMutation<T>(capability:string,input:Record<string,unknown>,token:string):Promise<{ok:true;data:T}|{ok:false;status:number;message:string}>{
-  if(isTestagramNativeAndroidAvailable()){
-    return invokeNativeCapability<T>({baseUrl:supabaseUrl,publishableKey:supabasePublishableKey,accessToken:token,capability,input});
-  }
+ private async directSupabaseMutation<T>(capability:string,input:Record<string,unknown>,token:string):Promise<{ok:true;data:T}|{ok:false;status:number;message:string}>{
   const response=await fetch(supabaseUrl.replace(/\/$/,"")+"/rest/v1/rpc/capability_dispatch_v2",{
     method:"POST",
     headers:{apikey:supabasePublishableKey,Authorization:"Bearer "+token,"Content-Type":"application/json",Accept:"application/json"},
@@ -123,7 +119,7 @@ export class TestagramCapabilityClient{
       // This removes a stale Vercel gateway from the critical mutation path while
       // preserving the same authenticated capability boundary in Postgres.
       if(DIRECT_MUTATION_CAPABILITIES.has(capability)&&token){
-        const direct=await this.directMutation<T>(capability,input,token);
+        const direct=await this.directSupabaseMutation<T>(capability,input,token);
         if(direct.ok === true){
           trackTestagramEvent(TestagramEvent.CAPABILITY_SUCCEEDED,{capability,duration_ms:Date.now()-startedAt});
           return direct.data;
