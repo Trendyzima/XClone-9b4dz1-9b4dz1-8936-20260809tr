@@ -466,7 +466,10 @@ jobs:
             done
           }
 
-          deploy_notification_function notification-fcm-worker
+          # notification-delivery-worker is the canonical scheduled FCM worker.
+          # notification-fcm-worker is a legacy duplicate and is intentionally retired so
+          # two independent workers cannot consume the same durable notification outbox.
+          supabase functions delete notification-fcm-worker --project-ref "$PROJECT_REF" --yes || true
           deploy_notification_function notification-delivery-worker
           deploy_notification_function novu-notification-delivery
           deploy_notification_function register-push-token
