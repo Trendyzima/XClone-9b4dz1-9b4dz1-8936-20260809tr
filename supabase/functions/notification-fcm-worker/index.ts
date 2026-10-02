@@ -36,10 +36,41 @@ async function vault(name: string): Promise<string | null> {
 }
 
 async function serviceAccount() {
-  const raw = await vault("firebase_service_account_json");
-  if (!raw) throw new Error("firebase_service_account_json is not configured in Supabase Vault");
-  const parsed = JSON.parse(raw) as { client_email?: string; private_key?: string };
-  if (!parsed.client_email || !parsed.private_key) throw new Error("firebase_service_account_json is invalid");
+  const raw =
+    Deno.env.get("FIREBASE_SERVICE_ACCOUNT_JSON") ??
+    await vault("firebase_service_account_json");
+
+  if (!raw) {
+    throw new Error(
+      "FIREBASE_SERVICE_ACCOUNT_JSON is not configured in Supabase Edge secrets or firebase_service_account_json is not configured in Supabase Vault",
+    );
+  }
+
+  let parsed: {
+    project_id?: string;
+    client_email?: string;
+    private_key?: string;
+  };
+
+  try {
+    parsed = JSON.parse(raw) as typeof parsed;
+  } catch {
+    throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON");
+  }
+
+  if (!parsed.client_email || !parsed.private_key) {
+    throw new Error("FIREBASE_SERVICE_ACCOUNT_JSON is missing client_email or private_key");
+  }
+
+  if (parsed.project_id && parsed.project_id !== FIREBASE_PROJECT_ID) {
+    throw new Error(
+      "Firebase project mismatch: credential belongs to " +
+        parsed.project_id +
+        " but FIREBASE_PROJECT_ID is " +
+        FIREBASE_PROJECT_ID,
+    );
+  }
+
   return {
     client_email: parsed.client_email,
     private_key: parsed.private_key.replace(/\\n/g, "\n"),
