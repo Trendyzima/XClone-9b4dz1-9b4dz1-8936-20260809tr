@@ -1,0 +1,58 @@
+name: Cloudflare Testagram CDN
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "cloudflare/cdn-worker/**"
+      - ".github/workflows/cloudflare-cdn.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-cdn
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy Testagram CDN
+    environment: production
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate Cloudflare credentials
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo "::error::Missing CLOUDFLARE_API_TOKEN"; exit 1; }
+          printf "::add-mask::%s\n" "$CLOUDFLARE_API_TOKEN"
+
+      - name: Deploy CDN Worker
+        uses: cloudflare/wrangler-action@v4.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: cloudflare/cdn-worker
+          wranglerVersion: "4.135.0"
+          command: deploy
+
+      - name: Validate deployment
+        uses: cloudflare/wrangler-action@v4.0.0
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: cloudflare/cdn-worker
+          wranglerVersion: "4.135.0"
+          command: deployments status
+
+      - name: Verify source invariants
+        run: |
+          set -euo pipefail
+          grep -Fq 'cdn.testagram.site' cloudflare/cdn-worker/wrangler.toml
+          grep -Fq 'MEDIA_BUCKET' cloudflare/cdn-worker/src/index.ts
+          grep -Fq 'UPSTASH_REDIS_REST_URL' cloudflare/cdn-worker/src/index.ts
+          grep -Fq 'x-testagram-cdn' cloudflare/cdn-worker/src/index.ts
+          echo "Cloudflare CDN source invariants verified."
