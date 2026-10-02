@@ -141,7 +141,7 @@ async function syncNewsify() {
       synced++;
       const fresh = Date.now() - new Date(publishedAt).getTime() <= 6 * 60 * 60 * 1000;
       const breaking = tier === 1 || (score !== null && score >= 80);
-      if (!existing.data || !fresh || !breaking) continue;
+      if (!fresh || !breaking) continue;
 
       for (const recipientId of recipients) {
         const result = await db.rpc("create_domain_notification", {
