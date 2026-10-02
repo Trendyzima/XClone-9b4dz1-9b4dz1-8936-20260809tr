@@ -60,7 +60,14 @@ function config(): MediaConfig {
     r2AccessKeyId: env('R2_ACCESS_KEY_ID'),
     r2SecretAccessKey: env('R2_SECRET_ACCESS_KEY'),
     r2Bucket: env('R2_MEDIA_BUCKET', env('CLOUDFLARE_R2_BUCKET')),
-    // Testagram owns the public media URL contract. Keep R2_PUBLIC_BASE_URL as a safe\n    // compatibility fallback until the custom CDN hostname is configured.\n    publicBaseUrl: (() => {\n      const cdn = env('TESTAGRAM_CDN_BASE_URL').replace(/\/$/, '');\n      const r2Public = env('R2_PUBLIC_BASE_URL').replace(/\/$/, '');\n      return cdn && cdn !== r2Public ? cdn : MEDIA_DELIVERY_BASE_URL;\n    })(),\n    mediaDeliveryBaseUrl: MEDIA_DELIVERY_BASE_URL,
+    // Testagram owns the public media URL contract. Keep R2_PUBLIC_BASE_URL as a safe
+    // compatibility fallback until the custom CDN hostname is configured.
+    publicBaseUrl: (() => {
+      const cdn = env('TESTAGRAM_CDN_BASE_URL').replace(/\/$/, '');
+      const r2Public = env('R2_PUBLIC_BASE_URL').replace(/\/$/, '');
+      return cdn && cdn !== r2Public ? cdn : MEDIA_DELIVERY_BASE_URL;
+    })(),
+    mediaDeliveryBaseUrl: MEDIA_DELIVERY_BASE_URL,
   };
 }
 
@@ -71,7 +78,8 @@ async function authenticate(req: any, cfg: ReturnType<typeof config>) {
   // browser session and /api/capability.
   const rawAuthorization = String(req.headers.authorization ?? '').trim();
   const token = rawAuthorization.replace(/^Bearer\s+/i, '').trim();
-  if (!token || !cfg.supabaseUrl || !cfg.supabaseKey || /[\r\n]/.test(token)) return null;
+  if (!token || !cfg.supabaseUrl || !cfg.supabaseKey || /[\r
+]/.test(token)) return null;
   try {
     const response = await fetch(cfg.supabaseUrl + '/auth/v1/user', {
       method: 'GET',
