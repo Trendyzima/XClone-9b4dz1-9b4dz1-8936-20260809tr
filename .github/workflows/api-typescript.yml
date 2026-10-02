@@ -1,0 +1,41 @@
+name: API TypeScript 5.9.3 Gate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'api/**/*.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/api-typescript.yml'
+  pull_request:
+    paths:
+      - 'api/**/*.ts'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/api-typescript.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-typescript-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install exact lockfile dependencies
+        run: npm ci
+      - name: Verify TypeScript version
+        run: npx tsc --version
+      - name: Typecheck API media boundary
+        run: npm run typecheck:api
