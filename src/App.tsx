@@ -16,6 +16,7 @@ import { InterestOnboardingSheet } from '@/components/features/InterestOnboardin
 import { SiteAdInjector } from '@/components/features/SiteAdInjector';
 import { supabase } from '@/lib/supabase';
 import { startTestagramHeartbeat } from '@/services/heartbeatClient';
+import { startNativePushRegistration } from '@/services/nativePushService';
 import { applyAppearance, getStoredAppearance } from '@/theme/themes';
 import { useAuth } from '@/hooks/useAuth';
 import { OwnerOnlyAdminRoute } from '@/components/auth/OwnerOnlyAdminRoute';
@@ -268,7 +269,7 @@ function AppearanceBootstrap() {
 
   return null;
 }
-function AppInner(){useCreatorTierAlert();const location=useLocation();const isPublicTvLive=location.pathname.startsWith('/tv/live/');useEffect(()=>{applyAppearance(getStoredAppearance());const mq=window.matchMedia('(prefers-color-scheme: dark)');const handler=()=>{const a=getStoredAppearance();if(a.mode==='system')applyAppearance(a)};mq.addEventListener('change',handler);return()=>mq.removeEventListener('change',handler)},[]);useEffect(()=>startTestagramHeartbeat('web-v1'),[]);if(isPublicTvLive)return <AuthProvider><Suspense fallback={<PageLoader/>}><Routes><Route path="/tv/live/:streamId" element={<TvPublicLivePage/>}/></Routes></Suspense><Sonner position="top-center" richColors/></AuthProvider>;return <AuthProvider><AppearanceBootstrap/><div className="flex min-h-screen bg-background overflow-x-hidden pb-20"><Sidebar/><main className="flex-1 max-w-2xl w-full border-x border-border overflow-x-hidden"><Suspense fallback={<PageLoader/>}><SiteAdInjector/><LiveSpacesDiscoveryStrip/><Routes><Route path="/" element={<HomePage/>}/><Route path="/auth" element={<AuthPage/>}/><Route path="/videos" element={<VideosPage/>}/><Route path="/shorts" element={<FastPixShortsPage/>}/><Route path="/explore" element={<ExplorePage/>}/>
+function AppInner(){useCreatorTierAlert();const location=useLocation();const isPublicTvLive=location.pathname.startsWith('/tv/live/');useEffect(()=>{applyAppearance(getStoredAppearance());const mq=window.matchMedia('(prefers-color-scheme: dark)');const handler=()=>{const a=getStoredAppearance();if(a.mode==='system')applyAppearance(a)};mq.addEventListener('change',handler);return()=>mq.removeEventListener('change',handler)},[]);useEffect(()=>startTestagramHeartbeat('web-v1'),[]);useEffect(()=>startNativePushRegistration(),[]);if(isPublicTvLive)return <AuthProvider><Suspense fallback={<PageLoader/>}><Routes><Route path="/tv/live/:streamId" element={<TvPublicLivePage/>}/></Routes></Suspense><Sonner position="top-center" richColors/></AuthProvider>;return <AuthProvider><AppearanceBootstrap/><div className="flex min-h-screen bg-background overflow-x-hidden pb-20"><Sidebar/><main className="flex-1 max-w-2xl w-full border-x border-border overflow-x-hidden"><Suspense fallback={<PageLoader/>}><SiteAdInjector/><LiveSpacesDiscoveryStrip/><Routes><Route path="/" element={<HomePage/>}/><Route path="/auth" element={<AuthPage/>}/><Route path="/videos" element={<VideosPage/>}/><Route path="/shorts" element={<FastPixShortsPage/>}/><Route path="/explore" element={<ExplorePage/>}/>
 <Route path="/discover" element={<DiscoverSuggestedPage/>}/>
 <Route path="/discover/suggested" element={<DiscoverSuggestedPage/>}/>
 <Route path="/discover/popular" element={<DiscoverPopularPage/>}/>
