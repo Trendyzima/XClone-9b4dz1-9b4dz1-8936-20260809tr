@@ -142,60 +142,12 @@ jobs:
           echo "::error::Supabase management preflight failed for a non-authentication reason."
           exit 1
 
-      - name: Synchronize Firebase FCM credentials into Supabase Edge Functions
-        if: steps.supabase-auth.outputs.available == 'true'
-        shell: bash
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
-          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
-        run: |
-          set -euo pipefail
-
-          PROJECT_REF="$SUPABASE_PROJECT_REF"
-          if [[ -z "$PROJECT_REF" ]]; then
-            PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"
-          fi
-
-          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required for Firebase credential synchronization."; exit 1; }
-          [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref for Firebase credential synchronization."; exit 1; }
-          [[ -n "$FIREBASE_SERVICE_ACCOUNT_JSON" ]] || {
-            echo "::error::Required GitHub secret FIREBASE_SERVICE_ACCOUNT_JSON is missing."
-            echo "::error::Create it from the Firebase service account for the canonical Android project xclone-88968."
-            exit 1
-          }
-
-          printf '::add-mask::%s\n' "$FIREBASE_SERVICE_ACCOUNT_JSON"
-
-          node <<'NODE'
-          const raw = process.env.FIREBASE_SERVICE_ACCOUNT_JSON;
-          let parsed;
-          try {
-            parsed = JSON.parse(raw);
-          } catch {
-            console.error("::error::FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON.");
-            process.exit(1);
-          }
-          if (parsed?.project_id !== "xclone-88968") {
-            console.error("::error::Firebase credential project mismatch. Testagram's current Android google-services.json is xclone-88968.");
-            process.exit(1);
-          }
-          if (typeof parsed?.client_email !== "string" || typeof parsed?.private_key !== "string") {
-            console.error("::error::Firebase service account JSON is missing client_email or private_key.");
-            process.exit(1);
-          }
-          console.log("Firebase service-account structure and project identity verified.");
-          NODE
-
-          tmp_env="$(mktemp)"
-          trap 'rm -f "$tmp_env"' EXIT
-          chmod 600 "$tmp_env"
-          printf 'FIREBASE_PROJECT_ID=xclone-88968\n' > "$tmp_env"
-          printf 'FIREBASE_SERVICE_ACCOUNT_JSON=%s\n' "$FIREBASE_SERVICE_ACCOUNT_JSON" >> "$tmp_env"
-
-          supabase secrets set --project-ref "$PROJECT_REF" --env-file "$tmp_env"
-          echo "Firebase FCM credentials synchronized to Supabase Edge Functions without printing secret values."
+      # FCM credentials are production runtime secrets managed by Supabase, not source-control deployment inputs.
+      # The notification-delivery-worker already supports its credential from the Edge secret
+      # FCM_SERVICE_ACCOUNT_JSON and falls back to the locked Vault lookup. Do not copy a
+      # Firebase service-account private key through GitHub on every application deployment.
+      # This also prevents an obsolete Firebase project credential from blocking unrelated
+      # production reconciliation after a credential rotation.
 
       - name: Reconcile and apply Supabase database migrations
         if: steps.supabase-auth.outputs.available == 'true'
