@@ -9,7 +9,10 @@
     "build:dev": "node _build.cjs --mode development",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "tauri": "cargo tauri --manifest-path desktop/src-tauri/Cargo.toml",
+    "tauri:dev": "npm run tauri -- dev",
+    "tauri:build": "npm run tauri -- build"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.922.0",
