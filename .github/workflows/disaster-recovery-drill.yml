@@ -1,0 +1,41 @@
+name: Testagram Disaster Recovery Drill
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 3 * * 0"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: disaster-recovery-drill
+  cancel-in-progress: false
+
+jobs:
+  migrations:
+    name: Rebuild database from repository migrations
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 1
+      - uses: supabase/setup-cli@v2
+        with:
+          version: 2.118.0
+      - name: Start clean local Supabase stack
+        run: supabase start
+      - name: Rebuild schema from zero
+        run: supabase db reset --local --no-seed
+      - name: Export rebuilt schema
+        run: supabase db dump --local -f /tmp/testagram-recovery-schema.sql
+      - name: Verify recovery artifact
+        run: |
+          set -euo pipefail
+          test -s /tmp/testagram-recovery-schema.sql
+          grep -q 'notification_push_config' /tmp/testagram-recovery-schema.sql
+          echo 'Repository migration recovery drill passed.'
+      - name: Stop local Supabase
+        if: always()
+        run: supabase stop --no-backup
