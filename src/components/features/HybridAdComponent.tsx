@@ -1,4 +1,4 @@
-import { BannerAdPosition } from '@/lib/capacitor-stub';
+import type { BannerAdPosition } from '@/lib/admob';
 import { DynamicAd } from './DynamicAd';
 
 interface HybridAdProps {
