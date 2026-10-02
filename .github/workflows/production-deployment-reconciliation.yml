@@ -31,7 +31,17 @@ env:
 
 jobs:
   reconcile-production:
-    if: github.event_name != 'pull_request' || github.event.pull_request.merged == true
+    # Production reconciliation is allowed only for a direct main push,
+    # an explicitly merged PR-close event, or manual workflow_dispatch.
+    # Never deploy an open/synchronized feature branch.
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      || github.event_name == 'workflow_dispatch'
+      || (
+        github.event_name == 'pull_request'
+        && github.event.action == 'closed'
+        && github.event.pull_request.merged == true
+      )
     environment: production
     runs-on: ubuntu-24.04
     timeout-minutes: 30
