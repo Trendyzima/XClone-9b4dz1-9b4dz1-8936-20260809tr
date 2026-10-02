@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Camera, Mic, PhoneOff, ShieldCheck, Video, VideoOff, MicOff, Loader2 } from 'lucide-react';
+import { ArrowLeft, Camera, Mic, PhoneOff, ShieldCheck, Video, VideoOff, MicOff, Loader2, Volume2, VolumeX, SwitchCamera } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { communicationService } from '@/services/communicationService';
@@ -17,6 +17,9 @@ export default function CallPage() {
   const [connected, setConnected] = useState(false);
   const [micEnabled, setMicEnabled] = useState(true);
   const [cameraEnabled, setCameraEnabled] = useState(true);
+  const [speakerEnabled, setSpeakerEnabled] = useState(true);
+  const [cameraFacing, setCameraFacing] = useState<'user' | 'environment'>('user');
+  const [callSeconds, setCallSeconds] = useState(0);
   const [conversationId] = useState(() => params.get('conversation') || '');
   const [initiator] = useState(() => params.get('initiator') === '1');
   const [participantCount, setParticipantCount] = useState(1);
@@ -24,6 +27,12 @@ export default function CallPage() {
   const sessionRef = useRef<TestagramMediaSession | null>(null);
   const localStreamRef = useRef<MediaStream | null>(null);
   const remoteMediaRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!connected) return;
+    const timer = window.setInterval(() => setCallSeconds(s => s + 1), 1000);
+    return () => window.clearInterval(timer);
+  }, [connected]);
 
   useEffect(() => {
     if (!user) { navigate('/auth'); return; }
@@ -77,7 +86,8 @@ export default function CallPage() {
       session.setParticipantCountHandler(count => setParticipantCount(Math.max(1, count)));
       sessionRef.current = session;
       setConnected(true);
-      toast.success('Connected to Testagram native media');
+      setCallSeconds(0);
+      toast.success('End-to-end encrypted call connected');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unable to join call');
       await sessionRef.current?.close();
@@ -94,6 +104,29 @@ export default function CallPage() {
     setMicEnabled(track.enabled);
   };
 
+  const toggleSpeaker = () => {
+    const root = remoteMediaRef.current;
+    if (!root) return;
+    root.querySelectorAll('audio, video').forEach(node => { (node as HTMLMediaElement).muted = !speakerEnabled; });
+    setSpeakerEnabled(v => !v);
+  };
+
+  const switchCamera = async () => {
+    if (kind !== 'video' || !localStreamRef.current) return;
+    const next = cameraFacing === 'user' ? 'environment' : 'user';
+    try {
+      const replacement = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: next }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+      const nextTrack = replacement.getVideoTracks()[0];
+      const current = localStreamRef.current.getVideoTracks()[0];
+      const sender = sessionRef.current?.getPeerConnection()?.getSenders().find(s => s.track?.kind === 'video');
+      if (sender && nextTrack) await sender.replaceTrack(nextTrack);
+      current?.stop();
+      localStreamRef.current.removeTrack(current);
+      localStreamRef.current.addTrack(nextTrack);
+      setCameraFacing(next);
+    } catch { toast.error('Camera switch is not available on this device'); }
+  };
+
   const toggleCamera = () => {
     if (kind !== 'video') return;
     const track = localStreamRef.current?.getVideoTracks()[0];
@@ -101,6 +134,8 @@ export default function CallPage() {
     track.enabled = !track.enabled;
     setCameraEnabled(track.enabled);
   };
+
+  const formatDuration = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${(seconds % 60).toString().padStart(2, '0')}`;
 
   const end = async () => {
     try { await sessionRef.current?.close(); } finally { sessionRef.current = null; }
@@ -117,7 +152,7 @@ export default function CallPage() {
     <div className="min-h-screen bg-background text-foreground flex flex-col">
       <header className="h-14 border-b border-border flex items-center gap-3 px-4">
         <button onClick={() => navigate(-1)} className="p-2 rounded-full hover:bg-muted" aria-label="Back"><ArrowLeft className="h-5 w-5" /></button>
-        <div className="min-w-0"><h1 className="font-bold truncate">{kind === 'video' ? 'Video call' : 'Voice call'}</h1><p className="text-xs text-muted-foreground">{connected ? String(participantCount) + ' participant' + (participantCount === 1 ? '' : 's') : 'Testagram end-to-end encrypted peer call'}</p></div>
+        <div className="min-w-0"><h1 className="font-bold truncate">{kind === 'video' ? 'Video call' : 'Voice call'}</h1><p className="text-xs text-muted-foreground">{connected ? `${formatDuration(callSeconds)} • ${participantCount} participant${participantCount === 1 ? '' : 's'} • End-to-end encrypted` : 'End-to-end encrypted peer call'}</p></div>
       </header>
       <main className="flex-1 p-3 sm:p-5 flex flex-col gap-4">
         <section className="relative flex-1 min-h-[55vh] rounded-3xl bg-black overflow-hidden border border-border">
@@ -129,6 +164,7 @@ export default function CallPage() {
           {!connected && !ended && <button onClick={join} disabled={joining} className="rounded-full bg-primary text-primary-foreground px-7 py-3 font-bold flex items-center gap-2">{joining ? <Loader2 className="h-4 w-4 animate-spin" /> : kind === 'video' ? <Video className="h-4 w-4" /> : <Mic className="h-4 w-4" />}{joining ? 'Connecting…' : 'Join call'}</button>}
           {connected && <>
             <button onClick={toggleMic} className="h-12 w-12 rounded-full border border-border bg-card flex items-center justify-center" aria-label={micEnabled ? 'Mute microphone' : 'Unmute microphone'}>{micEnabled ? <Mic className="h-5 w-5" /> : <MicOff className="h-5 w-5" />}</button>
+            {<button onClick={toggleSpeaker} className="h-12 w-12 rounded-full border border-border bg-card flex items-center justify-center" aria-label={speakerEnabled ? 'Mute speaker' : 'Unmute speaker'}>{speakerEnabled ? <Volume2 className="h-5 w-5" /> : <VolumeX className="h-5 w-5" />}</button>}
             {kind === 'video' && <button onClick={toggleCamera} className="h-12 w-12 rounded-full border border-border bg-card flex items-center justify-center" aria-label={cameraEnabled ? 'Turn camera off' : 'Turn camera on'}>{cameraEnabled ? <Camera className="h-5 w-5" /> : <VideoOff className="h-5 w-5" />}</button>}
             <button onClick={end} className="h-12 px-6 rounded-full bg-destructive text-destructive-foreground font-bold flex items-center gap-2"><PhoneOff className="h-5 w-5" />Leave</button>
           </>}
