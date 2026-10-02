@@ -52,6 +52,7 @@ as $$
 declare
   v_tables jsonb := '{}'::jsonb;
   r record;
+  v_count bigint;
   v_logical_backend_id uuid;
   v_auth_users bigint := 0;
   v_storage_objects bigint := 0;
@@ -73,8 +74,8 @@ begin
     order by table_name
   loop
     execute format('select count(*)::bigint from public.%I', r.table_name)
-      into r.table_name;
-    v_tables := v_tables || jsonb_build_object(r.table_name, r.table_name::bigint);
+      into v_count;
+    v_tables := v_tables || jsonb_build_object(r.table_name, v_count);
   end loop;
 
   select count(*) into v_auth_users from auth.users;
