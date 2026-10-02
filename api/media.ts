@@ -46,7 +46,7 @@ function config() {
     r2AccessKeyId: env('R2_ACCESS_KEY_ID'),
     r2SecretAccessKey: env('R2_SECRET_ACCESS_KEY'),
     r2Bucket: env('R2_MEDIA_BUCKET', env('CLOUDFLARE_R2_BUCKET')),
-    publicBaseUrl: env('R2_PUBLIC_BASE_URL').replace(/\/$/, ''),
+    // Testagram owns the public media URL contract. Keep R2_PUBLIC_BASE_URL as a safe\n    // compatibility fallback until the custom CDN hostname is configured.\n    publicBaseUrl: env('TESTAGRAM_CDN_BASE_URL', env('R2_PUBLIC_BASE_URL')).replace(/\/$/, ''),
   };
 }
 
@@ -136,7 +136,7 @@ export default async function handler(req: any, res: any) {
       const mediaType = mime.startsWith('image/') ? 'image' : mime.startsWith('video/') ? 'video' : mime.startsWith('audio/') ? 'audio' : 'file';
       const storageKey = 'users/' + user.id + '/' + crypto.randomUUID() + '.' + extension(name, mime);
       const uploadUrl = await getSignedUrl(r2, new PutObjectCommand({
-        Bucket: cfg.r2Bucket, Key: storageKey, ContentType: mime,
+        Bucket: cfg.r2Bucket, Key: storageKey, ContentType: mime,\n        CacheControl: 'public, max-age=31536000, immutable',
       }), { expiresIn: 900 });
       const mediaUrl = cfg.publicBaseUrl ? cfg.publicBaseUrl + '/' + storageKey : null;
 
