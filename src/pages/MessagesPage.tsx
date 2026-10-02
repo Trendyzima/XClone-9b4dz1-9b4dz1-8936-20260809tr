@@ -59,7 +59,7 @@ export default function MessagesPage() {
     setCallState('connecting');
     try {
       await communicationService.joinCall(session.call_id);
-      navigate('/call/' + session.call_id + '?kind=' + (session.kind === 'voice' ? 'voice' : 'video'));
+      navigate('/call/' + session.call_id + '?kind=' + (session.kind === 'voice' ? 'voice' : 'video') + '&conversation=' + encodeURIComponent(session.conversation_id || selected?.id || '') + '&initiator=0');
     } catch (e) {
       setCallState('failed');
       toast.error(e instanceof Error ? e.message : 'Unable to connect call');
@@ -70,7 +70,7 @@ export default function MessagesPage() {
     if (!selected || callState !== 'idle') return;
     try {
       const c = await communicationService.createCall(selected.id, kind);
-      await connectCall(c);
+      await navigate('/call/' + c.call_id + '?kind=' + (kind === 'voice' ? 'voice' : 'video') + '&conversation=' + encodeURIComponent(selected.id) + '&initiator=1');
     } catch (e) {
       setCallState('failed');
       toast.error(e instanceof Error ? e.message : 'Unable to start call');
