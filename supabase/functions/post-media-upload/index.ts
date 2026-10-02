@@ -11,9 +11,7 @@ const SECRET_KEY=Deno.env.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY")??Deno.env.get("
 const BUCKET=Deno.env.get("CLOUDFLARE_R2_BUCKET")??Deno.env.get("R2_MEDIA_BUCKET")??"";
 const R2_PUBLIC_BASE=(Deno.env.get("R2_PUBLIC_BASE_URL")??"").replace(/\/$/,"");
 const CDN_BASE=(Deno.env.get("TESTAGRAM_CDN_BASE_URL")??"").replace(/\/$/,"");
-const DELIVERY_BASE=CDN_BASE && CDN_BASE!==R2_PUBLIC_BASE
-  ? CDN_BASE
-  : SUPABASE_URL + "/functions/v1/media-delivery";
+const DELIVERY_BASE = "https://cdn.testagram.site/media";
 const MAX_BYTES=20*1024*1024;
 const BLOCKED=new Set(["application/x-msdownload","application/x-msdos-program","application/x-dosexec"]);
 const configured=Boolean(SUPABASE_URL&&SUPABASE_ANON_KEY&&ACCOUNT_ID&&ACCESS_KEY&&SECRET_KEY&&BUCKET);
@@ -58,7 +56,7 @@ Deno.serve(async req=>{
   const key="users/"+user.id+"/"+crypto.randomUUID()+"."+ext(file.name,mime);
   const bytes=new Uint8Array(await file.arrayBuffer());
   await r2.send(new PutObjectCommand({Bucket:BUCKET,Key:key,Body:bytes,ContentType:mime,ContentLength:bytes.byteLength,CacheControl:"public, max-age=31536000, immutable",Metadata:{ownerId:user.id,postMedia:"true"}}));
-  const publicUrl=DELIVERY_BASE+"?key="+encodeURIComponent(key);
+  const publicUrl = DELIVERY_BASE + "/" + key.split("/").map(encodeURIComponent).join("/");
   const {data,error}=await admin.from("media_assets").insert({owner_id:user.id,post_id:postId,thread_id:threadId,storage_key:key,bucket:BUCKET,original_name:file.name,mime_type:mime,media_type:mediaType,byte_size:file.size,status:"uploaded",media_url:publicUrl}).select("id,storage_key,post_id,thread_id,media_url,media_type,mime_type,byte_size,status").single();
   if(error){
    console.error("media_assets insert failed",error);
