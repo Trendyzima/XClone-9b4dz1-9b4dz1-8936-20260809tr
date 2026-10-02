@@ -26,12 +26,14 @@ public final class MainActivity extends AppCompatActivity {
     private static final int FILE_PICKER = 4101;
     private static final int MEDIA_PERMISSIONS = 4102;
     private ValueCallback<Uri[]> fileCallback;
+    private WebView webView;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        WebView web = new WebView(this);
+        webView = new WebView(this);
+        WebView web = webView;
         web.setFitsSystemWindows(true);
         setContentView(web);
 
@@ -103,8 +105,7 @@ public final class MainActivity extends AppCompatActivity {
         super.onNewIntent(intent);
         Uri data = intent.getData();
         if (data != null && "testagram.site".equalsIgnoreCase(data.getHost())) {
-            WebView web = (WebView) findViewById(android.R.id.content);
-            if (web != null) web.loadUrl(data.toString());
+            if (webView != null) webView.loadUrl(data.toString());
         }
     }
 
@@ -121,8 +122,7 @@ public final class MainActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
-        WebView web = (WebView) findViewById(android.R.id.content);
-        if (web != null && web.canGoBack()) web.goBack();
+        if (webView != null && webView.canGoBack()) webView.goBack();
         else super.onBackPressed();
     }
 }
