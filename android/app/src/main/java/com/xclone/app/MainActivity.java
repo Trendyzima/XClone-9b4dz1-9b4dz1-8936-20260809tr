@@ -1,7 +1,6 @@
 package com.xclone.app;
 
 import android.Manifest;
-import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
@@ -119,7 +118,7 @@ public final class MainActivity extends AppCompatActivity {
         setIntent(intent);
         handlePushIntent(intent);
         Uri data = intent.getData();
-        if (data != null && "testagram.site".equalsIgnoreCase(data.getHost())) {
+        if (isTrustedTestagramUrl(data)) {
             if (webView != null) webView.loadUrl(data.toString());
         }
     }
@@ -145,15 +144,41 @@ public final class MainActivity extends AppCompatActivity {
 
     private void handlePushIntent(Intent intent) {
         if (intent == null || webView == null) return;
-        String url = intent.getStringExtra(TestagramFirebaseMessagingService.EXTRA_PUSH_URL);
-        if (url == null || url.trim().isEmpty()) return;
 
-        Uri uri = Uri.parse(url);
-        if ("https".equalsIgnoreCase(uri.getScheme())
-                && "testagram.site".equalsIgnoreCase(uri.getHost())) {
+        String url = firstNonBlank(
+                intent.getStringExtra(TestagramFirebaseMessagingService.EXTRA_PUSH_URL),
+                intent.getStringExtra("url"),
+                intent.getStringExtra("deep_link"),
+                intent.getStringExtra("deepLink"),
+                intent.getStringExtra("redirectUrl"),
+                intent.getStringExtra("action_url")
+        );
+
+        Uri uri = url == null ? intent.getData() : Uri.parse(url);
+        if (isTrustedTestagramUrl(uri)) {
             webView.loadUrl(uri.toString());
+            intent.removeExtra(TestagramFirebaseMessagingService.EXTRA_PUSH_URL);
+            intent.removeExtra("url");
+            intent.removeExtra("deep_link");
+            intent.removeExtra("deepLink");
+            intent.removeExtra("redirectUrl");
+            intent.removeExtra("action_url");
         }
-        intent.removeExtra(TestagramFirebaseMessagingService.EXTRA_PUSH_URL);
+    }
+
+    private static boolean isTrustedTestagramUrl(Uri uri) {
+        if (uri == null) return false;
+        String scheme = uri.getScheme();
+        String host = uri.getHost();
+        return "https".equalsIgnoreCase(scheme)
+                && ("testagram.site".equalsIgnoreCase(host) || "www.testagram.site".equalsIgnoreCase(host));
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.trim().isEmpty()) return value;
+        }
+        return null;
     }
 
     private void createNotificationChannel() {
