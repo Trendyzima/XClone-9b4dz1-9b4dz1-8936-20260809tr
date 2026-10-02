@@ -4,9 +4,15 @@
   "version": "0.1.0",
   "identifier": "site.testagram.desktop",
   "build": {
-    "beforeDevCommand": { "script": "npm run dev", "cwd": "../../" },
+    "beforeDevCommand": {
+      "script": "npm run dev",
+      "cwd": "../../"
+    },
     "devUrl": "http://localhost:5173",
-    "beforeBuildCommand": { "script": "npm run build", "cwd": "../../" },
+    "beforeBuildCommand": {
+      "script": "npm run build",
+      "cwd": "../../"
+    },
     "frontendDist": "../../dist"
   },
   "app": {
@@ -27,6 +33,7 @@
   "bundle": {
     "active": true,
     "targets": "all",
-    "createUpdaterArtifacts": false
+    "createUpdaterArtifacts": false,
+    "icon": []
   }
 }
