@@ -34,6 +34,8 @@ function extension(name: string, mime: string) {
 const CANONICAL_SUPABASE_URL = 'https://ffrhglgkukgsuhxenena.supabase.co';
 const CANONICAL_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya';
 
+const MEDIA_DELIVERY_BASE_URL = `${CANONICAL_SUPABASE_URL}/functions/v1/media-delivery`;
+
 interface MediaConfig {
   supabaseUrl: string;
   supabaseKey: string;
@@ -58,7 +60,7 @@ function config(): MediaConfig {
     r2AccessKeyId: env('R2_ACCESS_KEY_ID'),
     r2SecretAccessKey: env('R2_SECRET_ACCESS_KEY'),
     r2Bucket: env('R2_MEDIA_BUCKET', env('CLOUDFLARE_R2_BUCKET')),
-    // Testagram owns the public media URL contract. Keep R2_PUBLIC_BASE_URL as a safe\n    // compatibility fallback until the custom CDN hostname is configured.\n    publicBaseUrl: (() => {\n      const cdn = env('TESTAGRAM_CDN_BASE_URL').replace(/\/$/, '');\n      const r2Public = env('R2_PUBLIC_BASE_URL').replace(/\/$/, '');\n      return cdn && cdn !== r2Public ? cdn : `${CANONICAL_SUPABASE_URL}/functions/v1/media-delivery`;\n    })(),\n    mediaDeliveryBaseUrl: `${CANONICAL_SUPABASE_URL}/functions/v1/media-delivery`,
+    // Testagram owns the public media URL contract. Keep R2_PUBLIC_BASE_URL as a safe\n    // compatibility fallback until the custom CDN hostname is configured.\n    publicBaseUrl: (() => {\n      const cdn = env('TESTAGRAM_CDN_BASE_URL').replace(/\/$/, '');\n      const r2Public = env('R2_PUBLIC_BASE_URL').replace(/\/$/, '');\n      return cdn && cdn !== r2Public ? cdn : MEDIA_DELIVERY_BASE_URL;\n    })(),\n    mediaDeliveryBaseUrl: MEDIA_DELIVERY_BASE_URL,
   };
 }
 
