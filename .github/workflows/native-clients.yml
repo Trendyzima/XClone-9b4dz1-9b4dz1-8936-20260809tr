@@ -10,6 +10,7 @@ on:
       - "public/**"
       - "package.json"
       - "package-lock.json"
+      - "vite.config.cjs"
       - ".github/workflows/native-clients.yml"
   pull_request:
     paths:
