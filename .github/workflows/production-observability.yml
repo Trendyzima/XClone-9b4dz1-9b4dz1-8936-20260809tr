@@ -34,9 +34,9 @@ jobs:
           PROBE_RESULT: ${{ steps.probe.outcome }}
         with:
           script: |
-            const title = "PROD OBSERVABILITY: Testagram production probe failure";
+            const title = 'PROD OBSERVABILITY: Testagram production probe failure';
             const { owner, repo } = context.repo;
-            const { data: issues } = await github.rest.issues.listForRepo({ owner, repo, state: 'open', labels: 'production-observability', per_page: 20 });
+            const { data: issues } = await github.rest.issues.listForRepo({ owner, repo, state: 'open', per_page: 50 });
             const existing = issues.find(issue => issue.title === title);
             if (process.env.PROBE_RESULT === 'success') {
               if (existing) {
@@ -45,16 +45,9 @@ jobs:
               }
               return;
             }
-            const body = [
-              'The independent production observability probe failed.',
-              '',
-              'Run: ' + context.serverUrl + '/' + owner + '/' + repo + '/actions/runs/' + context.runId,
-              'Detected: ' + new Date().toISOString(),
-              '',
-              'Inspect /api/health, /api/ready, cdn.testagram.site/health, Supabase logs and Cloudflare Worker observability.'
-            ].join('\n');
+            const body = ['The independent production observability probe failed.','', 'Run: ' + context.serverUrl + '/' + owner + '/' + repo + '/actions/runs/' + context.runId, 'Detected: ' + new Date().toISOString(), '', 'Inspect /api/health, /api/ready, cdn.testagram.site/health, Supabase logs and Cloudflare Worker observability.'].join('\n');
             if (existing) {
               await github.rest.issues.createComment({ owner, repo, issue_number: existing.number, body: 'Probe still failing at ' + new Date().toISOString() + '.\n\n' + body });
             } else {
-              await github.rest.issues.createIssue({ owner, repo, title, body, labels: ['production-observability'] });
+              await github.rest.issues.createIssue({ owner, repo, title, body });
             }
