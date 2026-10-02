@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { redisGetJson, redisIncrWithExpiry, redisSetJson } from "../_shared/upstash-redis.ts";
 
 const url = Deno.env.get("SUPABASE_URL") ?? "";
 const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY") ?? (() => {
@@ -22,7 +23,11 @@ const json = (body: unknown, status = 200, requestId = crypto.randomUUID(), cach
     },
   });
 
+// Keep this allowlist aligned with capability_registry.access='public'.
+// Read-only does not mean public: search, trends and profile timeline are authenticated.
 const PUBLIC_CAPABILITIES = new Set([
+  "testagram.capabilities.list",
+  "testagram.health.read",
   "testagram.search.users",
   "testagram.search.posts",
   "testagram.search.hashtags",
@@ -56,6 +61,14 @@ const recordMetric = async (
       ...(status === "ok" ? { sampled: true } : {}),
     },
   }).catch(() => undefined);
+};
+
+const rateLimit = async (req: Request, capability: string, subject: string, limit: number) => {
+  const windowSeconds = 60;
+  const key = `testagram:ratelimit:gateway:${capability}:${subject}:${Math.floor(Date.now() / 1000 / windowSeconds)}`;
+  const count = await redisIncrWithExpiry(key, windowSeconds + 2);
+  if (count === null) return null;
+  return { allowed: count <= limit, count, limit, retryAfter: windowSeconds };
 };
 
 const fail = (requestId: string, code: string, message: string, status: number) =>
@@ -95,24 +108,50 @@ Deno.serve(async (req) => {
   const started = performance.now();
 
   try {
+    let rateLimitSubject = req.headers.get("cf-connecting-ip")?.trim()
+      || req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+      || "anonymous";
+    let rateLimitLimit = isPublicCapability ? 120 : 300;
+
     if (!isPublicCapability) {
       const { data: userResult, error: userError } = await db.auth.getUser();
       if (userError || !userResult.user) return fail(requestId, "AUTH_REQUIRED", "Authentication required", 401);
+      rateLimitSubject = userResult.user.id;
+    }
+
+    const rate = await rateLimit(req, capability, rateLimitSubject, rateLimitLimit);
+    if (rate && !rate.allowed) {
+      const response = fail(requestId, "RATE_LIMITED", "Too many requests; retry shortly.", 429);
+      response.headers.set("Retry-After", String(rate.retryAfter));
+      response.headers.set("X-RateLimit-Limit", String(rate.limit));
+      response.headers.set("X-RateLimit-Remaining", "0");
+      return response;
     }
 
     if (capability === "testagram.news.trending") {
+      const limit = typeof input.limit === "number" ? Math.min(50, Math.max(1, Math.floor(input.limit))) : 20;
+      const geo = typeof input.geo === "string" ? input.geo.trim().toUpperCase() : "US";
+      const language = typeof input.language === "string" ? input.language.trim() : "english";
+      const cacheKey = `testagram:newsify:trending:${geo}:${language}:${limit}`;
+      const cached = await redisGetJson<{ items?: unknown[]; geo?: string; language?: string }>(cacheKey);
+      if (cached) {
+        await recordMetric(db, capability, "ok", Math.round(performance.now() - started), requestId);
+        return json({ ok: true, data: cached, error: null, request_id: requestId }, 200, requestId, "public,max-age=30,stale-while-revalidate=120");
+      }
       const { data, error } = await db.rpc("list_newsify_trending", {
-        p_limit: typeof input.limit === "number" ? input.limit : 20,
-        p_geo: typeof input.geo === "string" ? input.geo : "US",
-        p_language: typeof input.language === "string" ? input.language : "english",
+        p_limit: limit,
+        p_geo: geo,
+        p_language: language,
       });
       if (error) {
         const message = error.message || "Newsify trend query failed";
         await recordMetric(db, capability, "error", Math.round(performance.now() - started), requestId, message);
         return fail(requestId, "NEWSIFY_TREND_QUERY_FAILED", message.slice(0, 300), 500);
       }
+      const dataPayload = data ?? { items: [], geo, language };
+      await redisSetJson(cacheKey, dataPayload, 30);
       await recordMetric(db, capability, "ok", Math.round(performance.now() - started), requestId);
-      return json({ ok: true, data: data ?? { items: [] }, error: null, request_id: requestId }, 200, requestId, "public,max-age=30,stale-while-revalidate=120");
+      return json({ ok: true, data: dataPayload, error: null, request_id: requestId }, 200, requestId, "public,max-age=30,stale-while-revalidate=120");
     }
 
     const rpcName = capability === "testagram.profile.update" ? "profile_update" : "capability_dispatch";

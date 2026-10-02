@@ -11,7 +11,7 @@ const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID") ?? "";
 const R2_ACCESS_KEY_ID = Deno.env.get("R2_ACCESS_KEY_ID") ?? "";
 const R2_SECRET_ACCESS_KEY = Deno.env.get("R2_SECRET_ACCESS_KEY") ?? "";
 const R2_BUCKET = Deno.env.get("R2_MEDIA_BUCKET") ?? "";
-const R2_PUBLIC_BASE_URL = (Deno.env.get("R2_PUBLIC_BASE_URL") ?? "").replace(/\/$/, "");
+const R2_PUBLIC_BASE_URL = (Deno.env.get("TESTAGRAM_CDN_BASE_URL") ?? Deno.env.get("R2_PUBLIC_BASE_URL") ?? "").replace(/\/$/, "");
 
 const MAX_BYTES = 20 * 1024 * 1024;
 const BLOCKED = new Set([
