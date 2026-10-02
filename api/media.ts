@@ -139,7 +139,9 @@ export default async function handler(req: any, res: any) {
         Bucket: cfg.r2Bucket, Key: storageKey, ContentType: mime,
         CacheControl: 'public, max-age=31536000, immutable',
       }), { expiresIn: 900 });
-      const mediaUrl = cfg.publicBaseUrl ? cfg.publicBaseUrl + '/' + storageKey : null;
+      const mediaUrl = cfg.publicBaseUrl
+        ? cfg.publicBaseUrl + '/' + storageKey
+        : null;
 
       const { data, error } = await admin.from('media_assets').insert({
         owner_id: user.id, post_id: postId, thread_id: threadId, storage_key: storageKey, bucket: cfg.r2Bucket,
