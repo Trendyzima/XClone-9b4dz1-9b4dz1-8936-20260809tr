@@ -4,7 +4,7 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 // Per-object safety ceiling. Media bytes go directly from the browser to R2;
 // this endpoint only signs/finalizes metadata, so increasing this does not route
-// large payloads through Vercel. R2 single-PUT supports up to 5 GiB.
+// large payloads through the application Worker. R2 single-PUT supports up to 5 GiB.
 const MAX_BYTES = 20 * 1024 * 1024;
 const BLOCKED = new Set(['application/x-msdownload','application/x-msdos-program','application/x-dosexec']);
 function isAllowedMime(mime: string) { const normalized=mime.trim().toLowerCase(); return Boolean(normalized && normalized.includes('/')) && !BLOCKED.has(normalized); }
@@ -14,7 +14,7 @@ function env(name: string, fallback = '') { return process.env[name] ?? fallback
 function corsHeaders() {
   const origin = env('APP_ORIGIN');
   return {
-    'Access-Control-Allow-Origin': origin || 'https://kooone-9b4dz1-9b4dz1-8936-20260809tr.vercel.app',
+    'Access-Control-Allow-Origin': origin || 'https://testagram.site',
     'Access-Control-Allow-Headers': 'authorization, content-type',
     'Access-Control-Allow-Methods': 'POST,OPTIONS',
     'Vary': 'Origin',
@@ -51,7 +51,7 @@ interface MediaConfig {
 function config(): MediaConfig {
   return {
     // Keep media auth on the exact same Supabase project as the browser session
-    // and /api/capability. Stale Vercel SUPABASE_URL values must not create a
+    // and /api/capability. Stale environment values must not create a
     // second authentication plane that rejects an otherwise valid user JWT.
     supabaseUrl: CANONICAL_SUPABASE_URL,
     supabaseKey: CANONICAL_SUPABASE_PUBLISHABLE_KEY,
@@ -73,7 +73,7 @@ function config(): MediaConfig {
 
 async function authenticate(req: any, cfg: ReturnType<typeof config>) {
   // Validate the bearer token directly against the canonical Supabase Auth
-  // endpoint. This avoids SDK/global-header forwarding inside Vercel's Node
+  // endpoint. This avoids SDK/global-header forwarding inside the application Worker
   // HTTP stack and keeps media authentication on the same auth plane as the
   // browser session and /api/capability.
   const rawAuthorization = String(req.headers.authorization ?? '').trim();
