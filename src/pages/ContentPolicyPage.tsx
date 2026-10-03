@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
+import { LegalMiniSidebar } from '@/components/layout/LegalMiniSidebar';
 import {
   Shield, AlertTriangle, Ban, Megaphone, CheckCircle, XCircle,
   MessageSquare, Eye, Flag, Globe, Zap, ChevronDown, FileText,
@@ -165,6 +166,7 @@ export default function ContentPolicyPage() {
   return (
     <div className="min-h-screen bg-background pb-20">
       <TopBar title="Content Policy" showBack />
+      <LegalMiniSidebar />
       <main className="max-w-3xl mx-auto px-4 py-5 space-y-6">
         <section id="overview" className="scroll-mt-24">
           <div className="relative overflow-hidden rounded-3xl border border-primary/20 bg-gradient-to-br from-primary/12 via-background to-violet-500/10 p-6 sm:p-8">
