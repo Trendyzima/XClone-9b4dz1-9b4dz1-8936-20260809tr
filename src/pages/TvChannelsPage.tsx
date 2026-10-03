@@ -116,7 +116,7 @@ export default function TvChannelsPage(){
 
    <section id='channel-browser' className='space-y-8'>
     {categories.map(([name,items])=><div key={name}>
-     <div className='mb-3 flex items-center justify-between'><div><h2 className='text-lg font-black'>{name}</h2><p className='text-xs text-muted-foreground'>{items.length} live channels</p></div><button onClick={()=>setFilter(name==='Kenya'?'KE':name==='International'?'INT':name.toLowerCase().slice(0,-1))} className='flex items-center gap-1 text-xs font-semibold text-primary'>View all<ChevronRight className='h-4 w-4'/></button></div>
+     <div className='mb-3 flex items-center justify-between'><div><h2 className='text-lg font-black'>{name}</h2><p className='text-xs text-muted-foreground'>{items.length} live channels</p></div><button onClick={()=>setFilter(name==='Kenya'?'KE':name==='International'?'INT':name==='News'?'news':name==='Sports'?'sport':name==='Music'?'music':'')} className='flex items-center gap-1 text-xs font-semibold text-primary'>View all<ChevronRight className='h-4 w-4'/></button></div>
      <div className='grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5'>{items.slice(0,10).map(c=><ChannelTile key={c.id} channel={c} active={active===c.id} onSelect={()=>{setActive(c.id);window.scrollTo({top:0,behavior:'smooth'});}}/>)}</div>
     </div>)}
    </section>
