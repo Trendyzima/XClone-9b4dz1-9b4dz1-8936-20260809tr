@@ -13,5 +13,5 @@
     "sourceMap": false
   },
   "include": ["api/**/*.ts"],
-  "exclude": ["node_modules"]
+  "exclude": ["node_modules", "api/tv-cloudflare-ingest.ts", "api/tv-youtube-ingest.ts"]
 }
