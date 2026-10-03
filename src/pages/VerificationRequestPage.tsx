@@ -197,7 +197,7 @@ export default function VerificationRequestPage() {
             <Shield className="w-7 h-7 text-primary" />
           </div>
           <h1 className="text-2xl font-bold">Verify Your Account</h1>
-          <p className="text-muted-foreground text-sm mt-1">Choose a verification tier and gain credibility on T Social</p>
+          <p className="text-muted-foreground text-sm mt-1">Choose a monthly verification tier and keep your badge active while subscribed on Testagram</p>
         </div>
 
         {/* Tier selector */}
@@ -221,7 +221,7 @@ export default function VerificationRequestPage() {
                     <div className="flex items-center justify-between mb-1">
                       <span className="font-bold">{tier.label}</span>
                       <span className={`text-lg font-extrabold ${selected ? 'text-primary' : 'text-foreground'}`}>
-                        ${tier.price}<span className="text-xs font-normal text-muted-foreground">/once</span>
+                        ${tier.price}<span className="text-xs font-normal text-muted-foreground">/month</span>
                       </span>
                     </div>
                     <ul className="space-y-0.5">
@@ -277,7 +277,7 @@ export default function VerificationRequestPage() {
             </div>
           </div>
           <div className="flex items-center justify-between text-sm text-muted-foreground border-t border-border pt-3">
-            <span>One-time fee</span>
+            <span>Monthly subscription</span>
             <span className="text-2xl font-extrabold text-foreground">${activeTier.price}</span>
           </div>
         </div>
@@ -294,7 +294,7 @@ export default function VerificationRequestPage() {
         </button>
 
         <p className="text-center text-xs text-muted-foreground pb-4">
-          Payment is collected after admin review. You'll receive a notification when your request is processed.
+          Verification is a monthly subscription. The badge remains active only while the monthly entitlement is active; the platform owner is verified permanently.
         </p>
       </div>
     </div>
