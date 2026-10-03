@@ -857,8 +857,14 @@ jobs:
           set -euo pipefail
           [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is missing from the production environment."; exit 1; }
           [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::Cloudflare account ID is missing or invalid. Configure CLOUDFLARE_ACCOUNT_ID or TESTAGRAM_CLOUDFLARE_ACCOUNT_ID in the production environment."; exit 1; }
+          echo "Preparing immutable build-time production revision metadata..."
+          cat > cloudflare/deployment-meta.ts <<'META'
+          export const DEPLOYED_COMMIT_SHA = '${{ steps.target.outputs.sha }}';
+          META
+          grep -F "${{ steps.target.outputs.sha }}" cloudflare/deployment-meta.ts >/dev/null
+          echo "Build-time revision metadata locked to ${{ steps.target.outputs.sha }}."
           echo "Deploying testagram-web to Cloudflare and applying configured Custom Domains..."
-          npx wrangler deploy --name testagram-web --var "TESTAGRAM_COMMIT_SHA:${{ steps.target.outputs.sha }}"
+          npx wrangler deploy --name testagram-web
           echo "Reasserting the production Custom Domain -> Worker attachment..."
           domain_status="$(curl -sS -o /tmp/testagram-worker-domain.json -w '%{http_code}' \
             -X PUT \
