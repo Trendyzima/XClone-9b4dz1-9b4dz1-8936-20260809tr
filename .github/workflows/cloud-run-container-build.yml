@@ -1,0 +1,31 @@
+name: Testagram Container Build Gate
+
+on:
+  push:
+    branches: [infra/serverless-container-hosting]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - name: Build Testagram production container
+        run: docker build --pull --tag testagram-web:${{ github.sha }} .
+      - name: Verify image starts
+        run: |
+          set -euo pipefail
+          docker run --detach --name testagram-web --publish 18080:8080 --env TESTAGRAM_COMMIT_SHA=${{ github.sha }} --env APP_ORIGIN=http://localhost:18080 testagram-web:${{ github.sha }}
+          trap 'docker logs testagram-web || true; docker rm -f testagram-web || true' EXIT
+          for i in $(seq 1 30); do
+            if curl --fail --silent --show-error http://127.0.0.1:18080/api/health > health.json; then break; fi
+            sleep 2
+          done
+          node -e 'const p=JSON.parse(require("fs").readFileSync("health.json","utf8")); if(p?.ok!==true || p?.service!=="testagram" || p?.commit!==process.env.EXPECTED_SHA){console.error(p);process.exit(1)} console.log(p)'
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
