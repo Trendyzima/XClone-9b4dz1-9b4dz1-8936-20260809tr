@@ -133,7 +133,9 @@ NODE
 
           test -n "$ACCESS_TOKEN"
 
-          HTTP_STATUS="$(curl --silent --show-error --output "$RUNNER_TEMP/firebase-sites.json" --write-out '%{http_code}'             -H "Authorization: Bearer $ACCESS_TOKEN"             -H "Content-Type: application/json"             "https://firebasehosting.googleapis.com/v1beta1/projects/twitter-clone-ccrsxx-2513a/sites")"
+          HTTP_STATUS="$(curl --silent --show-error --output "$RUNNER_TEMP/firebase-sites.json" --write-out '%{http_code}'             -H "Authorization: Bearer $ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            "https://firebasehosting.googleapis.com/v1beta1/projects/twitter-clone-ccrsxx-2513a/sites")"
 
           test "$HTTP_STATUS" = "200"
           jq -e '.sites | type == "array"' "$RUNNER_TEMP/firebase-sites.json" >/dev/null
@@ -148,4 +150,8 @@ NODE
           trap 'rm -f "$GOOGLE_APPLICATION_CREDENTIALS"' EXIT
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
           chmod 600 "$GOOGLE_APPLICATION_CREDENTIALS"
-          npm exec --yes --package=firebase-tools@15.32.1 -- firebase deploy             --only hosting:testagram-tv             --project twitter-clone-ccrsxx-2513a             --debug             --json
+          npm exec --yes --package=firebase-tools@15.32.1 -- firebase deploy \
+            --only hosting:testagram-tv \
+            --project twitter-clone-ccrsxx-2513a \
+            --debug \
+            --json
