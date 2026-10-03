@@ -4,6 +4,39 @@ A production-oriented social platform for short-form video, conversations, commu
 
 > **Status:** Active development and production hardening
 
+## 📱 Testagram Android APK
+
+The official Testagram Android APK distribution point is the repository's **GitHub Releases** page.
+
+### Download Testagram
+
+**[⬇️ Download the latest Testagram APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest)**
+
+Use the latest **published release** and download the APK attached to that release. Development builds should not be treated as production releases.
+
+### APK release channels
+
+| Channel | Purpose | Access |
+|---|---|---|
+| **Stable** | Production-ready Android builds | [Latest Release](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest) |
+| **All releases** | Previous and current published builds | [Releases](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases) |
+| **Source / development** | Engineering builds and source changes | [Repository](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr) |
+
+> **Security:** Only install APKs published through the official Testagram repository/release channel. Do not use APKs copied from unofficial mirrors or third-party download sites.
+
+### Android release policy
+
+Every production APK should be:
+
+- Built from a known Git commit.
+- Produced by the repository's Android release workflow.
+- Validated by the required CI gates before publication.
+- Versioned so the APK can be traced back to its source revision.
+- Published as a GitHub Release with release notes.
+- Kept separate from experimental/debug builds.
+
+The Flutter mobile migration is incremental. The existing Android client remains the rollback path until Flutter feature parity and Android release validation are proven.
+
 ## What is Testagram?
 
 Testagram is a responsive social ecosystem built around user publishing and discovery. It brings together social posts and threads, short-form video, communities, live experiences, creator tools, monetization, wallet/payment flows, commerce, Fediverse discovery, publisher/RSS content, and an in-product Help Center.
@@ -126,6 +159,7 @@ The repository configuration and deployed environment are authoritative for the 
 │   ├── pages/          # Route-level product surfaces
 │   ├── services/       # Application services
 │   └── theme/          # Appearance/theme handling
+├── mobile/              # Flutter mobile product layer
 ├── supabase/            # Migrations and Edge Functions
 ├── api/                 # API/serverless handlers
 ├── public/              # Static assets and public metadata
@@ -136,7 +170,7 @@ The repository configuration and deployed environment are authoritative for the 
 ├── scripts/             # Build and maintenance scripts
 ├── .github/workflows/   # CI and production workflows
 ├── _build.cjs           # Production build wrapper
-├── vercel.json          # Vercel configuration
+├── vercel.json           # Vercel configuration
 ├── vite.config.cjs      # Vite configuration
 ├── tailwind.config.js   # Tailwind configuration
 ├── tsconfig.json        # TypeScript configuration
