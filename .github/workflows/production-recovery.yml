@@ -1,20 +1,35 @@
 name: Production Recovery
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: "Exact Git commit SHA to reconcile on Cloudflare"
+        required: false
+        type: string
 
 permissions:
+  actions: write
   contents: read
 
 jobs:
-  promote-known-good:
-    if: "${{ github.sha == 'c249924e6d3d472733f747546d1b9da2e6e45653' }}"
+  reconcile:
+    
     runs-on: ubuntu-latest
     steps:
-      - name: Install Vercel CLI
-        run: npm install --global vercel@latest
-      - name: Promote known-good deployment
+      - name: Dispatch Cloudflare production reconciliation
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: vercel promote kooone-9b4dz1-9b4dz1-8936-20260809tr-rila53fsm.vercel.app --scope criss-projects-7c0f74aa --token="$VERCEL_TOKEN" --yes
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          target_sha="\${{ inputs.target_sha || github.sha }}"
+          [[ "$target_sha" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::target_sha must be a full SHA"; exit 1; }
+          curl --fail --silent --show-error --location \
+            -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2026-03-10" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/production-deployment-reconciliation.yml/dispatches" \
+            -d "$(node -e 'console.log(JSON.stringify({ref:"main",inputs:{target_sha:process.argv[1]}}))' "$target_sha")"
+          echo "Cloudflare production reconciliation dispatched for $target_sha."
