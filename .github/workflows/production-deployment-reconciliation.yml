@@ -714,8 +714,8 @@ jobs:
       - name: Reconcile Cloudflare DNS for Worker Custom Domains
         shell: bash
         env:
-          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ZONE_ID: \${{ secrets.CLOUDFLARE_ZONE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
         run: |
           set -euo pipefail
           [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is required for Cloudflare DNS reconciliation."; exit 1; }
@@ -750,8 +750,8 @@ jobs:
               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
               -H "Accept: application/json" \
               "https://api.cloudflare.com/client/v4/zones?name=testagram.site&status=active")"
-            zone_status="\${zone_response##*$'\n'}"
-            zone_body="\${zone_response%$'\n'*}"
+            zone_status="${zone_response##*$'\n'}"
+            zone_body="${zone_response%$'\n'*}"
             if [[ "$zone_status" != "200" ]]; then
               echo "::error::Cloudflare zone lookup failed (HTTP $zone_status)."
               echo "::error::Token verification passed, so this is a zone-listing/scope problem. Configure CLOUDFLARE_ZONE_ID and ensure Zone:DNS:Edit applies to testagram.site."
@@ -770,8 +770,8 @@ jobs:
                 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
                 -H "Accept: application/json" \
                 "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=$host&type=$type&per_page=100")"
-              dns_status="\${dns_response##*$'\n'}"
-              dns_body="\${dns_response%$'\n'*}"
+              dns_status="${dns_response##*$'\n'}"
+              dns_body="${dns_response%$'\n'*}"
               if [[ "$dns_status" != "200" ]]; then
                 echo "::error::Cloudflare DNS record lookup failed for $host/$type (HTTP $dns_status)."
                 printf '%s\n' "$dns_body"
