@@ -3814,7 +3814,7 @@ export default function WalletPage({ initialTab, standaloneTitle }: { initialTab
     if (user) await supabase.rpc('set_wallet_preferred_currency', { p_currency: c });
   };
 
-  const pinHash: string | null               = walletSecurity?.pin_hash ?? null;
+  const pinHash: string | null               = walletSecurity?.pin_set ? 'set' : null;
   const biometricCredentialId: string | null  = walletSecurity?.biometric_credential_id ?? null;
   const [showPinModal, setShowPinModal]       = useState(false);
 
@@ -4336,7 +4336,7 @@ export default function WalletPage({ initialTab, standaloneTitle }: { initialTab
         <AdvertiserSurface variant="wallet" />
           {user && wallet && <SpendLimitCard userId={user.id} wallet={wallet} onSaved={fetchWallet} />}
           {user && wallet && <PinSetupCard userId={user.id} pinHash={pinHash} onSaved={fetchWallet} />}
-          {user && wallet && <BiometricCard userId={user.id} credentialId={(wallet as any)?.biometric_credential_id ?? null} onSaved={fetchWallet} />}
+          {user && wallet && <BiometricCard userId={user.id} credentialId={biometricCredentialId} onSaved={fetchWallet} />}
           {user && <PayoutScheduleCard userId={user.id} defaultPhone={wallet?.mpesa_phone ?? null} />}
           <WalletNotificationsHub userId={user.id} />
           <CryptoWidget />
