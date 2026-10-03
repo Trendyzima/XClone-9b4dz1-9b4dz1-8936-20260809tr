@@ -1271,13 +1271,13 @@ function WalletAnalyticsExportButton({ userId, currency }: { userId: string; cur
     const [{ data: txns }, { data: walletData }] = await Promise.all([
       supabase.from('wallet_transactions').select('*').eq('user_id', userId)
         .order('created_at', { ascending: false }).limit(500),
-      supabase.from('user_wallets').select('balance,total_deposited,total_withdrawn').eq('user_id', userId).maybeSingle(),
+      supabase.rpc('get_my_wallet'),
     ]);
     setExporting(false);
     const allTxns   = txns ?? [];
-    const balance   = Number(walletData?.balance ?? 0);
-    const deposited = Number(walletData?.total_deposited ?? 0);
-    const withdrawn = Number(walletData?.total_withdrawn ?? 0);
+    const balance   = Number((walletData as any)?.balance ?? 0);
+    const deposited = Number((walletData as any)?.total_deposited ?? 0);
+    const withdrawn = Number((walletData as any)?.total_withdrawn ?? 0);
     const totalIn   = allTxns.filter(t => t.type === 'deposit' || t.type === 'earnings').reduce((s,t) => s + Number(t.amount), 0);
     const totalOut  = allTxns.filter(t => t.type === 'withdrawal').reduce((s,t) => s + Number(t.amount), 0);
     const avgTxn    = allTxns.length > 0 ? allTxns.reduce((s,t) => s + Number(t.amount), 0) / allTxns.length : 0;
