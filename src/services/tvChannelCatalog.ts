@@ -43,4 +43,19 @@ export async function loadTvSource(source:TvSource,signal?:AbortSignal){
  return Array.isArray(payload?.channels)?(payload.channels as TvChannel[]).filter(c=>c.live===true):[];
 }
 export function getPrioritySourceIds(){ return TV_SOURCES.filter(s=>s.enabled!==false).sort((a,b)=>b.priority-a.priority).map(s=>s.id); }
+export async function loadTvHealth(channelIds:string[]){
+ const url=supabaseUrl+'/rest/v1/tv_channel_health?channel_id=in.'+encodeURIComponent('('+channelIds.join(',')+')')+'&select=channel_id,is_online,last_checked_at,latency_ms,consecutive_successes,priority';
+ const r=await fetch(url,{headers:{Accept:'application/json'}});
+ if(!r.ok) return new Map<string,any>();
+ const rows=await r.json();
+ return new Map((Array.isArray(rows)?rows:[]).map((x:any)=>[String(x.channel_id),x]));
+}
+export function rankRecommendedTvChannels(channels:TvChannel[],health:Map<string,any>){
+ return [...channels].sort((a,b)=>{
+  const ah=health.get(a.id), bh=health.get(b.id);
+  const as=(ah?.is_online?100000:0)+(ah?.consecutive_successes||0)*100+(ah?.latency_ms?Math.max(0,100-ah.latency_ms/20):0)+a.priority;
+  const bs=(bh?.is_online?100000:0)+(bh?.consecutive_successes||0)*100+(bh?.latency_ms?Math.max(0,100-bh.latency_ms/20):0)+b.priority;
+  return bs-as;
+ });
+}
 export function dedupeTvChannels(channels:TvChannel[]){const seen=new Set<string>();return [...channels].filter(c=>{const key=c.url.toLowerCase();if(seen.has(key))return false;seen.add(key);return true;}).sort((a,b)=>b.priority-a.priority);}
