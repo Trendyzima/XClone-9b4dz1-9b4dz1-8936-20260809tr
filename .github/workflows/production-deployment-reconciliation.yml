@@ -711,6 +711,142 @@ jobs:
             delay=$((attempt * 20)); echo "::warning::tv-media-control deployment retrying in ${delay}s."; sleep "$delay"; attempt=$((attempt+1))
           done
           echo "Testagram TV Cloudflare control-plane Edge Function deployed."
+      - name: Reconcile Cloudflare DNS for Worker Custom Domains
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.TESTAGRAM_CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]')"
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is required for Cloudflare DNS reconciliation."; exit 1; }
+          [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::Configured Testagram Cloudflare account ID is not a valid 32-character account ID."; exit 1; }
+
+          echo "Resolving active Cloudflare zone for testagram.site..."
+          zone_json="$(curl --fail --silent --show-error --retry 4 --retry-delay 2             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"             -H "Accept: application/json"             "https://api.cloudflare.com/client/v4/zones?name=testagram.site&status=active")"
+          zone_id="$(ZONE_JSON="$zone_json" ACCOUNT_ID="$CLOUDFLARE_ACCOUNT_ID" node - <<'NODE'
+          const p=JSON.parse(process.env.ZONE_JSON);
+          const account=process.env.ACCOUNT_ID.toLowerCase();
+          const zones=Array.isArray(p?.result)?p.result:[];
+          const zone=zones.find(z=>String(z?.account?.id||"").toLowerCase()===account && z?.status==="active");
+          if(!zone){console.error("No active testagram.site zone matched the configured Cloudflare account.");process.exit(1);}
+          process.stdout.write(zone.id);
+          NODE
+          )"
+          printf '::add-mask::%s
+' "$zone_id"
+
+          for host in testagram.site www.testagram.site; do
+            echo "Checking conflicting A/AAAA/CNAME records for $host..."
+            records_json="$(curl --fail --silent --show-error --retry 4 --retry-delay 2               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"               -H "Accept: application/json"               "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=$host&per_page=100")"
+            record_ids="$(RECORDS_JSON="$records_json" HOST="$host" node - <<'NODE'
+          const p=JSON.parse(process.env.RECORDS_JSON);
+          const host=process.env.HOST;
+          const records=Array.isArray(p?.result)?p.result:[];
+          for(const r of records){
+            if(r?.name===host && ["A","AAAA","CNAME"].includes(r?.type)) console.log(r.id+"\t"+r.type);
+          }
+          NODE
+            )"
+            if [[ -n "$record_ids" ]]; then
+              while IFS=        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || secrets.TESTAGRAM_CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is missing from the production environment."; exit 1; }
+          [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::Cloudflare account ID is missing or invalid. Configure CLOUDFLARE_ACCOUNT_ID or TESTAGRAM_CLOUDFLARE_ACCOUNT_ID in the production environment."; exit 1; }
+          echo "Deploying testagram-web to Cloudflare and applying configured Custom Domains..."
+          npx wrangler deploy
+          echo "Cloudflare Worker deployment and Custom Domain configuration command completed."
+
+      - name: Verify Cloudflare production domain
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Verifying Testagram production origin at https://testagram.site"
+
+          curl --fail --silent --show-error --location --retry 8 --retry-delay 5 \
+            -D response-headers.txt \
+            "https://testagram.site/api/health" > health.txt
+
+          grep -Eiq '^server:[[:space:]]*cloudflare' response-headers.txt || {
+            echo "::error::testagram.site is not currently being served by Cloudflare Workers."
+            cat response-headers.txt
+            exit 1
+          }
+
+          node - <<'NODE'
+          const fs=require("node:fs");
+          const body=fs.readFileSync("health.txt","utf8").trim();
+          let p;
+          try { p=JSON.parse(body); } catch { console.error(body); process.exit(1); }
+          if (p?.ok !== true || p?.service !== "testagram" || p?.edge !== "reachable") {
+            console.error("Liveness contract failed:", JSON.stringify(p));
+            process.exit(1);
+          }
+          console.log("Production liveness passed:", JSON.stringify(p));
+          NODE
+
+          curl --fail --silent --show-error --location --retry 8 --retry-delay 5             "https://testagram.site/api/ready" > ready.txt
+
+          node - <<'NODE'
+          const fs=require("node:fs");
+          const body=fs.readFileSync("ready.txt","utf8").trim();
+          let p;
+          try { p=JSON.parse(body); } catch { console.error(body); process.exit(1); }
+          if (p?.ok !== true || p?.database !== "reachable") {
+            console.error("Readiness contract failed:", JSON.stringify(p));
+            process.exit(1);
+          }
+          console.log("Production database readiness passed:", JSON.stringify(p));
+          NODE
+
+          echo "Cloudflare production domain liveness/readiness passed."
+
+      - name: Prove Vercel is no longer a deployment dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git grep -nE 'vercel\\.com|api\\.vercel\\.com|vercel deploy|vercel pull|vercel env|vercel alias|VERCEL_(TOKEN|ORG_ID|PROJECT_ID)' --             . ':!.github/workflows/production-deployment-reconciliation.yml' ':!docs/hosting/cloudflare.md' ':!.git' 2>/dev/null; then
+            echo "::error::Vercel deployment/runtime references remain outside the retirement gate."
+            exit 1
+          fi
+          if git ls-files | grep -E '(^|/)vercel\\.json$|(^|/)\\.vercel/' >/tmp/vercel-files.txt; then
+            echo "::error::Vercel project configuration is still tracked:"
+            cat /tmp/vercel-files.txt
+            exit 1
+          fi
+          echo "Vercel is no longer a production deployment dependency."
+
+# Story media reconciliation CI trigger marker.
+
+# Final story backend reconciliation trigger.
+
+# Final story schema/UI reconciliation trigger v2.
+
+# Live reconciliation trigger: verify the repaired production gate on the next main push.
+# Search reconciliation trigger: deploy the direct-RPC and live-Fediverse search path.
+# Mall canonical-profile typecheck reconciliation: 2026-09-20.
+
+# Poll-card hydration + exact-SHA production reconciliation trigger: 2026-10-01.
+\t' read -r record_id record_type; do
+                [[ -n "$record_id" ]] || continue
+                echo "Removing conflicting $record_type DNS record for $host before Custom Domain attachment."
+                delete_status="$(curl -sS -o /tmp/cloudflare-dns-delete.json -w '%{http_code}'                   -X DELETE                   -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"                   -H "Accept: application/json"                   "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records/$record_id")"
+                if [[ "$delete_status" != "200" ]]; then
+                  echo "::error::Cloudflare DNS record deletion failed for $host (HTTP $delete_status)."
+                  cat /tmp/cloudflare-dns-delete.json
+                  exit 1
+                fi
+              done <<< "$record_ids"
+            else
+              echo "No conflicting A/AAAA/CNAME records remain for $host."
+            fi
+          done
+          echo "Cloudflare DNS is clear for Worker Custom Domain attachment."
+
       - name: Deploy Cloudflare Worker and Custom Domains
         shell: bash
         env:
