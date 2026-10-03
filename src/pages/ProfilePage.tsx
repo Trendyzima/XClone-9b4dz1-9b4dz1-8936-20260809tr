@@ -271,6 +271,21 @@ export default function ProfilePage() {
   const [isBlocked, setIsBlocked] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [moreMenuPosition, setMoreMenuPosition] = useState({ top: 0, right: 16 });
+  const moreMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const toggleMoreMenu = useCallback(() => {
+    if (!showMoreMenu) {
+      const rect = moreMenuButtonRef.current?.getBoundingClientRect();
+      if (rect) {
+        const menuHeight = 180;
+        setMoreMenuPosition({
+          top: Math.min(rect.bottom + 8, Math.max(12, window.innerHeight - menuHeight - 12)),
+          right: Math.max(12, window.innerWidth - rect.right),
+        });
+      }
+    }
+    setShowMoreMenu(value => !value);
+  }, [showMoreMenu]);
   const [showGiftPremiumDialog, setShowGiftPremiumDialog] = useState(false);
   const [giftingPremium, setGiftingPremium] = useState(false);
   const [showTipDialog, setShowTipDialog] = useState(false);
@@ -1080,7 +1095,7 @@ export default function ProfilePage() {
               <div className="w-full h-full rounded-full overflow-hidden bg-muted">
                 {profile.avatar_url
                   ? <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
-                  : <div className="w-full h-full flex items-center justify-center text-4xl font-bold">{profile.username[0].toUpperCase()}</div>}
+                  : <div className="w-full h-full flex items-center justify-center text-4xl font-bold">{profile.username?.[0]?.toUpperCase() ?? '?'}</div>}
               </div>
             </button>
             <div className="flex gap-2 mt-2 flex-wrap items-center">
@@ -1109,22 +1124,22 @@ export default function ProfilePage() {
                     {tipSent ? <Check className="w-4 h-4 text-yellow-500" /> : <DollarSign className="w-4 h-4" />}
                   </button>
                   <div className="relative">
-                    <button onClick={() => setShowMoreMenu(p => !p)} className="p-2 border border-border rounded-full hover:bg-muted transition-colors text-muted-foreground">
+                    <button ref={moreMenuButtonRef} onClick={toggleMoreMenu} aria-expanded={showMoreMenu} aria-haspopup="menu" aria-label="More profile actions" className="p-2 border border-border rounded-full hover:bg-muted transition-colors text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40">
                       <MoreHorizontal className="w-4 h-4" />
                     </button>
                     {showMoreMenu && (
                       <>
                         <div className="fixed inset-0 z-40" onClick={() => setShowMoreMenu(false)} />
-                        <div className="absolute right-0 mt-2 w-48 bg-background border border-border rounded-xl shadow-xl z-50 overflow-hidden">
-                          <button onClick={handleMute} className="flex items-center gap-3 w-full px-4 py-3 hover:bg-muted text-left text-sm">
+                        <div role="menu" aria-label={`Actions for @${profile.username}`} style={{ top: moreMenuPosition.top, right: moreMenuPosition.right }} className="fixed w-64 max-h-[min(70vh,24rem)] overflow-y-auto bg-background border border-border rounded-xl shadow-2xl z-[100] overflow-x-hidden">
+                          <button role="menuitem" onClick={handleMute} className="flex items-center gap-3 w-full px-4 py-3 hover:bg-muted text-left text-sm">
                             {isMuted ? <Volume2 className="w-4 h-4 text-primary" /> : <VolumeX className="w-4 h-4 text-muted-foreground" />}
                             {isMuted ? 'Unmute' : 'Mute'} @{profile.username}
                           </button>
-                          <button onClick={handleBlock} className="flex items-center gap-3 w-full px-4 py-3 hover:bg-destructive/5 text-left text-sm text-destructive">
+                          <button role="menuitem" onClick={handleBlock} className="flex items-center gap-3 w-full px-4 py-3 hover:bg-destructive/5 text-left text-sm text-destructive">
                             <Ban className="w-4 h-4" />{isBlocked ? 'Unblock' : 'Block'} @{profile.username}
                           </button>
                           <div className="border-t border-border" />
-                          <button onClick={() => { setShowMoreMenu(false); toast.success('Report submitted'); }} className="flex items-center gap-3 w-full px-4 py-3 hover:bg-muted text-left text-sm text-muted-foreground">
+                          <button role="menuitem" onClick={() => { setShowMoreMenu(false); toast.success('Report submitted'); }} className="flex items-center gap-3 w-full px-4 py-3 hover:bg-muted text-left text-sm text-muted-foreground">
                             <Flag className="w-4 h-4" />Report account
                           </button>
                         </div>
@@ -1984,7 +1999,7 @@ export default function ProfilePage() {
               </div>
               <div className="absolute top-8 left-3 right-3 flex items-center gap-2 z-30">
                 <div className="w-8 h-8 rounded-full overflow-hidden bg-white/20 shrink-0">
-                  {profile.avatar_url ? <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white font-bold text-xs">{profile.username[0]?.toUpperCase()}</div>}
+                  {profile.avatar_url ? <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-white font-bold text-xs">{profile.username?.[0]?.toUpperCase() ?? '?'}</div>}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-white font-semibold text-sm truncate">{viewingHighlight.title}</p>
