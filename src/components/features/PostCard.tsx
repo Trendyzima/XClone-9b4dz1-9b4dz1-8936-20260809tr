@@ -77,6 +77,21 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteMenu, setShowDeleteMenu] = useState(false);
+  const [deleteMenuPosition, setDeleteMenuPosition] = useState({ top: 0, right: 16 });
+  const deleteMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const toggleDeleteMenu = useCallback(() => {
+    if (!showDeleteMenu) {
+      const rect = deleteMenuButtonRef.current?.getBoundingClientRect();
+      if (rect) {
+        const menuHeight = 300;
+        setDeleteMenuPosition({
+          top: Math.min(rect.bottom + 8, Math.max(12, window.innerHeight - menuHeight - 12)),
+          right: Math.max(12, window.innerWidth - rect.right),
+        });
+      }
+    }
+    setShowDeleteMenu(value => !value);
+  }, [showDeleteMenu]);
   const [poll, setPoll] = useState<any>(null);
   const [showBoostDialog, setShowBoostDialog] = useState(false);
   const [showOneClickBoost, setShowOneClickBoost] = useState(false);
@@ -622,16 +637,16 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
                 {showDeleteMenu && (
                   <>
                     <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setShowDeleteMenu(false); }} />
-                    <div className="absolute right-0 mt-2 w-48 bg-background border border-border rounded-lg shadow-lg z-50">
+                    <div role="menu" aria-label="Post options" style={{ top: deleteMenuPosition.top, right: deleteMenuPosition.right }} className="fixed w-56 max-h-[min(70vh,24rem)] overflow-y-auto bg-background border border-border rounded-lg shadow-2xl z-[100]">
                       <button
                         onClick={(e) => { e.stopPropagation(); setShowEditDialog(true); setShowDeleteMenu(false); }}
-                        className="w-full text-left px-4 py-3 hover:bg-muted flex items-center gap-2 rounded-t-lg"
+                        role="menuitem" className="w-full text-left px-4 py-3 hover:bg-muted flex items-center gap-2 rounded-t-lg"
                       >
                         <MoreHorizontal className="w-4 h-4" /> Edit post
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); setShowDeleteMenu(false); navigate(`/create-ad?from_post=${post.id}&title=${encodeURIComponent(post.content.slice(0, 80))}&desc=${encodeURIComponent(post.content.slice(0, 200))}&img=${encodeURIComponent((post as any).image_url ?? '')}&vid=${encodeURIComponent((post as any).video_url ?? '')}`); }}
-                        className="w-full text-left px-4 py-3 hover:bg-muted flex items-center gap-2"
+                        role="menuitem" className="w-full text-left px-4 py-3 hover:bg-muted flex items-center gap-2"
                       >
                         <Megaphone className="w-4 h-4 text-amber-500" /> Boost as Ad
                       </button>
@@ -657,7 +672,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); setShowDeleteMenu(false); handleDelete(); }}
-                        className="w-full text-left px-4 py-3 hover:bg-destructive/10 text-destructive flex items-center gap-2 rounded-b-lg"
+                        role="menuitem" className="w-full text-left px-4 py-3 hover:bg-destructive/10 text-destructive flex items-center gap-2 rounded-b-lg"
                       >
                         <Trash2 className="w-4 h-4" /> Delete post
                       </button>
