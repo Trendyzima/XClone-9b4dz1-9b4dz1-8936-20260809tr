@@ -889,6 +889,22 @@ jobs:
           upsert_dns "rsend.testagram.site" "CNAME" "send.forge.rmta.net"
           echo "Resend DNS authentication records reconciled."
 
+      - name: Synchronize Resend runtime secret when provisioned
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          EMAIL_SERVICE_TOKEN: ${{ secrets.EMAIL_SERVICE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${RESEND_API_KEY:-}" || -z "${EMAIL_SERVICE_TOKEN:-}" ]]; then
+            echo "NOTICE: Resend runtime secrets are not fully provisioned; transactional email endpoint remains disabled until both are added to the production environment."
+            exit 0
+          fi
+          printf '%s' "$RESEND_API_KEY" | npx wrangler secret put RESEND_API_KEY --name testagram-web
+          printf '%s' "$EMAIL_SERVICE_TOKEN" | npx wrangler secret put EMAIL_SERVICE_TOKEN --name testagram-web
+          echo "Resend runtime secrets synchronized to testagram-web without printing values."
+
       - name: Deploy Cloudflare Worker and Custom Domains
         shell: bash
         env:
