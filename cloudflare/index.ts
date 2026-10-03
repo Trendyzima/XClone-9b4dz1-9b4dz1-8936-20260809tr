@@ -54,34 +54,34 @@ function escapeHtml(value: string) {
 }
 
 function seoForPath(pathname: string) {
-  const path = pathname.replace(/\\/+$/, '') || '/';
+  const path = pathname.replace(/\/+$/, '') || '/';
   const base = 'https://testagram.site';
   const rules: Array<[RegExp, string, string, string]> = [
-    [/^\\/$/, 'Testagram — Social Media, Short Videos & Global Conversations', 'Discover short videos, communities, live conversations, trending topics and creators on Testagram.', 'website'],
-    [/^\\/explore$/, 'Explore — Trending Content & Creators | Testagram', 'Explore trending posts, creators, communities and conversations on Testagram.', 'website'],
-    [/^\\/videos$/, 'Short Videos & Reels | Testagram', 'Watch short videos, reels and creator content from around the world on Testagram.', 'website'],
-    [/^\\/threads$/, 'Threads & Conversations | Testagram', 'Read and join public conversations and threads on Testagram.', 'website'],
-    [/^\\/communities$/, 'Communities | Testagram', 'Discover public communities and conversations on Testagram.', 'website'],
-    [/^\\/spaces$/, 'Live Spaces | Testagram', 'Discover live audio conversations and public spaces on Testagram.', 'website'],
-    [/^\\/discover$/, 'Discover | Testagram', 'Discover people, topics, communities and public content on Testagram.', 'website'],
-    [/^\\/fediverse$/, 'Fediverse | Testagram', 'Explore public federated conversations and communities through Testagram.', 'website'],
-    [/^\\/help$/, 'Help & Support | Testagram', 'Find Testagram help, account, community and platform guidance.', 'website'],
-    [/^\\/hashtag\\/(.+)$/, null as any, null as any, 'website'],
-    [/^\\/trending\\/(.+)$/, null as any, null as any, 'website'],
-    [/^\\/c\\/(.+)$/, null as any, null as any, 'website'],
-    [/^\\/profile\\/(.+)$/, null as any, null as any, 'profile'],
-    [/^\\/thread\\/(.+)$/, null as any, null as any, 'article'],
-    [/^\\/post\\/(.+)$/, null as any, null as any, 'article'],
+    [/^\/$/, 'Testagram — Social Media, Short Videos & Global Conversations', 'Discover short videos, communities, live conversations, trending topics and creators on Testagram.', 'website'],
+    [/^\/explore$/, 'Explore — Trending Content & Creators | Testagram', 'Explore trending posts, creators, communities and conversations on Testagram.', 'website'],
+    [/^\/videos$/, 'Short Videos & Reels | Testagram', 'Watch short videos, reels and creator content from around the world on Testagram.', 'website'],
+    [/^\/threads$/, 'Threads & Conversations | Testagram', 'Read and join public conversations and threads on Testagram.', 'website'],
+    [/^\/communities$/, 'Communities | Testagram', 'Discover public communities and conversations on Testagram.', 'website'],
+    [/^\/spaces$/, 'Live Spaces | Testagram', 'Discover live audio conversations and public spaces on Testagram.', 'website'],
+    [/^\/discover$/, 'Discover | Testagram', 'Discover people, topics, communities and public content on Testagram.', 'website'],
+    [/^\/fediverse$/, 'Fediverse | Testagram', 'Explore public federated conversations and communities through Testagram.', 'website'],
+    [/^\/help$/, 'Help & Support | Testagram', 'Find Testagram help, account, community and platform guidance.', 'website'],
+    [/^\/hashtag\/(.+)$/, null as any, null as any, 'website'],
+    [/^\/trending\/(.+)$/, null as any, null as any, 'website'],
+    [/^\/c\/(.+)$/, null as any, null as any, 'website'],
+    [/^\/profile\/(.+)$/, null as any, null as any, 'profile'],
+    [/^\/thread\/(.+)$/, null as any, null as any, 'article'],
+    [/^\/post\/(.+)$/, null as any, null as any, 'article'],
   ];
   for (const [pattern, rawTitle, rawDescription, type] of rules) {
     const match = path.match(pattern);
     if (!match) continue;
     if (rawTitle) return { title: rawTitle, description: rawDescription, canonical: base + path, type };
     const value = decodeURIComponent(match[1]).replace(/[-_]+/g, ' ').trim();
-    const label = value.replace(/\\b\\w/g, (m) => m.toUpperCase());
+    const label = value.replace(/\b\w/g, (m) => m.toUpperCase());
     if (pattern.source.includes('hashtag')) return { title: '#' + label + ' — Trending Posts | Testagram', description: 'Browse public posts and conversations tagged #' + label + ' on Testagram.', canonical: base + path, type };
     if (pattern.source.includes('trending')) return { title: 'Trending ' + label + ' — Testagram', description: 'See what is trending in ' + label + ' on Testagram.', canonical: base + path, type };
-    if (pattern.source.includes('c\\/')) return { title: label + ' Community | Testagram', description: 'Join the public ' + label + ' community and discover conversations on Testagram.', canonical: base + path, type };
+    if (pattern.source.includes('c\/')) return { title: label + ' Community | Testagram', description: 'Join the public ' + label + ' community and discover conversations on Testagram.', canonical: base + path, type };
     if (pattern.source.includes('profile')) return { title: '@' + value + ' on Testagram', description: 'View the public Testagram profile for @' + value + '.', canonical: base + path, type };
     return { title: label + ' | Testagram', description: 'Read this public conversation on Testagram.', canonical: base + path, type };
   }
@@ -102,18 +102,18 @@ async function optimizePublicHtml(response: Response, pathname: string) {
     description: seo.description,
     url: seo.canonical,
     isPartOf: { '@type': 'WebSite', name: 'Testagram', url: 'https://testagram.site/' }
-  }).replace(/</g, '\\u003c');
+  }).replace(/</g, '\u003c');
   const body = html
-    .replace(/<title>[\\s\\S]*?<\\/title>/i, '<title>' + title + '</title>')
-    .replace(/<meta name="description" content="[^"]*"\\s*\\/?>/i, '<meta name="description" content="' + description + '" />')
-    .replace(/<meta name="robots" content="[^"]*"\\s*\\/?>/i, '<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />')
-    .replace(/<link rel="canonical" href="[^"]*"\\s*\\/?>/i, '<link rel="canonical" href="' + canonical + '" />')
-    .replace(/<meta property="og:url" content="[^"]*"\\s*\\/?>/i, '<meta property="og:url" content="' + canonical + '" />')
-    .replace(/<meta property="og:title" content="[^"]*"\\s*\\/?>/i, '<meta property="og:title" content="' + title + '" />')
-    .replace(/<meta property="og:description" content="[^"]*"\\s*\\/?>/i, '<meta property="og:description" content="' + description + '" />')
-    .replace(/<meta name="twitter:url" content="[^"]*"\\s*\\/?>/i, '<meta name="twitter:url" content="' + canonical + '" />')
-    .replace(/<meta name="twitter:title" content="[^"]*"\\s*\\/?>/i, '<meta name="twitter:title" content="' + title + '" />')
-    .replace(/<meta name="twitter:description" content="[^"]*"\\s*\\/?>/i, '<meta name="twitter:description" content="' + description + '" />')
+    .replace(/<title>[\s\S]*?<\/title>/i, '<title>' + title + '</title>')
+    .replace(/<meta name="description" content="[^"]*"\s*\/?>/i, '<meta name="description" content="' + description + '" />')
+    .replace(/<meta name="robots" content="[^"]*"\s*\/?>/i, '<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />')
+    .replace(/<link rel="canonical" href="[^"]*"\s*\/?>/i, '<link rel="canonical" href="' + canonical + '" />')
+    .replace(/<meta property="og:url" content="[^"]*"\s*\/?>/i, '<meta property="og:url" content="' + canonical + '" />')
+    .replace(/<meta property="og:title" content="[^"]*"\s*\/?>/i, '<meta property="og:title" content="' + title + '" />')
+    .replace(/<meta property="og:description" content="[^"]*"\s*\/?>/i, '<meta property="og:description" content="' + description + '" />')
+    .replace(/<meta name="twitter:url" content="[^"]*"\s*\/?>/i, '<meta name="twitter:url" content="' + canonical + '" />')
+    .replace(/<meta name="twitter:title" content="[^"]*"\s*\/?>/i, '<meta name="twitter:title" content="' + title + '" />')
+    .replace(/<meta name="twitter:description" content="[^"]*"\s*\/?>/i, '<meta name="twitter:description" content="' + description + '" />')
     .replace('</head>', '<script type="application/ld+json">' + schema + '</script></head>');
   return new Response(body, { status: response.status, headers: new Headers(response.headers) });
 }
@@ -361,9 +361,9 @@ export default {
       const optimized = await optimizePublicHtml(response, url.pathname);
       const headers = commonHeaders(new Headers(optimized.headers));
 
-      if (url.pathname.startsWith('/assets/') || /\\.(js|css)$/.test(url.pathname)) {
+      if (url.pathname.startsWith('/assets/') || /\.(js|css)$/.test(url.pathname)) {
         headers.set('Cache-Control', 'public, max-age=31536000, immutable');
-      } else if (/\\.(xml)$/.test(url.pathname)) {
+      } else if (/\.(xml)$/.test(url.pathname)) {
         headers.set('Cache-Control', 'public, max-age=86400');
       } else {
         headers.set('Cache-Control', 'no-store');
