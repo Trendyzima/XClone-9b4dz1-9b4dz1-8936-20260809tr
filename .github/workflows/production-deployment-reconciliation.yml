@@ -786,11 +786,16 @@ jobs:
                   -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
                   -H "Accept: application/json" \
                   "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records/$record_id")"
-                [[ "$status" == "200" ]] || {
+                if [[ "$status" != "200" ]]; then
+                  if jq -e '.errors[]? | select(.code == 1043)' /tmp/cloudflare-dns-delete.json >/dev/null 2>&1; then
+                    echo "::warning::Cloudflare marked $host/$type record $record_id read-only (API error 1043); preserving the managed record."
+                    echo "Custom Domain deployment will be allowed to reconcile Cloudflare-managed DNS instead of attempting to delete it."
+                    continue
+                  fi
                   echo "::error::Cloudflare DNS record deletion failed for $host/$type (HTTP $status)."
                   cat /tmp/cloudflare-dns-delete.json
                   exit 1
-                }
+                fi
               done <<< "$ids"
             done
           done
