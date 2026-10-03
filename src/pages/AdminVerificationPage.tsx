@@ -113,7 +113,7 @@ export default function AdminVerificationPage() {
         if (req.payment_status === 'paid') {
           const { error: subscriptionErr } = await supabase.rpc('activate_verification_subscription', {
             p_user_id: req.user_id,
-            p_tier: req.tier === 'basic' ? 'blue' : req.tier === 'creator' ? 'gold' : 'business',
+            p_tier: req.tier === 'basic' || req.tier === 'blue' ? 'blue' : req.tier === 'creator' || req.tier === 'gold' ? 'gold' : 'business',
             p_expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
             p_provider: 'admin',
             p_provider_reference: req.id,
