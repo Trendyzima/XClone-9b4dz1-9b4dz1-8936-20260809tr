@@ -150,8 +150,8 @@ jobs:
         shell: bash
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+          SUPABASE_PROJECT_REF: ffrhglgkukgsuhxenena
+          SUPABASE_URL: https://ffrhglgkukgsuhxenena.supabase.co
         run: |
           set -euo pipefail
           PROJECT_REF="$SUPABASE_PROJECT_REF"
@@ -226,8 +226,8 @@ jobs:
         shell: bash
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+          SUPABASE_PROJECT_REF: ffrhglgkukgsuhxenena
+          SUPABASE_URL: https://ffrhglgkukgsuhxenena.supabase.co
         run: |
           set -euo pipefail
           PROJECT_REF="$SUPABASE_PROJECT_REF"
@@ -248,8 +248,8 @@ jobs:
         shell: bash
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+          SUPABASE_PROJECT_REF: ffrhglgkukgsuhxenena
+          SUPABASE_URL: https://ffrhglgkukgsuhxenena.supabase.co
           MPESA_ENV: ${{ secrets.MPESA_ENV }}
           MPESA_CONSUMER_KEY: ${{ secrets.MPESA_CONSUMER_KEY }}
           MPESA_CONSUMER_SECRET: ${{ secrets.MPESA_CONSUMER_SECRET }}
@@ -325,8 +325,8 @@ jobs:
         shell: bash
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+          SUPABASE_PROJECT_REF: ffrhglgkukgsuhxenena
+          SUPABASE_URL: https://ffrhglgkukgsuhxenena.supabase.co
         run: |
           set -euo pipefail
           PROJECT_REF="$SUPABASE_PROJECT_REF"
@@ -368,8 +368,8 @@ jobs:
         shell: bash
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+          SUPABASE_PROJECT_REF: ffrhglgkukgsuhxenena
+          SUPABASE_URL: https://ffrhglgkukgsuhxenena.supabase.co
         run: |
           set -euo pipefail
           [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required for the Fediverse gateway deployment gate."; exit 1; }
@@ -429,8 +429,8 @@ jobs:
         shell: bash
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+          SUPABASE_PROJECT_REF: ffrhglgkukgsuhxenena
+          SUPABASE_URL: https://ffrhglgkukgsuhxenena.supabase.co
         run: |
           set -euo pipefail
 
@@ -477,8 +477,8 @@ jobs:
         shell: bash
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+          SUPABASE_PROJECT_REF: ffrhglgkukgsuhxenena
+          SUPABASE_URL: https://ffrhglgkukgsuhxenena.supabase.co
         run: |
           set -euo pipefail
           [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required for the Testagram Ads deployment gate."; exit 1; }
@@ -552,8 +552,8 @@ jobs:
         shell: bash
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF || vars.SUPABASE_PROJECT_REF }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL || vars.SUPABASE_URL }}
+          SUPABASE_PROJECT_REF: ffrhglgkukgsuhxenena
+          SUPABASE_URL: https://ffrhglgkukgsuhxenena.supabase.co
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.TESTAGRAM_CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.TESTAGRAM_CLOUDFLARE_STREAM_API_TOKEN }}
           CLOUDFLARE_TURN_TOKEN_ID: ${{ secrets.CLOUDFLARE_TURN_TOKEN_ID }}
@@ -802,6 +802,193 @@ jobs:
             done
           done
           echo "Cloudflare DNS is clear for Worker Custom Domain attachment."
+
+      - name: Remove conflicting Cloudflare routes for production Custom Domain
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          set -euo pipefail
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is required for route reconciliation."; exit 1; }
+          [[ "$CLOUDFLARE_ZONE_ID" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::CLOUDFLARE_ZONE_ID is missing or invalid."; exit 1; }
+
+          routes_json="$(curl -sS --fail-with-body \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Accept: application/json" \
+            "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/workers/routes")"
+
+          mapfile -t conflicting_routes < <(jq -r '
+            .result[]?
+            | select(
+                (.pattern == "testagram.site/*" or .pattern == "testagram.site/api/*" or
+                 .pattern == "www.testagram.site/*" or .pattern == "www.testagram.site/api/*")
+                and (.script // "") != "testagram-web"
+              )
+            | [.id, .pattern, (.script // "(disabled route)")] | @tsv
+          ' <<<"$routes_json")
+
+          for route in "${conflicting_routes[@]}"; do
+            [[ -n "$route" ]] || continue
+            IFS=        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || secrets.TESTAGRAM_CLOUDFLARE_ACCOUNT_ID }}
+          NPM_CONFIG_LOGLEVEL: error
+          NODE_OPTIONS: --no-deprecation
+        run: |
+          set -euo pipefail
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is missing from the production environment."; exit 1; }
+          [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::Cloudflare account ID is missing or invalid. Configure CLOUDFLARE_ACCOUNT_ID or TESTAGRAM_CLOUDFLARE_ACCOUNT_ID in the production environment."; exit 1; }
+          echo "Deploying testagram-web to Cloudflare and applying configured Custom Domains..."
+          npx wrangler deploy --name testagram-web
+          echo "Reasserting the production Custom Domain -> Worker attachment..."
+          domain_status="$(curl -sS -o /tmp/testagram-worker-domain.json -w '%{http_code}' \
+            -X PUT \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            --data '{"hostname":"testagram.site","service":"testagram-web","zone_id":"${{ secrets.CLOUDFLARE_ZONE_ID }}","zone_name":"testagram.site"}' \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/domains")"
+          if [[ "$domain_status" != "200" ]] || ! jq -e '.success == true and .result.hostname == "testagram.site" and .result.service == "testagram-web"' /tmp/testagram-worker-domain.json >/dev/null 2>&1; then
+            echo "::error::Cloudflare Custom Domain attachment did not resolve to Worker testagram-web (HTTP $domain_status)."
+            cat /tmp/testagram-worker-domain.json
+            exit 1
+          fi
+          echo "Verified Custom Domain testagram.site is attached to Worker testagram-web."
+          echo "Cloudflare Worker deployment and Custom Domain reconciliation completed."
+
+      - name: Verify Cloudflare production domain
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Verifying Testagram production origin at https://testagram.site"
+
+          # Custom Domain attachment and edge DNS activation are asynchronous.
+          # Do not fail the deployment while Cloudflare is still returning DNS
+          # resolution errors or transient 503s during activation.
+          max_attempts=36
+          health_ok=false
+          for attempt in $(seq 1 "$max_attempts"); do
+            rm -f response-headers.txt health.txt
+            dns_line="$(getent ahostsv4 testagram.site 2>&1 | head -n 1 || true)"
+            if [[ -n "$dns_line" ]]; then
+              echo "Attempt $attempt/$max_attempts: DNS resolved: $dns_line"
+            else
+              echo "Attempt $attempt/$max_attempts: DNS has not resolved yet."
+            fi
+
+            status="$(curl -sS --location --connect-timeout 10 --max-time 30               -D response-headers.txt -o health.txt -w '%{http_code}'               "https://testagram.site/api/health" || true)"
+
+            if [[ "$status" == "200" ]]; then
+              if grep -Eiq '^server:[[:space:]]*cloudflare' response-headers.txt; then
+                if node - <<'NODE'
+          const fs=require("node:fs");
+          const body=fs.readFileSync("health.txt","utf8").trim();
+          let p;
+          try { p=JSON.parse(body); } catch { process.exit(1); }
+          if (p?.ok !== true || p?.service !== "testagram" || p?.edge !== "reachable") process.exit(1);
+          console.log("Production liveness passed:", JSON.stringify(p));
+          NODE
+                then
+                  health_ok=true
+                  break
+                fi
+              else
+                echo "NOTICE:HTTP 200 received but Cloudflare Server header is not yet present."
+              fi
+            else
+              echo "Health endpoint is not ready yet (HTTP $status); waiting for Cloudflare Worker activation."
+              if [[ -s health.txt ]]; then head -c 500 health.txt; echo; fi
+            fi
+
+            if (( attempt < max_attempts )); then
+              sleep 10
+            fi
+          done
+
+          [[ "$health_ok" == true ]] || {
+            echo "::error::testagram.site did not become Cloudflare Worker-backed and healthy within the activation window."
+            echo "Last DNS result:"
+            getent ahostsv4 testagram.site || true
+            echo "Last response headers:"
+            cat response-headers.txt 2>/dev/null || true
+            echo "Last response body:"
+            head -c 2000 health.txt 2>/dev/null || true
+            exit 1
+          }
+
+          ready_ok=false
+          for attempt in $(seq 1 "$max_attempts"); do
+            status="$(curl -sS --location --connect-timeout 10 --max-time 30               -o ready.txt -w '%{http_code}' "https://testagram.site/api/ready" || true)"
+            if [[ "$status" == "200" ]]; then
+              if node - <<'NODE'
+          const fs=require("node:fs");
+          const body=fs.readFileSync("ready.txt","utf8").trim();
+          let p;
+          try { p=JSON.parse(body); } catch { process.exit(1); }
+          if (p?.ok !== true || p?.database !== "reachable") process.exit(1);
+          console.log("Production database readiness passed:", JSON.stringify(p));
+          NODE
+              then
+                ready_ok=true
+                break
+              fi
+            fi
+            echo "Readiness endpoint is not ready yet (HTTP $status); waiting for production database readiness."
+            if (( attempt < max_attempts )); then sleep 10; fi
+          done
+
+          [[ "$ready_ok" == true ]] || {
+            echo "::error::testagram.site/api/ready did not become database-ready within the activation window."
+            head -c 2000 ready.txt 2>/dev/null || true
+            exit 1
+          }
+
+          echo "Cloudflare production domain liveness/readiness passed."
+
+      - name: Prove Vercel is no longer a deployment dependency
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git grep -nE 'vercel\\.com|api\\.vercel\\.com|vercel deploy|vercel pull|vercel env|vercel alias|VERCEL_(TOKEN|ORG_ID|PROJECT_ID)' --             . ':!.github/workflows/production-deployment-reconciliation.yml' ':!docs/hosting/cloudflare.md' ':!.git' 2>/dev/null; then
+            echo "::error::Vercel deployment/runtime references remain outside the retirement gate."
+            exit 1
+          fi
+          if git ls-files | grep -E '(^|/)vercel\\.json$|(^|/)\\.vercel/' >/tmp/vercel-files.txt; then
+            echo "::error::Vercel project configuration is still tracked:"
+            cat /tmp/vercel-files.txt
+            exit 1
+          fi
+          echo "Vercel is no longer a production deployment dependency."
+
+# Story media reconciliation CI trigger marker.
+
+# Final story backend reconciliation trigger.
+
+# Final story schema/UI reconciliation trigger v2.
+
+# Live reconciliation trigger: verify the repaired production gate on the next main push.
+# Search reconciliation trigger: deploy the direct-RPC and live-Fediverse search path.
+# Mall canonical-profile typecheck reconciliation: 2026-09-20.
+
+# Poll-card hydration + exact-SHA production reconciliation trigger: 2026-10-01.
+\t' read -r route_id pattern script <<<"$route"
+            echo "Removing conflicting route $route_id ($pattern -> $script)..."
+            delete_status="$(curl -sS -o /tmp/cloudflare-route-delete.json -w '%{http_code}' \
+              -X DELETE \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Accept: application/json" \
+              "https://api.cloudflare.com/client/v4/zones/$CLOUDFLARE_ZONE_ID/workers/routes/$route_id")"
+            if [[ "$delete_status" != "200" ]] || ! jq -e '.success == true' /tmp/cloudflare-route-delete.json >/dev/null 2>&1; then
+              echo "::error::Failed to remove conflicting Cloudflare route $route_id (HTTP $delete_status)."
+              cat /tmp/cloudflare-route-delete.json
+              exit 1
+            fi
+          done
+
+          echo "Cloudflare route reconciliation passed: no legacy route overrides the Testagram Custom Domain."
+          echo "Cloudflare route API: GET/DELETE /zones/{zone_id}/workers/routes." 
 
       - name: Deploy Cloudflare Worker and Custom Domains
         shell: bash
