@@ -754,6 +754,7 @@ export default function ProfilePage() {
     const { data: tipResult, error: tipErr } = await supabase.rpc('send_wallet_tip', { p_to_user_id: profile.id, p_amount: amount, p_note: `Tip to @${profile.username}`, p_idempotency_key: idempotencyKey });
     if (tipErr) { toast.error(tipErr.message || 'Could not send tip'); setSendingTip(false); return; }
     if (!tipResult?.success) { toast.error('Tip transaction was not completed'); setSendingTip(false); return; }
+    if (!tipResult?.tip_id) throw new Error('Tip payment completed without a receipt');
     await supabase.from('creator_earnings').insert({ creator_id: profile.id, source_type: 'tip', source_id: tipResult.tip_id, amount, currency: tipResult.currency ?? 'KES', status: 'paid' }).then(() => {}).catch(() => {});
     await supabase.from('notifications').insert({ recipient_id: profile.id, kind: 'tip', actor_id: currentUser.id  }).catch(() => {});
     toast.success(`${tipResult.currency ?? 'KES'} ${amount.toFixed(2)} tip sent to @${profile.username}!`);
@@ -2042,7 +2043,7 @@ export default function ProfilePage() {
               <div className="w-8 h-8 rounded-full overflow-hidden bg-white/20">
                 {profile.avatar_url
                   ? <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
-                  : <div className="w-full h-full flex items-center justify-center text-white text-xs font-bold">{profile.username[0].toUpperCase()}</div>}
+                  : <div className="w-full h-full flex items-center justify-center text-white text-xs font-bold">{profile.username?.[0]?.toUpperCase() ?? '?'}</div>}
               </div>
               <span className="text-white font-semibold text-sm">@{profile.username}'s Stories</span>
             </div>
@@ -2055,7 +2056,7 @@ export default function ProfilePage() {
                 <div className="w-full h-full rounded-full overflow-hidden">
                   {profile.avatar_url
                     ? <img src={profile.avatar_url} alt={profile.username} className="w-full h-full object-cover" />
-                    : <div className="w-full h-full flex items-center justify-center text-4xl font-bold bg-muted">{profile.username[0].toUpperCase()}</div>}
+                    : <div className="w-full h-full flex items-center justify-center text-4xl font-bold bg-muted">{profile.username?.[0]?.toUpperCase() ?? '?'}</div>}
                 </div>
               </div>
               <p className="text-white font-bold text-lg">@{profile.username}</p>
