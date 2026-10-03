@@ -1,0 +1,75 @@
+name: Testagram Cloud Run Deployment
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployment environment
+        required: true
+        default: production
+        type: choice
+        options: [production]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: testagram-cloud-run-production
+  cancel-in-progress: true
+
+env:
+  SERVICE: testagram-web
+  REGION: ${{ vars.GCP_REGION }}
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  WIF_PROVIDER: ${{ vars.GCP_WIF_PROVIDER }}
+  SERVICE_ACCOUNT: ${{ vars.GCP_SERVICE_ACCOUNT }}
+
+jobs:
+  deploy:
+    if: ${{ vars.GCP_PROJECT_ID != '' && vars.GCP_REGION != '' && vars.GCP_WIF_PROVIDER != '' && vars.GCP_SERVICE_ACCOUNT != '' }}
+    runs-on: ubuntu-24.04
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Authenticate to Google Cloud without long-lived keys
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_SERVICE_ACCOUNT }}
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v3
+      - name: Build and push immutable image
+        env:
+          IMAGE: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/testagram/testagram-web:${{ github.sha }}
+        run: |
+          set -euo pipefail
+          gcloud builds submit --tag "$IMAGE" --quiet .
+      - name: Deploy exact commit to Cloud Run
+        env:
+          IMAGE: ${{ env.REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/testagram/testagram-web:${{ github.sha }}
+        run: |
+          set -euo pipefail
+          gcloud run deploy "$SERVICE" --image "$IMAGE" --region "$REGION" --project "$PROJECT_ID" --platform managed --allow-unauthenticated --set-env-vars "TESTAGRAM_COMMIT_SHA=${{ github.sha }},APP_ORIGIN=https://testagram.site"
+      - name: Capture service URL
+        id: service
+        run: |
+          set -euo pipefail
+          URL="$(gcloud run services describe "$SERVICE" --region "$REGION" --project "$PROJECT_ID" --format='value(status.url)')"
+          test -n "$URL"
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+      - name: Verify Cloud Run liveness
+        env:
+          SERVICE_URL: ${{ steps.service.outputs.url }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error "$SERVICE_URL/api/health" > health.json
+          node -e 'const p=JSON.parse(require("fs").readFileSync("health.json","utf8")); if(p?.ok!==true || p?.service!=="testagram" || p?.commit!==process.env.GITHUB_SHA){console.error(p);process.exit(1)} console.log(p)'
+      - name: Verify Cloud Run readiness
+        env:
+          SERVICE_URL: ${{ steps.service.outputs.url }}
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error "$SERVICE_URL/api/ready" > ready.json
+          node -e 'const p=JSON.parse(require("fs").readFileSync("ready.json","utf8")); if(p?.ok!==true || p?.database!=="reachable"){console.error(p);process.exit(1)} console.log(p)'
