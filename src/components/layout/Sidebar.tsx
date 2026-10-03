@@ -290,11 +290,11 @@ export function Sidebar() {
   };
 
   return (
-    <aside className="hidden lg:flex lg:flex-col w-72 h-screen sticky top-0 border-r border-border overflow-y-auto">
+    <aside className="hidden lg:flex lg:flex-col w-72 h-screen sticky top-0 border-r border-border/70 overflow-y-auto bg-background/80 backdrop-blur-xl">
       {/* Logo */}
-      <div className="flex items-center space-x-2 p-4 border-b border-border">
-        <img src="/tsocial-logo.png" alt="Tsocial" className="w-10 h-10 rounded-xl object-cover" />
-        <span className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">Tsocial</span>
+      <div className="flex items-center space-x-3 px-4 py-5 border-b border-border/70">
+        <img src="/tsocial-logo.png" alt="Tsocial" className="w-10 h-10 rounded-2xl object-cover ring-1 ring-border shadow-sm" />
+        <span className="text-2xl font-bold bg-gradient-to-r from-primary to-emerald-500 bg-clip-text text-transparent">Testagram</span>
       </div>
 
       {/* Main Navigation */}

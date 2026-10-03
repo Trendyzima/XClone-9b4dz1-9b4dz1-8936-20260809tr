@@ -73,3 +73,67 @@ body { background-color: hsl(var(--background)); color: hsl(var(--foreground)); 
   .border-b.border-border:has(> .h-48 img[alt="Cover"]) > .px-4.pb-4 > .flex.justify-between.items-start.-mt-16.mb-4 { margin-top: -4rem !important; }
   .border-b.border-border > .px-4.pb-4 > .flex.justify-between.items-start.-mt-16.mb-4 > [class~="flex"][class~="flex-wrap"][class~="items-center"][class~="gap-2.5"][class~="mt-4"][class~="max-w-full"] { justify-content: flex-start; margin-top: 0.25rem !important; }
 }
+
+
+/* ── Testagram UI system v2 ─────────────────────────────────────────────── */
+:root {
+  --tg-surface: 0 0% 100%;
+  --tg-surface-raised: 0 0% 99%;
+  --tg-shadow: 0 18px 50px -32px hsl(142 76% 32% / .32);
+}
+.dark {
+  --tg-surface: 0 0% 5%;
+  --tg-surface-raised: 0 0% 7%;
+  --tg-shadow: 0 18px 50px -32px hsl(142 76% 42% / .28);
+}
+body {
+  background:
+    radial-gradient(circle at 10% -10%, hsl(var(--primary) / .07), transparent 28rem),
+    radial-gradient(circle at 95% 0%, hsl(265 80% 60% / .05), transparent 24rem),
+    hsl(var(--background));
+}
+.tg-shell { min-height: 100dvh; }
+.tg-main {
+  width: min(100%, 720px);
+  background: hsl(var(--tg-surface) / .92);
+  box-shadow: var(--tg-shadow);
+}
+.tg-topbar {
+  background: hsl(var(--background) / .78);
+  backdrop-filter: blur(20px) saturate(1.35);
+  -webkit-backdrop-filter: blur(20px) saturate(1.35);
+}
+.tg-nav-item {
+  position: relative;
+  border: 1px solid transparent;
+  transition: background .18s ease, border-color .18s ease, transform .18s ease;
+}
+.tg-nav-item:hover { background: hsl(var(--muted) / .72); border-color: hsl(var(--border)); transform: translateX(2px); }
+.tg-nav-item[data-active="true"] {
+  background: linear-gradient(90deg, hsl(var(--primary) / .13), hsl(var(--primary) / .04));
+  border-color: hsl(var(--primary) / .18);
+  color: hsl(var(--primary));
+}
+.tg-nav-item[data-active="true"]::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 22%;
+  bottom: 22%;
+  width: 3px;
+  border-radius: 999px;
+  background: hsl(var(--primary));
+}
+.tg-card {
+  background: hsl(var(--card) / .96);
+  border: 1px solid hsl(var(--border) / .78);
+  border-radius: 1.1rem;
+  box-shadow: 0 8px 30px -24px hsl(0 0% 0% / .45);
+}
+.tg-focus:focus-visible { outline: 3px solid hsl(var(--ring) / .32); outline-offset: 2px; }
+@media (max-width: 1023px) {
+  .tg-main { width: 100%; border-inline: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tg-nav-item, .tg-nav-item:hover { transition: none; transform: none; }
+}
