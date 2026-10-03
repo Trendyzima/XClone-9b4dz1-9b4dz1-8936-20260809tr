@@ -1,0 +1,47 @@
+name: TV Channel Health Monitor
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tv-health-monitor
+  cancel-in-progress: true
+
+jobs:
+  probe:
+    name: Probe worldwide TV channels
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Probe channels in batches
+        env:
+          SUPABASE_URL: https://ffrhglgkukgsuhxenena.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          test -n "$SUPABASE_SERVICE_ROLE_KEY"
+          node <<'NODE'
+          const fs=require('fs');
+          const data=JSON.parse(fs.readFileSync('public/tv/channels.json','utf8'));
+          const channels=data.channels||[];
+          const endpoint=process.env.SUPABASE_URL+'/functions/v1/tv-health';
+          const key=process.env.SUPABASE_SERVICE_ROLE_KEY;
+          const batchSize=100;
+          let checked=0;
+          for(let i=0;i<channels.length;i+=batchSize){
+            const batch=channels.slice(i,i+batchSize);
+            const r=await fetch(endpoint,{method:'POST',headers:{'content-type':'application/json','apikey':key},body:JSON.stringify({channels:batch,limit:batch.length})});
+            if(!r.ok) throw new Error('tv-health batch '+i+' failed: HTTP '+r.status+' '+await r.text());
+            const result=await r.json();
+            checked+=result.checked||0;
+            console.log(JSON.stringify({batch:i/batchSize+1,checked:result.checked,online:result.online,offline:result.offline}));
+          }
+          console.log('Total channels checked: '+checked);
+          NODE
