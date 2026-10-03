@@ -59,7 +59,7 @@ export default function TvChannelsPage(){
  },[]);
 
  const refreshHealth=useCallback(async()=>{
-  const ids=channels.map(c=>c.id).slice(0,2000);
+  const ids=channels.map(c=>c.id);
   if(!ids.length)return;
   const map=await loadTvHealth(ids);
   setHealthMap(map);
