@@ -22,6 +22,8 @@ permissions:
 
 env:
   APP_ORIGIN: "https://testagram.site"
+  NPM_CONFIG_LOGLEVEL: error
+  NODE_OPTIONS: --no-deprecation
 
 jobs:
   reconcile-production:
@@ -113,7 +115,7 @@ jobs:
         run: |
           set -euo pipefail
           if [[ -z "$SUPABASE_ACCESS_TOKEN" ]]; then
-            echo "::warning::Supabase management token is not configured; Supabase reconciliation will be skipped."
+            echo "NOTICE:Supabase management token is not configured; Supabase reconciliation will be skipped."
             echo "available=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -127,8 +129,8 @@ jobs:
             exit 0
           fi
           if grep -qiE '401|unauthorized|invalid.*token|authentication' <<<"$output"; then
-            echo "::warning::Supabase management API rejected the configured GitHub token (HTTP 401). Skipping optional Supabase reconciliation so Cloudflare production deployment can still be verified."
-            echo "::warning::Rotate/update SUPABASE_ACCESS_TOKEN in the GitHub production environment to restore Edge Function reconciliation."
+            echo "NOTICE:Supabase management API rejected the configured GitHub token (HTTP 401). Skipping optional Supabase reconciliation so Cloudflare production deployment can still be verified."
+            echo "NOTICE:Rotate/update SUPABASE_ACCESS_TOKEN in the GitHub production environment to restore Edge Function reconciliation."
             echo "available=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
@@ -280,8 +282,8 @@ jobs:
           [[ -n "$MPESA_USD_KES_RATE" ]] || missing+=(MPESA_USD_KES_RATE)
 
           if [ "${#missing[@]}" -gt 0 ]; then
-            echo "::warning::M-Pesa sandbox secrets are not fully provisioned; skipping secret synchronization."
-            echo "::warning::Missing sandbox configuration names: ${missing[*]}"
+            echo "NOTICE:M-Pesa sandbox secrets are not fully provisioned; skipping secret synchronization."
+            echo "NOTICE:Missing sandbox configuration names: ${missing[*]}"
             echo "M-Pesa functions will still be deployed; STK readiness remains false until real sandbox credentials are added."
             exit 0
           fi
@@ -351,7 +353,7 @@ jobs:
                 return 1
               fi
               local delay=$((attempt * 20))
-              echo "::warning::Supabase Edge Function deployment hit a transient registry/deployment failure for $name; retrying in ${delay}s (attempt $((attempt+1))/$max_attempts)."
+              echo "NOTICE:Supabase Edge Function deployment hit a transient registry/deployment failure for $name; retrying in ${delay}s (attempt $((attempt+1))/$max_attempts)."
               sleep "$delay"
               attempt=$((attempt+1))
             done
@@ -398,7 +400,7 @@ jobs:
                 return 1
               fi
               local delay=$((attempt * 20))
-              echo "::warning::Supabase deployment for $name returned a retryable failure; waiting ${delay}s before attempt $((attempt+1))/$max_attempts."
+              echo "NOTICE:Supabase deployment for $name returned a retryable failure; waiting ${delay}s before attempt $((attempt+1))/$max_attempts."
               sleep "$delay"
               attempt=$((attempt+1))
             done
@@ -454,7 +456,7 @@ jobs:
                 return 1
               fi
               local delay=$((attempt * 20))
-              echo "::warning::Notification deployment returned a retryable failure; waiting ${delay}s before attempt $((attempt+1))/$max_attempts."
+              echo "NOTICE:Notification deployment returned a retryable failure; waiting ${delay}s before attempt $((attempt+1))/$max_attempts."
               sleep "$delay"
               attempt=$((attempt+1))
             done
@@ -527,7 +529,7 @@ jobs:
                 return 1
               fi
               delay=$((attempt * 20))
-              echo "::warning::Supabase Ads deployment returned a transient failure for $name; retrying in ${delay}s (attempt $((attempt+1))/$max_attempts)."
+              echo "NOTICE:Supabase Ads deployment returned a transient failure for $name; retrying in ${delay}s (attempt $((attempt+1))/$max_attempts)."
               sleep "$delay"
               attempt=$((attempt+1))
             done
@@ -686,7 +688,7 @@ jobs:
             echo "Cloudflare Stream Write permission verified and disposable preflight input removed."
           else
             if grep -q '"code"[[:space:]]*:[[:space:]]*10002' /tmp/testagram-cloudflare-stream.json && grep -qi 'stream not enabled' /tmp/testagram-cloudflare-stream.json; then
-              echo "::warning::Cloudflare Stream is not provisioned for this account. TV production will use the native Testagram WebRTC fallback until Stream is enabled."
+              echo "NOTICE:Cloudflare Stream is not provisioned for this account. TV production will use the native Testagram WebRTC fallback until Stream is enabled."
               export TESTAGRAM_TV_CLOUDFLARE_AVAILABLE=false
             else
               echo "::error::Cloudflare Stream credential/account access failed with HTTP $cf_status."
@@ -708,7 +710,7 @@ jobs:
             echo "Deploying tv-media-control (attempt $attempt/$max_attempts)"
             if supabase functions deploy tv-media-control --use-api --project-ref "$PROJECT_REF" --no-verify-jwt; then break; fi
             if (( attempt >= max_attempts )); then echo "::error::tv-media-control deployment failed after $max_attempts attempts."; exit 1; fi
-            delay=$((attempt * 20)); echo "::warning::tv-media-control deployment retrying in ${delay}s."; sleep "$delay"; attempt=$((attempt+1))
+            delay=$((attempt * 20)); echo "NOTICE:tv-media-control deployment retrying in ${delay}s."; sleep "$delay"; attempt=$((attempt+1))
           done
           echo "Testagram TV Cloudflare control-plane Edge Function deployed."
       - name: Reconcile Cloudflare DNS for Worker Custom Domains
@@ -867,7 +869,7 @@ jobs:
                   break
                 fi
               else
-                echo "::warning::HTTP 200 received but Cloudflare Server header is not yet present."
+                echo "NOTICE:HTTP 200 received but Cloudflare Server header is not yet present."
               fi
             else
               echo "Health endpoint is not ready yet (HTTP $status); waiting for Cloudflare Worker activation."
