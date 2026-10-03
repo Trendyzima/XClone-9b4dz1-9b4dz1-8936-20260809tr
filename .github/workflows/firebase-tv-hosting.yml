@@ -15,6 +15,7 @@ on:
       - ".github/workflows/firebase-tv-hosting.yml"
       - "package.json"
       - "package-lock.json"
+      - "public/tv/**"
   workflow_dispatch:
 
 permissions:
