@@ -1,0 +1,55 @@
+{
+  "version": 1,
+  "updatedAt": "2026-10-03",
+  "policy": "Only free/public streams intentionally made available by broadcasters or public-stream projects. Testagram does not copy or host broadcast video.",
+  "sources": [
+    {
+      "id": "iptv-org-ke",
+      "name": "IPTV-ORG Kenya",
+      "playlist": "https://iptv-org.github.io/iptv/countries/ke.m3u",
+      "scope": "Kenya"
+    },
+    {
+      "id": "iptv-org-ssa",
+      "name": "IPTV-ORG Sub-Saharan Africa",
+      "playlist": "https://iptv-org.github.io/iptv/regions/ssa.m3u",
+      "scope": "Africa"
+    },
+    {
+      "id": "iptv-org-global",
+      "name": "IPTV-ORG Global",
+      "playlist": "https://iptv-org.github.io/iptv/index.m3u",
+      "scope": "Worldwide"
+    },
+    {
+      "id": "freecast-global",
+      "name": "FreeCastHub Global",
+      "playlist": "https://raw.githubusercontent.com/freecasthub/public-iptv/main/playlist.m3u",
+      "scope": "Worldwide"
+    },
+    {
+      "id": "freecast-news",
+      "name": "FreeCastHub News",
+      "playlist": "https://raw.githubusercontent.com/freecasthub/public-iptv/main/news.m3u",
+      "scope": "News"
+    },
+    {
+      "id": "freecast-sports",
+      "name": "FreeCastHub Sports",
+      "playlist": "https://raw.githubusercontent.com/freecasthub/public-iptv/main/sports.m3u",
+      "scope": "Sports"
+    },
+    {
+      "id": "freecast-education",
+      "name": "FreeCastHub Education",
+      "playlist": "https://raw.githubusercontent.com/freecasthub/public-iptv/main/education.m3u",
+      "scope": "Education"
+    },
+    {
+      "id": "freecast-weather",
+      "name": "FreeCastHub Weather",
+      "playlist": "https://raw.githubusercontent.com/freecasthub/public-iptv/main/weather.m3u",
+      "scope": "Weather"
+    }
+  ]
+}
