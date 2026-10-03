@@ -16,6 +16,11 @@ export const TV_SOURCES: TvSource[] = [
 {id:'iptv-org-news',label:'IPTV-ORG · News',url:'https://iptv-org.github.io/iptv/categories/news.m3u',country:'INT',priority:128,enabled:true,policy:'public-free'},
 {id:'iptv-org-sports',label:'IPTV-ORG · Sports',url:'https://iptv-org.github.io/iptv/categories/sports.m3u',country:'INT',priority:127,enabled:true,policy:'public-free'},
 {id:'iptv-org-music',label:'IPTV-ORG · Music',url:'https://iptv-org.github.io/iptv/categories/music.m3u',country:'INT',priority:126,enabled:true,policy:'public-free'},
+{id:'freecast-global',label:'FreeCastHub · Global public broadcasters',url:'https://raw.githubusercontent.com/freecasthub/public-iptv/main/playlist.m3u',country:'INT',priority:124,enabled:true,policy:'public-free'},
+{id:'freecast-news',label:'FreeCastHub · News',url:'https://raw.githubusercontent.com/freecasthub/public-iptv/main/news.m3u',country:'INT',priority:123,enabled:true,policy:'public-free'},
+{id:'freecast-sports',label:'FreeCastHub · Sports',url:'https://raw.githubusercontent.com/freecasthub/public-iptv/main/sports.m3u',country:'INT',priority:122,enabled:true,policy:'public-free'},
+{id:'freecast-education',label:'FreeCastHub · Education',url:'https://raw.githubusercontent.com/freecasthub/public-iptv/main/education.m3u',country:'INT',priority:121,enabled:true,policy:'public-free'},
+{id:'freecast-weather',label:'FreeCastHub · Weather',url:'https://raw.githubusercontent.com/freecasthub/public-iptv/main/weather.m3u',country:'INT',priority:120,enabled:true,policy:'public-free'},
 ];
 function attr(line:string,key:string){ return line.match(new RegExp(key+'="([^"]*)"'))?.[1]?.trim() || undefined; }
 const clean=(v?:string)=>v?.replace(/\s+/g,' ').trim()||undefined;
