@@ -15,7 +15,7 @@ export function ProfileMiniSidebar({ username, active }: { username: string; act
     <aside aria-label="Profile navigation" className="sticky top-14 z-10 border-b border-border bg-background/90 backdrop-blur-xl shadow-sm">
       <div className="mx-auto max-w-6xl px-3 py-2">
         <div className="flex items-center gap-1 overflow-x-auto scrollbar-none snap-x" role="tablist" aria-label={`@${username} profile sections`}>
-          <button onClick={() => navigate(base)} aria-current={active === "Overview" ? "page" : undefined} aria-label="Profile overview"
+          <button onClick={() => navigate(base)} aria-current={active === "Posts" ? "page" : undefined} aria-label="Profile overview"
             className="shrink-0 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold hover:bg-muted transition-colors">
             <User className="h-4 w-4" /> Overview
           </button>
