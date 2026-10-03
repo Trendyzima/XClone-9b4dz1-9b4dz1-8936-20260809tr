@@ -711,18 +711,45 @@ jobs:
             delay=$((attempt * 20)); echo "::warning::tv-media-control deployment retrying in ${delay}s."; sleep "$delay"; attempt=$((attempt+1))
           done
           echo "Testagram TV Cloudflare control-plane Edge Function deployed."
-      - name: Prepare Cloudflare Worker production routes
+      - name: Reconcile Cloudflare DNS for Worker Custom Domains
         shell: bash
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.TESTAGRAM_CLOUDFLARE_ACCOUNT_ID || secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           set -euo pipefail
-          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is required for Cloudflare Worker deployment."; exit 1; }
-          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]')"
-          [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::Configured Testagram Cloudflare account ID is not a valid 32-character account ID."; exit 1; }
-          echo "Cloudflare credentials validated. Wrangler will attach the configured production routes during deployment."
-          echo "Production route targets: testagram.site/*, www.testagram.site/*"
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is required for Cloudflare DNS reconciliation."; exit 1; }
+
+          echo "Resolving active Cloudflare zone for testagram.site..."
+          zone_response="$(curl -sS -w '\n%{http_code}' --retry 4 --retry-delay 2             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"             -H "Accept: application/json"             "https://api.cloudflare.com/client/v4/zones?name=testagram.site&status=active")"
+          zone_status="${zone_response##*$'\n'}"
+          zone_body="${zone_response%$'\n'*}"
+          if [[ "$zone_status" != "200" ]]; then
+            echo "::error::Cloudflare API token cannot read the testagram.site zone (HTTP $zone_status). The deployment token must include Zone > Zone > Read and Zone > DNS > Edit for this zone."
+            printf '%s\n' "$zone_body"
+            exit 1
+          fi
+          zone_id="$(printf '%s' "$zone_body" | jq -r '.result[] | select(.status == "active") | .id' | head -n 1)"
+          [[ "$zone_id" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::Active testagram.site zone was not resolved."; exit 1; }
+          printf '::add-mask::%s\n' "$zone_id"
+
+          for host in testagram.site www.testagram.site; do
+            for type in A AAAA CNAME; do
+              echo "Checking $type records for $host..."
+              ids="$(curl --fail --silent --show-error --retry 4 --retry-delay 2                 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"                 -H "Accept: application/json"                 "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=$host&type=$type&per_page=100" |
+                jq -r '.result[]?.id')"
+              while IFS= read -r record_id; do
+                [[ -n "$record_id" ]] || continue
+                echo "Removing conflicting $type DNS record for $host before Custom Domain attachment."
+                status="$(curl -sS -o /tmp/cloudflare-dns-delete.json -w '%{http_code}'                   -X DELETE                   -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"                   -H "Accept: application/json"                   "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records/$record_id")"
+                [[ "$status" == "200" ]] || {
+                  echo "::error::Cloudflare DNS record deletion failed for $host/$type (HTTP $status)."
+                  cat /tmp/cloudflare-dns-delete.json
+                  exit 1
+                }
+              done <<< "$ids"
+            done
+          done
+          echo "Cloudflare DNS is clear for Worker Custom Domain attachment."
 
       - name: Deploy Cloudflare Worker and Custom Domains
         shell: bash
@@ -733,9 +760,9 @@ jobs:
           set -euo pipefail
           [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is missing from the production environment."; exit 1; }
           [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::Cloudflare account ID is missing or invalid. Configure CLOUDFLARE_ACCOUNT_ID or TESTAGRAM_CLOUDFLARE_ACCOUNT_ID in the production environment."; exit 1; }
-          echo "Deploying testagram-web to Cloudflare and applying configured production routes..."
+          echo "Deploying testagram-web to Cloudflare and applying configured Custom Domains..."
           npx wrangler deploy
-          echo "Cloudflare Worker deployment and production route configuration command completed."
+          echo "Cloudflare Worker deployment and Custom Domain configuration command completed."
 
       - name: Verify Cloudflare production domain
         shell: bash
