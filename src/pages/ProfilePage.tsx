@@ -1028,6 +1028,32 @@ export default function ProfilePage() {
       </div>
       <TopBar title={profile.username} showBack />
       <ProfileMiniSidebar username={profile.username} active={activeTab} />
+      <section aria-label="Profile identity" className="border-b border-border bg-card/60">
+        <div className="mx-auto max-w-6xl px-4 py-3 flex flex-wrap items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Permanent identity</p>
+            <div className="mt-0.5 flex items-center gap-2 min-w-0">
+              <span className="truncate text-sm font-black">@{profile.username}</span>
+              {profile.verified && <VerifiedTick size="sm" />}
+              <span className="hidden sm:inline text-[11px] text-muted-foreground">This handle is permanently owned by this account.</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-4 text-center shrink-0">
+            <button onClick={() => navigate(`/profile/${encodeURIComponent(profile.username)}/followers`)} className="hover:text-primary transition-colors">
+              <span className="block text-sm font-black">{formatNumber(profile.follower_count ?? followers.length ?? 0)}</span>
+              <span className="block text-[10px] text-muted-foreground">Followers</span>
+            </button>
+            <button onClick={() => navigate(`/profile/${encodeURIComponent(profile.username)}/following`)} className="hover:text-primary transition-colors">
+              <span className="block text-sm font-black">{formatNumber(profile.following_count ?? following.length ?? 0)}</span>
+              <span className="block text-[10px] text-muted-foreground">Following</span>
+            </button>
+            <button onClick={() => navigate(`/profile/${encodeURIComponent(profile.username)}`)} className="hover:text-primary transition-colors">
+              <span className="block text-sm font-black">{formatNumber(profile.post_count ?? posts.length ?? 0)}</span>
+              <span className="block text-[10px] text-muted-foreground">Posts</span>
+            </button>
+          </div>
+        </div>
+      </section>
       <ProfileAdBanner />
         {isOwnProfile && <AdvertiserSurface variant="profile" />}
 
