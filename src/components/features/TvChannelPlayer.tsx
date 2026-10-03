@@ -19,17 +19,18 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
  const cleanup=useCallback(()=>{if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;hls.current?.destroy();hls.current=null;const v=ref.current;if(v){v.pause();v.removeAttribute('src');v.load();}},[]);
  const healthy=useCallback(()=>{setStarting(false);setError(false);setNeedsGesture(false);retryRef.current=0;onHealth?.(channel.id,true);},[channel.id,onHealth]);
 
- const retry=useCallback(()=>{if(!active)return;if(playbackUrlRef.current===channel.url){playbackUrlRef.current=proxyUrl();retryRef.current=0;}else if(retryRef.current>=3){setStarting(false);setError(true);onHealth?.(channel.id,false);return;}retryRef.current++;retryTimer.current=setTimeout(()=>active&&startRef.current?.(),700*Math.pow(2,retryRef.current-1));},[active,channel.id,channel.url,onHealth,proxyUrl]);
+ const retry=useCallback(()=>{if(!active)return;if(playbackUrlRef.current===proxyUrl()){playbackUrlRef.current=channel.url;retryRef.current=0;}else if(retryRef.current>=3){setStarting(false);setError(true);onHealth?.(channel.id,false);return;}retryRef.current++;retryTimer.current=setTimeout(()=>active&&startRef.current?.(),700*Math.pow(2,retryRef.current-1));},[active,channel.id,channel.url,onHealth,proxyUrl]);
 
  const start=useCallback(()=>{
   const video=ref.current;if(!video||!active)return;cleanup();setStarting(true);setError(false);setNeedsGesture(false);
   window.dispatchEvent(new CustomEvent('testagram-tv-play',{detail:channel.id}));video.playsInline=true;video.autoplay=true;video.muted=true;
   const play=()=>{void video.play().then(healthy).catch((e:any)=>{if(e?.name==='NotAllowedError'){setNeedsGesture(true);setStarting(false);return;}retry();});};
   const directUrl=playbackUrlRef.current;
-  const looksLikeHls=/\.m3u8(?:$|[?#])/i.test(directUrl);
+  const looksLikeHls=/\.m3u8(?:$|[?#])/i.test(channel.url);
+  const playbackUrl=looksLikeHls?directUrl:playbackUrlRef.current;
   const looksLikeFile=/\.(mp4|webm|ogg)(?:$|[?#])/i.test(directUrl);
   if(video.canPlayType('application/vnd.apple.mpegurl')||looksLikeFile){
-    video.src=directUrl;
+    video.src=playbackUrl;
     video.addEventListener('loadedmetadata',play,{once:true});
     video.addEventListener('canplay',healthy,{once:true});
     video.addEventListener('playing',healthy,{once:true});
@@ -37,13 +38,13 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
     if(looksLikeFile) void video.play().catch((e:any)=>{if(e?.name!=='NotAllowedError')retry();else{setNeedsGesture(true);setStarting(false);}});
     return;
   }
-  if(Hls.isSupported()&&!looksLikeFile){const h=new Hls({enableWorker:true,lowLatencyMode:true,startFragPrefetch:true,initialLiveManifestSize:2,backBufferLength:6,maxBufferLength:30,maxMaxBufferLength:60,maxBufferSize:96*1024*1024,maxBufferHole:0.25,highBufferWatchdogPeriod:2,nudgeOffset:0.15,nudgeMaxRetry:4,liveSyncDurationCount:4,liveMaxLatencyDurationCount:9,manifestLoadingMaxRetry:4,levelLoadingMaxRetry:5,fragLoadingMaxRetry:5,fragLoadingRetryDelay:1000,fragLoadingMaxRetryTimeout:8000});hls.current=h;h.loadSource(playbackUrlRef.current);h.attachMedia(video);h.on(Hls.Events.MANIFEST_PARSED,play);h.on(Hls.Events.FRAG_BUFFERED,healthy);h.on(Hls.Events.ERROR,(_,d)=>{if(!d.fatal)return;if(d.type===Hls.ErrorTypes.MEDIA_ERROR&&playbackUrlRef.current!==channel.url){try{h.recoverMediaError();return;}catch{}}retry();});return;}
-  if(!looksLikeHls){video.src=directUrl;video.addEventListener('canplay',healthy,{once:true});video.addEventListener('error',retry,{once:true});void video.play().catch(()=>{});return;}
+  if(Hls.isSupported()&&!looksLikeFile){const h=new Hls({enableWorker:true,lowLatencyMode:true,startFragPrefetch:true,initialLiveManifestSize:2,backBufferLength:6,maxBufferLength:30,maxMaxBufferLength:60,maxBufferSize:96*1024*1024,maxBufferHole:0.25,highBufferWatchdogPeriod:2,nudgeOffset:0.15,nudgeMaxRetry:4,liveSyncDurationCount:4,liveMaxLatencyDurationCount:9,manifestLoadingMaxRetry:4,levelLoadingMaxRetry:5,fragLoadingMaxRetry:5,fragLoadingRetryDelay:1000,fragLoadingMaxRetryTimeout:8000});hls.current=h;h.loadSource(playbackUrl);h.attachMedia(video);h.on(Hls.Events.MANIFEST_PARSED,play);h.on(Hls.Events.FRAG_BUFFERED,healthy);h.on(Hls.Events.ERROR,(_,d)=>{if(!d.fatal)return;if(d.type===Hls.ErrorTypes.MEDIA_ERROR&&playbackUrlRef.current!==channel.url){try{h.recoverMediaError();return;}catch{}}retry();});return;}
+  if(!looksLikeHls){video.src=playbackUrl;video.addEventListener('canplay',healthy,{once:true});video.addEventListener('error',retry,{once:true});void video.play().catch(()=>{});return;}
   setStarting(false);setError(true);onHealth?.(channel.id,false);
  },[active,channel.id,channel.url,cleanup,healthy,retry,onHealth]);
  startRef.current=start;
 
- useEffect(()=>{retryRef.current=0;playbackUrlRef.current=channel.url;if(active){start();return cleanup;}cleanup();setError(false);setStarting(false);setNeedsGesture(false);},[active,channel.url,start,cleanup]);
+ useEffect(()=>{retryRef.current=0;playbackUrlRef.current=/\.m3u8(?:$|[?#])/i.test(channel.url)?proxyUrl():channel.url;if(active){start();return cleanup;}cleanup();setError(false);setStarting(false);setNeedsGesture(false);},[active,channel.url,start,cleanup]);
 
  useEffect(()=>{const onOnline=()=>{retryRef.current=0;if(active)startRef.current?.();};const onOffline=()=>setStarting(true);window.addEventListener('online',onOnline);window.addEventListener('offline',onOffline);return()=>{window.removeEventListener('online',onOnline);window.removeEventListener('offline',onOffline);};},[active]);
  useEffect(()=>{const video=ref.current;if(!video)return;const recoverable=()=>{if(active&&!starting)setStarting(true);retry();};video.addEventListener('waiting',recoverable);video.addEventListener('stalled',recoverable);return()=>{video.removeEventListener('waiting',recoverable);video.removeEventListener('stalled',recoverable);};},[active,retry,starting]);
