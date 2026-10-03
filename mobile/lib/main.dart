@@ -2,13 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 const _green = Color(0xFF16A34A);
+const _surface = Color(0xFFF6F8F6);
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   const url = String.fromEnvironment('SUPABASE_URL');
-  const anonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
-  if (url.isNotEmpty && anonKey.isNotEmpty) {
-    await Supabase.initialize(url: url, publishableKey: anonKey);
+  const publishableKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+  if (url.isNotEmpty && publishableKey.isNotEmpty) {
+    await Supabase.initialize(url: url, publishableKey: publishableKey);
   }
   runApp(const TestagramApp());
 }
@@ -22,7 +23,8 @@ class TestagramApp extends StatelessWidget {
     theme: ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(seedColor: _green),
-      scaffoldBackgroundColor: const Color(0xFFF8FAF8),
+      scaffoldBackgroundColor: _surface,
+      appBarTheme: const AppBarTheme(centerTitle: false, elevation: 0, scrolledUnderElevation: 0),
       navigationBarTheme: const NavigationBarThemeData(height: 72),
     ),
     darkTheme: ThemeData(
@@ -48,7 +50,7 @@ class _MobileShellState extends State<MobileShell> {
   @override
   Widget build(BuildContext context) => Scaffold(
     body: SafeArea(bottom: false, child: IndexedStack(index: index, children: pages)),
-    floatingActionButton: FloatingActionButton(onPressed: () {}, tooltip: 'Create', child: const Icon(Icons.add_rounded)),
+    floatingActionButton: FloatingActionButton.extended(onPressed: () {}, icon: const Icon(Icons.edit_rounded), label: const Text('Post')),
     bottomNavigationBar: NavigationBar(
       selectedIndex: index,
       onDestinationSelected: (value) => setState(() => index = value),
@@ -68,9 +70,9 @@ class _FeedPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) => CustomScrollView(
     slivers: [
-      const SliverAppBar(pinned: true, titleSpacing: 20, title: Text('Testagram', style: TextStyle(fontWeight: FontWeight.w900))),
+      SliverAppBar(pinned: true, titleSpacing: 20, title: const Row(children: [CircleAvatar(radius: 17, backgroundColor: _green, child: Icon(Icons.flutter_dash_rounded, color: Colors.white, size: 20)), SizedBox(width: 10), Text('Testagram', style: TextStyle(fontWeight: FontWeight.w900))]), actions: [IconButton(onPressed: () {}, tooltip: 'Search', icon: const Icon(Icons.search_rounded)), const SizedBox(width: 6)]),
       SliverPadding(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 110),
         sliver: SliverList.separated(
           itemCount: 4,
           separatorBuilder: (_, __) => const SizedBox(height: 12),
@@ -98,12 +100,12 @@ class _PostCard extends StatelessWidget {
           Icon(Icons.more_horiz_rounded),
         ]),
         SizedBox(height: 14),
-        Text('Flutter mobile foundation. Production data and feature parity are added incrementally behind validated contracts.'),
+        Text('Welcome to Testagram — a cleaner home for conversations, media and communities.', style: TextStyle(fontSize: 16, height: 1.35)),
         SizedBox(height: 16),
         Row(children: [
-          Icon(Icons.favorite_border_rounded, size: 21), SizedBox(width: 18),
-          Icon(Icons.chat_bubble_outline_rounded, size: 21), SizedBox(width: 18),
-          Icon(Icons.repeat_rounded, size: 21), SizedBox(width: 18),
+          Icon(Icons.favorite_border_rounded, size: 21), const SizedBox(width: 18),
+          Icon(Icons.chat_bubble_outline_rounded, size: 21), const SizedBox(width: 18),
+          Icon(Icons.repeat_rounded, size: 21), const SizedBox(width: 18),
           Icon(Icons.bookmark_border_rounded, size: 21),
         ]),
       ]),
