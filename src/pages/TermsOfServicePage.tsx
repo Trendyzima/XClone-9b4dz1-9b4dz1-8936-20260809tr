@@ -1,6 +1,7 @@
 import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
 import { LegalMiniSidebar } from '@/components/layout/LegalMiniSidebar';
+import { LegalMiniSidebar } from '@/components/layout/LegalMiniSidebar';
 import { FileText, Users, CreditCard, Shield, AlertTriangle, Scale, Globe, Handshake } from 'lucide-react';
 
 // Module-level data (esbuild guard: no inline arrays in render)
@@ -136,6 +137,7 @@ export default function TermsOfServicePage() {
   return (
     <div className="min-h-screen bg-background pb-20">
       <TopBar title="Terms of Service" showBack />
+      <LegalMiniSidebar />
       <LegalMiniSidebar />
 
       <div className="max-w-3xl mx-auto p-4 space-y-6">
