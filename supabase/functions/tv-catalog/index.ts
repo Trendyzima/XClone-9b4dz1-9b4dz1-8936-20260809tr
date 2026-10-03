@@ -59,7 +59,7 @@ async function upstash(command:string[]) {
 }
 
 async function getCachedChannels(sourceId:string) {
-  const value = await upstash(["GET", "tv:catalog:v1:" + sourceId]);
+  const value = await upstash(["GET", "tv:catalog:v3:" + sourceId]);
   if (typeof value !== "string" || !value) return null;
   try { return JSON.parse(value); } catch { return null; }
 }
@@ -67,7 +67,7 @@ async function getCachedChannels(sourceId:string) {
 async function setCachedChannels(sourceId:string, payload:unknown) {
   const value = JSON.stringify(payload);
   if (value.length > 9000000) return;
-  await upstash(["SET", "tv:catalog:v1:" + sourceId, value, "EX", "120"]);
+  await upstash(["SET", "tv:catalog:v3:" + sourceId, value, "EX", "120"]);
 }
 const clean = (v:string|undefined) => v?.replace(/\s+/g," ").trim() || undefined;
 const attr = (line:string,key:string) => line.match(new RegExp(key+'="([^"]*)"',"i"))?.[1]?.trim();
@@ -162,6 +162,8 @@ async function probeStream(url:string, signal:AbortSignal) {
     return /video|audio|mpeg|mp2t|octet-stream/.test(type)||r.status===206;
   } catch{return false} finally{clearTimeout(t2);signal.removeEventListener("abort",a2);}
 }
+function browserPlaybackUrl(url:string) { return "https://ffrhglgkukgsuhxenena.supabase.co/functions/v1/tv-stream-proxy?url="+encodeURIComponent(url); }
+
 async function onlyLiveChannels(channels:any[],signal:AbortSignal,max=8){
   const candidates=channels.filter(c=>/^https:\/\//i.test(String(c?.url||""))).slice(0,max*3); const live:any[]=[]; let cursor=0;
   const worker=async()=>{while(cursor<candidates.length&&live.length<max){const c=candidates[cursor++];if(await probeStream(c.url,signal))live.push({...c,live:true,live_checked_at:new Date().toISOString()});}};
@@ -255,6 +257,7 @@ Deno.serve(async(req)=>{
     }).sort((a,b)=>b.priority-a.priority).slice(0,160);
     // Only publish streams that are currently reachable and recognizable as media/HLS.
     channels=await onlyLiveChannels(channels,controller.signal,8);
+    channels=channels.map(c=>({...c,source_url:c.url,url:browserPlaybackUrl(String(c.url))}));
 
     const payload = {
       source,
