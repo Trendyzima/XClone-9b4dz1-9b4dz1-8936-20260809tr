@@ -9,18 +9,18 @@ const SOURCES = [
 ];
 
 const blocked = /(adult|porn|xxx|premium|paid subscription|xtream|stalker|pirate)/i;
-const clean = v => v?.replace(/\\s+/g," ").trim() || undefined;
+const clean = v => v?.replaceAll("\t"," ").replaceAll("\r"," ").trim() || undefined;
 const attr = (line,key) => line.match(new RegExp(key+'="([^"]*)"',"i"))?.[1]?.trim();
 
 function parse(text, source) {
-  const lines=text.replace(/^\\uFEFF/,"").split(/\\r?\\n/);
+  const lines=text.split(/\r?\n/);
   const out=[]; let info=null;
   for(const raw of lines) {
     if(out.length >= MAX) break;
     const line=raw.trim(); if(!line) continue;
     if(line.startsWith("#EXTINF")) { info=line; continue; }
     if(line.startsWith("#")) continue;
-    if(!info || !/^https?:\\/\\//i.test(line)) { info=null; continue; }
+    if(!info || !(line.startsWith("http://") || line.startsWith("https://"))) { info=null; continue; }
     const comma=info.indexOf(",");
     const name=clean(comma>=0 ? info.slice(comma+1) : attr(info,"tvg-name")) || "Live TV";
     const url=line;
