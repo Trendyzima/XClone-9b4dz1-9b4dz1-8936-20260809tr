@@ -711,16 +711,21 @@ jobs:
             delay=$((attempt * 20)); echo "::warning::tv-media-control deployment retrying in ${delay}s."; sleep "$delay"; attempt=$((attempt+1))
           done
           echo "Testagram TV Cloudflare control-plane Edge Function deployed."
-      - name: Install pinned Vercel CLI
-        run: npm install --global vercel@54.15.1
-
       - name: Verify Cloudflare production domain
         shell: bash
         run: |
           set -euo pipefail
           echo "Verifying Testagram production origin at https://testagram.site"
 
-          curl --fail --silent --show-error --location --retry 8 --retry-delay 5             "https://testagram.site/api/health" > health.txt
+          curl --fail --silent --show-error --location --retry 8 --retry-delay 5 \
+            -D response-headers.txt \
+            "https://testagram.site/api/health" > health.txt
+
+          grep -Eiq '^server:[[:space:]]*cloudflare' response-headers.txt || {
+            echo "::error::testagram.site is not currently being served by Cloudflare Workers."
+            cat response-headers.txt
+            exit 1
+          }
 
           node - <<'NODE'
           const fs=require("node:fs");
