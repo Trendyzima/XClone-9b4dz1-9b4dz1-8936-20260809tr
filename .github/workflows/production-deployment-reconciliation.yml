@@ -834,13 +834,13 @@ jobs:
             if [[ "$status" == "200" ]]; then
               if grep -Eiq '^server:[[:space:]]*cloudflare' response-headers.txt; then
                 if node - <<'NODE'
-const fs=require("node:fs");
-const body=fs.readFileSync("health.txt","utf8").trim();
-let p;
-try { p=JSON.parse(body); } catch { process.exit(1); }
-if (p?.ok !== true || p?.service !== "testagram" || p?.edge !== "reachable") process.exit(1);
-console.log("Production liveness passed:", JSON.stringify(p));
-NODE
+          const fs=require("node:fs");
+          const body=fs.readFileSync("health.txt","utf8").trim();
+          let p;
+          try { p=JSON.parse(body); } catch { process.exit(1); }
+          if (p?.ok !== true || p?.service !== "testagram" || p?.edge !== "reachable") process.exit(1);
+          console.log("Production liveness passed:", JSON.stringify(p));
+          NODE
                 then
                   health_ok=true
                   break
@@ -874,13 +874,13 @@ NODE
             status="$(curl -sS --location --connect-timeout 10 --max-time 30               -o ready.txt -w '%{http_code}' "https://testagram.site/api/ready" || true)"
             if [[ "$status" == "200" ]]; then
               if node - <<'NODE'
-const fs=require("node:fs");
-const body=fs.readFileSync("ready.txt","utf8").trim();
-let p;
-try { p=JSON.parse(body); } catch { process.exit(1); }
-if (p?.ok !== true || p?.database !== "reachable") process.exit(1);
-console.log("Production database readiness passed:", JSON.stringify(p));
-NODE
+          const fs=require("node:fs");
+          const body=fs.readFileSync("ready.txt","utf8").trim();
+          let p;
+          try { p=JSON.parse(body); } catch { process.exit(1); }
+          if (p?.ok !== true || p?.database !== "reachable") process.exit(1);
+          console.log("Production database readiness passed:", JSON.stringify(p));
+          NODE
               then
                 ready_ok=true
                 break
