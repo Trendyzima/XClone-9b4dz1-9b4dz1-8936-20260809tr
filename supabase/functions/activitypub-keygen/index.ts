@@ -18,7 +18,7 @@ const cors = {
 };
 
 function json(body: unknown, status = 200) {
-  return new Response(JSON.stringify(body), { status, headers: cors });
+  return new Response(JSON.stringify(body ?? { error: "Empty response" }), { status, headers: { ...cors, "Cache-Control": "no-store", "X-Testagram-Function": "activitypub-keygen" } });
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
