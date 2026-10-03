@@ -2242,7 +2242,13 @@ function SpendLimitCard({ userId, wallet, onSaved }: { userId: string; wallet: a
 
   const fetchTodaySpend = async () => {
     const since = new Date(); since.setHours(0, 0, 0, 0);
-    const { data } = await supabase.from('wallet_transactions').select('amount').eq('user_id', userId).eq('type', 'withdrawal').gte('created_at', since.toISOString());
+    const { data, error } = await supabase.from('wallet_transactions')
+      .select('amount').eq('user_id', userId).eq('type', 'withdrawal')
+      .gte('created_at', since.toISOString());
+    if (error) {
+      console.error('Wallet spend-limit history error:', error);
+      return;
+    }
     setTodaySpent((data ?? []).reduce((s: number, t: any) => s + Number(t.amount), 0));
   };
 
