@@ -32,7 +32,7 @@ jobs:
   deploy:
     name: Build and deploy Testagram TV to Firebase Hosting
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -55,6 +55,14 @@ jobs:
           VITE_POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY }}
           VITE_POSTHOG_HOST: ${{ vars.VITE_POSTHOG_HOST }}
 
+      - name: Validate Firebase deployment configuration
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          set -euo pipefail
+          test -n "$FIREBASE_SERVICE_ACCOUNT"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" | jq -e '.type == "service_account" and .project_id == "twitter-clone-ccrsxx-2513a" and (.client_email | type == "string") and (.private_key | type == "string")' >/dev/null
+          echo "Firebase service account is valid for the expected project."
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
