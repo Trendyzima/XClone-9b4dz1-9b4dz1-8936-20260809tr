@@ -158,7 +158,23 @@ async function probeStream(url:string, signal:AbortSignal) {
   try {
     const r=await fetch(url,{method:"GET",redirect:"follow",signal:c2.signal,headers:{"User-Agent":"TestagramTV-Health/1.0","Accept":"application/vnd.apple.mpegurl,application/x-mpegURL,video/*,audio/*,*/*","Range":"bytes=0-2047"}});
     if(!r.ok&&r.status!==206)return false; const type=(r.headers.get("content-type")||"").toLowerCase();
-    if(/mpegurl|m3u/.test(type)){const body=await r.text();return /#EXTM3U|#EXTINF|#EXT-X-/.test(body);}
+    if(/mpegurl|m3u/.test(type)){
+      const body=await r.text();
+      if(!/#EXTM3U|#EXTINF|#EXT-X-/.test(body)) return false;
+      const base=new URL(r.url||url);
+      const child=body.split(/\\r?\\n/).map(x=>x.trim()).find(x=>x && !x.startsWith("#"));
+      if(!child) return true;
+      try{
+        const media=new URL(child,base).toString();
+        const c3=new AbortController(); const t3=setTimeout(()=>c3.abort(),1800);
+        try{
+          const m=await fetch(media,{method:"GET",redirect:"follow",signal:c3.signal,headers:{"User-Agent":"TestagramTV-Health/1.0","Accept":"video/*,audio/*,application/octet-stream,*/*","Range":"bytes=0-2047"}});
+          if(!m.ok&&m.status!==206) return false;
+          const mt=(m.headers.get("content-type")||"").toLowerCase();
+          return m.status===206 || /video|audio|mpeg|mp2t|octet-stream/.test(mt);
+        } finally { clearTimeout(t3); }
+      } catch { return false; }
+    }
     return /video|audio|mpeg|mp2t|octet-stream/.test(type)||r.status===206;
   } catch{return false} finally{clearTimeout(t2);signal.removeEventListener("abort",a2);}
 }
