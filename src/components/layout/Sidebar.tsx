@@ -47,6 +47,9 @@ export function Sidebar() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showCommunities, setShowCommunities] = useState(true);
   const [showTrending, setShowTrending] = useState(true);
+  const [showLibrary, setShowLibrary] = useState(true);
+  const [showCreator, setShowCreator] = useState(true);
+  const [showAdmin, setShowAdmin] = useState(false);
   const [isEmployee, setIsEmployee] = useState(false);
 
   // Check employee status for team-chat link visibility
