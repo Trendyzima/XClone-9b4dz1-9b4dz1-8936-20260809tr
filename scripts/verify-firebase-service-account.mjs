@@ -52,6 +52,11 @@ const tokenResponse = await request('https://oauth2.googleapis.com/token', {
 
 if (tokenResponse.status !== 200) {
   console.error('OAuth token exchange failed with HTTP ' + tokenResponse.status);
+  try {
+    const error = JSON.parse(tokenResponse.data);
+    if (error.error) console.error('Google OAuth error: ' + error.error);
+    if (error.error_description) console.error('Google OAuth description: ' + error.error_description);
+  } catch {}
   process.exit(1);
 }
 
