@@ -32,6 +32,12 @@ const CHART_COLORS = ['#06b6d4', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#3
 
 type FediversePageProps = { initialTab?: Tab; standalone?: boolean };
 
+async function readJsonResponse<T = any>(response: Response): Promise<T | null> {
+  const raw = await response.text();
+  if (!raw.trim()) return null;
+  try { return JSON.parse(raw) as T; } catch { return null; }
+}
+
 export default function FediversePage({ initialTab = 'feed', standalone = false }: FediversePageProps) {
   useSEO({
     title: 'Fediverse — Connect Across the Open Web | Testagram',
@@ -245,13 +251,13 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
         body: JSON.stringify({ action: 'public_timeline', instance, limit: 20 }),
       });
       if (res.ok) {
-        const d = await res.json();
+        const d = await readJsonResponse(res);
         const posts = Array.isArray(d) ? d : d?.statuses ?? d?.data ?? [];
         if (posts.length > 0) { setMastodonPosts(posts); setLoadingMastodon(false); return; }
       }
       const directRes = await fetch(`https://${instance}/api/v1/timelines/public?limit=20`);
       if (!directRes.ok) throw new Error('Direct fetch failed');
-      const data = await directRes.json();
+      const data = await readJsonResponse(directRes);
       setMastodonPosts(Array.isArray(data) ? data : []);
     } catch {
       setMastodonPosts([]);
@@ -264,7 +270,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
     try {
       const res = await fetch('https://api.joinmastodon.org/servers?language=&category=&region=&ownership=&registrations=');
       if (!res.ok) throw new Error('API unavailable');
-      const data = await res.json();
+      const data = await readJsonResponse(res);
       const sorted = (Array.isArray(data) ? data : [])
         .filter((s: any) => s.total_users > 200 && s.last_week_users > 50)
         .sort((a: any, b: any) => b.last_week_users - a.last_week_users)
@@ -311,7 +317,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
         body: JSON.stringify({ action: 'search', instance: mastodonInstance, q, type: 'statuses', limit: 20 }),
       });
       if (!res.ok) throw new Error();
-      const data = await res.json();
+      const data = await readJsonResponse(res);
       setMastodonSearchResults(data.statuses ?? []);
     } catch { setMastodonSearchResults([]); }
     setSearchingMastodon(false);
@@ -813,7 +819,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
         body: JSON.stringify({ action: 'trending_tags', limit: 15 }),
       });
       if (!res.ok) throw new Error('Gateway unavailable');
-      const data = await res.json();
+      const data = await readJsonResponse(res);
       const tags = Array.isArray(data) ? data.map((t: any) => ({ tag: t.name ?? t.tag ?? t, count: t.history?.[0]?.uses ?? 0 })) : [];
       if (tags.length > 0) { setFedTrendingTags(tags); setLoadingFedTags(false); return; }
       throw new Error('empty');
@@ -835,7 +841,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ action: 'search', query: q, type: 'statuses', limit: 20 }),
       });
-      const data = await res.json();
+      const data = await readJsonResponse(res);
       const posts = Array.isArray(data) ? data : data?.statuses ?? data?.posts ?? data?.data ?? [];
       if (posts.length === 0 && !res.ok) throw new Error(data?.error ?? 'No results');
       setKeywordResults(posts);
@@ -856,9 +862,10 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ user_id: user.id }),
       });
-      const data = await res.json();
-      if (data.status === 'created' || data.status === 'exists') { setKeysReady(true); toast.success('RSA keys ready!'); fetchMyActor(); }
-      else toast.error(data.error ?? 'Keygen failed');
+      const data = await readJsonResponse<{ status?: string; error?: string }>(res);
+      if (!res.ok) { toast.error(data?.error ?? `Keygen service unavailable (HTTP ${res.status})`); return; }
+      if (data?.status === 'created' || data?.status === 'exists') { setKeysReady(true); toast.success('RSA keys ready!'); fetchMyActor(); }
+      else toast.error(data?.error ?? `Keygen service returned an empty or invalid response (HTTP ${res.status})`);
     } catch (err: any) { toast.error('Keygen error: ' + err.message); }
   };
 
@@ -874,9 +881,10 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ generate_all_missing: true }),
       });
-      const data = await res.json();
-      if (data.status === 'backfill_complete') toast.success(`Backfill done: ${data.generated} generated, ${data.failed} failed`);
-      else toast.error(data.error ?? 'Backfill failed');
+      const data = await readJsonResponse<{ status?: string; generated?: number; failed?: number; error?: string }>(res);
+      if (!res.ok) { toast.error(data?.error ?? `Key backfill service unavailable (HTTP ${res.status})`); return; }
+      if (data?.status === 'backfill_complete') toast.success(`Backfill done: ${data.generated} generated, ${data.failed} failed`);
+      else toast.error(data?.error ?? `Key backfill returned an empty or invalid response (HTTP ${res.status})`);
     } catch (err: any) { toast.error('Backfill error: ' + err.message); }
   };
 
