@@ -17,6 +17,9 @@ async function probe(url:string){
 }
 Deno.serve(async(req)=>{
  if(req.method==="OPTIONS") return new Response("ok",{headers:cors});
+ const supplied=req.headers.get("apikey")||req.headers.get("authorization")?.replace(/^Bearer\\s+/i,"");
+ const serviceKey=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+ if(!serviceKey || supplied!==serviceKey) return new Response(JSON.stringify({error:"Unauthorized"}),{status:401,headers:cors});
  const body=await req.json().catch(()=>({}));
  const channels=Array.isArray(body.channels)?body.channels: [];
  const batch=channels.slice(0,Number(body.limit||100));
