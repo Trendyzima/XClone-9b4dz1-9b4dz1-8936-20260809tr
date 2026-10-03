@@ -711,6 +711,19 @@ jobs:
             delay=$((attempt * 20)); echo "::warning::tv-media-control deployment retrying in ${delay}s."; sleep "$delay"; attempt=$((attempt+1))
           done
           echo "Testagram TV Cloudflare control-plane Edge Function deployed."
+      - name: Deploy Cloudflare Worker and Custom Domains
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is missing from the production environment."; exit 1; }
+          [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::CLOUDFLARE_ACCOUNT_ID is missing or invalid."; exit 1; }
+          echo "Deploying testagram-web to Cloudflare and applying configured Custom Domains..."
+          npx wrangler deploy
+          echo "Cloudflare Worker deployment and Custom Domain configuration command completed."
+
       - name: Verify Cloudflare production domain
         shell: bash
         run: |
