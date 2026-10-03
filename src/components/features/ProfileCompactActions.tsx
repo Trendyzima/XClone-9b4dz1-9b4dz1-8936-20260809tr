@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { BadgeCheck, Ban, Check, Crown, DollarSign, Gift, Globe, MessageCircle, MoreHorizontal, Send, Share2, ShieldCheck, Volume2, VolumeX } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -57,6 +57,8 @@ export function ProfileCompactActions({
 }: ProfileCompactActionsProps) {
   const [open, setOpen] = useState(false);
 
+  useEffect(() => { if (!open) return; const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') setOpen(false); }; window.addEventListener('keydown', onKeyDown); return () => window.removeEventListener('keydown', onKeyDown); }, [open]);
+
   const close = () => setOpen(false);
   const share = () => { close(); onShare(); };
 
@@ -85,17 +87,17 @@ export function ProfileCompactActions({
         </>
       )}
 
-      <button onClick={() => setOpen(v => !v)} aria-expanded={open} aria-label="More profile actions" className="p-2 rounded-full border border-border hover:bg-muted transition-colors">
+      <button onClick={() => setOpen(v => !v)} aria-expanded={open} aria-haspopup="menu" aria-label="More profile actions" className="p-2 rounded-full border border-border hover:bg-muted transition-colors">
         <MoreHorizontal className="w-4 h-4" />
       </button>
 
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={close} />
-          <div className="absolute right-0 top-full mt-2 z-50 w-60 rounded-2xl border border-border bg-background shadow-xl overflow-hidden">
+          <div role="menu" aria-label={`Actions for @${username}`} className="absolute right-0 top-full mt-2 z-50 w-64 rounded-2xl border border-border bg-background shadow-xl overflow-hidden">
             {!isOwnProfile && (
               <>
-                <button onClick={() => { close(); onTip(); }} className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted">
+                <button onClick={() => { close(); onTip(); }} role="menuitem" className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted">
                   <DollarSign className="w-4 h-4 text-yellow-600" /> Send a tip
                 </button>
                 <button onClick={() => { close(); onSend(); }} className="w-full flex items-center gap-3 px-4 py-3 text-left text-sm hover:bg-muted">
