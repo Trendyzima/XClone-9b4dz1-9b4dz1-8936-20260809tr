@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
+import { SettingsMiniSidebar } from '@/components/layout/SettingsMiniSidebar';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -348,7 +349,8 @@ export default function SettingsPage({ section = 'all' }: { section?: 'all' | 'a
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-0">
       <TopBar title="Settings" showBack />
-      <div className="divide-y divide-border">
+      <SettingsMiniSidebar active={section} />
+      <div className="mx-auto w-full max-w-4xl divide-y divide-border">
 
         {/* ── Account ── */}
         <div className="p-4">
