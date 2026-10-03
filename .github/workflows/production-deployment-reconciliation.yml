@@ -714,21 +714,18 @@ jobs:
       - name: Reconcile Cloudflare DNS for Worker Custom Domains
         shell: bash
         env:
-          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: \${{ secrets.TESTAGRAM_CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           set -euo pipefail
-          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]')"
           [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is required for Cloudflare DNS reconciliation."; exit 1; }
-          [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::Configured Testagram Cloudflare account ID is not a valid 32-character account ID."; exit 1; }
 
           echo "Resolving active Cloudflare zone for testagram.site..."
           zone_id="$(curl --fail --silent --show-error --retry 4 --retry-delay 2 \
             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
             -H "Accept: application/json" \
             "https://api.cloudflare.com/client/v4/zones?name=testagram.site&status=active" |
-            jq -r --arg account "$CLOUDFLARE_ACCOUNT_ID" '.result[] | select(.account.id == $account and .status == "active") | .id' | head -n 1)"
-          [[ "$zone_id" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::Active testagram.site zone was not resolved for the configured Cloudflare account."; exit 1; }
+            jq -r '.result[] | select(.status == "active") | .id' | head -n 1)"
+          [[ "$zone_id" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::Active testagram.site zone was not resolved through the Cloudflare API token."; exit 1; }
           printf '::add-mask::%s\n' "$zone_id"
 
           for host in testagram.site www.testagram.site; do
