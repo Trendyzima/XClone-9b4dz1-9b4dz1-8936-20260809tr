@@ -63,6 +63,7 @@ jobs:
           test -n "$FIREBASE_SERVICE_ACCOUNT_JSON"
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -e '.type == "service_account" and .project_id == "twitter-clone-ccrsxx-2513a" and (.client_email | type == "string") and (.private_key | type == "string")' >/dev/null
           echo "Firebase service account is valid for the expected project."
+
       - name: Deploy to Firebase Hosting
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
@@ -72,8 +73,5 @@ jobs:
           trap 'rm -f "$GOOGLE_APPLICATION_CREDENTIALS"' EXIT
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
           chmod 600 "$GOOGLE_APPLICATION_CREDENTIALS"
-          npm exec --yes --package=firebase-tools@15.32.1 -- firebase projects:list --json >/dev/null
-          npm exec --yes --package=firebase-tools@15.32.1 -- firebase deploy \
-            --only hosting:testagram-tv \
-            --project twitter-clone-ccrsxx-2513a \
-            --json
+          npm exec --yes --package=firebase-tools@15.32.1 -- firebase projects:list --debug --json
+          npm exec --yes --package=firebase-tools@15.32.1 -- firebase deploy             --only hosting:testagram-tv             --project twitter-clone-ccrsxx-2513a             --debug             --json
