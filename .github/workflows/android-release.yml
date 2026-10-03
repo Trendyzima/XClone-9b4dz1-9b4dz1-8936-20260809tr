@@ -42,6 +42,31 @@ jobs:
       - name: Build and verify web application
         run: npm run build
 
+      - name: Sync Android launcher icon from website favicon
+        run: |
+          set -euo pipefail
+          python3 -m pip install --disable-pip-version-check --quiet pillow
+          python3 - <<'PY'
+          from pathlib import Path
+          from PIL import Image
+
+          src = Image.open("public/favicon.ico").convert("RGBA")
+          sizes = {
+              "mipmap-mdpi": 48,
+              "mipmap-hdpi": 72,
+              "mipmap-xhdpi": 96,
+              "mipmap-xxhdpi": 144,
+              "mipmap-xxxhdpi": 192,
+          }
+
+          for folder, size in sizes.items():
+              out_dir = Path("android/app/src/main/res") / folder
+              out_dir.mkdir(parents=True, exist_ok=True)
+              icon = src.resize((size, size), Image.Resampling.LANCZOS)
+              for name in ("ic_launcher.png", "ic_launcher_round.png", "ic_launcher_foreground.png"):
+                  icon.save(out_dir / name, format="PNG", optimize=True)
+          PY
+
       - name: Configure Android release signing
         id: signing
         env:
