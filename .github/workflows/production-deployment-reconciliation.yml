@@ -21,12 +21,6 @@ permissions:
   contents: read
 
 env:
-  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-  # Never repeat a Vercel deployment inside one reconciliation. The exact-SHA lookup
-  # below already reuses READY deployments, and repeated deploy attempts can
-  # consume Vercel Hobby deployment-rate limits without changing production.
-  MAX_DEPLOY_ATTEMPTS: "1"
   APP_ORIGIN: "https://testagram.site"
 
 jobs:
@@ -86,7 +80,7 @@ jobs:
             cat /tmp/tv-retired-providers.txt
             exit 1
           fi
-          echo "TV architecture guard passed: YouTube public delivery + Vercel encoder + Supabase control plane + Cloudflare TURN guest bridge."
+          echo "TV architecture guard passed: YouTube public delivery + Testagram TV control plane + Supabase control plane + Cloudflare TURN guest bridge."
 
       - name: Setup Node
         uses: actions/setup-node@v5
