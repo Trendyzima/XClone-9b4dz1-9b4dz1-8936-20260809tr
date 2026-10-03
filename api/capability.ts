@@ -9,7 +9,7 @@ const PUBLIC_CACHE = "public, max-age=0, s-maxage=60, stale-while-revalidate=300
 
 function response(body: unknown, status = 200, cacheable = false) {
   const headers = new Headers({ "content-type": "application/json; charset=utf-8", "cache-control": cacheable ? PUBLIC_CACHE : "private, no-store", "x-content-type-options": "nosniff" });
-  if (cacheable) { headers.set("CDN-Cache-Control", PUBLIC_CACHE); headers.set("Vercel-CDN-Cache-Control", PUBLIC_CACHE); headers.set("Vercel-Cache-Tag", "testagram-public-capability"); }
+  if (cacheable) headers.set("CDN-Cache-Control", PUBLIC_CACHE);
   return new Response(JSON.stringify(body), { status, headers });
 }
 
@@ -24,9 +24,8 @@ export default async function handler(request: Request) {
   const authorization = request.headers.get("authorization");
   const isPublic = PUBLIC_CAPABILITIES.has(capability);
   if (!isPublic && !authorization?.startsWith("Bearer ")) return response({ ok: false, error: { code: "AUTH_REQUIRED", message: "Authentication required" }, request_id: requestId }, 401);
-  // The browser authenticates against the canonical rebuilt project. Older Vercel
-  // environments can still contain SUPABASE_URL/VITE_SUPABASE_URL from the retired
-  // project; allowing those variables to override this route creates the exact
+  // The browser authenticates against the canonical rebuilt project. Stale
+  // deployment environments must not override this route because that creates the exact
   // production symptom: media upload succeeds against canonical Auth, while post
   // creation reaches a different Auth project and returns "Authentication required".
   // Pin the capability plane to the same canonical project as the browser.
