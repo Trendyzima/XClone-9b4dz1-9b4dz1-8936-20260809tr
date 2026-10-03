@@ -3,12 +3,12 @@ import {supabaseUrl} from '@/lib/supabase';
 export type TvChannel = { id:string; name:string; url:string; logo?:string; country?:string; language?:string; group?:string; source:string; priority:number; live?:boolean; live_checked_at?:string };
 export type TvSource = { id:string; label:string; url:string; country?:string; priority:number; enabled?:boolean; policy?:'public-free'|'community-unverified' };
 export const TV_SOURCES: TvSource[] = [
-{id:'nexus-ke',label:'IPTV Nexus · Kenya · health checked',url:'https://dearbulut.github.io/iptv/api/v1/by-country/ke.json',country:'KE',priority:160,enabled:true,policy:'public-free'},
-{id:'nexus-news',label:'IPTV Nexus · News · health checked',url:'https://dearbulut.github.io/iptv/api/v1/by-category/news.json',country:'INT',priority:156,enabled:true,policy:'public-free'},
-{id:'nexus-sports',label:'IPTV Nexus · Sports · health checked',url:'https://dearbulut.github.io/iptv/api/v1/by-category/sports.json',country:'INT',priority:155,enabled:true,policy:'public-free'},
-{id:'nexus-music',label:'IPTV Nexus · Music · health checked',url:'https://dearbulut.github.io/iptv/api/v1/by-category/music.json',country:'INT',priority:154,enabled:true,policy:'public-free'},
-{id:'nexus-kids',label:'IPTV Nexus · Kids · health checked',url:'https://dearbulut.github.io/iptv/api/v1/by-category/kids.json',country:'INT',priority:153,enabled:true,policy:'public-free'},
-{id:'nexus-entertainment',label:'IPTV Nexus · Entertainment · health checked',url:'https://dearbulut.github.io/iptv/api/v1/by-category/entertainment.json',country:'INT',priority:152,enabled:true,policy:'public-free'},
+{id:'nexus-ke',label:'IPTV Nexus · Kenya · public streams',url:'https://dearbulut.github.io/iptv/api/v1/by-country/ke.json',country:'KE',priority:160,enabled:true,policy:'public-free'},
+{id:'nexus-news',label:'IPTV Nexus · News · public streams',url:'https://dearbulut.github.io/iptv/api/v1/by-category/news.json',country:'INT',priority:156,enabled:true,policy:'public-free'},
+{id:'nexus-sports',label:'IPTV Nexus · Sports · public streams',url:'https://dearbulut.github.io/iptv/api/v1/by-category/sports.json',country:'INT',priority:155,enabled:true,policy:'public-free'},
+{id:'nexus-music',label:'IPTV Nexus · Music · public streams',url:'https://dearbulut.github.io/iptv/api/v1/by-category/music.json',country:'INT',priority:154,enabled:true,policy:'public-free'},
+{id:'nexus-kids',label:'IPTV Nexus · Kids · public streams',url:'https://dearbulut.github.io/iptv/api/v1/by-category/kids.json',country:'INT',priority:153,enabled:true,policy:'public-free'},
+{id:'nexus-entertainment',label:'IPTV Nexus · Entertainment · public streams',url:'https://dearbulut.github.io/iptv/api/v1/by-category/entertainment.json',country:'INT',priority:152,enabled:true,policy:'public-free'},
 {id:'iptv-org-ke',label:'IPTV-ORG · Kenya',url:'https://iptv-org.github.io/iptv/countries/ke.m3u',country:'KE',priority:145,enabled:true,policy:'public-free'},
 {id:'iptv-org-int',label:'IPTV-ORG · Sub-Saharan Africa',url:'https://iptv-org.github.io/iptv/regions/ssa.m3u',country:'AF',priority:140,enabled:true,policy:'public-free'},
 {id:'iptv-org-global',label:'IPTV-ORG · Global public',url:'https://iptv-org.github.io/iptv/index.m3u',country:'INT',priority:135,enabled:true,policy:'public-free'},
@@ -37,4 +37,5 @@ export async function loadTvSource(source:TvSource,signal?:AbortSignal){
  const payload=await response.json();
  return Array.isArray(payload?.channels)?(payload.channels as TvChannel[]).filter(c=>c.live===true):[];
 }
+export function getPrioritySourceIds(){ return TV_SOURCES.filter(s=>s.enabled!==false).sort((a,b)=>b.priority-a.priority).map(s=>s.id); }
 export function dedupeTvChannels(channels:TvChannel[]){const seen=new Set<string>();return [...channels].filter(c=>{const key=c.url.toLowerCase();if(seen.has(key))return false;seen.add(key);return true;}).sort((a,b)=>b.priority-a.priority);}
