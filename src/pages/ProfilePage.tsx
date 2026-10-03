@@ -1034,7 +1034,7 @@ export default function ProfilePage() {
             <p className="text-[10px] font-black uppercase tracking-wider text-muted-foreground">Permanent identity</p>
             <div className="mt-0.5 flex items-center gap-2 min-w-0">
               <span className="truncate text-sm font-black">@{profile.username}</span>
-              {profile.verified && <VerifiedTick size="sm" />}
+              {profile.verified && <VerifiedTick />}
               <span className="hidden sm:inline text-[11px] text-muted-foreground">This handle is permanently owned by this account.</span>
             </div>
           </div>
