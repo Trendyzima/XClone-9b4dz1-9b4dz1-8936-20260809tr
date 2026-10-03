@@ -1027,6 +1027,7 @@ export default function ProfilePage() {
         </div>
       </div>
       <TopBar title={profile.username} showBack />
+      <ProfileMiniSidebar username={profile.username} active={activeTab} />
       <ProfileAdBanner />
         {isOwnProfile && <AdvertiserSurface variant="profile" />}
 
