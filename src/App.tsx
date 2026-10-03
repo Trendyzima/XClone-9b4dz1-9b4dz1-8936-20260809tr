@@ -11,7 +11,7 @@ import { LiveNotificationBanner } from '@/components/features/LiveNotificationBa
 import { useCreatorTierAlert } from '@/hooks/useCreatorTierAlert';
 import { Toaster } from '@/components/ui/toaster';
 import { Toaster as Sonner } from 'sonner';
-import { Loader2 } from 'lucide-react';
+import { Loader2, X, Minus, Plus, Maximize2 } from 'lucide-react';
 import { InterestOnboardingSheet } from '@/components/features/InterestOnboardingSheet';
 import { IncomingCallOverlay } from '@/components/features/IncomingCallOverlay';
 import { SiteAdInjector } from '@/components/features/SiteAdInjector';
@@ -224,6 +224,134 @@ const BlockedUsersPage = lazy(() => import('@/pages/BlockedUsersPage'));
 const SellerStorefrontPage = lazy(() => import('@/pages/SellerStorefrontPage'));
 const OrdersPage = lazy(() => import('@/pages/OrdersPage'));
 function PageLoader(){return <div className="min-h-screen flex items-center justify-center bg-background"><Loader2 className="w-8 h-8 animate-spin text-primary"/></div>}
+
+function getOriginalImageUrl(image: HTMLImageElement) {
+  const explicit = image.dataset.originalSrc || image.getAttribute('data-original-src');
+  if (explicit) return explicit;
+  const source = image.currentSrc || image.src;
+  try {
+    const url = new URL(source);
+    if (url.pathname.includes('/storage/v1/render/image/')) {
+      url.pathname = url.pathname.replace('/storage/v1/render/image/', '/storage/v1/object/');
+      url.search = '';
+    }
+    return url.toString();
+  } catch {
+    return source;
+  }
+}
+
+function ImageLightbox() {
+  const [source, setSource] = useState<string | null>(null);
+  const [alt, setAlt] = useState('');
+  const [zoom, setZoom] = useState(1);
+  const [naturalSize, setNaturalSize] = useState({ width: 0, height: 0 });
+
+  useEffect(() => {
+    const handleImageClick = (event: MouseEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLImageElement)) return;
+      if (target.dataset.noImageViewer === 'true' || target.closest('[data-no-image-viewer="true"]')) return;
+      const original = getOriginalImageUrl(target);
+      if (!original) return;
+      event.preventDefault();
+      event.stopPropagation();
+      setSource(original);
+      setAlt(target.alt || 'Testagram image');
+      setZoom(1);
+      setNaturalSize({ width: 0, height: 0 });
+    };
+
+    document.addEventListener('click', handleImageClick, true);
+    return () => document.removeEventListener('click', handleImageClick, true);
+  }, []);
+
+  useEffect(() => {
+    if (!source) return;
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setSource(null);
+      if (event.key === '+' || event.key === '=') setZoom((value) => Math.min(value + 0.25, 4));
+      if (event.key === '-') setZoom((value) => Math.max(value - 0.25, 0.5));
+    };
+    document.addEventListener('keydown', handleKey);
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', handleKey);
+      document.body.style.overflow = '';
+    };
+  }, [source]);
+
+  if (!source) return null;
+
+  const displayWidth = naturalSize.width ? naturalSize.width * zoom : undefined;
+
+  return (
+    <div
+      className="fixed inset-0 z-[100] bg-black/95"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Image viewer"
+      onClick={() => setSource(null)}
+    >
+      <div className="absolute inset-x-0 top-0 z-10 flex items-center justify-between gap-2 p-3 bg-gradient-to-b from-black/80 to-transparent">
+        <div className="flex items-center gap-2 text-white text-sm">
+          <Maximize2 className="h-4 w-4" aria-hidden="true" />
+          <span>Original image</span>
+        </div>
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            className="h-10 w-10 rounded-full bg-white/10 text-white hover:bg-white/20 flex items-center justify-center"
+            aria-label="Zoom out"
+            onClick={(event) => { event.stopPropagation(); setZoom((value) => Math.max(value - 0.25, 0.5)); }}
+          >
+            <Minus className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            className="px-3 h-10 rounded-full bg-white/10 text-white text-sm hover:bg-white/20"
+            aria-label="Reset zoom"
+            onClick={(event) => { event.stopPropagation(); setZoom(1); }}
+          >
+            {Math.round(zoom * 100)}%
+          </button>
+          <button
+            type="button"
+            className="h-10 w-10 rounded-full bg-white/10 text-white hover:bg-white/20 flex items-center justify-center"
+            aria-label="Zoom in"
+            onClick={(event) => { event.stopPropagation(); setZoom((value) => Math.min(value + 0.25, 4)); }}
+          >
+            <Plus className="h-5 w-5" />
+          </button>
+          <button
+            type="button"
+            className="ml-1 h-10 w-10 rounded-full bg-white text-black hover:bg-white/90 flex items-center justify-center"
+            aria-label="Close image viewer"
+            onClick={(event) => { event.stopPropagation(); setSource(null); }}
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+      </div>
+      <div className="absolute inset-0 overflow-auto pt-16 pb-6" onClick={(event) => event.stopPropagation()}>
+        <div className="min-h-full min-w-full flex items-start justify-center p-4 sm:p-8">
+          <img
+            src={source}
+            alt={alt}
+            className="block h-auto max-w-none select-none rounded-sm shadow-2xl"
+            style={{ width: displayWidth ? `${displayWidth}px` : 'auto', maxWidth: 'none' }}
+            draggable={false}
+            onLoad={(event) => {
+              const image = event.currentTarget;
+              setNaturalSize({ width: image.naturalWidth, height: image.naturalHeight });
+            }}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function TvProductionShell() {
   const location = useLocation();
   const guestWorkspace = /^\/tv-studio\/[^/]+\/guests\/?$/.test(location.pathname);
@@ -271,7 +399,7 @@ function AppearanceBootstrap() {
 
   return null;
 }
-function AppInner(){useCreatorTierAlert();const location=useLocation();const isNewsHost=typeof window !== 'undefined' && /^(www\.)?testagram\.news$/i.test(window.location.hostname);const isPublicTvLive=location.pathname.startsWith('/tv/live/');useEffect(()=>{applyAppearance(getStoredAppearance());const mq=window.matchMedia('(prefers-color-scheme: dark)');const handler=()=>{const a=getStoredAppearance();if(a.mode==='system')applyAppearance(a)};mq.addEventListener('change',handler);return()=>mq.removeEventListener('change',handler)},[]);useEffect(()=>startTestagramHeartbeat('web-v1'),[]);useEffect(()=>startNativePushRegistration(),[]);if(isNewsHost)return <Suspense fallback={<PageLoader/>}><NewsifyNewsPage/></Suspense>;if(isPublicTvLive)return <AuthProvider><Suspense fallback={<PageLoader/>}><Routes><Route path="/tv/live/:streamId" element={<TvPublicLivePage/>}/></Routes></Suspense><Sonner position="top-center" richColors/></AuthProvider>;return <AuthProvider><AppearanceBootstrap/><div className="tg-shell flex min-h-screen bg-background overflow-x-hidden pb-20"><Sidebar/><main className="tg-main flex-1 border-x border-border/70 overflow-x-hidden"><Suspense fallback={<PageLoader/>}><SiteAdInjector/><LiveSpacesDiscoveryStrip/><Routes><Route path="/" element={<HomePage/>}/><Route path="/auth" element={<AuthPage/>}/><Route path="/videos" element={<VideosPage/>}/><Route path="/shorts" element={<FastPixShortsPage/>}/><Route path="/explore" element={<ExplorePage/>}/>
+function AppInner(){useCreatorTierAlert();const location=useLocation();const isNewsHost=typeof window !== 'undefined' && /^(www\.)?testagram\.news$/i.test(window.location.hostname);const isPublicTvLive=location.pathname.startsWith('/tv/live/');useEffect(()=>{applyAppearance(getStoredAppearance());const mq=window.matchMedia('(prefers-color-scheme: dark)');const handler=()=>{const a=getStoredAppearance();if(a.mode==='system')applyAppearance(a)};mq.addEventListener('change',handler);return()=>mq.removeEventListener('change',handler)},[]);useEffect(()=>startTestagramHeartbeat('web-v1'),[]);useEffect(()=>startNativePushRegistration(),[]);if(isNewsHost)return <Suspense fallback={<PageLoader/>}><NewsifyNewsPage/></Suspense>;if(isPublicTvLive)return <AuthProvider><Suspense fallback={<PageLoader/>}><Routes><Route path="/tv/live/:streamId" element={<TvPublicLivePage/>}/></Routes></Suspense><Sonner position="top-center" richColors/></AuthProvider>;return <AuthProvider><AppearanceBootstrap/><ImageLightbox/><div className="tg-shell flex min-h-screen bg-background overflow-x-hidden pb-20"><Sidebar/><main className="tg-main flex-1 border-x border-border/70 overflow-x-hidden"><Suspense fallback={<PageLoader/>}><SiteAdInjector/><LiveSpacesDiscoveryStrip/><Routes><Route path="/" element={<HomePage/>}/><Route path="/auth" element={<AuthPage/>}/><Route path="/videos" element={<VideosPage/>}/><Route path="/shorts" element={<FastPixShortsPage/>}/><Route path="/explore" element={<ExplorePage/>}/>
 <Route path="/discover" element={<DiscoverSuggestedPage/>}/>
 <Route path="/discover/suggested" element={<DiscoverSuggestedPage/>}/>
 <Route path="/discover/popular" element={<DiscoverPopularPage/>}/>
