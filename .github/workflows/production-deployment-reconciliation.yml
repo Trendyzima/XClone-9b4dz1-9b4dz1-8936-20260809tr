@@ -788,7 +788,7 @@ jobs:
                   "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records/$record_id")"
                 if [[ "$status" != "200" ]]; then
                   if jq -e '.errors[]? | select(.code == 1043)' /tmp/cloudflare-dns-delete.json >/dev/null 2>&1; then
-                    echo "::warning::Cloudflare marked $host/$type record $record_id read-only (API error 1043); preserving the managed record."
+                    echo "Cloudflare-managed $host/$type record $record_id is read-only (API 1043); preserving it as required for Custom Domain DNS."
                     echo "Custom Domain deployment will be allowed to reconcile Cloudflare-managed DNS instead of attempting to delete it."
                     continue
                   fi
@@ -806,13 +806,29 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || secrets.TESTAGRAM_CLOUDFLARE_ACCOUNT_ID }}
+          NPM_CONFIG_LOGLEVEL: error
+          NODE_OPTIONS: --no-deprecation
         run: |
           set -euo pipefail
           [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is missing from the production environment."; exit 1; }
           [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::Cloudflare account ID is missing or invalid. Configure CLOUDFLARE_ACCOUNT_ID or TESTAGRAM_CLOUDFLARE_ACCOUNT_ID in the production environment."; exit 1; }
           echo "Deploying testagram-web to Cloudflare and applying configured Custom Domains..."
-          npx wrangler deploy
-          echo "Cloudflare Worker deployment and Custom Domain configuration command completed."
+          npx wrangler deploy --name testagram-web
+          echo "Reasserting the production Custom Domain -> Worker attachment..."
+          domain_status="$(curl -sS -o /tmp/testagram-worker-domain.json -w '%{http_code}' \
+            -X PUT \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            --data '{"hostname":"testagram.site","service":"testagram-web","zone_id":"${{ secrets.CLOUDFLARE_ZONE_ID }}","zone_name":"testagram.site"}' \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/domains")"
+          if [[ "$domain_status" != "200" ]] || ! jq -e '.success == true and .result.hostname == "testagram.site" and .result.service == "testagram-web"' /tmp/testagram-worker-domain.json >/dev/null 2>&1; then
+            echo "::error::Cloudflare Custom Domain attachment did not resolve to Worker testagram-web (HTTP $domain_status)."
+            cat /tmp/testagram-worker-domain.json
+            exit 1
+          fi
+          echo "Verified Custom Domain testagram.site is attached to Worker testagram-web."
+          echo "Cloudflare Worker deployment and Custom Domain reconciliation completed."
 
       - name: Verify Cloudflare production domain
         shell: bash
@@ -854,7 +870,7 @@ jobs:
                 echo "::warning::HTTP 200 received but Cloudflare Server header is not yet present."
               fi
             else
-              echo "::warning::Health endpoint is not ready yet (HTTP $status)."
+              echo "Health endpoint is not ready yet (HTTP $status); waiting for Cloudflare Worker activation."
               if [[ -s health.txt ]]; then head -c 500 health.txt; echo; fi
             fi
 
@@ -891,7 +907,7 @@ jobs:
                 break
               fi
             fi
-            echo "::warning::Readiness endpoint is not ready yet (HTTP $status)."
+            echo "Readiness endpoint is not ready yet (HTTP $status); waiting for production database readiness."
             if (( attempt < max_attempts )); then sleep 10; fi
           done
 
