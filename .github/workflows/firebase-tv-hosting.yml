@@ -57,17 +57,17 @@ jobs:
 
       - name: Validate Firebase deployment configuration
         env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
         run: |
           set -euo pipefail
-          test -n "$FIREBASE_SERVICE_ACCOUNT"
-          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" | jq -e '.type == "service_account" and .project_id == "twitter-clone-ccrsxx-2513a" and (.client_email | type == "string") and (.private_key | type == "string")' >/dev/null
+          test -n "$FIREBASE_SERVICE_ACCOUNT_JSON"
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -e '.type == "service_account" and .project_id == "twitter-clone-ccrsxx-2513a" and (.client_email | type == "string") and (.private_key | type == "string")' >/dev/null
           echo "Firebase service account is valid for the expected project."
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
           repoToken: ${{ secrets.GITHUB_TOKEN }}
-          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
           projectId: twitter-clone-ccrsxx-2513a
           target: testagram-tv
           channelId: live
