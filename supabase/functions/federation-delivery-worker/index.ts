@@ -106,7 +106,7 @@ async function processJob(job:any){
     const attempt=Number(job.attempt_count||1);
     const retry=retryState(attempt,null);
     await getDb().from("federation_deliveries").update({status:retry.status,locked_at:null,next_attempt_at:retry.next_attempt_at,last_error:message.slice(0,2000),updated_at:new Date().toISOString()}).eq("id",job.id).eq("status","in_flight");
-    await getDb().from("activitypub_outbox").update({attempts:attempt,next_attempt_at:next,last_error:message.slice(0,2000),updated_at:new Date().toISOString()}).eq("activity_id",activityId);
+    await getDb().from("activitypub_outbox").update({attempts:attempt,next_attempt_at:retry.next_attempt_at,last_error:message.slice(0,2000),updated_at:new Date().toISOString()}).eq("activity_id",activityId);
     return {status:"retry",activityId,error:message};
   }
   const attempt=Number(job.attempt_count||1);
@@ -166,8 +166,8 @@ async function main(req:Request){
       const message=e instanceof Error ? (e.stack || e.message) : String(e),attempt=Number(job.attempt_count||1),retry=retryState(attempt,null),next=retry.next_attempt_at;
       await getDb().from("federation_deliveries").update({status:retry.status,locked_at:null,next_attempt_at:next,last_error:message.slice(0,2000),updated_at:new Date().toISOString()}).eq("id",job.id).eq("status","in_flight");
       await getDb().from("activitypub_outbox").update({attempts:attempt,next_attempt_at:next,last_error:message.slice(0,2000),updated_at:new Date().toISOString()}).eq("activity_id",job.activity_id);
-      await syncFollowRelationship(String(job.activity_id||""),"retry",message);
-      return {status:"retry",activityId:job.activity_id,error:message};
+      await syncFollowRelationship(String(job.activity_id||""),retry.status==="dead_letter"?"failed":"retry",message);
+      return {status:retry.status,activityId:job.activity_id,error:message};
     })));
     results.push(...batchResults);
   }
