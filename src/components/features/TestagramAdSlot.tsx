@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ExternalLink, Megaphone } from 'lucide-react';
+import { ExternalLink, Megaphone, MoreHorizontal, ShieldCheck } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { usePremium } from '@/hooks/usePremium';
 
@@ -61,6 +61,8 @@ export function TestagramAdSlot({ placement, context, className = '' }: {
   const [loading, setLoading] = useState(true);
   const impressionRef = useRef<string>('');
   const eventTokenRef = useRef<string>('');
+  const cardRef = useRef<HTMLElement | null>(null);
+  const viewableSentRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -70,6 +72,7 @@ export function TestagramAdSlot({ placement, context, className = '' }: {
       setAd(null);
       impressionRef.current = '';
       eventTokenRef.current = '';
+      viewableSentRef.current = false;
       if (isPremium) { setLoading(false); return; }
       try {
         const { data, error } = await supabase.functions.invoke('testagram-ads/serve', {
@@ -86,34 +89,68 @@ export function TestagramAdSlot({ placement, context, className = '' }: {
     return () => { cancelled = true; };
   }, [placement, JSON.stringify(context ?? {}), isPremium]);
 
-  const event = (eventType: string) => {
+  useEffect(() => {
+    const node = cardRef.current;
+    if (!node || !ad || viewableSentRef.current) return;
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries.some((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.5);
+      if (visible && !viewableSentRef.current) {
+        viewableSentRef.current = true;
+        event('viewable');
+        observer.disconnect();
+      }
+    }, { threshold: [0.5] });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [ad?.impression_id]);
+
+  const event = (eventType: string, metadata: Record<string, unknown> = {}) => {
     const impressionId = impressionRef.current;
     const eventToken = eventTokenRef.current;
     if (!impressionId || !eventToken) return;
     supabase.functions.invoke('testagram-ads/event', {
-      body: { impression_id: impressionId, event_type: eventType, event_token: eventToken, metadata: { placement, ...context } },
+      body: { impression_id: impressionId, event_type: eventType, event_token: eventToken, metadata: { placement, ...context, ...metadata } },
     }).catch(() => {});
   };
 
   if (isPremium || loading || !isRealAd(ad)) return null;
 
+  const isVideo = ad.format?.toLowerCase().includes('video');
+
   return (
-    <article className={`rounded-2xl border border-border bg-card overflow-hidden ${className}`} data-testagram-ad-placement={placement}>
+    <article ref={cardRef} className={`rounded-2xl border border-border bg-card overflow-hidden shadow-sm ${className}`} data-testagram-ad-placement={placement} data-campaign-id={ad.campaign_id}>
       <button type="button" onClick={() => { event('click'); if (ad.click_through_url) window.open(ad.click_through_url, '_blank', 'noopener,noreferrer'); }} className="w-full text-left">
-        <div className="flex items-center gap-2 px-3 pt-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
-          <Megaphone className="w-3 h-3" /> Sponsored · Testagram Ads
+        <div className="flex items-center justify-between gap-2 px-3 pt-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          <span className="inline-flex items-center gap-2"><Megaphone className="w-3 h-3" /> Sponsored · Testagram Ads</span>
+          <span className="inline-flex items-center gap-1 normal-case tracking-normal font-medium" title="Testagram Ads is the ad delivery system"><ShieldCheck className="w-3 h-3" /> Verified placement</span>
         </div>
         {ad.asset_url ? (
-          ad.format?.toLowerCase().includes('video')
-            ? <video src={ad.asset_url} className="w-full max-h-[460px] object-cover mt-2" muted playsInline preload="metadata" />
-            : <img src={ad.asset_url} alt={ad.headline || 'Sponsored content'} className="w-full max-h-[460px] object-cover mt-2" loading="lazy" />
+          isVideo
+            ? <video
+                src={ad.asset_url}
+                className="w-full max-h-[460px] object-cover mt-2 bg-muted"
+                muted playsInline preload="metadata"
+                onPlay={() => event('video_start')}
+                onTimeUpdate={(e) => {
+                  const video = e.currentTarget;
+                  if (!video.duration) return;
+                  const ratio = video.currentTime / video.duration;
+                  const sent = (video.dataset.milestones || '').split(',').filter(Boolean);
+                  const milestone = ratio >= 0.95 ? 'video_complete' : ratio >= 0.75 ? 'video_third_quartile' : ratio >= 0.5 ? 'video_midpoint' : ratio >= 0.25 ? 'video_first_quartile' : '';
+                  if (milestone && !sent.includes(milestone)) {
+                    video.dataset.milestones = [...sent, milestone].join(',');
+                    event(milestone, { progress: ratio });
+                  }
+                }}
+              />
+            : <img src={ad.asset_url} alt={ad.headline || 'Sponsored content'} className="w-full max-h-[460px] object-cover mt-2" loading="lazy" decoding="async" />
         ) : null}
         <div className="p-3">
           {ad.headline && <h3 className="font-bold text-base leading-tight">{ad.headline}</h3>}
           {ad.body && <p className="text-sm text-muted-foreground mt-1 line-clamp-3">{ad.body}</p>}
           <div className="flex items-center justify-between gap-3 mt-3">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground">{ad.cta || 'Learn more'} <ExternalLink className="w-3 h-3" /></span>
-            <span className="text-[10px] text-muted-foreground">Ad</span>
+            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"><MoreHorizontal className="w-3 h-3" /> Ad</span>
           </div>
         </div>
       </button>
