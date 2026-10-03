@@ -55,7 +55,6 @@ Disallow: /ad-performance
 Disallow: /post-analytics
 Disallow: /boost-analytics/
 Disallow: /seo-audit
-Disallow: /spaces/
 
 # ── Admin routes ──────────────────────────────────────────────────────────────
 Disallow: /admin/
