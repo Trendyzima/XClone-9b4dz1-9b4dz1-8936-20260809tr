@@ -1,3 +1,5 @@
+import { DEPLOYED_COMMIT_SHA } from './deployment-meta';
+
 const SUPABASE_ORIGIN = 'https://ffrhglgkukgsuhxenena.supabase.co';
 
 type Env = {
@@ -153,7 +155,7 @@ async function handleApi(request: Request, env: Env) {
   // These two endpoints must never depend on dynamic module loading: a module
   // resolution/runtime failure would otherwise mask a healthy Worker as HTTP 500.
   if (url.pathname === '/api/health') {
-    const commit = String((env as any).TESTAGRAM_COMMIT_SHA || 'unknown');
+    const commit = DEPLOYED_COMMIT_SHA;
     return new Response(JSON.stringify({
       ok: true,
       service: 'testagram',
