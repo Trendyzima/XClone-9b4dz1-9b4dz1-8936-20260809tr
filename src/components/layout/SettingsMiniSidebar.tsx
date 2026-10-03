@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { User, Palette, Bell, Shield, Link2, Settings, Search } from 'lucide-react';
+import { User, Palette, Bell, Shield, Link2, Settings } from 'lucide-react';
 
 const ITEMS = [
   ['Account','account',User],['Appearance','appearance',Palette],['Notifications','notifications',Bell],
@@ -21,7 +21,6 @@ export function SettingsMiniSidebar({ active }: { active: string }) {
               <Icon className="h-3.5 w-3.5" /> {label}
             </button>
           ))}
-          <button onClick={() => document.getElementById("settings-search")?.focus()} className="shrink-0 inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50" title="Find a setting"><Search className="h-3.5 w-3.5" /> Find</button>
         </div>
       </div>
     </aside>
