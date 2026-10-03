@@ -1,0 +1,75 @@
+name: Cloudflare Worker Build Gate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "api/**"
+      - "public/**"
+      - "cloudflare/**"
+      - "wrangler.jsonc"
+      - "_build.cjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig*.json"
+      - ".github/workflows/cloudflare-worker-build.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "api/**"
+      - "public/**"
+      - "cloudflare/**"
+      - "wrangler.jsonc"
+      - "_build.cjs"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig*.json"
+      - ".github/workflows/cloudflare-worker-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-worker-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build application
+        run: npm run build
+
+      - name: Validate Worker bundle without deploying
+        run: npx wrangler deploy --dry-run
+
+      - name: Verify production Worker configuration
+        run: |
+          set -euo pipefail
+          test -f wrangler.jsonc
+          grep -q '"name": "testagram-web"' wrangler.jsonc
+          grep -q '"pattern": "testagram.site"' wrangler.jsonc
+          grep -q '"pattern": "www.testagram.site"' wrangler.jsonc
+          test -d dist
+          test -f dist/index.html
+          echo "Cloudflare Worker build/configuration gate passed."
