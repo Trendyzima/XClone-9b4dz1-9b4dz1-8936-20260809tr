@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bookmark, Check, Eye, Heart, Image as ImageIcon, Loader2, MessageCircle, MoreHorizontal, Plus, Repeat2, Search, Quote, Sparkles, UserPlus, X } from 'lucide-react';
+import { Bookmark, Check, Eye, Heart, Image as ImageIcon, Loader2, MessageCircle, MoreHorizontal, Plus, Repeat2, Search, Quote, Sparkles, UserPlus, X, Send } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { TopBar } from '@/components/layout/TopBar';
 import { Button } from '@/components/ui/button';
@@ -60,7 +60,7 @@ function ThreadMedia({items}:{items:any[]}) {
   </div>;
 }
 
-function ThreadCard({thread,liked,reposted,bookmarked,onLike,onRepost,onBookmark}:{thread:Thread;liked:boolean;reposted:boolean;bookmarked:boolean;onLike:()=>void;onRepost:()=>void;onBookmark:()=>void}) {
+function ThreadCard({thread,liked,reposted,bookmarked,onLike,onRepost,onBookmark,onShare}:{thread:Thread;liked:boolean;reposted:boolean;bookmarked:boolean;onLike:()=>void;onRepost:()=>void;onBookmark:()=>void;onShare:()=>void}) {
   const navigate=useNavigate(); const profile=thread.profiles; const open=()=>navigate(`/thread/${thread.id}`);
   return <article className="px-4 py-4 transition-colors hover:bg-muted/20">
     <div className="flex gap-3">
@@ -83,7 +83,7 @@ function ThreadCard({thread,liked,reposted,bookmarked,onLike,onRepost,onBookmark
           <button onClick={onRepost} className={`flex items-center gap-1.5 rounded-full p-1.5 ${reposted?'text-green-600':'hover:text-green-600'}`}><Repeat2 className="h-[18px] w-[18px]"/>{thread.reposts_count>0&&<span className="text-xs">{formatNumber(thread.reposts_count)}</span>}</button>
           <button onClick={onLike} className={`flex items-center gap-1.5 rounded-full p-1.5 ${liked?'text-pink-600':'hover:text-pink-600'}`}><Heart className={`h-[18px] w-[18px] ${liked?'fill-current':''}`}/>{thread.likes_count>0&&<span className="text-xs">{formatNumber(thread.likes_count)}</span>}</button>
           <button onClick={()=>navigate(`/thread/${thread.id}/quotes`)} className="flex items-center gap-1 rounded-full p-1.5 hover:text-primary" aria-label="Quote"><Quote className="h-[17px] w-[17px]"/>{thread.quotes_count>0&&<span className="text-xs">{formatNumber(thread.quotes_count)}</span>}</button><span className="flex items-center gap-1 text-xs"><Eye className="h-[16px] w-[16px]"/>{formatNumber(thread.views_count)}</span>
-          <button onClick={onBookmark} className={`rounded-full p-1.5 ${bookmarked?'text-primary':'hover:text-primary'}`}><Bookmark className={`h-[18px] w-[18px] ${bookmarked?'fill-current':''}`}/></button>
+          <button onClick={onShare} className="rounded-full p-1.5 hover:text-primary" aria-label="Share thread"><Send className="h-[18px] w-[18px]"/></button><button onClick={onBookmark} className={`rounded-full p-1.5 ${bookmarked?'text-primary':'hover:text-primary'}`}><Bookmark className={`h-[18px] w-[18px] ${bookmarked?'fill-current':''}`}/></button>
         </div>
       </div>
     </div>
@@ -206,6 +206,8 @@ export default function ThreadsPage() {
   const mutate=(setter:React.Dispatch<React.SetStateAction<Set<string>>>,id:string,active:boolean)=>setter(prev=>{const n=new Set(prev);active?n.add(id):n.delete(id);return n;});
   const toggleLike=async(thread:Thread)=>{if(!user){navigate('/auth');return;}try{const active=await toggleThreadLike(thread.id,user.id);mutate(setLiked,thread.id,active);setThreads(p=>p.map(t=>t.id===thread.id?{...t,likes_count:Math.max(0,t.likes_count+(active?1:-1))}:t));}catch(e:any){toast.error(e?.message||'Like failed');}};
   const toggleRepost=async(thread:Thread)=>{if(!user){navigate('/auth');return;}try{const active=await toggleThreadRepost(thread.id,user.id);mutate(setReposted,thread.id,active);setThreads(p=>p.map(t=>t.id===thread.id?{...t,reposts_count:Math.max(0,t.reposts_count+(active?1:-1))}:t));}catch(e:any){toast.error(e?.message||'Repost failed');}};
+  const shareThread=async(thread:Thread)=>{try{const url=window.location.origin+'/thread/'+thread.id;if(navigator.share)await navigator.share({title:'Testagram thread',text:thread.body.slice(0,120),url});else{await navigator.clipboard.writeText(url);toast.success('Thread link copied');}}catch(error){if(error instanceof DOMException&&error.name==='AbortError')return;toast.error('Could not share thread');}};
+
   const toggleBookmark=async(thread:Thread)=>{if(!user){navigate('/auth');return;}const active=!bookmarked.has(thread.id);mutate(setBookmarked,thread.id,active);const res=active?await supabase.from('thread_bookmarks').insert({thread_id:thread.id,user_id:user.id}):await supabase.from('thread_bookmarks').delete().eq('thread_id',thread.id).eq('user_id',user.id);if(res.error){mutate(setBookmarked,thread.id,!active);toast.error('Bookmark failed');}else toast.success(active?'Saved to your reading list':'Removed from saved');};
 
   const visible=useMemo(()=>{
@@ -230,7 +232,7 @@ export default function ThreadsPage() {
     <div className="divide-y divide-border">
       {loading?<div className="flex justify-center py-20"><Loader2 className="h-7 w-7 animate-spin text-primary"/></div>:visible.length===0?<div className="px-6 py-20 text-center"><div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-muted"><MessageCircle className="h-6 w-6 text-muted-foreground"/></div><h2 className="font-bold">{tab==='Following'?'Follow people to fill your feed':tab==='Saved'?'Your saved threads will appear here':'Start the conversation'}</h2><p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">{tab==='Following'?'Discover creators and follow people whose conversations you want to see.':tab==='Saved'?'Tap the bookmark on any thread to keep it for later.':'Share a thought and give the community something to respond to.'}</p>{tab==='Following'&&<Button onClick={()=>navigate('/discover')} className="mt-5 rounded-full"><UserPlus className="mr-2 h-4 w-4"/>Discover people</Button>}{tab==='For you'&&user&&<Button onClick={()=>navigate('/threads/create')} className="mt-5 rounded-full"><Plus className="mr-2 h-4 w-4"/>Create a thread</Button>}</div>:visible.map((item,index)=>{
         const content=item.kind==='thread'
-          ? <ThreadCard thread={item.data} liked={liked.has(item.data.id)} reposted={reposted.has(item.data.id)} bookmarked={bookmarked.has(item.data.id)} onLike={()=>void toggleLike(item.data)} onRepost={()=>void toggleRepost(item.data)} onBookmark={()=>void toggleBookmark(item.data)}/>
+          ? <ThreadCard thread={item.data} liked={liked.has(item.data.id)} reposted={reposted.has(item.data.id)} bookmarked={bookmarked.has(item.data.id)} onLike={()=>void toggleLike(item.data)} onRepost={()=>void toggleRepost(item.data)} onBookmark={()=>void toggleBookmark(item.data)} onShare={()=>void shareThread(item.data)}/>
           : <div className="relative">
               <div className="px-4 pt-2"><span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold ${item.kind==='fed'?'border-sky-500/20 bg-sky-500/5 text-sky-600':'border-primary/20 bg-primary/5 text-primary'}`}>{item.kind==='fed'?'Fediverse':'Testagram post'}</span></div>
               <MixedContentBoundary><PostCard post={item.data} onUpdate={()=>void loadThreads(true)}/></MixedContentBoundary>
