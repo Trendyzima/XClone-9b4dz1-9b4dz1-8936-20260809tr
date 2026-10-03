@@ -75,14 +75,13 @@ export default function TvChannelsPage(){
 
  const filtered=useMemo(()=>{
   const q=query.trim().toLowerCase();
-  return channels.filter(c=>!dead.has(c.id)).filter(c=>{
+  const result=channels.filter(c=>!dead.has(c.id)).filter(c=>{
    const text=(c.name+' '+(c.group||'')+' '+(c.language||'')).toLowerCase();
    const country=filter==='AF'?['KE','ZA','NG','GH','UG','TZ','RW','ZM','ZW','BW'].includes(c.country||''):filter?c.country===filter||text.includes(filter.toLowerCase()):true;
    return country&&(!q||text.includes(q));
   });
   return rankRecommendedTvChannels(result,healthMap);
  },[channels,dead,filter,query,healthMap]);
- },[channels,dead,filter,query]);
 
  useEffect(()=>{if(!active&&filtered[0])setActive(filtered[0].id);},[active,filtered]);
 
