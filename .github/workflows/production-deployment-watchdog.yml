@@ -18,9 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
-      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
       RECONCILIATION_WORKFLOW: production-deployment-reconciliation.yml
@@ -37,22 +34,28 @@ jobs:
             "https://api.github.com/repos/$REPO/commits/main" |
             node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>process.stdout.write(JSON.parse(s).sha))')"
 
-          deployments="$(curl --fail --silent --show-error \
-            -H "Authorization: Bearer $VERCEL_TOKEN" \
-            "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&teamId=$VERCEL_ORG_ID&limit=20")"
+          status="$(curl -sS --location --connect-timeout 10 --max-time 30 -o health.json -w '%{http_code}' "$APP_ORIGIN/api/health" || true)"
 
-          production_sha="$(printf '%s' "$deployments" | node -e '
-            let s="";
-            process.stdin.on("data",d=>s+=d).on("end",()=>{
-              const p=JSON.parse(s);
-              const ds=(p.deployments||[])
-                .filter(d=>d.target==="production" && d.state==="READY")
-                .sort((a,b)=>(b.created||0)-(a.created||0));
-              process.stdout.write(ds[0]?.meta?.githubCommitSha || "");
-            })')"
+          production_sha="$(node -e '
+            const fs=require("node:fs");
+            let p={};
+            try { p=JSON.parse(fs.readFileSync("health.json","utf8")); } catch {}
+            process.stdout.write(p?.commit || "");
+          ')"
 
           echo "main_sha=$main_sha"
-          echo "latest_ready_production_sha=$production_sha"
+          echo "production_health_status=$status"
+          echo "production_sha=${production_sha:-UNKNOWN}"
+
+          if [[ "$status" == "200" && "$production_sha" == "$main_sha" ]]; then
+            echo "Production Cloudflare Worker matches main at the exact SHA."
+            echo "needs_reconciliation=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Production does not match main; reconciliation is required."
+          echo "needs_reconciliation=true" >> "$GITHUB_OUTPUT"
+          echo "target_sha=$main_sha" >> "$GITHUB_OUTPUT"
 
           if [[ "$main_sha" == "$production_sha" ]]; then
             echo "Production already matches main."
@@ -60,7 +63,7 @@ jobs:
             exit 0
           fi
 
-          echo "Production is behind main; checking recent reconciliation activity."
+          echo "Production is not at the exact Cloudflare SHA; checking recent reconciliation activity."
           echo "needs_reconciliation=true" >> "$GITHUB_OUTPUT"
           echo "target_sha=$main_sha" >> "$GITHUB_OUTPUT"
 
@@ -95,7 +98,7 @@ jobs:
             echo "dispatch=true" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Dispatch exact-SHA production reconciliation
+      - name: Dispatch exact-SHA Cloudflare reconciliation
         if: ${{ steps.compare.outputs.needs_reconciliation == 'true' && steps.cooldown.outputs.dispatch == 'true' }}
         shell: bash
         run: |
@@ -112,4 +115,4 @@ jobs:
             "https://api.github.com/repos/$REPO/actions/workflows/$RECONCILIATION_WORKFLOW/dispatches" \
             -d "$(node -e 'console.log(JSON.stringify({ref:"main",inputs:{target_sha:process.argv[1]}}))' "$target_sha")"
 
-          echo "Production reconciliation dispatched successfully."
+          echo "Cloudflare production reconciliation dispatched successfully."
