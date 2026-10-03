@@ -10,7 +10,7 @@ import {TV_SOURCES,dedupeTvChannels,loadTvHealth,rankRecommendedTvChannels,loadT
 const filters=[['For you',''],['Kenya','KE'],['Africa','AF'],['International','INT'],['News','news'],['Sports','sport'],['Music','music'],['Kids','kid']];
 
 function ChannelTile({channel,active,onSelect}:{channel:TvChannel;active:boolean;onSelect:()=>void}){
- return <button onClick={onSelect} className={'group w-full overflow-hidden rounded-2xl border bg-card text-left transition-all hover:-translate-y-0.5 hover:shadow-lg '+(active?'ring-2 ring-primary shadow-md':'')}>
+ return <button onClick={onSelect} className={'group w-full overflow-hidden rounded-2xl border bg-white/5 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg '+(active?'ring-2 ring-primary shadow-md':'')}>
   <div className='relative aspect-video overflow-hidden bg-muted'>
    {channel.logo?<img src={channel.logo} alt='' loading='lazy' decoding='async' className='absolute inset-0 m-auto max-h-16 max-w-[48%] object-contain transition-transform group-hover:scale-105'/>:<Tv className='absolute inset-0 m-auto h-10 w-10 text-muted-foreground/50'/>}
    <div className='absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/75 to-transparent'/>
@@ -102,10 +102,10 @@ export default function TvChannelsPage(){
   ['International',filtered.filter(c=>c.country!=='KE')]
  ].filter(([,items])=>(items as TvChannel[]).length>0) as [string,TvChannel[]][],[filtered]);
 
- if(reelsMode)return <div className='min-h-screen bg-background'><main className='mx-auto max-w-3xl px-2 py-3'>{featured?<TvChannelPlayer channel={featured} active onVisible={()=>{}} onHealth={health}/>:<div className='py-20 text-center text-muted-foreground'>No live channels available.</div>}</main></div>;
+ if(reelsMode)return <div className='min-h-screen bg-slate-950 text-white'><main className='mx-auto max-w-3xl px-2 py-3'>{featured?<TvChannelPlayer channel={featured} active onVisible={()=>{}} onHealth={health}/>:<div className='py-20 text-center text-muted-foreground'>No live channels available.</div>}</main></div>;
 
  return <div className='min-h-screen bg-background'>
-  <header className='sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur-xl'>
+  <header className='sticky top-0 z-40 border-b border-border/70 bg-slate-950/90 backdrop-blur-xl'>
    <div className='mx-auto max-w-7xl px-4 py-3 sm:px-6'>
     <div className='flex items-center gap-3'>
      <div className='flex min-w-0 flex-1 items-center gap-3'><div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm'><Tv className='h-5 w-5'/></div><div className='min-w-0'><div className='flex items-center gap-2'><h1 className='truncate text-lg font-black tracking-tight sm:text-xl'>Testagram Live TV</h1><span className='hidden rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary sm:inline'>WORLDWIDE</span></div><p className='hidden text-xs text-muted-foreground sm:block'>Live channels, Testagram broadcasts and public free streams in one place.</p></div></div>
@@ -122,7 +122,7 @@ export default function TvChannelsPage(){
     <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>{testagramLive.slice(0,4).map(stream=><TestagramLiveChannelCard key={stream.id} stream={stream}/>)}</div>
    </section>}
 
-   {featured&&<section className='mb-8 overflow-hidden rounded-3xl border bg-card shadow-sm'>
+   {featured&&<section className='mb-8 overflow-hidden rounded-3xl border bg-white/5 shadow-2xl'>
     <div className='grid lg:grid-cols-[1.7fr_1fr]'>
      <div className='relative min-h-[260px] bg-black lg:min-h-[390px]'><TvChannelPlayer channel={featured} active onVisible={()=>{}} onHealth={health}/></div>
      <div className='flex flex-col justify-center bg-gradient-to-br from-primary/10 via-background to-background p-6 sm:p-8'>
