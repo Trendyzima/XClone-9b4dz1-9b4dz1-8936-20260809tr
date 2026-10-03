@@ -24,6 +24,7 @@ import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { ProfileGovernanceCard } from '@/components/features/ProfileGovernanceCard';
 import { AdvertiserSurface } from '@/components/features/AdvertiserSurface';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { ProfileMiniSidebar } from '@/components/layout/ProfileMiniSidebar';
 
 function ProfileAdBanner() { return <PageAdBanner />; }
 
