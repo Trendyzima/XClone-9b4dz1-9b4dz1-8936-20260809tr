@@ -988,11 +988,10 @@ jobs:
       # Cloudflare Stream and TURN credentials are control-plane secrets. They are synchronized
       # only to Supabase tv-media-control above; Vercel receives only the application/runtime
       # credentials required by the browser encoder. No Mux credentials are required.
-      - name: Pull production Vercel configuration
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
-
+      #
+      # Do not call `vercel pull` unconditionally here. A READY exact-SHA deployment can be
+      # verified through the Vercel API without mutating the team. This is important on Hobby
+      # plans where repeated env/deployment mutations can trigger Vercel fair-use throttling.
       - name: Deploy and reconcile exact SHA
         id: deploy
         env:
@@ -1020,6 +1019,10 @@ jobs:
               DEPLOY_URL="$existing_deploy_url"
               echo "Reusing existing READY production deployment for exact SHA $TARGET_SHA: $DEPLOY_URL"
             else
+              # Only perform Vercel CLI project mutation when an exact READY deployment
+              # does not already exist. This keeps reconciliation read-only during
+              # Vercel fair-use throttling and avoids wasting another deployment.
+              vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
               # Build on Vercel with its production environment, then deploy.
               # Use Vercel's archive upload mode to avoid the Hobby api-upload-free
               # per-file upload quota while preserving the exact-SHA build metadata.
@@ -1046,12 +1049,14 @@ jobs:
 
             echo "deployment_url=$DEPLOY_URL" >> "$GITHUB_OUTPUT"
 
-            vercel inspect "$DEPLOY_URL" --wait --token="$VERCEL_TOKEN" > deployment-inspect.txt
+            if [[ -z "$existing_deploy_url" ]]; then
+              vercel inspect "$DEPLOY_URL" --wait --token="$VERCEL_TOKEN" > deployment-inspect.txt
 
-            # Source-triggered Vercel deployments can race this explicit production deploy.
-            # Pin both custom-domain aliases to the exact deployment before liveness checks.
-            vercel alias set "$DEPLOY_URL" testagram.site --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
-            vercel alias set "$DEPLOY_URL" www.testagram.site --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+              # Source-triggered Vercel deployments can race this explicit production deploy.
+              # Pin custom-domain aliases only for deployments created by this run.
+              vercel alias set "$DEPLOY_URL" testagram.site --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+              vercel alias set "$DEPLOY_URL" www.testagram.site --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+            fi
 
             curl --fail --silent --show-error --location --retry 3 --retry-delay 2 \
               -H "Authorization: Bearer $VERCEL_TOKEN" \
