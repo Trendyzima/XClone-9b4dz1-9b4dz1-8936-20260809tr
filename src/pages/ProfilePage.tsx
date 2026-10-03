@@ -255,7 +255,7 @@ export default function ProfilePage() {
       podcasts: 'Podcasts', series: 'Series', likes: 'Likes', tips: 'Tips', gifts: 'Gifts',
       followers: 'Followers', following: 'Following', analytics: 'Analytics',
     };
-    return section === profile.username?.toLowerCase() ? 'Overview' : (byPath[section ?? ''] ?? 'Posts');
+    return section === profile?.username?.toLowerCase() ? 'Overview' : (byPath[section ?? ''] ?? 'Posts');
   })();
   const [isFollowing, setIsFollowing] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
