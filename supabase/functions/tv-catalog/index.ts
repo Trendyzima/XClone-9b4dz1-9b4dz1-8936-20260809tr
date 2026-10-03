@@ -31,7 +31,7 @@ const cors = {
 
 const blocked = /(adult|porn|xxx|premium|paid subscription|xtream|stalker|pirate)/i;
 
-const UPSTASH_URL = Deno.env.get("UPSTASH_REDIS_REST_URL")?.replace(/\\/$/, "");
+const UPSTASH_URL = Deno.env.get("UPSTASH_REDIS_REST_URL")?.replace(/\/$/, "");
 const UPSTASH_TOKEN = Deno.env.get("UPSTASH_REDIS_REST_TOKEN");
 
 async function upstash(command:string[]) {
