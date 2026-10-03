@@ -1,5 +1,6 @@
 import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
+import { LegalMiniSidebar } from '@/components/layout/LegalMiniSidebar';
 import { Shield, Eye, Lock, Database, Globe, Mail, Trash2, RefreshCw, UserCheck } from 'lucide-react';
 
 // Module-level data (esbuild guard: no inline arrays in render)
@@ -137,8 +138,9 @@ export default function PrivacyPolicyPage() {
   return (
     <div className="min-h-screen bg-background pb-20">
       <TopBar title="Privacy Policy" showBack />
+      <LegalMiniSidebar />
 
-      <div className="max-w-2xl mx-auto p-4 space-y-6">
+      <div className="max-w-3xl mx-auto p-4 space-y-6">
 
         {/* Hero */}
         <div className="bg-gradient-to-br from-blue-500/10 via-background to-purple-500/5 border border-blue-500/20 rounded-2xl p-6 text-center">
