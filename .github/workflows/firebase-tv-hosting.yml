@@ -64,6 +64,81 @@ jobs:
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" | jq -e '.type == "service_account" and .project_id == "twitter-clone-ccrsxx-2513a" and (.client_email | type == "string") and (.private_key | type == "string")' >/dev/null
           echo "Firebase service account is valid for the expected project."
 
+      - name: Verify Google service-account access
+        env:
+          FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ runner.temp }}/firebase-service-account.json
+        run: |
+          set -euo pipefail
+          trap 'rm -f "$GOOGLE_APPLICATION_CREDENTIALS"' EXIT
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
+          chmod 600 "$GOOGLE_APPLICATION_CREDENTIALS"
+
+          ACCESS_TOKEN="$(node <<'NODE'
+          const fs = require('fs');
+          const crypto = require('crypto');
+          const https = require('https');
+
+          const key = JSON.parse(fs.readFileSync(process.env.GOOGLE_APPLICATION_CREDENTIALS, 'utf8'));
+          const now = Math.floor(Date.now() / 1000);
+          const b64 = value => Buffer.from(value).toString('base64url');
+          const header = b64(JSON.stringify({alg: 'RS256', typ: 'JWT'}));
+          const claim = b64(JSON.stringify({
+            iss: key.client_email,
+            scope: 'https://www.googleapis.com/auth/cloud-platform',
+            aud: 'https://oauth2.googleapis.com/token',
+            iat: now,
+            exp: now + 3600
+          }));
+          const signer = crypto.createSign('RSA-SHA256');
+          signer.update(header + '.' + claim);
+          signer.end();
+          const assertion = header + '.' + claim + '.' + signer.sign(key.private_key, 'base64url');
+
+          const body = new URLSearchParams({
+            grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+            assertion
+          }).toString();
+
+          const req = https.request('https://oauth2.googleapis.com/token', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'Content-Length': Buffer.byteLength(body)
+            }
+          }, res => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+              if (res.statusCode !== 200) {
+                console.error('OAuth token exchange failed with HTTP ' + res.statusCode);
+                process.exit(1);
+              }
+              const parsed = JSON.parse(data);
+              if (!parsed.access_token) {
+                console.error('OAuth token exchange returned no access token.');
+                process.exit(1);
+              }
+              process.stdout.write(parsed.access_token);
+            });
+          });
+          req.on('error', err => {
+            console.error('OAuth token exchange request failed:', err.message);
+            process.exit(1);
+          });
+          req.write(body);
+          req.end();
+NODE
+          )"
+
+          test -n "$ACCESS_TOKEN"
+
+          HTTP_STATUS="$(curl --silent --show-error --output "$RUNNER_TEMP/firebase-sites.json" --write-out '%{http_code}'             -H "Authorization: Bearer $ACCESS_TOKEN"             -H "Content-Type: application/json"             "https://firebasehosting.googleapis.com/v1beta1/projects/twitter-clone-ccrsxx-2513a/sites")"
+
+          test "$HTTP_STATUS" = "200"
+          jq -e '.sites | type == "array"' "$RUNNER_TEMP/firebase-sites.json" >/dev/null
+          echo "Google OAuth token and Firebase Hosting API authorization verified."
+
       - name: Deploy to Firebase Hosting
         env:
           FIREBASE_SERVICE_ACCOUNT_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_JSON }}
@@ -73,5 +148,4 @@ jobs:
           trap 'rm -f "$GOOGLE_APPLICATION_CREDENTIALS"' EXIT
           printf '%s' "$FIREBASE_SERVICE_ACCOUNT_JSON" > "$GOOGLE_APPLICATION_CREDENTIALS"
           chmod 600 "$GOOGLE_APPLICATION_CREDENTIALS"
-          npm exec --yes --package=firebase-tools@15.32.1 -- firebase projects:list --debug --json
           npm exec --yes --package=firebase-tools@15.32.1 -- firebase deploy             --only hosting:testagram-tv             --project twitter-clone-ccrsxx-2513a             --debug             --json
