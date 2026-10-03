@@ -70,5 +70,5 @@ await writeFile("public/tv/channels.json",JSON.stringify({
   policy:"Public/free stream directory only. Testagram stores channel metadata and stream URLs; it does not copy broadcast video.",
   sources:SOURCES.map(({id,name,url})=>({id,name,url})),
   channels
-},null,2)+"\\n");
+},null,2)+"\n");
 console.log("Testagram TV catalogue: "+channels.length+" unique channels");
