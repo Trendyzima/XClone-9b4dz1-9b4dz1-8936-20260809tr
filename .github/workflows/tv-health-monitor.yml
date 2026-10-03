@@ -33,7 +33,7 @@ jobs:
           const channels=data.channels||[];
           const endpoint=process.env.SUPABASE_URL+'/functions/v1/tv-health';
           const key=process.env.SUPABASE_SERVICE_ROLE_KEY;
-          const batchSize=100;
+          const batchSize=500;
           let checked=0;
           for(let i=0;i<channels.length;i+=batchSize){
             const batch=channels.slice(i,i+batchSize);
