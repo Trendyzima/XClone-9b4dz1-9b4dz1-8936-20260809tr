@@ -1,15 +1,10 @@
+import posthog from 'posthog-js';
 import type { User } from '@supabase/supabase-js';
 
 const apiKey = import.meta.env.VITE_POSTHOG_KEY as string | undefined;
 const apiHost = ((import.meta.env.VITE_POSTHOG_HOST as string | undefined) || 'https://us.i.posthog.com').replace(/\/$/, '');
 
 let initialized = false;
-let currentUserId: string | null = null;
-
-export function initAnalytics(): void {
-  if (initialized || !apiKey) return;
-  initialized = true;
-}
 
 function safeProperties(properties?: Record<string, unknown>) {
   if (!properties) return undefined;
@@ -22,30 +17,26 @@ function safeProperties(properties?: Record<string, unknown>) {
   return result;
 }
 
-async function capture(event: string, properties?: Record<string, unknown>, distinctId = currentUserId ?? undefined): Promise<void> {
-  if (!apiKey || !distinctId) return;
+export function initAnalytics(): void {
+  if (initialized || !apiKey) return;
 
-  const payload = {
-    api_key: apiKey,
-    event,
-    distinct_id: distinctId,
-    properties: {
-      ...(safeProperties(properties) ?? {}),
-      $lib: 'testagram-analytics',
-      $lib_version: '1.0.0',
+  posthog.init(apiKey, {
+    api_host: apiHost,
+    defaults: '2026-05-30',
+    capture_pageview: false,
+    capture_pageleave: true,
+    autocapture: true,
+    capture_exceptions: true,
+    persistence: 'localStorage+cookie',
+    loaded: (instance) => {
+      instance.register({
+        app: 'testagram',
+        platform: 'web',
+      });
     },
-  };
+  });
 
-  try {
-    await fetch(`${apiHost}/capture/`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      keepalive: true,
-    });
-  } catch {
-    // Analytics must never break Testagram's product flows.
-  }
+  initialized = true;
 }
 
 export function identifyAnalyticsUser(user: User | null): void {
@@ -53,40 +44,37 @@ export function identifyAnalyticsUser(user: User | null): void {
   if (!initialized) return;
 
   if (!user) {
-    currentUserId = null;
+    posthog.reset();
     return;
   }
 
-  currentUserId = user.id;
   const metadata = user.user_metadata ?? {};
-  const properties = safeProperties({
+  posthog.identify(user.id, safeProperties({
     username: metadata.username ?? metadata.preferred_username,
     email_domain: user.email?.split('@')[1],
     auth_method: user.phone ? 'phone' : 'email',
-  });
-
-  void capture('$identify', {
-    $set: properties,
-    $set_once: { first_seen_as_testagram_user: new Date().toISOString() },
-  }, user.id);
+  }));
 }
 
 export function trackAnalyticsEvent(event: string, properties?: Record<string, unknown>): void {
   initAnalytics();
-  if (!initialized || !currentUserId) return;
-  void capture(event, properties);
+  if (!initialized) return;
+  posthog.capture(event, safeProperties(properties));
 }
 
 export function trackPageView(pathname = window.location.pathname): void {
-  trackAnalyticsEvent('$pageview', {
+  initAnalytics();
+  if (!initialized) return;
+  posthog.capture('$pageview', {
     $current_url: window.location.href,
     pathname,
   });
 }
 
 export function setAnalyticsUserProperties(properties: Record<string, unknown>): void {
-  if (!currentUserId) return;
-  void capture('$set', { $set: safeProperties(properties) ?? {} });
+  initAnalytics();
+  if (!initialized) return;
+  posthog.setPersonProperties(safeProperties(properties) ?? {});
 }
 
 export function startAnalyticsSession(): void {
@@ -97,7 +85,7 @@ export function startAnalyticsSession(): void {
 }
 
 export function shutdownAnalytics(): void {
-  currentUserId = null;
+  if (initialized) posthog.reset();
 }
 
 export const analytics = {
