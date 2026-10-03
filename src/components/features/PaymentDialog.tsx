@@ -143,34 +143,12 @@ export function PaymentDialog({
     }
   };
 
-  // ─── PayPal (simulate + record) ─────────────────────────────────
+  // PayPal cannot be marked paid by the browser. This dialog only supports
+  // server-authoritative M-Pesa for direct feature purchases. Wallet funding
+  // through PayPal is handled by PayPalTopUp, which performs provider capture.
   const processPayPal = async () => {
-    if (!user || !paypalEmail.includes('@')) {
-      toast.error('Enter a valid PayPal email');
-      return;
-    }
-    setLoading(true);
-    try {
-      const { error } = await supabase.from('payment_transactions').insert({
-        user_id: user.id,
-        type,
-        amount,
-        currency: 'USD',
-        payment_method: 'paypal',
-        status: 'completed',
-        metadata: { ...metadata, paypal_email: paypalEmail },
-        completed_at: new Date().toISOString(),
-        reference_id: `PP-${Date.now()}`,
-      });
-      if (error) throw error;
-      toast.success('PayPal payment recorded!');
-      onSuccess?.();
-      onOpenChange(false);
-    } catch (err: any) {
-      toast.error(err.message || 'PayPal payment failed');
-    } finally {
-      setLoading(false);
-    }
+    toast.info('For PayPal, fund your Testagram Wallet first, then complete the purchase from your wallet.');
+    setStep('method');
   };
 
   // ─── Render ──────────────────────────────────────────────────────
@@ -215,15 +193,16 @@ export function PaymentDialog({
                 </button>
 
                 <button
+                  disabled
                   onClick={() => { setMethod('paypal'); setStep('paypal_details'); }}
-                  className="w-full p-4 border-2 border-border hover:border-blue-500 rounded-xl transition-all flex items-center gap-4 group"
+                  className="w-full p-4 border-2 border-border rounded-xl transition-all flex items-center gap-4 group opacity-60 cursor-not-allowed"
                 >
                   <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center shrink-0">
                     <CreditCard className="w-6 h-6 text-white" />
                   </div>
                   <div className="text-left flex-1">
-                    <p className="font-bold">PayPal</p>
-                    <p className="text-sm text-muted-foreground">Pay with your PayPal account</p>
+                    <p className="font-bold">PayPal <span className="text-xs font-normal text-muted-foreground">(Wallet funding)</span></p>
+                    <p className="text-sm text-muted-foreground">Fund your wallet first, then pay securely</p>
                   </div>
                   <ArrowRight className="w-5 h-5 text-muted-foreground group-hover:text-blue-500 transition-colors" />
                 </button>
