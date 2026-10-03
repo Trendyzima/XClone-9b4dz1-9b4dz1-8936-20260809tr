@@ -69,7 +69,7 @@ async function signedPost(local:any,url:string,body:string,modern=false){
 }
 
 function retryState(attempt:number,retryAfter:string|null){
-  if(attempt>=MAX_DELIVERY_ATTEMPTS)return {status:"dead_letter" as const,next_attempt_at:null};
+  if(attempt>=MAX_DELIVERY_ATTEMPTS)return {status:"dead_letter" as const,next_attempt_at:new Date().toISOString()};
   return {status:"retry" as const,next_attempt_at:new Date(Date.now()+backoff(attempt,retryAfter)*1000).toISOString()};
 }
 function backoff(attempt:number,retryAfter:string|null){const ra=retryAfter?Number.parseInt(retryAfter,10):NaN;if(Number.isFinite(ra)&&ra>=0)return Math.min(ra,86400);return Math.min(86400,30*Math.pow(2,Math.min(attempt,8)));}
@@ -119,7 +119,7 @@ async function processJob(job:any){
     try{responseText=(await Promise.race([response.text(),new Promise<string>(resolve=>setTimeout(()=>resolve(""),2000))])).slice(0,2000)}catch{}
   }
   if(response.ok){
-    await getDb().from("federation_deliveries").update({status:"delivered",attempt_count:attempt,last_attempt_at:now,delivered_at:now,locked_at:null,next_attempt_at:null,last_status_code:response.status,last_error:null,updated_at:now}).eq("id",job.id).eq("status","in_flight");
+    await getDb().from("federation_deliveries").update({status:"delivered",attempt_count:attempt,last_attempt_at:now,delivered_at:now,locked_at:null,next_attempt_at:now,last_status_code:response.status,last_error:null,updated_at:now}).eq("id",job.id).eq("status","in_flight");
     await getDb().from("activitypub_outbox").update({delivered:true,attempts:attempt,next_attempt_at:null,last_error:null,updated_at:now}).eq("activity_id",activityId);
     await syncFollowRelationship(activityId,"delivered");
     if(activityRow?.id) await getDb().from("federated_activities").update({processing_state:"delivered",processing_attempts:attempt,processed_at:now,last_error:null,updated_at:now}).eq("id",activityRow.id);
@@ -128,7 +128,7 @@ async function processJob(job:any){
   const permanent=response.status===404||response.status===410||(response.status>=400&&response.status<500&&response.status!==401&&response.status!==403&&response.status!==429)||(response.status===500&&/error[_ ]1101|worker[_ ]threw/i.test(responseText));
   const retry=retryState(attempt,response.headers.get("retry-after"));
   const state=permanent?"dead_letter":retry.status;
-  const next=permanent?null:retry.next_attempt_at;
+  const next=permanent?now:retry.next_attempt_at;
   const message=(`Remote inbox ${response.status}: ${responseText}${!permanent && state==="dead_letter" ? " | retry budget exhausted" : ""}`).slice(0,2000);
   await getDb().from("federation_deliveries").update({status:state,attempt_count:attempt,last_attempt_at:now,locked_at:null,next_attempt_at:next,last_status_code:response.status,last_error:message,updated_at:now}).eq("id",job.id).eq("status","in_flight");
   await getDb().from("activitypub_outbox").update({attempts:attempt,next_attempt_at:next,last_error:message,updated_at:now}).eq("activity_id",activityId);
@@ -147,7 +147,7 @@ async function main(req:Request){
   // Watchdog: any delivery left in_flight beyond the bounded remote timeout is
   // reclaimed so deploys, crashes, or process termination cannot strand jobs.
   await getDb().from("federation_deliveries").update({status:"retry",locked_at:null,next_attempt_at:now,last_error:"Recovered stale in-flight delivery by worker watchdog",updated_at:now}).eq("status","in_flight").is("delivered_at",null).lt("locked_at",new Date(Date.now()-120000).toISOString());
-  await getDb().from("federation_deliveries").update({status:"delivered",locked_at:null,next_attempt_at:null,last_error:null,updated_at:now}).eq("status","in_flight").not("delivered_at","is",null);
+  await getDb().from("federation_deliveries").update({status:"delivered",locked_at:null,next_attempt_at:now,last_error:null,updated_at:now}).eq("status","in_flight").not("delivered_at","is",null);
   const q=await getDb().from("federation_deliveries").select("*").in("status",["pending","retry"]).lte("next_attempt_at",now).order("next_attempt_at",{ascending:true}).limit(limit);
   if(q.error)throw q.error;
   const claimedJobs:any[]=[];
