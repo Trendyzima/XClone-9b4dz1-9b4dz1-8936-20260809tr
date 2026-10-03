@@ -207,6 +207,7 @@ export function Sidebar() {
     { icon: Bell, label: 'Notifications', path: '/notifications', requireAuth: true, badge: unreadNotifs },
     { icon: Mail, label: 'Messages', path: '/messages', requireAuth: true, badge: unreadMessages },
     { icon: Radio, label: 'Spaces', path: '/spaces', requireAuth: false, badge: 0 },
+    { icon: Radio, label: 'World Live TV', path: '/iptv', requireAuth: false, badge: 0 },
     { icon: Sparkles, label: 'AI', path: '/ai', requireAuth: false, badge: 0 },
     { icon: Globe, label: 'Fediverse', path: '/fediverse', requireAuth: false, badge: unreadFed },
     { icon: Trophy, label: 'Leaderboard', path: '/leaderboard', requireAuth: false, badge: 0 },
