@@ -261,6 +261,11 @@ export default {
   async fetch(request: Request, env: Env) {
     const url = new URL(request.url);
 
+    // Canonicalize the public origin: apex is the sole SEO identity.
+    if (url.hostname === 'www.testagram.site') {
+      return Response.redirect(`https://testagram.site${url.pathname}${url.search}`, 301);
+    }
+
     try {
       if (url.pathname.startsWith('/api/')) {
         const limiter = (env as any).RATE_LIMITER;
