@@ -1343,11 +1343,20 @@ function SpendingAnalyticsTab({ userId, currency }: { userId: string; currency: 
 
   const fetchTxns = async () => {
     setLoading(true);
-    let q = supabase.from('wallet_transactions').select('*').eq('user_id', userId).order('created_at', { ascending: false }).limit(200);
-    if (period === 'week')  q = q.gte('created_at', new Date(Date.now() - 7  * 86400000).toISOString());
-    if (period === 'month') q = q.gte('created_at', new Date(Date.now() - 30 * 86400000).toISOString());
-    const { data } = await q;
-    setTxns(data ?? []); setLoading(false);
+    try {
+      let q = supabase.from('wallet_transactions')
+        .select('*').eq('user_id', userId)
+        .order('created_at', { ascending: false }).limit(200);
+      if (period === 'week')  q = q.gte('created_at', new Date(Date.now() - 7  * 86400000).toISOString());
+      if (period === 'month') q = q.gte('created_at', new Date(Date.now() - 30 * 86400000).toISOString());
+      const { data, error } = await q;
+      if (error) throw error;
+      setTxns(data ?? []);
+    } catch (err) {
+      console.error('Wallet transaction history error:', err);
+      toast.error('Unable to load wallet history');
+      setTxns([]);
+    } finally { setLoading(false); }
   };
 
   const { barData, pieData, totalIn, totalOut, totalBoosts, avgTxn, recentDeposits } = useMemo(() => {
