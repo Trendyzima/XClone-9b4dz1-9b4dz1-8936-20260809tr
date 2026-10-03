@@ -2260,7 +2260,10 @@ function SpendLimitCard({ userId, wallet, onSaved }: { userId: string; wallet: a
 
   const handleSave = async () => {
     setSaving(true);
-    const { error } = await supabase.from('user_wallets').update({ spend_limit_enabled: enabled, daily_spend_limit: limitUsd ? parseFloat(limitUsd) : null }).eq('user_id', userId);
+    const { error } = await supabase.rpc('set_my_wallet_spend_limit', {
+      p_enabled: enabled,
+      p_daily_limit: limitUsd ? parseFloat(limitUsd) : null,
+    });
     setSaving(false);
     if (error) { toast.error('Failed to save spend limit'); return; }
     toast.success(enabled ? `Daily limit set to $${parseFloat(limitUsd||'0').toFixed(2)}` : 'Spend limit disabled');
