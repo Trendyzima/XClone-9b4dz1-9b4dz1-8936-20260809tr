@@ -100,6 +100,9 @@ jobs:
         run: npm run lint
 
       - name: Production build
+        env:
+          VITE_POSTHOG_KEY: ${{ secrets.VITE_POSTHOG_KEY }}
+          VITE_POSTHOG_HOST: ${{ vars.VITE_POSTHOG_HOST }}
         run: npm run build
 
       - name: Install Supabase CLI
