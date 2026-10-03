@@ -883,6 +883,8 @@ jobs:
 
       - name: Verify Cloudflare production domain
         shell: bash
+        env:
+          EXPECTED_COMMIT_SHA: ${{ steps.target.outputs.sha }}
         run: |
           set -euo pipefail
           echo "Verifying Testagram production origin at https://testagram.site"
@@ -910,8 +912,13 @@ jobs:
           const body=fs.readFileSync("health.txt","utf8").trim();
           let p;
           try { p=JSON.parse(body); } catch { process.exit(1); }
+          const expected = process.env.EXPECTED_COMMIT_SHA;
           if (p?.ok !== true || p?.service !== "testagram" || p?.edge !== "reachable") process.exit(1);
-          console.log("Production liveness passed:", JSON.stringify(p));
+          if (p?.commit !== expected) {
+            console.error("Exact-SHA mismatch:", JSON.stringify({ expected, actual: p?.commit }));
+            process.exit(2);
+          }
+          console.log("Production exact-SHA liveness passed:", JSON.stringify(p));
           NODE
                 then
                   health_ok=true
