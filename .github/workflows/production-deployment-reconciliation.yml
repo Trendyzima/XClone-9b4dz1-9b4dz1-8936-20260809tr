@@ -711,7 +711,7 @@ jobs:
             delay=$((attempt * 20)); echo "::warning::tv-media-control deployment retrying in ${delay}s."; sleep "$delay"; attempt=$((attempt+1))
           done
           echo "Testagram TV Cloudflare control-plane Edge Function deployed."
-      - name: Prepare Cloudflare Worker Custom Domain attachment
+      - name: Prepare Cloudflare Worker production routes
         shell: bash
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -721,8 +721,8 @@ jobs:
           [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is required for Cloudflare Worker deployment."; exit 1; }
           CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]')"
           [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::Configured Testagram Cloudflare account ID is not a valid 32-character account ID."; exit 1; }
-          echo "Cloudflare credentials validated. Wrangler will attach the configured Custom Domains during deployment."
-          echo "Custom Domain targets: testagram.site, www.testagram.site"
+          echo "Cloudflare credentials validated. Wrangler will attach the configured production routes during deployment."
+          echo "Production route targets: testagram.site/*, www.testagram.site/*"
 
       - name: Deploy Cloudflare Worker and Custom Domains
         shell: bash
@@ -733,9 +733,9 @@ jobs:
           set -euo pipefail
           [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is missing from the production environment."; exit 1; }
           [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::Cloudflare account ID is missing or invalid. Configure CLOUDFLARE_ACCOUNT_ID or TESTAGRAM_CLOUDFLARE_ACCOUNT_ID in the production environment."; exit 1; }
-          echo "Deploying testagram-web to Cloudflare and applying configured Custom Domains..."
+          echo "Deploying testagram-web to Cloudflare and applying configured production routes..."
           npx wrangler deploy
-          echo "Cloudflare Worker deployment and Custom Domain configuration command completed."
+          echo "Cloudflare Worker deployment and production route configuration command completed."
 
       - name: Verify Cloudflare production domain
         shell: bash
