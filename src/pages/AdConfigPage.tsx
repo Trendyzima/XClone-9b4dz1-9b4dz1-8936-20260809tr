@@ -24,6 +24,7 @@ export default function AdConfigPage() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [creatives, setCreatives] = useState<Creative[]>([]);
   const [revenueShare, setRevenueShare] = useState(70);
+  const [lastSavedShare, setLastSavedShare] = useState<number | null>(null);
   const [newCampaignName, setNewCampaignName] = useState('');
   const [newBid, setNewBid] = useState('2');
   const [adding, setAdding] = useState(false);
@@ -36,11 +37,11 @@ export default function AdConfigPage() {
       supabase.from('zenad_campaigns').select('id,name,status,priority,bid_cpm_micros,targeting').order('created_at', { ascending: false }),
       supabase.from('zenad_slots').select('id,code,kind,floor_cpm_micros,enabled').order('code'),
       supabase.from('zenad_creatives').select('id,campaign_id,headline,body,cta,click_through_url,enabled').order('created_at', { ascending: false }),
-      supabase.from('platform_settings').select('setting_value').eq('setting_key', 'paypal_config').maybeSingle(),
+      supabase.from('platform_settings').select('setting_value').eq('setting_key', 'testagram_ads_config').maybeSingle(),
     ]);
     setCampaigns((c ?? []) as Campaign[]); setSlots((s ?? []) as Slot[]); setCreatives((cr ?? []) as Creative[]);
     const value: any = settings?.setting_value ?? {};
-    if (typeof value.revenue_share_percentage === 'number') setRevenueShare(value.revenue_share_percentage);
+    if (typeof value.revenue_share_percentage === 'number') { setRevenueShare(value.revenue_share_percentage); setLastSavedShare(value.revenue_share_percentage); }
     setLoading(false);
   };
 
@@ -59,8 +60,8 @@ export default function AdConfigPage() {
 
   const updateRevenueShare = async () => {
     const value = Math.min(100, Math.max(0, Number(revenueShare)));
-    const { error } = await supabase.from('platform_settings').upsert({ setting_key: 'paypal_config', setting_value: { revenue_share_percentage: value } });
-    if (error) toast.error(error.message); else toast.success('Revenue share saved');
+    const { error } = await supabase.from('platform_settings').upsert({ setting_key: 'testagram_ads_config', setting_value: { revenue_share_percentage: value } });
+    if (error) toast.error(error.message); else { setRevenueShare(value); setLastSavedShare(value); toast.success('Revenue share saved'); }
   };
 
   const addHouseCampaign = async () => {
@@ -93,7 +94,7 @@ export default function AdConfigPage() {
       <section className="border rounded-2xl p-5"><div className="flex items-center gap-2 mb-4"><Plus className="w-4 h-4"/><h2 className="font-bold">Create a direct campaign</h2></div><div className="grid md:grid-cols-[1fr_150px_auto] gap-3"><Input value={newCampaignName} onChange={e=>setNewCampaignName(e.target.value)} placeholder="Advertiser / campaign name"/><Input value={newBid} onChange={e=>setNewBid(e.target.value)} type="number" min="0.01" step="0.01" placeholder="CPM USD"/><Button onClick={addHouseCampaign} disabled={adding||!newCampaignName.trim()}>{adding?<Loader2 className="w-4 h-4 animate-spin"/>:<Plus className="w-4 h-4 mr-1"/>}Create</Button></div><p className="text-xs text-muted-foreground mt-2">The campaign is stored in Supabase and competes using ZenAd priority, CPM floor, targeting and frequency caps.</p></section>
       <section className="border rounded-2xl p-5"><div className="flex items-center justify-between mb-4"><h2 className="font-bold">Campaigns</h2><span className="text-xs text-muted-foreground">{creatives.length} creatives</span></div><div className="space-y-3">{campaigns.map(c=><div key={c.id} className="flex items-center justify-between gap-3 border rounded-xl p-3"><div className="min-w-0"><p className="font-semibold truncate">{c.name}</p><p className="text-xs text-muted-foreground">Priority {c.priority} · ${(Number(c.bid_cpm_micros)/1_000_000).toFixed(2)} CPM · {c.status}</p></div><Button size="sm" variant="outline" onClick={()=>toggleCampaign(c)}><Power className="w-4 h-4 mr-1"/>{c.status==='active'?'Pause':'Activate'}</Button></div>)}</div></section>
       <section className="border rounded-2xl p-5"><h2 className="font-bold mb-4">Ad inventory</h2><div className="space-y-2">{slots.map(s=><div key={s.id} className="flex items-center justify-between border rounded-xl p-3"><div><p className="font-semibold">{s.code}</p><p className="text-xs text-muted-foreground">{s.kind} · floor ${(Number(s.floor_cpm_micros)/1_000_000).toFixed(2)} CPM</p></div><Button size="sm" variant="outline" onClick={()=>toggleSlot(s)}>{s.enabled?'Disable':'Enable'}</Button></div>)}</div></section>
-      <section className="border rounded-2xl p-5"><div className="flex items-center gap-2 mb-4"><Settings className="w-4 h-4"/><h2 className="font-bold">Creator revenue share</h2></div><div className="flex gap-3 items-end"><div className="flex-1"><label className="text-sm font-medium">Platform share (%)</label><Input type="number" min="0" max="100" value={revenueShare} onChange={e=>setRevenueShare(Number(e.target.value))}/></div><Button onClick={updateRevenueShare}>Save</Button></div><p className="text-xs text-muted-foreground mt-2">This controls the existing creator monetization split; ZenAd keeps the ad decisioning and billing ledger separate from creator payouts.</p></section>
+      <section className="border rounded-2xl p-5"><div className="flex items-center gap-2 mb-4"><Settings className="w-4 h-4"/><h2 className="font-bold">Creator revenue share</h2></div><div className="flex gap-3 items-end"><div className="flex-1"><label className="text-sm font-medium">Platform share (%)</label><Input type="number" min="0" max="100" value={revenueShare} onChange={e=>setRevenueShare(Number(e.target.value))}/></div><Button onClick={updateRevenueShare}>Save</Button></div><p className="text-xs text-muted-foreground mt-2">Stored in the dedicated Testagram Ads configuration namespace. ZenAd handles ad decisioning; creator payouts remain separate.</p>{lastSavedShare !== null && <p className="text-xs text-muted-foreground mt-1">Last saved: {lastSavedShare}% platform share.</p>}</section>
     </div>
   </div>;
 }
