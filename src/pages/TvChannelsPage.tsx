@@ -14,7 +14,7 @@ function ChannelTile({channel,active,onSelect}:{channel:TvChannel;active:boolean
   <div className='relative aspect-video overflow-hidden bg-muted'>
    {channel.logo?<img src={channel.logo} alt='' loading='lazy' decoding='async' className='absolute inset-0 m-auto max-h-16 max-w-[48%] object-contain transition-transform group-hover:scale-105'/>:<Tv className='absolute inset-0 m-auto h-10 w-10 text-muted-foreground/50'/>}
    <div className='absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/75 to-transparent'/>
-   <span className='absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] font-bold text-white'><span className='h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse'/>LIVE</span>
+   <span className='absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-black/70 px-2 py-1 text-[10px] font-bold text-white'><span className='h-1.5 w-1.5 rounded-full bg-red-500 animate-pulse'/>{channel.live===true?'LIVE':'PUBLIC'}</span>
    <span className='absolute bottom-2 left-2 right-2 truncate text-xs font-semibold text-white'>{channel.name}</span>
   </div>
   <div className='p-3'><p className='truncate text-sm font-semibold'>{channel.name}</p><p className='mt-1 flex items-center gap-1 truncate text-[11px] text-muted-foreground'><Globe2 className='h-3 w-3 shrink-0'/>{channel.country||'International'}{channel.group&&<> · {channel.group}</>}</p></div>
@@ -39,6 +39,19 @@ export default function TvChannelsPage(){
   setLoading(false);
  },[]);
 
+ const loadFirebaseCatalogue=useCallback(async()=>{
+  try{
+   const response=await fetch('/tv/channels.json',{headers:{Accept:'application/json'}});
+   if(!response.ok)return;
+   const payload=await response.json();
+   if(Array.isArray(payload?.channels)){
+    const catalogue=payload.channels as TvChannel[];
+    setChannels(prev=>dedupeTvChannels([...prev,...catalogue]));
+    setNotice(prev=>prev||('Worldwide catalogue: '+catalogue.length.toLocaleString()+' public channels indexed.'));
+   }
+  }catch{}
+ },[]);
+
  const loadTestagramLive=useCallback(async()=>{
   const {data}=await supabase.from('live_streams').select('id,user_id,title,description,category,viewer_count,started_at,user:profiles(username,avatar_url)').eq('is_live',true).order('started_at',{ascending:false}).limit(16);
   const unique=Array.from(new Map((data||[]).map((stream:any)=>[String(stream.user_id||stream.id),stream])).values()).slice(0,8);
@@ -46,10 +59,10 @@ export default function TvChannelsPage(){
  },[]);
 
  useEffect(()=>{
-  void loadSources(getPrioritySourceIds().slice(0,6)); void loadTestagramLive();
+  void loadFirebaseCatalogue(); void loadSources(getPrioritySourceIds().slice(0,6)); void loadTestagramLive();
   const ch=supabase.channel('tv-live-broadcasts').on('postgres_changes',{event:'*',schema:'public',table:'live_streams'},loadTestagramLive).subscribe();
   return()=>{void supabase.removeChannel(ch);};
- },[loadSources,loadTestagramLive]);
+ },[loadFirebaseCatalogue,loadSources,loadTestagramLive]);
 
  const filtered=useMemo(()=>{
   const q=query.trim().toLowerCase();
