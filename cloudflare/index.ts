@@ -148,6 +148,59 @@ async function proxySupabase(request: Request, targetPath: string) {
 
 async function handleApi(request: Request, env: Env) {
   const url = new URL(request.url);
+
+  // Keep production liveness/readiness deterministic in the Worker runtime.
+  // These two endpoints must never depend on dynamic module loading: a module
+  // resolution/runtime failure would otherwise mask a healthy Worker as HTTP 500.
+  if (url.pathname === '/api/health') {
+    const commit = String((env as any).TESTAGRAM_COMMIT_SHA || 'unknown');
+    return new Response(JSON.stringify({
+      ok: true,
+      service: 'testagram',
+      edge: 'reachable',
+      commit,
+    }), {
+      status: 200,
+      headers: commonHeaders(new Headers({
+        'content-type': 'application/json; charset=utf-8',
+        'cache-control': 'no-store',
+      })),
+    });
+  }
+
+  if (url.pathname === '/api/ready') {
+    const key = String(
+      (env as any).SUPABASE_PUBLISHABLE_KEY ||
+      (env as any).SUPABASE_ANON_KEY ||
+      (env as any).VITE_SUPABASE_ANON_KEY ||
+      'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya'
+    );
+    try {
+      const response = await fetch('https://ffrhglgkukgsuhxenena.supabase.co/auth/v1/settings', {
+        headers: { apikey: key, Authorization: 'Bearer ' + key },
+        cache: 'no-store',
+      });
+      return new Response(JSON.stringify({
+        ok: response.ok,
+        database: response.ok ? 'reachable' : 'unhealthy',
+      }), {
+        status: response.ok ? 200 : 503,
+        headers: commonHeaders(new Headers({
+          'content-type': 'application/json; charset=utf-8',
+          'cache-control': 'no-store',
+        })),
+      });
+    } catch {
+      return new Response(JSON.stringify({ ok: false, database: 'unreachable' }), {
+        status: 503,
+        headers: commonHeaders(new Headers({
+          'content-type': 'application/json; charset=utf-8',
+          'cache-control': 'no-store',
+        })),
+      });
+    }
+  }
+
   const edge = await invokeEdge(url.pathname, request, env);
   if (edge) return edge;
 
