@@ -34,7 +34,7 @@ Deno.serve(async(req)=>{
    channel_id:r.channel_id,url:String(c.url),is_online:r.ok,last_checked_at:new Date().toISOString(),
    last_online_at:r.ok?new Date().toISOString():old.last_online_at||null,
    consecutive_failures:r.ok?0:Number(old.consecutive_failures||0)+1,
-   consecutive_successes:r.ok:Number(old.consecutive_successes||0)+1,
+   consecutive_successes:r.ok?Number(old.consecutive_successes||0)+1:0,
    latency_ms:r.latency,check_error:r.error,source:c.source||null,country:c.country||null,
    group_name:c.group||null,priority:Number(c.priority||0)
   },{onConflict:"channel_id"});
