@@ -1,68 +1,38 @@
 import { createClient } from "@supabase/supabase-js";
 
+/**
+ * Canonical wallet repository.
+ *
+ * Monetary mutations are intentionally not performed with browser CRUD.
+ * Wallet balances are changed only by authenticated RPCs / trusted Edge
+ * Functions so the balance and wallet_transactions rows stay atomic.
+ */
 const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_ANON_KEY!
+  import.meta.env.VITE_SUPABASE_URL,
+  import.meta.env.VITE_SUPABASE_ANON_KEY
 );
 
 export class WalletRepository {
-  async getWallet(userId: string) {
-    const { data } = await supabase
-      .from("wallets")
-      .select("*")
-      .eq("user_id", userId)
-      .single();
-
+  async getWallet(_userId: string) {
+    const { data, error } = await supabase.rpc("get_my_wallet");
+    if (error) throw error;
     return data;
   }
 
-  async createWallet(userId: string) {
-    const { data } = await supabase
-      .from("wallets")
-      .insert({ user_id: userId, balance: 0 })
-      .select()
-      .single();
-
-    return data;
+  async createWallet(_userId: string) {
+    // get_my_wallet is the canonical, idempotent wallet provisioner.
+    return this.getWallet(_userId);
   }
 
-  async credit(userId: string, amount: number, reference?: string) {
-    const wallet = await this.getWallet(userId) || await this.createWallet(userId);
-
-    const newBalance = (wallet.balance || 0) + amount;
-
-    await supabase.from("wallets").update({ balance: newBalance }).eq("user_id", userId);
-
-    await supabase.from("transactions").insert({
-      user_id: userId,
-      amount,
-      type: "credit",
-      reference,
-      status: "success"
-    });
-
-    return newBalance;
+  async credit(_userId: string, _amount: number, _reference?: string): Promise<never> {
+    throw new Error(
+      "Direct wallet credits are disabled. Use the provider settlement Edge Function."
+    );
   }
 
-  async debit(userId: string, amount: number, reference?: string) {
-    const wallet = await this.getWallet(userId);
-
-    if (!wallet || wallet.balance < amount) {
-      throw new Error("Insufficient balance");
-    }
-
-    const newBalance = wallet.balance - amount;
-
-    await supabase.from("wallets").update({ balance: newBalance }).eq("user_id", userId);
-
-    await supabase.from("transactions").insert({
-      user_id: userId,
-      amount,
-      type: "debit",
-      reference,
-      status: "success"
-    });
-
-    return newBalance;
+  async debit(_userId: string, _amount: number, _reference?: string): Promise<never> {
+    throw new Error(
+      "Direct wallet debits are disabled. Use a canonical wallet RPC or payment Edge Function."
+    );
   }
 }
