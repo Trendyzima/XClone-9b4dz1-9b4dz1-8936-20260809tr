@@ -60,6 +60,12 @@ jobs:
       - name: Build application
         run: npm run build
 
+      - name: Generate immutable deployment metadata for dry-run
+        run: |
+          set -euo pipefail
+          echo "export const DEPLOYED_COMMIT_SHA = '${{ github.sha }}';" > cloudflare/deployment-meta.ts
+          grep -F "${{ github.sha }}" cloudflare/deployment-meta.ts >/dev/null
+
       - name: Validate Worker bundle without deploying
         run: npx wrangler deploy --dry-run
 
