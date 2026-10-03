@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
 import { LegalMiniSidebar } from '@/components/layout/LegalMiniSidebar';
-import { LegalMiniSidebar } from '@/components/layout/LegalMiniSidebar';
 import {
   Shield, AlertTriangle, Ban, Megaphone, CheckCircle, XCircle,
   MessageSquare, Eye, Flag, Globe, Zap, ChevronDown, FileText,
