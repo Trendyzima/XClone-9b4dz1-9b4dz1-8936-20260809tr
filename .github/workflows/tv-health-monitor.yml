@@ -28,6 +28,7 @@ jobs:
         run: |
           test -n "$SUPABASE_SERVICE_ROLE_KEY"
           node <<'NODE'
+          (async () => {
           const fs=require('fs');
           const data=JSON.parse(fs.readFileSync('public/tv/channels.json','utf8'));
           const channels=data.channels||[];
@@ -44,4 +45,5 @@ jobs:
             console.log(JSON.stringify({batch:i/batchSize+1,checked:result.checked,online:result.online,offline:result.offline}));
           }
           console.log('Total channels checked: '+checked);
+          })().catch((error) => { console.error(error); process.exit(1); });
           NODE
