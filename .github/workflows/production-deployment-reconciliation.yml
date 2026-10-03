@@ -714,33 +714,78 @@ jobs:
       - name: Reconcile Cloudflare DNS for Worker Custom Domains
         shell: bash
         env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_API_TOKEN: \${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: \${{ secrets.CLOUDFLARE_ZONE_ID }}
         run: |
           set -euo pipefail
           [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is required for Cloudflare DNS reconciliation."; exit 1; }
 
-          echo "Resolving active Cloudflare zone for testagram.site..."
-          zone_response="$(curl -sS -w '\n%{http_code}' --retry 4 --retry-delay 2             -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"             -H "Accept: application/json"             "https://api.cloudflare.com/client/v4/zones?name=testagram.site&status=active")"
-          zone_status="${zone_response##*$'\n'}"
-          zone_body="${zone_response%$'\n'*}"
-          if [[ "$zone_status" != "200" ]]; then
-            echo "::error::Cloudflare API token cannot read the testagram.site zone (HTTP $zone_status). The deployment token must include Zone > Zone > Read and Zone > DNS > Edit for this zone."
-            printf '%s\n' "$zone_body"
+          echo "Verifying the exact Cloudflare token injected into the production environment..."
+          token_verify_status="$(curl -sS -o /tmp/cloudflare-token-verify.json -w "%{http_code}" --retry 4 --retry-delay 2 \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Accept: application/json" \
+            "https://api.cloudflare.com/client/v4/user/tokens/verify")"
+          if [[ "$token_verify_status" != "200" ]]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is not accepted by Cloudflare (HTTP $token_verify_status)."
+            cat /tmp/cloudflare-token-verify.json
             exit 1
           fi
-          zone_id="$(printf '%s' "$zone_body" | jq -r '.result[] | select(.status == "active") | .id' | head -n 1)"
-          [[ "$zone_id" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::Active testagram.site zone was not resolved."; exit 1; }
+          node - <<'NODE'
+          const fs=require("node:fs");
+          const p=JSON.parse(fs.readFileSync("/tmp/cloudflare-token-verify.json","utf8"));
+          if(p?.success!==true || p?.result?.status!=="active"){
+            console.error("::error::Cloudflare API token is not active:",JSON.stringify({success:p?.success,status:p?.result?.status,errors:p?.errors}));
+            process.exit(1);
+          }
+          console.log("Cloudflare API token is active.");
+          NODE
+
+          zone_id="$(printf '%s' "$CLOUDFLARE_ZONE_ID" | tr -d '[:space:]')"
+          if [[ -n "$zone_id" ]]; then
+            [[ "$zone_id" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::CLOUDFLARE_ZONE_ID is not a valid 32-character zone ID."; exit 1; }
+            echo "Using explicitly configured Cloudflare zone ID."
+          else
+            echo "Resolving active Cloudflare zone for testagram.site..."
+            zone_response="$(curl -sS -w '\n%{http_code}' --retry 4 --retry-delay 2 \
+              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+              -H "Accept: application/json" \
+              "https://api.cloudflare.com/client/v4/zones?name=testagram.site&status=active")"
+            zone_status="\${zone_response##*$'\n'}"
+            zone_body="\${zone_response%$'\n'*}"
+            if [[ "$zone_status" != "200" ]]; then
+              echo "::error::Cloudflare zone lookup failed (HTTP $zone_status)."
+              echo "::error::Token verification passed, so this is a zone-listing/scope problem. Configure CLOUDFLARE_ZONE_ID and ensure Zone:DNS:Edit applies to testagram.site."
+              printf '%s\n' "$zone_body"
+              exit 1
+            fi
+            zone_id="$(printf '%s' "$zone_body" | jq -r '.result[] | select(.status == "active") | .id' | head -n 1)"
+            [[ "$zone_id" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::Active testagram.site zone was not resolved."; exit 1; }
+          fi
           printf '::add-mask::%s\n' "$zone_id"
 
           for host in testagram.site www.testagram.site; do
             for type in A AAAA CNAME; do
               echo "Checking $type records for $host..."
-              ids="$(curl --fail --silent --show-error --retry 4 --retry-delay 2                 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"                 -H "Accept: application/json"                 "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=$host&type=$type&per_page=100" |
-                jq -r '.result[]?.id')"
+              dns_response="$(curl -sS -w '\n%{http_code}' --retry 4 --retry-delay 2 \
+                -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+                -H "Accept: application/json" \
+                "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records?name=$host&type=$type&per_page=100")"
+              dns_status="\${dns_response##*$'\n'}"
+              dns_body="\${dns_response%$'\n'*}"
+              if [[ "$dns_status" != "200" ]]; then
+                echo "::error::Cloudflare DNS record lookup failed for $host/$type (HTTP $dns_status)."
+                printf '%s\n' "$dns_body"
+                exit 1
+              fi
+              ids="$(printf '%s' "$dns_body" | jq -r '.result[]?.id')"
               while IFS= read -r record_id; do
                 [[ -n "$record_id" ]] || continue
                 echo "Removing conflicting $type DNS record for $host before Custom Domain attachment."
-                status="$(curl -sS -o /tmp/cloudflare-dns-delete.json -w '%{http_code}'                   -X DELETE                   -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"                   -H "Accept: application/json"                   "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records/$record_id")"
+                status="$(curl -sS -o /tmp/cloudflare-dns-delete.json -w '%{http_code}' \
+                  -X DELETE \
+                  -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+                  -H "Accept: application/json" \
+                  "https://api.cloudflare.com/client/v4/zones/$zone_id/dns_records/$record_id")"
                 [[ "$status" == "200" ]] || {
                   echo "::error::Cloudflare DNS record deletion failed for $host/$type (HTTP $status)."
                   cat /tmp/cloudflare-dns-delete.json
