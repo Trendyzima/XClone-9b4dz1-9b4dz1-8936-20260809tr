@@ -1,0 +1,118 @@
+-- Permanent handle ownership: a handle is reserved forever once issued.
+-- This prevents deleted/deactivated accounts from allowing handle squatting or re-ownership.
+
+create table if not exists public.handle_reservations (
+  username text primary key,
+  original_user_id uuid null references auth.users(id) on delete set null,
+  reserved_at timestamptz not null default now()
+);
+
+alter table public.handle_reservations enable row level security;
+
+drop policy if exists handle_reservations_public_read on public.handle_reservations;
+create policy handle_reservations_public_read
+on public.handle_reservations for select to authenticated using (true);
+
+insert into public.handle_reservations (username, original_user_id)
+select lower(trim(username)), id
+from public.profiles
+where username is not null and trim(username) <> ''
+on conflict (username) do nothing;
+
+create or replace function public.reserve_username_on_profile_insert()
+returns trigger language plpgsql security definer set search_path=public,pg_temp as $$
+begin
+  if new.username is null or btrim(new.username) = '' then
+    raise exception using errcode='22023', message='A permanent username handle is required';
+  end if;
+  new.username := lower(btrim(new.username));
+  if not exists (select 1 from public.handle_reservations where username = new.username) then
+    insert into public.handle_reservations(username, original_user_id) values (new.username, new.id);
+  elsif exists (select 1 from public.handle_reservations where username = new.username and original_user_id is null) then
+    update public.handle_reservations set original_user_id = new.id where username = new.username;
+  elsif not exists (select 1 from public.handle_reservations where username = new.username and original_user_id = new.id) then
+    raise exception using errcode='23505', message='That username handle is permanently owned';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.reserve_username_on_profile_insert() from public,anon,authenticated;
+
+drop trigger if exists reserve_profile_username on public.profiles;
+create trigger reserve_profile_username
+before insert on public.profiles
+for each row execute function public.reserve_username_on_profile_insert();
+
+create or replace function public.prevent_username_change()
+returns trigger language plpgsql security definer set search_path=public,pg_temp as $$
+begin
+  if new.username is distinct from old.username then
+    raise exception using errcode='42501', message='Username handles are permanent and cannot be changed';
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.prevent_username_change() from public,anon,authenticated;
+
+drop trigger if exists prevent_profile_username_change on public.profiles;
+create trigger prevent_profile_username_change
+before update of username on public.profiles
+for each row execute function public.prevent_username_change();
+
+create or replace function public.profile_update(p_input jsonb default '{}'::jsonb)
+returns jsonb
+language plpgsql security definer set search_path=public,pg_temp
+as $function$
+declare
+  v_user_id uuid := auth.uid();
+  v_profile public.profiles%rowtype;
+  v_username text;
+  v_current_username text;
+  v_website text;
+begin
+  if v_user_id is null then raise exception using errcode='28000',message='Authentication required'; end if;
+  select * into v_profile from public.profiles where id=v_user_id;
+  if not found then raise exception using errcode='P0002',message='Profile not found'; end if;
+  v_current_username:=lower(btrim(v_profile.username));
+  if p_input ? 'username' then
+    v_username:=lower(btrim(p_input->>'username'));
+    if v_username<>v_current_username then raise exception using errcode='42501',message='Username handles are permanent and cannot be changed'; end if;
+  else
+    v_username:=v_current_username;
+  end if;
+  if v_username='' or length(v_username)>30 or v_username !~ '^[a-z0-9_][a-z0-9_.-]{1,29}$' then
+    raise exception using errcode='22023',message='Invalid username handle';
+  end if;
+  if not exists(select 1 from public.handle_reservations where username=v_username and original_user_id=v_user_id) then
+    raise exception using errcode='42501',message='This username handle is not owned by this account';
+  end if;
+  if p_input ? 'display_name' and length(coalesce(p_input->>'display_name',''))>80 then raise exception using errcode='22023',message='Display name is too long'; end if;
+  if p_input ? 'bio' and length(coalesce(p_input->>'bio',''))>500 then raise exception using errcode='22023',message='Bio is too long'; end if;
+  if p_input ? 'website' and length(coalesce(p_input->>'website',''))>500 then raise exception using errcode='22023',message='Website URL is too long'; end if;
+  if p_input ? 'website_url' and length(coalesce(p_input->>'website_url',''))>500 then raise exception using errcode='22023',message='Website URL is too long'; end if;
+  if p_input ? 'location' and length(coalesce(p_input->>'location',''))>120 then raise exception using errcode='22023',message='Location is too long'; end if;
+  if p_input ? 'pronouns' and length(coalesce(p_input->>'pronouns',''))>80 then raise exception using errcode='22023',message='Pronouns are too long'; end if;
+  if p_input ? 'avatar_url' and length(coalesce(p_input->>'avatar_url',''))>2000 then raise exception using errcode='22023',message='Avatar URL is too long'; end if;
+  if p_input ? 'cover_url' and length(coalesce(p_input->>'cover_url',''))>2000 then raise exception using errcode='22023',message='Cover URL is too long'; end if;
+  v_website:=case when p_input ? 'website' then nullif(btrim(p_input->>'website'),'') when p_input ? 'website_url' then nullif(btrim(p_input->>'website_url'),'') else null end;
+  update public.profiles set
+    display_name=case when p_input ? 'display_name' then nullif(btrim(p_input->>'display_name'),'') else display_name end,
+    avatar_url=case when p_input ? 'avatar_url' then nullif(btrim(p_input->>'avatar_url'),'') else avatar_url end,
+    cover_url=case when p_input ? 'cover_url' then nullif(btrim(p_input->>'cover_url'),'') else cover_url end,
+    bio=case when p_input ? 'bio' then nullif(btrim(p_input->>'bio'),'') else bio end,
+    website=case when p_input ? 'website' or p_input ? 'website_url' then v_website else website end,
+    website_url=case when p_input ? 'website' or p_input ? 'website_url' then v_website else website_url end,
+    location=case when p_input ? 'location' then nullif(btrim(p_input->>'location'),'') else location end,
+    social_links=case when p_input ? 'social_links' then p_input->'social_links' else social_links end,
+    pronouns=case when p_input ? 'pronouns' then nullif(btrim(p_input->>'pronouns'),'') else pronouns end,
+    birth_date=case when p_input ? 'birth_date' then nullif(btrim(p_input->>'birth_date'),'')::date else birth_date end,
+    profile_features=case when p_input ? 'profile_features' then p_input->'profile_features' else profile_features end,
+    appearance_settings=case when p_input ? 'appearance_settings' then p_input->'appearance_settings' else appearance_settings end,
+    updated_at=now()
+  where id=v_user_id
+  returning * into v_profile;
+  return jsonb_build_object('profile',to_jsonb(v_profile),'updated',true);
+end;
+$function$;
+revoke all on function public.profile_update(jsonb) from public,anon,authenticated;
+grant execute on function public.profile_update(jsonb) to authenticated;
