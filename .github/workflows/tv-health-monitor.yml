@@ -1,6 +1,9 @@
 name: TV Channel Health Monitor
 
 on:
+  push:
+    paths:
+      - '.github/workflows/tv-health-monitor.yml'
   schedule:
     - cron: "*/15 * * * *"
   workflow_dispatch:
