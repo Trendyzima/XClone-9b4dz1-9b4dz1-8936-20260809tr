@@ -791,9 +791,22 @@ export default function ProfilePage() {
         return;
       }
       const socialLinks = (profileData.social_links ?? {}) as { twitter?: string | null; instagram?: string | null; linkedin?: string | null };
+      // Verification is an entitlement, never a default profile field. The backend
+      // authoritatively grants it only to the platform owner or an active monthly
+      // verification subscription.
+      const { data: verificationStatus } = await supabase.rpc('get_profile_verification_status', { p_user_id: profileData.id });
       // Critical path: render the canonical profile immediately. Non-critical profile
       // enrichments must never block the profile shell from becoming visible.
-      const normalizedProfile = { ...profileData, twitter_handle: socialLinks.twitter ?? null, instagram_handle: socialLinks.instagram ?? null, linkedin_url: socialLinks.linkedin ?? null, cover_image: profileData.cover_url ?? null, verified: profileData.verified_tier !== 'none', total_earnings: 0 };
+      const normalizedProfile = {
+        ...profileData,
+        twitter_handle: socialLinks.twitter ?? null,
+        instagram_handle: socialLinks.instagram ?? null,
+        linkedin_url: socialLinks.linkedin ?? null,
+        cover_image: profileData.cover_url ?? null,
+        verified: Boolean(verificationStatus?.is_verified),
+        verified_tier: verificationStatus?.tier ?? null,
+        total_earnings: 0,
+      };
       setPinnedPostId(profileData.pinned_post_id ?? null);
       setProfile(normalizedProfile);
       setLoading(false);
