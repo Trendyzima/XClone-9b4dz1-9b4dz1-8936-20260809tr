@@ -30,6 +30,40 @@ const cors = {
 };
 
 const blocked = /(adult|porn|xxx|premium|paid subscription|xtream|stalker|pirate)/i;
+
+const UPSTASH_URL = Deno.env.get("UPSTASH_REDIS_REST_URL")?.replace(/\\/$/, "");
+const UPSTASH_TOKEN = Deno.env.get("UPSTASH_REDIS_REST_TOKEN");
+
+async function upstash(command:string[]) {
+  if (!UPSTASH_URL || !UPSTASH_TOKEN) return null;
+  try {
+    const response = await fetch(UPSTASH_URL, {
+      method: "POST",
+      headers: {
+        Authorization: "Bearer " + UPSTASH_TOKEN,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(command)
+    });
+    if (!response.ok) return null;
+    const payload = await response.json();
+    return payload?.result ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function getCachedChannels(sourceId:string) {
+  const value = await upstash(["GET", "tv:catalog:v1:" + sourceId]);
+  if (typeof value !== "string" || !value) return null;
+  try { return JSON.parse(value); } catch { return null; }
+}
+
+async function setCachedChannels(sourceId:string, payload:unknown) {
+  const value = JSON.stringify(payload);
+  if (value.length > 9000000) return;
+  await upstash(["SET", "tv:catalog:v1:" + sourceId, value, "EX", "120"]);
+}
 const clean = (v:string|undefined) => v?.replace(/\s+/g," ").trim() || undefined;
 const attr = (line:string,key:string) => line.match(new RegExp(key+'="([^"]*)"',"i"))?.[1]?.trim();
 
@@ -165,6 +199,14 @@ Deno.serve(async(req)=>{
   const controller=new AbortController();
   const timer=setTimeout(()=>controller.abort(),10000);
   try {
+    const cached = await getCachedChannels(sourceId);
+    if (cached && Array.isArray(cached.channels)) {
+      return new Response(JSON.stringify({
+        ...cached,
+        meta:{...cached.meta, cache_hit:true, generated_at:new Date().toISOString()}
+      }),{headers:cors});
+    }
+
     let channels:any[]=[];
     if(sourceId==="iptv-org-global") {
       const [m3u,nexusKe,nexusNews,github]=await Promise.allSettled([
@@ -209,7 +251,7 @@ Deno.serve(async(req)=>{
     // Only publish streams that are currently reachable and recognizable as media/HLS.
     channels=await onlyLiveChannels(channels,controller.signal,8);
 
-    return new Response(JSON.stringify({
+    const payload = {
       source,
       channels,
       meta:{
@@ -218,9 +260,13 @@ Deno.serve(async(req)=>{
         live_only:true,
         health_checked:true,
         auto_discovery:sourceId==="iptv-org-global",
-        storage:"stream_urls_only"
+        storage:"stream_urls_only",
+        cache_hit:false,
+        cache_backend:UPSTASH_URL && UPSTASH_TOKEN ? "upstash" : "origin"
       }
-    }),{headers:cors});
+    };
+    await setCachedChannels(sourceId,payload);
+    return new Response(JSON.stringify(payload),{headers:cors});
   } catch(error) {
     console.error("[tv-catalog]",sourceId,error);
     return new Response(JSON.stringify({error:"TV source temporarily unavailable",source:sourceId}),{status:502,headers:cors});
