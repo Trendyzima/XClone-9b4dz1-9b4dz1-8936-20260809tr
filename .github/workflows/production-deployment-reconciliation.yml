@@ -846,6 +846,49 @@ jobs:
 
           echo "Cloudflare route reconciliation passed: no legacy route overrides the Testagram Custom Domain."
           echo "Cloudflare route API: GET/DELETE /zones/{zone_id}/workers/routes."
+      - name: Reconcile Resend DNS authentication for testagram.site
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          set -euo pipefail
+          [[ -n "${CLOUDFLARE_API_TOKEN:-}" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is required for Resend DNS reconciliation."; exit 1; }
+          [[ "${CLOUDFLARE_ZONE_ID:-}" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::CLOUDFLARE_ZONE_ID is missing or invalid."; exit 1; }
+
+          API="https://api.cloudflare.com/client/v4"
+          upsert_dns() {
+            local name="$1" type="$2" content="$3" priority="${4:-}"
+            local encoded_name
+            encoded_name="$(python3 -c 'import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1], safe=""))' "$name")"
+            local list
+            list="$(curl -fsS --retry 4 --retry-delay 2               -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"               -H "Accept: application/json"               "$API/zones/$CLOUDFLARE_ZONE_ID/dns_records?name=$encoded_name&type=$type&per_page=100")"
+            local count
+            count="$(jq '.result | length' <<<"$list")"
+            local payload
+            if [[ "$type" == "MX" ]]; then
+              payload="$(jq -cn --arg name "$name" --arg content "$content" --argjson priority "$priority" '{name:$name,type:"MX",ttl:1,content:$content,priority:$priority}')"
+            else
+              payload="$(jq -cn --arg name "$name" --arg type "$type" --arg content "$content" '{name:$name,type:$type,ttl:1,content:$content}')"
+            fi
+
+            if [[ "$count" -gt 0 ]]; then
+              local id
+              id="$(jq -r '.result[0].id' <<<"$list")"
+              curl -fsS --retry 4 --retry-delay 2 -X PUT                 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"                 -H "Content-Type: application/json"                 --data "$payload"                 "$API/zones/$CLOUDFLARE_ZONE_ID/dns_records/$id" | jq -e '.success == true' >/dev/null
+              echo "Updated Resend DNS $type $name."
+            else
+              curl -fsS --retry 4 --retry-delay 2 -X POST                 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN"                 -H "Content-Type: application/json"                 --data "$payload"                 "$API/zones/$CLOUDFLARE_ZONE_ID/dns_records" | jq -e '.success == true' >/dev/null
+              echo "Created Resend DNS $type $name."
+            fi
+          }
+
+          upsert_dns "resend._domainkey.testagram.site" "TXT" "p=MIGfMA0GCSqGSIb3DQEBAQUAA4GNADCBiQKBgQDMNrdsGbFD2a2pgCipQ1twW1mwdgZXDFTBOY4J70nhG4Ip9jDk+TkEKpnraQV2HoJ+6qCdWIAW2uQH9sHsVxp6914bVgUNIjjF+A8TAvpLBOOBVGLo8b/LZjDDha3aokzxzITHnDhTVIcW95GUtj0MT0If8a43U1GMURSdMGiSTwIDAQAB"
+          upsert_dns "send.testagram.site" "MX" "feedback-smtp.us-east-1.amazonses.com" "10"
+          upsert_dns "send.testagram.site" "TXT" "v=spf1 include:amazonses.com ~all"
+          upsert_dns "rsend.testagram.site" "CNAME" "send.forge.rmta.net"
+          echo "Resend DNS authentication records reconciled."
+
       - name: Deploy Cloudflare Worker and Custom Domains
         shell: bash
         env:
