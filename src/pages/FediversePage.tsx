@@ -318,7 +318,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
       });
       if (!res.ok) throw new Error();
       const data = await readJsonResponse(res);
-      setMastodonSearchResults(data.statuses ?? []);
+      setMastodonSearchResults(data?.statuses ?? []);
     } catch { setMastodonSearchResults([]); }
     setSearchingMastodon(false);
   };
@@ -843,7 +843,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
       });
       const data = await readJsonResponse(res);
       const posts = Array.isArray(data) ? data : data?.statuses ?? data?.posts ?? data?.data ?? [];
-      if (posts.length === 0 && !res.ok) throw new Error(data?.error ?? 'No results');
+      if (posts.length === 0 && !res.ok) throw new Error(data?.error ?? `No results (HTTP ${res.status})`);
       setKeywordResults(posts);
     } catch {
       const { data: cached } = await supabase.from('federated_objects').select('*').ilike('content', `%${q}%`).order('published_at', { ascending: false }).limit(20);
