@@ -815,41 +815,86 @@ jobs:
           set -euo pipefail
           echo "Verifying Testagram production origin at https://testagram.site"
 
-          curl --fail --silent --show-error --location --retry 8 --retry-delay 5 \
-            -D response-headers.txt \
-            "https://testagram.site/api/health" > health.txt
+          # Custom Domain attachment and edge DNS activation are asynchronous.
+          # Do not fail the deployment while Cloudflare is still returning DNS
+          # resolution errors or transient 503s during activation.
+          max_attempts=36
+          health_ok=false
+          for attempt in $(seq 1 "$max_attempts"); do
+            rm -f response-headers.txt health.txt
+            dns_line="$(getent ahostsv4 testagram.site 2>&1 | head -n 1 || true)"
+            if [[ -n "$dns_line" ]]; then
+              echo "Attempt $attempt/$max_attempts: DNS resolved: $dns_line"
+            else
+              echo "Attempt $attempt/$max_attempts: DNS has not resolved yet."
+            fi
 
-          grep -Eiq '^server:[[:space:]]*cloudflare' response-headers.txt || {
-            echo "::error::testagram.site is not currently being served by Cloudflare Workers."
-            cat response-headers.txt
+            status="$(curl -sS --location --connect-timeout 10 --max-time 30               -D response-headers.txt -o health.txt -w '%{http_code}'               "https://testagram.site/api/health" || true)"
+
+            if [[ "$status" == "200" ]]; then
+              if grep -Eiq '^server:[[:space:]]*cloudflare' response-headers.txt; then
+                if node - <<'NODE'
+const fs=require("node:fs");
+const body=fs.readFileSync("health.txt","utf8").trim();
+let p;
+try { p=JSON.parse(body); } catch { process.exit(1); }
+if (p?.ok !== true || p?.service !== "testagram" || p?.edge !== "reachable") process.exit(1);
+console.log("Production liveness passed:", JSON.stringify(p));
+NODE
+                then
+                  health_ok=true
+                  break
+                fi
+              else
+                echo "::warning::HTTP 200 received but Cloudflare Server header is not yet present."
+              fi
+            else
+              echo "::warning::Health endpoint is not ready yet (HTTP $status)."
+              if [[ -s health.txt ]]; then head -c 500 health.txt; echo; fi
+            fi
+
+            if (( attempt < max_attempts )); then
+              sleep 10
+            fi
+          done
+
+          [[ "$health_ok" == true ]] || {
+            echo "::error::testagram.site did not become Cloudflare Worker-backed and healthy within the activation window."
+            echo "Last DNS result:"
+            getent ahostsv4 testagram.site || true
+            echo "Last response headers:"
+            cat response-headers.txt 2>/dev/null || true
+            echo "Last response body:"
+            head -c 2000 health.txt 2>/dev/null || true
             exit 1
           }
 
-          node - <<'NODE'
-          const fs=require("node:fs");
-          const body=fs.readFileSync("health.txt","utf8").trim();
-          let p;
-          try { p=JSON.parse(body); } catch { console.error(body); process.exit(1); }
-          if (p?.ok !== true || p?.service !== "testagram" || p?.edge !== "reachable") {
-            console.error("Liveness contract failed:", JSON.stringify(p));
-            process.exit(1);
-          }
-          console.log("Production liveness passed:", JSON.stringify(p));
-          NODE
+          ready_ok=false
+          for attempt in $(seq 1 "$max_attempts"); do
+            status="$(curl -sS --location --connect-timeout 10 --max-time 30               -o ready.txt -w '%{http_code}' "https://testagram.site/api/ready" || true)"
+            if [[ "$status" == "200" ]]; then
+              if node - <<'NODE'
+const fs=require("node:fs");
+const body=fs.readFileSync("ready.txt","utf8").trim();
+let p;
+try { p=JSON.parse(body); } catch { process.exit(1); }
+if (p?.ok !== true || p?.database !== "reachable") process.exit(1);
+console.log("Production database readiness passed:", JSON.stringify(p));
+NODE
+              then
+                ready_ok=true
+                break
+              fi
+            fi
+            echo "::warning::Readiness endpoint is not ready yet (HTTP $status)."
+            if (( attempt < max_attempts )); then sleep 10; fi
+          done
 
-          curl --fail --silent --show-error --location --retry 8 --retry-delay 5             "https://testagram.site/api/ready" > ready.txt
-
-          node - <<'NODE'
-          const fs=require("node:fs");
-          const body=fs.readFileSync("ready.txt","utf8").trim();
-          let p;
-          try { p=JSON.parse(body); } catch { console.error(body); process.exit(1); }
-          if (p?.ok !== true || p?.database !== "reachable") {
-            console.error("Readiness contract failed:", JSON.stringify(p));
-            process.exit(1);
+          [[ "$ready_ok" == true ]] || {
+            echo "::error::testagram.site/api/ready did not become database-ready within the activation window."
+            head -c 2000 ready.txt 2>/dev/null || true
+            exit 1
           }
-          console.log("Production database readiness passed:", JSON.stringify(p));
-          NODE
 
           echo "Cloudflare production domain liveness/readiness passed."
 
