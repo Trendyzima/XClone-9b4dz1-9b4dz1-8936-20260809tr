@@ -18,6 +18,7 @@ import { useNotificationSound } from '@/hooks/useNotificationSound';
 import { applyAppearance, applyTheme, getStoredAppearance, THEME_PRESETS, type AppearanceSettings, type ThemeChoice, type ThemePresetId } from '@/theme/themes';
 import { authService } from '@/lib/auth';
 import { toast } from 'sonner';
+import { SettingsMiniSidebar } from '@/components/layout/SettingsMiniSidebar';
 
 // esbuild guard: module-level locale constants
 const LOCALE_KEY = 'ts-locale';
