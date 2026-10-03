@@ -21,6 +21,8 @@ const NODE_ROUTES: Record<string, string> = {
   '/api/media': '../api/media',
   '/api/auth/send-sms': '../api/auth/send-sms',
   '/api/story-cleanup': '../api/story-cleanup',
+  '/api/news': '../api/news',
+  '/api/email/send': '../api/email/send',
 };
 
 function setRuntimeEnv(env: Env, commit?: string) {
