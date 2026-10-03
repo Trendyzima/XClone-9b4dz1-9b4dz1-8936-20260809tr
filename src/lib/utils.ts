@@ -111,7 +111,7 @@ export function parseContent(content: string): string {
 
   // Linkify hashtags — skip occurrences already inside HTML attributes (href/id/class)
   // Two-step: protect attributes, then replace bare #word tokens in text
-  parsed = parsed.replace(/(<[^>]+>)|#(\w+)/g, (m, tag, hash) => {
+  parsed = parsed.replace(/(<[^>]+>)|#([\\p{L}\\p{N}_][\\p{L}\\p{N}_-]*)/gu, (m, tag, hash) => {
     if (tag) return tag; // keep HTML tags unchanged
     return `<a href="/hashtag/${hash}" class="text-primary hover:underline">#${hash}</a>`;
   });
@@ -142,12 +142,12 @@ export function parseContent(content: string): string {
 }
 
 export function extractHashtags(content: string): string[] {
-  const matches = content.match(/#(\w+)/g);
+  const matches = content.match(/#[\\p{L}\\p{N}_][\\p{L}\\p{N}_-]*/gu);
   return matches ? matches.map(tag => tag.substring(1).toLowerCase()) : [];
 }
 
 export function extractMentions(content: string): string[] {
-  const matches = content.match(/@(\w+)/g);
+  const matches = content.match(/@[a-zA-Z0-9_][a-zA-Z0-9_.-]*/g);
   return matches ? matches.map(mention => mention.substring(1).toLowerCase()) : [];
 }
 
