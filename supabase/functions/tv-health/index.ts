@@ -22,22 +22,18 @@ Deno.serve(async(req)=>{
  if(!serviceKey || supplied!==serviceKey) return new Response(JSON.stringify({error:"Unauthorized"}),{status:401,headers:cors});
  const body=await req.json().catch(()=>({}));
  const channels=Array.isArray(body.channels)?body.channels: [];
- const batch=channels.slice(0,Number(body.limit||100));
+ const batch=channels.slice(0,Number(body.limit||500));
  const results:any[]=[]; let cursor=0;
  const worker=async()=>{while(cursor<batch.length){const c=batch[cursor++]; if(!c?.url)continue; const p=await probe(String(c.url)); results.push({channel_id:String(c.id),...p});}};
- await Promise.all(Array.from({length:Math.min(12,batch.length||1)},worker));
- for(const r of results){
-  const c=batch.find((x:any)=>String(x.id)===r.channel_id); if(!c)continue;
-  const existing=await supabase.from("tv_channel_health").select("consecutive_failures,consecutive_successes,last_online_at").eq("channel_id",r.channel_id).maybeSingle();
-  const old=existing.data||{};
-  await supabase.from("tv_channel_health").upsert({
-   channel_id:r.channel_id,url:String(c.url),is_online:r.ok,last_checked_at:new Date().toISOString(),
-   last_online_at:r.ok?new Date().toISOString():old.last_online_at||null,
-   consecutive_failures:r.ok?0:Number(old.consecutive_failures||0)+1,
-   consecutive_successes:r.ok?Number(old.consecutive_successes||0)+1:0,
-   latency_ms:r.latency,check_error:r.error,source:c.source||null,country:c.country||null,
-   group_name:c.group||null,priority:Number(c.priority||0)
-  },{onConflict:"channel_id"});
- }
+ await Promise.all(Array.from({length:Math.min(64,batch.length||1)},worker));
+ const now=new Date().toISOString();
+ const rows=results.map(r=>{
+  const ch=batch.find((x:any)=>String(x.id)===r.channel_id);
+  return ch?{channel_id:r.channel_id,url:String(ch.url),is_online:r.ok,last_checked_at:now,last_online_at:r.ok?now:null,
+   consecutive_failures:r.ok?0:1,consecutive_successes:r.ok?1:0,latency_ms:r.latency,check_error:r.error,
+   source:ch.source||null,country:ch.country||null,group_name:ch.group||null,priority:Number(ch.priority||0)}:null;
+ }).filter(Boolean);
+ if(rows.length) await supabase.from("tv_channel_health").upsert(rows,{onConflict:"channel_id"});
+
  return new Response(JSON.stringify({ok:true,checked:results.length,online:results.filter(x=>x.ok).length,offline:results.filter(x=>!x.ok).length,checked_at:new Date().toISOString()}),{headers:cors});
 });
