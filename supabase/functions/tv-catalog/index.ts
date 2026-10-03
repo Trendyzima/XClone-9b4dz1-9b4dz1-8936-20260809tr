@@ -59,7 +59,7 @@ async function upstash(command:string[]) {
 }
 
 async function getCachedChannels(sourceId:string) {
-  const value = await upstash(["GET", "tv:catalog:v3:" + sourceId]);
+  const value = await upstash(["GET", "tv:catalog:v4:" + sourceId]);
   if (typeof value !== "string" || !value) return null;
   try { return JSON.parse(value); } catch { return null; }
 }
@@ -67,7 +67,7 @@ async function getCachedChannels(sourceId:string) {
 async function setCachedChannels(sourceId:string, payload:unknown) {
   const value = JSON.stringify(payload);
   if (value.length > 9000000) return;
-  await upstash(["SET", "tv:catalog:v3:" + sourceId, value, "EX", "120"]);
+  await upstash(["SET", "tv:catalog:v4:" + sourceId, value, "EX", "120"]);
 }
 const clean = (v:string|undefined) => v?.replace(/\s+/g," ").trim() || undefined;
 const attr = (line:string,key:string) => line.match(new RegExp(key+'="([^"]*)"',"i"))?.[1]?.trim();
