@@ -3,6 +3,7 @@
   "name": "testagram-web",
   "main": "cloudflare/index.ts",
   "compatibility_date": "2026-10-03",
+  "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "preview_urls": true,
   "assets": {
