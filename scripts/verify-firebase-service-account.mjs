@@ -42,6 +42,9 @@ const request = (url, options, payload = '') => new Promise((resolve, reject) =>
   req.end();
 });
 
+console.log('Service-account email: ' + key.client_email);
+console.log('Stored private-key ID: ' + key.private_key_id);
+
 const publicKeys = await request(
   'https://www.googleapis.com/service_accounts/v1/metadata/x509/' + encodeURIComponent(key.client_email),
   { method: 'GET', headers: { Accept: 'application/json' } }
