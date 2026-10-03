@@ -50,86 +50,9 @@ jobs:
       - name: Test
         run: flutter test
 
-      - name: Configure reproducible release signing
-        env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      - name: Enforce HTTPS-only Android networking
         run: |
           set -euo pipefail
-          test -n "$ANDROID_KEYSTORE_BASE64"
-          test -n "$ANDROID_KEYSTORE_PASSWORD"
-          test -n "$ANDROID_KEY_ALIAS"
-          test -n "$ANDROID_KEY_PASSWORD"
-
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/testagram-release.jks
-
-          cat > android/key.properties <<EOF
-          storeFile=testagram-release.jks
-          storePassword=$ANDROID_KEYSTORE_PASSWORD
-          keyAlias=$ANDROID_KEY_ALIAS
-          keyPassword=$ANDROID_KEY_PASSWORD
-          EOF
-
-          if [ -f android/app/build.gradle ]; then
-            python3 - <<'PY'
-          from pathlib import Path
-          
-          p = Path("android/app/build.gradle")
-          s = p.read_text()
-          
-          header = """import java.util.Properties
-          import java.io.FileInputStream
-          
-          def keystoreProperties = new Properties()
-          def keystorePropertiesFile = rootProject.file('key.properties')
-          if (keystorePropertiesFile.exists()) {
-              keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
-          }
-          
-          """
-          
-          if "keystorePropertiesFile" not in s:
-              s = header + s
-          
-          signing = """    signingConfigs {
-                  release {
-            keyAlias keystoreProperties['keyAlias']
-            keyPassword keystoreProperties['keyPassword']
-            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
-            storePassword keystoreProperties['storePassword']
-                  }
-              }
-          
-          """
-          
-          if "signingConfigs {" not in s:
-              s = s.replace("    buildTypes {", signing + "    buildTypes {", 1)
-          
-          release_marker = "        release {"
-          if "signingConfig signingConfigs.release" not in s:
-              s = s.replace(
-                  release_marker,
-                  release_marker + "\n            signingConfig signingConfigs.release",
-                  1
-              )
-          
-          p.write_text(s)
-          PY
-          elif [ -f android/app/build.gradle.kts ]; then
-            python3 - <<'PY'
-          from pathlib import Path
-          p = Path("android/app/build.gradle.kts")
-          s = p.read_text()
-          if "signingConfigs" not in s:
-              raise SystemExit("Kotlin Gradle DSL detected; checked-in Android project is required for signing configuration")
-          PY
-          else
-            echo "No supported Android Gradle build file found" >&2
-            exit 1
-          fi
-
           python3 - <<'PY'
           from pathlib import Path
           p = Path("android/app/src/main/AndroidManifest.xml")
@@ -139,7 +62,7 @@ jobs:
           p.write_text(s)
           PY
 
-      - name: Build signed release APK and App Bundle
+      - name: Build release APK and App Bundle
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
@@ -148,7 +71,7 @@ jobs:
           flutter build apk --release             --dart-define=SUPABASE_URL="$SUPABASE_URL"             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
           flutter build appbundle --release             --dart-define=SUPABASE_URL="$SUPABASE_URL"             --dart-define=SUPABASE_ANON_KEY="$SUPABASE_ANON_KEY"
 
-      - name: Verify signed artifacts
+      - name: Verify release artifacts
         run: |
           set -euo pipefail
           APK="build/app/outputs/flutter-apk/app-release.apk"
