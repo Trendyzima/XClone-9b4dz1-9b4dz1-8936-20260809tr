@@ -17,8 +17,6 @@ export interface Wallet {
   created_at: string;
   updated_at: string;
   preferred_currency?: string | null;
-  wallet_pin_hash?: string | null;
-  biometric_credential_id?: string | null;
   savings_balance?: number;
   spend_limit_enabled?: boolean;
   daily_spend_limit?: number | null;
@@ -32,7 +30,7 @@ export function useWallet() {
   const { user } = useAuth();
   const [wallet, setWallet] = useState<Wallet | null>(null);
   const [phoneIdentity, setPhoneIdentity] = useState<WalletPhoneIdentity | null>(null);
-  const [walletSecurity, setWalletSecurity] = useState<{ pin_hash: string | null; biometric_credential_id: string | null; biometric_enabled: boolean } | null>(null);
+  const [walletSecurity, setWalletSecurity] = useState<{ pin_set: boolean; biometric_credential_id: string | null; biometric_enabled: boolean } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,10 +64,7 @@ export function useWallet() {
       const resolvedWallet = gatewayWallet as Wallet;
 
       const { data: security, error: securityError } = await supabase
-        .from('wallet_security')
-        .select('pin_hash,biometric_credential_id,biometric_enabled')
-        .eq('user_id', user.id)
-        .maybeSingle();
+        .rpc('get_my_wallet_security');
 
       if (securityError) throw securityError;
       setWalletSecurity(security as typeof walletSecurity);
