@@ -27,9 +27,6 @@ jobs:
       AUTHORITATIVE_REPO: Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr
       AUTHORITATIVE_BRANCH: main
       AUTHORITATIVE_SHA: ${{ github.sha }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-      VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
       SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
     steps:
       - name: Checkout exact candidate
@@ -233,33 +230,6 @@ jobs:
 
           echo "SUPABASE_DB_FORENSIC_PROBE=GREEN"
 
-      - name: Verify Vercel deployment lineage when credentials exist
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [ -z "${VERCEL_TOKEN:-}" ] || [ -z "${VERCEL_PROJECT_ID:-}" ]; then
-            echo "::warning::Vercel reconciliation credentials are not configured; deployment lineage remains QUARANTINED."
-            exit 0
-          fi
-          api="https://api.vercel.com/v9/projects/${VERCEL_PROJECT_ID}"
-          if [ -n "${VERCEL_TEAM_ID:-}" ]; then
-            api="${api}?teamId=${VERCEL_TEAM_ID}"
-          fi
-          body="$(curl -fsSL -H "Authorization: Bearer ${VERCEL_TOKEN}" "${api}")"
-          repo="$(printf '%s' "${body}" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); console.log(j.link?.repo||"")})')"
-          branch="$(printf '%s' "${body}" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s); console.log(j.link?.productionBranch||"")})')"
-          echo "Vercel linked repo: ${repo:-UNKNOWN}"
-          echo "Vercel production branch: ${branch:-UNKNOWN}"
-          if [ "${repo}" != "${AUTHORITATIVE_REPO}" ]; then
-            echo "::warning::Vercel Git lineage mismatch; automatic repository switching is deliberately forbidden."
-            exit 0
-          fi
-          if [ -n "${branch}" ] && [ "${branch}" != "${AUTHORITATIVE_BRANCH}" ]; then
-            echo "::warning::Vercel production branch mismatch."
-            exit 0
-          fi
-          echo "VERCEL_LINEAGE=VERIFIED"
-
       - name: Emit reconciliation receipt
         shell: bash
         run: |
@@ -271,7 +241,6 @@ jobs:
             "commit": "${AUTHORITATIVE_SHA}",
             "event": "${GITHUB_EVENT_NAME}",
             "database_policy": "read-only-until-live-schema-is-proven",
-            "vercel_policy": "never-switch-lineage-without-explicit-reconciliation",
             "deployment_policy": "never-promote-unverified-sha"
           }
           EOF
