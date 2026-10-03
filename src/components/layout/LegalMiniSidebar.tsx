@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Shield, FileText, Scale, Flag, Mail } from 'lucide-react';
+import { Shield, FileText, Scale, Flag } from 'lucide-react';
 
 const ITEMS = [
   ['/privacy','Privacy'],['/terms','Terms'],['/policy','Content policy'],['/appeals','Appeals'],
@@ -19,7 +19,6 @@ export function LegalMiniSidebar() {
               {label}
             </button>
           ))}
-          <a href="mailto:privacy@tsocial.com" className="shrink-0 inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50" aria-label="Contact privacy team"><Mail className="h-3.5 w-3.5"/> Contact</a>
         </div>
       </div>
     </nav>
