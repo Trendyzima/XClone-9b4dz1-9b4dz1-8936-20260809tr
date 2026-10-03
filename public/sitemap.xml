@@ -3,18 +3,18 @@
   <!-- Static pages — updated with every deploy -->
   <sitemap>
     <loc>https://testagram.site/sitemap-static.xml</loc>
-    <lastmod>2026-10-01</lastmod>
+    <lastmod>2026-10-03</lastmod>
   </sitemap>
 
   <!-- Dynamic community pages — refreshed every 6 hours by sitemap-refresh edge function -->
   <sitemap>
     <loc>https://testagram.site/api/sitemap-community</loc>
-    <lastmod>2026-10-01</lastmod>
+    <lastmod>2026-10-03</lastmod>
   </sitemap>
 
   <!-- Dynamic user profile pages — served live by sitemap-users edge function -->
   <sitemap>
     <loc>https://testagram.site/api/sitemap-users</loc>
-    <lastmod>2026-10-01</lastmod>
+    <lastmod>2026-10-03</lastmod>
   </sitemap>
 </sitemapindex>
