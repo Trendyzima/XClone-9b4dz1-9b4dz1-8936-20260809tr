@@ -16,7 +16,10 @@ on:
       - "package.json"
       - "package-lock.json"
       - "public/tv/**"
+      - "scripts/build-tv-catalog.mjs"
   workflow_dispatch:
+  schedule:
+    - cron: "17 */6 * * *"
 
 permissions:
   contents: read
@@ -42,6 +45,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Build worldwide TV catalogue (up to 20,000 channels)
+        run: node scripts/build-tv-catalog.mjs
 
       - name: Build TV application
         run: npm run build
