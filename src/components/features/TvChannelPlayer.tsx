@@ -29,17 +29,17 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
   const looksLikeHls=/\.m3u8(?:$|[?#])/i.test(channel.url);
   const playbackUrl=looksLikeHls?directUrl:playbackUrlRef.current;
   const looksLikeFile=/\.(mp4|webm|ogg)(?:$|[?#])/i.test(directUrl);
-  if(video.canPlayType('application/vnd.apple.mpegurl')||looksLikeFile){
+  if(looksLikeFile){
     video.src=playbackUrl;
     video.addEventListener('loadedmetadata',play,{once:true});
     video.addEventListener('canplay',healthy,{once:true});
     video.addEventListener('playing',healthy,{once:true});
     video.addEventListener('error',retry,{once:true});
-    if(looksLikeFile) void video.play().catch((e:any)=>{if(e?.name!=='NotAllowedError')retry();else{setNeedsGesture(true);setStarting(false);}});
+    void video.play().catch((e:any)=>{if(e?.name!=='NotAllowedError')retry();else{setNeedsGesture(true);setStarting(false);}});
     return;
   }
   if(Hls.isSupported()&&!looksLikeFile){const h=new Hls({enableWorker:true,lowLatencyMode:true,startFragPrefetch:true,initialLiveManifestSize:2,backBufferLength:6,maxBufferLength:30,maxMaxBufferLength:60,maxBufferSize:96*1024*1024,maxBufferHole:0.25,highBufferWatchdogPeriod:2,nudgeOffset:0.15,nudgeMaxRetry:4,liveSyncDurationCount:4,liveMaxLatencyDurationCount:9,manifestLoadingMaxRetry:4,levelLoadingMaxRetry:5,fragLoadingMaxRetry:5,fragLoadingRetryDelay:1000,fragLoadingMaxRetryTimeout:8000});hls.current=h;h.loadSource(playbackUrl);h.attachMedia(video);h.on(Hls.Events.MANIFEST_PARSED,play);h.on(Hls.Events.FRAG_BUFFERED,healthy);h.on(Hls.Events.ERROR,(_,d)=>{if(!d.fatal)return;if(d.type===Hls.ErrorTypes.MEDIA_ERROR&&playbackUrlRef.current!==channel.url){try{h.recoverMediaError();return;}catch{}}retry();});return;}
-  if(!looksLikeHls){video.src=playbackUrl;video.addEventListener('canplay',healthy,{once:true});video.addEventListener('error',retry,{once:true});void video.play().catch(()=>{});return;}
+  if(video.canPlayType('application/vnd.apple.mpegurl')&&!looksLikeHls){video.src=playbackUrl;video.addEventListener('canplay',healthy,{once:true});video.addEventListener('error',retry,{once:true});void video.play().catch(()=>{});return;}
   setStarting(false);setError(true);onHealth?.(channel.id,false);
  },[active,channel.id,channel.url,cleanup,healthy,retry,onHealth]);
  startRef.current=start;
