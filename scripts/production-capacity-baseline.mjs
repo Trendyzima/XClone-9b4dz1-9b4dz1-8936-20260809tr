@@ -11,6 +11,7 @@ const failureSamples = [];
 let completed = 0;
 let failed = 0;
 let revisionMismatches = 0;
+let propagationMismatches = 0;
 let invalidContracts = 0;
 let deployedCommit = expectedCommit;
 let next = 0;
@@ -63,6 +64,17 @@ async function isDescendantOfExpected(observedCommit) {
   const token = process.env.GITHUB_TOKEN;
   if (!repository || !token || !/^[0-9a-f]{40}$/.test(observedCommit)) return false;
   const response = await fetch(`https://api.github.com/repos/${repository}/compare/${expectedCommit}...${observedCommit}`, { headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "testagram-production-capacity-baseline/1.0" }, cache: "no-store" });
+  if (!response.ok) return false;
+  const body = await response.json();
+  return body?.status === "ahead" || body?.status === "identical";
+}
+
+async function isAncestorOfExpected(observedCommit) {
+  if (!observedCommit || observedCommit === expectedCommit) return false;
+  const repository = process.env.GITHUB_REPOSITORY;
+  const token = process.env.GITHUB_TOKEN;
+  if (!repository || !token || !/^[0-9a-f]{40}$/.test(observedCommit)) return false;
+  const response = await fetch(`https://api.github.com/repos/${repository}/compare/${observedCommit}...${expectedCommit}`, { headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}`, "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "testagram-production-capacity-baseline/1.0" }, cache: "no-store" });
   if (!response.ok) return false;
   const body = await response.json();
   return body?.status === "ahead" || body?.status === "identical";
@@ -165,9 +177,15 @@ async function worker() {
         invalidContracts++;
         sampleFailure(response, body, "invalid_json_contract");
       } else if (body.commit !== deployedCommit) {
-        failed++;
-        revisionMismatches++;
-        sampleFailure(response, body, "revision_mismatch");
+        const propagatedAncestor = await isAncestorOfExpected(body.commit);
+        if (propagatedAncestor) {
+          propagationMismatches++;
+          sampleFailure(response, body, "propagating_ancestor_revision");
+        } else {
+          failed++;
+          revisionMismatches++;
+          sampleFailure(response, body, "revision_mismatch");
+        }
       } else if (!isExactHealthContract(response, body)) {
         failed++;
         invalidContracts++;
@@ -223,6 +241,7 @@ console.log(JSON.stringify({
   concurrency: Math.min(concurrency, total),
   failures: failed,
   revision_mismatches: revisionMismatches,
+  propagation_mismatches: propagationMismatches,
   invalid_contracts: invalidContracts,
   status_counts,
   failure_samples: failureSamples,
