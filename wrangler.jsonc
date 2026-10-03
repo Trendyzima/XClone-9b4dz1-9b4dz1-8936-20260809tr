@@ -1,0 +1,28 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "testagram-web",
+  "main": "cloudflare/index.ts",
+  "compatibility_date": "2026-10-03",
+  "workers_dev": true,
+  "preview_urls": true,
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": [
+      "/api/*",
+      "/.well-known/*",
+      "/nodeinfo/*",
+      "/users/*",
+      "/inbox",
+      "/oauth/*"
+    ]
+  },
+  "routes": [
+    { "pattern": "testagram.site", "custom_domain": true },
+    { "pattern": "www.testagram.site", "custom_domain": true }
+  ],
+  "triggers": {
+    "crons": ["17 3 * * *"]
+  }
+}
