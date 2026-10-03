@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom';
-import { User, Palette, Bell, Shield, Link2, Settings } from 'lucide-react';
+import { User, Palette, Bell, Shield, Link2, Settings, Search } from 'lucide-react';
 
 const ITEMS = [
   ['Account','account',User],['Appearance','appearance',Palette],['Notifications','notifications',Bell],
@@ -9,9 +9,9 @@ const ITEMS = [
 export function SettingsMiniSidebar({ active }: { active: string }) {
   const navigate = useNavigate();
   return (
-    <aside aria-label="Settings navigation" className="border-b border-border bg-card/80 backdrop-blur-sm">
+    <aside aria-label="Settings navigation" className="sticky top-14 z-10 border-b border-border bg-background/90 backdrop-blur-xl shadow-sm">
       <div className="mx-auto max-w-4xl px-3 py-2">
-        <div className="flex items-center gap-1 overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-1 overflow-x-auto scrollbar-none snap-x" role="tablist" aria-label="Settings sections">
           <button onClick={() => navigate('/settings')} className={`shrink-0 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-bold ${active === 'all' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted'}`}>
             <Settings className="h-4 w-4" /> All settings
           </button>
@@ -21,6 +21,7 @@ export function SettingsMiniSidebar({ active }: { active: string }) {
               <Icon className="h-3.5 w-3.5" /> {label}
             </button>
           ))}
+          <button onClick={() => document.getElementById("settings-search")?.focus()} className="shrink-0 inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50" title="Find a setting"><Search className="h-3.5 w-3.5" /> Find</button>
         </div>
       </div>
     </aside>
