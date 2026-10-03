@@ -24,10 +24,6 @@ on:
 permissions:
   contents: read
 
-concurrency:
-  group: firebase-tv-hosting
-  cancel-in-progress: true
-
 jobs:
   deploy:
     name: Build and deploy Testagram TV to Firebase Hosting
@@ -133,7 +129,10 @@ NODE
 
           test -n "$ACCESS_TOKEN"
 
-          HTTP_STATUS="$(curl --silent --show-error --output "$RUNNER_TEMP/firebase-sites.json" --write-out '%{http_code}'             -H "Authorization: Bearer $ACCESS_TOKEN" \
+          HTTP_STATUS="$(curl --silent --show-error \
+            --output "$RUNNER_TEMP/firebase-sites.json" \
+            --write-out '%{http_code}' \
+            -H "Authorization: Bearer $ACCESS_TOKEN" \
             -H "Content-Type: application/json" \
             "https://firebasehosting.googleapis.com/v1beta1/projects/twitter-clone-ccrsxx-2513a/sites")"
 
@@ -152,6 +151,4 @@ NODE
           chmod 600 "$GOOGLE_APPLICATION_CREDENTIALS"
           npm exec --yes --package=firebase-tools@15.32.1 -- firebase deploy \
             --only hosting:testagram-tv \
-            --project twitter-clone-ccrsxx-2513a \
-            --debug \
-            --json
+            --project twitter-clone-ccrsxx-2513a
