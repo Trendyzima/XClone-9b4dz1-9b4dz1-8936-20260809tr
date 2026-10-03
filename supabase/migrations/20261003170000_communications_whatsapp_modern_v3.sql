@@ -72,3 +72,41 @@ begin
 end;
 $$;
 revoke all on function public.expire_communication_messages() from public,anon,authenticated;
+
+create or replace function public.communication_sync_read_receipts()
+returns trigger language plpgsql security definer set search_path=public,pg_temp as $$
+begin
+  if new.last_read_at is distinct from old.last_read_at and new.last_read_at is not null then
+    update public.messages
+    set read_at=coalesce(read_at,new.last_read_at), delivered_at=coalesce(delivered_at,new.last_read_at), updated_at=now()
+    where conversation_id=new.conversation_id and sender_id<>new.user_id
+      and created_at<=new.last_read_at and read_at is null;
+  end if;
+  return new;
+end;
+$$;
+revoke all on function public.communication_sync_read_receipts() from public,anon,authenticated;
+drop trigger if exists conversation_members_sync_read_receipts on public.conversation_members;
+create trigger conversation_members_sync_read_receipts after update of last_read_at on public.conversation_members
+for each row execute function public.communication_sync_read_receipts();
+
+drop policy if exists message_polls_member_read on public.message_polls;
+create policy message_polls_member_read on public.message_polls for select to authenticated using (
+ exists(select 1 from public.messages m join public.conversation_members cm on cm.conversation_id=m.conversation_id
+ where m.id=message_polls.message_id and cm.user_id=auth.uid() and cm.left_at is null)
+);
+drop policy if exists message_poll_options_member_read on public.message_poll_options;
+create policy message_poll_options_member_read on public.message_poll_options for select to authenticated using (
+ exists(select 1 from public.message_polls mp join public.messages m on m.id=mp.message_id join public.conversation_members cm on cm.conversation_id=m.conversation_id
+ where mp.message_id=message_poll_options.message_id and cm.user_id=auth.uid() and cm.left_at is null)
+);
+drop policy if exists message_poll_votes_member_read on public.message_poll_votes;
+create policy message_poll_votes_member_read on public.message_poll_votes for select to authenticated using (
+ exists(select 1 from public.message_poll_options mpo join public.message_polls mp on mp.message_id=mpo.message_id join public.conversation_members cm on cm.conversation_id=m.conversation_id
+ where mpo.id=message_poll_votes.option_id and cm.user_id=auth.uid() and cm.left_at is null)
+);
+drop policy if exists message_poll_votes_own_insert on public.message_poll_votes;
+create policy message_poll_votes_own_insert on public.message_poll_votes for insert to authenticated with check (
+ user_id=auth.uid() and exists(select 1 from public.message_poll_options mpo join public.message_polls mp on mp.message_id=mpo.message_id join public.conversation_members cm on cm.conversation_id=m.conversation_id
+ where mpo.id=message_poll_votes.option_id and cm.user_id=auth.uid() and cm.left_at is null)
+);
