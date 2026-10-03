@@ -889,7 +889,10 @@ jobs:
           const body=fs.readFileSync("health.txt","utf8").trim();
           let p;
           try { p=JSON.parse(body); } catch { process.exit(1); }
-          if (p?.ok !== true || p?.service !== "testagram" || p?.edge !== "reachable" || p?.commit !== process.env.EXPECTED_COMMIT_SHA) {\n  console.error("Production liveness contract mismatch:", JSON.stringify({expected: process.env.EXPECTED_COMMIT_SHA, received: p}));\n  process.exit(1);\n}
+          if (p?.ok !== true || p?.service !== "testagram" || p?.edge !== "reachable" || p?.commit !== process.env.EXPECTED_COMMIT_SHA) {
+  console.error("Production liveness contract mismatch:", JSON.stringify({expected: process.env.EXPECTED_COMMIT_SHA, received: p}));
+  process.exit(1);
+}
           console.log("Production liveness passed:", JSON.stringify(p));
           NODE
                 then
