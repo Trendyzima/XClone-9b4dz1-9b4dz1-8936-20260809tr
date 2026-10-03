@@ -131,7 +131,8 @@ export default function MessagesPage() {
     } catch (e) { toast.error(e instanceof Error ? e.message : 'Unable to post status'); } finally { setPostingStatus(false); }
   };
 
-  const cycleDisappearing = async () => { if (!selected) return; const current = Number(chatSettings?.disappearing_seconds ?? 0); const next = current === 0 ? 86400 : current === 86400 ? 604800 : current === 604800 ? 2592000 : 0; await setChatOption({ disappearing_seconds: next || null }); };\n  const setChatOption = async (patch: any) => { if (!selected) return; try { const next = await communicationService.setConversationSettings(selected.id, patch); setChatSettings(next); } catch (e) { toast.error(e instanceof Error ? e.message : 'Chat setting update failed'); } };
+  const cycleDisappearing = async () => { if (!selected) return; const current = Number(chatSettings?.disappearing_seconds ?? 0); const next = current === 0 ? 86400 : current === 86400 ? 604800 : current === 604800 ? 2592000 : 0; await setChatOption({ disappearing_seconds: next || null }); };
+  const setChatOption = async (patch: any) => { if (!selected) return; try { const next = await communicationService.setConversationSettings(selected.id, patch); setChatSettings(next); } catch (e) { toast.error(e instanceof Error ? e.message : 'Chat setting update failed'); } };
   const filtered = useMemo(() => { const q = conversationSearch.toLowerCase().trim(); return q ? conversations.filter(c => c.members?.some(p => `${p.username} ${p.display_name}`.toLowerCase().includes(q))) : conversations; }, [conversations, conversationSearch]);
   const remoteTyping = Object.values(typing).some(x => x.typing); const remoteOnline = Object.values(presence).some(x => x.status === 'online');
   if (!user) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>;
