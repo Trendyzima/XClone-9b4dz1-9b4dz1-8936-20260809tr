@@ -124,13 +124,6 @@ jobs:
             android/app/build/outputs/apk/release/app-release.apk
             android/app/build/outputs/bundle/release/app-release.aab
 
-      - name: Build signed Android APK and App Bundle
-        working-directory: android
-        run: |
-          set -euo pipefail
-          chmod +x gradlew
-          ./gradlew --no-daemon clean assembleRelease bundleRelease
-
       - name: Verify release artifacts
         working-directory: android
         run: |
