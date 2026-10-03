@@ -5,16 +5,26 @@ on:
     branches: [main]
 
 permissions:
+  actions: write
   contents: read
 
 jobs:
-  promote-known-good:
+  reconcile:
     if: "${{ github.event.head_commit.message == 'ops: trigger production recovery promotion' }}"
     runs-on: ubuntu-latest
     steps:
-      - name: Install Vercel CLI
-        run: npm install --global vercel@latest
-      - name: Promote known-good deployment
+      - name: Dispatch Cloudflare production reconciliation
         env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: vercel promote kooone-9b4dz1-9b4dz1-8936-20260809tr-rila53fsm.vercel.app --scope criss-projects-7c0f74aa --token="$VERCEL_TOKEN" --yes
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          target_sha="${{ github.sha }}"
+          curl --fail --silent --show-error --location \
+            -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2026-03-10" \
+            "https://api.github.com/repos/${{ github.repository }}/actions/workflows/production-deployment-reconciliation.yml/dispatches" \
+            -d "$(node -e 'console.log(JSON.stringify({ref:"main",inputs:{target_sha:process.argv[1]}}))' "$target_sha")"
+          echo "Cloudflare production reconciliation dispatched for $target_sha."
