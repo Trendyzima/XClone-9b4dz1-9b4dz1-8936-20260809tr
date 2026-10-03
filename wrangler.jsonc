@@ -20,8 +20,8 @@
     ]
   },
   "routes": [
-    { "pattern": "testagram.site/*", "zone_name": "testagram.site" },
-    { "pattern": "www.testagram.site/*", "zone_name": "testagram.site" }
+    { "pattern": "testagram.site", "custom_domain": true },
+    { "pattern": "www.testagram.site", "custom_domain": true }
   ],
   "triggers": {
     "crons": ["17 3 * * *"]
