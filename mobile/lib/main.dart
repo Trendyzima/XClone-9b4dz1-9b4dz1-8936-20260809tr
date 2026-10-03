@@ -8,7 +8,7 @@ Future<void> main() async {
   const url = String.fromEnvironment('SUPABASE_URL');
   const anonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
   if (url.isNotEmpty && anonKey.isNotEmpty) {
-    await Supabase.initialize(url: url, anonKey: anonKey);
+    await Supabase.initialize(url: url, publishableKey: anonKey);
   }
   runApp(const TestagramApp());
 }
