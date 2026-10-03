@@ -44,11 +44,12 @@ export async function loadTvSource(source:TvSource,signal?:AbortSignal){
 }
 export function getPrioritySourceIds(){ return TV_SOURCES.filter(s=>s.enabled!==false).sort((a,b)=>b.priority-a.priority).map(s=>s.id); }
 export async function loadTvHealth(channelIds:string[]){
- const url=supabaseUrl+'/rest/v1/tv_channel_health?channel_id=in.'+encodeURIComponent('('+channelIds.join(',')+')')+'&select=channel_id,is_online,last_checked_at,latency_ms,consecutive_successes,priority';
+ const wanted=new Set(channelIds.map(String));
+ const url=supabaseUrl+'/rest/v1/tv_channel_health?is_online=eq.true&select=channel_id,is_online,last_checked_at,latency_ms,consecutive_successes,priority&limit=20000';
  const r=await fetch(url,{headers:{Accept:'application/json'}});
  if(!r.ok) return new Map<string,any>();
  const rows=await r.json();
- return new Map((Array.isArray(rows)?rows:[]).map((x:any)=>[String(x.channel_id),x]));
+ return new Map((Array.isArray(rows)?rows:[]).filter((x:any)=>wanted.has(String(x.channel_id))).map((x:any)=>[String(x.channel_id),x]));
 }
 export function rankRecommendedTvChannels(channels:TvChannel[],health:Map<string,any>){
  return [...channels].sort((a,b)=>{
