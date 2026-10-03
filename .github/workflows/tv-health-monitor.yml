@@ -24,6 +24,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Build worldwide TV catalogue
+        run: node scripts/build-tv-catalog.mjs
+
       - name: Probe channels in batches
         env:
           SUPABASE_URL: https://ffrhglgkukgsuhxenena.supabase.co
