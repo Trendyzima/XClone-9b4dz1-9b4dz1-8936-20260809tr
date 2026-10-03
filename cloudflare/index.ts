@@ -4,6 +4,7 @@ const SUPABASE_ORIGIN = 'https://ffrhglgkukgsuhxenena.supabase.co';
 
 type Env = {
   ASSETS: Fetcher;
+  RATE_LIMITER: { limit(input: { key: string }): Promise<{ success: boolean }> };
   [key: string]: unknown;
 };
 
@@ -38,6 +39,14 @@ function setRuntimeEnv(env: Env, commit?: string) {
 
 function valueOf(env: Env, key: string) {
   return (env as any)[key];
+}
+
+async function rateLimitKey(request: Request) {
+  const authorization = request.headers.get('authorization') || '';
+  const identity = authorization ? authorization : `ip:${request.headers.get('cf-connecting-ip') || 'anonymous'}`;
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(identity));
+  const hex = Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${authorization ? 'auth' : 'anon'}:${hex}`;
 }
 
 function commonHeaders(headers = new Headers()) {
@@ -254,6 +263,20 @@ export default {
 
     try {
       if (url.pathname.startsWith('/api/')) {
+        const limiter = (env as any).RATE_LIMITER;
+        if (limiter?.limit) {
+          const { success } = await limiter.limit({ key: await rateLimitKey(request) });
+          if (!success) {
+            return new Response(JSON.stringify({ ok: false, error: 'Too many requests; please retry shortly.' }), {
+              status: 429,
+              headers: commonHeaders(new Headers({
+                'content-type': 'application/json; charset=utf-8',
+                'cache-control': 'no-store',
+                'retry-after': '60',
+              })),
+            });
+          }
+        }
         return await handleApi(request, env);
       }
 
