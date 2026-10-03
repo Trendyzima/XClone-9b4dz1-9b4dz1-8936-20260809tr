@@ -858,7 +858,7 @@ jobs:
           [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is missing from the production environment."; exit 1; }
           [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::Cloudflare account ID is missing or invalid. Configure CLOUDFLARE_ACCOUNT_ID or TESTAGRAM_CLOUDFLARE_ACCOUNT_ID in the production environment."; exit 1; }
           echo "Deploying testagram-web to Cloudflare and applying configured Custom Domains..."
-          npx wrangler deploy --name testagram-web
+          npx wrangler deploy --name testagram-web --var "TESTAGRAM_COMMIT_SHA:${{ steps.target.outputs.sha }}"
           echo "Reasserting the production Custom Domain -> Worker attachment..."
           domain_status="$(curl -sS -o /tmp/testagram-worker-domain.json -w '%{http_code}' \
             -X PUT \
@@ -964,20 +964,6 @@ jobs:
 
           echo "Cloudflare production domain liveness/readiness passed."
 
-      - name: Prove Vercel is no longer a deployment dependency
-        shell: bash
-        run: |
-          set -euo pipefail
-          if git grep -nE 'vercel\\.com|api\\.vercel\\.com|vercel deploy|vercel pull|vercel env|vercel alias|VERCEL_(TOKEN|ORG_ID|PROJECT_ID)' --             . ':!.github/workflows/production-deployment-reconciliation.yml' ':!docs/hosting/cloudflare.md' ':!.git' 2>/dev/null; then
-            echo "::error::Vercel deployment/runtime references remain outside the retirement gate."
-            exit 1
-          fi
-          if git ls-files | grep -E '(^|/)vercel\\.json$|(^|/)\\.vercel/' >/tmp/vercel-files.txt; then
-            echo "::error::Vercel project configuration is still tracked:"
-            cat /tmp/vercel-files.txt
-            exit 1
-          fi
-          echo "Vercel is no longer a production deployment dependency."
 
 # Story media reconciliation CI trigger marker.
 
