@@ -733,8 +733,7 @@ jobs:
           process.stdout.write(zone.id);
           NODE
           )"
-          printf '::add-mask::%s
-' "$zone_id"
+          printf '::add-mask::%s\n' "$zone_id"
 
           for host in testagram.site www.testagram.site; do
             echo "Checking conflicting A/AAAA/CNAME records for $host..."
