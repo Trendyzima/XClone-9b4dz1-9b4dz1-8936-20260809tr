@@ -42,6 +42,21 @@ const request = (url, options, payload = '') => new Promise((resolve, reject) =>
   req.end();
 });
 
+const publicKeys = await request(
+  'https://www.googleapis.com/service_accounts/v1/metadata/x509/' + encodeURIComponent(key.client_email),
+  { method: 'GET', headers: { Accept: 'application/json' } }
+);
+if (publicKeys.status !== 200) {
+  console.error('Google public-key metadata lookup failed with HTTP ' + publicKeys.status);
+  process.exit(1);
+}
+const publishedKeys = JSON.parse(publicKeys.data);
+if (!Object.prototype.hasOwnProperty.call(publishedKeys, key.private_key_id)) {
+  console.error('Stored key ID is not present in Google published public keys.');
+  process.exit(1);
+}
+console.log('Stored service-account key ID matches a Google-published public key.');
+
 const tokenResponse = await request('https://oauth2.googleapis.com/token', {
   method: 'POST',
   headers: {
