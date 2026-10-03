@@ -264,7 +264,7 @@ export default {
     try {
       if (url.pathname.startsWith('/api/')) {
         const limiter = (env as any).RATE_LIMITER;
-        if (limiter?.limit) {
+        if (limiter?.limit && url.pathname !== '/api/health' && url.pathname !== '/api/ready') {
           const { success } = await limiter.limit({ key: await rateLimitKey(request) });
           if (!success) {
             return new Response(JSON.stringify({ ok: false, error: 'Too many requests; please retry shortly.' }), {
