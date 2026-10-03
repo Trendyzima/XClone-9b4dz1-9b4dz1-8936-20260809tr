@@ -3,7 +3,9 @@
   "name": "testagram-web",
   "main": "cloudflare/index.ts",
   "compatibility_date": "2026-10-03",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "workers_dev": true,
   "preview_urls": true,
   "assets": {
@@ -20,10 +22,28 @@
     ]
   },
   "routes": [
-    { "pattern": "testagram.site", "custom_domain": true },
-    { "pattern": "www.testagram.site", "custom_domain": true }
+    {
+      "pattern": "testagram.site",
+      "custom_domain": true
+    },
+    {
+      "pattern": "www.testagram.site",
+      "custom_domain": true
+    }
   ],
   "triggers": {
-    "crons": ["17 3 * * *"]
-  }
+    "crons": [
+      "17 3 * * *"
+    ]
+  },
+  "ratelimits": [
+    {
+      "name": "RATE_LIMITER",
+      "namespace_id": "907103",
+      "simple": {
+        "limit": 600,
+        "period": 60
+      }
+    }
+  ]
 }
