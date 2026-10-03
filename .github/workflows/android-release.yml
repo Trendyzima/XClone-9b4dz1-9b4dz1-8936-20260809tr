@@ -8,8 +8,8 @@ on:
         required: true
         default: "v0.1.0"
   push:
-    tags:
-      - "v*"
+    branches:
+      - "release/*"
 
 permissions:
   contents: write
