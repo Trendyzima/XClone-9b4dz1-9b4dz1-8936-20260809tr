@@ -107,7 +107,8 @@ async function processJob(job:any){
     const retry=retryState(attempt,null);
     await getDb().from("federation_deliveries").update({status:retry.status,locked_at:null,next_attempt_at:retry.next_attempt_at,last_error:message.slice(0,2000),updated_at:new Date().toISOString()}).eq("id",job.id).eq("status","in_flight");
     await getDb().from("activitypub_outbox").update({attempts:attempt,next_attempt_at:retry.next_attempt_at,last_error:message.slice(0,2000),updated_at:new Date().toISOString()}).eq("activity_id",activityId);
-    return {status:"retry",activityId,error:message};
+    await syncFollowRelationship(activityId,retry.status==="dead_letter"?"failed":"retry",message);
+    return {status:retry.status,activityId,error:message};
   }
   const attempt=Number(job.attempt_count||1);
   const now=new Date().toISOString();
