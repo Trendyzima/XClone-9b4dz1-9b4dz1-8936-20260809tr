@@ -36,6 +36,8 @@ const UPSTASH_TOKEN = Deno.env.get("UPSTASH_REDIS_REST_TOKEN");
 
 async function upstash(command:string[]) {
   if (!UPSTASH_URL || !UPSTASH_TOKEN) return null;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 1800);
   try {
     const response = await fetch(UPSTASH_URL, {
       method: "POST",
@@ -43,6 +45,7 @@ async function upstash(command:string[]) {
         Authorization: "Bearer " + UPSTASH_TOKEN,
         "Content-Type": "application/json"
       },
+      signal: controller.signal,
       body: JSON.stringify(command)
     });
     if (!response.ok) return null;
@@ -50,6 +53,8 @@ async function upstash(command:string[]) {
     return payload?.result ?? null;
   } catch {
     return null;
+  } finally {
+    clearTimeout(timer);
   }
 }
 
@@ -269,6 +274,9 @@ Deno.serve(async(req)=>{
     return new Response(JSON.stringify(payload),{headers:cors});
   } catch(error) {
     console.error("[tv-catalog]",sourceId,error);
-    return new Response(JSON.stringify({error:"TV source temporarily unavailable",source:sourceId}),{status:502,headers:cors});
+    return new Response(JSON.stringify({error:"TV source temporarily unavailable",source:sourceId}),{
+      status:502,
+      headers:{...cors,"Cache-Control":"no-store"}
+    });
   } finally { clearTimeout(timer); }
 });
