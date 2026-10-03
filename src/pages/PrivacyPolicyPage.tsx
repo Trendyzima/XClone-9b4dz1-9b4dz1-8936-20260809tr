@@ -1,7 +1,7 @@
 import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
 import { LegalMiniSidebar } from '@/components/layout/LegalMiniSidebar';
-import { LegalMiniSidebar } from '@/components/layout/LegalMiniSidebar';
+
 import { Shield, Eye, Lock, Database, Globe, Mail, Trash2, RefreshCw, UserCheck } from 'lucide-react';
 
 // Module-level data (esbuild guard: no inline arrays in render)
