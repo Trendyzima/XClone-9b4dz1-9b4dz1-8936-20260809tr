@@ -2,7 +2,8 @@ FROM node:22-bookworm-slim AS build
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm ci
+RUN npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+RUN npm ci --ignore-scripts
 
 COPY . .
 RUN npm run build
@@ -13,7 +14,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 
 COPY --from=build /app/package*.json ./
-RUN npm ci --omit=dev
+RUN npm install --omit=dev --ignore-scripts --no-audit --no-fund
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/.runtime ./.runtime
 COPY --from=build /app/server.mjs ./server.mjs
