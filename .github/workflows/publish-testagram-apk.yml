@@ -111,10 +111,8 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          # Main can advance while the verified APK is being downloaded.
-          # Rebase before committing, then retry if another publication lands first.
-          git pull --rebase origin main
-
+          # Stage and commit first: an uncommitted APK makes git pull --rebase refuse to run.
+          # Once committed locally, rebase onto the latest main and retry the push.
           git add README.md downloads/Testagram.apk downloads/Testagram.apk.sha256
           if git diff --cached --quiet; then
             echo "No APK/README publication changes to commit."
@@ -122,6 +120,7 @@ jobs:
           fi
 
           git commit -m "chore(android): publish Testagram APK download"
+          git pull --rebase origin main
 
           for attempt in 1 2 3; do
             if git push origin HEAD:refs/heads/main; then
