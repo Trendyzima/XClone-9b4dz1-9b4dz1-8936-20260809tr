@@ -69,7 +69,7 @@ jobs:
           cp "$APK" downloads/Testagram.apk
           sha256sum downloads/Testagram.apk > downloads/Testagram.apk.sha256
 
-      - name: Update README download section
+      - name: Update README APK version history
         shell: bash
         env:
           BUILD_RUN_ID: "${{ steps.build.outputs.run_id }}"
@@ -80,35 +80,30 @@ jobs:
           python3 - <<'PY'
           from datetime import datetime, timezone, timedelta
           from pathlib import Path
-          import os
+          import os, re
+          repo = "Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr"
           p = Path("README.md")
           s = p.read_text()
           marker = "## 📱 Testagram Android APK"
           start = s.index(marker)
           end = s.index("\n## What is Testagram?", start)
-          dt = datetime.fromisoformat(os.environ["BUILD_CREATED_AT"].replace("Z", "+00:00")).astimezone(timezone(timedelta(hours=3)))
-          created = dt.strftime("%Y-%m-%d %H:%M EAT")
+          dt = datetime.fromisoformat(os.environ["BUILD_CREATED_AT"].replace("Z", "+00:00"))
+          created = dt.astimezone(timezone(timedelta(hours=3))).strftime("%Y-%m-%d %H:%M EAT")
           run_id = os.environ["BUILD_RUN_ID"]
           commit = os.environ["BUILD_COMMIT"]
-          block = f"""## 📱 Testagram Android APK
-
-          The verified Testagram Android APK is automatically updated from the newest successful Android release build.
-
-          ### Download Testagram
-
-          **[⬇️ Download latest Testagram APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/raw/refs/heads/main/downloads/Testagram.apk)**
-
-          **[SHA-256 checksum](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/blob/main/downloads/Testagram.apk.sha256)**
-
-          **Created:** {created}  
-          **Build commit:** `{commit}`  
-          **GitHub Actions run:** [#{run_id}](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/runs/{run_id})
-
-          The APK and checksum are replaced only after Android release verification succeeds.
-          """
-          p.write_text(s[:start] + block.rstrip() + s[end:])
+          gradle = Path("android/app/build.gradle").read_text()
+          match = re.search(r'versionName\s+"([^"]+)"', gradle)
+          version = match.group(1) if match else "unknown"
+          apk_url = "https://github.com/" + repo + "/raw/refs/heads/main/downloads/Testagram.apk"
+          checksum_url = "https://github.com/" + repo + "/blob/main/downloads/Testagram.apk.sha256"
+          run_url = "https://github.com/" + repo + "/actions/runs/" + run_id
+          old = s[start:end]
+          rows = [x for x in old.splitlines() if x.startswith("| **v") or x.startswith("| **Latest verified build**")]
+          rows = [x for x in rows if not x.startswith("| **v" + version + "**")]
+          rows.insert(0, "| **v" + version + "** | ✅ Verified | " + created + " | [⬇️ Download APK](" + apk_url + ") | [Actions run #" + run_id + "](" + run_url + ") · " + commit + " |")
+          lines = ["## 📱 Testagram Android APK","","Live APK version history — updated automatically after every successful Android release. All build times are shown in **East Africa Time (EAT, UTC+3)**.","","### APK versions","","| Version | Status | Created (EAT) | APK | Build details |","|---|---|---|---|---|"] + rows + ["","### Always-current download","","**[⬇️ Download latest verified Testagram APK](" + apk_url + ")**","","**[SHA-256 checksum](" + checksum_url + ")**","","**Latest:** v" + version + " · " + created + " · commit `" + commit + "` · [Actions run #" + run_id + "](" + run_url + ")","","_Only successfully signed and apksigner-verified builds are published._",""]
+          p.write_text(s[:start] + "\n".join(lines) + s[end:])
           PY
-
       - name: Commit APK and README
         shell: bash
         run: |
