@@ -6,17 +6,26 @@ const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.s
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || '';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
 
-const CORS = {
-  'Access-Control-Allow-Origin': 'https://testagram.site',
-  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Vary': 'Authorization',
-};
+const ALLOWED_ORIGINS = new Set([
+  'https://testagram.site',
+  'https://www.testagram.site',
+]);
 
-const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+function corsHeaders(request: RequestLike) {
+  const origin = header(request, 'origin');
+  const allowedOrigin = ALLOWED_ORIGINS.has(origin) ? origin : 'https://testagram.site';
+  return {
+    'Access-Control-Allow-Origin': allowedOrigin,
+    'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Vary': 'Authorization, Origin',
+  };
+}
+
+const json = (body: unknown, status = 200, request?: RequestLike) => new Response(JSON.stringify(body), {
   status,
   headers: {
-    ...CORS,
+    ...corsHeaders(request || {}),
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'private, max-age=2, stale-while-revalidate=10',
   },
@@ -120,7 +129,7 @@ function injectFollowing(discovery: any[], following: any[], limit: number) {
 
 export default async function handler(request: RequestLike) {
   const method = typeof (request as Request).method === 'string' ? (request as Request).method : '';
-  if (method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+  if (method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(request) });
   if (method !== 'GET') return json({ error: 'GET required' }, 405);
   const started = Date.now();
 
