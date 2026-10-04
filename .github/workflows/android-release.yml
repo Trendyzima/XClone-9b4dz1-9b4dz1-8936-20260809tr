@@ -7,8 +7,8 @@ on:
     inputs:
       tag:
         description: "Release tag (for example v0.2.0)"
-        required: true
-        default: "v0.2.0"
+        required: false
+        default: ""
   push:
     branches:
       - main
@@ -119,7 +119,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: testagram-android-release-${{ github.sha }}
-          path: android/app/build/outputs/apk/release/app-release.apk
+          path: |
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/bundle/release/*.aab
           if-no-files-found: error
           retention-days: 90
 
@@ -130,9 +132,13 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
-          name: Testagram Android ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          tag_name: ${{ inputs.tag || format('v0.2.{0}', github.run_number) }}
+          name: Testagram Android ${{ inputs.tag || format('v0.2.{0}', github.run_number) }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
           generate_release_notes: true
+          fail_on_unmatched_files: true
+          overwrite_files: true
           files: |
-            android/app/build/outputs/apk/release/app-release.apk
-            android/app/build/outputs/bundle/release/app-release.aab
+            android/app/build/outputs/apk/release/*.apk
+            android/app/build/outputs/bundle/release/*.aab
