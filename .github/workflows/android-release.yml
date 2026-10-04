@@ -3,6 +3,7 @@ name: Testagram Android Release
 # APK publication is finalized by publish-testagram-apk after this verified build completes.
 # Publisher commit ordering is now verified against concurrent main updates.
 # Expected README/APK rebase conflicts are now auto-resolved by the publisher.
+# The publisher now validates the release artifact without mutating main.
 # Release build is the verified source for the APK publisher.
 
 on:
