@@ -6,7 +6,17 @@
     <lastmod>2026-10-03</lastmod>
   </sitemap>
 
-  <!-- Dynamic community pages — refreshed every 6 hours by sitemap-refresh edge function -->
+  <!-- Dynamic public post pages -->
+  <sitemap>
+    <loc>https://testagram.site/api/sitemap-posts</loc>
+  </sitemap>
+
+  <!-- Dynamic public thread pages -->
+  <sitemap>
+    <loc>https://testagram.site/api/sitemap-threads</loc>
+  </sitemap>
+
+  <!-- Dynamic community pages — refreshed every hour -->
   <sitemap>
     <loc>https://testagram.site/api/sitemap-community</loc>
     <lastmod>2026-10-03</lastmod>
