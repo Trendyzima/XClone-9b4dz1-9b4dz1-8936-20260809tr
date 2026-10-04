@@ -33,6 +33,11 @@ html, body, #root { min-height: 100%; }
 body { min-height: 100dvh; margin: 0; }
 .tg-shell { min-height: 100dvh; min-height: 100svh; }
 .safe-area-top { padding-top: env(safe-area-inset-top, 0px); }
+/* Any canonical top app bar that is pinned to the viewport must remain visually
+   continuous behind the status bar while its controls stay in the safe area. */
+[class*="sticky"][class*="top-0"], [class*="fixed"][class*="top-0"] {
+  padding-top: max(env(safe-area-inset-top, 0px), 0px);
+}
 .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 @supports (height: 100dvh) {
   .tg-shell { min-height: 100dvh; }
