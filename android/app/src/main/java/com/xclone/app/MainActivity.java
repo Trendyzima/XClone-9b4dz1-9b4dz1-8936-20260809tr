@@ -32,7 +32,7 @@ import androidx.webkit.WebSettingsCompat;
 import androidx.webkit.WebViewFeature;
 
 public final class MainActivity extends AppCompatActivity {
-    private static final String APP_URL = "https://testagram.site/";
+    private static final String APP_URL = "https://www.testagram.site/";
     private static final int FILE_PICKER = 4101;
     private static final int MEDIA_PERMISSIONS = 4102;
     private ValueCallback<Uri[]> fileCallback;
@@ -104,9 +104,10 @@ public final class MainActivity extends AppCompatActivity {
             settings.setUserAgentString(defaultUserAgent + " Mobile");
         }
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
+        settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setGeolocationEnabled(false);
         CookieManager.getInstance().setAcceptCookie(true);
-        CookieManager.getInstance().setAcceptThirdPartyCookies(web, false);
+        CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
 
         WebView.setWebContentsDebuggingEnabled(false);
         web.setOverScrollMode(WebView.OVER_SCROLL_NEVER);
