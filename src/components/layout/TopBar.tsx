@@ -32,7 +32,7 @@ export function TopBar({ title, showProfile = true, showBack = false, onBack, sh
 
   return (
     <div className="sticky top-0 z-40 tg-rigid-shell">
-      <div className="tg-topbar border-b border-border/70"> style={{ marginTop: "env(safe-area-inset-top, 0px)" }}>
+      <div className="tg-topbar border-b border-border/70" style={{ marginTop: "env(safe-area-inset-top, 0px)" }}>
       <div className="flex items-center justify-between px-4 h-16 sm:px-5">
         <div className="lg:hidden">
           <MobileSidebarDrawer />
