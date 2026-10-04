@@ -58,8 +58,29 @@ jobs:
           test -n "${ANDROID_KEY_ALIAS}" || { echo "::error::ANDROID_KEY_ALIAS is not configured"; exit 1; }
           test -n "${ANDROID_KEYSTORE_PASSWORD}" || { echo "::error::ANDROID_KEYSTORE_PASSWORD is not configured"; exit 1; }
           test -n "${ANDROID_KEY_PASSWORD}" || { echo "::error::ANDROID_KEY_PASSWORD is not configured"; exit 1; }
-          echo "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > android/testagram-release.jks
+          printf '%s' "${ANDROID_KEYSTORE_BASE64}" | tr -d '\r\n ' | base64 --decode > android/testagram-release.jks
           test -s android/testagram-release.jks
+          MAGIC="$(xxd -p -l 4 android/testagram-release.jks | tr '[:lower:]' '[:upper:]')"
+          if [ "${MAGIC}" != "FEEDFEED" ] && [ "${MAGIC}" != "3082" ]; then
+            if file android/testagram-release.jks | grep -Eqi 'ASCII|text'; then
+              TMP="$(mktemp)"
+              if base64 -d android/testagram-release.jks > "${TMP}" 2>/dev/null; then
+                INNER_MAGIC="$(xxd -p -l 4 "${TMP}" | tr '[:lower:]' '[:upper:]')"
+                if [ "${INNER_MAGIC}" = "FEEDFEED" ] || [ "${INNER_MAGIC}" = "3082" ]; then
+                  mv "${TMP}" android/testagram-release.jks
+                  MAGIC="${INNER_MAGIC}"
+                else
+                  rm -f "${TMP}"
+                fi
+              else
+                rm -f "${TMP}"
+              fi
+            fi
+          fi
+          case "${MAGIC}" in
+            FEEDFEED|3082) echo "Keystore container detected (${MAGIC})." ;;
+            *) echo "::error::ANDROID_KEYSTORE_BASE64 does not decode to a supported Java/PKCS12 keystore."; exit 1 ;;
+          esac
           cat > android/keystore.properties <<EOF
           storeFile=testagram-release.jks
           storePassword=${ANDROID_KEYSTORE_PASSWORD}
