@@ -1,0 +1,14 @@
+{
+  "name": "Testagram",
+  "short_name": "Testagram",
+  "description": "Testagram — social media, short videos, live conversations, communities and creators.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#7c3aed",
+  "lang": "en",
+  "icons": [
+    { "src": "/app-icon.jpg", "sizes": "512x512", "type": "image/jpeg", "purpose": "any maskable" }
+  ]
+}
