@@ -17,6 +17,8 @@ import android.webkit.WebViewClient;
 import android.webkit.WebSettings;
 import android.webkit.SslErrorHandler;
 import android.webkit.RenderProcessGoneDetail;
+import android.view.View;
+import android.widget.FrameLayout;
 import android.net.http.SslError;
 
 import org.json.JSONObject;
@@ -44,6 +46,8 @@ public final class MainActivity extends AppCompatActivity {
     private PermissionRequest pendingMediaPermissionRequest;
     private WebView webView;
     private String lastHandledDeepLink;
+    private View customVideoView;
+    private WebChromeClient.CustomViewCallback customVideoCallback;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -211,6 +215,36 @@ public final class MainActivity extends AppCompatActivity {
         });
 
         web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onShowCustomView(View view, WebChromeClient.CustomViewCallback callback) {
+                if (customVideoView != null) {
+                    callback.onCustomViewHidden();
+                    return;
+                }
+                customVideoView = view;
+                customVideoCallback = callback;
+                FrameLayout fullscreen = new FrameLayout(MainActivity.this);
+                fullscreen.setBackgroundColor(android.graphics.Color.BLACK);
+                fullscreen.addView(view, new FrameLayout.LayoutParams(
+                        FrameLayout.LayoutParams.MATCH_PARENT,
+                        FrameLayout.LayoutParams.MATCH_PARENT
+                ));
+                setContentView(fullscreen);
+                enterImmersiveFullscreen();
+            }
+
+            @Override
+            public void onHideCustomView() {
+                if (customVideoView == null) return;
+                if (customVideoCallback != null) customVideoCallback.onCustomViewHidden();
+                customVideoView = null;
+                customVideoCallback = null;
+                if (webView != null) {
+                    setContentView(webView);
+                    enterImmersiveFullscreen();
+                }
+            }
+
             @Override
             public void onGeolocationPermissionsShowPrompt(String origin, android.webkit.GeolocationPermissions.Callback callback) {
                 geolocationOrigin = origin;
