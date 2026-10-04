@@ -27,10 +27,9 @@ jobs:
       - name: Compare historical keystore candidates
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          REFERENCE_FINGERPRINT: ${{ inputs.reference_fingerprint || 'E7:17:82:7E:F5:85:3D:0C:EF:A0:4B:35:77:09:CC:9C:80:FC:F1:5F:7C:D6:75:55:A1:BD:A0:75:13:A6:AC:9 }}
+          REFERENCE_FINGERPRINT: ${{ inputs.reference_fingerprint }}
         run: |
           set -euo pipefail
-
           test -n "${ANDROID_KEYSTORE_PASSWORD}" || {
             echo "::error::ANDROID_KEYSTORE_PASSWORD is not configured."
             exit 1
