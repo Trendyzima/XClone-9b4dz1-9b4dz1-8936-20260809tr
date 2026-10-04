@@ -24,7 +24,6 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.view.WindowCompat;
-import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import androidx.core.content.ContextCompat;
@@ -46,6 +45,7 @@ public final class MainActivity extends AppCompatActivity {
         // Modern edge-to-edge shell: let the WebView occupy the entire display,
         // including behind transparent system bars. Important interactive content
         // remains responsible for its own safe-area/inset handling.
+        WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
         WindowCompat.enableEdgeToEdge(getWindow());
         WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView())
                 .setAppearanceLightStatusBars(false);
@@ -53,6 +53,12 @@ public final class MainActivity extends AppCompatActivity {
                 .setAppearanceLightNavigationBars(false);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             getWindow().setNavigationBarContrastEnforced(false);
+            getWindow().setStatusBarContrastEnforced(false);
+        }
+        getWindow().setStatusBarColor(android.graphics.Color.TRANSPARENT);
+        getWindow().setNavigationBarColor(android.graphics.Color.TRANSPARENT);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            getWindow().setNavigationBarDividerColor(android.graphics.Color.TRANSPARENT);
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             getWindow().getAttributes().layoutInDisplayCutoutMode =
@@ -86,8 +92,10 @@ public final class MainActivity extends AppCompatActivity {
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
-        // Never zoom-to-fit the desktop page; the responsive site owns the layout.\n        settings.setLoadWithOverviewMode(false);
-        // Honor Testagram's responsive viewport meta exactly as Chrome mobile does.\n        settings.setUseWideViewPort(true);
+        // Never zoom-to-fit the desktop page; the responsive site owns the layout.
+        settings.setLoadWithOverviewMode(false);
+        // Honor Testagram's responsive viewport meta exactly as Chrome mobile does.
+        settings.setUseWideViewPort(true);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         // Keep the Android shell on the same responsive mobile surface as testagram.site.
         // Do not request a desktop UA or rewrite routes: every page is served by the canonical site.
@@ -101,7 +109,10 @@ public final class MainActivity extends AppCompatActivity {
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, false);
 
         WebView.setWebContentsDebuggingEnabled(false);
-        web.setOverScrollMode(WebView.OVER_SCROLL_NEVER);\n        web.setBackgroundColor(android.graphics.Color.TRANSPARENT);\n        web.setVerticalScrollBarEnabled(false);\n        web.setHorizontalScrollBarEnabled(false);
+        web.setOverScrollMode(WebView.OVER_SCROLL_NEVER);
+        web.setBackgroundColor(android.graphics.Color.TRANSPARENT);
+        web.setVerticalScrollBarEnabled(false);
+        web.setHorizontalScrollBarEnabled(false);
         if (WebViewFeature.isFeatureSupported(WebViewFeature.SAFE_BROWSING_ENABLE)) {
             WebSettingsCompat.setSafeBrowsingEnabled(settings, true);
         }
