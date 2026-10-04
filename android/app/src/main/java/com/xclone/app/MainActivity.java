@@ -307,7 +307,9 @@ public final class MainActivity extends AppCompatActivity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
-        // One canonical deep-link path: validate first, then load exactly once.
+        // A new notification/deep link is a new navigation request, even when
+        // it targets the same URL as the previous notification.
+        lastHandledDeepLink = null;
         handlePushIntent(intent);
     }
 
