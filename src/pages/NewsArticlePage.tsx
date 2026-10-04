@@ -2,11 +2,13 @@ import {useEffect,useState} from 'react';
 import {useNavigate,useParams} from 'react-router-dom';
 import {ArrowLeft,Clock,ExternalLink,Newspaper} from 'lucide-react';
 import {supabaseUrl} from '@/lib/supabase';
+import {useSEO} from '@/hooks/useSEO';
 
 type Item={id:string;title:string;excerpt?:string|null;canonical_url:string;image_url?:string|null;favicon_url?:string|null;published_at:string;category:string;author?:string|null;testagram_rss_source_profiles?:{display_name:string;avatar_url?:string|null}};
 
 export default function NewsArticlePage(){
  const {id}=useParams(); const nav=useNavigate(); const [item,setItem]=useState<Item|null>(null); const [loading,setLoading]=useState(true); const [error,setError]=useState('');
+ useSEO({title:item?.title||'News Story',description:item?.excerpt?.slice(0,155)||'Read this publisher story on Testagram.',image:item?.image_url||undefined,url:id?'/news/'+id:undefined,type:'article',structuredData:item?{'@context':'https://schema.org','@type':'NewsArticle',headline:item.title,datePublished:item.published_at,image:item.image_url?[item.image_url]:undefined,author:item.author?{'@type':'Person',name:item.author}:undefined,publisher:{'@type':'Organization',name:'Testagram',url:'https://testagram.site'},mainEntityOfPage:'https://testagram.site/news/'+id}:undefined});
  useEffect(()=>{let alive=true;setLoading(true);setError('');
   fetch(supabaseUrl+'/functions/v1/testagram-rss-feed?id='+encodeURIComponent(id??''),{headers:{Accept:'application/json'},credentials:'omit'})
    .then(async r=>{if(!r.ok)throw new Error('Unable to load story');const d=await r.json();return d?.items?.[0]??null;})
