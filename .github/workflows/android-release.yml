@@ -58,44 +58,44 @@ jobs:
 
       - name: Configure Android release signing
         env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          TESTAGRAM_RELEASE_KEYSTORE_BASE64: ${{ secrets.TESTAGRAM_RELEASE_KEYSTORE_BASE64 }}
+          TESTAGRAM_RELEASE_KEY_ALIAS: ${{ secrets.TESTAGRAM_RELEASE_KEY_ALIAS }}
+          TESTAGRAM_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.TESTAGRAM_RELEASE_KEYSTORE_PASSWORD }}
+          TESTAGRAM_RELEASE_KEY_PASSWORD: ${{ secrets.TESTAGRAM_RELEASE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          test -n "${ANDROID_KEYSTORE_BASE64}" || { echo "::error::ANDROID_KEYSTORE_BASE64 is not configured"; exit 1; }
-          test -n "${ANDROID_KEY_ALIAS}" || { echo "::error::ANDROID_KEY_ALIAS is not configured"; exit 1; }
-          test -n "${ANDROID_KEYSTORE_PASSWORD}" || { echo "::error::ANDROID_KEYSTORE_PASSWORD is not configured"; exit 1; }
-          test -n "${ANDROID_KEY_PASSWORD}" || { echo "::error::ANDROID_KEY_PASSWORD is not configured"; exit 1; }
-          printf '%s' "${ANDROID_KEYSTORE_BASE64}" | tr -d '\r\n ' | base64 --decode > android/testagram-release.jks
+          test -n "${TESTAGRAM_RELEASE_KEYSTORE_BASE64}" || { echo "::error::TESTAGRAM_RELEASE_KEYSTORE_BASE64 is not configured"; exit 1; }
+          test -n "${TESTAGRAM_RELEASE_KEY_ALIAS}" || { echo "::error::TESTAGRAM_RELEASE_KEY_ALIAS is not configured"; exit 1; }
+          test -n "${TESTAGRAM_RELEASE_KEYSTORE_PASSWORD}" || { echo "::error::TESTAGRAM_RELEASE_KEYSTORE_PASSWORD is not configured"; exit 1; }
+          test -n "${TESTAGRAM_RELEASE_KEY_PASSWORD}" || { echo "::error::TESTAGRAM_RELEASE_KEY_PASSWORD is not configured"; exit 1; }
+          printf '%s' "${TESTAGRAM_RELEASE_KEYSTORE_BASE64}" | tr -d '\r\n ' | base64 --decode > android/testagram-release.jks
           test -s android/testagram-release.jks
           # Let keytool perform the authoritative keystore-format validation.
           # Do not rely on magic bytes: JKS and PKCS12 containers can have different
           # encodings, and a valid keystore may legitimately begin with another header.
           cat > android/keystore.properties <<EOF
           storeFile=testagram-release.jks
-          storePassword=${ANDROID_KEYSTORE_PASSWORD}
-          keyAlias=${ANDROID_KEY_ALIAS}
-          keyPassword=${ANDROID_KEY_PASSWORD}
+          storePassword=${TESTAGRAM_RELEASE_KEYSTORE_PASSWORD}
+          keyAlias=${TESTAGRAM_RELEASE_KEY_ALIAS}
+          keyPassword=${TESTAGRAM_RELEASE_KEY_PASSWORD}
           EOF
 
       - name: Forensic signing preflight
         working-directory: android
         env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          TESTAGRAM_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.TESTAGRAM_RELEASE_KEYSTORE_PASSWORD }}
+          TESTAGRAM_RELEASE_KEY_ALIAS: ${{ secrets.TESTAGRAM_RELEASE_KEY_ALIAS }}
+          TESTAGRAM_RELEASE_KEY_PASSWORD: ${{ secrets.TESTAGRAM_RELEASE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
           STORE="testagram-release.jks"
           echo "Checking release keystore integrity without printing credentials..."
-          if ! keytool -list -keystore "${STORE}" -storepass "${ANDROID_KEYSTORE_PASSWORD}" >/dev/null 2>&1; then
-            echo "::error::ANDROID_KEYSTORE_PASSWORD does not unlock the uploaded keystore. The keystore/password pair is inconsistent."
+          if ! keytool -list -keystore "${STORE}" -storepass "${TESTAGRAM_RELEASE_KEYSTORE_PASSWORD}" >/dev/null 2>&1; then
+            echo "::error::TESTAGRAM_RELEASE_KEYSTORE_PASSWORD does not unlock the uploaded keystore. The keystore/password pair is inconsistent."
             exit 1
           fi
-          if ! keytool -list -keystore "${STORE}" -storepass "${ANDROID_KEYSTORE_PASSWORD}" -alias "${ANDROID_KEY_ALIAS}" -keypass "${ANDROID_KEY_PASSWORD}" >/dev/null 2>&1; then
-            echo "::error::The keystore opens, but ANDROID_KEY_ALIAS and/or ANDROID_KEY_PASSWORD does not unlock the release key."
+          if ! keytool -list -keystore "${STORE}" -storepass "${TESTAGRAM_RELEASE_KEYSTORE_PASSWORD}" -alias "${TESTAGRAM_RELEASE_KEY_ALIAS}" -keypass "${TESTAGRAM_RELEASE_KEY_PASSWORD}" >/dev/null 2>&1; then
+            echo "::error::The keystore opens, but TESTAGRAM_RELEASE_KEY_ALIAS and/or TESTAGRAM_RELEASE_KEY_PASSWORD does not unlock the release key."
             exit 1
           fi
           echo "Release keystore, alias, and key password are internally consistent."
