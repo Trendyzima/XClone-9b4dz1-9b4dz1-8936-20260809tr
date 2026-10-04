@@ -210,9 +210,10 @@ public final class MainActivity extends AppCompatActivity {
                 // pressure or can crash independently of the Activity. The dead
                 // WebView instance is never reusable; recreate the Activity so a
                 // completely fresh renderer is attached.
+                boolean crashed = Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && detail.didCrash();
                 android.util.Log.e(
                         "TestagramWebView",
-                        "WebView renderer gone; crashed=" + detail.didCrash()
+                        "WebView renderer gone; crashed=" + crashed
                 );
                 if (webView != null) {
                     webView.stopLoading();
