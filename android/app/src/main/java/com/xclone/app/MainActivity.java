@@ -33,7 +33,7 @@ import androidx.webkit.WebSettingsCompat;
 import androidx.webkit.WebViewFeature;
 
 public final class MainActivity extends AppCompatActivity {
-    private static final String APP_URL = "https://testagram.site/";
+    private static final String APP_URL = "https://testagram.site/?tg_shell=android-20261004";
     private static final int FILE_PICKER = 4101;
     private static final int MEDIA_PERMISSIONS = 4102;
     private static final int LOCATION_PERMISSION = 4104;
@@ -105,7 +105,7 @@ public final class MainActivity extends AppCompatActivity {
         settings.setLoadWithOverviewMode(false);
         // Honor Testagram's responsive viewport meta exactly as Chrome mobile does.
         settings.setUseWideViewPort(true);
-        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        settings.setCacheMode(WebSettings.LOAD_DEFAULT);\n        // Version the canonical entry URL so an installed APK cannot get stuck on a\n        // previously cached service-worker navigation response after a web release.\n        // Cookies/local storage remain intact, so authentication is not discarded.
         // Present the canonical site as a normal mobile Chrome browser rather than an
         // Android WebView. Some production web stacks suppress/alter rendering when the
         // WebView-only "wv" marker is present, which can make the homepage appear blank.
