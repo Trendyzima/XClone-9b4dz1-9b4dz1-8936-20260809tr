@@ -110,10 +110,4 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add README.md downloads/Testagram.apk downloads/Testagram.apk.sha256
-          if git diff --cached --quiet; then
-            exit 0
-          fi
-          git commit -m "chore(android): publish Testagram APK download"
-          git pull --rebase origin main
-          git push origin HEAD:refs/heads/main
+          # Main can advance while the verified APK is being downloaded.\n          # Rebase before committing, then retry if another publication lands first.\n          git pull --rebase origin main\n\n          git add README.md downloads/Testagram.apk downloads/Testagram.apk.sha256\n          if git diff --cached --quiet; then\n            echo "No APK/README publication changes to commit."\n            exit 0\n          fi\n\n          git commit -m "chore(android): publish Testagram APK download"\n\n          for attempt in 1 2 3; do\n            if git push origin HEAD:refs/heads/main; then\n              echo "APK publication commit pushed successfully on attempt ${attempt}."\n              exit 0\n            fi\n            if (( attempt == 3 )); then\n              echo "::error::Could not push APK publication after ${attempt} attempts."\n              exit 1\n            fi\n            echo "Main advanced during APK publication; rebasing and retrying."\n            git pull --rebase origin main\n          done
