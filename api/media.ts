@@ -12,11 +12,10 @@ function isAllowedMime(mime: string) { const normalized=mime.trim().toLowerCase(
 function env(name: string, fallback = '') { return process.env[name] ?? fallback; }
 
 function corsHeaders() {
-  const origin = env('APP_ORIGIN');
   return {
-    'Access-Control-Allow-Origin': origin || 'https://testagram.site',
-    'Access-Control-Allow-Headers': 'authorization, content-type',
-    'Access-Control-Allow-Methods': 'POST,OPTIONS',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'authorization, content-type, apikey, x-client-info, x-request-id',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Vary': 'Origin',
   };
 }
