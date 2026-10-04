@@ -140,6 +140,30 @@ jobs:
           echo "Artifacts:"
           ls -lh "${APK}" "${AAB}"
 
+      - name: Forensic signing identity gate — compare against known-good production APK
+        working-directory: android
+        env:
+          KNOWN_GOOD_SIGNING_CERT_SHA256: e717827ef5853d0cefa0a4b357709cc9c80fcf15f7cd67555a1bda07513a6ac9
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/release/app-release.apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$APKSIGNER"
+          CERT="$( "$APKSIGNER" verify --verbose --print-certs "$APK" 2>&1 | awk -F': ' '/certificate SHA-256 digest:/{print $2; exit}' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]' )"
+          if [ -z "$CERT" ]; then
+            echo "::error::CERTIFICATE_UNAVAILABLE — could not extract APK signing certificate SHA-256."
+            exit 4
+          fi
+          EXPECTED="$(printf '%s' "$KNOWN_GOOD_SIGNING_CERT_SHA256" | tr '[:upper:]' '[:lower:]' | tr -d ':')"
+          ACTUAL="$(printf '%s' "$CERT" | tr -d ':')"
+          echo "Known-good production signing certificate: $EXPECTED"
+          echo "Current release APK signing certificate:  $ACTUAL"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::MISMATCH — release APK is signed by a different certificate than the known-good production APK."
+            exit 5
+          fi
+          echo "MATCH — release APK uses the known-good production signing identity."
+
       - name: Upload verified APK artifact for download publisher
         uses: actions/upload-artifact@v4
         with:
