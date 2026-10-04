@@ -130,7 +130,7 @@ function injectFollowing(discovery: any[], following: any[], limit: number) {
 export default async function handler(request: RequestLike) {
   const method = typeof (request as Request).method === 'string' ? (request as Request).method : '';
   if (method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(request) });
-  if (method !== 'GET') return json({ error: 'GET required' }, 405);
+  if (method !== 'GET') return json({ error: 'GET required' }, 405, request);
   const started = Date.now();
 
   try {
@@ -138,7 +138,7 @@ export default async function handler(request: RequestLike) {
     // follows/recommendations, but must never be a prerequisite for rendering
     // public posts, threads, or stored Fediverse content.
     const auth = await authenticate(request);
-    if (!SUPABASE_SERVICE_ROLE_KEY) return json({ error: 'Home feed backend is not configured' }, 503);
+    if (!SUPABASE_SERVICE_ROLE_KEY) return json({ error: 'Home feed backend is not configured' }, 503, request);
 
     const url = new URL(requestUrl(request));
     const limit = Math.max(4, Math.min(8, Math.floor(Number(url.searchParams.get('limit') || 6))));
@@ -149,7 +149,7 @@ export default async function handler(request: RequestLike) {
         const decoded = JSON.parse(atob(before));
         if (decoded && typeof decoded === 'object') cursor = decoded;
       } catch {
-        return json({ error: 'Invalid feed cursor' }, 400);
+        return json({ error: 'Invalid feed cursor' }, 400, request);
       }
     }
 
@@ -339,9 +339,9 @@ export default async function handler(request: RequestLike) {
       nextCursor,
       latencyMs: Date.now() - started,
       algorithm: 'follow-affinity-recommendation-v5-cross-surface',
-    });
+    }, 200, request);
   } catch (error) {
     console.error('[home-feed]', error);
-    return json({ error: 'Home feed aggregation temporarily unavailable' }, 502);
+    return json({ error: 'Home feed aggregation temporarily unavailable' }, 502, request);
   }
 }
