@@ -229,6 +229,10 @@ export default function HomeHubPage(){
     try{
       const publisherItems=await loadPublisherFeed();
       if(!publisherItems.length)return;
+      // Publisher discovery is secondary content. Never insert it into a feed
+      // while the reader is away from the top; doing so changes heights above
+      // the viewport and makes Android WebView appear to jump.
+      if (window.scrollY > 80) return;
       setItems(prev=>{
         const merged=blendPublisherItems(prev,publisherItems,seed);
         if(merged===prev)return prev;
@@ -272,7 +276,18 @@ export default function HomeHubPage(){
       cacheCursorRef.current=nextCursorRef.current;
       if(background){
         setNewCount(fresh.length);
-        if(fresh.length&&window.scrollY<500){setItems(prev=>{const retained=prev;const merged=[...fresh,...retained].slice(0,80);feedBufferOffsetRef.current=merged.length;return merged;});}
+        if(fresh.length&&window.scrollY<500){
+          setItems(prev=>{
+            const merged=[...fresh,...prev].slice(0,80);
+            // Preserve the pagination cursor: refresh inserts only the number
+            // of genuinely new rows ahead of the already-consumed buffer.
+            feedBufferOffsetRef.current=Math.min(
+              feedBufferRef.current.length,
+              feedBufferOffsetRef.current + fresh.length
+            );
+            return merged;
+          });
+        }
       }else{
         setItems(next);feedBufferRef.current=mergeHomeFeedItems([],next,80);feedBufferOffsetRef.current=next.length;cacheCursorRef.current=nextCursorRef.current;setLoading(false);
       }
