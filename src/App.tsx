@@ -17,7 +17,6 @@ import { IncomingCallOverlay } from '@/components/features/IncomingCallOverlay';
 import { SiteAdInjector } from '@/components/features/SiteAdInjector';
 import { supabase } from '@/lib/supabase';
 import { startTestagramHeartbeat } from '@/services/heartbeatClient';
-import { startNativePushRegistration } from '@/services/nativePushService';
 import { applyAppearance, getStoredAppearance } from '@/theme/themes';
 import { useAuth } from '@/hooks/useAuth';
 import { OwnerOnlyAdminRoute } from '@/components/auth/OwnerOnlyAdminRoute';
@@ -274,10 +273,15 @@ function ImageLightbox() {
       if (event.key === '-') setZoom((value) => Math.max(value - 0.25, 0.5));
     };
     document.addEventListener('keydown', handleKey);
+    const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollbarGap = window.innerWidth - document.documentElement.clientWidth;
     document.body.style.overflow = 'hidden';
+    if (scrollbarGap > 0) document.body.style.paddingRight = String(scrollbarGap) + 'px';
     return () => {
       document.removeEventListener('keydown', handleKey);
-      document.body.style.overflow = '';
+      document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
     };
   }, [source]);
 
@@ -399,7 +403,7 @@ function AppearanceBootstrap() {
 
   return null;
 }
-function AppInner(){useCreatorTierAlert();const location=useLocation();const isNewsHost=typeof window !== 'undefined' && /^(www\.)?testagram\.news$/i.test(window.location.hostname);const isPublicTvLive=location.pathname.startsWith('/tv/live/');useEffect(()=>{applyAppearance(getStoredAppearance());const mq=window.matchMedia('(prefers-color-scheme: dark)');const handler=()=>{const a=getStoredAppearance();if(a.mode==='system')applyAppearance(a)};mq.addEventListener('change',handler);return()=>mq.removeEventListener('change',handler)},[]);useEffect(()=>startTestagramHeartbeat('web-v1'),[]);useEffect(()=>startNativePushRegistration(),[]);if(isNewsHost)return <Suspense fallback={<PageLoader/>}><NewsifyNewsPage/></Suspense>;if(isPublicTvLive)return <AuthProvider><Suspense fallback={<PageLoader/>}><Routes><Route path="/tv/live/:streamId" element={<TvPublicLivePage/>}/></Routes></Suspense><Sonner position="top-center" richColors/></AuthProvider>;return <AuthProvider><AppearanceBootstrap/><ImageLightbox/><div className="tg-shell flex min-h-screen bg-background overflow-x-hidden pb-20"><Sidebar/><main className="tg-main flex-1 border-x border-border/70 overflow-x-hidden"><Suspense fallback={<PageLoader/>}><SiteAdInjector/><LiveSpacesDiscoveryStrip/><Routes><Route path="/" element={<HomePage/>}/><Route path="/auth" element={<AuthPage/>}/><Route path="/videos" element={<VideosPage/>}/><Route path="/shorts" element={<FastPixShortsPage/>}/><Route path="/explore" element={<ExplorePage/>}/>
+function AppInner(){useCreatorTierAlert();const location=useLocation();const isNewsHost=typeof window !== 'undefined' && /^(www\.)?testagram\.news$/i.test(window.location.hostname);const isPublicTvLive=location.pathname.startsWith('/tv/live/');useEffect(()=>startTestagramHeartbeat('web-v1'),[]);if(isNewsHost)return <Suspense fallback={<PageLoader/>}><NewsifyNewsPage/></Suspense>;if(isPublicTvLive)return <AuthProvider><Suspense fallback={<PageLoader/>}><Routes><Route path="/tv/live/:streamId" element={<TvPublicLivePage/>}/></Routes></Suspense><Sonner position="top-center" richColors/></AuthProvider>;return <AuthProvider><AppearanceBootstrap/><ImageLightbox/><div className="tg-shell flex min-h-screen bg-background overflow-x-hidden pb-20"><Sidebar/><main className="tg-main flex-1 border-x border-border/70 overflow-x-hidden"><Suspense fallback={<PageLoader/>}><SiteAdInjector/><LiveSpacesDiscoveryStrip/><Routes><Route path="/" element={<HomePage/>}/><Route path="/auth" element={<AuthPage/>}/><Route path="/videos" element={<VideosPage/>}/><Route path="/shorts" element={<FastPixShortsPage/>}/><Route path="/explore" element={<ExplorePage/>}/>
 <Route path="/discover" element={<DiscoverSuggestedPage/>}/>
 <Route path="/discover/suggested" element={<DiscoverSuggestedPage/>}/>
 <Route path="/discover/popular" element={<DiscoverPopularPage/>}/>
