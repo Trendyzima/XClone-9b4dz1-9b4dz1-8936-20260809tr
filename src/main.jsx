@@ -61,6 +61,12 @@ trackRouteView();
 analytics.startSession();
 void startNativePushRegistration();
 
+// Mark the native shell early so mobile/WebView-specific stability rules apply
+// before the first React commit. This is intentionally presentation-only.
+if (/Android/i.test(navigator.userAgent) || /tg_shell=android/i.test(window.location.search)) {
+  document.documentElement.dataset.tgPlatform = 'android';
+}
+
 const container = document.getElementById('root');
 if (!container) throw new Error('Testagram root element was not found');
 
