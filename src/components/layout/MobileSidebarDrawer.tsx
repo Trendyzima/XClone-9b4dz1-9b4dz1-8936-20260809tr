@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import { useEffect, useState } from 'react';
 import {
   Menu, Home, Hash, Bell, Mail, Radio, Sparkles, Bookmark, List, History,
   Briefcase, BarChart3, DollarSign, ShoppingBag, Calendar, Crown, LogOut,
@@ -17,6 +16,23 @@ export function MobileSidebarDrawer() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuth();
+
+  // Use a deterministic mobile drawer instead of a dialog animation layer.
+  // This avoids Radix overlay/content race conditions that can leave a black
+  // backdrop mounted while the drawer itself is visually hidden.
+  useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [open]);
 
   // ── Primary nav items (large bold text — X.com style) ───────────────────
   const primaryItems = [
@@ -72,14 +88,33 @@ export function MobileSidebarDrawer() {
   };
 
   return (
-    <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="lg:hidden tg-touch-control">
-          <Menu className="w-6 h-6" />
-        </Button>
-      </SheetTrigger>
+    <Button
+        variant="ghost"
+        size="icon"
+        className="lg:hidden tg-touch-control"
+        aria-label="Open navigation menu"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+      >
+        <Menu className="w-6 h-6" />
+      </Button>
 
-      <SheetContent side="left" className="tg-drawer-surface tg-rigid-shell p-0 w-[300px] overflow-y-auto bg-background flex flex-col">
+      {open && (
+        <div
+          className="fixed inset-0 z-[9998] lg:hidden"
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setOpen(false);
+          }}
+        >
+          <div className="absolute inset-0 bg-black/60" aria-hidden="true" />
+          <aside
+            role="dialog"
+            aria-modal="true"
+            aria-label="Testagram navigation"
+            className="tg-drawer-surface fixed inset-y-0 left-0 z-[9999] flex w-[min(300px,85vw)] flex-col overflow-hidden bg-background shadow-2xl"
+            onMouseDown={(event) => event.stopPropagation()}
+          >
         {/* ── User card ─────────────────────────────────────────────────────── */}
         {user ? (
           <div className="p-4 border-b border-border">
@@ -193,7 +228,8 @@ export function MobileSidebarDrawer() {
             </Button>
           )}
         </div>
-      </SheetContent>
-    </Sheet>
+          </aside>
+        </div>
+      )
   );
 }
