@@ -26,6 +26,7 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.view.WindowCompat;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 import androidx.core.content.ContextCompat;
 import com.google.firebase.messaging.FirebaseMessaging;
 import androidx.webkit.WebSettingsCompat;
@@ -51,6 +52,7 @@ public final class MainActivity extends AppCompatActivity {
                 .setAppearanceLightStatusBars(false);
         WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView())
                 .setAppearanceLightNavigationBars(false);
+        enterImmersiveFullscreen();
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             getWindow().setNavigationBarContrastEnforced(false);
             getWindow().setStatusBarContrastEnforced(false);
@@ -196,7 +198,49 @@ public final class MainActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
+        enterImmersiveFullscreen();
         publishPushTokenToWeb();
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean hasFocus) {
+        super.onWindowFocusChanged(hasFocus);
+        if (hasFocus) {
+            // Re-assert immersive mode after Android transiently restores system bars
+            // (for example after a permission dialog, keyboard, or app switch).
+            enterImmersiveFullscreen();
+        }
+    }
+
+    /**
+     * Testagram is a true full-screen WebView shell: the website owns every pixel
+     * from the physical top edge to the physical bottom edge. The Android status
+     * and navigation bars must not reserve a black band around the WebView.
+     *
+     * Android can still reveal system bars transiently in response to an explicit
+     * system gesture; this method restores immersive mode as soon as the Activity
+     * regains focus.
+     */
+    private void enterImmersiveFullscreen() {
+        WindowInsetsControllerCompat controller =
+                WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        if (controller == null) return;
+
+        controller.setSystemBarsBehavior(
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+        controller.hide(WindowInsetsCompat.Type.systemBars());
+
+        // Compatibility fallback for older Android releases supported by this APK.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            getWindow().getDecorView().setSystemUiVisibility(
+                    android.view.View.SYSTEM_UI_FLAG_FULLSCREEN
+                            | android.view.View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+                            | android.view.View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+                            | android.view.View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                            | android.view.View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+                            | android.view.View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+            );
+        }
     }
 
     @Override
