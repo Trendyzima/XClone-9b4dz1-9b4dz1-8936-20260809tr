@@ -1,0 +1,87 @@
+name: Testagram Stability Gate
+
+on:
+  push:
+    branches:
+      - main
+      - "release/*"
+    paths:
+      - "src/**"
+      - "api/**"
+      - "android/**"
+      - "public/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "_build.cjs"
+      - "vite.config.*"
+      - "tailwind.config.*"
+      - "postcss.config.*"
+      - ".github/workflows/stability.yml"
+  pull_request:
+    branches:
+      - main
+      - "release/*"
+    paths:
+      - "src/**"
+      - "api/**"
+      - "android/**"
+      - "public/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "_build.cjs"
+      - "vite.config.*"
+      - "tailwind.config.*"
+      - "postcss.config.*"
+      - ".github/workflows/stability.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Web typecheck, lint and production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: TypeScript check
+        run: npm run typecheck
+      - name: API TypeScript check
+        run: npm run typecheck:api
+      - name: ESLint
+        run: npm run lint
+      - name: Production build
+        run: npm run build
+
+  android:
+    name: Android lint and unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Build web assets for Android
+        run: npm run build
+      - name: Android lint
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon lint
+      - name: Android unit tests
+        working-directory: android
+        run: ./gradlew --no-daemon test
