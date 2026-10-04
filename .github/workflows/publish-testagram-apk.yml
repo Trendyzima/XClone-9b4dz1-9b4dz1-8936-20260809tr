@@ -6,7 +6,6 @@ on:
       - main
     paths:
       - .github/workflows/publish-testagram-apk.yml
-      - README.md
   workflow_dispatch:
 
 permissions:
