@@ -65,12 +65,12 @@ export function MobileSidebarDrawer() {
   return (
     <Sheet open={open} onOpenChange={setOpen}>
       <SheetTrigger asChild>
-        <Button variant="ghost" size="icon" className="lg:hidden">
+        <Button variant="ghost" size="icon" className="lg:hidden tg-touch-control">
           <Menu className="w-6 h-6" />
         </Button>
       </SheetTrigger>
 
-      <SheetContent side="left" className="p-0 w-[300px] overflow-y-auto bg-background flex flex-col">
+      <SheetContent side="left" className="tg-drawer-surface tg-rigid-shell p-0 w-[300px] overflow-y-auto bg-background flex flex-col">
         {/* ── User card ─────────────────────────────────────────────────────── */}
         {user ? (
           <div className="p-4 border-b border-border">
