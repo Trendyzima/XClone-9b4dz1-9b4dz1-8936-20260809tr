@@ -9,7 +9,11 @@ on:
         default: "v0.2.0"
   push:
     branches:
+      - main
       - "release/*"
+    paths-ignore:
+      - README.md
+      - downloads/**
 
 permissions:
   contents: write
@@ -86,6 +90,14 @@ jobs:
           sha256sum "${APK}" "${AAB}"
           echo "Artifacts:"
           ls -lh "${APK}" "${AAB}"
+
+      - name: Upload verified APK artifact for download publisher
+        uses: actions/upload-artifact@v4
+        with:
+          name: testagram-android-release-${{ github.sha }}
+          path: android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 90
 
       - name: Remove signing material
         if: always()
