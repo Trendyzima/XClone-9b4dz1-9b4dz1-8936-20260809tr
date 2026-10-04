@@ -608,12 +608,17 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
 
   return (
     <div
-      className="relative h-screen w-full max-w-full bg-black snap-start snap-always overflow-hidden"
+      className="relative isolate h-[100dvh] min-h-[100svh] w-full max-w-full overflow-hidden overscroll-none bg-black snap-start snap-always select-none"
       onTouchStart={e => { handleTouchStart(e); handleLongPressStart(); }}
       onTouchEnd={e => { handleTouchEndSwipe(e); handleLongPressEnd(); }}
       onMouseDown={handleLongPressStart}
       onMouseUp={handleLongPressEnd}
       onMouseLeave={handleLongPressEnd}
+      onContextMenu={e => e.preventDefault()}
+      onDragStart={e => e.preventDefault()}
+      role="region"
+      aria-label={`Video by ${post.user_id}`}
+      style={{ touchAction: 'pan-y', WebkitTapHighlightColor: 'transparent' }}
     >
       {/* Pre-roll ad */}
       {showPrerollAd && (
@@ -648,7 +653,7 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
         preload={shouldPreload ? 'auto' : 'metadata'}
         muted={isMuted}
         loop
-        className="h-full w-full object-cover"
+        className="h-full w-full object-cover bg-black"
         style={{ maxWidth: '100vw' }}
         onClick={handleVideoTap}
         onTimeUpdate={handleTimeUpdate}
