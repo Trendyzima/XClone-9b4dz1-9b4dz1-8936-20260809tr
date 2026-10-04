@@ -18,6 +18,8 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
   const retryingRef = useRef(false);
   const lastSrcRef = useRef('');
   const [recovering, setRecovering] = useState(false);
+  const [fatalError, setFatalError] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
 
   const setVideoElement = useCallback((node: HTMLVideoElement | null) => {
     videoRef.current = node;
@@ -87,6 +89,7 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
     retryCountRef.current = 0;
     retryingRef.current = false;
     setRecovering(false);
+    setFatalError(false);
     lastSrcRef.current = src;
 
     if (!src) {
@@ -132,9 +135,13 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
       hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(src));
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (!data.fatal) return;
-        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
-        else if (data.type === Hls.ErrorTypes.NETWORK_ERROR) recover();
-        else recover();
+        setFatalError(true);
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+          hls.recoverMediaError();
+          window.setTimeout(() => setFatalError(false), 500);
+        } else {
+          recover();
+        }
       });
       hls.attachMedia(video);
     } else if (isHls(src) && video.canPlayType('application/vnd.apple.mpegurl')) {
@@ -149,7 +156,41 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
       cleanupHls();
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     };
-  }, [cleanupHls, isHls, recover, src]);
+  }, [cleanupHls, isHls, recover, retryNonce, src]);
+
+  // Reels-style playback discipline: only the visible card may consume a decoder.
+  // The feed already supplies the active flag, while this observer protects against
+  // partial visibility during fast swipes and browser-driven layout changes.
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    const target = video.parentElement ?? video;
+    const observer = new IntersectionObserver((entries) => {
+      const visible = entries[0]?.intersectionRatio ?? 0;
+      if (!active || visible < 0.65) {
+        video.pause();
+        return;
+      }
+      if (document.visibilityState === 'visible' && video.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA) {
+        void play();
+      }
+    }, { threshold: [0, 0.65, 0.9] });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [active, play]);
+
+  // Suspend playback when the app/tab is backgrounded and resume the active reel
+  // when it returns. This prevents hidden WebView tabs from retaining a decoder.
+  useEffect(() => {
+    const onVisibility = () => {
+      const video = videoRef.current;
+      if (!video) return;
+      if (document.visibilityState !== 'visible') video.pause();
+      else if (active) void play();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, [active, play]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -187,8 +228,11 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
     <div className="relative h-full w-full">
       <video
         ref={setVideoElement}
-        {...props}
+        autoPlay={active}
         playsInline
+        disablePictureInPicture
+        preload={props.preload ?? (active ? 'auto' : 'metadata')}
+        {...props}
         controls={props.controls ?? false}
         onPause={onPause}
         onTimeUpdate={onTimeUpdate}
@@ -200,6 +244,15 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
         <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/70 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">
           Reconnecting…
         </div>
+      )}
+      {fatalError && active && (
+        <button
+          type="button"
+          onClick={() => { setFatalError(false); retryCountRef.current = 0; setRetryNonce(n => n + 1); }}
+          className="absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/75 px-4 py-2 text-xs font-bold text-white backdrop-blur-md border border-white/15"
+        >
+          Tap to retry
+        </button>
       )}
     </div>
   );
