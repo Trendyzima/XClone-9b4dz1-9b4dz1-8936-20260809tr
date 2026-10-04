@@ -152,3 +152,176 @@ body {
 /* Mobile/WebView polish: keep the page visually continuous with the native shell. */
 html, body { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
 button, a { -webkit-tap-highlight-color: transparent; }
+
+
+/* ── Testagram Texture Pack v3 ────────────────────────────────────────────
+   Visual-only refinement: preserves the existing Testagram palette/layout while
+   adding depth, tactile surfaces, cleaner hierarchy and premium touch feedback.
+   No external images/fonts are required, so the APK remains lightweight/offline-safe.
+*/
+:root {
+  --tg-texture-opacity: .34;
+  --tg-radius-card: 1.05rem;
+  --tg-radius-control: .82rem;
+  --tg-elevation-1: 0 1px 2px hsl(0 0% 0% / .05), 0 10px 30px -24px hsl(var(--primary) / .22);
+  --tg-elevation-2: 0 8px 30px -20px hsl(0 0% 0% / .22), 0 18px 50px -34px hsl(var(--primary) / .18);
+}
+.dark {
+  --tg-texture-opacity: .22;
+  --tg-elevation-1: 0 1px 2px hsl(0 0% 0% / .42), 0 12px 32px -24px hsl(var(--primary) / .24);
+  --tg-elevation-2: 0 10px 34px -22px hsl(0 0% 0% / .62), 0 20px 55px -34px hsl(var(--primary) / .20);
+}
+
+/* Fine grain + soft light bloom. The texture is intentionally extremely subtle:
+   it should be felt as depth, never read as a noisy wallpaper. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: var(--tg-texture-opacity);
+  background-image:
+    radial-gradient(circle at 15% 12%, hsl(var(--primary) / .055) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 82% 34%, hsl(var(--foreground) / .035) 0 1px, transparent 1.5px),
+    linear-gradient(115deg, transparent 0 47%, hsl(var(--primary) / .018) 50%, transparent 53%);
+  background-size: 19px 19px, 23px 23px, 100% 100%;
+  mix-blend-mode: soft-light;
+}
+body {
+  background:
+    radial-gradient(900px 420px at 50% -180px, hsl(var(--primary) / .11), transparent 68%),
+    radial-gradient(600px 340px at 100% 12%, hsl(var(--accent) / .055), transparent 70%),
+    hsl(var(--background));
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Consistent tactile surfaces without changing existing component markup. */
+.tg-card,
+[class*="rounded-xl"][class*="border"],
+[class*="rounded-2xl"][class*="border"] {
+  border-color: hsl(var(--border) / .72);
+  box-shadow: var(--tg-elevation-1);
+}
+.tg-card:hover {
+  border-color: hsl(var(--primary) / .20);
+  box-shadow: var(--tg-elevation-2);
+}
+.dark .tg-card,
+.dark [class*="rounded-xl"][class*="border"],
+.dark [class*="rounded-2xl"][class*="border"] {
+  background-image: linear-gradient(135deg, hsl(var(--foreground) / .018), transparent 42%);
+}
+
+/* Inputs/buttons get a more polished, consistent physical response. */
+button,
+[role="button"],
+input,
+textarea,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+button,
+[role="button"] {
+  transition:
+    transform .16s cubic-bezier(.2,.8,.2,1),
+    box-shadow .16s ease,
+    background-color .16s ease,
+    border-color .16s ease,
+    opacity .16s ease;
+}
+button:active,
+[role="button"]:active {
+  transform: scale(.975);
+}
+button:disabled,
+[role="button"][aria-disabled="true"] {
+  cursor: not-allowed;
+}
+input,
+textarea,
+select {
+  border-radius: var(--tg-radius-control);
+  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
+}
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  border-color: hsl(var(--ring) / .72);
+  box-shadow: 0 0 0 3px hsl(var(--ring) / .12), 0 8px 22px -18px hsl(var(--ring) / .35);
+  outline: none;
+}
+
+/* Media texture: preserve image/video content while making framing feel intentional. */
+img,
+video {
+  image-rendering: auto;
+}
+img:not([class*="rounded"]):not([class*="avatar"]),
+video:not([class*="rounded"]) {
+  border-radius: .85rem;
+}
+video {
+  background: hsl(var(--muted));
+}
+.media-frame,
+[class*="aspect-video"] {
+  isolation: isolate;
+  overflow: hidden;
+  background: hsl(var(--muted));
+}
+.media-frame::after,
+[class*="aspect-video"]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent 55%, hsl(0 0% 0% / .08));
+  opacity: .7;
+}
+
+/* Premium but restrained motion for page transitions and popovers. */
+@keyframes tgRiseSoft {
+  from { opacity: 0; transform: translateY(7px) scale(.992); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes tgShimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+.tg-enter { animation: tgRiseSoft .24s cubic-bezier(.2,.8,.2,1) both; }
+.tg-skeleton {
+  background: linear-gradient(90deg,
+    hsl(var(--muted)) 20%,
+    hsl(var(--foreground) / .055) 38%,
+    hsl(var(--muted)) 56%);
+  background-size: 220% 100%;
+  animation: tgShimmer 1.35s ease-in-out infinite;
+}
+
+/* Scrollbars become nearly invisible until needed. */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-thumb { background: hsl(var(--muted-foreground) / .24); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--muted-foreground) / .42); }
+
+/* Mobile/WebView: keep touch targets comfortable without introducing native chrome. */
+@media (max-width: 639px) {
+  .tg-card {
+    border-radius: .95rem;
+  }
+  .tg-topbar {
+    box-shadow: 0 8px 28px -26px hsl(0 0% 0% / .5);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+  button:active,
+  [role="button"]:active { transform: none; }
+}
