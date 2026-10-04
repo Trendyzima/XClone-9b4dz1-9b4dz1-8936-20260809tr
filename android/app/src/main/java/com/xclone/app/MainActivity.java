@@ -48,7 +48,7 @@ public final class MainActivity extends AppCompatActivity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
-        settings.setMediaPlaybackRequiresUserGesture(false);
+        settings.setMediaPlaybackRequiresUserGesture(true);
         settings.setAllowFileAccess(false);
         settings.setAllowContentAccess(true);
         settings.setAllowUniversalAccessFromFileURLs(false);
@@ -95,11 +95,14 @@ public final class MainActivity extends AppCompatActivity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
-                String host = uri.getHost();
-                if ("testagram.site".equalsIgnoreCase(host) || "www.testagram.site".equalsIgnoreCase(host)) {
+                String scheme = uri.getScheme();
+                if ("http".equalsIgnoreCase(scheme) || "https".equalsIgnoreCase(scheme)) {
                     return false;
                 }
-                startActivity(new Intent(Intent.ACTION_VIEW, uri));
+                try {
+                    startActivity(new Intent(Intent.ACTION_VIEW, uri));
+                } catch (Exception ignored) {
+                }
                 return true;
             }
         });
@@ -146,7 +149,12 @@ public final class MainActivity extends AppCompatActivity {
 
         createNotificationChannel();
         requestNotificationPermission();
-        web.loadUrl(APP_URL);
+        Uri launchUri = getIntent() == null ? null : getIntent().getData();
+        if (isTrustedTestagramUrl(launchUri)) {
+            web.loadUrl(launchUri.toString());
+        } else {
+            web.loadUrl(APP_URL);
+        }
     }
 
     @Override
