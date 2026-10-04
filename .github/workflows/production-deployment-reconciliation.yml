@@ -1039,6 +1039,45 @@ jobs:
 
           echo "Cloudflare production domain liveness/readiness passed."
 
+      - name: Verify production API contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_ORIGIN="https://testagram.site"
+
+          for endpoint in "/api/health" "/api/ready"; do
+            status="$(curl --silent --show-error --location --connect-timeout 10 --max-time 30               -o /tmp/testagram-api-response.json -w '%{http_code}' "$APP_ORIGIN$endpoint")"
+            [[ "$status" == "200" ]] || {
+              echo "::error::Production endpoint $endpoint returned HTTP $status."
+              cat /tmp/testagram-api-response.json || true
+              exit 1
+            }
+          done
+
+          feed_status="$(curl --silent --show-error --location --connect-timeout 10 --max-time 30             -o /tmp/testagram-home-feed.json -w '%{http_code}'             "$APP_ORIGIN/api/home-feed?limit=6&includeFederated=0")"
+          [[ "$feed_status" == "200" ]] || {
+            echo "::error::Production home-feed API returned HTTP $feed_status."
+            head -c 2000 /tmp/testagram-home-feed.json || true
+            exit 1
+          }
+
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const body = fs.readFileSync("/tmp/testagram-home-feed.json", "utf8");
+          let payload;
+          try { payload = JSON.parse(body); }
+          catch { throw new Error("Production home-feed did not return valid JSON."); }
+          if (!payload || !Array.isArray(payload.items)) {
+            throw new Error("Production home-feed contract is invalid: expected an items array.");
+          }
+          console.log(JSON.stringify({
+            ok: true,
+            item_count: payload.items.length,
+            has_pagination: Boolean(payload.pagination),
+            api_contract: "home-feed-v1"
+          }));
+          NODE
+
 
 # Story media reconciliation CI trigger marker.
 
