@@ -88,7 +88,8 @@ export function MobileSidebarDrawer() {
   };
 
   return (
-    <Button
+    <>
+      <Button
         variant="ghost"
         size="icon"
         className="lg:hidden tg-touch-control"
@@ -231,5 +232,6 @@ export function MobileSidebarDrawer() {
           </aside>
         </div>
       )}
+    </>
   );
 }
