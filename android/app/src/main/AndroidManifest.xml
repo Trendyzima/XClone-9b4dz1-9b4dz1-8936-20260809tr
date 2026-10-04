@@ -51,7 +51,6 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="https" android:host="testagram.site" />
-                <data android:scheme="https" android:host="www.testagram.site" />
             </intent-filter>
         </activity>
     </application>
