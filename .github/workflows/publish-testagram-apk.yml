@@ -59,7 +59,43 @@ jobs:
 
           **[SHA-256 checksum](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/blob/main/downloads/Testagram.apk.sha256)**
 
-          The APK above is the successful Android release artifact from the production release workflow. The README uses the direct raw APK endpoint so the link downloads the binary instead of opening the GitHub blob viewer.
+          BUILD_RUN_ID="37177519503"
+          BUILD_CREATED_AT="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID" --jq .created_at)"
+          BUILD_CREATED_EAT="$(BUILD_CREATED_AT="$BUILD_CREATED_AT" python3 - <<'PY'
+          import os
+          from datetime import datetime, timezone, timedelta
+          dt = datetime.fromisoformat(os.environ["BUILD_CREATED_AT"].replace("Z", "+00:00"))
+          print(dt.astimezone(timezone(timedelta(hours=3))).strftime("%Y-%m-%d %H:%M EAT"))
+          PY
+          )"
+          BUILD_COMMIT="$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$BUILD_RUN_ID" --jq .head_sha)"
+          export BUILD_RUN_ID BUILD_CREATED_EAT BUILD_COMMIT
+          python3 - <<'PY'
+          from pathlib import Path
+          import os
+          p = Path("README.md")
+          s = p.read_text()
+          marker = "## 📱 Testagram Android APK"
+          start = s.index(marker)
+          end = s.index("\n## What is Testagram?", start)
+          block = f"""## 📱 Testagram Android APK
+
+          The verified Testagram Android APK is available directly from this repository.
+
+          ### Download Testagram
+
+          **[⬇️ Download Testagram APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/raw/refs/heads/main/downloads/Testagram.apk)**
+
+          **[SHA-256 checksum](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/blob/main/downloads/Testagram.apk.sha256)**
+
+          **Created:** {os.environ["BUILD_CREATED_EAT"]}  
+          **Build commit:** `{os.environ["BUILD_COMMIT"]}`  
+          **GitHub Actions run:** [#{os.environ["BUILD_RUN_ID"]}](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/runs/{os.environ["BUILD_RUN_ID"]})
+
+          The creation time above is taken from the successful Android release workflow that produced the APK, not from the later README publication commit. The README uses the direct raw APK endpoint so the link downloads the binary instead of opening the GitHub blob viewer.
+          """
+          p.write_text(s[:start] + block.rstrip() + s[end:])
+          PY
           """
           p.write_text(s[:start] + block.rstrip() + s[end:])
           PY
