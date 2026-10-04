@@ -252,10 +252,11 @@ export function BottomNav() {
 
   return (
     <nav
-      className={`lg:hidden fixed bottom-0 left-0 right-0 safe-area-bottom bg-background/85 backdrop-blur-2xl border-t border-border/70 shadow-[0_-12px_40px_-28px_hsl(0_0%_0%_/_0.7)] z-50 transition-transform duration-300 ease-in-out ${
+      className={`lg:hidden fixed bottom-0 left-0 right-0 z-50 transition-transform duration-300 ease-in-out ${
         visible ? 'translate-y-0' : 'translate-y-full'
       }`}
     >
+      <div className="bg-background/85 backdrop-blur-2xl border-t border-border/70 shadow-[0_-12px_40px_-28px_hsl(0_0%_0%_/_0.7)]" style={{ marginBottom: "env(safe-area-inset-bottom, 0px)" }}>
       {/* Policy footer link — tiny, always visible above nav */}
       <div className="border-t border-border/50 flex justify-center pt-1 pb-0.5">
         <button onClick={() => navigate('/policy')}
@@ -294,6 +295,7 @@ export function BottomNav() {
           );
         })}
       </div>
+    </div>
     </nav>
   );
 }
