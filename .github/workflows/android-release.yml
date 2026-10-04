@@ -67,6 +67,25 @@ jobs:
           keyPassword=${ANDROID_KEY_PASSWORD}
           EOF
 
+      - name: Forensic signing preflight
+        working-directory: android
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          STORE="testagram-release.jks"
+          echo "Checking release keystore integrity without printing credentials..."
+          if ! keytool -list -keystore "${STORE}" -storepass "${ANDROID_KEYSTORE_PASSWORD}" >/dev/null 2>&1; then
+            echo "::error::ANDROID_KEYSTORE_PASSWORD does not unlock the uploaded keystore. The keystore/password pair is inconsistent."
+            exit 1
+          fi
+          if ! keytool -list -keystore "${STORE}" -storepass "${ANDROID_KEYSTORE_PASSWORD}" -alias "${ANDROID_KEY_ALIAS}" -keypass "${ANDROID_KEY_PASSWORD}" >/dev/null 2>&1; then
+            echo "::error::The keystore opens, but ANDROID_KEY_ALIAS and/or ANDROID_KEY_PASSWORD does not unlock the release key."
+            exit 1
+          fi
+          echo "Release keystore, alias, and key password are internally consistent."
       - name: Build signed Android APK and App Bundle
         working-directory: android
         run: |
