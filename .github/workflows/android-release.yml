@@ -160,7 +160,7 @@ jobs:
       - name: Forensic signing identity gate — compare against known-good production APK
         working-directory: android
         env:
-          KNOWN_GOOD_SIGNING_CERT_SHA256: 87503fc54e0cd0eb8e236bedea5a2aa4f830069daef5effe0f0afb1931138dd5
+          KNOWN_GOOD_SIGNING_CERT_SHA256: 740619a94f93103351444dc58327aecb8d802d2e8a8b32614b84d932e720937c
         run: |
           set -euo pipefail
           APK="app/build/outputs/apk/release/app-release.apk"
