@@ -50,9 +50,18 @@ export function MobileSidebarDrawer() {
   ];
 
   const goTo = (path: string, requireAuth?: boolean) => {
-    if (requireAuth && !user) navigate('/auth');
-    else navigate(path);
+    // Close the modal first so Radix can remove its focus trap/backdrop
+    // before React Router swaps the page underneath it.
     setOpen(false);
+    window.setTimeout(() => {
+      if (requireAuth && !user) navigate('/auth');
+      else navigate(path);
+    }, 0);
+  };
+
+  const closeAnd = (action: () => void) => {
+    setOpen(false);
+    window.setTimeout(action, 0);
   };
 
   const handleLogout = async () => {
@@ -158,7 +167,7 @@ export function MobileSidebarDrawer() {
               <h3 className="font-bold text-sm mb-0.5">Upgrade to Premium</h3>
               <p className="text-xs text-muted-foreground mb-3">Get verified and unlock exclusive features</p>
               <Button
-                onClick={() => { navigate('/premium'); setOpen(false); }}
+                onClick={() => closeAnd(() => navigate('/premium'))}
                 size="sm"
                 className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
               >
@@ -179,7 +188,7 @@ export function MobileSidebarDrawer() {
               <span>Log out</span>
             </button>
           ) : (
-            <Button onClick={() => { navigate('/auth'); setOpen(false); }} className="w-full rounded-full font-semibold">
+            <Button onClick={() => closeAnd(() => navigate('/auth'))} className="w-full rounded-full font-semibold">
               Sign in
             </Button>
           )}
