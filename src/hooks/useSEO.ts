@@ -33,29 +33,22 @@ export function buildOgImageUrl(params: { username?: string; thread?: string; co
   return `${OG_IMAGE_BASE}?${p.toString()}`;
 }
 
-function setMeta(attr: 'name' | 'property', key: string, value: string): HTMLMetaElement {
+function setMeta(attr: 'name' | 'property', key: string, value: string): { el: HTMLMetaElement; previous: string | null; created: boolean } {
   let el = document.querySelector(`meta[${attr}="${key}"]`) as HTMLMetaElement | null;
-  if (!el) {
-    el = document.createElement('meta');
-    el.setAttribute(attr, key);
-    document.head.appendChild(el);
-    el.dataset.seoManaged = '1';
-  }
+  const created = !el;
+  const previous = el?.getAttribute('content') ?? null;
+  if (!el) { el = document.createElement('meta'); el.setAttribute(attr, key); document.head.appendChild(el); }
   el.setAttribute('content', value);
-  return el;
+  return { el, previous, created };
 }
 
-function setLink(rel: string, href: string): HTMLLinkElement {
+function setLink(rel: string, href: string): { el: HTMLLinkElement; previous: string | null; created: boolean } {
   let el = document.querySelector(`link[rel="${rel}"]`) as HTMLLinkElement | null;
-  const wasExisting = !!el;
-  if (!el) {
-    el = document.createElement('link');
-    el.setAttribute('rel', rel);
-    document.head.appendChild(el);
-  }
-  if (!wasExisting) el.dataset.seoManaged = '1';
+  const created = !el;
+  const previous = el?.getAttribute('href') ?? null;
+  if (!el) { el = document.createElement('link'); el.setAttribute('rel', rel); document.head.appendChild(el); }
   el.setAttribute('href', href);
-  return el;
+  return { el, previous, created };
 }
 
 function addJsonLd(data: object): HTMLScriptElement {
@@ -66,45 +59,34 @@ function addJsonLd(data: object): HTMLScriptElement {
   document.head.appendChild(script);
   return script;
 }
-
 export function useSEO({ title, description, image, url, type = 'website', structuredData, noindex = false, keywords }: SEOProps) {
   useEffect(() => {
     const prevTitle = document.title;
-    const managedEls: Array<HTMLElement> = [];
+    const metaStates: Array<{ el: HTMLMetaElement; previous: string | null; created: boolean }> = [];
+    const linkStates: Array<{ el: HTMLLinkElement; previous: string | null; created: boolean }> = [];
     const fullTitle = title ? `${title} | ${SITE_NAME}` : `${SITE_NAME} – Social Media, Short Videos & Global Conversations`;
     const fullDesc = description || 'Post short videos, join communities, earn from your content, and connect with people worldwide on Testagram.';
     const fullImage = image || DEFAULT_IMAGE;
     const fullUrl = url ? (url.startsWith('http') ? url : `${BASE_URL}${url}`) : BASE_URL;
     const robots = noindex ? 'noindex, nofollow' : 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1';
     document.title = fullTitle;
-    managedEls.push(setMeta('name', 'description', fullDesc));
-    managedEls.push(setMeta('name', 'robots', robots));
-    if (keywords) managedEls.push(setMeta('name', 'keywords', keywords));
-    managedEls.push(setLink('canonical', fullUrl));
-    managedEls.push(setMeta('property', 'og:type', type));
-    managedEls.push(setMeta('property', 'og:url', fullUrl));
-    managedEls.push(setMeta('property', 'og:title', fullTitle));
-    managedEls.push(setMeta('property', 'og:description', fullDesc));
-    managedEls.push(setMeta('property', 'og:image', fullImage));
-    managedEls.push(setMeta('property', 'og:image:width', '1200'));
-    managedEls.push(setMeta('property', 'og:image:height', '630'));
-    managedEls.push(setMeta('property', 'og:site_name', SITE_NAME));
-    managedEls.push(setMeta('name', 'twitter:card', 'summary_large_image'));
-    managedEls.push(setMeta('name', 'twitter:site', '@testagram'));
-    managedEls.push(setMeta('name', 'twitter:url', fullUrl));
-    managedEls.push(setMeta('name', 'twitter:title', fullTitle));
-    managedEls.push(setMeta('name', 'twitter:description', fullDesc));
-    managedEls.push(setMeta('name', 'twitter:image', fullImage));
+    const putMeta = (attr: 'name' | 'property', key: string, value: string) => metaStates.push(setMeta(attr, key, value));
+    putMeta('name', 'description', fullDesc); putMeta('name', 'robots', robots);
+    if (keywords) putMeta('name', 'keywords', keywords);
+    linkStates.push(setLink('canonical', fullUrl));
+    putMeta('property', 'og:type', type); putMeta('property', 'og:url', fullUrl); putMeta('property', 'og:title', fullTitle);
+    putMeta('property', 'og:description', fullDesc); putMeta('property', 'og:image', fullImage); putMeta('property', 'og:image:width', '1200');
+    putMeta('property', 'og:image:height', '630'); putMeta('property', 'og:site_name', SITE_NAME);
+    putMeta('name', 'twitter:card', 'summary_large_image'); putMeta('name', 'twitter:site', '@testagram'); putMeta('name', 'twitter:url', fullUrl);
+    putMeta('name', 'twitter:title', fullTitle); putMeta('name', 'twitter:description', fullDesc); putMeta('name', 'twitter:image', fullImage);
     const ldScripts: HTMLScriptElement[] = [];
-    if (structuredData) {
-      const items = Array.isArray(structuredData) ? structuredData : [structuredData];
-      items.forEach(item => { const script = addJsonLd(item); ldScripts.push(script); managedEls.push(script); });
-    }
+    if (structuredData) { const items = Array.isArray(structuredData) ? structuredData : [structuredData]; items.forEach(item => ldScripts.push(addJsonLd(item))); }
     return () => {
       document.title = prevTitle;
-      managedEls.forEach(el => { if (el.dataset?.seoManaged === '1') el.parentNode?.removeChild(el); });
-    };
-  }, [title, description, image, url, type, noindex, keywords, structuredData]);
+      metaStates.forEach(({ el, previous, created }) => { if (created) el.remove(); else if (previous === null) el.removeAttribute('content'); else el.setAttribute('content', previous); });
+      linkStates.forEach(({ el, previous, created }) => { if (created) el.remove(); else if (previous === null) el.removeAttribute('href'); else el.setAttribute('href', previous); });
+      ldScripts.forEach(script => script.remove());
+    };  }, [title, description, image, url, type, noindex, keywords, structuredData]);
 }
 
 export function buildProfileLD(profile: {
