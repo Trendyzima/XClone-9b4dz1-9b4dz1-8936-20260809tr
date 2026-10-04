@@ -266,9 +266,19 @@ async function rfc9421Headers(local:any,url:string,method:"GET"|"POST",body=""){
 
 class RemoteFederationError extends Error {
   readonly code = "FEDERATION_REMOTE_UNAVAILABLE";
+  readonly retryable = true;
   constructor(message: string) {
     super(message);
     this.name = "RemoteFederationError";
+  }
+}
+
+class RemoteProtocolError extends Error {
+  readonly code = "FEDERATION_REMOTE_PROTOCOL";
+  readonly retryable = true;
+  constructor(message: string) {
+    super(message);
+    this.name = "RemoteProtocolError";
   }
 }
 
@@ -285,6 +295,13 @@ async function remoteFetch(url: string, init: RequestInit = {}, timeoutMs = 1200
   } finally {
     clearTimeout(timer);
   }
+}
+
+function remoteHttpFailure(operation: string, response: Response, body: string): never {
+  const detail = body.replace(/\s+/g, " ").slice(0, 700);
+  throw new RemoteProtocolError(
+    operation + " remote HTTP " + response.status + (detail ? ": " + detail : "")
+  );
 }
 
 async function signedFetch(local: any, url: string, method: "GET" | "POST", body = "") {
@@ -306,7 +323,7 @@ async function remoteActor(local: any, url: string) {
   assertSafeRemoteUrl(url);
   const response = await signedFetch(local, url, "GET");
   const text = await response.text();
-  if (!response.ok) throw Error(`remote actor ${response.status}: ${text.slice(0, 1200)}`);
+  if (!response.ok) remoteHttpFailure("Actor", response, text);
   const actor = JSON.parse(text);
   if (!actor?.id || !actor?.inbox || !actor?.publicKey?.publicKeyPem) {
     throw Error("Remote actor does not satisfy ActivityPub actor contract");
@@ -330,7 +347,7 @@ async function resolve(local: any, target: string) {
     const webfinger = await remoteFetch(`https://${domain}/.well-known/webfinger?resource=${resource}`, {
       headers: { Accept: "application/jrd+json, application/json", "User-Agent": "Testagram-Federation/4.0" },
     });
-    if (!webfinger.ok) throw Error(`WebFinger ${webfinger.status} for ${domain}`);
+    if (!webfinger.ok) remoteHttpFailure("WebFinger", webfinger, "");
     const finger = await webfinger.json();
     actorUrl = (finger.links || []).find((link: any) => link.rel === "self" && link.href && String(link.type || "").includes("activity"))?.href || "";
     if (!actorUrl) throw Error("WebFinger did not return an ActivityPub actor");
@@ -559,7 +576,7 @@ async function fetchRemoteObject(local:any,target:string){
   assertSafeRemoteUrl(target);
   const response=await signedFetch(local,target,"GET");
   const text=await response.text();
-  if(!response.ok) throw Error("Remote object "+response.status+": "+text.slice(0,1200));
+  if(!response.ok) remoteHttpFailure("Remote object", response, text);
   const contentType=response.headers.get("content-type")||"";
   if(contentType.includes("json")) { try{return JSON.parse(text)}catch{throw Error("Remote ActivityPub object is not valid JSON")} }
   const link=response.headers.get("link")||"";
@@ -567,7 +584,7 @@ async function fetchRemoteObject(local:any,target:string){
   if(!match?.[1]) throw Error("Remote status URL did not return ActivityPub JSON");
   const alt=await signedFetch(local,new URL(match[1],target).toString(),"GET");
   const altText=await alt.text();
-  if(!alt.ok) throw Error("Remote ActivityPub alternate "+alt.status+": "+altText.slice(0,1200));
+  if(!alt.ok) remoteHttpFailure("Remote ActivityPub alternate", alt, altText);
   try{return JSON.parse(altText)}catch{throw Error("Remote ActivityPub alternate is not valid JSON")}
 }
 async function collectionTotal(local:any,value:any){
@@ -607,7 +624,7 @@ async function handle(request: Request) {
       seen.add(nextUrl);
       const response = await signedFetch(local, nextUrl, "GET");
       const text = await response.text();
-      if (!response.ok) throw Error(`Remote outbox ${response.status}: ${text.slice(0, 1200)}`);
+      if (!response.ok) remoteHttpFailure("Remote outbox", response, text);
       let page: any;
       try { page = JSON.parse(text); } catch { throw Error("Remote outbox is not valid ActivityPub JSON"); }
       const entries = asArray(page?.orderedItems ?? page?.items);
@@ -725,8 +742,14 @@ Deno.serve(async (request) => {
   try {
     return await handle(request);
   } catch (error) {
-    console.error("federation-transport", error);
-    if (error instanceof RemoteFederationError) {
+    const errorId = crypto.randomUUID();
+    console.error("federation-transport", {
+      errorId,
+      name: error instanceof Error ? error.name : typeof error,
+      message: error instanceof Error ? error.message : String(error),
+    });
+
+    if (error instanceof RemoteFederationError || error instanceof RemoteProtocolError) {
       return json({
         ok: false,
         error: error.message,
@@ -734,6 +757,15 @@ Deno.serve(async (request) => {
         retryable: true,
       }, 424);
     }
-    return json({ ok: false, error: error instanceof Error ? error.message : "Federation transport failed" }, 502);
+
+    // A failure in Testagram's own federation machinery deliberately remains
+    // a 502 so monitoring can distinguish it from a remote Fediverse outage.
+    return json({
+      ok: false,
+      error: "Federation transport internal failure",
+      code: "FEDERATION_INTERNAL_FAILURE",
+      retryable: true,
+      errorId,
+    }, 502);
   }
 });
