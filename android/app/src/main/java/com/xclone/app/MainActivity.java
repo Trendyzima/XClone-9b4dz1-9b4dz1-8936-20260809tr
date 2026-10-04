@@ -89,6 +89,12 @@ public final class MainActivity extends AppCompatActivity {
         // Never zoom-to-fit the desktop page; the responsive site owns the layout.\n        settings.setLoadWithOverviewMode(false);
         // Honor Testagram's responsive viewport meta exactly as Chrome mobile does.\n        settings.setUseWideViewPort(true);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        // Keep the Android shell on the same responsive mobile surface as testagram.site.
+        // Do not request a desktop UA or rewrite routes: every page is served by the canonical site.
+        String defaultUserAgent = settings.getUserAgentString();
+        if (!defaultUserAgent.contains("Mobile")) {
+            settings.setUserAgentString(defaultUserAgent + " Mobile");
+        }
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
         settings.setGeolocationEnabled(false);
         CookieManager.getInstance().setAcceptCookie(true);
