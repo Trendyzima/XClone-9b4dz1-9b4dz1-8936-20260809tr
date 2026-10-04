@@ -1079,6 +1079,43 @@ jobs:
           NODE
 
 
+      - name: Verify Android App Links contract
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_ORIGIN="https://testagram.site"
+          status="$(curl --silent --show-error --location --connect-timeout 10 --max-time 30 \
+            -o /tmp/testagram-assetlinks.json -w '%{http_code}' \
+            "$APP_ORIGIN/.well-known/assetlinks.json")"
+          [[ "$status" == "200" ]] || {
+            echo "::error::Android App Links assetlinks endpoint returned HTTP $status."
+            cat /tmp/testagram-assetlinks.json || true
+            exit 1
+          }
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          const body = fs.readFileSync("/tmp/testagram-assetlinks.json", "utf8");
+          let entries;
+          try { entries = JSON.parse(body); } catch { throw new Error("assetlinks.json is not valid JSON."); }
+          if (!Array.isArray(entries)) throw new Error("assetlinks.json must be an array.");
+          const target = entries.find((entry) =>
+            entry?.target?.namespace === "android_app" &&
+            entry?.target?.package_name === "com.xclone.app"
+          );
+          if (!target) throw new Error("assetlinks.json is missing the com.xclone.app Android target.");
+          const fingerprints = Array.isArray(target?.target?.sha256_cert_fingerprints)
+            ? target.target.sha256_cert_fingerprints.map(String)
+            : [];
+          const expected = "E7:17:82:7E:F5:85:3D:0C:EF:A0:A4:B3:57:70:9C:C9:C8:0F:CF:15:F7:CD:67:55:5A:1B:DA:07:51:3A:6A:C9";
+          if (!fingerprints.includes(expected)) {
+            throw new Error("assetlinks.json does not advertise the verified Testagram certificate fingerprint.");
+          }
+          console.log("Android App Links contract passed:", JSON.stringify({
+            package_name: target.target.package_name,
+            fingerprint_count: fingerprints.length
+          }));
+          NODE
+
 # Story media reconciliation CI trigger marker.
 
 # Final story backend reconciliation trigger.
