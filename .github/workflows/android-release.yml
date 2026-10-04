@@ -11,9 +11,19 @@ on:
     branches:
       - main
       - "release/*"
-    paths-ignore:
-      - README.md
-      - downloads/**
+    paths:
+      - "android/**"
+      - "public/**"
+      - "src/**"
+      - "api/**"
+      - "index.html"
+      - "package.json"
+      - "package-lock.json"
+      - "_build.cjs"
+      - "vite.config.*"
+      - "tailwind.config.*"
+      - "postcss.config.*"
+      - ".github/workflows/android-release.yml"
 
 permissions:
   contents: write
@@ -60,27 +70,9 @@ jobs:
           test -n "${ANDROID_KEY_PASSWORD}" || { echo "::error::ANDROID_KEY_PASSWORD is not configured"; exit 1; }
           printf '%s' "${ANDROID_KEYSTORE_BASE64}" | tr -d '\r\n ' | base64 --decode > android/testagram-release.jks
           test -s android/testagram-release.jks
-          MAGIC="$(xxd -p -l 4 android/testagram-release.jks | tr '[:lower:]' '[:upper:]')"
-          if [ "${MAGIC}" != "FEEDFEED" ] && [ "${MAGIC}" != "3082" ]; then
-            if file android/testagram-release.jks | grep -Eqi 'ASCII|text'; then
-              TMP="$(mktemp)"
-              if base64 -d android/testagram-release.jks > "${TMP}" 2>/dev/null; then
-                INNER_MAGIC="$(xxd -p -l 4 "${TMP}" | tr '[:lower:]' '[:upper:]')"
-                if [ "${INNER_MAGIC}" = "FEEDFEED" ] || [ "${INNER_MAGIC}" = "3082" ]; then
-                  mv "${TMP}" android/testagram-release.jks
-                  MAGIC="${INNER_MAGIC}"
-                else
-                  rm -f "${TMP}"
-                fi
-              else
-                rm -f "${TMP}"
-              fi
-            fi
-          fi
-          case "${MAGIC}" in
-            FEEDFEED|3082) echo "Keystore container detected (${MAGIC})." ;;
-            *) echo "::error::ANDROID_KEYSTORE_BASE64 does not decode to a supported Java/PKCS12 keystore."; exit 1 ;;
-          esac
+          # Let keytool perform the authoritative keystore-format validation.
+          # Do not rely on magic bytes: JKS and PKCS12 containers can have different
+          # encodings, and a valid keystore may legitimately begin with another header.
           cat > android/keystore.properties <<EOF
           storeFile=testagram-release.jks
           storePassword=${ANDROID_KEYSTORE_PASSWORD}
