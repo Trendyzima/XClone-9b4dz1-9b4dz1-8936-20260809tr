@@ -264,17 +264,40 @@ async function rfc9421Headers(local:any,url:string,method:"GET"|"POST",body=""){
   return headers;
 }
 
+class RemoteFederationError extends Error {
+  readonly code = "FEDERATION_REMOTE_UNAVAILABLE";
+  constructor(message: string) {
+    super(message);
+    this.name = "RemoteFederationError";
+  }
+}
+
+async function remoteFetch(url: string, init: RequestInit = {}, timeoutMs = 12000): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    throw new RemoteFederationError(
+      "Remote federation host is unavailable: " + message.slice(0, 700)
+    );
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function signedFetch(local: any, url: string, method: "GET" | "POST", body = "") {
   assertSafeRemoteUrl(url);
   const legacy = await legacyHeaders(local, url, method, body);
   const requestInit: RequestInit = { method, headers: legacy };
   if (body) requestInit.body = body;
-  let response = await fetch(url, requestInit);
+  let response = await remoteFetch(url, requestInit);
 
   // Mastodon 4.5+ supports RFC9421; use it when legacy authentication is rejected.
   if ((response.status === 400 || response.status === 401) && method === "GET") {
     const modern = await rfc9421Headers(local, url, method, body);
-    response = await fetch(url, { method, headers: modern });
+    response = await remoteFetch(url, { method, headers: modern });
   }
   return response;
 }
@@ -304,7 +327,7 @@ async function resolve(local: any, target: string) {
     const [username, domain] = parts;
     if (!/^[A-Za-z0-9.-]+$/.test(domain)) throw Error("Invalid federation domain");
     const resource = encodeURIComponent(`acct:${username}@${domain}`);
-    const webfinger = await fetch(`https://${domain}/.well-known/webfinger?resource=${resource}`, {
+    const webfinger = await remoteFetch(`https://${domain}/.well-known/webfinger?resource=${resource}`, {
       headers: { Accept: "application/jrd+json, application/json", "User-Agent": "Testagram-Federation/4.0" },
     });
     if (!webfinger.ok) throw Error(`WebFinger ${webfinger.status} for ${domain}`);
@@ -703,6 +726,14 @@ Deno.serve(async (request) => {
     return await handle(request);
   } catch (error) {
     console.error("federation-transport", error);
+    if (error instanceof RemoteFederationError) {
+      return json({
+        ok: false,
+        error: error.message,
+        code: error.code,
+        retryable: true,
+      }, 424);
+    }
     return json({ ok: false, error: error instanceof Error ? error.message : "Federation transport failed" }, 502);
   }
 });
