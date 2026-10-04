@@ -12,7 +12,7 @@ const SHORTCODE = Deno.env.get("MPESA_SHORTCODE") || "";
 const PASSKEY = Deno.env.get("MPESA_PASSKEY") || "";
 const RATE_RAW = Deno.env.get("MPESA_USD_KES_RATE") || "";
 const RATE = Number(RATE_RAW);
-const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, apikey, content-type", "Access-Control-Allow-Methods": "POST,OPTIONS" };
+const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info, x-supabase-api-version, x-requested-with", "Access-Control-Allow-Methods": "POST,OPTIONS", "Access-Control-Max-Age": "86400" };
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE, { auth: { persistSession: false, autoRefreshToken: false } });
 const json = (v: unknown, status = 200) => new Response(JSON.stringify(v), { status, headers: { ...cors, "Content-Type": "application/json" } });
 
