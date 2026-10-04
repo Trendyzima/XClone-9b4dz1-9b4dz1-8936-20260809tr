@@ -12,7 +12,7 @@ import { useSEO } from '@/hooks/useSEO';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import * as federation from '@/api/federation';
 import { Loader2, Sparkles, Users, ShoppingBag, BarChart3, RefreshCw, ArrowRight } from 'lucide-react';
-import { readHomeFeedCache, writeHomeFeedCache, saveHomeScroll, mergeHomeFeedItems } from '@/lib/homeFeedCache';
+import { readHomeFeedCache, writeHomeFeedCache, saveHomeScroll, mergeHomeFeedItems, isHomeFeedCacheUsable } from '@/lib/homeFeedCache';
 import { FederatedOrganicCard, FederatedOrganicInjection, FederatedHashtagDiscovery } from '@/components/features/FederatedOrganicDiscovery';
 import { loadPublisherFeed, PublisherFeedCard, type FeedItem } from '@/components/features/PublisherFeedStream';
 import { TvPostStream } from '@/components/features/TvPostStream';
@@ -228,7 +228,12 @@ export default function HomeHubPage(){
       setHasMore(Boolean(cacheCursorRef.current));
       await persistBuffer();
       void hydratePublisherLayer(background ? nextCursorRef.current : null);
-    }catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);setLoading(false);}}
+    }catch(e){console.error('[home-hub]',e);if(!background){
+      const cached=await readHomeFeedCache().catch(()=>null);
+      if(cached && isHomeFeedCacheUsable(cached)){ feedBufferRef.current=cached.items; setItems(cached.items.slice(0, Math.max(6, feedBufferOffsetRef.current||6))); setHasMore(Boolean(cached.cursor)||cached.items.length>6); }
+      else {setItems([]);setHasMore(false);}
+      setLoading(false);
+    }}
   },[fetchTab,persistBuffer,hydratePublisherLayer]);
 
   useEffect(()=>{
@@ -242,7 +247,12 @@ export default function HomeHubPage(){
         feedBufferOffsetRef.current=Math.min(6,cached.items.length);
         setItems(freshCached.slice(0,6));
         cacheCursorRef.current=cached.cursor;nextCursorRef.current=cached.cursor;
-        setHasMore(Boolean(cached.cursor)||freshCached.length>6);setLoading(false);setCacheHydrated(true);
+        if(isHomeFeedCacheUsable(cached)){
+          setHasMore(Boolean(cached.cursor)||freshCached.length>6);
+        } else {
+          setHasMore(freshCached.length>6);
+        }
+        setLoading(false);setCacheHydrated(true);
         if(cached.scrollY>0)requestAnimationFrame(()=>window.scrollTo({top:cached.scrollY,behavior:'instant' as ScrollBehavior}));
       }else {
         setCacheHydrated(true);
