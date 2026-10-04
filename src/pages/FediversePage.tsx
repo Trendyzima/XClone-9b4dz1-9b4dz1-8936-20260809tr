@@ -79,6 +79,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
   const [feedCursor, setFeedCursor] = useState<string | null>(null);
   const [hasMoreFeed, setHasMoreFeed] = useState(true);
   const feedSentinelRef = useRef<HTMLDivElement | null>(null);
+  const feedRefreshInFlightRef = useRef(false);
   const [cachedAt, setCachedAt] = useState<Date | null>(null);
   const [isStale, setIsStale] = useState(false);
   const [federatedFollowing, setFederatedFollowing] = useState<any[]>([]);
@@ -222,7 +223,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
       void refreshFederatedFeed();
       if (tab === 'inbox') void fetchInbox();
       if (tab === 'relay') void fetchOutboxLog();
-    }, 30 * 1000);
+    }, 2 * 60 * 1000);
     return () => {
       window.clearInterval(reconcile);
       void supabase.removeChannel(inboxChannel);
@@ -430,6 +431,12 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
   }, []);
 
   const refreshFederatedFeed = useCallback(async () => {
+    // One reconciliation at a time. Realtime can emit bursts when several
+    // federated rows arrive together; overlapping refreshes cause competing
+    // React commits and visible scroll jitter on Android WebView.
+    if (feedRefreshInFlightRef.current) return;
+    feedRefreshInFlightRef.current = true;
+
     // This is intentionally not tied to loadingFeed. Existing cached content
     // must remain visible while the remote source is refreshed.
     setIsStale(true);
@@ -453,6 +460,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
       // Cache remains the source of truth for the current render. A remote
       // failure must never clear already-visible federated posts.
     } finally {
+      feedRefreshInFlightRef.current = false;
       setLoadingFeed(false);
       setIsStale(false);
     }
@@ -1056,6 +1064,14 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
 
   return (
     <div className="fediverse-page min-h-screen bg-background pb-16 md:pb-0">
+      <style>{`
+        .fediverse-page { overflow-anchor: none; overscroll-behavior-y: contain; }
+        .fediverse-feed-list { overflow-anchor: none; contain: layout style; }
+        .fediverse-page img, .fediverse-page video { transform: translateZ(0); }
+        @media (max-width: 640px) {
+          .fediverse-page .fediverse-tabs { backdrop-filter: none; -webkit-backdrop-filter: none; }
+        }
+      `}</style>
       <TopBar title="Fediverse · testagram.site" showBack />
       <FediverseAdBanner />
 
@@ -1072,7 +1088,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
         </div>
       )}
 
-      {!standalone && <div className="sticky top-14 z-30 bg-background/95 backdrop-blur-sm border-b border-border overflow-x-auto flex scrollbar-hide">
+      {!standalone && <div className="fediverse-tabs sticky top-14 z-30 bg-background border-b border-border overflow-x-auto flex scrollbar-hide">
         {TABS.map(t => {
           const Icon = t.icon;
           const active = tab === t.id;
