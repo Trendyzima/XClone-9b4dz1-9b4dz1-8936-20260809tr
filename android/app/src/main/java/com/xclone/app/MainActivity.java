@@ -97,12 +97,8 @@ public final class MainActivity extends AppCompatActivity {
         // Honor Testagram's responsive viewport meta exactly as Chrome mobile does.
         settings.setUseWideViewPort(true);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        // Keep the Android shell on the same responsive mobile surface as testagram.site.
-        // Do not request a desktop UA or rewrite routes: every page is served by the canonical site.
-        String defaultUserAgent = settings.getUserAgentString();
-        if (!defaultUserAgent.contains("Mobile")) {
-            settings.setUserAgentString(defaultUserAgent + " Mobile");
-        }
+        // Keep the platform WebView user agent intact. Chromium WebView already exposes
+        // its mobile profile; rewriting it can change feature detection on the canonical site.
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setGeolocationEnabled(false);
