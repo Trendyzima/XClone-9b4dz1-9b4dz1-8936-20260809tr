@@ -4,6 +4,7 @@ import { Home, Bell, User, Flame, UserSearch, Inbox, ShieldCheck, MessageSquare,
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { useIsRegulator } from '@/hooks/useFeatureUnlock';
+import { backendCapabilities } from '@/services/testagramCapabilityClient';
 
 export function BottomNav() {
   const navigate = useNavigate();
@@ -46,21 +47,27 @@ export function BottomNav() {
     } catch { /* browser may block audio without prior user gesture */ }
   };
 
-  // Poll local unread notification count every 60s
+  // Notification badge must use the same canonical capability contract as
+  // NotificationsPage. The legacy direct query used user_id/read while the
+  // canonical notifications API uses recipient_id/read_at, which could make
+  // the bottom badge non-zero while /notifications was empty.
   useEffect(() => {
-    if (!user) { setUnreadNotifs(0); setUnreadMessages(0); return; }
+    if (!user) { setUnreadNotifs(0); setUnreadMessages(0); prevNotifs.current = -1; return; }
     let mounted = true;
+    let notifChannel: ReturnType<typeof supabase.channel> | null = null;
+
     const fetchCounts = async () => {
-      const { count: notifCount } = await supabase
-        .from('notifications')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', user.id)
-        .eq('read', false);
-      if (mounted) {
-        const nc = notifCount ?? 0;
-        if (prevNotifs.current >= 0 && nc > prevNotifs.current) playBeep();
-        prevNotifs.current = nc;
-        setUnreadNotifs(nc);
+      if (!mounted) return;
+      try {
+        const result = await backendCapabilities.getUnreadNotificationCount();
+        if (mounted) {
+          const nc = Math.max(0, Number(result.count) || 0);
+          if (prevNotifs.current >= 0 && nc > prevNotifs.current) playBeep();
+          prevNotifs.current = nc;
+          setUnreadNotifs(nc);
+        }
+      } catch (error) {
+        console.debug('[bottom-nav] canonical notification count unavailable', error);
       }
 
       const { data: convData } = await supabase
@@ -81,33 +88,48 @@ export function BottomNav() {
           prevMessages.current = dc;
           setUnreadMessages(dc);
         }
-      } else {
-        if (mounted) {
-          prevMessages.current = 0;
-          setUnreadMessages(0);
-        }
+      } else if (mounted) {
+        prevMessages.current = 0;
+        setUnreadMessages(0);
       }
     };
-    fetchCounts();
-    const iv = setInterval(fetchCounts, 15_000);
 
-    // Real-time subscription for instant badge updates
+    void fetchCounts();
+    const iv = setInterval(() => void fetchCounts(), 15_000);
+
+    // Subscribe using the canonical notification capability's realtime contract
+    // (recipient_id=eq.<user>) rather than the obsolete user_id filter.
+    void backendCapabilities.getNotificationSubscription().then((contract) => {
+      if (!mounted || !contract.authenticated || contract.table !== 'notifications') return;
+      if (contract.filter !== `recipient_id=eq.${user.id}`) return;
+      notifChannel = supabase
+        .channel(`bottomnav-notifs-${user.id}`)
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'notifications',
+          filter: contract.filter,
+        }, () => { void fetchCounts(); })
+        .subscribe((status) => {
+          if (status === 'CHANNEL_ERROR') console.debug('[bottom-nav] notification realtime unavailable; polling remains active');
+        });
+    }).catch((error) => console.debug('[bottom-nav] notification realtime contract unavailable', error));
+
     const sub = supabase
-      .channel(`bottomnav-notifs-${user.id}`)
-      .on('postgres_changes', {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'notifications',
-        filter: `user_id=eq.${user.id}`,
-      }, () => { if (mounted) fetchCounts(); })
+      .channel(`bottomnav-messages-${user.id}`)
       .on('postgres_changes', {
         event: 'INSERT',
         schema: 'public',
         table: 'direct_messages',
-      }, () => { if (mounted) fetchCounts(); })
+      }, () => { if (mounted) void fetchCounts(); })
       .subscribe();
 
-    return () => { mounted = false; clearInterval(iv); supabase.removeChannel(sub); };
+    return () => {
+      mounted = false;
+      clearInterval(iv);
+      if (notifChannel) void supabase.removeChannel(notifChannel);
+      void supabase.removeChannel(sub);
+    };
   }, [user?.id]);
 
   // Clear notification badge when visiting relevant pages
