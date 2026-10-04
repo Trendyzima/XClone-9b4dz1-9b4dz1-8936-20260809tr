@@ -106,8 +106,16 @@ public final class MainActivity extends AppCompatActivity {
         // Honor Testagram's responsive viewport meta exactly as Chrome mobile does.
         settings.setUseWideViewPort(true);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
-        // Keep the platform WebView user agent intact. Chromium WebView already exposes
-        // its mobile profile; rewriting it can change feature detection on the canonical site.
+        // Present the canonical site as a normal mobile Chrome browser rather than an
+        // Android WebView. Some production web stacks suppress/alter rendering when the
+        // WebView-only "wv" marker is present, which can make the homepage appear blank.
+        // Keep the real Chromium/WebView version and Android device information intact;
+        // only remove WebView-specific identification so the canonical web app follows
+        // the same browser rendering path as testagram.site in Chrome.
+        String mobileChromeUserAgent = settings.getUserAgentString()
+                .replace("; wv", "")
+                .replace(" Version/4.0", "");
+        settings.setUserAgentString(mobileChromeUserAgent);
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
         settings.setGeolocationEnabled(true);
@@ -136,6 +144,25 @@ public final class MainActivity extends AppCompatActivity {
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
                 super.onReceivedError(view, request, error);
+                if (request.isForMainFrame()) {
+                    android.util.Log.e("TestagramWebView", "Main-frame load error: " + request.getUrl()
+                            + " code=" + error.getErrorCode() + " description=" + error.getDescription());
+                }
+            }
+
+            @Override
+            public void onReceivedHttpError(WebView view, WebResourceRequest request, android.webkit.WebResourceResponse response) {
+                super.onReceivedHttpError(view, request, response);
+                if (request.isForMainFrame()) {
+                    android.util.Log.e("TestagramWebView", "Main-frame HTTP error: " + request.getUrl()
+                            + " status=" + response.getStatusCode());
+                }
+            }
+
+            @Override
+            public void onPageCommitVisible(WebView view, String url) {
+                super.onPageCommitVisible(view, url);
+                android.util.Log.d("TestagramWebView", "Page committed visibly: " + url);
             }
 
             @Override
