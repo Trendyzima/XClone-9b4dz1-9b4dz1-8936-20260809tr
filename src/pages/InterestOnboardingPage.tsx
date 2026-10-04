@@ -110,7 +110,7 @@ const INTEREST_CATEGORIES: InterestCategory[] = [
   },
 ];
 
-const MIN_SELECTIONS = 5;
+const MIN_SELECTIONS = 3;
 
 export default function InterestOnboardingPage() {
   const { user } = useAuth();
@@ -163,48 +163,26 @@ export default function InterestOnboardingPage() {
       toast.error(`Select at least ${MIN_SELECTIONS} topics to personalize your feed`);
       return;
     }
+
     setSaving(true);
+    try {
+      const { data: savedCount, error } = await supabase.rpc('save_user_interests', {
+        p_tags: Array.from(selectedTags),
+      });
 
-    // Upsert hashtags and collect IDs
-    const tags = Array.from(selectedTags);
-    const hashtagIds: string[] = [];
-
-    for (const tag of tags) {
-      // Get or create hashtag
-      const { data: existing } = await supabase
-        .from('hashtags')
-        .select('id')
-        .eq('tag', tag)
-        .maybeSingle();
-
-      if (existing?.id) {
-        hashtagIds.push(existing.id);
-      } else {
-        const { data: newTag } = await supabase
-          .from('hashtags')
-          .insert({ tag })
-          .select('id')
-          .single();
-        if (newTag?.id) hashtagIds.push(newTag.id);
+      if (error) throw error;
+      if (typeof savedCount !== 'number' || savedCount < MIN_SELECTIONS) {
+        throw new Error('We could not save all of your selected topics. Please try again.');
       }
+
+      toast.success(`Saved ${savedCount} interests! Your feed is now personalised 🎉`);
+      navigate(-1);
+    } catch (error) {
+      console.error('[InterestOnboardingPage] Failed to save interests', error);
+      toast.error(error instanceof Error ? error.message : 'Could not save your interests. Please try again.');
+    } finally {
+      setSaving(false);
     }
-
-    // Delete old interests then re-insert
-    await supabase.from('user_interests').delete().eq('user_id', user.id);
-
-    if (hashtagIds.length > 0) {
-      await supabase.from('user_interests').insert(
-        hashtagIds.map(hashtag_id => ({
-          user_id: user.id,
-          hashtag_id,
-          interest_score: 1.0,
-        }))
-      );
-    }
-
-    toast.success('Interests saved! Your feed is now personalised 🎉');
-    setSaving(false);
-    navigate(-1);
   };
 
   const progressPct = Math.min((selectedTags.size / MIN_SELECTIONS) * 100, 100);
