@@ -1,5 +1,6 @@
 name: Testagram Android Release
 # CI uses temporary signing while production signing is intentionally disabled.
+# Release build is the verified source for the APK publisher.
 
 on:
   workflow_dispatch:
