@@ -68,7 +68,7 @@ export class TestagramCapabilityClient{
     'X-Client-Info': `testagram-web/${this.version}`,
   };
   try {
-    // Route authenticated capability calls through the canonical Vercel gateway.
+    // Route authenticated capability calls through the canonical same-origin gateway.
     // This keeps capability dispatch on the same server-side auth boundary as media
     // uploads and avoids browser/PostgREST auth-header races after large uploads.
     const response = await fetch(this.endpoint, {
@@ -117,7 +117,7 @@ export class TestagramCapabilityClient{
     let attempt=0;
     while(true){
       // Community engagement writes use the canonical Supabase RPC directly.
-      // This removes a stale Vercel gateway from the critical mutation path while
+      // This removes a stale external gateway from the critical mutation path while
       // preserving the same authenticated capability boundary in Postgres.
       if(DIRECT_MUTATION_CAPABILITIES.has(capability)&&token){
         const direct=await this.directSupabaseMutation<T>(capability,input,token);
@@ -151,7 +151,7 @@ export class TestagramCapabilityClient{
       }
       // Authenticated content writes get a direct Supabase RPC fallback. Threads
       // already use the canonical Supabase REST boundary successfully; keeping
-      // post creation on the same project/auth plane avoids a Vercel gateway
+      // post creation on the same project/auth plane avoids a same-origin gateway
       // header race turning a valid user session into auth.uid() = null.
       if(!isPublic && capability==="testagram.posts.create" && token){
         try{
