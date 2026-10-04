@@ -31,8 +31,8 @@ export function TopBar({ title, showProfile = true, showBack = false, onBack, sh
   const isCommunity = location.pathname.startsWith('/c/');
 
   return (
-    <div className="sticky top-0 z-40">
-      <div className="tg-topbar border-b border-border/70" style={{ marginTop: "env(safe-area-inset-top, 0px)" }}>
+    <div className="sticky top-0 z-40 tg-rigid-shell">
+      <div className="tg-topbar border-b border-border/70"> style={{ marginTop: "env(safe-area-inset-top, 0px)" }}>
       <div className="flex items-center justify-between px-4 h-16 sm:px-5">
         <div className="lg:hidden">
           <MobileSidebarDrawer />
@@ -40,7 +40,7 @@ export function TopBar({ title, showProfile = true, showBack = false, onBack, sh
 
         <div className="flex items-center space-x-3">
           {showBack && (
-            <button onClick={() => (onBack ? onBack() : navigate(-1))} className="tg-focus p-2.5 hover:bg-muted rounded-full transition-colors" aria-label="Go back">
+            <button onClick={() => (onBack ? onBack() : navigate(-1))} className="tg-focus tg-touch-control p-2.5 rounded-full hover:bg-muted" aria-label="Go back">
               <ArrowLeft className="w-5 h-5" />
             </button>
           )}
@@ -64,7 +64,7 @@ export function TopBar({ title, showProfile = true, showBack = false, onBack, sh
           )}
           {showProfile && user && (
             <div
-              className="tg-focus w-9 h-9 rounded-full bg-muted cursor-pointer overflow-hidden ring-2 ring-background ring-offset-1 ring-offset-border"
+              className="tg-focus tg-touch-control w-9 h-9 rounded-full bg-muted cursor-pointer overflow-hidden ring-2 ring-background ring-offset-1 ring-offset-border"
               onClick={() => navigate(`/profile/${user.username}`)}
               role="button"
               tabIndex={0}
