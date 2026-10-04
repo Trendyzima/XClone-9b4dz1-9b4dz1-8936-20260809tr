@@ -503,6 +503,17 @@ public final class MainActivity extends AppCompatActivity {
 
     @Override
     public void onBackPressed() {
+        if (customVideoView != null) {
+            WebChromeClient.CustomViewCallback callback = customVideoCallback;
+            customVideoView = null;
+            customVideoCallback = null;
+            if (callback != null) callback.onCustomViewHidden();
+            if (webView != null) {
+                setContentView(webView);
+                enterImmersiveFullscreen();
+            }
+            return;
+        }
         if (webView != null && webView.canGoBack()) {
             webView.goBack();
         } else {
