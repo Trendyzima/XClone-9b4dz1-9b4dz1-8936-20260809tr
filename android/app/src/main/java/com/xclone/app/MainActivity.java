@@ -40,6 +40,7 @@ public final class MainActivity extends AppCompatActivity {
     private ValueCallback<Uri[]> fileCallback;
     private android.webkit.GeolocationPermissions.Callback geolocationCallback;
     private String geolocationOrigin;
+    private PermissionRequest pendingMediaPermissionRequest;
     private WebView webView;
 
     @Override
@@ -212,7 +213,7 @@ public final class MainActivity extends AppCompatActivity {
                         request.grant(request.getResources());
                         return;
                     }
-                    request.deny();
+                    pendingMediaPermissionRequest = request;
                     java.util.ArrayList<String> permissions = new java.util.ArrayList<>();
                     if (needsCamera) permissions.add(Manifest.permission.CAMERA);
                     if (needsAudio) permissions.add(Manifest.permission.RECORD_AUDIO);
@@ -376,8 +377,21 @@ public final class MainActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        if (requestCode == MEDIA_PERMISSIONS && webView != null) {
-            webView.reload();
+        if (requestCode == MEDIA_PERMISSIONS) {
+            PermissionRequest pending = pendingMediaPermissionRequest;
+            pendingMediaPermissionRequest = null;
+            if (pending != null) {
+                boolean camera = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+                boolean audio = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+                java.util.ArrayList<String> grant = new java.util.ArrayList<>();
+                for (String resource : pending.getResources()) {
+                    if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource) && camera) grant.add(resource);
+                    if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource) && audio) grant.add(resource);
+                }
+                if (!grant.isEmpty()) pending.grant(grant.toArray(new String[0]));
+                else pending.deny();
+            }
+            if (webView != null) webView.reload();
         } else if (requestCode == LOCATION_PERMISSION && geolocationCallback != null) {
             boolean granted = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
                     || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
