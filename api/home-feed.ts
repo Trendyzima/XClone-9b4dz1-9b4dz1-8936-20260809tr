@@ -244,7 +244,35 @@ export default async function handler(request: RequestLike) {
     // Home renders the first local/following/federated page immediately; the reusable
     // discovery component loads one candidate after the shell has painted.
 
-    if (postsResult.error) console.error('[home-feed] posts', postsResult.error);
+    if (postsResult.error) {
+      // Do not let a stale/mismatched PostgREST relationship cache turn a
+      // healthy public feed into an empty response. Retry the post query without
+      // the nested profile relationship, then hydrate profiles separately.
+      console.error('[home-feed] posts joined query', postsResult.error);
+      const fallbackPosts = await admin.from('posts')
+        .select('*')
+        .is('community_id', null)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(sourceLimit);
+      if (!fallbackPosts.error) {
+        const authorIds = [...new Set((fallbackPosts.data || [])
+          .map((p: any) => String(p.author_id || p.user_id || ''))
+          .filter(Boolean))];
+        const profileMap = new Map<string, any>();
+        if (authorIds.length) {
+          const profileResult = await admin.from('profiles')
+            .select('id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at')
+            .in('id', authorIds);
+          if (!profileResult.error) for (const profile of profileResult.data || []) profileMap.set(String(profile.id), profile);
+        }
+        (postsResult as any).data = (fallbackPosts.data || []).map((post: any) => ({
+          ...post,
+          user_profiles: profileMap.get(String(post.author_id || post.user_id || '')) || {},
+        }));
+        (postsResult as any).error = null;
+      }
+    }
     if (threadsResult.error) console.error('[home-feed] threads', threadsResult.error);
 
     type RecommendationRow = {
