@@ -1,11 +1,11 @@
 name: Publish Testagram APK
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - .github/workflows/publish-testagram-apk.yml
+  workflow_run:
+    workflows:
+      - Testagram Android Release
+    types:
+      - completed
   workflow_dispatch:
 
 permissions:
@@ -14,18 +14,47 @@ permissions:
 
 jobs:
   publish:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - name: Check out main
         uses: actions/checkout@v4
 
+      - name: Resolve verified Android build
+        id: build
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW_RUN_ID: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.id || '' }}
+        run: |
+          set -euo pipefail
+          if [ -n "${WORKFLOW_RUN_ID}" ]; then
+            run_id="${WORKFLOW_RUN_ID}"
+          else
+            run_id="$(gh api "repos/${REPOSITORY}/actions/workflows/android-release.yml/runs?status=success&per_page=20" --jq '.workflow_runs | map(select(.head_branch == "main" or (.head_branch | startswith("release/")))) | .[0].id')"
+          fi
+          test -n "${run_id}" && test "${run_id}" != "null"
+          run_json="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}")"
+          test "$(jq -r '.conclusion' <<<"${run_json}")" = "success"
+          head_sha="$(jq -r '.head_sha' <<<"${run_json}")"
+          created_at="$(jq -r '.run_started_at // .created_at' <<<"${run_json}")"
+          artifact_name="testagram-android-release-${head_sha}"
+          artifact_json="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100")"
+          artifact_id="$(jq -r --arg name "${artifact_name}" '.artifacts[] | select(.name == $name and .expired == false) | .id' <<<"${artifact_json}" | head -n 1)"
+          test -n "${artifact_id}" && test "${artifact_id}" != "null"
+          echo "run_id=${run_id}" >> "${GITHUB_OUTPUT}"
+          echo "head_sha=${head_sha}" >> "${GITHUB_OUTPUT}"
+          echo "created_at=${created_at}" >> "${GITHUB_OUTPUT}"
+          echo "artifact_name=${artifact_name}" >> "${GITHUB_OUTPUT}"
+
       - name: Download the verified Android release artifact
         uses: actions/download-artifact@v4
         with:
-          name: testagram-android-release-27b974acc8f24fbebb5c566164615ed9ccad2052
+          name: ${{ steps.build.outputs.artifact_name }}
           path: /tmp/testagram-artifact
-          repository: Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr
-          run-id: 37177519503
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.build.outputs.run_id }}
           github-token: ${{ github.token }}
 
       - name: Locate and publish APK
@@ -41,38 +70,40 @@ jobs:
       - name: Update README download section
         shell: bash
         env:
-          BUILD_RUN_ID: "37177519503"
-          BUILD_CREATED_EAT: "2026-10-04 07:36 EAT"
-          BUILD_COMMIT: "27b974acc8f24fbebb5c566164615ed9ccad2052"
+          BUILD_RUN_ID: "${{ steps.build.outputs.run_id }}"
+          BUILD_CREATED_AT: "${{ steps.build.outputs.created_at }}"
+          BUILD_COMMIT: "${{ steps.build.outputs.head_sha }}"
         run: |
           set -euo pipefail
           python3 - <<'PY'
+          from datetime import datetime, timezone, timedelta
           from pathlib import Path
           import os
-
           p = Path("README.md")
           s = p.read_text()
           marker = "## 📱 Testagram Android APK"
           start = s.index(marker)
           end = s.index("\n## What is Testagram?", start)
-
+          dt = datetime.fromisoformat(os.environ["BUILD_CREATED_AT"].replace("Z", "+00:00")).astimezone(timezone(timedelta(hours=3)))
+          created = dt.strftime("%Y-%m-%d %H:%M EAT")
+          run_id = os.environ["BUILD_RUN_ID"]
+          commit = os.environ["BUILD_COMMIT"]
           block = f"""## 📱 Testagram Android APK
 
-          The verified Testagram Android APK is available directly from this repository.
+          The verified Testagram Android APK is automatically updated from the newest successful Android release build.
 
           ### Download Testagram
 
-          **[⬇️ Download Testagram APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/raw/refs/heads/main/downloads/Testagram.apk)**
+          **[⬇️ Download latest Testagram APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/raw/refs/heads/main/downloads/Testagram.apk)**
 
           **[SHA-256 checksum](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/blob/main/downloads/Testagram.apk.sha256)**
 
-          **Created:** {os.environ["BUILD_CREATED_EAT"]}  
-          **Build commit:** `{os.environ["BUILD_COMMIT"]}`  
-          **GitHub Actions run:** [#{os.environ["BUILD_RUN_ID"]}](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/runs/{os.environ["BUILD_RUN_ID"]})
+          **Created:** {created}  
+          **Build commit:** `{commit}`  
+          **GitHub Actions run:** [#{run_id}](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/runs/{run_id})
 
-          The creation time above is the timestamp of the successful Android release workflow that produced this APK. The README uses the direct raw APK endpoint so the link downloads the binary instead of opening the GitHub blob viewer.
+          The APK and checksum are replaced only after Android release verification succeeds.
           """
-
           p.write_text(s[:start] + block.rstrip() + s[end:])
           PY
 
