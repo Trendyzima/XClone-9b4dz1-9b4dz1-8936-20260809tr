@@ -33,18 +33,33 @@ jobs:
 
       - name: Configure current release keystore
         env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          TESTAGRAM_RELEASE_KEYSTORE_BASE64: ${{ secrets.TESTAGRAM_RELEASE_KEYSTORE_BASE64 }}
         run: |
           set -euo pipefail
-          test -n "${ANDROID_KEYSTORE_BASE64}" || { echo "::error::ANDROID_KEYSTORE_BASE64 is not configured"; exit 1; }
-          printf '%s' "${ANDROID_KEYSTORE_BASE64}" | tr -d '\r\n ' | base64 --decode > current-release.jks
+          test -n "${TESTAGRAM_RELEASE_KEYSTORE_BASE64}" || { echo "::error::TESTAGRAM_RELEASE_KEYSTORE_BASE64 is not configured"; exit 1; }
+          python3 - <<'PY'
+          import base64, os, pathlib, re
+          raw = os.environ["TESTAGRAM_RELEASE_KEYSTORE_BASE64"]
+          normalized = re.sub(r"\s+", "", raw)
+          if not normalized or re.fullmatch(r"[A-Za-z0-9+/]*={0,2}", normalized) is None:
+              raise SystemExit("::error::INVALID_BASE64 — keystore secret is not valid Base64")
+          if len(normalized) % 4 == 1:
+              raise SystemExit(f"::error::INVALID_BASE64 — impossible Base64 length: {len(normalized)}")
+          padded = normalized + "=" * ((4 - len(normalized) % 4) % 4)
+          try:
+              decoded = base64.b64decode(padded, validate=True)
+          except Exception as exc:
+              raise SystemExit(f"::error::INVALID_BASE64 — {exc}")
+          pathlib.Path("current-release.jks").write_bytes(decoded)
+          print(f"Base64 integrity: PASS ({len(decoded)} decoded bytes)")
+          PY
           test -s current-release.jks
 
       - name: Compare signing certificate fingerprints
         env:
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          TESTAGRAM_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.TESTAGRAM_RELEASE_KEYSTORE_PASSWORD }}
+          TESTAGRAM_RELEASE_KEY_ALIAS: ${{ secrets.TESTAGRAM_RELEASE_KEY_ALIAS }}
+          TESTAGRAM_RELEASE_KEY_PASSWORD: ${{ secrets.TESTAGRAM_RELEASE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
 
@@ -55,16 +70,16 @@ jobs:
           "${APKSIGNER}" verify --verbose --print-certs reference/known-good.apk 2>&1 | grep -E 'Signer #|certificate SHA-256 digest|certificate SHA-256|certificate DN' || true
 
           echo "Current keystore certificate:"
-          if ! keytool -list -v -keystore current-release.jks -storepass "${ANDROID_KEYSTORE_PASSWORD}" > current-keystore.txt 2>/dev/null; then
-            echo "::error::PASSWORD MISMATCH — ANDROID_KEYSTORE_PASSWORD does not unlock ANDROID_KEYSTORE_BASE64."
+          if ! keytool -list -v -keystore current-release.jks -storepass "${TESTAGRAM_RELEASE_KEYSTORE_PASSWORD}" > current-keystore.txt 2>/dev/null; then
+            echo "::error::PASSWORD MISMATCH — TESTAGRAM_RELEASE_KEYSTORE_PASSWORD does not unlock TESTAGRAM_RELEASE_KEYSTORE_BASE64."
             exit 2
           fi
 
           CURRENT_CERT="$(awk -F': ' '/Certificate fingerprints:/{p=1; next} p && /SHA256:/{print $2; exit}' current-keystore.txt | tr -d '[:space:]')"
           test -n "${CURRENT_CERT}" || { echo "::error::Could not extract SHA-256 certificate fingerprint from current keystore."; exit 3; }
 
-          if ! keytool -list -v -keystore current-release.jks -storepass "${ANDROID_KEYSTORE_PASSWORD}" -alias "${ANDROID_KEY_ALIAS}" -keypass "${ANDROID_KEY_PASSWORD}" >/dev/null 2>&1; then
-            echo "::error::KEY ENTRY MISMATCH — the keystore opens, but ANDROID_KEY_ALIAS and/or ANDROID_KEY_PASSWORD is inconsistent."
+          if ! keytool -list -v -keystore current-release.jks -storepass "${TESTAGRAM_RELEASE_KEYSTORE_PASSWORD}" -alias "${TESTAGRAM_RELEASE_KEY_ALIAS}" -keypass "${TESTAGRAM_RELEASE_KEY_PASSWORD}" >/dev/null 2>&1; then
+            echo "::error::KEY ENTRY MISMATCH — the keystore opens, but TESTAGRAM_RELEASE_KEY_ALIAS and/or TESTAGRAM_RELEASE_KEY_PASSWORD is inconsistent."
             exit 4
           fi
 
