@@ -201,22 +201,18 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
         event: 'INSERT',
         schema: 'public',
         table: 'federated_objects',
-      }, (payload: any) => {
-        const next = payload.new;
-        if (!next?.uri || next?.deleted_at || next?.tombstone) return;
-        setRemotePosts(prev => [next, ...prev.filter(x => x.uri !== next.uri)].slice(0, 50));
+      }, () => {
+        // Realtime is a wake-up signal only. Never mutate the rendered list here:
+        // doing so can insert/reorder DOM nodes while the user is scrolling.
+        void refreshFederatedFeed();
       })
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
         table: 'federated_objects',
-      }, (payload: any) => {
-        const next = payload.new;
-        if (!next?.uri) return;
-        setRemotePosts(prev => {
-          const exists = prev.some(x => x.uri === next.uri);
-          return exists ? prev.map(x => x.uri === next.uri ? { ...x, ...next } : x) : [next, ...prev].slice(0, 50);
-        });
+      }, () => {
+        // Reconcile silently; the feed merger owns ordering and deduplication.
+        void refreshFederatedFeed();
       })
       .subscribe();
 
@@ -371,22 +367,44 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
       .then(() => setCachedAt(new Date())).catch(() => {});
   };
   const mergeFederatedFeedItems = useCallback((current: any[], incoming: any[]) => {
-    const byUri = new Map<string, any>();
-
-    for (const item of current) {
-      const key = String(item?.uri ?? item?.object_url ?? item?.id ?? '');
-      if (key) byUri.set(key, item);
-    }
-
+    const incomingByKey = new Map<string, any>();
     for (const item of incoming) {
       const key = String(item?.uri ?? item?.object_url ?? item?.id ?? '');
-      if (!key) continue;
-      byUri.set(key, { ...(byUri.get(key) ?? {}), ...item });
+      if (key) incomingByKey.set(key, item);
     }
 
-    return [...byUri.values()]
+    const existingKeys = new Set<string>();
+    const existing = current
+      .filter(item => !item?.deleted_at && !item?.tombstone)
+      .map(item => {
+        const key = String(item?.uri ?? item?.object_url ?? item?.id ?? '');
+        if (!key) return item;
+        existingKeys.add(key);
+        return incomingByKey.has(key) ? { ...item, ...incomingByKey.get(key) } : item;
+      });
+
+    const unseen = [...incomingByKey.entries()]
+      .filter(([key]) => !existingKeys.has(key))
+      .map(([, item]) => item)
       .filter(item => !item?.deleted_at && !item?.tombstone)
       .sort((a, b) => new Date(b?.published_at ?? b?.created_at ?? 0).getTime() - new Date(a?.published_at ?? a?.created_at ?? 0).getTime());
+
+    // Existing rows retain their DOM position. New refresh items are the only
+    // rows allowed to enter at the top, preventing scroll jumps during refresh.
+    return [...unseen, ...existing];
+  }, []);
+
+  const appendFederatedFeedItems = useCallback((current: any[], incoming: any[]) => {
+    const seen = new Set(current.map(item => String(item?.uri ?? item?.object_url ?? item?.id ?? '')));
+    const appended = incoming
+      .filter(item => !item?.deleted_at && !item?.tombstone)
+      .filter(item => {
+        const key = String(item?.uri ?? item?.object_url ?? item?.id ?? '');
+        if (!key || seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+    return [...current, ...appended];
   }, []);
 
   const hydrateFederatedFeed = useCallback(async () => {
@@ -453,7 +471,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
       const nextCursor = page?.pagination?.nextCursor ?? null;
 
       if (items.length > 0) {
-        setRemotePosts(prev => mergeFederatedFeedItems(prev, items));
+        setRemotePosts(prev => appendFederatedFeedItems(prev, items));
         void cacheFederatedPosts(items);
         setCachedAt(new Date());
       }
@@ -465,7 +483,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
     } finally {
       setLoadingMoreFeed(false);
     }
-  }, [feedCursor, hasMoreFeed, loadingMoreFeed, mergeFederatedFeedItems]);
+  }, [feedCursor, hasMoreFeed, loadingMoreFeed, appendFederatedFeedItems]);
 
   // Prefetch the next page before the reader reaches the bottom. The
   // IntersectionObserver is silent: only the small "loading more" affordance
@@ -950,7 +968,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
     const avatarUrl = actor.avatar_url ?? actor.icon?.url ?? actor.avatar;
     const content = p.content ?? p.text ?? '';
     const created = p.published_at ?? p.created_at ?? p.published ?? '';
-    const key = p.object_url ?? p.uri ?? p.url ?? p.id ?? Math.random().toString();
+    const key = p.object_url ?? p.uri ?? p.url ?? p.id ?? '';
     const ps = postStates[key] ?? {};
 
     return (
@@ -1037,7 +1055,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
   ];
 
   return (
-    <div className="min-h-screen bg-background pb-16 md:pb-0">
+    <div className="fediverse-page min-h-screen bg-background pb-16 md:pb-0">
       <TopBar title="Fediverse · testagram.site" showBack />
       <FediverseAdBanner />
 
@@ -1132,7 +1150,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
             </div>
           ) : (
             <>
-              <div className="divide-y divide-border">
+              <div className="fediverse-feed-list divide-y divide-border">
                 {remotePosts.map((p: any, i: number) => <RemotePostRow key={p.uri ?? p.id ?? p.object_url ?? i} p={p} />)}
               </div>
               <div ref={feedSentinelRef} className="min-h-10" aria-hidden="true">
