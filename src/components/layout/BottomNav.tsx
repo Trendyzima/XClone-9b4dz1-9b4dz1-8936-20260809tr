@@ -297,7 +297,7 @@ export function BottomNav() {
             <button
               key={item.path}
               onClick={() => handleNavClick(item.path, item.requireAuth)}
-              className={`tg-nav-item flex flex-col items-center justify-center flex-1 h-full rounded-xl transition-all duration-200 active:scale-90 ${
+              className={`tg-nav-item tg-touch-control flex flex-col items-center justify-center flex-1 h-full rounded-xl transition-all duration-200 active:scale-90 ${
                 isActive ? 'text-primary' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
