@@ -43,10 +43,12 @@ jobs:
           artifact_json="$(gh api "repos/${REPOSITORY}/actions/runs/${run_id}/artifacts?per_page=100")"
           artifact_id="$(jq -r --arg name "${artifact_name}" '.artifacts[] | select(.name == $name and .expired == false) | .id' <<<"${artifact_json}" | head -n 1)"
           test -n "${artifact_id}" && test "${artifact_id}" != "null"
-          echo "run_id=${run_id}" >> "${GITHUB_OUTPUT}"
-          echo "head_sha=${head_sha}" >> "${GITHUB_OUTPUT}"
-          echo "created_at=${created_at}" >> "${GITHUB_OUTPUT}"
-          echo "artifact_name=${artifact_name}" >> "${GITHUB_OUTPUT}"
+          {
+            echo "run_id=${run_id}"
+            echo "head_sha=${head_sha}"
+            echo "created_at=${created_at}"
+            echo "artifact_name=${artifact_name}"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Download the verified Android release artifact
         uses: actions/download-artifact@v4
