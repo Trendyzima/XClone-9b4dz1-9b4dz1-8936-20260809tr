@@ -284,11 +284,8 @@ public final class MainActivity extends AppCompatActivity {
     protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
+        // One canonical deep-link path: validate first, then load exactly once.
         handlePushIntent(intent);
-        Uri data = intent.getData();
-        if (isTrustedTestagramUrl(data)) {
-            if (webView != null) webView.loadUrl(data.toString());
-        }
     }
 
     private void publishPushTokenToWeb() {
