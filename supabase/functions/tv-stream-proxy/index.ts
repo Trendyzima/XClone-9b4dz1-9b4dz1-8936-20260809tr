@@ -28,11 +28,41 @@ function proxyUrl(target: string) {
   return new URL("/functions/v1/tv-stream-proxy?url=" + encodeURIComponent(target), "https://ffrhglgkukgsuhxenena.supabase.co").toString();
 }
 
+function isBlockedHostname(hostname: string) {
+  const h = hostname.toLowerCase().replace(/\\.$/, "");
+  if (!h || h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal")) return true;
+  if (h === "metadata.google.internal" || h === "metadata.google") return true;
+  if (h.includes(":")) {
+    const compact = h.replace(/^\\[|\\]$/g, "");
+    if (compact === "::1" || compact === "::" || compact.startsWith("fc") || compact.startsWith("fd") || compact.startsWith("fe8") || compact.startsWith("fe9") || compact.startsWith("fea") || compact.startsWith("feb")) return true;
+    if (compact.startsWith("::ffff:")) return isBlockedHostname(compact.slice(7));
+  }
+  const parts = h.split(".").map(Number);
+  if (parts.length === 4 && parts.every(Number.isFinite)) {
+    const [a,b] = parts;
+    if (a === 0 || a === 10 || a === 127 || a === 169 && b === 254 || a === 192 && b === 168 || a === 172 && b >= 16 && b <= 31) return true;
+  }
+  return false;
+}
+
 async function fetchWithTimeout(url: string, init: RequestInit = {}, ms = 8000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), ms);
-  try { return await fetch(url, {...init, signal: controller.signal, redirect: "follow"}); }
-  finally { clearTimeout(timer); }
+  try {
+    let current = new URL(url);
+    let response: Response | null = null;
+    for (let hop = 0; hop < 5; hop++) {
+      if (!/^https?:$/.test(current.protocol) || isBlockedHostname(current.hostname)) {
+        throw new Error("Blocked stream redirect target");
+      }
+      response = await fetch(current.toString(), {...init, signal: controller.signal, redirect: "manual"});
+      if (response.status < 300 || response.status >= 400) return response;
+      const location = response.headers.get("location");
+      if (!location) return response;
+      current = new URL(location, current);
+    }
+    throw new Error("Too many stream redirects");
+  } finally { clearTimeout(timer); }
 }
 
 Deno.serve(async (req) => {
@@ -46,7 +76,7 @@ Deno.serve(async (req) => {
   try { target = new URL(raw); } catch {
     return new Response(JSON.stringify({error:"Invalid url"}), {status:400, headers:{...corsHeaders,"Content-Type":"application/json"}});
   }
-  if (!/^https?:$/.test(target.protocol) || isBlockedHost(target.hostname)) {
+  if (!/^https?:$/.test(target.protocol) || isBlockedHost(target.hostname) || isBlockedHostname(target.hostname)) {
     return new Response(JSON.stringify({error:"Blocked stream host"}), {status:403, headers:{...corsHeaders,"Content-Type":"application/json"}});
   }
 
