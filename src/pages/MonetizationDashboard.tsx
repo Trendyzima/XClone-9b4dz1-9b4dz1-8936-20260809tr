@@ -239,32 +239,22 @@ export function MonetizationDashboard() {
     if (!user) return;
     setClaimingReward(true);
     try {
-      const now = new Date();
-      const lastClaimed = dailyReward?.last_claimed_at ? new Date(dailyReward.last_claimed_at) : null;
-      if (lastClaimed && now.toDateString() === lastClaimed.toDateString()) {
-        toast.info('Daily reward already claimed! Come back tomorrow.'); return;
+      const { data, error } = await supabase.rpc('claim_daily_reward');
+      if (error) {
+        if (error.message?.includes('DAILY_REWARD_ALREADY_CLAIMED')) {
+          toast.info('Daily reward already claimed! Come back tomorrow.');
+          return;
+        }
+        throw error;
       }
-      const streak = dailyReward ? Math.min(dailyReward.streak_day + 1, 7) : 1;
-      const creditsEarned = streak * 10;
-
-      await supabase.from('daily_rewards').upsert({
-        user_id: user.id, streak_day: streak, credits_earned: creditsEarned,
-        last_claimed_at: now.toISOString(),
-      }, { onConflict: 'user_id' });
-      await supabase.from('user_wallets').upsert({
-        user_id: user.id, credits: (walletData?.credits || 0) + creditsEarned,
-      }, { onConflict: 'user_id' });
-      await supabase.from('credit_transactions').insert({
-        user_id: user.id, amount: creditsEarned, reason: 'daily_reward',
-        metadata: { streak_day: streak },
-      });
-      setCredits(prev => prev + creditsEarned);
-      setDailyReward({ ...dailyReward, streak_day: streak, last_claimed_at: now.toISOString() });
-      toast.success(`Day ${streak} reward claimed! +${creditsEarned} credits`);
+      const earned = Number(data?.credits_earned ?? 0);
+      const streak = Number(data?.streak_day ?? 1);
+      setCredits(Number(data?.credits_total ?? credits + earned));
+      setDailyReward({ ...dailyReward, streak_day: streak, last_claimed_at: new Date().toISOString(), credits_earned: earned });
+      toast.success(`Day ${streak} reward claimed! +${earned} credits`);
     } catch (err: any) { toast.error(err.message || 'Failed to claim reward'); }
     finally { setClaimingReward(false); }
   };
-
   const canClaimDaily = () => {
     if (!dailyReward?.last_claimed_at) return true;
     return new Date().toDateString() !== new Date(dailyReward.last_claimed_at).toDateString();
