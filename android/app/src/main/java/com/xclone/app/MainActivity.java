@@ -24,6 +24,7 @@ import android.net.http.SslError;
 import org.json.JSONObject;
 
 import androidx.annotation.Nullable;
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.view.WindowCompat;
@@ -95,6 +96,28 @@ public final class MainActivity extends AppCompatActivity {
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT
         ));
         setContentView(web);
+
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (customVideoView != null) {
+                    WebChromeClient.CustomViewCallback callback = customVideoCallback;
+                    customVideoView = null;
+                    customVideoCallback = null;
+                    if (callback != null) callback.onCustomViewHidden();
+                    if (webView != null) {
+                        setContentView(webView);
+                        enterImmersiveFullscreen();
+                    }
+                    return;
+                }
+                if (webView != null && webView.canGoBack()) {
+                    webView.goBack();
+                } else {
+                    finish();
+                }
+            }
+        });
 
         WebSettings settings = web.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -498,26 +521,6 @@ public final class MainActivity extends AppCompatActivity {
             Uri[] results = WebChromeClient.FileChooserParams.parseResult(resultCode, data);
             fileCallback.onReceiveValue(results);
             fileCallback = null;
-        }
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (customVideoView != null) {
-            WebChromeClient.CustomViewCallback callback = customVideoCallback;
-            customVideoView = null;
-            customVideoCallback = null;
-            if (callback != null) callback.onCustomViewHidden();
-            if (webView != null) {
-                setContentView(webView);
-                enterImmersiveFullscreen();
-            }
-            return;
-        }
-        if (webView != null && webView.canGoBack()) {
-            webView.goBack();
-        } else {
-            super.onBackPressed();
         }
     }
 
