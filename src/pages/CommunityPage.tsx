@@ -290,9 +290,20 @@ export default function CommunityPage({ section, standalone = false }: { section
       .eq('community_id', community.id).order('created_at', { ascending: true }).limit(100);
     if (data) {
       setChatMessages(data);
-      try { const rr = localStorage.getItem(`chat_reactions_${community.id}`); if (rr) { const parsed = JSON.parse(rr); const ids = Object.keys(parsed); setReactionMsgIds(ids); setReactionData(ids.map((k: string) => parsed[k])); } } catch { /* ignore */ }
-      const raw = localStorage.getItem(`chat_pinned_${community.id}`);
-      if (raw) setPinnedChatIds(JSON.parse(raw));
+      const ids = data.map((m: any) => m.id);
+      if (ids.length) {
+        const [{ data: rr }, { data: pp }] = await Promise.all([
+          supabase.from('community_chat_reactions').select('message_id,emoji').in('message_id', ids),
+          supabase.from('community_chat_pins').select('message_id').eq('community_id', community.id),
+        ]);
+        const grouped: Record<string, Record<string, number>> = {};
+        for (const row of rr ?? []) grouped[row.message_id] = { ...(grouped[row.message_id] ?? {}), [row.emoji]: (grouped[row.message_id]?.[row.emoji] ?? 0) + 1 };
+        const reactionIds = Object.keys(grouped);
+        setReactionMsgIds(reactionIds); setReactionData(reactionIds.map(id => grouped[id]));
+        setPinnedChatIds((pp ?? []).map((row: any) => row.message_id));
+      } else {
+        setReactionMsgIds([]); setReactionData([]); setPinnedChatIds([]);
+      }
     }
   }, [community]);
 
@@ -349,25 +360,23 @@ export default function CommunityPage({ section, standalone = false }: { section
 
 
 
-  const handleAddReaction = useCallback((msgId: string, emoji: string) => {
-    if (!community) return;
-    setReactionForMsg(msgId, prev => {
-      const updated = { ...prev, [emoji]: (prev[emoji] ?? 0) + 1 };
-      return updated;
-    });
-    triggerFloat(emoji);
-    setShowEmojiPickerFor(null);
-  }, [community, triggerFloat]);
+  const handleAddReaction = useCallback(async (msgId: string, emoji: string) => {
+    if (!community || !isMember) return;
+    try {
+      const { error } = await supabase.rpc('toggle_community_chat_reaction', { p_message_id: msgId, p_emoji: emoji });
+      if (error) throw error;
+      triggerFloat(emoji); setShowEmojiPickerFor(null); await fetchChat();
+    } catch (error: any) { sonnerToast.error(error?.message || 'Could not update reaction'); }
+  }, [community, isMember, triggerFloat, fetchChat]);
 
-  const handlePinChatMessage = useCallback((msgId: string) => {
-    if (!community) return;
-    setPinnedChatIds(prev => {
-      const updated = prev.includes(msgId) ? prev.filter(id => id !== msgId) : [...prev, msgId];
-      localStorage.setItem(`chat_pinned_${community.id}`, JSON.stringify(updated));
-      return updated;
-    });
-    setShowRoleMenu(null);
-  }, [community]);
+  const handlePinChatMessage = useCallback(async (msgId: string) => {
+    if (!community || !isAdmin) return;
+    try {
+      const { error } = await supabase.rpc('toggle_community_chat_pin', { p_message_id: msgId });
+      if (error) throw error;
+      setShowRoleMenu(null); await fetchChat();
+    } catch (error: any) { sonnerToast.error(error?.message || 'Could not update pin'); }
+  }, [community, isAdmin, fetchChat]);
 
   useEffect(() => { if (section) setActiveTab(section); }, [section]);
 
