@@ -2,6 +2,9 @@ name: Testagram New Production Signing Identity Gate
 
 on:
   workflow_dispatch:
+  push:
+    paths:
+      - '.github/workflows/signing-identity-forensics.yml'
 
 permissions:
   contents: read
