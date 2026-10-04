@@ -23,6 +23,9 @@ import org.json.JSONObject;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.ViewCompat;
 import androidx.core.content.ContextCompat;
 import com.google.firebase.messaging.FirebaseMessaging;
 import androidx.webkit.WebSettingsCompat;
@@ -39,9 +42,25 @@ public final class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
+        // Modern edge-to-edge shell: let the WebView occupy the entire display,
+        // including behind transparent system bars. Important interactive content
+        // remains responsible for its own safe-area/inset handling.
+        WindowCompat.enableEdgeToEdge(getWindow());
+        WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView())
+                .setAppearanceLightStatusBars(false);
+        WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView())
+                .setAppearanceLightNavigationBars(false);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            getWindow().setNavigationBarContrastEnforced(false);
+        }
+
         webView = new WebView(this);
         WebView web = webView;
-        web.setFitsSystemWindows(true);
+        web.setFitsSystemWindows(false);
+        web.setLayoutParams(new android.view.ViewGroup.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT
+        ));
         setContentView(web);
 
         WebSettings settings = web.getSettings();
