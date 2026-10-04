@@ -68,7 +68,24 @@ jobs:
           test -n "${TESTAGRAM_RELEASE_KEY_ALIAS}" || { echo "::error::TESTAGRAM_RELEASE_KEY_ALIAS is not configured"; exit 1; }
           test -n "${TESTAGRAM_RELEASE_KEYSTORE_PASSWORD}" || { echo "::error::TESTAGRAM_RELEASE_KEYSTORE_PASSWORD is not configured"; exit 1; }
           test -n "${TESTAGRAM_RELEASE_KEY_PASSWORD}" || { echo "::error::TESTAGRAM_RELEASE_KEY_PASSWORD is not configured"; exit 1; }
-          printf '%s' "${TESTAGRAM_RELEASE_KEYSTORE_BASE64}" | tr -d '\r\n ' | base64 --decode > android/testagram-release.jks
+          python3 - <<'PY'
+          import base64, os, pathlib
+          raw = os.environ["TESTAGRAM_RELEASE_KEYSTORE_BASE64"]
+          normalized = "".join(raw.split())
+          if not normalized:
+              raise SystemExit("empty keystore secret")
+          # Accept a correctly encoded Base64 value even when trailing '=' padding
+          # was omitted by the secret-entry UI; reject every other corruption.
+          normalized += "=" * ((4 - len(normalized) % 4) % 4)
+          try:
+              decoded = base64.b64decode(normalized, validate=True)
+          except Exception as exc:
+              raise SystemExit(f"keystore secret is not valid Base64: {exc}")
+          if not decoded:
+              raise SystemExit("decoded keystore is empty")
+          pathlib.Path("android/testagram-release.jks").write_bytes(decoded)
+          print(f"Decoded keystore bytes: {len(decoded)}")
+          PY
           test -s android/testagram-release.jks
           # Let keytool perform the authoritative keystore-format validation.
           # Do not rely on magic bytes: JKS and PKCS12 containers can have different
