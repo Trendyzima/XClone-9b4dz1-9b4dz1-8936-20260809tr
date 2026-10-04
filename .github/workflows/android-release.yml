@@ -130,6 +130,7 @@ jobs:
         run: rm -f android/testagram-release.jks android/keystore.properties
 
       - name: Publish GitHub Release
+        continue-on-error: true
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ inputs.tag || format('v0.2.{0}', github.run_number) }}
