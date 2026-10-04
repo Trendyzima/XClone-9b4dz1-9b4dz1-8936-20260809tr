@@ -58,7 +58,7 @@ export function TopBar({ title, showProfile = true, showBack = false, onBack, sh
           <ThemeToggle />
           
           {showSettings && (
-            <button className="tg-focus p-2.5 hover:bg-muted rounded-full transition-colors" aria-label="Settings">
+            <button className="tg-focus tg-touch-control p-2.5 rounded-full hover:bg-muted" aria-label="Settings">
               <Settings className="w-5 h-5" />
             </button>
           )}
