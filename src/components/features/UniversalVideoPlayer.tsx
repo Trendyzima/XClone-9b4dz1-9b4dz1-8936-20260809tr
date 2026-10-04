@@ -246,7 +246,6 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
         playsInline
         disablePictureInPicture
         muted={props.muted ?? true}
-        disablePictureInPicture
         preload={props.preload ?? (active ? 'auto' : 'metadata')}
         controls={props.controls ?? false}
         draggable={false}
