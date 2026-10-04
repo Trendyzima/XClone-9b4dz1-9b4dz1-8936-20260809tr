@@ -24,8 +24,9 @@ import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.view.WindowCompat;
-import androidx.core.view.WindowInsetsCompat;
+import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.core.content.ContextCompat;
 import com.google.firebase.messaging.FirebaseMessaging;
 import androidx.webkit.WebSettingsCompat;
@@ -53,10 +54,20 @@ public final class MainActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             getWindow().setNavigationBarContrastEnforced(false);
         }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            getWindow().getAttributes().layoutInDisplayCutoutMode =
+                    android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
+        }
 
         webView = new WebView(this);
         WebView web = webView;
         web.setFitsSystemWindows(false);
+        // Keep the WebView physically edge-to-edge and let Chromium receive the
+        // real system-bar/cutout insets so the website can use CSS safe-area-*.
+        // Do not add native padding here: that would create the visible top/bottom
+        // bands we are explicitly eliminating.
+        ViewCompat.setOnApplyWindowInsetsListener(web, (view, insets) -> insets);
+        ViewCompat.requestApplyInsets(web);
         web.setLayoutParams(new android.view.ViewGroup.LayoutParams(
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT,
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT
