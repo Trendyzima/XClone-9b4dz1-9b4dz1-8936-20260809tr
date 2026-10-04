@@ -262,7 +262,13 @@ public final class MainActivity extends AppCompatActivity {
 
         createNotificationChannel();
         requestNotificationPermission();
-        web.loadUrl(APP_URL);
+
+        // App Links must preserve the exact public URL selected by Search, a
+        // notification, share sheet, or another app. Only trusted HTTPS
+        // Testagram URLs are accepted; everything else follows the normal
+        // external-browser policy in shouldOverrideUrlLoading().
+        Uri initialDeepLink = getTrustedInitialDeepLink(getIntent());
+        web.loadUrl(initialDeepLink != null ? initialDeepLink.toString() : APP_URL);
     }
 
     @Override
@@ -364,6 +370,20 @@ public final class MainActivity extends AppCompatActivity {
         intent.removeExtra("redirectUrl");
         intent.removeExtra("action_url");
         if (intent.getData() != null) intent.setData(null);
+    }
+
+    private static Uri getTrustedInitialDeepLink(Intent intent) {
+        if (intent == null) return null;
+        String extra = firstNonBlank(
+                intent.getStringExtra(TestagramFirebaseMessagingService.EXTRA_PUSH_URL),
+                intent.getStringExtra("url"),
+                intent.getStringExtra("deep_link"),
+                intent.getStringExtra("deepLink"),
+                intent.getStringExtra("redirectUrl"),
+                intent.getStringExtra("action_url")
+        );
+        Uri candidate = extra == null ? intent.getData() : Uri.parse(extra);
+        return isTrustedTestagramUrl(candidate) ? canonicalTestagramUrl(candidate) : null;
     }
 
     private static boolean isTrustedTestagramUrl(Uri uri) {
