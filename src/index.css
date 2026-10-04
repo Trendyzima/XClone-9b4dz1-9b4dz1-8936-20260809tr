@@ -26,6 +26,17 @@ html { scroll-behavior: smooth; }
 .post-content a { @apply text-primary hover:underline; }
 * { max-width: 100%; word-wrap: break-word; overflow-wrap: break-word; box-sizing: border-box; }
 html, body { overflow-x: hidden; width: 100%; }
+
+/* Native/WebView edge-to-edge contract. The Android shell draws behind the
+   system bars; fixed UI owns only the safe-area padding, never the viewport. */
+html, body, #root { min-height: 100%; }
+body { min-height: 100dvh; margin: 0; }
+.tg-shell { min-height: 100dvh; min-height: 100svh; }
+.safe-area-top { padding-top: env(safe-area-inset-top, 0px); }
+.safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
+@supports (height: 100dvh) {
+  .tg-shell { min-height: 100dvh; }
+}
 img, video, iframe, svg { max-width: 100%; height: auto; }
 pre, code { white-space: pre-wrap; word-break: break-all; }
 .video-feed-container { height: 100svh; overflow-y: scroll; scroll-snap-type: y mandatory; -webkit-overflow-scrolling: touch; }
