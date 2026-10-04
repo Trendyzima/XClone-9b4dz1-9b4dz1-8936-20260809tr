@@ -1,4 +1,5 @@
 name: Testagram Android Release
+# CI uses temporary signing while production signing is intentionally disabled.
 
 on:
   workflow_dispatch:
