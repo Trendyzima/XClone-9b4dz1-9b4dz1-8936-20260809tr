@@ -49,6 +49,7 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
   const heartTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const swipeStartRef  = useRef<{ y: number; time: number } | null>(null);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
 
   const { user }                = useAuth();
   const { isActive: isPremium } = usePremium();
@@ -101,6 +102,7 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
 
   // Caption expand/collapse
   const [captionExpanded, setCaptionExpanded]   = useState(false);
+  const [shellReady, setShellReady]             = useState(false);
 
   /* ── Load initial like / repost / follow state ──────────────────────── */
   useEffect(() => {
@@ -142,6 +144,12 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
         setIsAuthorPremium(has);
       });
   }, [post.user_id]);
+
+  useEffect(() => {
+    if (!isActive || !shellRef.current) return;
+    const raf = requestAnimationFrame(() => setShellReady(true));
+    return () => cancelAnimationFrame(raf);
+  }, [isActive]);
 
   /* ── Play / pause on active change ──────────────────────────────────── */
   useEffect(() => {
@@ -703,7 +711,7 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
           onTouchEnd={handleProgressTouchEnd}
         >
           <div className="py-3 px-0">
-            <div className="relative h-1 bg-white/20 rounded-full mx-0">
+            <div ref={shellRef} className="relative h-1 bg-white/20 rounded-full mx-0">
               <div className="absolute left-0 top-0 h-full bg-white rounded-full transition-none"
                 style={{ width: `${videoProgress}%` }} />
               <div className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-md shadow-black/50 -ml-1.5 transition-opacity"
