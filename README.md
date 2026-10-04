@@ -12,14 +12,14 @@ Downloadable Android builds are listed below by version. Each entry links direct
 
 | Version | Status | Created | APK | Details |
 |---|---|---|---|---|
-| **v0.2.0** | ✅ Verified release | 2026-10-03 21:17 UTC | [⬇️ Download APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/download/release/v0.2.0/app-release.apk) | [Release page](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/tag/release/v0.2.0) |
+| **Latest release** | 🔄 Auto-updating | — | [⬇️ Download latest APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest/download/app-release.apk) | [Latest release page](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest) |
 | **v0.1.0** | Archived release | 2026-10-03 08:24 UTC | [⬇️ Download APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/download/release/v0.1.0/app-release.apk) | [Release page](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/tag/release/v0.1.0) |
-| **Latest verified build** | 📦 Repository build | 2026-10-04 07:36 EAT | [⬇️ Download APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/raw/refs/heads/main/downloads/Testagram.apk) | Commit `27b974acc8f24fbebb5c566164615ed9ccad2052` · [Actions run](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/runs/37177519503) |
+| **Build archive** | 📦 CI artifact | — | [Actions runs](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions) | Use the latest successful Android release run |
 
 ### Checksums
 
-- **v0.2.0:** `562a95b7d21d603cf9c1cf503f02a02789b31086eb2644779400a9d86d3a62cd`
-- **Latest verified build:** [SHA-256 checksum](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/blob/main/downloads/Testagram.apk.sha256)
+- **Latest release:** See the SHA-256 shown on the current GitHub release asset.
+- The repository mirror `downloads/Testagram.apk` is no longer presented as the canonical download.
 
 > **Publishing rule:** Every successfully signed and verified APK should be added here as a versioned release entry. Failed builds are not presented as downloadable versions.
 
