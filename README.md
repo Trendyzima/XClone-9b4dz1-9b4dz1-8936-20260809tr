@@ -10,11 +10,11 @@ The verified Testagram Android APK is available directly from this repository.
 
 ### Download Testagram
 
-**[⬇️ Download Testagram APK](./downloads/Testagram.apk)**
+**[⬇️ Download Testagram APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/raw/refs/heads/main/downloads/Testagram.apk)**
 
-**[SHA-256 checksum](./downloads/Testagram.apk.sha256)**
+**[SHA-256 checksum](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/blob/main/downloads/Testagram.apk.sha256)**
 
-The APK above is the successful Android release artifact from the production release workflow. The repository README is the canonical public download entry point.
+The APK above is the successful Android release artifact from the production release workflow. The README uses the direct raw APK endpoint so the link downloads the binary instead of opening the GitHub blob viewer.
 ## What is Testagram?
 
 Testagram is a responsive social ecosystem built around user publishing and discovery. It brings together social posts and threads, short-form video, communities, live experiences, creator tools, monetization, wallet/payment flows, commerce, Fediverse discovery, publisher/RSS content, and an in-product Help Center.
