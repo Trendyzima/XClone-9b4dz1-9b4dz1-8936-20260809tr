@@ -16,7 +16,7 @@ const corsHeaders = () => ({
 const json = (body: unknown, status = 200, cache = 'private, max-age=5, stale-while-revalidate=30') =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { ...corsHeaders(request as Request | undefined), 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': cache },
+    headers: { ...corsHeaders(), 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': cache },
   });
 
 async function authenticate(request: Request): Promise<string | null> {
