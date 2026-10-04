@@ -129,10 +129,12 @@ Deno.serve(async (req) => {
       : null;
   }).filter(Boolean);
 
-  if (rows.length) {
+  const uniqueRows = [...new Map(rows.map((row: any) => [row.channel_id, row])).values()];
+
+  if (uniqueRows.length) {
     const { error } = await supabase
       .from("tv_channel_health")
-      .upsert(rows, { onConflict: "channel_id" });
+      .upsert(uniqueRows, { onConflict: "channel_id" });
     if (error) throw error;
   }
 
