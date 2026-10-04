@@ -256,6 +256,22 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
         onWaiting={onWaiting}
         onStalled={onStalled}
       />
+      {showPlayFallback && active && !recovering && !fatalError && (
+        <button
+          type="button"
+          aria-label="Play video"
+          onClick={() => {
+            const video = videoRef.current;
+            if (video) {
+              video.muted = false;
+              void play();
+            }
+          }}
+          className="absolute left-1/2 top-1/2 z-30 flex h-14 w-14 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/70 text-white shadow-2xl backdrop-blur-md border border-white/20 active:scale-95"
+        >
+          <span className="ml-1 text-2xl">▶</span>
+        </button>
+      )}
       {recovering && active && (
         <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/70 px-3 py-1.5 text-xs font-semibold text-white backdrop-blur-sm">
           Reconnecting…
