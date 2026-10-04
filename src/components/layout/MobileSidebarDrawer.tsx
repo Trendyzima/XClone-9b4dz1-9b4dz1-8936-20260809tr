@@ -230,6 +230,6 @@ export function MobileSidebarDrawer() {
         </div>
           </aside>
         </div>
-      )
+      )}
   );
 }
