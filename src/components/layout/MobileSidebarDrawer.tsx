@@ -116,7 +116,6 @@ export function MobileSidebarDrawer() {
             aria-label="Testagram navigation"
             className="tg-drawer-surface fixed inset-y-0 left-0 z-[2147483001] flex w-[min(300px,85vw)] flex-col overflow-hidden bg-background shadow-2xl"
             onMouseDown={(event) => event.stopPropagation()}
-          > event.stopPropagation()}
           >
         {/* ── User card ─────────────────────────────────────────────────────── */}
         {user ? (
