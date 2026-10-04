@@ -128,6 +128,16 @@
 
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+    <script>
+      // Install the same-origin offline shell used by the Android WebView.
+      // Feed data itself is cached per-user by the app in IndexedDB so personalized
+      // API responses are never placed in a shared Service Worker cache.
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function () {
+          navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function () {});
+        });
+      }
+    </script>
 
     <!-- Search engines can render the app, but this crawlable fallback also exposes the site's core public information and links in the initial HTML. -->
     <noscript>
