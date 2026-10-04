@@ -31,7 +31,8 @@ export function TopBar({ title, showProfile = true, showBack = false, onBack, sh
   const isCommunity = location.pathname.startsWith('/c/');
 
   return (
-    <div className="tg-topbar safe-area-top sticky top-0 z-40 border-b border-border/70">
+    <div className="sticky top-0 z-40">
+      <div className="tg-topbar border-b border-border/70" style={{ marginTop: "env(safe-area-inset-top, 0px)" }}>
       <div className="flex items-center justify-between px-4 h-16 sm:px-5">
         <div className="lg:hidden">
           <MobileSidebarDrawer />
@@ -83,6 +84,7 @@ export function TopBar({ title, showProfile = true, showBack = false, onBack, sh
       </div>
       {showCrossSurfaceNav && <CrossSurfaceNav />}
       {isCommunity && <CommunityAdminOverlay />}
+      </div>
     </div>
   );
 }
