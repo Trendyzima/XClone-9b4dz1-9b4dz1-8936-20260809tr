@@ -4,19 +4,21 @@ A production-oriented social platform for short-form video, conversations, commu
 
 > **Status:** Active development and production hardening
 
-## 📱 Testagram Android APKs
+## 📱 Testagram Android APK
 
-A small download hub for the latest Testagram Android builds.
+The verified Testagram Android APK is available directly from this repository.
 
-| Build | Download | Checksum |
-|---|---|---|
-| **Latest release** | [⬇️ Download APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/raw/refs/heads/main/downloads/Testagram.apk) | [SHA-256](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/blob/main/downloads/Testagram.apk.sha256) |
+### Download Testagram
 
-**📦 Latest APK:** the `main` branch download is updated by the Android release/publish workflow when a verified build is published.
+**[⬇️ Download Testagram APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/raw/refs/heads/main/downloads/Testagram.apk)**
 
-**🔎 Want the build history?** [View all GitHub Actions runs](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/workflows/native-clients.yml) · [Browse APK files](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/tree/main/downloads)
+**[SHA-256 checksum](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/blob/main/downloads/Testagram.apk.sha256)**
 
-The direct APK link downloads the binary instead of opening the GitHub blob viewer.
+**Created:** 2026-10-04 07:36 EAT  
+**Build commit:** `27b974acc8f24fbebb5c566164615ed9ccad2052`  
+**GitHub Actions run:** [#37177519503](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/runs/37177519503)
+
+The creation time above is the timestamp of the successful Android release workflow that produced this APK. The README uses the direct raw APK endpoint so the link downloads the binary instead of opening the GitHub blob viewer.
 ## What is Testagram?
 
 Testagram is a responsive social ecosystem built around user publishing and discovery. It brings together social posts and threads, short-form video, communities, live experiences, creator tools, monetization, wallet/payment flows, commerce, Fediverse discovery, publisher/RSS content, and an in-product Help Center.
