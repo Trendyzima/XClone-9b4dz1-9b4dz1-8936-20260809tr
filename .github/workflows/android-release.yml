@@ -64,6 +64,7 @@ jobs:
           rm -f testagram-release.jks keystore.properties
           keytool -genkeypair -v \
             -keystore testagram-release.jks \
+            -storetype JKS \
             -storepass testagram-ci-store \
             -alias testagram-ci \
             -keypass testagram-ci-store \
