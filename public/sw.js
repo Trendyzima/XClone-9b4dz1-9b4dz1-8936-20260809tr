@@ -1,4 +1,4 @@
-/* global self, URL */
+/* global self, URL, caches, fetch */
 
 const VERSION = 'testagram-shell-v3';
 const STATIC_CACHE = VERSION + '-static';
