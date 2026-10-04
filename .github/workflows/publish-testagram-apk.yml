@@ -1,0 +1,76 @@
+name: Publish Testagram APK
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/publish-testagram-apk.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out main
+        uses: actions/checkout@v4
+
+      - name: Download the verified Android release artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: testagram-android-release-27b974acc8f24fbebb5c566164615ed9ccad2052
+          path: /tmp/testagram-artifact
+          repository: Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr
+          run-id: 37177519503
+          github-token: ${{ github.token }}
+
+      - name: Locate and publish APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="$(find /tmp/testagram-artifact -type f -name 'app-release.apk' -print -quit)"
+          test -n "$APK"
+          mkdir -p downloads
+          cp "$APK" downloads/Testagram.apk
+          sha256sum downloads/Testagram.apk > downloads/Testagram.apk.sha256
+
+      - name: Update README download section
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("README.md")
+          s = p.read_text()
+          marker = "## 📱 Testagram Android APK"
+          start = s.index(marker)
+          end = s.index("\n## What is Testagram?", start)
+          block = """## 📱 Testagram Android APK
+
+          The verified Testagram Android APK is available directly from this repository.
+
+          ### Download Testagram
+
+          **[⬇️ Download Testagram APK](./downloads/Testagram.apk)**
+
+          **[SHA-256 checksum](./downloads/Testagram.apk.sha256)**
+
+          The APK above is the successful Android release artifact from the production release workflow. The repository README is the canonical public download entry point.
+          """
+          p.write_text(s[:start] + block.rstrip() + s[end:])
+          PY
+
+      - name: Commit APK and README
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md downloads/Testagram.apk downloads/Testagram.apk.sha256
+          git diff --cached --quiet && exit 0
+          git commit -m "chore(android): publish Testagram APK download"
+          git push origin HEAD:main
