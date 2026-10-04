@@ -120,9 +120,27 @@ jobs:
           fi
 
           git commit -m "chore(android): publish Testagram APK download"
-          git pull --rebase origin main
 
           for attempt in 1 2 3; do
+            if git pull --rebase origin main; then
+              :
+            else
+              conflicts="$(git diff --name-only --diff-filter=U)"
+              if [[ -n "$conflicts" ]] && ! grep -Ev "^(README\.md|downloads/Testagram\.apk|downloads/Testagram\.apk\.sha256)$" <<<"$conflicts" | grep -q .; then
+                echo "Resolving expected APK publication conflicts in favor of the newly generated publication."
+                while IFS= read -r conflict; do
+                  [[ -n "$conflict" ]] || continue
+                  git checkout --theirs -- "$conflict"
+                  git add -- "$conflict"
+                done <<<"$conflicts"
+                GIT_EDITOR=true git -c core.merge.conflictstyle=merge rebase --continue
+              else
+                git rebase --abort || true
+                echo "::error::Unexpected main-branch conflict during APK publication."
+                exit 1
+              fi
+            fi
+
             if git push origin HEAD:refs/heads/main; then
               echo "APK publication commit pushed successfully on attempt ${attempt}."
               exit 0
@@ -131,6 +149,5 @@ jobs:
               echo "::error::Could not push APK publication after ${attempt} attempts."
               exit 1
             fi
-            echo "Main advanced during APK publication; rebasing and retrying."
-            git pull --rebase origin main
+            echo "Main advanced during APK publication; retrying rebase/push."
           done
