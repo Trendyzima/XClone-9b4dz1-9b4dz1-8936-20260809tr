@@ -252,7 +252,7 @@ export function BottomNav() {
 
   return (
     <nav
-      className={`lg:hidden fixed bottom-0 left-0 right-0 bg-background/85 backdrop-blur-2xl border-t border-border/70 shadow-[0_-12px_40px_-28px_hsl(0_0%_0%_/_0.7)] z-50 transition-transform duration-300 ease-in-out ${
+      className={`lg:hidden fixed bottom-0 left-0 right-0 safe-area-bottom bg-background/85 backdrop-blur-2xl border-t border-border/70 shadow-[0_-12px_40px_-28px_hsl(0_0%_0%_/_0.7)] z-50 transition-transform duration-300 ease-in-out ${
         visible ? 'translate-y-0' : 'translate-y-full'
       }`}
     >
@@ -264,7 +264,7 @@ export function BottomNav() {
           <span>Content Policy</span>
         </button>
       </div>
-      <div className="flex justify-around items-center h-16 safe-area-bottom px-1">
+      <div className="flex justify-around items-center h-16 px-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = location.pathname === item.path ||
