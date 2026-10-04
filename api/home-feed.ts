@@ -138,7 +138,13 @@ export default async function handler(request: RequestLike) {
     // follows/recommendations, but must never be a prerequisite for rendering
     // public posts, threads, or stored Fediverse content.
     const auth = await authenticate(request);
-    if (!SUPABASE_SERVICE_ROLE_KEY) return json({ error: 'Home feed backend is not configured' }, 503, request);
+    // The home feed is read-only and must remain available even when the
+    // privileged service-role secret is intentionally absent from a Worker.
+    // Use the service role when provisioned; otherwise use the publishable key
+    // with the verified user's JWT so Supabase RLS remains the authorization
+    // boundary. Never require a service-role secret for public feed rendering.
+    const databaseKey = SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+    if (!databaseKey) return json({ error: 'Home feed backend is not configured' }, 503, request);
 
     const url = new URL(requestUrl(request));
     const limit = Math.max(4, Math.min(8, Math.floor(Number(url.searchParams.get('limit') || 6))));
@@ -153,7 +159,12 @@ export default async function handler(request: RequestLike) {
       }
     }
 
-    const admin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+    const admin = createClient(SUPABASE_URL, databaseKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: auth && !SUPABASE_SERVICE_ROLE_KEY
+        ? { headers: { Authorization: 'Bearer ' + auth.token } }
+        : undefined,
+    });
 
     // Following is a first-class feed lane. A successful local or federated follow
     // must immediately influence what the user sees; it must not wait for a
