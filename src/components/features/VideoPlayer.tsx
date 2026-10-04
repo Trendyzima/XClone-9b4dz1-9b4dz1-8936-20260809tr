@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Heart, MessageCircle, Repeat2, Share, Volume2, VolumeX,
   Play, DollarSign, Crown, BadgeCheck, X, Send, Loader2,
-  UserPlus, UserCheck, Quote, Copy, Check, Bookmark, BookmarkCheck, Layers, Download,
+  UserPlus, UserCheck, Quote, Copy, Check, Bookmark, BookmarkCheck, Layers, Download, Maximize2, Minimize2,
 } from 'lucide-react';
 import { Post } from '@/types/app-types';
 import { formatNumber } from '@/lib/utils';
@@ -36,6 +36,11 @@ function normalizeVideoReplies(rows: any[] | null | undefined): Reply[] {
 // @__PURE__ annotation prevents esbuild non-determinism on module-level Map construction
 const authorPremiumCache: Map<string, boolean> = /* @__PURE__ */ new Map();
 
+const VIDEO_SOUND_STORAGE_KEY = 'testagram-video-sound';
+function readVideoSoundPreference(): boolean {
+  try { return localStorage.getItem(VIDEO_SOUND_STORAGE_KEY) === 'on'; } catch { return false; }
+}
+
 export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPreload }: VideoPlayerProps) {
   const videoRef       = useRef<HTMLVideoElement>(null);
   const viewCounterRef = useRef(0); // per-page view counter — replaces module-level _counter
@@ -51,7 +56,8 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
   const { toast }               = useToast();
 
   const [isPlaying, setIsPlaying]               = useState(false);
-  const [isMuted, setIsMuted]                   = useState(true);
+  const [isMuted, setIsMuted]                   = useState(() => !readVideoSoundPreference());
+  const [isFullscreen, setIsFullscreen]         = useState(false);
   const [isLiked, setIsLiked]                   = useState(false);
   const [isReposted, setIsReposted]             = useState(false);
   const [isFollowing, setIsFollowing]           = useState(false);
@@ -143,6 +149,8 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
     if (!video) return;
 
     if (isActive) {
+      const soundOn = readVideoSoundPreference();
+      setIsMuted(!soundOn);
       trackView();
       viewCounterRef.current++;
       const shouldShowAd = !isPremium && !adDoneForThisPost &&
@@ -151,13 +159,12 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
         setShowPrerollAd(true);
         setAdDoneForThisPost(true);
       } else {
+        video.muted = !soundOn;
         video.play().then(() => setIsPlaying(true)).catch(() => {});
       }
     } else {
-      // Mute and pause when scrolling away
+      // Pause when scrolling away, but keep the user's sound preference for the next reel.
       video.pause();
-      video.muted = true;
-      setIsMuted(true);
       setIsPlaying(false);
       setShowComments(false);
       setShowRepostSheet(false);
@@ -224,7 +231,25 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
     if (!video) return;
     video.muted = !video.muted;
     setIsMuted(video.muted);
+    try { localStorage.setItem(VIDEO_SOUND_STORAGE_KEY, video.muted ? 'off' : 'on'); } catch {}
+    if (!video.muted && video.paused && isActive) video.play().catch(() => {});
   };
+
+  const toggleFullscreen = useCallback(async () => {
+    const target = videoRef.current?.parentElement?.parentElement ?? videoRef.current;
+    if (!target) return;
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else await target.requestFullscreen?.();
+      setIsFullscreen(!!document.fullscreenElement);
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => {
+    const onFullscreen = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFullscreen);
+    return () => document.removeEventListener('fullscreenchange', onFullscreen);
+  }, []);
 
   /* ── Like — one-time only (no unlike) ───────────────────────────────── */
   const triggerLike = useCallback(async () => {
@@ -653,6 +678,14 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
         style={{ touchAction: 'manipulation' }}
       >
         {isMuted ? <VolumeX className="w-5 h-5 text-white" /> : <Volume2 className="w-5 h-5 text-white" />}
+      </button>
+      <button
+        onClick={toggleFullscreen}
+        className="absolute top-4 right-16 z-30 p-3 bg-black/60 backdrop-blur-sm rounded-full hover:bg-black/80 active:scale-95 transition-all shadow-lg"
+        style={{ touchAction: 'manipulation' }}
+        aria-label={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+      >
+        {isFullscreen ? <Minimize2 className="w-5 h-5 text-white" /> : <Maximize2 className="w-5 h-5 text-white" />}
       </button>
 
       {/* ── Seek / progress bar ───────────────────────────────────────────── */}
