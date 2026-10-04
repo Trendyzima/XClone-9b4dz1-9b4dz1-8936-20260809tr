@@ -10,7 +10,7 @@ type LiveTv = { id: string; title: string; user_id: string; viewer_count: number
 type LiveChannel = ({ kind: 'audio' | 'video-space' } & LiveSpace) | ({ kind: 'tv' } & LiveTv);
 
 const HIDDEN_KEY = 'testagram_live_channels_hidden_until';
-const POLL_MS = 10_000;
+const POLL_MS = 30_000;
 
 export function LiveSpacesDiscoveryStrip() {
   const location = useLocation();
@@ -32,14 +32,24 @@ export function LiveSpacesDiscoveryStrip() {
   useEffect(() => {
     try { setHidden(Number(sessionStorage.getItem(HIDDEN_KEY) || '0') > Date.now()); } catch {}
     void load();
-    const timer = window.setInterval(load, POLL_MS);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void load();
+    }, POLL_MS);
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') void load();
+    };
+    document.addEventListener('visibilitychange', onVisibility);
     // Polling is the source of truth for this discovery strip. Do not attach
     // postgres_changes listeners here: this component is mounted on the global
     // home shell and can be mounted/unmounted during route transitions. A
     // realtime channel racing with cleanup can be observed by supabase-js as
-    // already subscribed, which aborts application startup. The 10s poll keeps
-    // live discovery fresh without making the home route dependent on realtime.
-    return () => { window.clearInterval(timer); };
+    // already subscribed, which aborts application startup. A 30s visible-only
+    // poll keeps live discovery fresh without burning battery/network in the
+    // background.
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, [load]);
 
   const excluded = location.pathname === '/spaces' || location.pathname.startsWith('/spaces/') || location.pathname.startsWith('/start-stream') || location.pathname.startsWith('/tv-studio') || location.pathname.startsWith('/stream/') || location.pathname.startsWith('/live/');
