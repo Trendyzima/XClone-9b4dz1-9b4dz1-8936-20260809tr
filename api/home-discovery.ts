@@ -6,17 +6,21 @@ const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.s
 const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || '';
 const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
 
-const CORS = {
-  'Access-Control-Allow-Origin': 'https://testagram.site',
-  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
-  'Access-Control-Allow-Methods': 'GET, OPTIONS',
-  'Vary': 'Authorization',
-};
+const ALLOWED_ORIGINS = new Set(['https://testagram.site', 'https://www.testagram.site']);
+function corsHeaders(request?: Request) {
+  const origin = request?.headers.get('origin') || '';
+  return {
+    'Access-Control-Allow-Origin': ALLOWED_ORIGINS.has(origin) ? origin : 'https://testagram.site',
+    'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info, x-request-id',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Vary': 'Authorization, Origin',
+  };
+}
 
 const json = (body: unknown, status = 200, cache = 'private, max-age=5, stale-while-revalidate=30') =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': cache },
+    headers: { ...corsHeaders(request as Request | undefined), 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': cache },
   });
 
 async function authenticate(request: Request): Promise<string | null> {
@@ -37,7 +41,7 @@ const profileSelect = 'id,username,display_name,avatar_url,follower_count,verifi
 const unique = <T,>(values: T[]): T[] => [...new Set(values)];
 
 export default async function handler(request: Request) {
-  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
+  if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: corsHeaders(request) });
   if (request.method !== 'GET') return json({ error: 'GET required' }, 405);
 
   const started = Date.now();
