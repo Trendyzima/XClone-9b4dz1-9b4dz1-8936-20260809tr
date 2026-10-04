@@ -86,8 +86,8 @@ public final class MainActivity extends AppCompatActivity {
         settings.setSupportZoom(false);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
-        settings.setLoadWithOverviewMode(false);
-        settings.setUseWideViewPort(false);
+        // Never zoom-to-fit the desktop page; the responsive site owns the layout.\n        settings.setLoadWithOverviewMode(false);
+        // Honor Testagram's responsive viewport meta exactly as Chrome mobile does.\n        settings.setUseWideViewPort(true);
         settings.setCacheMode(WebSettings.LOAD_DEFAULT);
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
         settings.setGeolocationEnabled(false);
@@ -95,7 +95,7 @@ public final class MainActivity extends AppCompatActivity {
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, false);
 
         WebView.setWebContentsDebuggingEnabled(false);
-        web.setOverScrollMode(WebView.OVER_SCROLL_NEVER);
+        web.setOverScrollMode(WebView.OVER_SCROLL_NEVER);\n        web.setBackgroundColor(android.graphics.Color.TRANSPARENT);\n        web.setVerticalScrollBarEnabled(false);\n        web.setHorizontalScrollBarEnabled(false);
         if (WebViewFeature.isFeatureSupported(WebViewFeature.SAFE_BROWSING_ENABLE)) {
             WebSettingsCompat.setSafeBrowsingEnabled(settings, true);
         }
