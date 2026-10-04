@@ -88,6 +88,51 @@ jobs:
           keyPassword=${ANDROID_KEY_PASSWORD}
           EOF
 
+      - name: Verify Android signing secret consistency (before Gradle)
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        working-directory: android
+        run: |
+          set -euo pipefail
+
+          KEYSTORE="testagram-release.jks"
+          VERIFY_STORE="/tmp/testagram-signing-verification.p12"
+
+          test -s "${KEYSTORE}" || { echo "::error::Signing-secret consistency error: decoded keystore is missing or empty"; exit 1; }
+
+          echo "Checking that keytool can open the decoded keystore..."
+          keytool -list -keystore "${KEYSTORE}" -storepass "${ANDROID_KEYSTORE_PASSWORD}" >/dev/null \
+            || { echo "::error::Signing-secret consistency error: ANDROID_KEYSTORE_PASSWORD does not open the decoded keystore"; exit 1; }
+
+          echo "Checking that the configured alias exists..."
+          keytool -list -keystore "${KEYSTORE}" -storepass "${ANDROID_KEYSTORE_PASSWORD}" \
+            -alias "${ANDROID_KEY_ALIAS}" >/dev/null \
+            || { echo "::error::Signing-secret consistency error: ANDROID_KEY_ALIAS does not exist in the decoded keystore"; exit 1; }
+
+          echo "Checking that the configured alias contains a private key and that ANDROID_KEY_PASSWORD matches it..."
+          rm -f "${VERIFY_STORE}"
+          keytool -importkeystore \
+            -srckeystore "${KEYSTORE}" \
+            -srcstorepass "${ANDROID_KEYSTORE_PASSWORD}" \
+            -srcalias "${ANDROID_KEY_ALIAS}" \
+            -srckeypass "${ANDROID_KEY_PASSWORD}" \
+            -destkeystore "${VERIFY_STORE}" \
+            -deststoretype PKCS12 \
+            -deststorepass "${ANDROID_KEYSTORE_PASSWORD}" \
+            -destkeypass "${ANDROID_KEYSTORE_PASSWORD}" \
+            -noprompt >/dev/null \
+            || { echo "::error::Signing-secret consistency error: ANDROID_KEY_PASSWORD does not unlock the configured private key (or the alias is not a private-key entry)"; exit 1; }
+
+          keytool -list -v -keystore "${KEYSTORE}" -storepass "${ANDROID_KEYSTORE_PASSWORD}" \
+            -alias "${ANDROID_KEY_ALIAS}" | grep -q 'Entry type: PrivateKeyEntry' \
+            || { echo "::error::Signing-secret consistency error: configured alias is not a PrivateKeyEntry"; exit 1; }
+
+          rm -f "${VERIFY_STORE}"
+          echo "Signing-secret consistency check passed: keystore opens, alias exists, and private-key password is valid."
+
       - name: Build signed Android APK and App Bundle
         working-directory: android
         run: |
