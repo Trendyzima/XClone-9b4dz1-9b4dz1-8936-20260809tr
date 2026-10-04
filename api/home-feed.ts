@@ -16,7 +16,7 @@ function corsHeaders(request: RequestLike) {
   const allowedOrigin = ALLOWED_ORIGINS.has(origin) ? origin : 'https://testagram.site';
   return {
     'Access-Control-Allow-Origin': allowedOrigin,
-    'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
+    'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info, accept, x-request-id, x-supabase-api-version, x-retry-count, traceparent, tracestate, baggage',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Vary': 'Authorization, Origin',
   };
