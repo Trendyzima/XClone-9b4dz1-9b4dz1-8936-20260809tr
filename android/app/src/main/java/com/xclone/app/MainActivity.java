@@ -16,6 +16,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.webkit.WebSettings;
 import android.webkit.SslErrorHandler;
+import android.webkit.RenderProcessGoneDetail;
 import android.net.http.SslError;
 
 import org.json.JSONObject;
@@ -42,6 +43,7 @@ public final class MainActivity extends AppCompatActivity {
     private String geolocationOrigin;
     private PermissionRequest pendingMediaPermissionRequest;
     private WebView webView;
+    private String lastHandledDeepLink;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -173,6 +175,27 @@ public final class MainActivity extends AppCompatActivity {
                 super.onPageFinished(view, url);
                 publishPushTokenToWeb();
                 handlePushIntent(getIntent());
+            }
+
+            @Override
+            public boolean onRenderProcessGone(WebView view, RenderProcessGoneDetail detail) {
+                // A WebView renderer can be reclaimed by Android under memory
+                // pressure or can crash independently of the Activity. The dead
+                // WebView instance is never reusable; recreate the Activity so a
+                // completely fresh renderer is attached.
+                android.util.Log.e(
+                        "TestagramWebView",
+                        "WebView renderer gone; crashed=" + detail.didCrash()
+                );
+                if (webView != null) {
+                    webView.stopLoading();
+                    webView.setWebChromeClient(null);
+                    webView.setWebViewClient(null);
+                    webView.destroy();
+                    webView = null;
+                }
+                recreate();
+                return true;
             }
 
             @Override
@@ -320,15 +343,25 @@ public final class MainActivity extends AppCompatActivity {
         );
 
         Uri uri = url == null ? intent.getData() : Uri.parse(url);
-        if (isTrustedTestagramUrl(uri)) {
-            webView.loadUrl(canonicalTestagramUrl(uri).toString());
-            intent.removeExtra(TestagramFirebaseMessagingService.EXTRA_PUSH_URL);
-            intent.removeExtra("url");
-            intent.removeExtra("deep_link");
-            intent.removeExtra("deepLink");
-            intent.removeExtra("redirectUrl");
-            intent.removeExtra("action_url");
-        }
+        if (!isTrustedTestagramUrl(uri)) return;
+
+        Uri canonical = canonicalTestagramUrl(uri);
+        String canonicalUrl = canonical.toString();
+
+        // onPageFinished fires for every navigation. Consume each deep link once
+        // so an intent's data URI cannot cause a reload loop on every page load.
+        if (canonicalUrl.equals(lastHandledDeepLink)) return;
+        lastHandledDeepLink = canonicalUrl;
+
+        webView.loadUrl(canonicalUrl);
+
+        intent.removeExtra(TestagramFirebaseMessagingService.EXTRA_PUSH_URL);
+        intent.removeExtra("url");
+        intent.removeExtra("deep_link");
+        intent.removeExtra("deepLink");
+        intent.removeExtra("redirectUrl");
+        intent.removeExtra("action_url");
+        if (intent.getData() != null) intent.setData(null);
     }
 
     private static boolean isTrustedTestagramUrl(Uri uri) {
@@ -393,7 +426,6 @@ public final class MainActivity extends AppCompatActivity {
                 if (!grant.isEmpty()) pending.grant(grant.toArray(new String[0]));
                 else pending.deny();
             }
-            if (webView != null) webView.reload();
         } else if (requestCode == LOCATION_PERMISSION && geolocationCallback != null) {
             boolean granted = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
                     || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
