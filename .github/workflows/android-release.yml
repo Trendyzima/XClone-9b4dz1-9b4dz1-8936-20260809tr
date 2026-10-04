@@ -69,31 +69,31 @@ jobs:
 
       - name: Configure Android release signing
         env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          TESTAGRAM_RELEASE_KEYSTORE_BASE64: ${{ secrets.TESTAGRAM_RELEASE_KEYSTORE_BASE64 }}
+          TESTAGRAM_RELEASE_KEY_ALIAS: ${{ secrets.TESTAGRAM_RELEASE_KEY_ALIAS }}
+          TESTAGRAM_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.TESTAGRAM_RELEASE_KEYSTORE_PASSWORD }}
+          TESTAGRAM_RELEASE_KEY_PASSWORD: ${{ secrets.TESTAGRAM_RELEASE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          test -n "${ANDROID_KEYSTORE_BASE64}" || { echo "::error::ANDROID_KEYSTORE_BASE64 is not configured"; exit 1; }
-          test -n "${ANDROID_KEY_ALIAS}" || { echo "::error::ANDROID_KEY_ALIAS is not configured"; exit 1; }
-          test -n "${ANDROID_KEYSTORE_PASSWORD}" || { echo "::error::ANDROID_KEYSTORE_PASSWORD is not configured"; exit 1; }
-          test -n "${ANDROID_KEY_PASSWORD}" || { echo "::error::ANDROID_KEY_PASSWORD is not configured"; exit 1; }
-          echo "${ANDROID_KEYSTORE_BASE64}" | base64 --decode > android/testagram-release.jks
+          test -n "${TESTAGRAM_RELEASE_KEYSTORE_BASE64}" || { echo "::error::TESTAGRAM_RELEASE_KEYSTORE_BASE64 is not configured"; exit 1; }
+          test -n "${TESTAGRAM_RELEASE_KEY_ALIAS}" || { echo "::error::TESTAGRAM_RELEASE_KEY_ALIAS is not configured"; exit 1; }
+          test -n "${TESTAGRAM_RELEASE_KEYSTORE_PASSWORD}" || { echo "::error::TESTAGRAM_RELEASE_KEYSTORE_PASSWORD is not configured"; exit 1; }
+          test -n "${TESTAGRAM_RELEASE_KEY_PASSWORD}" || { echo "::error::TESTAGRAM_RELEASE_KEY_PASSWORD is not configured"; exit 1; }
+          echo "${TESTAGRAM_RELEASE_KEYSTORE_BASE64}" | base64 --decode > android/testagram-release.jks
           test -s android/testagram-release.jks
           cat > android/keystore.properties <<EOF
           storeFile=testagram-release.jks
-          storePassword=${ANDROID_KEYSTORE_PASSWORD}
-          keyAlias=${ANDROID_KEY_ALIAS}
-          keyPassword=${ANDROID_KEY_PASSWORD}
+          storePassword=${TESTAGRAM_RELEASE_KEYSTORE_PASSWORD}
+          keyAlias=${TESTAGRAM_RELEASE_KEY_ALIAS}
+          keyPassword=${TESTAGRAM_RELEASE_KEY_PASSWORD}
           EOF
 
       - name: Verify Android signing secret consistency (before Gradle)
         env:
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          TESTAGRAM_RELEASE_KEYSTORE_BASE64: ${{ secrets.TESTAGRAM_RELEASE_KEYSTORE_BASE64 }}
+          TESTAGRAM_RELEASE_KEY_ALIAS: ${{ secrets.TESTAGRAM_RELEASE_KEY_ALIAS }}
+          TESTAGRAM_RELEASE_KEYSTORE_PASSWORD: ${{ secrets.TESTAGRAM_RELEASE_KEYSTORE_PASSWORD }}
+          TESTAGRAM_RELEASE_KEY_PASSWORD: ${{ secrets.TESTAGRAM_RELEASE_KEY_PASSWORD }}
         working-directory: android
         run: |
           set -euo pipefail
@@ -104,30 +104,30 @@ jobs:
           test -s "${KEYSTORE}" || { echo "::error::Signing-secret consistency error: decoded keystore is missing or empty"; exit 1; }
 
           echo "Checking that keytool can open the decoded keystore..."
-          keytool -list -keystore "${KEYSTORE}" -storepass "${ANDROID_KEYSTORE_PASSWORD}" >/dev/null \
-            || { echo "::error::Signing-secret consistency error: ANDROID_KEYSTORE_PASSWORD does not open the decoded keystore"; exit 1; }
+          keytool -list -keystore "${KEYSTORE}" -storepass "${TESTAGRAM_RELEASE_KEYSTORE_PASSWORD}" >/dev/null \
+            || { echo "::error::Signing-secret consistency error: TESTAGRAM_RELEASE_KEYSTORE_PASSWORD does not open the decoded keystore"; exit 1; }
 
           echo "Checking that the configured alias exists..."
-          keytool -list -keystore "${KEYSTORE}" -storepass "${ANDROID_KEYSTORE_PASSWORD}" \
-            -alias "${ANDROID_KEY_ALIAS}" >/dev/null \
-            || { echo "::error::Signing-secret consistency error: ANDROID_KEY_ALIAS does not exist in the decoded keystore"; exit 1; }
+          keytool -list -keystore "${KEYSTORE}" -storepass "${TESTAGRAM_RELEASE_KEYSTORE_PASSWORD}" \
+            -alias "${TESTAGRAM_RELEASE_KEY_ALIAS}" >/dev/null \
+            || { echo "::error::Signing-secret consistency error: TESTAGRAM_RELEASE_KEY_ALIAS does not exist in the decoded keystore"; exit 1; }
 
-          echo "Checking that the configured alias contains a private key and that ANDROID_KEY_PASSWORD matches it..."
+          echo "Checking that the configured alias contains a private key and that TESTAGRAM_RELEASE_KEY_PASSWORD matches it..."
           rm -f "${VERIFY_STORE}"
           keytool -importkeystore \
             -srckeystore "${KEYSTORE}" \
-            -srcstorepass "${ANDROID_KEYSTORE_PASSWORD}" \
-            -srcalias "${ANDROID_KEY_ALIAS}" \
-            -srckeypass "${ANDROID_KEY_PASSWORD}" \
+            -srcstorepass "${TESTAGRAM_RELEASE_KEYSTORE_PASSWORD}" \
+            -srcalias "${TESTAGRAM_RELEASE_KEY_ALIAS}" \
+            -srckeypass "${TESTAGRAM_RELEASE_KEY_PASSWORD}" \
             -destkeystore "${VERIFY_STORE}" \
             -deststoretype PKCS12 \
-            -deststorepass "${ANDROID_KEYSTORE_PASSWORD}" \
-            -destkeypass "${ANDROID_KEYSTORE_PASSWORD}" \
+            -deststorepass "${TESTAGRAM_RELEASE_KEYSTORE_PASSWORD}" \
+            -destkeypass "${TESTAGRAM_RELEASE_KEYSTORE_PASSWORD}" \
             -noprompt >/dev/null \
-            || { echo "::error::Signing-secret consistency error: ANDROID_KEY_PASSWORD does not unlock the configured private key (or the alias is not a private-key entry)"; exit 1; }
+            || { echo "::error::Signing-secret consistency error: TESTAGRAM_RELEASE_KEY_PASSWORD does not unlock the configured private key (or the alias is not a private-key entry)"; exit 1; }
 
-          keytool -list -v -keystore "${KEYSTORE}" -storepass "${ANDROID_KEYSTORE_PASSWORD}" \
-            -alias "${ANDROID_KEY_ALIAS}" | grep -q 'Entry type: PrivateKeyEntry' \
+          keytool -list -v -keystore "${KEYSTORE}" -storepass "${TESTAGRAM_RELEASE_KEYSTORE_PASSWORD}" \
+            -alias "${TESTAGRAM_RELEASE_KEY_ALIAS}" | grep -q 'Entry type: PrivateKeyEntry' \
             || { echo "::error::Signing-secret consistency error: configured alias is not a PrivateKeyEntry"; exit 1; }
 
           rm -f "${VERIFY_STORE}"
@@ -156,6 +156,30 @@ jobs:
           sha256sum "${APK}" "${AAB}"
           echo "Artifacts:"
           ls -lh "${APK}" "${AAB}"
+
+      - name: Forensic signing identity gate — compare against known-good production APK
+        working-directory: android
+        env:
+          KNOWN_GOOD_SIGNING_CERT_SHA256: e717827ef5853d0cefa0a4b357709cc9c80fcf15f7cd67555a1bda07513a6ac9
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/release/app-release.apk"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$APKSIGNER"
+          CERT="$( "$APKSIGNER" verify --verbose --print-certs "$APK" 2>&1 | awk -F': ' '/certificate SHA-256 digest:/{print $2; exit}' | tr -d '[:space:]' | tr '[:upper:]' '[:lower:]' )"
+          if [ -z "$CERT" ]; then
+            echo "::error::CERTIFICATE_UNAVAILABLE — could not extract APK signing certificate SHA-256."
+            exit 4
+          fi
+          EXPECTED="$(printf '%s' "$KNOWN_GOOD_SIGNING_CERT_SHA256" | tr '[:upper:]' '[:lower:]' | tr -d ':')"
+          ACTUAL="$(printf '%s' "$CERT" | tr -d ':')"
+          echo "Known-good production signing certificate: $EXPECTED"
+          echo "Current release APK signing certificate:  $ACTUAL"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::MISMATCH — release APK is signed by a different certificate than the known-good production APK."
+            exit 5
+          fi
+          echo "MATCH — release APK uses the known-good production signing identity."
 
       - name: Upload verified Android artifacts
         uses: actions/upload-artifact@v4
