@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check, Loader2, Sparkles, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 
@@ -19,6 +20,7 @@ export function InterestOnboardingSheet() {
   const [show, setShow] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const MIN_SELECTIONS = 3;
 
   useEffect(() => {
     if (!user) return;
@@ -38,27 +40,29 @@ export function InterestOnboardingSheet() {
   };
 
   const handleSave = async () => {
-    if (!user || selectedTags.length < 3) return;
+    if (!user) return;
+    if (selectedTags.length < MIN_SELECTIONS) {
+      toast.error(`Select at least ${MIN_SELECTIONS} topics to personalize your feed`);
+      return;
+    }
+
     setSaving(true);
     try {
-      for (const tag of selectedTags) {
-        let hashtagId: string | null = null;
-        const { data: existing } = await supabase.from('hashtags').select('id').eq('tag', tag).maybeSingle();
-        if (existing?.id) {
-          hashtagId = existing.id;
-        } else {
-          const { data: created } = await supabase.from('hashtags').insert({ tag }).select('id').single();
-          hashtagId = created?.id ?? null;
-        }
-        if (hashtagId) {
-          await supabase.from('user_interests').upsert(
-            { user_id: user.id, hashtag_id: hashtagId, interest_score: 1 },
-            { onConflict: 'user_id,hashtag_id' }
-          ).catch(() => undefined);
-        }
+      const { data: savedCount, error } = await supabase.rpc('save_user_interests', {
+        p_tags: selectedTags,
+      });
+
+      if (error) throw error;
+      if (typeof savedCount !== 'number' || savedCount < MIN_SELECTIONS) {
+        throw new Error('We could not save all of your selected topics. Please try again.');
       }
+
       localStorage.setItem(`ts-interest-onboarded-${user.id}`, '1');
+      toast.success(`Saved ${savedCount} interests! Your feed is now personalised 🎉`);
       setShow(false);
+    } catch (error) {
+      console.error('[InterestOnboarding] Failed to save interests', error);
+      toast.error(error instanceof Error ? error.message : 'Could not save your interests. Please try again.');
     } finally {
       setSaving(false);
     }
