@@ -23,6 +23,10 @@ const OG_IMAGE_BASE = 'https://lrqqpudyrkmitbeilrqq.backend.onspace.ai/functions
 const DEFAULT_IMAGE = `${BASE_URL}/og-image.jpg`;
 const SITE_NAME = 'Testagram';
 
+function isPrivateRoute(pathname: string): boolean {
+  return /^\/(?:auth|messages|notifications|wallet|settings|bookmarks|history|scheduled|payouts|creator-studio|monetization|analytics|verify|referral|rewards|platform-inbox|interests|notification-preferences|lists|my-ads|create-ad|start-stream|ad-analytics|ad-performance|post-analytics|boost-analytics|boost-create|admin|fraud-detection|seo-audit|staff|regulator|team-chat|appeals|orders|sessions|blocked|daily-rewards|wishlist|call)(?:\/|$)/.test(pathname);
+}
+
 export function buildOgImageUrl(params: { username?: string; thread?: string; community?: string; tag?: string; post?: string }): string {
   const p = new URLSearchParams();
   if (params.username) p.set('username', params.username);
@@ -68,7 +72,8 @@ export function useSEO({ title, description, image, url, type = 'website', struc
     const fullDesc = description || 'Post short videos, join communities, earn from your content, and connect with people worldwide on Testagram.';
     const fullImage = image || DEFAULT_IMAGE;
     const fullUrl = url ? (url.startsWith('http') ? url : `${BASE_URL}${url}`) : BASE_URL;
-    const robots = noindex ? 'noindex, nofollow' : 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1';
+    const effectiveNoindex = noindex || (typeof window !== 'undefined' && isPrivateRoute(window.location.pathname));
+    const robots = effectiveNoindex ? 'noindex, nofollow' : 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1';
     document.title = fullTitle;
     const putMeta = (attr: 'name' | 'property', key: string, value: string) => metaStates.push(setMeta(attr, key, value));
     putMeta('name', 'description', fullDesc); putMeta('name', 'robots', robots);
