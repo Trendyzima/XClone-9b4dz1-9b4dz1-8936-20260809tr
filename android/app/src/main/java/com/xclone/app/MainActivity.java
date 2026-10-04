@@ -38,7 +38,10 @@ public final class MainActivity extends AppCompatActivity {
     private static final String APP_URL = "https://www.testagram.site/";
     private static final int FILE_PICKER = 4101;
     private static final int MEDIA_PERMISSIONS = 4102;
+    private static final int LOCATION_PERMISSION = 4104;
     private ValueCallback<Uri[]> fileCallback;
+    private android.webkit.GeolocationPermissions.Callback geolocationCallback;
+    private String geolocationOrigin;
     private WebView webView;
     private final Handler systemBarHandler = new Handler(Looper.getMainLooper());
     private final Runnable rehideSystemBars = this::enterImmersiveFullscreen;
@@ -167,6 +170,16 @@ public final class MainActivity extends AppCompatActivity {
         });
 
         web.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public void onGeolocationPermissionsShowPrompt(String origin, android.webkit.GeolocationPermissions.Callback callback) {
+                geolocationOrigin = origin;
+                geolocationCallback = callback;
+                boolean granted = ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                        || ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+                if (granted) { callback.invoke(origin, true, false); geolocationCallback = null; geolocationOrigin = null; }
+                else ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION}, LOCATION_PERMISSION);
+            }
+
             @Override
             public void onPermissionRequest(PermissionRequest request) {
                 runOnUiThread(() -> {
@@ -358,6 +371,11 @@ public final class MainActivity extends AppCompatActivity {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == MEDIA_PERMISSIONS && webView != null) {
             webView.reload();
+        } else if (requestCode == LOCATION_PERMISSION && geolocationCallback != null) {
+            boolean granted = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                    || ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED;
+            geolocationCallback.invoke(geolocationOrigin, granted, false);
+            geolocationCallback = null; geolocationOrigin = null;
         }
     }
 
