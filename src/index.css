@@ -360,3 +360,49 @@ html[data-tg-platform="android"] .tg-card:hover {
     transition-property: background-color, border-color, opacity, box-shadow;
   }
 }
+
+
+/* ── Flutter-feel rigid shell contract ───────────────────────────────────
+   Shared interaction primitives for web + Android WebView. Keep surfaces
+   bounded, touch targets stable, safe-area aware and motion deterministic. */
+:root {
+  --tg-motion-fast: 140ms;
+  --tg-motion-standard: 220ms;
+  --tg-ease: cubic-bezier(.2,.8,.2,1);
+  --tg-control-min: 44px;
+  --tg-radius-shell: 20px;
+}
+.tg-rigid-shell {
+  position: relative;
+  isolation: isolate;
+  contain: layout paint style;
+  overscroll-behavior: contain;
+  -webkit-tap-highlight-color: transparent;
+}
+.tg-touch-control {
+  min-width: var(--tg-control-min);
+  min-height: var(--tg-control-min);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+  transition: transform var(--tg-motion-fast) var(--tg-ease), background-color var(--tg-motion-fast) ease, box-shadow var(--tg-motion-fast) ease;
+}
+.tg-touch-control:active { transform: scale(.96); }
+.tg-surface {
+  background: hsl(var(--card) / .96);
+  border: 1px solid hsl(var(--border) / .78);
+  border-radius: var(--tg-radius-shell);
+  box-shadow: var(--tg-elevation-1, 0 8px 30px -24px hsl(0 0% 0% / .45));
+}
+.tg-topbar { min-height: calc(64px + env(safe-area-inset-top, 0px)); padding-top: env(safe-area-inset-top, 0px); }
+.tg-bottomnav { padding-bottom: env(safe-area-inset-bottom, 0px); min-height: calc(64px + env(safe-area-inset-bottom, 0px)); }
+.tg-bottomnav-inner { min-height: 64px; }
+.tg-drawer-surface { border-radius: 0 24px 24px 0; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+.tg-fab { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); right: max(16px, env(safe-area-inset-right, 0px)); }
+@media (prefers-reduced-motion: reduce) {
+  .tg-touch-control { transition: none; }
+  .tg-touch-control:active { transform: none; }
+}
