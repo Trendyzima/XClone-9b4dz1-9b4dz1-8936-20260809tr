@@ -105,7 +105,9 @@ public final class MainActivity extends AppCompatActivity {
         settings.setLoadWithOverviewMode(false);
         // Honor Testagram's responsive viewport meta exactly as Chrome mobile does.
         settings.setUseWideViewPort(true);
-        settings.setCacheMode(WebSettings.LOAD_DEFAULT);\n        // Version the canonical entry URL so an installed APK cannot get stuck on a\n        // previously cached service-worker navigation response after a web release.\n        // Cookies/local storage remain intact, so authentication is not discarded.
+        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        // Keep the canonical origin while allowing fresh navigation after web releases.
+        // Cookies and local storage remain intact, so authentication is preserved.
         // Present the canonical site as a normal mobile Chrome browser rather than an
         // Android WebView. Some production web stacks suppress/alter rendering when the
         // WebView-only "wv" marker is present, which can make the homepage appear blank.
