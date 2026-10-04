@@ -17,9 +17,11 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
   const retryCountRef = useRef(0);
   const retryingRef = useRef(false);
   const lastSrcRef = useRef('');
+  const mountedRef = useRef(true);
   const [recovering, setRecovering] = useState(false);
   const [fatalError, setFatalError] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
+  const [showPlayFallback, setShowPlayFallback] = useState(false);
 
   const setVideoElement = useCallback((node: HTMLVideoElement | null) => {
     videoRef.current = node;
@@ -39,14 +41,15 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
 
   const play = useCallback(async () => {
     const video = videoRef.current;
-    if (!video || !active || !src) return;
+    if (!video || !active || !src || document.visibilityState !== 'visible') return;
     try {
       await video.play();
+      if (mountedRef.current) setShowPlayFallback(false);
       retryCountRef.current = 0;
       retryingRef.current = false;
       setRecovering(false);
     } catch {
-      // Autoplay policy can reject; user interaction will retry.
+      if (mountedRef.current && active) setShowPlayFallback(true);
     }
   }, [active, src]);
 
@@ -90,6 +93,7 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
     retryingRef.current = false;
     setRecovering(false);
     setFatalError(false);
+    setShowPlayFallback(false);
     lastSrcRef.current = src;
 
     if (!src) {
@@ -135,13 +139,17 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
       hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(src));
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (!data.fatal) return;
-        setFatalError(true);
-        if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+        if (data.type === Hls.ErrorTypes.MEDIA_ERROR && retryCountRef.current < retryLimit) {
           hls.recoverMediaError();
-          window.setTimeout(() => setFatalError(false), 500);
-        } else {
-          recover();
+          setRecovering(true);
+          return;
         }
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR && retryCountRef.current < retryLimit) {
+          recover();
+          return;
+        }
+        setFatalError(true);
+        setRecovering(false);
       });
       hls.attachMedia(video);
     } else if (isHls(src) && video.canPlayType('application/vnd.apple.mpegurl')) {
@@ -156,7 +164,12 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
       cleanupHls();
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
     };
-  }, [cleanupHls, isHls, recover, retryNonce, src]);
+  }, [cleanupHls, isHls, recover, retryLimit, retryNonce, src]);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   // Reels-style playback discipline: only the visible card may consume a decoder.
   // The feed already supplies the active flag, while this observer protects against
@@ -225,15 +238,18 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
   }, [active, onPlaying, onStalled, onWaiting, play, recover]);
 
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full overflow-hidden bg-black select-none" style={{ touchAction: 'pan-y' }}>
       <video
+        {...props}
         ref={setVideoElement}
         autoPlay={active}
         playsInline
         disablePictureInPicture
+        muted={props.muted ?? true}
+        disablePictureInPicture
         preload={props.preload ?? (active ? 'auto' : 'metadata')}
-        {...props}
         controls={props.controls ?? false}
+        draggable={false}
         onPause={onPause}
         onTimeUpdate={onTimeUpdate}
         onPlaying={onPlaying}
