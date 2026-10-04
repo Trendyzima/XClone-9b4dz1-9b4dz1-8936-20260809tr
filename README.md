@@ -23,6 +23,11 @@ Downloadable Android builds are listed below by version. Each entry links direct
 
 > **Publishing rule:** Every successfully signed and verified APK should be added here as a versioned release entry. Failed builds are not presented as downloadable versions.
 
+
+## CI signing
+
+Android CI builds use an ephemeral per-run signing identity; no reusable CI signing secret is required.
+
 ## What is Testagram?
 
 Testagram is a responsive social ecosystem built around user publishing and discovery. It brings together social posts and threads, short-form video, communities, live experiences, creator tools, monetization, wallet/payment flows, commerce, Fediverse discovery, publisher/RSS content, and an in-product Help Center.
