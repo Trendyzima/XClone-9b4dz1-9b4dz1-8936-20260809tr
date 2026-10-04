@@ -59,95 +59,16 @@ jobs:
           run-id: ${{ steps.build.outputs.run_id }}
           github-token: ${{ github.token }}
 
-      - name: Locate and publish APK
-        shell: bash
-        run: |
-          set -euo pipefail
-          APK="$(find /tmp/testagram-artifact -type f -name 'app-release.apk' -print -quit)"
-          test -n "$APK"
-          mkdir -p downloads
-          cp "$APK" downloads/Testagram.apk
-          sha256sum downloads/Testagram.apk > downloads/Testagram.apk.sha256
-
-      - name: Update README APK version history
+      - name: Verify release artifact
         shell: bash
         env:
           BUILD_RUN_ID: "${{ steps.build.outputs.run_id }}"
-          BUILD_CREATED_AT: "${{ steps.build.outputs.created_at }}"
           BUILD_COMMIT: "${{ steps.build.outputs.head_sha }}"
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          from datetime import datetime, timezone, timedelta
-          from pathlib import Path
-          import os, re
-          repo = "Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr"
-          p = Path("README.md")
-          s = p.read_text()
-          marker = "## 📱 Testagram Android APK"
-          start = s.index(marker)
-          end = s.index("\n## What is Testagram?", start)
-          dt = datetime.fromisoformat(os.environ["BUILD_CREATED_AT"].replace("Z", "+00:00"))
-          created = dt.astimezone(timezone(timedelta(hours=3))).strftime("%Y-%m-%d %H:%M EAT")
-          run_id = os.environ["BUILD_RUN_ID"]
-          commit = os.environ["BUILD_COMMIT"]
-          gradle = Path("android/app/build.gradle").read_text()
-          match = re.search(r'versionName\s+"([^"]+)"', gradle)
-          version = match.group(1) if match else "unknown"
-          apk_url = "https://github.com/" + repo + "/raw/refs/heads/main/downloads/Testagram.apk"
-          checksum_url = "https://github.com/" + repo + "/blob/main/downloads/Testagram.apk.sha256"
-          run_url = "https://github.com/" + repo + "/actions/runs/" + run_id
-          old = s[start:end]
-          rows = [x for x in old.splitlines() if x.startswith("| **v") or x.startswith("| **Latest verified build**")]
-          rows = [x for x in rows if not x.startswith("| **v" + version + "**")]
-          rows.insert(0, "| **v" + version + "** | ✅ Verified | " + created + " | [⬇️ Download APK](" + apk_url + ") | [Actions run #" + run_id + "](" + run_url + ") · " + commit + " |")
-          lines = ["## 📱 Testagram Android APK","","Live APK version history — updated automatically after every successful Android release. All build times are shown in **East Africa Time (EAT, UTC+3)**.","","### APK versions","","| Version | Status | Created (EAT) | APK | Build details |","|---|---|---|---|---|"] + rows + ["","### Always-current download","","**[⬇️ Download latest verified Testagram APK](" + apk_url + ")**","","**[SHA-256 checksum](" + checksum_url + ")**","","**Latest:** v" + version + " · " + created + " · commit `" + commit + "` · [Actions run #" + run_id + "](" + run_url + ")","","_Only successfully signed and apksigner-verified builds are published._",""]
-          p.write_text(s[:start] + "\n".join(lines) + s[end:])
-          PY
-      - name: Commit APK and README
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          # Stage and commit first: an uncommitted APK makes git pull --rebase refuse to run.
-          # Once committed locally, rebase onto the latest main and retry the push.
-          git add README.md downloads/Testagram.apk downloads/Testagram.apk.sha256
-          if git diff --cached --quiet; then
-            echo "No APK/README publication changes to commit."
-            exit 0
-          fi
-
-          git commit -m "chore(android): publish Testagram APK download"
-
-          for attempt in 1 2 3; do
-            if git pull --rebase origin main; then
-              :
-            else
-              conflicts="$(git diff --name-only --diff-filter=U)"
-              if [[ -n "$conflicts" ]] && ! grep -Ev "^(README\.md|downloads/Testagram\.apk|downloads/Testagram\.apk\.sha256)$" <<<"$conflicts" | grep -q .; then
-                echo "Resolving expected APK publication conflicts in favor of the newly generated publication."
-                while IFS= read -r conflict; do
-                  [[ -n "$conflict" ]] || continue
-                  git checkout --theirs -- "$conflict"
-                  git add -- "$conflict"
-                done <<<"$conflicts"
-                GIT_EDITOR=true git -c core.merge.conflictstyle=merge rebase --continue
-              else
-                git rebase --abort || true
-                echo "::error::Unexpected main-branch conflict during APK publication."
-                exit 1
-              fi
-            fi
-
-            if git push origin HEAD:refs/heads/main; then
-              echo "APK publication commit pushed successfully on attempt ${attempt}."
-              exit 0
-            fi
-            if (( attempt == 3 )); then
-              echo "::error::Could not push APK publication after ${attempt} attempts."
-              exit 1
-            fi
-            echo "Main advanced during APK publication; retrying rebase/push."
-          done
+          APK="$(find /tmp/testagram-artifact -type f -name "app-release.apk" -print -quit)"
+          test -n "$APK"
+          test -s "$APK"
+          sha256sum "$APK"
+          echo "Verified APK artifact from Android run ${BUILD_RUN_ID} (${BUILD_COMMIT})."
+          echo "The GitHub Release produced by Testagram Android Release is the canonical download surface; this workflow intentionally does not mutate main."
