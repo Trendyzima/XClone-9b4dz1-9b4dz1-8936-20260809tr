@@ -22,8 +22,12 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
 
-        <!-- Fullscreen -->
-        <item name="android:windowFullscreen">true</item>
+        <!-- The splash must hand off cleanly into the same edge-to-edge window as the site. -->
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowLayoutInDisplayCutoutMode">always</item>
 
         <!-- Enable hardware acceleration -->
         <item name="android:hardwareAccelerated">true</item>
