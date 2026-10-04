@@ -6,6 +6,8 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.webkit.CookieManager;
 import android.webkit.PermissionRequest;
 import android.webkit.ValueCallback;
@@ -38,6 +40,8 @@ public final class MainActivity extends AppCompatActivity {
     private static final int MEDIA_PERMISSIONS = 4102;
     private ValueCallback<Uri[]> fileCallback;
     private WebView webView;
+    private final Handler systemBarHandler = new Handler(Looper.getMainLooper());
+    private final Runnable rehideSystemBars = this::enterImmersiveFullscreen;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -53,6 +57,18 @@ public final class MainActivity extends AppCompatActivity {
         WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView())
                 .setAppearanceLightNavigationBars(false);
         enterImmersiveFullscreen();
+        // If Android temporarily reveals the physical status/navigation bars, allow the
+        // user a short navigation gesture window, then return to immersive mode. This
+        // prevents a revealed system bar from becoming a persistent dark strip around
+        // the WebView while still allowing intentional system navigation.
+        ViewCompat.setOnApplyWindowInsetsListener(getWindow().getDecorView(), (view, insets) -> {
+            if (insets.isVisible(WindowInsetsCompat.Type.systemBars())
+                    && !insets.isVisible(WindowInsetsCompat.Type.ime())) {
+                systemBarHandler.removeCallbacks(rehideSystemBars);
+                systemBarHandler.postDelayed(rehideSystemBars, 1200L);
+            }
+            return insets;
+        });
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             getWindow().setNavigationBarContrastEnforced(false);
             getWindow().setStatusBarContrastEnforced(false);
@@ -367,6 +383,7 @@ public final class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        systemBarHandler.removeCallbacks(rehideSystemBars);
         if (webView != null) {
             webView.stopLoading();
             webView.setWebChromeClient(null);
