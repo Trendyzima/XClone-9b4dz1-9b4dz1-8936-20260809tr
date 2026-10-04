@@ -1,4 +1,5 @@
 import { DEPLOYED_COMMIT_SHA } from './deployment-meta';
+import homeFeed from '../api/home-feed';
 
 const SUPABASE_ORIGIN = 'https://ffrhglgkukgsuhxenena.supabase.co';
 
@@ -128,6 +129,15 @@ function commonHeaders(headers = new Headers()) {
 }
 
 async function invokeEdge(pathname: string, request: Request, env: Env) {
+  // Home feed is a production-critical public contract. Keep it statically bundled
+  // instead of relying on a runtime dynamic import inside the Worker isolate.
+  // This avoids a class of deployed-runtime module-resolution failures that can
+  // surface only as the Worker's generic 500 handler.
+  if (pathname === '/api/home-feed') {
+    setRuntimeEnv(env, (env as any).TESTAGRAM_COMMIT_SHA);
+    return homeFeed(request);
+  }
+
   const modulePath = EDGE_ROUTES[pathname];
   if (!modulePath) return null;
   setRuntimeEnv(env, (env as any).TESTAGRAM_COMMIT_SHA);
