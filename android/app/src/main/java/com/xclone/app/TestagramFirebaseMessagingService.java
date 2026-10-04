@@ -1,16 +1,20 @@
 package com.xclone.app;
 
+import android.Manifest;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.os.Build;
 
 import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
+import androidx.core.content.ContextCompat;
 
 import com.google.firebase.messaging.FirebaseMessagingService;
 import com.google.firebase.messaging.RemoteMessage;
@@ -83,10 +87,23 @@ public final class TestagramFirebaseMessagingService extends FirebaseMessagingSe
                 .setAutoCancel(true)
                 .setContentIntent(pendingIntent);
 
-        NotificationManagerCompat.from(this).notify(
-                ThreadLocalRandom.current().nextInt(1, Integer.MAX_VALUE),
-                builder.build()
-        );
+        NotificationManagerCompat notificationManager = NotificationManagerCompat.from(this);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED) {
+            return;
+        }
+        if (!notificationManager.areNotificationsEnabled()) {
+            return;
+        }
+        try {
+            notificationManager.notify(
+                    ThreadLocalRandom.current().nextInt(1, Integer.MAX_VALUE),
+                    builder.build()
+            );
+        } catch (SecurityException ignored) {
+            // Notification permission can change between the check and notify().
+        }
     }
 
     private void ensureNotificationChannel() {
