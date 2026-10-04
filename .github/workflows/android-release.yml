@@ -2,6 +2,7 @@ name: Testagram Android Release
 # CI uses temporary signing while production signing is intentionally disabled.
 # APK publication is finalized by publish-testagram-apk after this verified build completes.
 # Publisher commit ordering is now verified against concurrent main updates.
+# Expected README/APK rebase conflicts are now auto-resolved by the publisher.
 # Release build is the verified source for the APK publisher.
 
 on:
