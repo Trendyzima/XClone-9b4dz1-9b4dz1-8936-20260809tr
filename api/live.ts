@@ -1,7 +1,7 @@
 export const config={runtime:"edge"};
 const env=(n:string,f="")=>{const g=globalThis as any;return g.process?.env?.[n]||f};
 const url=(env("SUPABASE_URL",env("VITE_SUPABASE_URL"))).replace(/\/$/,""),key=env("SUPABASE_PUBLISHABLE_KEY",env("SUPABASE_ANON_KEY",env("VITE_SUPABASE_PUBLISHABLE_KEY",env("VITE_SUPABASE_ANON_KEY"))));
-const json=(b:unknown,s=200,cacheControl="no-store")=>new Response(JSON.stringify(b),{status:s,headers:{"Content-Type":"application/json","Cache-Control":cacheControl,"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, content-type","Access-Control-Allow-Methods":"GET, POST, OPTIONS"}});
+const json=(b:unknown,s=200,cacheControl="no-store")=>new Response(JSON.stringify(b),{status:s,headers:{"Content-Type":"application/json","Cache-Control":cacheControl,"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, content-type, x-client-info, x-request-id","Access-Control-Allow-Methods":"GET, POST, OPTIONS","Vary":"Origin"}});
 export default async function handler(req:Request){
  if(req.method==="OPTIONS")return json({ok:true});
  const isGet=req.method==="GET";
