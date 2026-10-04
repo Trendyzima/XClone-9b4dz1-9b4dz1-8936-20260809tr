@@ -225,6 +225,8 @@ export default function CommunityPage({ section, standalone = false }: { section
   }, []);
 
   // Chat state
+  const isAdmin = ['owner', 'moderator'].includes(userRole);
+
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [chatInput, setChatInput] = useState('');
   // @mention autocomplete state
@@ -741,7 +743,6 @@ export default function CommunityPage({ section, standalone = false }: { section
   if (!community) return null;
 
   const isOwner = userRole === 'owner';
-  const isAdmin = ['owner', 'moderator'].includes(userRole);
   const canSeeContent = !community.is_private || isMember;
   const onlineMembersEstimate = Math.max(1, Math.floor(community.member_count * 0.04));
 
