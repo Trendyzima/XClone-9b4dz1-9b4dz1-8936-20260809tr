@@ -149,10 +149,14 @@ export default async function handler(request: RequestLike) {
     // Following is a first-class feed lane. A successful local or federated follow
     // must immediately influence what the user sees; it must not wait for a
     // recommendation batch or a model refresh.
-    const { data: localFollowRows, error: localFollowError } = await admin
-      .from('follows')
-      .select('following_id,status')
-      .eq('follower_id', auth.id);
+    // Anonymous WebView sessions are valid for the public home feed. Only query
+    // private follow relationships when a verified Supabase user is present.
+    const { data: localFollowRows, error: localFollowError } = auth
+      ? await admin
+          .from('follows')
+          .select('following_id,status')
+          .eq('follower_id', auth.id)
+      : { data: [], error: null };
     if (localFollowError) console.warn('[home-feed] local follows', localFollowError);
     const followedLocalIds = [...new Set((localFollowRows || [])
       .filter((row: any) => !row.status || ['accepted','active','following'].includes(String(row.status).toLowerCase()))
