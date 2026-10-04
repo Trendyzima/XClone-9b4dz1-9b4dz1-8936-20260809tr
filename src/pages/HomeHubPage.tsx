@@ -141,17 +141,68 @@ export default function HomeHubPage(){
       const token = (await supabase.auth.getSession()).data.session?.access_token;
       const params = new URLSearchParams({ limit: '6', includeFederated: includeFederated ? '1' : '0' });
       if (cursorOverride) params.set('before', cursorOverride);
-      const response = await fetch('/api/home-feed?'+params.toString(), {
-        headers: token ? { Authorization: 'Bearer '+token } : {},
-      });
-      if (!response.ok) throw new Error('Home edge feed unavailable');
-      const payload = await response.json();
-      const next = Array.isArray(payload?.items) ? payload.items : [];
-      if (target === 'all') {
-        setNextCursor(payload?.nextCursor ?? null); nextCursorRef.current=payload?.nextCursor ?? null;
-        setHasMore(Boolean(payload?.hasMore) && next.length > 0);
+
+      // The edge aggregator is the preferred source because it blends local,
+      // following, recommendations, threads and federation. Android WebView
+      // environments can occasionally fail an edge request even while the
+      // canonical Supabase API is healthy. Never turn a transient aggregator
+      // failure into an empty Home/For You screen: fall back to the same public
+      // local data the canonical web UI can render.
+      try {
+        const response = await fetch('/api/home-feed?'+params.toString(), {
+          headers: token ? { Authorization: 'Bearer '+token } : {},
+          cache: 'no-store',
+        });
+        if (response.ok) {
+          const payload = await response.json();
+          const next = Array.isArray(payload?.items) ? payload.items : [];
+          if (next.length > 0 || cursorOverride) {
+            setNextCursor(payload?.nextCursor ?? null); nextCursorRef.current=payload?.nextCursor ?? null;
+            setHasMore(Boolean(payload?.hasMore) && next.length > 0);
+            return next.map((item:any)=>({ type:item.type, data:item.data })) as Item[];
+          }
+        }
+      } catch (error) {
+        console.warn('[home-hub] edge feed unavailable; using direct public fallback', error);
       }
-      return next.map((item:any)=>({ type:item.type, data:item.data })) as Item[];
+
+      const fallbackLimit = 12;
+      let fallbackPosts = supabase.from('posts')
+        .select('*, '+profileSelect)
+        .is('community_id', null)
+        .is('deleted_at', null)
+        .order('created_at', {ascending:false})
+        .range(0, fallbackLimit-1);
+      if (cursorOverride) {
+        // The aggregator cursor is opaque, so do not guess a created_at value
+        // from it. A fresh first page is safer than rendering an empty feed.
+        fallbackPosts = supabase.from('posts')
+          .select('*, '+profileSelect)
+          .is('community_id', null)
+          .is('deleted_at', null)
+          .order('created_at', {ascending:false})
+          .range(0, fallbackLimit-1);
+      }
+      const fallbackThreads = supabase.from('threads')
+        .select('*')
+        .eq('visibility','public')
+        .is('deleted_at',null)
+        .order('created_at',{ascending:false})
+        .range(0, fallbackLimit-1);
+      const [{data:postData,error:postError},{data:threadData,error:threadError}] =
+        await Promise.all([fallbackPosts,fallbackThreads]);
+      if (postError) console.warn('[home-hub] direct post fallback', postError);
+      if (threadError) console.warn('[home-hub] direct thread fallback', threadError);
+
+      const fallbackItems: Item[] = [
+        ...(postData ?? []).map((post:any)=>({type:'post' as const,data:post})),
+        ...(threadData ?? []).map((thread:any)=>({type:'thread' as const,data:thread})),
+      ].sort((a,b)=>Date.parse(String(b.data?.created_at??''))-Date.parse(String(a.data?.created_at??'')));
+
+      setNextCursor(null);
+      nextCursorRef.current=null;
+      setHasMore(fallbackItems.length > 6);
+      return fallbackItems.slice(0, fallbackLimit);
     }
 
     let query=supabase.from('posts').select('*, '+profileSelect).is('community_id',null).is('deleted_at',null);
