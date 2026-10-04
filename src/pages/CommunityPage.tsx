@@ -370,13 +370,13 @@ export default function CommunityPage({ section, standalone = false }: { section
   }, [community, isMember, triggerFloat, fetchChat]);
 
   const handlePinChatMessage = useCallback(async (msgId: string) => {
-    if (!community || !isAdmin) return;
+    if (!community || !['owner', 'moderator'].includes(userRole)) return;
     try {
       const { error } = await supabase.rpc('toggle_community_chat_pin', { p_message_id: msgId });
       if (error) throw error;
       setShowRoleMenu(null); await fetchChat();
     } catch (error: any) { sonnerToast.error(error?.message || 'Could not update pin'); }
-  }, [community, isAdmin, fetchChat]);
+  }, [community, userRole, fetchChat]);
 
   useEffect(() => { if (section) setActiveTab(section); }, [section]);
 
