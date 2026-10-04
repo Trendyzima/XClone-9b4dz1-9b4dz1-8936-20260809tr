@@ -57,8 +57,7 @@ begin
   return jsonb_build_object('message_id',target_id,'source_message_id',p_message_id,'forwarded',true);
 end;
 $$;
-revoke all on function public.testagram_forward_message(uuid,uuid) from public,anon;
-grant execute on function public.testagram_forward_message(uuid,uuid) to authenticated;
+revoke all on function public.testagram_forward_message(uuid,uuid) from public,anon,authenticated;
 
 create table if not exists public.community_chat_reactions (
   message_id uuid not null references public.community_chat(id) on delete cascade,
