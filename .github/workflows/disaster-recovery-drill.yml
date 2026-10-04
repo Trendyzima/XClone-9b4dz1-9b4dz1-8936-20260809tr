@@ -29,13 +29,14 @@ jobs:
       - name: Rebuild schema from zero
         run: supabase db reset --local --no-seed
       - name: Export rebuilt schema
-        run: supabase db dump --local -f /tmp/testagram-recovery-schema.sql
+        run: supabase db dump --local --schema public -f /tmp/testagram-recovery-schema.sql
       - name: Verify recovery artifact
         run: |
           set -euo pipefail
           test -s /tmp/testagram-recovery-schema.sql
-          grep -q 'notification_push_config' /tmp/testagram-recovery-schema.sql
-          echo 'Repository migration recovery drill passed.'
+          grep -Eqi 'create table( if not exists)? public\.notification_push_config|create table( if not exists)? "public"\."notification_push_config"' /tmp/testagram-recovery-schema.sql
+          grep -Eqi 'create table( if not exists)? public\.push_subscriptions|create table( if not exists)? "public"\."push_subscriptions"' /tmp/testagram-recovery-schema.sql
+          echo 'Repository migration recovery drill passed: notification push schema rebuilt from zero.'
       - name: Stop local Supabase
         if: always()
         run: supabase stop --no-backup
