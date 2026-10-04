@@ -4,7 +4,7 @@ const DEFAULT_SUPABASE_URL = 'https://ffrhglgkukgsuhxenena.supabase.co';
 const DEFAULT_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya';
 
 const configuredSupabaseUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
-const configuredPublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim();
+const configuredPublishableKey = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY)?.trim();
 
 // The backend identity is environment-selectable so the same web/desktop/Android
 // build can be pointed at a compatible Supabase backend during a controlled
@@ -12,6 +12,9 @@ const configuredPublishableKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY?.
 export const supabaseUrl = configuredSupabaseUrl || DEFAULT_SUPABASE_URL;
 export const supabasePublishableKey =
   configuredPublishableKey || DEFAULT_SUPABASE_PUBLISHABLE_KEY;
+// Compatibility alias for older feature modules. Keep one canonical browser key
+// so direct Supabase/Edge requests cannot silently send an empty apikey.
+export const supabaseAnonKey = supabasePublishableKey;
 
 export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   auth: {
