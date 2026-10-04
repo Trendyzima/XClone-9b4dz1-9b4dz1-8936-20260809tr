@@ -115,6 +115,11 @@ Allow: /
 Sitemap: https://testagram.site/sitemap.xml
 Sitemap: https://testagram.site/sitemap-static.xml
 Sitemap: https://testagram.site/api/sitemap-users
+Sitemap: https://testagram.site/api/sitemap-posts
+Sitemap: https://testagram.site/api/sitemap-threads
 Sitemap: https://testagram.site/api/sitemap-community
+
+# Search crawlers are explicitly allowed to discover all public content.
+# Private/admin routes remain blocked above; public profile/post/community URLs are indexable.
 
 Crawl-delay: 1
