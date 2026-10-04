@@ -125,8 +125,11 @@ export default async function handler(request: RequestLike) {
   const started = Date.now();
 
   try {
+    // Home is a public discovery surface. Authentication enriches the feed with
+    // follows/recommendations, but must never be a prerequisite for rendering
+    // public posts, threads, or stored Fediverse content.
     const auth = await authenticate(request);
-    if (!auth || !SUPABASE_SERVICE_ROLE_KEY) return json({ error: 'Authentication required' }, 401);
+    if (!SUPABASE_SERVICE_ROLE_KEY) return json({ error: 'Home feed backend is not configured' }, 503);
 
     const url = new URL(requestUrl(request));
     const limit = Math.max(4, Math.min(8, Math.floor(Number(url.searchParams.get('limit') || 6))));
@@ -157,10 +160,12 @@ export default async function handler(request: RequestLike) {
       .filter(Boolean))];
 
     const sourceLimit = Math.max(6, Math.ceil(limit * 2));
-    const recommendationQuery = admin.from('content_recommendations')
-      .select('recommended_post_id,score,reason,source')
-      .eq('user_id', auth.id).eq('shown', false)
-      .order('score', { ascending: false }).limit(sourceLimit);
+    const recommendationQuery = auth
+      ? admin.from('content_recommendations')
+        .select('recommended_post_id,score,reason,source')
+        .eq('user_id', auth.id).eq('shown', false)
+        .order('score', { ascending: false }).limit(sourceLimit)
+      : Promise.resolve({ data: [], error: null });
 
     const postsQuery = admin.from('posts')
       .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
@@ -198,7 +203,9 @@ export default async function handler(request: RequestLike) {
           const timer = setTimeout(() => controller.abort(), 2500);
           try {
             const response = await fetch(SUPABASE_URL + '/functions/v1/federated-feed?' + fedQuery, {
-              headers: { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + auth.token },
+              headers: auth
+                ? { apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + auth.token }
+                : { apikey: SUPABASE_ANON_KEY },
               signal: controller.signal,
             });
             if (!response.ok) return { items: [], pagination: { hasMore: false, nextCursor: null } };
