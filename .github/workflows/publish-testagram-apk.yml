@@ -87,4 +87,5 @@ jobs:
             exit 0
           fi
           git commit -m "chore(android): publish Testagram APK download"
+          git pull --rebase origin main
           git push origin HEAD:main
