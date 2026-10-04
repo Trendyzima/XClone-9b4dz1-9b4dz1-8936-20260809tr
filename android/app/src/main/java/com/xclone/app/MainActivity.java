@@ -321,7 +321,7 @@ public final class MainActivity extends AppCompatActivity {
 
         Uri uri = url == null ? intent.getData() : Uri.parse(url);
         if (isTrustedTestagramUrl(uri)) {
-            webView.loadUrl(uri.toString());
+            webView.loadUrl(canonicalTestagramUrl(uri).toString());
             intent.removeExtra(TestagramFirebaseMessagingService.EXTRA_PUSH_URL);
             intent.removeExtra("url");
             intent.removeExtra("deep_link");
@@ -337,6 +337,11 @@ public final class MainActivity extends AppCompatActivity {
         String host = uri.getHost();
         return "https".equalsIgnoreCase(scheme)
                 && ("testagram.site".equalsIgnoreCase(host) || "www.testagram.site".equalsIgnoreCase(host));
+    }
+
+    private static Uri canonicalTestagramUrl(Uri uri) {
+        if (uri == null || !"www.testagram.site".equalsIgnoreCase(uri.getHost())) return uri;
+        return uri.buildUpon().authority("testagram.site").build();
     }
 
     private static String firstNonBlank(String... values) {
