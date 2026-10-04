@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Menu, Home, Hash, Bell, Mail, Radio, Sparkles, Bookmark, List, History,
   Briefcase, BarChart3, DollarSign, ShoppingBag, Calendar, Crown, LogOut,
@@ -100,9 +101,9 @@ export function MobileSidebarDrawer() {
         <Menu className="w-6 h-6" />
       </Button>
 
-      {open && (
+      {open && typeof document !== 'undefined' && createPortal(
         <div
-          className="fixed inset-0 z-[9998] lg:hidden"
+          className="fixed inset-0 z-[2147483000] lg:hidden"
           role="presentation"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) setOpen(false);
@@ -113,8 +114,9 @@ export function MobileSidebarDrawer() {
             role="dialog"
             aria-modal="true"
             aria-label="Testagram navigation"
-            className="tg-drawer-surface fixed inset-y-0 left-0 z-[9999] flex w-[min(300px,85vw)] flex-col overflow-hidden bg-background shadow-2xl"
+            className="tg-drawer-surface fixed inset-y-0 left-0 z-[2147483001] flex w-[min(300px,85vw)] flex-col overflow-hidden bg-background shadow-2xl"
             onMouseDown={(event) => event.stopPropagation()}
+          > event.stopPropagation()}
           >
         {/* ── User card ─────────────────────────────────────────────────────── */}
         {user ? (
@@ -229,8 +231,10 @@ export function MobileSidebarDrawer() {
             </Button>
           )}
         </div>
+          
           </aside>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
