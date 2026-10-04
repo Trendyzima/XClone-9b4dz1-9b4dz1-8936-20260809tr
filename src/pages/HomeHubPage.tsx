@@ -6,7 +6,7 @@ import { PollCard as FeedPollCard } from '@/components/features/PollCard';
 import { ThreadCard } from '@/components/features/ThreadCard';
 
 import { TopBar } from '@/components/layout/TopBar';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabasePublishableKey } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { useSEO } from '@/hooks/useSEO';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
@@ -111,7 +111,7 @@ export default function HomeHubPage(){
       const response = await fetch((import.meta.env.VITE_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co') + '/functions/v1/federated-feed?' + params.toString(), {
         headers: {
           Authorization: 'Bearer ' + token,
-          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY || '',
+          apikey: supabasePublishableKey,
         },
       });
       if(!response.ok) throw new Error('Federated feed unavailable');
