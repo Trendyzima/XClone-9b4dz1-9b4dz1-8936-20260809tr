@@ -1,0 +1,89 @@
+name: Testagram Signing Identity Forensics
+
+on:
+  workflow_dispatch:
+    inputs:
+      reference_run_id:
+        description: "Known-good Android release workflow run ID"
+        required: true
+        default: "37177519503"
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  compare-signing-identity:
+    name: Compare current keystore with known-good APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Download known-good APK artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REFERENCE_RUN_ID: ${{ inputs.reference_run_id }}
+        run: |
+          set -euo pipefail
+          mkdir -p reference
+          gh run download "${REFERENCE_RUN_ID}"             --repo "${GITHUB_REPOSITORY}"             --name "testagram-android-release-27b974acc8f24fbebb5c566164615ed9ccad2052"             --dir reference
+          APK="$(find reference -type f -name '*.apk' -print -quit)"
+          test -n "${APK}"
+          mv "${APK}" reference/known-good.apk
+
+      - name: Configure current release keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          test -n "${ANDROID_KEYSTORE_BASE64}" || { echo "::error::ANDROID_KEYSTORE_BASE64 is not configured"; exit 1; }
+          printf '%s' "${ANDROID_KEYSTORE_BASE64}" | tr -d '\r\n ' | base64 --decode > current-release.jks
+          test -s current-release.jks
+
+      - name: Compare signing certificate fingerprints
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+
+          APKSIGNER="$(find "${ANDROID_HOME}/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "${APKSIGNER}"
+
+          echo "Known-good production APK certificate:"
+          "${APKSIGNER}" verify --verbose --print-certs reference/known-good.apk 2>&1 | grep -E 'Signer #|certificate SHA-256 digest|certificate SHA-256|certificate DN' || true
+
+          echo "Current keystore certificate:"
+          if ! keytool -list -v -keystore current-release.jks -storepass "${ANDROID_KEYSTORE_PASSWORD}" > current-keystore.txt 2>/dev/null; then
+            echo "::error::PASSWORD MISMATCH — ANDROID_KEYSTORE_PASSWORD does not unlock ANDROID_KEYSTORE_BASE64."
+            exit 2
+          fi
+
+          CURRENT_CERT="$(awk -F': ' '/Certificate fingerprints:/{p=1; next} p && /SHA256:/{print $2; exit}' current-keystore.txt | tr -d '[:space:]')"
+          test -n "${CURRENT_CERT}" || { echo "::error::Could not extract SHA-256 certificate fingerprint from current keystore."; exit 3; }
+
+          if ! keytool -list -v -keystore current-release.jks -storepass "${ANDROID_KEYSTORE_PASSWORD}" -alias "${ANDROID_KEY_ALIAS}" -keypass "${ANDROID_KEY_PASSWORD}" >/dev/null 2>&1; then
+            echo "::error::KEY ENTRY MISMATCH — the keystore opens, but ANDROID_KEY_ALIAS and/or ANDROID_KEY_PASSWORD is inconsistent."
+            exit 4
+          fi
+
+          REFERENCE_CERT="$("${APKSIGNER}" verify --verbose --print-certs reference/known-good.apk 2>&1 | awk -F': ' '/Signer #1 certificate SHA-256 digest:/{print $2; exit}' | tr -d '[:space:]')"
+          test -n "${REFERENCE_CERT}" || { echo "::error::Could not extract the known-good APK SHA-256 signing certificate."; exit 5; }
+
+          echo "Current keystore SHA-256: ${CURRENT_CERT}"
+          echo "Known-good APK SHA-256:   ${REFERENCE_CERT}"
+
+          NORMAL_CURRENT="$(printf '%s' "${CURRENT_CERT}" | tr '[:lower:]' '[:upper:]' | tr -d ':')"
+          NORMAL_REFERENCE="$(printf '%s' "${REFERENCE_CERT}" | tr '[:lower:]' '[:upper:]' | tr -d ':')"
+
+          if [ "${NORMAL_CURRENT}" = "${NORMAL_REFERENCE}" ]; then
+            echo "MATCH — current keystore is the production signing identity."
+          else
+            echo "::error::MISMATCH — current keystore is NOT the signing identity used by the known-good production APK."
+            exit 6
+          fi
+
+      - name: Cleanup signing material
+        if: always()
+        run: rm -f current-release.jks current-keystore.txt reference/known-good.apk
