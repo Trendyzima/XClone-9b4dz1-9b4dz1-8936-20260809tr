@@ -57,8 +57,12 @@ public final class MainActivity extends AppCompatActivity {
         WindowCompat.enableEdgeToEdge(getWindow());
         WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView())
                 .setAppearanceLightStatusBars(false);
-        WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView())
-                .setAppearanceLightNavigationBars(false);
+        WindowInsetsControllerCompat initialController =
+                WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+        initialController.setAppearanceLightNavigationBars(false);
+        initialController.setSystemBarsBehavior(
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        );
         enterImmersiveFullscreen();
         // If Android temporarily reveals the physical status/navigation bars, allow the
         // user a short navigation gesture window, then return to immersive mode. This
@@ -122,7 +126,7 @@ public final class MainActivity extends AppCompatActivity {
         // its mobile profile; rewriting it can change feature detection on the canonical site.
         settings.setJavaScriptCanOpenWindowsAutomatically(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_NEVER_ALLOW);
-        settings.setGeolocationEnabled(false);
+        settings.setGeolocationEnabled(true);
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
 
