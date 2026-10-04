@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       reference_fingerprint:
-        description: "SHA-256 fingerprint of the known-good production APK certificate"
+        description: "Known-good production APK certificate SHA-256"
         required: true
         default: "E7:17:82:7E:F5:85:3D:0C:EF:A0:4B:35:77:09:CC:9C:80:FC:F1:5F:7C:D6:75:55:A1:BD:A0:75:13:A6:AC:9"
 
@@ -15,72 +15,40 @@ permissions:
   contents: read
 
 jobs:
-  historical-signing-key-forensics:
+  forensic:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout complete repository history
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Compare historical keystore candidates
+      - name: Identify production certificate
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           REFERENCE_FINGERPRINT: ${{ inputs.reference_fingerprint }}
+        shell: bash
         run: |
           set -euo pipefail
-
-          test -n "${ANDROID_KEYSTORE_PASSWORD}" || {
-            echo "::error::ANDROID_KEYSTORE_PASSWORD is not configured."
-            exit 1
-          }
-
-          normalize() {
-            printf '"'"'%s'"'"' "$1" | tr '"'"'[:lower:]'"'"' '"'"'[:upper:]'"'"' | tr -d '"'"':[:space:]'"'"'
-          }
-
-          TARGET="$(normalize "${REFERENCE_FINGERPRINT}")"
-          found=0
-          match=0
-
-          mapfile -t BLOBS < <(
-            git rev-list --objects --all |
-              awk '"'"'$2 == "keystore-base64.txt" {print $1}'"'"' |
-              sort -u
-          )
-
-          if [ "${#BLOBS[@]}" -eq 0 ]; then
-            echo "::error::No historical keystore-base64.txt blobs were found."
-            exit 2
-          fi
-
-          mkdir -p /tmp/keystore-forensics
-
+          normalize() { printf '%s' "$1" | tr '[:lower:]' '[:upper:]' | tr -d ':[:space:]'; }
+          TARGET="$(normalize "$REFERENCE_FINGERPRINT")"
+          test -n "$ANDROID_KEYSTORE_PASSWORD" || { echo "::error::ANDROID_KEYSTORE_PASSWORD is not configured"; exit 1; }
+          mapfile -t BLOBS < <(git rev-list --objects --all | awk '$2=="keystore-base64.txt"{print $1}' | sort -u)
+          test "${#BLOBS[@]}" -gt 0 || { echo "::error::No historical keystore candidates"; exit 2; }
+          matches=0
+          mkdir -p /tmp/forensics
           for BLOB in "${BLOBS[@]}"; do
-            found=$((found + 1))
-            B64="/tmp/keystore-forensics/${BLOB}.b64"
-            JKS="/tmp/keystore-forensics/${BLOB}.jks"
-
-            git cat-file blob "${BLOB}" > "${B64}"
-
-            if ! tr -d '"'"'\\r\\n '"'"' < "${B64}" | base64 --decode > "${JKS}" 2>/dev/null; then
-              echo "CANDIDATE ${BLOB}: invalid Base64"
-              rm -f "${B64}" "${JKS}"
-              continue
+            B64="/tmp/forensics/$BLOB.b64"; JKS="/tmp/forensics/$BLOB.jks"; CERT="/tmp/forensics/$BLOB.pem"
+            git cat-file blob "$BLOB" > "$B64"
+            if ! tr -d '\r\n ' < "$B64" | base64 --decode > "$JKS" 2>/dev/null; then
+              echo "CANDIDATE $BLOB: invalid Base64"; rm -f "$B64" "$JKS"; continue
             fi
-
-            if keytool -list -v -keystore "${JKS}" -storepass "${ANDROID_KEYSTORE_PASSWORD}" > "${JKS}.txt" 2>/dev/null; then
-              CERT="$(awk -F': ' '/SHA256:/{print $2; exit}' "${JKS}.txt" | tr -d '[:space:]')"
-              ALIAS="$(awk -F': ' '/Alias name:/{print $2; exit}' "${JKS}.txt" | tr -d '[:space:]')"
-              echo "CANDIDATE ${BLOB}: alias=${ALIAS:-unknown} certificate=${CERT:-unavailable} password=VALID"
-              if [ -n "${CERT:-}" ] && [ "$(normalize "${CERT}")" = "${TARGET}" ]; then
-                echo "::notice::MATCH — historical candidate ${BLOB} is the signing identity of the known-good production APK."
-                match=$((match + 1))
-              fi
+            FP=""
+            if keytool -list -v -keystore "$JKS" -storepass "$ANDROID_KEYSTORE_PASSWORD" > "$JKS.txt" 2>/dev/null; then
+              FP="$(awk -F': ' '/SHA256:/{print $2;exit}' "$JKS.txt" | tr -d '[:space:]')"
+              ALIAS="$(awk -F': ' '/Alias name:/{print $2;exit}' "$JKS.txt" | tr -d '[:space:]')"
+              echo "CANDIDATE $BLOB: alias=${ALIAS:-unknown} certificate=${FP:-unavailable} password=VALID"
             else
-              CERT_FILE="/tmp/keystore-forensics/${BLOB}.cert"
-              if python3 - "${JKS}" "${CERT_FILE}" <<'PY'
+              if python3 - "$JKS" "$CERT" <<'PY'
 import struct,sys,base64
 from pathlib import Path
 d=Path(sys.argv[1]).read_bytes(); o=Path(sys.argv[2]); p=4
@@ -92,13 +60,13 @@ def u8():
  p+=8
 def utf():
  global p
- n=struct.unpack(">H",d[p:p+2])[0]; p+=2; x=d[p:p+n].decode(); p+=n; return x
+ n=struct.unpack(">H",d[p:p+2])[0]; p+=2
+ x=d[p:p+n].decode("utf-8"); p+=n; return x
 def blob(n):
  global p
  x=d[p:p+n]; p+=n; return x
 if struct.unpack(">I",d[:4])[0]!=0xFEEDFEED: raise ValueError("not JKS")
-v=u4()
-if v not in (1,2): raise ValueError("unsupported JKS")
+if u4() not in (1,2): raise ValueError("unsupported JKS")
 count=u4(); certs=[]
 for _ in range(count):
  tag=u4(); utf(); u8()
@@ -108,41 +76,24 @@ for _ in range(count):
  elif tag==2:
   utf(); certs.append(blob(u4()))
  else: raise ValueError("unknown entry")
-if not certs: raise ValueError("no certs")
+if not certs: raise ValueError("no certificates")
 o.write_bytes(b"".join(b"-----BEGIN CERTIFICATE-----\n"+base64.b64encode(c)+b"\n-----END CERTIFICATE-----\n" for c in certs))
 PY
-              then
-                FP="$(openssl x509 -in "${CERT_FILE}" -noout -fingerprint -sha256 2>/dev/null | sed 's/^sha256 Fingerprint=//')"
-                echo "CANDIDATE ${BLOB}: alias=plaintext-chain certificate=${FP:-unavailable} password=UNKNOWN"
-                if [ -n "${FP:-}" ] && [ "$(normalize "${FP}")" = "${TARGET}" ]; then
-                  echo "::notice::MATCH — historical candidate ${BLOB} contains the production signing certificate; current password is not required to identify the public certificate."
-                  match=$((match + 1))
-                fi
-              else
-                echo "CANDIDATE ${BLOB}: unable to parse as JKS and current password did not open it"
-              fi
-              rm -f "${CERT_FILE}"
+              then FP="$(openssl x509 -in "$CERT" -noout -fingerprint -sha256 2>/dev/null | sed 's/^sha256 Fingerprint=//')"
+              else echo "CANDIDATE $BLOB: unable to parse as JKS"; rm -f "$B64" "$JKS" "$JKS.txt" "$CERT"; continue; fi
+              echo "CANDIDATE $BLOB: certificate=$FP password=UNKNOWN"
             fi
-            rm -f "${B64}" "${JKS}" "${JKS}.txt"
+            if [ -n "$FP" ] && [ "$(normalize "$FP")" = "$TARGET" ]; then
+              echo "::notice::MATCH — $BLOB contains the known-good production signing certificate."
+              matches=$((matches+1))
+            fi
+            rm -f "$B64" "$JKS" "$JKS.txt" "$CERT"
           done
-
-          echo "Historical candidates examined: ${found}"
-          echo "Production-identity matches: ${match}"
-
-          if [ "${match}" -eq 1 ]; then
-            echo "MATCH FOUND — do not rotate the production signing identity."
-            exit 0
-          fi
-
-          if [ "${match}" -gt 1 ]; then
-            echo "::error::Multiple historical candidates matched the production certificate; investigate before changing any secret."
-            exit 3
-          fi
-
-          echo "::error::No historical keystore candidate matched the production certificate using the configured keystore password."
-          exit 4
-
+          echo "Historical candidates examined: ${#BLOBS[@]}"
+          echo "Production-identity matches: $matches"
+          if [ "$matches" -eq 1 ]; then echo "MATCH FOUND — preserve this signing identity."; exit 0; fi
+          if [ "$matches" -gt 1 ]; then echo "::error::Multiple candidates match the production certificate"; exit 3; fi
+          echo "::error::No historical candidate contains the production certificate"; exit 4
       - name: Cleanup
         if: always()
-        run: rm -rf /tmp/keystore-forensics
-
+        run: rm -rf /tmp/forensics
