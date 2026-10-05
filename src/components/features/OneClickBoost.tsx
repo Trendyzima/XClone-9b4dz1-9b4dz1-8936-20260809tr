@@ -50,11 +50,8 @@ export function OneClickBoost({ postId, postContent, onClose }: OneClickBoostPro
 
     try {
       // Check wallet balance
-      const { data: wallet } = await supabase
-        .from('user_wallets')
-        .select('balance')
-        .eq('user_id', user.id)
-        .single();
+      const { data: wallet, error: walletError } = await supabase.rpc('get_my_wallet').maybeSingle();
+      if (walletError) throw walletError;
 
       if (!wallet || wallet.balance < selectedBudget) {
         toast.error('Insufficient balance. Please add funds to your wallet.');
@@ -90,9 +87,9 @@ export function OneClickBoost({ postId, postContent, onClose }: OneClickBoostPro
 
       // Deduct from wallet and activate
       const { error: deductError } = await supabase.rpc('deduct_from_wallet', {
-        user_id_param: user.id,
-        amount_param: selectedBudget,
-        description_param: `Boost post - ${selectedBudget} budget`
+        p_user_id: user.id,
+        p_amount: selectedBudget,
+        p_description: `Boost post - ${selectedBudget} budget`
       });
 
       if (deductError) throw deductError;
