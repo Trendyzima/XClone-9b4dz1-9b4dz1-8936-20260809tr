@@ -20,7 +20,7 @@ public final class SplashActivity extends AppCompatActivity {
             R.drawable.splash_2,
             R.drawable.splash_3
     };
-    private static final long SCREEN_MS = 950L;
+    private static final long SCREEN_MS = 1250L;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private ImageView image;
     private int index = 0;
@@ -49,7 +49,7 @@ public final class SplashActivity extends AppCompatActivity {
         setContentView(root);
 
         image.setAlpha(0f);
-        image.animate().alpha(1f).setDuration(220L).start();
+        image.animate().alpha(1f).setDuration(260L).start();
         handler.postDelayed(this::nextScreen, SCREEN_MS);
     }
 
@@ -60,10 +60,10 @@ public final class SplashActivity extends AppCompatActivity {
             launchMain();
             return;
         }
-        image.animate().alpha(0f).setDuration(160L).withEndAction(() -> {
+        image.animate().alpha(0f).setDuration(220L).withEndAction(() -> {
             if (isFinishing() || handedOff) return;
             image.setImageResource(SCREENS[index]);
-            image.animate().alpha(1f).setDuration(180L).start();
+            image.animate().alpha(1f).setDuration(240L).start();
             handler.postDelayed(this::nextScreen, SCREEN_MS);
         }).start();
     }
