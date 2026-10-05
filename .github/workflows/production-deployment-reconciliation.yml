@@ -240,7 +240,7 @@ jobs:
             PROJECT_REF="${SUPABASE_HOST%%.*}"
           fi
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve Supabase project ref for LiveKit retirement."; exit 1; }
-          for fn in livekit-tv-token livekit-token livekit-tv-guest-token livekit-space-token tv-stream-proxy mux-tv-webhook; do
+          for fn in livekit-tv-token livekit-token livekit-tv-guest-token livekit-space-token mux-tv-webhook; do
             echo "Retiring legacy TV Edge Function: $fn"
             supabase functions delete "$fn" --project-ref "$PROJECT_REF" --yes || true
           done
@@ -550,6 +550,34 @@ jobs:
           deploy_ads_function zenad-ad-asset-upload
           node -e 'const fs=require("node:fs"); const p="supabase/migrations/20260919193000_testagram_ads_runtime_schema_repair.sql"; if(!fs.existsSync(p)){console.error("Canonical Testagram Ads runtime migration is missing:",p); process.exit(1)} console.log("Testagram Ads schema source present:",p);'
 
+      - name: Deploy Testagram public TV streaming Edge Functions
+        if: steps.supabase-auth.outputs.available == 'true'
+        shell: bash
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF: ffrhglgkukgsuhxenena
+        run: |
+          set -euo pipefail
+          PROJECT_REF="$SUPABASE_PROJECT_REF"
+          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required for TV streaming deployment."; exit 1; }
+          [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Invalid Supabase project ref for TV streaming deployment."; exit 1; }
+          deploy_tv_function() {
+            local name="$1"
+            local attempt=1
+            local max_attempts=4
+            while true; do
+              echo "Deploying public TV Edge Function $name (attempt $attempt/$max_attempts)"
+              if supabase functions deploy "$name" --use-api --project-ref "$PROJECT_REF" --no-verify-jwt; then return 0; fi
+              if (( attempt >= max_attempts )); then echo "::error::TV Edge Function deployment failed after $max_attempts attempts: $name"; return 1; fi
+              local delay=$((attempt * 20)); echo "NOTICE: TV deployment retrying in $delay seconds."; sleep "$delay"; attempt=$((attempt+1))
+            done
+          }
+          # These endpoints are public because HLS.js media requests cannot carry a user JWT.
+          # The function code validates URLs and blocks private-network SSRF targets.
+          deploy_tv_function tv-catalog
+          deploy_tv_function tv-stream-proxy
+          deploy_tv_function tv-health
+          echo "Testagram public TV catalog/proxy/health functions reconciled."
       - name: Deploy Testagram TV control-plane Edge Function
         if: steps.supabase-auth.outputs.available == 'true'
         shell: bash
