@@ -28,8 +28,7 @@ function makeId(value) {
 }
 
 function parseM3U(text, source) {
-  const lines=text.split(/\r?
-/);
+  const lines=text.split(/\r?\n/);
   const out=[]; let info=null;
   for(const raw of lines) {
     if(out.length >= MAX) break;
@@ -149,7 +148,6 @@ await writeFile("public/tv/channels.json",JSON.stringify({
   policy:"Public/free stream directory only. Testagram stores channel metadata and public stream URLs; it does not copy or host broadcast video.",
   sources:SOURCES.map(({id,name,url,priority,format})=>({id,name,url,priority,format})),
   channels
-},null,2)+"
-");
+},null,2)+"\n");
 console.log("Testagram TV catalogue: "+channels.length+" unique channels; target capacity "+MAX);
 console.log("Removed duplicate URLs: "+duplicateUrls+"; duplicate channel identities: "+duplicateIdentities);
