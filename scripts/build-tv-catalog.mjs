@@ -14,7 +14,7 @@ const SOURCES = [
   { id:"freecast-news", name:"FreeCastHub · News", url:"https://raw.githubusercontent.com/freecasthub/public-iptv/main/news.m3u", priority:79, format:"m3u" },
   { id:"freecast-education", name:"FreeCastHub · Education", url:"https://raw.githubusercontent.com/freecasthub/public-iptv/main/education.m3u", priority:78, format:"m3u" },
   { id:"freecast-weather", name:"FreeCastHub · Weather", url:"https://raw.githubusercontent.com/freecasthub/public-iptv/main/weather.m3u", priority:77, format:"m3u" },
-  { id:"subash-football-cricket", name:"Subash · Football & Cricket public FTA", url:"https://raw.githubusercontent.com/subash9860/iptv-football-cricket/main/index.m3u", priority:75, format:"m3u" }
+  { id:"subash-football-cricket", name:"Subash · Football & Cricket public FTA", url:"https://raw.githubusercontent.com/subash9860/iptv-football-cricket/main/index.m3u", priority:75, format:"m3u" },\n  { id:"dhanytv-indonesia", name:"dhanytv · Indonesia public channels", url:"https://raw.githubusercontent.com/dhasap/dhanytv/main/dhanytv-ott.m3u", priority:74, format:"m3u" },\n  { id:"blitz-latam", name:"Blitz IPTV Player · Latin America/world public channels", url:"https://raw.githubusercontent.com/blitzandres/iptv-player/main/channels.json", priority:73, format:"json" }
 ];
 
 const blocked = /(adult|porn|xxx|premium|paid subscription|xtream|stalker|pirate)/i;
