@@ -147,7 +147,7 @@ export default function HashtagDiscoveryPage() {
       const followed = ((followRes as any).data ?? []).map((f: any) => f.hashtags).filter(Boolean);
       setFollowedHashtags(followed);
       setFollowedIds(followed.map((h: any) => h.id));
-      const stopTags = new Set(['the','and','for','with','from','this','that','you','are','was','has','have','not','but','of','to','in','on','a','an','it','is','as','or']);
+      const stopTags = new Set(['the','and','for','with','from','this','that','you','are','was','has','have','not','but','of','to','in','on','a','an','it','is','as','or','porn','nudes','onlyfans','sexwork','nsfw']);
       const rankedTrends = ((trendRes.data ?? []) as any[])
         .filter((h: any) => h?.id && /^[a-z0-9][a-z0-9_-]{2,63}$/i.test(String(h.tag ?? '')))
         .filter((h: any) => !stopTags.has(String(h.tag).toLowerCase()))
@@ -527,7 +527,7 @@ export default function HashtagDiscoveryPage() {
                           </div>
                           <div className="flex items-center gap-3 mt-0.5">
                             <span className="text-xs text-muted-foreground flex items-center gap-1">
-                              <Users className="w-3 h-3" />{formatNumber(h.usage_count ?? 0)} posts
+                              <Users className="w-3 h-3" />{formatNumber(Number(h.post_count ?? h.usage_count ?? 0) + Number(h.federated_post_count ?? 0))} posts
                             </span>
                             {(h.federated_post_count ?? h.usage_count ?? 0) > 0 && (
                               <span className="text-xs text-orange-500 font-semibold">
