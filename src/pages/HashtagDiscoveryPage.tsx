@@ -139,15 +139,29 @@ export default function HashtagDiscoveryPage() {
               .limit(100)
           : Promise.resolve({ data: [] }),
         supabase.from('hashtags')
-          .select('id, tag, usage_count, federated_post_count, last_used_at')
-          .order('federated_post_count', { ascending: false })
-          .order('usage_count', { ascending: false })
-          .limit(30),
+          .select('id, tag, usage_count, post_count, federated_post_count, follower_count, last_used_at')
+          .gte('last_used_at', new Date(Date.now() - 30 * 24 * 3600000).toISOString())
+          .order('last_used_at', { ascending: false })
+          .limit(100),
       ]);
       const followed = ((followRes as any).data ?? []).map((f: any) => f.hashtags).filter(Boolean);
       setFollowedHashtags(followed);
       setFollowedIds(followed.map((h: any) => h.id));
-      setTrendingHashtags(((trendRes.data ?? []) as any[]).filter((h: any) => h?.id));
+      const stopTags = new Set(['the','and','for','with','from','this','that','you','are','was','has','have','not','but','of','to','in','on','a','an','it','is','as','or']);
+      const rankedTrends = ((trendRes.data ?? []) as any[])
+        .filter((h: any) => h?.id && /^[a-z0-9][a-z0-9_-]{2,63}$/i.test(String(h.tag ?? '')))
+        .filter((h: any) => !stopTags.has(String(h.tag).toLowerCase()))
+        .map((h: any) => {
+          const local = Number(h.post_count ?? h.usage_count ?? 0);
+          const federated = Number(h.federated_post_count ?? 0);
+          const ageHours = Math.max(1, (Date.now() - new Date(h.last_used_at ?? Date.now()).getTime()) / 3600000);
+          const freshness = Math.exp(-ageHours / (24 * 14));
+          return { ...h, _totalPosts: local + federated, _trendScore: Math.log1p(local + federated) * 8 * freshness + Math.log1p(Number(h.follower_count ?? 0)) * 2 };
+        })
+        .filter((h: any) => h._totalPosts > 0)
+        .sort((a: any, b: any) => b._trendScore - a._trendScore)
+        .slice(0, 30);
+      setTrendingHashtags(rankedTrends);
       setLoading(false);
     };
     load();
