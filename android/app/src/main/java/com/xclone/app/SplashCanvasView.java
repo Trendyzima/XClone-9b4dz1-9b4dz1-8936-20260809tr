@@ -66,11 +66,14 @@ public final class SplashCanvasView extends View {
 
     private void drawConnect(Canvas c, float w, float h) {
         drawTag(c, "CONNECT", w * .08f, h * .27f, w * .84f);
-        drawChatBubble(c, w * .18f, h * .57f, w * .58f, h * .12f);
-        drawChatBubble(c, w * .28f, h * .68f, w * .47f, h * .10f);
+
+        // Dedicated illustration band: keep network lines away from cards and copy.
+        drawChatBubble(c, w * .20f, h * .44f, w * .80f, h * .52f);
+        drawChatBubble(c, w * .29f, h * .55f, w * .71f, h * .63f);
         drawNodes(c, w, h);
-        drawCaption(c, "PEOPLE  •  POSTS  •  COMMUNITIES", w * .08f, h * .80f);
-        drawMicro(c, "Share your voice. Find your people.", w * .08f, h * .845f);
+
+        drawCaption(c, "PEOPLE  •  POSTS  •  COMMUNITIES", w * .08f, h * .78f);
+        drawMicro(c, "Share your voice. Find your people.", w * .08f, h * .825f);
     }
 
     private void drawLive(Canvas c, float w, float h) {
@@ -140,12 +143,16 @@ public final class SplashCanvasView extends View {
     private void drawNodes(Canvas c, float w, float h) {
         stroke.setColor(Color.argb(150, 61, 255, 132));
         stroke.setStrokeWidth(3);
-        float[][] n = {{.12f,.46f},{.83f,.47f},{.18f,.74f},{.78f,.73f}};
+        float cx = w * .50f;
+        float cy = h * .68f;
+        float[][] n = {{.12f,.58f},{.88f,.58f},{.20f,.70f},{.80f,.70f}};
         for (float[] a : n) {
-            c.drawLine(w*.50f, h*.62f, w*a[0], h*a[1], stroke);
-            p.setColor(Color.rgb(61,255,132));
-            c.drawCircle(w*a[0], h*a[1], 8, p);
+            c.drawLine(cx, cy, w * a[0], h * a[1], stroke);
+            p.setColor(Color.rgb(61, 255, 132));
+            c.drawCircle(w * a[0], h * a[1], 7, p);
         }
+        p.setColor(Color.rgb(61, 255, 132));
+        c.drawCircle(cx, cy, 10, p);
     }
 
     private void drawCards(Canvas c, float w, float h) {
