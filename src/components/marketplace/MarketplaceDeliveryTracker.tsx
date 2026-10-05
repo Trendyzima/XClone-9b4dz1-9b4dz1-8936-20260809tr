@@ -56,7 +56,7 @@ export function MarketplaceDeliveryTracker({ deliveryId, compact=false }: { deli
     setBusy(true);
     const {data,error}=await supabase.rpc('confirm_marketplace_delivery',{p_delivery_id:delivery.id});
     setBusy(false);
-    if(error){toast.error(error.message.replaceAll('_',' ').toLowerCase());return;}
+    if(error){toast.error(error.message.replace(/_/g,' ').toLowerCase());return;}
     if(data?.payout_status==='paid') toast.success('Delivery confirmed. Courier payout released — congratulations to the deliverer! 🎉');
     else toast.success('Delivery confirmed. Platform payment is recorded; payout is being held for review.');
   };
@@ -69,7 +69,7 @@ export function MarketplaceDeliveryTracker({ deliveryId, compact=false }: { deli
       p_evidence:'User reported a payment or collection attempt outside the Testagram platform.'
     });
     setBusy(false);
-    if(error){toast.error(error.message.replaceAll('_',' ').toLowerCase());return;}
+    if(error){toast.error(error.message.replace(/_/g,' ').toLowerCase());return;}
     toast.error(data?.blocked?'Courier blocked pending platform review.':'Report recorded for investigation.');
   };
 
@@ -83,7 +83,7 @@ export function MarketplaceDeliveryTracker({ deliveryId, compact=false }: { deli
 
   return <div className={compact?'rounded-2xl border p-4':'rounded-3xl border bg-card p-5 shadow-sm'}>
     <div className="flex items-center justify-between gap-3">
-      <div className="flex items-center gap-2"><Truck className="h-5 w-5 text-primary"/><div><p className="font-bold">Live delivery tracking</p><p className="text-xs text-muted-foreground">{delivery.status.replaceAll('_',' ')}</p></div></div>
+      <div className="flex items-center gap-2"><Truck className="h-5 w-5 text-primary"/><div><p className="font-bold">Live delivery tracking</p><p className="text-xs text-muted-foreground">{delivery.status.replace(/_/g,' ')}</p></div></div>
       {delivery.eta_minutes!=null&&active&&<span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-bold">{delivery.eta_minutes} min ETA</span>}
     </div>
 
@@ -106,7 +106,7 @@ export function MarketplaceDeliveryTracker({ deliveryId, compact=false }: { deli
           if(error){toast.error('Courier registration failed.');return;}
         }
         const {error}=await supabase.rpc('claim_marketplace_delivery',{p_delivery_id:delivery.id});
-        if(error){toast.error(error.message.replaceAll('_',' ').toLowerCase());return;}
+        if(error){toast.error(error.message.replace(/_/g,' ').toLowerCase());return;}
         toast.success('Delivery accepted. Keep all payment on Testagram.');
       }}>Accept delivery</button>
       <span className="self-center text-xs text-muted-foreground">Platform-paid deliveries only.</span>
