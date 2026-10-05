@@ -9,7 +9,7 @@ type Props={channel:TvChannel;active:boolean;onVisible:(id:string,visible:boolea
 
 export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
  const ref=useRef<HTMLVideoElement>(null); const wrap=useRef<HTMLDivElement>(null); const hls=useRef<Hls|null>(null);
- const retryRef=useRef(0); const retryTimer=useRef<ReturnType<typeof setTimeout>|null>(null); const startRef=useRef<(()=>void)|null>(null);
+ const retryRef=useRef(0); const retryTimer=useRef<ReturnType<typeof setTimeout>|null>(null); const startRef=useRef<(()=>void)|null>(null); const proxyFallbackRef=useRef(false);
  const playbackUrlRef=useRef(channel.url);
  const [muted,setMuted]=useState(()=>{try{return localStorage.getItem('testagram-tv-audio')!=='on';}catch{return true;}}); const audioPreferenceRef=useRef(muted); const [error,setError]=useState(false); const [starting,setStarting]=useState(false); const [needsGesture,setNeedsGesture]=useState(false);
  const proxyUrl=useCallback(()=>supabaseUrl+'/functions/v1/tv-stream-proxy?url='+encodeURIComponent(channel.url),[channel.url]);
@@ -19,7 +19,7 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
  const cleanup=useCallback(()=>{if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;hls.current?.destroy();hls.current=null;const v=ref.current;if(v){v.pause();v.removeAttribute('src');v.load();}},[]);
  const healthy=useCallback(()=>{setStarting(false);setError(false);setNeedsGesture(false);retryRef.current=0;onHealth?.(channel.id,true);},[channel.id,onHealth]);
 
- const retry=useCallback(()=>{if(!active)return;const isHls=/\\.m3u8(?:$|[?#])/i.test(channel.url);if(!isHls&&retryRef.current>=3){setStarting(false);setError(true);onHealth?.(channel.id,false);return;}if(isHls&&retryRef.current>=4){setStarting(false);setError(true);onHealth?.(channel.id,false);return;}retryRef.current++;retryTimer.current=setTimeout(()=>active&&startRef.current?.(),700*Math.pow(2,Math.min(retryRef.current-1,3)));},[active,channel.id,channel.url,onHealth]);
+ const retry=useCallback(()=>{if(!active)return;if(retryTimer.current)clearTimeout(retryTimer.current);const isHls=/\.m3u8(?:$|[?#])/i.test(channel.url);if(!isHls&&retryRef.current>=3){setStarting(false);setError(true);onHealth?.(channel.id,false);return;}if(isHls&&retryRef.current>=4){setStarting(false);setError(true);onHealth?.(channel.id,false);return;}retryRef.current++;retryTimer.current=setTimeout(()=>active&&startRef.current?.(),700*Math.pow(2,Math.min(retryRef.current-1,3)));},[active,channel.id,channel.url,onHealth]);
 
  const start=useCallback(()=>{
   const video=ref.current;if(!video||!active)return;cleanup();setStarting(true);setError(false);setNeedsGesture(false);
@@ -27,24 +27,24 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
   const play=()=>{video.muted=audioPreferenceRef.current;video.defaultMuted=audioPreferenceRef.current;video.volume=1;void video.play().then(()=>{setNeedsGesture(false);healthy();}).catch((e:any)=>{if(e?.name==='NotAllowedError'){setNeedsGesture(true);setStarting(false);return;}retry();});};
   const directUrl=channel.url;
   const looksLikeHls=/\.m3u8(?:$|[?#])/i.test(directUrl);
-  const playbackUrl=looksLikeHls?proxyUrl():directUrl;
+  const playbackUrl=looksLikeHls||proxyFallbackRef.current?proxyUrl():directUrl;
   const looksLikeFile=/\.(mp4|webm|ogg)(?:$|[?#])/i.test(directUrl);
   if(looksLikeFile){
     video.src=playbackUrl;
     video.addEventListener('loadedmetadata',play,{once:true});
     video.addEventListener('canplay',healthy,{once:true});
     video.addEventListener('playing',healthy,{once:true});
-    video.addEventListener('error',retry,{once:true});
+    video.addEventListener('error',()=>{if(!proxyFallbackRef.current){proxyFallbackRef.current=true;retryRef.current=0;startRef.current?.();}else retry();},{once:true});
     void video.play().catch((e:any)=>{if(e?.name!=='NotAllowedError')retry();else{setNeedsGesture(true);setStarting(false);}});
     return;
   }
   if(looksLikeHls&&Hls.isSupported()){const h=new Hls({enableWorker:true,lowLatencyMode:false,startFragPrefetch:true,initialLiveManifestSize:3,backBufferLength:12,maxBufferLength:45,maxMaxBufferLength:90,maxBufferSize:128*1024*1024,maxBufferHole:0.35,highBufferWatchdogPeriod:3,nudgeOffset:0.15,nudgeMaxRetry:4,liveSyncDurationCount:6,liveMaxLatencyDurationCount:12,manifestLoadingMaxRetry:4,levelLoadingMaxRetry:5,fragLoadingMaxRetry:5,fragLoadingRetryDelay:1000,fragLoadingMaxRetryTimeout:8000});hls.current=h;h.loadSource(playbackUrl);h.attachMedia(video);h.on(Hls.Events.MANIFEST_PARSED,()=>setStarting(true));h.on(Hls.Events.FRAG_BUFFERED,()=>{const b=video.buffered;const ahead=b.length?b.end(b.length-1)-video.currentTime:0;if(ahead>=5)healthy();});h.on(Hls.Events.ERROR,(_,d)=>{if(!d.fatal)return;if(d.type===Hls.ErrorTypes.MEDIA_ERROR){try{h.recoverMediaError();return;}catch{}}retry();});return;}
-  if(looksLikeHls&&video.canPlayType('application/vnd.apple.mpegurl')){video.src=playbackUrl;video.addEventListener('canplay',healthy,{once:true});video.addEventListener('error',retry,{once:true});void video.play().catch((e:any)=>{if(e?.name!=='NotAllowedError')retry();});return;}
+  if(looksLikeHls&&video.canPlayType('application/vnd.apple.mpegurl')){video.src=playbackUrl;video.addEventListener('canplay',healthy,{once:true});video.addEventListener('error',()=>{if(!proxyFallbackRef.current){proxyFallbackRef.current=true;retryRef.current=0;startRef.current?.();}else retry();},{once:true});void video.play().catch((e:any)=>{if(e?.name!=='NotAllowedError')retry();});return;}
   setStarting(false);setError(true);onHealth?.(channel.id,false);
  },[active,channel.id,channel.url,cleanup,healthy,retry,onHealth,proxyUrl]);
  startRef.current=start;
 
- useEffect(()=>{retryRef.current=0;playbackUrlRef.current=channel.url;if(active){start();return cleanup;}cleanup();setError(false);setStarting(false);setNeedsGesture(false);},[active,channel.url,start,cleanup]);
+ useEffect(()=>{retryRef.current=0;proxyFallbackRef.current=false;playbackUrlRef.current=channel.url;if(active){start();return cleanup;}cleanup();setError(false);setStarting(false);setNeedsGesture(false);},[active,channel.url,start,cleanup]);
 
  useEffect(()=>{const onOnline=()=>{retryRef.current=0;if(active)startRef.current?.();};const onOffline=()=>setStarting(true);window.addEventListener('online',onOnline);window.addEventListener('offline',onOffline);return()=>{window.removeEventListener('online',onOnline);window.removeEventListener('offline',onOffline);};},[active]);
  useEffect(()=>{const video=ref.current;if(!video)return;const syncAudio=()=>{const isMuted=video.muted||video.volume===0;audioPreferenceRef.current=isMuted;setMuted(isMuted);};video.addEventListener('volumechange',syncAudio);return()=>video.removeEventListener('volumechange',syncAudio);},[]);
