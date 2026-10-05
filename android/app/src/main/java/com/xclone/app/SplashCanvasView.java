@@ -15,6 +15,7 @@ public final class SplashCanvasView extends View {
     private final Paint stroke = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Typeface heavy = Typeface.create("sans-serif-black", Typeface.BOLD);
     private int screen = 0;
+    private long animationStartMs = System.currentTimeMillis();
 
     public SplashCanvasView(Context context) {
         super(context);
@@ -26,6 +27,7 @@ public final class SplashCanvasView extends View {
 
     public void setScreen(int value) {
         screen = Math.max(0, Math.min(2, value));
+        animationStartMs = System.currentTimeMillis();
         invalidate();
     }
 
@@ -34,6 +36,7 @@ public final class SplashCanvasView extends View {
         super.onDraw(c);
         float w = getWidth();
         float h = getHeight();
+        float t = (System.currentTimeMillis() - animationStartMs) / 1000f;
 
         int top = Color.rgb(3, 18, 11);
         int bottom = screen == 0 ? Color.rgb(5, 55, 28)
@@ -50,6 +53,7 @@ public final class SplashCanvasView extends View {
         if (screen == 2) drawDiscover(c, w, h);
 
         drawFooter(c, w, h);
+        if (isShown()) postInvalidateOnAnimation();
     }
 
     private void drawTexture(Canvas c, float w, float h) {
@@ -68,9 +72,20 @@ public final class SplashCanvasView extends View {
         drawTag(c, "CONNECT", w * .08f, h * .27f, w * .84f);
 
         // Dedicated illustration band: keep network lines away from cards and copy.
+        float bob = (float) Math.sin(t * 2.2f) * h * .006f;
+        float pulse = .96f + .04f * (float) Math.sin(t * 2.6f);
+        c.save();
+        c.translate(0, bob);
+        c.scale(pulse, pulse, w * .50f, h * .55f);
         drawChatBubble(c, w * .20f, h * .44f, w * .80f, h * .52f);
+        c.restore();
+
+        c.save();
+        c.translate(0, -bob);
+        c.scale(1f + .025f * (float) Math.sin(t * 2.2f + 1f), 1f + .025f * (float) Math.sin(t * 2.2f + 1f), w * .50f, h * .59f);
         drawChatBubble(c, w * .29f, h * .55f, w * .71f, h * .63f);
-        drawNodes(c, w, h);
+        c.restore();
+        drawNodes(c, w, h, t);
 
         drawCaption(c, "PEOPLE  •  POSTS  •  COMMUNITIES", w * .08f, h * .78f);
         drawMicro(c, "Share your voice. Find your people.", w * .08f, h * .825f);
@@ -81,7 +96,11 @@ public final class SplashCanvasView extends View {
         p.setColor(Color.WHITE);
         p.setStyle(Paint.Style.STROKE);
         p.setStrokeWidth(7);
+        float livePulse = .97f + .03f * (float) Math.sin(t * 3.0f);
+        c.save();
+        c.scale(livePulse, livePulse, w * .50f, h * .56f);
         c.drawRoundRect(w * .14f, h * .45f, w * .86f, h * .67f, 22, 22, p);
+        c.restore();
         p.setStyle(Paint.Style.FILL);
         Path play = new Path();
         play.moveTo(w * .46f, h * .50f);
@@ -89,9 +108,14 @@ public final class SplashCanvasView extends View {
         play.lineTo(w * .60f, h * .56f);
         play.close();
         p.setColor(Color.rgb(61, 255, 132));
+        c.save();
+        float playPulse = .94f + .06f * (float) Math.sin(t * 3.2f);
+        c.scale(playPulse, playPulse, w * .53f, h * .56f);
         c.drawPath(play, p);
+        c.restore();
         p.setColor(Color.rgb(255, 70, 82));
-        c.drawCircle(w * .22f, h * .49f, 9, p);
+        float liveDot = 7f + 3f * (float) (0.5 + 0.5 * Math.sin(t * 4.0f));
+        c.drawCircle(w * .22f, h * .49f, liveDot, p);
         drawCaption(c, "SPORTS  •  MUSIC  •  NEWS  •  WORLD TV", w * .08f, h * .79f);
         drawMicro(c, "One place for the moments happening now.", w * .08f, h * .835f);
     }
@@ -103,11 +127,11 @@ public final class SplashCanvasView extends View {
         Path wave = new Path();
         for (int i = 0; i <= 12; i++) {
             float x = w * .10f + i * w * .067f;
-            float y = h * .57f + (float)Math.sin(i * .9) * h * .055f;
+            float y = h * .57f + (float)Math.sin(i * .9f + t * 2.4f) * h * .055f;
             if (i == 0) wave.moveTo(x, y); else wave.lineTo(x, y);
         }
         c.drawPath(wave, stroke);
-        drawCards(c, w, h);
+        drawCards(c, w, h, t);
         drawCaption(c, "CREATORS  •  VIDEO  •  MUSIC  •  IDEAS", w * .08f, h * .80f);
         drawMicro(c, "Follow what moves you. Discover what is next.", w * .08f, h * .845f);
     }
@@ -140,7 +164,7 @@ public final class SplashCanvasView extends View {
         c.drawCircle(l + 76, (t + b) / 2, 8, p);
     }
 
-    private void drawNodes(Canvas c, float w, float h) {
+    private void drawNodes(Canvas c, float w, float h, float t) {
         stroke.setColor(Color.argb(150, 61, 255, 132));
         stroke.setStrokeWidth(3);
         float cx = w * .50f;
@@ -149,20 +173,23 @@ public final class SplashCanvasView extends View {
         for (float[] a : n) {
             c.drawLine(cx, cy, w * a[0], h * a[1], stroke);
             p.setColor(Color.rgb(61, 255, 132));
-            c.drawCircle(w * a[0], h * a[1], 7, p);
+            float nodePulse = 6.5f + 2.5f * (float) (0.5 + 0.5 * Math.sin(t * 3.0f + a[0] * 7f));
+            c.drawCircle(w * a[0], h * a[1], nodePulse, p);
         }
         p.setColor(Color.rgb(61, 255, 132));
-        c.drawCircle(cx, cy, 10, p);
+        float corePulse = 9f + 4f * (float) (0.5 + 0.5 * Math.sin(t * 3.0f));
+        c.drawCircle(cx, cy, corePulse, p);
     }
 
-    private void drawCards(Canvas c, float w, float h) {
+    private void drawCards(Canvas c, float w, float h, float t) {
         float[] xs = {.14f, .38f, .62f};
         float[] hs = {.12f, .15f, .10f};
         for (int i = 0; i < xs.length; i++) {
+            float bob = (float) Math.sin(t * 2.0f + i * .9f) * h * .008f;
             p.setColor(Color.argb(235, 255, 255, 255));
-            c.drawRoundRect(w*xs[i], h*.43f, w*(xs[i]+.20f), h*(.43f+hs[i]), 18, 18, p);
+            c.drawRoundRect(w*xs[i], h*.43f + bob, w*(xs[i]+.20f), h*(.43f+hs[i]) + bob, 18, 18, p);
             p.setColor(i == 1 ? Color.rgb(61,255,132) : Color.rgb(10,35,22));
-            c.drawCircle(w*(xs[i]+.04f), h*.47f, 9, p);
+            c.drawCircle(w*(xs[i]+.04f), h*.47f + bob, 9, p);
         }
     }
 
