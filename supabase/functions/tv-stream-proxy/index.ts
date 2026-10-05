@@ -95,13 +95,13 @@ Deno.serve(async (req) => {
     }
 
     const type = (upstream.headers.get("content-type") || "").toLowerCase();
-    let isManifest = /mpegurl|m3u8|application\\/vnd\\.apple\\.mpegurl/.test(type) || /\\.m3u8(?:$|[?#])/i.test(target.pathname + target.search);
+    let isManifest = /mpegurl|m3u8|application\/vnd\.apple\.mpegurl/.test(type) || /\.m3u8(?:$|[?#])/i.test(target.pathname + target.search);
     // Some public broadcasters serve HLS manifests as text/plain or octet-stream.
     // Inspect only a clone so we can still stream the original response unchanged when it is media.
-    if (!isManifest && /(?:text\\/plain|octet-stream)/.test(type)) {
+    if (!isManifest && /(?:text\/plain|octet-stream)/.test(type)) {
       try {
         const probe = await upstream.clone().text();
-        isManifest = /^\\s*#EXTM3U\\b/i.test(probe);
+        isManifest = /^\s*#EXTM3U\b/i.test(probe);
       } catch {}
     }
 
