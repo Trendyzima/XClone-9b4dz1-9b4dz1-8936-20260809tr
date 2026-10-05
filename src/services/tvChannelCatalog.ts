@@ -1,6 +1,6 @@
 import {supabaseUrl} from '@/lib/supabase';
 
-export type TvChannel = { id:string; name:string; url:string; logo?:string; country?:string; language?:string; group?:string; source:string; priority:number; live?:boolean; live_checked_at?:string };
+export type TvChannel = { id:string; tvg_id?:string; name:string; url:string; logo?:string; country?:string; language?:string; group?:string; source:string; priority:number; live?:boolean; live_checked_at?:string };
 export type TvSource = { id:string; label:string; url:string; country?:string; priority:number; enabled?:boolean; policy?:'public-free'|'community-unverified' };
 export const TV_SOURCES: TvSource[] = [
 {id:'world-ip-tv-verified',label:'World IPTV Checker · daily verified public streams',url:'https://romaxa55.github.io/world_ip_tv/output/index.m3u',country:'INT',priority:170,enabled:true,policy:'public-free'},
@@ -30,7 +30,6 @@ export const TV_SOURCES: TvSource[] = [
 {id:'subash-football-cricket',label:'Subash · Football & Cricket · public FTA',url:'https://raw.githubusercontent.com/subash9860/iptv-football-cricket/main/index.m3u',country:'INT',priority:117,enabled:true,policy:'community-unverified'},
 {id:'dhanytv-indonesia',label:'dhanytv · Indonesia public channels',url:'https://raw.githubusercontent.com/dhasap/dhanytv/main/dhanytv-ott.m3u',country:'ID',priority:116,enabled:true,policy:'public-free'},
 {id:'blitz-latam',label:'Blitz IPTV Player · public channel snapshot',url:'https://raw.githubusercontent.com/blitzandres/iptv-player/main/channels.json',country:'INT',priority:115,enabled:true,policy:'community-unverified'},
-{id:'freecast-global',label:'FreeCastHub · Global public broadcasters',url:'https://raw.githubusercontent.com/freecasthub/public-iptv/main/playlist.m3u',country:'INT',priority:114,enabled:true,policy:'public-free'},
 ];
 function attr(line:string,key:string){ return line.match(new RegExp(key+'="([^"]*)"'))?.[1]?.trim() || undefined; }
 const clean=(v?:string)=>v?.replace(/\s+/g,' ').trim()||undefined;
@@ -40,9 +39,10 @@ export function parseM3U(text:string,source:TvSource,max=25000):TvChannel[]{
   if(line.startsWith('#EXTINF')){info=line;continue;} if(line.startsWith('#')) continue;
   if(!info || !/^https:\/\//i.test(line)){info=null;continue;}
   const comma=info.indexOf(','); const name=clean(comma>=0?info.slice(comma+1):attr(info,'tvg-name'))||'Live TV';
+  const tvg_id=clean(attr(info,'tvg-id'));
   const logo=clean(attr(info,'tvg-logo')); const group=clean(attr(info,'group-title')); const country=clean(attr(info,'tvg-country'))||source.country; const language=clean(attr(info,'tvg-language'));
   const key=(name+'|'+line).toLowerCase(); const id=typeof btoa==='function'?btoa(unescape(encodeURIComponent(key))).replace(/[^a-z0-9]/gi,'').slice(0,80):key.slice(0,80);
-  out.push({id,name,url:line,logo,group,country,language,source:source.label,priority:source.priority}); info=null;
+  out.push({id,tvg_id,name,url:line,logo,group,country,language,source:source.label,priority:source.priority}); info=null;
  } return out;
 }
 function unwrapTvProxyUrl(value:string):string{
