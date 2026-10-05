@@ -5,7 +5,7 @@ import { MapPin, PackageCheck, Truck, Navigation, Loader2 } from 'lucide-react';
 
 type Delivery = {
   id:string; order_id:string; status:string; dropoff_address:string;
-  courier_lat:number|null; courier_lng:number|null; courier_updated_at:string|null;
+  courier_id:string|null; courier_lat:number|null; courier_lng:number|null; courier_updated_at:string|null;
   eta_minutes:number|null; currency:string; delivery_fee_minor:number;
 };
 
@@ -33,9 +33,9 @@ export function MarketplaceDeliveryTracker({ deliveryId, compact=false }: { deli
     return()=>{ alive=false; void supabase.removeChannel(channel); };
   },[deliveryId]);
 
-  if(loading) return <div className="rounded-2xl border p-4 text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>Loading live delivery…</div>;
   useEffect(()=>{ if(!user||!delivery||delivery.courier_id!==user.id||delivery.status==='delivered'||delivery.status==='cancelled'||!sharing) return; const watch=navigator.geolocation?.watchPosition(async p=>{ await supabase.rpc('update_marketplace_delivery_location',{p_delivery_id:delivery.id,p_lat:p.coords.latitude,p_lng:p.coords.longitude,p_status:delivery.status==='assigned'?'in_transit':delivery.status,p_eta_minutes:delivery.eta_minutes}); },()=>undefined,{enableHighAccuracy:true,maximumAge:5000,timeout:15000}); return()=>{if(watch!=null) navigator.geolocation.clearWatch(watch);}; },[user,delivery,sharing]);
 
+  if(loading) return <div className="rounded-2xl border p-4 text-sm text-muted-foreground"><Loader2 className="mr-2 inline h-4 w-4 animate-spin"/>Loading live delivery…</div>;
   if(!delivery) return <div className="rounded-2xl border p-4 text-sm text-muted-foreground">Delivery tracking is unavailable.</div>;
 
   const active=delivery.status!=='delivered'&&delivery.status!=='cancelled';
