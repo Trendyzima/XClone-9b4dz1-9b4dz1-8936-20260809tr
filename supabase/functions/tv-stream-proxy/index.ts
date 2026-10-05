@@ -95,7 +95,15 @@ Deno.serve(async (req) => {
     }
 
     const type = (upstream.headers.get("content-type") || "").toLowerCase();
-    const isManifest = /mpegurl|m3u8|application\/vnd\.apple\.mpegurl/.test(type) || /\.m3u8(?:$|[?#])/i.test(target.pathname + target.search);
+    let isManifest = /mpegurl|m3u8|application\\/vnd\\.apple\\.mpegurl/.test(type) || /\\.m3u8(?:$|[?#])/i.test(target.pathname + target.search);
+    // Some public broadcasters serve HLS manifests as text/plain or octet-stream.
+    // Inspect only a clone so we can still stream the original response unchanged when it is media.
+    if (!isManifest && /(?:text\\/plain|octet-stream)/.test(type)) {
+      try {
+        const probe = await upstream.clone().text();
+        isManifest = /^\\s*#EXTM3U\\b/i.test(probe);
+      } catch {}
+    }
 
     if (isManifest) {
       const text = await upstream.text();
@@ -119,6 +127,8 @@ Deno.serve(async (req) => {
           ...corsHeaders,
           "Content-Type": "application/vnd.apple.mpegurl; charset=utf-8",
           "X-Testagram-TV-Proxy": "hls",
+          "Access-Control-Allow-Credentials": "false",
+          "Vary": "Origin",
         }
       });
     }
@@ -129,6 +139,8 @@ Deno.serve(async (req) => {
       if (value) outHeaders.set(name, value);
     }
     outHeaders.set("X-Testagram-TV-Proxy", "media");
+    outHeaders.set("Access-Control-Allow-Credentials", "false");
+    outHeaders.set("Vary", "Origin");
     return new Response(upstream.body, {status:upstream.status, headers:outHeaders});
   } catch (error) {
     console.error("[tv-stream-proxy]", error);
