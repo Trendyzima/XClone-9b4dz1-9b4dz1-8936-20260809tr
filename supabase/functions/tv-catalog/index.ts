@@ -184,7 +184,7 @@ function browserPlaybackUrl(url:string) {
 }
 
 async function onlyLiveChannels(channels:any[],signal:AbortSignal,max=8){
-  const candidates=channels.filter(c=>/^https:\/\//i.test(String(c?.url||""))).slice(0,max*3); const live:any[]=[]; let cursor=0;
+  const candidates=channels.filter(c=>/^https?:\/\//i.test(String(c?.url||""))).slice(0,max*3); const live:any[]=[]; let cursor=0;
   const worker=async()=>{while(cursor<candidates.length&&live.length<max){const c=candidates[cursor++];if(await probeStream(c.url,signal))live.push({...c,live:true,live_checked_at:new Date().toISOString()});}};
   await Promise.all(Array.from({length:12},()=>worker())); return live.slice(0,max);
 }
