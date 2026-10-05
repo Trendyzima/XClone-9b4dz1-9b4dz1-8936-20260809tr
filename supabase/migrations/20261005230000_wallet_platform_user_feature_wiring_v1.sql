@@ -127,6 +127,4 @@ begin
  return jsonb_build_object('id',w.id,'user_id',w.user_id,'balance',w.balance,'currency',w.currency,'created_at',w.created_at,'updated_at',w.updated_at,'total_deposited',w.total_deposited,'total_withdrawn',w.total_withdrawn,'mpesa_phone',w.mpesa_phone,'paypal_email',w.paypal_email,'status',w.status,'spending_enabled',w.spending_enabled,'withdrawals_enabled',w.withdrawals_enabled,'spend_limit_enabled',w.spend_limit_enabled,'daily_spend_limit',w.daily_spend_limit,'preferred_currency',w.preferred_currency,'savings_balance',w.savings_balance);
 end $$;
 
--- Existing marketplace, delivery, and ad-settlement functions are replaced by the live migration
--- wallet_platform_user_feature_wiring_v1. They must remain deployed together with this file.
 commit;
