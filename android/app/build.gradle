@@ -3,6 +3,11 @@ plugins {
     id 'com.google.gms.google-services'
 }
 
+def generateTestagramBrandAssets = tasks.register("generateTestagramBrandAssets", Exec) {
+    workingDir rootProject.projectDir
+    commandLine "python3", "scripts/generate_brand_assets.py"
+}
+
 android {
     namespace "com.xclone.app"
     compileSdk 36
@@ -43,6 +48,8 @@ android {
         targetCompatibility JavaVersion.VERSION_21
     }
 }
+
+tasks.named("preBuild").configure { dependsOn(generateTestagramBrandAssets) }
 
 dependencies {
     implementation 'androidx.activity:activity:1.11.0'
