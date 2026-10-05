@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useRef, useState } from 'react';
 import { Car, CheckCircle2, Clock3, LocateFixed, MapPin, Navigation, RefreshCw, ShieldCheck, Smartphone, WalletCards, CreditCard, Route, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -45,7 +45,7 @@ export default function RidePage() {
   const [loading,setLoading] = useState(false);
   const [locating,setLocating] = useState(false);
   const [paying,setPaying] = useState(false);
-  const [loadingRide,setLoadingRide] = useState(true);
+  const [loadingRide,setLoadingRide] = useState(true);\n  const rideRequestKeyRef = useRef<string | null>(null);
 
   const selectedType = useMemo(() => RIDE_TYPES.find(x=>x.id===rideType)!, [rideType]);
   const canRequest = Boolean(user && pickup.trim() && dropoff.trim() && pickupPoint && dropoffPoint && fare && !loading);
@@ -159,7 +159,7 @@ export default function RidePage() {
         p_idempotency_key:'ride:'+activeRide.id,
       });
       if(error) throw error;
-      if(!data?.ok) throw new Error('Ride payment was not completed.');
+      if(!data?.ok) {\n        if(data?.code === 'RISK_BLOCKED') throw new Error('Wallet payment was blocked by Testagram risk controls. Please review your Wallet security and try again later.');\n        throw new Error('Ride payment was not completed.');\n      }
       toast.success(`Ride paid from Wallet · KES ${amount.toLocaleString()}`);
       await fetchWallet();
       await loadLatestRide();
