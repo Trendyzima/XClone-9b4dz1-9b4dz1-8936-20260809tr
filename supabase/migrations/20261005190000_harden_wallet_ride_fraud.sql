@@ -213,3 +213,103 @@ grant execute on function public.finalize_testagram_ad_mpesa_payment(text,intege
 
 revoke execute on function public.testagram_claim_ad_impression(text,text,text,uuid,uuid,uuid,bigint,jsonb,jsonb) from public, anon, authenticated;
 grant execute on function public.testagram_claim_ad_impression(text,text,text,uuid,uuid,uuid,bigint,jsonb,jsonb) to service_role;
+
+
+-- Defense-in-depth: tables already had RLS enabled but no client policies.
+-- Explicit restrictive deny policies preserve the existing deny-by-default behavior
+-- while clearing the RLS-without-policy ambiguity in the security advisor.
+do $$
+declare r record;
+begin
+ for r in
+   select tablename,schemaname
+   from pg_tables t
+   where schemaname in ('public','testagram_internal')
+     and rowsecurity=true
+     and not exists(select 1 from pg_policies p where p.schemaname=t.schemaname and p.tablename=t.tablename)
+ loop
+   execute format(
+     'create policy %I on %I.%I as restrictive for all to anon, authenticated using (false) with check (false)',
+     'deny_direct_client_access',r.schemaname,r.tablename
+   );
+ end loop;
+end $$;
+
+create index if not exists wallet_transactions_user_idempotency_idx
+  on public.wallet_transactions(user_id,idempotency_key)
+  where idempotency_key is not null;
+create unique index if not exists reward_events_idempotency_uidx
+  on public.reward_events(idempotency_key)
+  where idempotency_key is not null;
+create index if not exists wallet_risk_events_decision_created_idx
+  on public.wallet_risk_events(decision,created_at desc);
+
+create or replace function public.claim_daily_reward()
+returns jsonb language plpgsql security definer set search_path=''
+as $function$
+declare
+ v_user_id uuid:=auth.uid(); v_today date:=(now() at time zone 'utc')::date;
+ v_reward public.daily_rewards%rowtype; v_wallet public.user_wallets%rowtype;
+ v_event_id uuid:=gen_random_uuid(); v_day integer; v_credits integer; v_idempotency text;
+begin
+ if v_user_id is null then raise exception using errcode='28000',message='Authentication required'; end if;
+ perform pg_advisory_xact_lock(hashtext('daily-reward:'||v_user_id::text||':'||v_today::text));
+ select * into v_reward from public.daily_rewards where user_id=v_user_id for update;
+ if v_reward.user_id is not null and (v_reward.last_claimed_at at time zone 'utc')::date=v_today then
+   raise exception using errcode='23505',message='DAILY_REWARD_ALREADY_CLAIMED';
+ end if;
+ v_day:=case when v_reward.user_id is null or v_reward.last_claimed_at is null then 1
+   when (v_reward.last_claimed_at at time zone 'utc')::date=v_today-1 then case when v_reward.streak_day>=7 then 1 else v_reward.streak_day+1 end
+   else 1 end;
+ v_credits:=case v_day when 1 then 10 when 2 then 15 when 3 then 20 when 4 then 25 when 5 then 30 when 6 then 40 when 7 then 50 else 10 end;
+ v_idempotency:='daily-reward:'||v_user_id::text||':'||v_today::text;
+ insert into public.user_wallets(user_id,credits,updated_at) values(v_user_id,v_credits,now())
+ on conflict(user_id) do update set credits=public.user_wallets.credits+excluded.credits,updated_at=now() returning * into v_wallet;
+ insert into public.daily_rewards(user_id,streak_day,credits_earned,last_claimed_at,updated_at)
+ values(v_user_id,v_day,v_credits,now(),now())
+ on conflict(user_id) do update set streak_day=excluded.streak_day,credits_earned=excluded.credits_earned,last_claimed_at=excluded.last_claimed_at,updated_at=now()
+ returning * into v_reward;
+ insert into public.reward_events(id,user_id,reward_type,amount_minor,currency,source,source_id,idempotency_key,created_at)
+ values(v_event_id,v_user_id,'daily_streak',v_credits,'CREDITS','daily_rewards',v_event_id,v_idempotency,now())
+ on conflict(idempotency_key) do nothing;
+ return jsonb_build_object('ok',true,'streak_day',v_reward.streak_day,'credits_earned',v_credits,'wallet_credits',v_wallet.credits,'claimed_at',v_reward.last_claimed_at);
+end;
+$function$;
+
+revoke execute on function public.claim_daily_reward() from public,anon;
+grant execute on function public.claim_daily_reward() to authenticated;
+
+create or replace function public.claim_rewarded_ad(p_idempotency_key text)
+returns table(ok boolean,credits_earned bigint,wallet_credits bigint,streak_count integer,claimed_at timestamptz)
+language plpgsql security definer set search_path=''
+as $function$
+declare
+ v_user uuid:=auth.uid(); v_existing record; v_today_count integer;
+ v_credits bigint:=25; v_wallet bigint:=0; v_now timestamptz:=now();
+begin
+ if v_user is null then raise exception 'REWARDED_AD_AUTH_REQUIRED'; end if;
+ if p_idempotency_key is null or length(trim(p_idempotency_key))<16 or length(trim(p_idempotency_key))>128
+    or trim(p_idempotency_key)!~'^[A-Za-z0-9:_-]+$' then raise exception 'REWARDED_AD_INVALID_REQUEST'; end if;
+ perform pg_advisory_xact_lock(hashtext('rewarded-ad:'||v_user::text||':'||trim(p_idempotency_key)));
+ select id,amount_minor into v_existing from public.reward_events where user_id=v_user and idempotency_key=trim(p_idempotency_key) limit 1;
+ if found then
+   select coalesce(credits,0) into v_wallet from public.user_wallets where user_id=v_user;
+   select count(*)::integer into v_today_count from public.reward_events where user_id=v_user and source='rewarded_ads'
+     and created_at>=date_trunc('day',v_now) and created_at<date_trunc('day',v_now)+interval '1 day';
+   return query select true,v_existing.amount_minor,v_wallet,v_today_count,v_now; return;
+ end if;
+ select count(*)::integer into v_today_count from public.reward_events where user_id=v_user and source='rewarded_ads'
+   and created_at>=date_trunc('day',v_now) and created_at<date_trunc('day',v_now)+interval '1 day';
+ if v_today_count>=10 then raise exception 'REWARDED_AD_DAILY_LIMIT'; end if;
+ if v_today_count>=2 then v_credits:=40; end if;
+ insert into public.reward_events(user_id,reward_type,amount_minor,currency,source,idempotency_key)
+ values(v_user,'rewarded_ad',v_credits,'CREDITS','rewarded_ads',trim(p_idempotency_key));
+ insert into public.user_wallets(user_id,credits) values(v_user,v_credits)
+ on conflict(user_id) do update set credits=public.user_wallets.credits+excluded.credits,updated_at=now();
+ select credits into v_wallet from public.user_wallets where user_id=v_user;
+ return query select true,v_credits,v_wallet,v_today_count+1,v_now;
+end;
+$function$;
+
+revoke execute on function public.claim_rewarded_ad(text) from public,anon;
+grant execute on function public.claim_rewarded_ad(text) to authenticated;
