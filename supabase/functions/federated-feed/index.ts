@@ -288,7 +288,7 @@ Deno.serve(async (request) => {
 
     const followedItems = [...followedActorItems, ...followedHashtagItems];
     const followedObjectIds = new Set(followedItems.map((item: any) => String(item.id || "")).filter(Boolean));
-    const suggestedNeeded = Math.max(0, limit - followedItems.length);
+    const suggestedNeeded = Math.max(0, limit * 2);
     let suggestedItems: any[] = [];
 
     if (suggestedNeeded > 0) {
@@ -306,19 +306,54 @@ Deno.serve(async (request) => {
         }));
     }
 
-    const enrichedItems = await enrichRemoteAccounts([...followedItems, ...suggestedItems]);
-    const items = enrichedItems
-      .sort((a, b) => {
-        const sourcePriority = (source: string) =>
-          source === "following_actor" ? 3 :
-          source === "following_hashtag" ? 2 :
-          source === "suggested" ? 1 : 0;
-        const aFollowing = sourcePriority(a.feed_source);
-        const bFollowing = sourcePriority(b.feed_source);
-        if (aFollowing !== bFollowing) return bFollowing - aFollowing;
-        return new Date(b.published_at || 0).getTime() - new Date(a.published_at || 0).getTime();
-      })
-      .slice(0, limit);
+    const composeFederatedTimeline = (followed: any[], suggested: any[], max: number) => {
+      const priority = [...followed].sort((a, b) => {
+        const rank = (x: any) => x.feed_source === "following_actor" ? 2 : 1;
+        return rank(b) - rank(a) || new Date(b.published_at || 0).getTime() - new Date(a.published_at || 0).getTime();
+      });
+      const discovery = [...suggested].sort((a, b) =>
+        new Date(b.published_at || 0).getTime() - new Date(a.published_at || 0).getTime()
+      );
+      const out: any[] = [];
+      const seen = new Set<string>();
+      let p = 0;
+      let d = 0;
+
+      const authorKey = (item: any) => String(item.actor_uri || item.remote_account?.id || "");
+      while (out.length < max && (p < priority.length || d < discovery.length)) {
+        // Bluesky-style social-feed composition: followed actors/tags remain
+        // the strongest signal, but discovery is deliberately interleaved so
+        // the Fediverse feed expands beyond the current follow graph.
+        const takePriority = p < priority.length && (out.length % 3 !== 2 || d >= discovery.length);
+        const pool = takePriority ? priority : discovery;
+        const index = takePriority ? p : d;
+        let chosen = pool[index];
+        if (!chosen) break;
+
+        const recent = out.slice(-2);
+        const author = authorKey(chosen);
+        const repeatedAuthor = author && recent.filter((x) => authorKey(x) === author).length >= 2;
+        if (repeatedAuthor && pool.length > index + 1) {
+          chosen = pool[index + 1];
+          if (takePriority) p += 2;
+          else d += 2;
+        } else if (takePriority) {
+          p += 1;
+        } else {
+          d += 1;
+        }
+
+        const key = String(chosen.id || chosen.uri || "");
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(chosen);
+      }
+      return out;
+    };
+
+    const composedItems = composeFederatedTimeline(followedItems, suggestedItems, limit);
+    const enrichedItems = await enrichRemoteAccounts(composedItems);
+    const items = enrichedItems;
 
     const hasMore = followedItems.length >= limit || suggestedItems.length >= suggestedNeeded;
     const nextCursor = hasMore && items.length ? items[items.length - 1].published_at : null;
