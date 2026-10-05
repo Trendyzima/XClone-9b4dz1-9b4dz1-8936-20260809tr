@@ -193,3 +193,23 @@ $function$;
 
 revoke execute on function public.wallet_pay_ride(uuid,numeric,text,text) from public, anon;
 grant execute on function public.wallet_pay_ride(uuid,numeric,text,text) to authenticated;
+
+
+-- Remove client access to provider callbacks and the legacy non-idempotent transfer overload.
+revoke execute on function public.p2p_wallet_transfer(uuid,uuid,numeric,text) from public, anon, authenticated;
+grant execute on function public.p2p_wallet_transfer(uuid,uuid,numeric,text) to service_role;
+
+revoke execute on function public.reserve_mpesa_withdrawal(uuid,uuid,numeric,text,text,numeric,text) from public, anon, authenticated;
+grant execute on function public.reserve_mpesa_withdrawal(uuid,uuid,numeric,text,text,numeric,text) to service_role;
+
+revoke execute on function public.finalize_mpesa_topup(text,integer,text,text,jsonb) from public, anon, authenticated;
+grant execute on function public.finalize_mpesa_topup(text,integer,text,text,jsonb) to service_role;
+
+revoke execute on function public.finalize_mpesa_withdrawal(text,text,integer,text,text,jsonb) from public, anon, authenticated;
+grant execute on function public.finalize_mpesa_withdrawal(text,text,integer,text,text,jsonb) to service_role;
+
+revoke execute on function public.finalize_testagram_ad_mpesa_payment(text,integer,text,text,numeric,jsonb,jsonb) from public, anon, authenticated;
+grant execute on function public.finalize_testagram_ad_mpesa_payment(text,integer,text,text,numeric,jsonb,jsonb) to service_role;
+
+revoke execute on function public.testagram_claim_ad_impression(text,text,text,uuid,uuid,uuid,bigint,jsonb,jsonb) from public, anon, authenticated;
+grant execute on function public.testagram_claim_ad_impression(text,text,text,uuid,uuid,uuid,bigint,jsonb,jsonb) to service_role;
