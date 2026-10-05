@@ -82,7 +82,8 @@ export default function BoostCreatePage() {
 
   const fetchWallet = async () => {
     if (!user) return;
-    const { data } = await supabase.from('user_wallets').select('balance').eq('user_id', user.id).maybeSingle();
+    const { data, error } = await supabase.rpc('get_my_wallet').maybeSingle();
+    if (error) { setWalletBalance(0); return; }
     setWalletBalance(Number(data?.balance ?? 0));
   };
 
@@ -120,7 +121,8 @@ export default function BoostCreatePage() {
       });
       if (error) throw error;
 
-      await supabase.rpc('deduct_from_wallet', { p_user_id: user.id, p_amount: totalBudget }).catch(() => {});
+      const { error: walletError } = await supabase.rpc('deduct_from_wallet', { p_user_id: user.id, p_amount: totalBudget, p_description: `Boost campaign - ${postId}` });
+      if (walletError) throw walletError;
       setLaunched(true);
       toast.success('Boost campaign launched!');
       setTimeout(() => navigate(`/boost-analytics/${postId}`), 1800);
