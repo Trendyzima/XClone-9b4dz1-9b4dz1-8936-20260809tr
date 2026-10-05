@@ -1,0 +1,170 @@
+name: Historical Production Signing Key Forensics v2
+
+on:
+  push:
+    branches:
+      - forensic/historical-signing-key-v2
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  forensic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      TARGET_FINGERPRINT: "E7:17:82:7E:F5:85:3D:0C:EF:A0:4B:35:77:09:CC:9C:80:FC:F1:5F:7C:D6:75:55:A1:BD:A0:75:13:A6:AC:9"
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Identify production certificate
+        shell: bash
+        run: |
+          set -euo pipefail
+          normalize() { printf '%s' "$1" | tr '[:lower:]' '[:upper:]' | tr -d ':[:space:]'; }
+          TARGET="$(normalize "$TARGET_FINGERPRINT")"
+          matches=0
+          found=0
+          mkdir -p /tmp/forensics
+
+          mapfile -t CANDIDATES < <(
+            git rev-list --objects --all |
+              awk '{
+                p=$2
+                if (p ~ /(^|\/)(keystore-base64\.txt|[^\/]*\.(jks|keystore|p12|pfx))$/ ||
+                    p ~ /(keystore|signing|release.*key)/) print $1 "\t" p
+              }' |
+              sort -u
+          )
+
+          test "${#CANDIDATES[@]}" -gt 0 || {
+            echo "::error::No historical signing-key candidates found"
+            exit 2
+          }
+
+          for ENTRY in "${CANDIDATES[@]}"; do
+            BLOB="${ENTRY%%$'\t'*}"
+            PATHNAME="${ENTRY#*$'\t'}"
+            found=$((found + 1))
+            RAW="/tmp/forensics/${found}.raw"
+            DATA="/tmp/forensics/${found}.data"
+            CERT="/tmp/forensics/${found}.pem"
+            git cat-file blob "$BLOB" > "$RAW"
+
+            if [[ "$PATHNAME" == *keystore-base64.txt ]]; then
+              if ! tr -d '\r\n ' < "$RAW" | base64 --decode > "$DATA" 2>/dev/null; then
+                echo "CANDIDATE $BLOB path=$PATHNAME: invalid Base64"
+                continue
+              fi
+            else
+              cp "$RAW" "$DATA"
+            fi
+
+            FP=""
+            ALIAS=""
+
+            if [ -n "${ANDROID_KEYSTORE_PASSWORD:-}" ] && keytool -list -v -keystore "$DATA" -storepass "$ANDROID_KEYSTORE_PASSWORD" > "$DATA.txt" 2>/dev/null; then
+              FP="$(awk -F': ' '/SHA256:/{print $2;exit}' "$DATA.txt" | tr -d '[:space:]')"
+              ALIAS="$(awk -F': ' '/Alias name:/{print $2;exit}' "$DATA.txt" | tr -d '[:space:]')"
+              echo "CANDIDATE $BLOB path=$PATHNAME alias=${ALIAS:-unknown} certificate=${FP:-unavailable} password=VALID"
+            else
+              FP="$(openssl pkcs12 -in "$DATA" -nokeys -passin pass:"${ANDROID_KEYSTORE_PASSWORD:-}" 2>/dev/null | openssl x509 -noout -fingerprint -sha256 2>/dev/null | sed 's/^sha256 Fingerprint=//' || true)"
+              if [ -z "$FP" ]; then
+                FP="$(openssl x509 -in "$DATA" -noout -fingerprint -sha256 2>/dev/null | sed 's/^sha256 Fingerprint=//' || true)"
+              fi
+              if [ -z "$FP" ] && head -c 4 "$DATA" | od -An -tx1 | grep -qi 'fe ed fe ed'; then
+                python3 - "$DATA" "$CERT" <<'PY'
+import base64, struct, sys
+from pathlib import Path
+d = Path(sys.argv[1]).read_bytes()
+out = Path(sys.argv[2])
+p = 4
+def u4():
+    global p
+    v = struct.unpack(">I", d[p:p+4])[0]
+    p += 4
+    return v
+def u8():
+    global p
+    p += 8
+def utf():
+    global p
+    n = struct.unpack(">H", d[p:p+2])[0]
+    p += 2
+    x = d[p:p+n].decode("utf-8")
+    p += n
+    return x
+def blob(n):
+    global p
+    x = d[p:p+n]
+    p += n
+    return x
+if struct.unpack(">I", d[:4])[0] != 0xFEEDFEED:
+    raise ValueError("not JKS")
+version = u4()
+if version not in (1, 2):
+    raise ValueError("unsupported JKS")
+count = u4()
+certs = []
+for _ in range(count):
+    tag = u4()
+    utf()
+    u8()
+    if tag == 1:
+        blob(u4())
+        n = u4()
+        for _ in range(n):
+            utf()
+            certs.append(blob(u4()))
+    elif tag == 2:
+        utf()
+        certs.append(blob(u4()))
+    else:
+        raise ValueError("unknown entry")
+if not certs:
+    raise ValueError("no certificates")
+out.write_bytes(b"".join(
+    b"-----BEGIN CERTIFICATE-----\n" + base64.b64encode(c) +
+    b"\n-----END CERTIFICATE-----\n" for c in certs))
+PY
+                FP="$(openssl x509 -in "$CERT" -noout -fingerprint -sha256 2>/dev/null | sed 's/^sha256 Fingerprint=//' || true)"
+              fi
+            fi
+
+            if [ -n "$FP" ]; then
+              echo "CANDIDATE $BLOB path=$PATHNAME certificate=$FP"
+              if [ "$(normalize "$FP")" = "$TARGET" ]; then
+                echo "::notice::MATCH — $BLOB at $PATHNAME contains the known-good production signing certificate."
+                matches=$((matches + 1))
+              fi
+            else
+              echo "CANDIDATE $BLOB path=$PATHNAME: public certificate could not be extracted"
+            fi
+            rm -f "$RAW" "$DATA" "$DATA.txt" "$CERT"
+          done
+
+          echo "Historical signing candidates examined: $found"
+          echo "Production-identity matches: $matches"
+
+          if [ "$matches" -eq 1 ]; then
+            echo "MATCH FOUND — preserve this signing identity."
+            exit 0
+          fi
+          if [ "$matches" -gt 1 ]; then
+            echo "::error::Multiple historical candidates match the production certificate."
+            exit 3
+          fi
+          echo "::error::No historical candidate contains the production certificate."
+          exit 4
+
+      - name: Cleanup
+        if: always()
+        run: rm -rf /tmp/forensics
