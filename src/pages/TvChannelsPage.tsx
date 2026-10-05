@@ -161,7 +161,7 @@ export default function TvChannelsPage(){
  };
 
  const refresh=()=>{loaded.current.clear();setDead(new Set());setActive('');setChannels([]);setNotice('');void loadSources(getPrioritySourceIds().slice(0,6));};
- const loadMore=async()=>{let next=sourceIndex+1;while(next<TV_SOURCES.length&&TV_SOURCES[next].enabled===false)next++;if(next<TV_SOURCES.length){setSourceIndex(next);await loadSources([TV_SOURCES[next].id]);}};
+ const loadMore=async()=>{const ordered=TV_SOURCES.filter(s=>s.enabled!==false).sort((a,b)=>b.priority-a.priority); const next=ordered.find(s=>!loaded.current.has(s.id)); if(next) await loadSources([next.id]);};
  const categories=useMemo(()=>[
   ['Kenya',filtered.filter(c=>c.country==='KE')],
   ['News',filtered.filter(c=>/news/i.test((c.group||'')+' '+c.name))],
