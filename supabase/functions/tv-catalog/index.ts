@@ -179,7 +179,7 @@ async function probeStream(url:string, signal:AbortSignal) {
   } catch{return false} finally{clearTimeout(t2);signal.removeEventListener("abort",a2);}
 }
 function browserPlaybackUrl(url:string) {
-  const base = (Deno.env.get("SUPABASE_URL") || "https://ffrhglgkukgsuhxenena.supabase.co").replace(/\\/$/,"");
+  const base = (Deno.env.get("SUPABASE_URL") || "https://ffrhglgkukgsuhxenena.supabase.co").replace(/\/$/,"");
   return base + "/functions/v1/tv-stream-proxy?url=" + encodeURIComponent(url);
 }
 
