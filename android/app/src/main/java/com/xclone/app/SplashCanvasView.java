@@ -48,9 +48,9 @@ public final class SplashCanvasView extends View {
         p.setShader(null);
 
         drawTexture(c, w, h);
-        if (screen == 0) drawConnect(c, w, h);
-        if (screen == 1) drawLive(c, w, h);
-        if (screen == 2) drawDiscover(c, w, h);
+        if (screen == 0) drawConnect(c, w, h, t);
+        if (screen == 1) drawLive(c, w, h, t);
+        if (screen == 2) drawDiscover(c, w, h, t);
 
         drawFooter(c, w, h);
         if (isShown()) postInvalidateOnAnimation();
@@ -68,7 +68,7 @@ public final class SplashCanvasView extends View {
         c.drawCircle(w * .82f, h * .18f, w * .29f, stroke);
     }
 
-    private void drawConnect(Canvas c, float w, float h) {
+    private void drawConnect(Canvas c, float w, float h, float t) {
         drawTag(c, "CONNECT", w * .08f, h * .27f, w * .84f);
 
         // Dedicated illustration band: keep network lines away from cards and copy.
@@ -91,7 +91,7 @@ public final class SplashCanvasView extends View {
         drawMicro(c, "Share your voice. Find your people.", w * .08f, h * .825f);
     }
 
-    private void drawLive(Canvas c, float w, float h) {
+    private void drawLive(Canvas c, float w, float h, float t) {
         drawTag(c, "WATCH LIVE", w * .08f, h * .25f, w * .84f);
         p.setColor(Color.WHITE);
         p.setStyle(Paint.Style.STROKE);
@@ -120,7 +120,7 @@ public final class SplashCanvasView extends View {
         drawMicro(c, "One place for the moments happening now.", w * .08f, h * .835f);
     }
 
-    private void drawDiscover(Canvas c, float w, float h) {
+    private void drawDiscover(Canvas c, float w, float h, float t) {
         drawTag(c, "DISCOVER", w * .08f, h * .27f, w * .84f);
         stroke.setStrokeWidth(8);
         stroke.setColor(Color.rgb(61, 255, 132));
