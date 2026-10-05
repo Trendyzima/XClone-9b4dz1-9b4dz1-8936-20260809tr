@@ -13,8 +13,18 @@ import {createTvReply,getTvReplies,type TvReply} from '@/services/tvChannelReply
 const filters=[['For you',''],['Kenya','KE'],['Africa','AF'],['International','INT'],['News','news'],['Sports','sport'],['Music','music'],['Kids','kid']];
 
 function mergeTvChannelsStable(existing:TvChannel[],incoming:TvChannel[]){
- const seen=new Set<string>();
- return [...existing,...incoming].filter(channel=>{if(seen.has(channel.id))return false;seen.add(channel.id);return true;});
+ const normalize=(value:string)=>value.toLowerCase().normalize('NFKD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
+ const seenUrl=new Set<string>();
+ const seenIdentity=new Set<string>();
+ return [...existing,...incoming].filter(channel=>{
+  const url=String(channel.url||'').toLowerCase().trim();
+  const tvg=normalize(String(channel.tvg_id||''));
+  const name=normalize(String(channel.name||''));
+  const country=normalize(String(channel.country||''));
+  const identity=tvg?'id:'+tvg:(country?'name:'+name+'|country:'+country:'url:'+url);
+  if(!url||seenUrl.has(url)||seenIdentity.has(identity)) return false;
+  seenUrl.add(url); seenIdentity.add(identity); return true;
+ });
 }
 
 function renderReplyText(content:string,onTag:(kind:'hashtag'|'mention',value:string)=>void){
