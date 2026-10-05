@@ -3,6 +3,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 const MAX = 100000;
 const SOURCES = [
   { id:"iptv-org", name:"IPTV-ORG Global", url:"https://iptv-org.github.io/iptv/index.m3u", priority:100, format:"m3u" },
+  { id:"world-ip-tv-verified", name:"World IPTV Checker · daily verified public streams", url:"https://romaxa55.github.io/world_ip_tv/output/index.m3u", priority:101, format:"m3u" },
   { id:"nexus-best", name:"IPTV Nexus · Best healthy public streams", url:"https://dearbulut.github.io/iptv/playlists/best.m3u", priority:99, format:"m3u" },
   { id:"shovo-global", name:"IPTV By Shovo · Global", url:"https://shovo127.github.io/IPTV-By-Shovo/index.m3u", priority:96, format:"m3u" },
   { id:"free-tv", name:"Free-TV/IPTV Global", url:"https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8", priority:90, format:"m3u" },
