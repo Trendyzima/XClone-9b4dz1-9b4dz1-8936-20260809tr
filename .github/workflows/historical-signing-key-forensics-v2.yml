@@ -4,9 +4,6 @@ on:
   push:
     branches:
       - forensic/historical-signing-key-v2
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
