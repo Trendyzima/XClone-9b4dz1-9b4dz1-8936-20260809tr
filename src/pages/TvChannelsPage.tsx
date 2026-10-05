@@ -87,8 +87,16 @@ export default function TvChannelsPage(){
 
  useEffect(()=>{
   void loadFirebaseCatalogue(); void loadSources(getPrioritySourceIds().slice(0,6)); void loadTestagramLive();
+  const remaining=getPrioritySourceIds().slice(6);
+  let cancelled=false;
+  void (async()=>{
+   for(let i=0;i<remaining.length&&!cancelled;i+=2){
+    await loadSources(remaining.slice(i,i+2));
+    await new Promise(resolve=>setTimeout(resolve,150));
+   }
+  })();
   const ch=supabase.channel('tv-live-broadcasts').on('postgres_changes',{event:'*',schema:'public',table:'live_streams'},loadTestagramLive).subscribe();
-  return()=>{void supabase.removeChannel(ch);};
+  return()=>{cancelled=true;void supabase.removeChannel(ch);};
  },[loadFirebaseCatalogue,loadSources,loadTestagramLive]);
 
 

@@ -70,7 +70,7 @@ async function getCachedChannels(sourceId:string) {
 async function setCachedChannels(sourceId:string, payload:unknown) {
   const value = JSON.stringify(payload);
   if (value.length > 9000000) return;
-  await upstash(["SET", "tv:catalog:v5:" + sourceId, value, "EX", "120"]);
+  await upstash(["SET", "tv:catalog:v6:" + sourceId, value, "EX", "900"]);
 }
 const clean = (v:string|undefined) => v?.replace(/\s+/g," ").trim() || undefined;
 const attr = (line:string,key:string) => line.match(new RegExp(key+'="([^"]*)"',"i"))?.[1]?.trim();
@@ -79,7 +79,7 @@ function idFor(name:string,url:string) {
   return btoa(unescape(encodeURIComponent((name+"|"+url).toLowerCase()))).replace(/[^a-z0-9]/gi,"").slice(0,80);
 }
 
-function parseM3U(text:string, source:Source, max=300) {
+function parseM3U(text:string, source:Source, max=25000) {
   const lines=text.replace(/^\uFEFF/,"").split(/\r?\n/);
   const out:any[]=[]; let info:string|null=null;
   for (const raw of lines) {
@@ -144,7 +144,7 @@ function fromNexus(payload:unknown, label:string, priority:number, countryOverri
   return out;
 }
 
-async function fetchM3U(source:Source, signal:AbortSignal, max=300) {
+async function fetchM3U(source:Source, signal:AbortSignal, max=25000) {
   const r=await fetch(source.url,{signal,redirect:"follow",headers:{Accept:"application/vnd.apple.mpegurl,text/plain,*/*","User-Agent":"TestagramTV/3.0"}});
   if(!r.ok) throw new Error(source.id+" HTTP "+r.status);
   return parseM3U(await r.text(),source,max);
@@ -239,7 +239,7 @@ Deno.serve(async(req)=>{
     let channels:any[]=[];
     if(sourceId==="iptv-org-global") {
       const [m3u,nexusKe,nexusNews,github]=await Promise.allSettled([
-        fetchM3U(source,controller.signal,260),
+        fetchM3U(source,controller.signal,25000),
         fetchJson(NEXUS+"/by-country/ke.json",controller.signal),
         fetchJson(NEXUS+"/by-category/news.json",controller.signal),
         githubDiscovery(controller.signal)
@@ -250,7 +250,7 @@ Deno.serve(async(req)=>{
       if(github.status==="fulfilled") channels.push(...github.value);
     } else if(sourceId==="iptv-org-ke") {
       const [m3u,nexus]=await Promise.allSettled([
-        fetchM3U(source,controller.signal,180),
+        fetchM3U(source,controller.signal,25000),
         fetchJson(NEXUS+"/by-country/ke.json",controller.signal)
       ]);
       if(nexus.status==="fulfilled") channels.push(...fromNexus(nexus.value,"IPTV Nexus · Kenya · health checked",160,"KE"));
@@ -259,7 +259,7 @@ Deno.serve(async(req)=>{
       const countries=["za","ng","gh","ug","tz","rw","zm","zw","bw"];
       const rows=await Promise.allSettled(countries.map(c=>fetchJson(NEXUS+"/by-country/"+c+".json",controller.signal)));
       rows.forEach((r,i)=>{if(r.status==="fulfilled") channels.push(...fromNexus(r.value,"IPTV Nexus · "+countries[i].toUpperCase()+" · health checked",150));});
-      const m3u=await fetchM3U(source,controller.signal,300).catch(()=>[]);
+      const m3u=await fetchM3U(source,controller.signal,25000).catch(()=>[]);
       channels.push(...m3u);
     } else if (sourceId.startsWith("nexus-")) {
       const endpoint = sourceId === "nexus-ke"
@@ -268,7 +268,7 @@ Deno.serve(async(req)=>{
       const rows = await fetchJson(endpoint,controller.signal);
       channels = fromNexus(rows,source.label,source.priority,sourceId === "nexus-ke" ? "KE" : undefined);
     } else if (sourceId==="iprtl-freetv" || sourceId==="iprtl-pluto" || sourceId==="subash-football-cricket") {
-      channels=await fetchM3U(source,controller.signal,360);
+      channels=await fetchM3U(source,controller.signal,25000);
     } else {
       channels=await fetchM3U(source,controller.signal,300);
     }
@@ -278,9 +278,10 @@ Deno.serve(async(req)=>{
       const key=String(c.url||"").toLowerCase();
       if(!key||seen.has(key)||blocked.test(c.name||"")) return false;
       seen.add(key); return true;
-    }).sort((a,b)=>b.priority-a.priority).slice(0,160);
-    // Only publish streams that are currently reachable and recognizable as media/HLS.
-    channels=await onlyLiveChannels(channels,controller.signal,8);
+    }).sort((a,b)=>b.priority-a.priority);
+    // Catalog mode: index the public catalogue without probing every stream.
+    // Playback health is checked only when a user selects a channel, keeping the
+    // catalogue scalable to very large upstream playlists.
     channels=channels.map(c=>({...c,source_url:c.url,url:browserPlaybackUrl(String(c.url))}));
 
     const payload = {
@@ -289,8 +290,8 @@ Deno.serve(async(req)=>{
       meta:{
         generated_at:new Date().toISOString(),
         channel_count:channels.length,
-        live_only:true,
-        health_checked:true,
+        live_only:false,
+        health_checked:false,
         auto_discovery:sourceId==="iptv-org-global",
         storage:"stream_urls_only",
         cache_hit:false,

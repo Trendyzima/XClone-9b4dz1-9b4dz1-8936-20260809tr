@@ -27,7 +27,7 @@ export const TV_SOURCES: TvSource[] = [
 ];
 function attr(line:string,key:string){ return line.match(new RegExp(key+'="([^"]*)"'))?.[1]?.trim() || undefined; }
 const clean=(v?:string)=>v?.replace(/\s+/g,' ').trim()||undefined;
-export function parseM3U(text:string,source:TvSource,max=180):TvChannel[]{
+export function parseM3U(text:string,source:TvSource,max=25000):TvChannel[]{
  const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/); const out:TvChannel[]=[]; let info:string|null=null;
  for(const raw of lines){ if(out.length>=max) break; const line=raw.trim(); if(!line) continue;
   if(line.startsWith('#EXTINF')){info=line;continue;} if(line.startsWith('#')) continue;
@@ -56,7 +56,7 @@ export async function loadTvSource(source:TvSource,signal?:AbortSignal){
  const response=await fetch(endpoint,{signal,headers:{Accept:'application/json'}});
  if(!response.ok) throw new Error(source.label+': HTTP '+response.status);
  const payload=await response.json();
- return Array.isArray(payload?.channels)?(payload.channels as TvChannel[]).filter(c=>c.live===true).map(c=>({...c,url:unwrapTvProxyUrl(String(c.url))})):[];
+ return Array.isArray(payload?.channels)?(payload.channels as TvChannel[]).map(c=>({...c,url:unwrapTvProxyUrl(String(c.url))})):[];
 }
 export function getPrioritySourceIds(){ return TV_SOURCES.filter(s=>s.enabled!==false).sort((a,b)=>b.priority-a.priority).map(s=>s.id); }
 export async function loadTvHealth(channelIds:string[]){
