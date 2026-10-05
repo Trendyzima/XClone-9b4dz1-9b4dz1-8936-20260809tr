@@ -11,6 +11,17 @@ import {TV_SOURCES,loadTvSource,type TvChannel,getPrioritySourceIds} from '@/ser
 import {createTvReply,getTvReplies,type TvReply} from '@/services/tvChannelReplyService';
 
 const filters=[['For you',''],['Kenya','KE'],['Africa','AF'],['International','INT'],['News','news'],['Sports','sport'],['Music','music'],['Kids','kid']];
+function matchesFilter(channel:TvChannel,filter:string){
+ const text=(channel.name+' '+(channel.group||'')+' '+(channel.language||'')).toLowerCase();
+ if(!filter)return true;
+ if(filter==='AF')return ['KE','ZA','NG','GH','UG','TZ','RW','ZM','ZW','BW','MW','MZ','ET'].includes(String(channel.country||'').toUpperCase());
+ if(filter==='INT')return String(channel.country||'').toUpperCase()!=='KE';
+ if(filter==='news')return /news|current affairs|journal|business|politics/i.test(text);
+ if(filter==='sport')return /sport|football|soccer|cricket|tennis|basketball|rugby/i.test(text);
+ if(filter==='music')return /music|radio|hits|dance|jazz|pop/i.test(text);
+ if(filter==='kid')return /kid|children|cartoon|animation|family/i.test(text);
+ return String(channel.country||'').toUpperCase()===filter.toUpperCase();
+}
 
 function mergeTvChannelsStable(existing:TvChannel[],incoming:TvChannel[]){
  const normalize=(value:string)=>value.toLowerCase().normalize('NFKD').replace(/[\\u0300-\\u036f]/g,'').replace(/[^a-z0-9]+/g,' ').trim();
@@ -113,9 +124,8 @@ export default function TvChannelsPage(){
  const filtered=useMemo(()=>{
   const q=query.trim().toLowerCase();
   const result=channels.filter(c=>!dead.has(c.id)).filter(c=>{
-   const text=(c.name+' '+(c.group||'')+' '+(c.language||'')).toLowerCase();
-   const country=filter==='AF'?['KE','ZA','NG','GH','UG','TZ','RW','ZM','ZW','BW'].includes(c.country||''):filter?c.country===filter||text.includes(filter.toLowerCase()):true;
-   return country&&(!q||text.includes(q));
+   const text=(c.name+' '+(c.group||'')+' '+(c.language||'')+' '+(c.country||'')).toLowerCase();
+   return matchesFilter(c,filter)&&(!q||text.includes(q));
   });
   return result;
  },[channels,dead,filter,query]);
@@ -220,9 +230,9 @@ export default function TvChannelsPage(){
       <div className='mt-5 border-t pt-4'>
        <div className='flex items-center gap-2 text-xs font-bold'><Heart className='h-4 w-4 text-primary'/>React to this channel</div>
        <div className='mt-2 flex items-center gap-2 overflow-x-auto pb-1'>{TV_REACTIONS.map(emoji=><button key={emoji} disabled={reactionBusy} onClick={()=>void reactToChannel(emoji)} className={'shrink-0 rounded-full border px-3 py-1.5 text-sm transition hover:-translate-y-0.5 hover:bg-muted '+(myTvReaction===emoji?'border-primary bg-primary/10 shadow-sm':'')}>{emoji}<span className='ml-1 text-[11px] font-semibold'>{tvReactionCounts.find(x=>x.emoji===emoji)?.count||0}</span></button>)}</div>
-       <div className='mt-3 flex flex-wrap gap-1.5'>{channelTags(featured).map(tag=><button key={tag} onClick={()=>nav('/search?q=%23'+encodeURIComponent(tag)+'&tab=Hashtags')} className='inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/15'><Hash className='h-3 w-3'/>#${tag}</button>)}<button onClick={()=>nav('/search?q=%40'+encodeURIComponent(featured.name)+'&tab=People')} className='inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold hover:bg-muted/70'><AtSign className='h-3 w-3'/>Find mentions</button></div>
+       <div className='mt-3 flex flex-wrap gap-1.5'>{channelTags(featured).map(tag=><button key={tag} onClick={()=>nav('/search?q=%23'+encodeURIComponent(tag)+'&tab=Hashtags')} className='inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/15'><Hash className='h-3 w-3'/>#{tag}</button>)}<button onClick={()=>nav('/search?q=%40'+encodeURIComponent(featured.name)+'&tab=People')} className='inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold hover:bg-muted/70'><AtSign className='h-3 w-3'/>Find mentions</button></div>
        <div className='mt-4 rounded-2xl border bg-background/70 p-3'>
-        <button onClick={()=>setShowReplies(v=>!v)} className='flex w-full items-center justify-between text-xs font-bold'><span className='flex items-center gap-2'><MessageCircle className='h-4 w-4 text-primary'/>Replies</span><span className='rounded-full bg-muted px-2 py-0.5'>${tvReplies.length}</span></button>
+        <button onClick={()=>setShowReplies(v=>!v)} className='flex w-full items-center justify-between text-xs font-bold'><span className='flex items-center gap-2'><MessageCircle className='h-4 w-4 text-primary'/>Replies</span><span className='rounded-full bg-muted px-2 py-0.5'>{tvReplies.length}</span></button>
         <div className='mt-3 flex gap-2'>
          <textarea value={replyText} onChange={e=>setReplyText(e.target.value)} maxLength={1000} rows={2} placeholder='Reply with @mentions and #hashtags…' className='min-w-0 flex-1 resize-none rounded-xl border bg-muted/30 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary/20'/>
          <Button size='icon' onClick={()=>void submitTvReply()} disabled={!replyText.trim()||replyBusy} title='Post reply'><Send className='h-4 w-4'/></Button>
@@ -230,7 +240,7 @@ export default function TvChannelsPage(){
         <p className='mt-1 text-[10px] text-muted-foreground'>#hashtags and @handles are detected automatically and stay connected to Testagram Search.</p>
         {showReplies&&<div className='mt-3 max-h-72 space-y-2 overflow-y-auto border-t pt-3'>
          {tvReplies.length===0?<p className='py-4 text-center text-xs text-muted-foreground'>No replies yet. Start the conversation.</p>:tvReplies.map(reply=><div key={reply.id} className='rounded-xl bg-muted/40 p-2.5'>
-          <div className='flex items-center gap-2'><div className='h-6 w-6 overflow-hidden rounded-full bg-muted'>{reply.profile?.avatar_url&&<img src={reply.profile.avatar_url} alt='' className='h-full w-full object-cover'/>}</div><span className='text-[11px] font-bold'>@${reply.profile?.username||'user'}</span><span className='text-[10px] text-muted-foreground'>{new Date(reply.created_at).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>
+          <div className='flex items-center gap-2'><div className='h-6 w-6 overflow-hidden rounded-full bg-muted'>{reply.profile?.avatar_url&&<img src={reply.profile.avatar_url} alt='' className='h-full w-full object-cover'/>}</div><span className='text-[11px] font-bold'>@{reply.profile?.username||'user'}</span><span className='text-[10px] text-muted-foreground'>{new Date(reply.created_at).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>
           <div className='mt-1 whitespace-pre-wrap break-words text-xs leading-5'>{renderReplyText(reply.content,openReplyTag)}</div>
          </div>)}
         </div>}
