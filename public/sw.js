@@ -1,9 +1,11 @@
 /* global self, URL, caches, fetch */
 
-const VERSION = 'testagram-shell-v3';
+const VERSION = 'testagram-shell-v4';
 const STATIC_CACHE = VERSION + '-static';
 const RUNTIME_CACHE = VERSION + '-runtime';
 const MAX_RUNTIME_ENTRIES = 80;
+const MEDIA_CACHE = VERSION + '-media';
+const MAX_MEDIA_ENTRIES = 180;
 const APP_SHELL = ['/', '/app-icon.jpg'];
 
 self.addEventListener('install', (event) => {
@@ -19,6 +21,24 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+
+function isMediaRequest(request, url) {
+  const path = url.pathname.toLowerCase();
+  const accept = request.headers.get('accept') || '';
+  return request.destination === 'video' ||
+    request.destination === 'audio' ||
+    /\\.(mp4|webm|mov|m4v|m3u8|ts|m4s|aac|mp3)(?:$|[?#])/i.test(path) ||
+    /video\\//i.test(accept) ||
+    /application\\/(?:vnd\\.apple\\.mpegurl|x-mpegurl)/i.test(accept);
+}
+
+async function trimMediaCache() {
+  const cache = await caches.open(MEDIA_CACHE);
+  const keys = await cache.keys();
+  if (keys.length <= MAX_MEDIA_ENTRIES) return;
+  await Promise.all(keys.slice(0, keys.length - MAX_MEDIA_ENTRIES).map((key) => cache.delete(key)));
+}
+
 async function trimRuntimeCache() {
   const cache = await caches.open(RUNTIME_CACHE);
   const keys = await cache.keys();
@@ -30,6 +50,25 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET') return;
   const url = new URL(request.url);
+  if (isMediaRequest(request, url)) {
+    event.respondWith(
+      caches.open(MEDIA_CACHE).then((cache) =>
+        cache.match(request).then((cached) => {
+          const network = fetch(request).then((response) => {
+            // Keep successful CORS media responses and opaque media responses.
+            // This covers direct MP4/WebM as well as HLS manifests/fragments.
+            if (response.ok || response.type === 'opaque') {
+              cache.put(request, response.clone()).then(trimMediaCache).catch(() => {});
+            }
+            return response;
+          }).catch(() => cached);
+          return cached || network;
+        })
+      )
+    );
+    return;
+  }
+
   if (url.origin !== self.location.origin) return;
 
   // Never cache API responses here: home-feed is personalized for signed-in users.
