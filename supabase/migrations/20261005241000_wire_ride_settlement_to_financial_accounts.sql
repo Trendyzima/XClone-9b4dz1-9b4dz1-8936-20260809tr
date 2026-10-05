@@ -69,7 +69,7 @@ begin
  insert into public.wallet_risk_events(user_id,operation,amount,currency,reference_id,idempotency_key,decision,risk_score,reason_codes,metadata)
  values(v_uid,'ride_payment',v_total_charge,p_currency,p_ride_id,v_key,'allow',v_risk,v_reasons,jsonb_build_object('fare',v_fare,'platform_fee',v_platform_fee,'mpesa_b2c_fee',v_mpesa_fee,'driver_payout',v_driver_payout,'recent_15m',v_recent_15m,'recent_24h',v_recent_24h,'amount_24h',v_amount_24h,'pin_set',v_pin_set));
  return jsonb_build_object('ok',true,'duplicate',false,'transaction_id',v_txid,'status','completed','amount',v_total_charge,'currency',p_currency,'fare',v_fare,'platform_fee',v_platform_fee,'mpesa_b2c_fee',v_mpesa_fee,'driver_payout',v_driver_payout,'safaricom_cost_reserved',v_mpesa_fee,'risk_score',v_risk);
-end $function$
+end $function$;
 
 
 revoke all on function public.wallet_pay_ride(uuid,numeric,text,text) from public,anon;
