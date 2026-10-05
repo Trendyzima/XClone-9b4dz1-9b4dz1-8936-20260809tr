@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 type Point = { latitude:number; longitude:number; address:string };
 type Ride = { id:string; status:string; fare?:number; distance_km?:number; duration_minutes?:number; ride_type?:string };
 
-const API_BASE = (import.meta.env.VITE_RIDE_HAILING_API_URL as string | undefined)?.replace(//+$/,'') || '';
+const API_BASE = (import.meta.env.VITE_RIDE_HAILING_API_URL as string | undefined)?.replace(/\/+$/,'') || '';
 
 async function api(path:string, init:RequestInit = {}) {
   if (!API_BASE) throw new Error('Ride service is not connected yet.');
