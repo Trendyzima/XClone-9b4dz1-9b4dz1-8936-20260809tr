@@ -6,6 +6,11 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.View;
+import android.webkit.CookieManager;
+import android.webkit.WebView;
+import android.webkit.WebViewClient;
+import android.webkit.WebSettings;
+import android.widget.FrameLayout;
 import android.view.Window;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
@@ -19,6 +24,7 @@ public final class SplashActivity extends AppCompatActivity {
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private SplashCanvasView splash;
+    private WebView preloadWebView;
     private int index = 0;
     private boolean handedOff = false;
 
@@ -34,7 +40,37 @@ public final class SplashActivity extends AppCompatActivity {
 
         splash = new SplashCanvasView(this);
         splash.setScreen(index);
-        setContentView(splash);
+        // Warm the production WebView while the three visual splash scenes are
+        // playing. The hidden page executes the real app bootstrap/data requests,
+        // populates Chromium HTTP cache/local storage/cookies, and is discarded
+        // only after MainActivity takes over.
+        FrameLayout root = new FrameLayout(this);
+        root.addView(splash, new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT
+        ));
+        preloadWebView = new WebView(this);
+        preloadWebView.setAlpha(0f);
+        preloadWebView.setBackgroundColor(Color.TRANSPARENT);
+        preloadWebView.setWebViewClient(new WebViewClient());
+        WebSettings preloadSettings = preloadWebView.getSettings();
+        preloadSettings.setJavaScriptEnabled(true);
+        preloadSettings.setDomStorageEnabled(true);
+        preloadSettings.setDatabaseEnabled(true);
+        preloadSettings.setMediaPlaybackRequiresUserGesture(false);
+        preloadSettings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        preloadSettings.setUseWideViewPort(true);
+        preloadSettings.setLoadWithOverviewMode(false);
+        String preloadUserAgent = preloadSettings.getUserAgentString()
+                .replace("; wv", "")
+                .replace(" Version/4.0", "");
+        preloadSettings.setUserAgentString(preloadUserAgent);
+        CookieManager.getInstance().setAcceptCookie(true);
+        CookieManager.getInstance().setAcceptThirdPartyCookies(preloadWebView, true);
+        root.addView(preloadWebView, new FrameLayout.LayoutParams(1, 1));
+        setContentView(root);
+
+        preloadWebView.loadUrl("https://testagram.site/?tg_shell=android-20261004");
 
         splash.setAlpha(0f);
         splash.animate().alpha(1f).setDuration(FADE_MS).start();
@@ -97,6 +133,12 @@ public final class SplashActivity extends AppCompatActivity {
     @Override
     protected void onDestroy() {
         handler.removeCallbacksAndMessages(null);
+        if (preloadWebView != null) {
+            preloadWebView.stopLoading();
+            preloadWebView.setWebViewClient(null);
+            preloadWebView.destroy();
+            preloadWebView = null;
+        }
         super.onDestroy();
     }
 }
