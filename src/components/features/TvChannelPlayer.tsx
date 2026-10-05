@@ -11,7 +11,7 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
  const ref=useRef<HTMLVideoElement>(null); const wrap=useRef<HTMLDivElement>(null); const hls=useRef<Hls|null>(null);
  const retryRef=useRef(0); const retryTimer=useRef<ReturnType<typeof setTimeout>|null>(null); const startRef=useRef<(()=>void)|null>(null);
  const playbackUrlRef=useRef(channel.url);
- const [muted,setMuted]=useState(()=>{try{return localStorage.getItem('testagram-tv-audio')!=='on';}catch{return true;}}); const [error,setError]=useState(false); const [starting,setStarting]=useState(false); const [needsGesture,setNeedsGesture]=useState(false);
+ const [muted,setMuted]=useState(()=>{try{return localStorage.getItem('testagram-tv-audio')!=='on';}catch{return true;}}); const audioPreferenceRef=useRef(muted); const [error,setError]=useState(false); const [starting,setStarting]=useState(false); const [needsGesture,setNeedsGesture]=useState(false);
  const proxyUrl=useCallback(()=>supabaseUrl+'/functions/v1/tv-stream-proxy?url='+encodeURIComponent(channel.url),[channel.url]);
 
  useEffect(()=>{const el=wrap.current;if(!el)return;const io=new IntersectionObserver(([e])=>onVisible(channel.id,e.isIntersecting&&e.intersectionRatio>=.58),{threshold:[0,.25,.58,.85]});io.observe(el);return()=>io.disconnect();},[channel.id,onVisible]);
@@ -23,8 +23,8 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
 
  const start=useCallback(()=>{
   const video=ref.current;if(!video||!active)return;cleanup();setStarting(true);setError(false);setNeedsGesture(false);
-  window.dispatchEvent(new CustomEvent('testagram-tv-play',{detail:channel.id}));video.playsInline=true;video.autoplay=true;video.defaultMuted=muted;video.muted=muted;video.volume=1;
-  const play=()=>{video.muted=muted;video.defaultMuted=muted;video.volume=1;void video.play().then(()=>{setNeedsGesture(false);healthy();}).catch((e:any)=>{if(e?.name==='NotAllowedError'){setNeedsGesture(true);setStarting(false);return;}retry();});};
+  window.dispatchEvent(new CustomEvent('testagram-tv-play',{detail:channel.id}));video.playsInline=true;video.autoplay=true;video.defaultMuted=audioPreferenceRef.current;video.muted=audioPreferenceRef.current;video.volume=1;
+  const play=()=>{video.muted=audioPreferenceRef.current;video.defaultMuted=audioPreferenceRef.current;video.volume=1;void video.play().then(()=>{setNeedsGesture(false);healthy();}).catch((e:any)=>{if(e?.name==='NotAllowedError'){setNeedsGesture(true);setStarting(false);return;}retry();});};
   const directUrl=channel.url;
   const looksLikeHls=/\.m3u8(?:$|[?#])/i.test(directUrl);
   const playbackUrl=looksLikeHls?proxyUrl():directUrl;
@@ -41,13 +41,13 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
   if(looksLikeHls&&Hls.isSupported()){const h=new Hls({enableWorker:true,lowLatencyMode:false,startFragPrefetch:true,initialLiveManifestSize:3,backBufferLength:12,maxBufferLength:45,maxMaxBufferLength:90,maxBufferSize:128*1024*1024,maxBufferHole:0.35,highBufferWatchdogPeriod:3,nudgeOffset:0.15,nudgeMaxRetry:4,liveSyncDurationCount:6,liveMaxLatencyDurationCount:12,manifestLoadingMaxRetry:4,levelLoadingMaxRetry:5,fragLoadingMaxRetry:5,fragLoadingRetryDelay:1000,fragLoadingMaxRetryTimeout:8000});hls.current=h;h.loadSource(playbackUrl);h.attachMedia(video);h.on(Hls.Events.MANIFEST_PARSED,()=>setStarting(true));h.on(Hls.Events.FRAG_BUFFERED,()=>{const b=video.buffered;const ahead=b.length?b.end(b.length-1)-video.currentTime:0;if(ahead>=5)healthy();});h.on(Hls.Events.ERROR,(_,d)=>{if(!d.fatal)return;if(d.type===Hls.ErrorTypes.MEDIA_ERROR){try{h.recoverMediaError();return;}catch{}}retry();});return;}
   if(looksLikeHls&&video.canPlayType('application/vnd.apple.mpegurl')){video.src=playbackUrl;video.addEventListener('canplay',healthy,{once:true});video.addEventListener('error',retry,{once:true});void video.play().catch((e:any)=>{if(e?.name!=='NotAllowedError')retry();});return;}
   setStarting(false);setError(true);onHealth?.(channel.id,false);
- },[active,channel.id,channel.url,cleanup,healthy,retry,onHealth]);
+ },[active,channel.id,channel.url,cleanup,healthy,retry,onHealth,proxyUrl]);
  startRef.current=start;
 
  useEffect(()=>{retryRef.current=0;playbackUrlRef.current=channel.url;if(active){start();return cleanup;}cleanup();setError(false);setStarting(false);setNeedsGesture(false);},[active,channel.url,start,cleanup]);
 
  useEffect(()=>{const onOnline=()=>{retryRef.current=0;if(active)startRef.current?.();};const onOffline=()=>setStarting(true);window.addEventListener('online',onOnline);window.addEventListener('offline',onOffline);return()=>{window.removeEventListener('online',onOnline);window.removeEventListener('offline',onOffline);};},[active]);
- useEffect(()=>{const video=ref.current;if(!video)return;const syncAudio=()=>setMuted(video.muted||video.volume===0);video.addEventListener('volumechange',syncAudio);return()=>video.removeEventListener('volumechange',syncAudio);},[]);\n useEffect(()=>{const video=ref.current;if(!video)return;const recoverable=()=>{if(active&&!starting)setStarting(true);retry();};video.addEventListener('waiting',recoverable);video.addEventListener('stalled',recoverable);return()=>{video.removeEventListener('waiting',recoverable);video.removeEventListener('stalled',recoverable);};},[active,retry,starting]);
+ useEffect(()=>{const video=ref.current;if(!video)return;const syncAudio=()=>{const isMuted=video.muted||video.volume===0;audioPreferenceRef.current=isMuted;setMuted(isMuted);};video.addEventListener('volumechange',syncAudio);return()=>video.removeEventListener('volumechange',syncAudio);},[]);\n useEffect(()=>{const video=ref.current;if(!video)return;const recoverable=()=>{if(active&&!starting)setStarting(true);retry();};video.addEventListener('waiting',recoverable);video.addEventListener('stalled',recoverable);return()=>{video.removeEventListener('waiting',recoverable);video.removeEventListener('stalled',recoverable);};},[active,retry,starting]);
  useEffect(()=>{const stop=(e:Event)=>{if((e as CustomEvent<string>).detail===channel.id)return;cleanup();setStarting(false);};window.addEventListener('testagram-tv-play',stop);return()=>window.removeEventListener('testagram-tv-play',stop);},[channel.id,cleanup]);
 
  const enableAudio=useCallback(async()=>{const v=ref.current;if(!v)return;v.defaultMuted=false;v.muted=false;v.volume=1;try{await v.play();setMuted(false);setNeedsGesture(false);try{localStorage.setItem('testagram-tv-audio','on');}catch{}}catch{setNeedsGesture(true);}},[]);\n const toggle=()=>{const v=ref.current;if(!v)return;const next=!muted;if(next){v.muted=true;setMuted(true);try{localStorage.setItem('testagram-tv-audio','off');}catch{}}else{void enableAudio();}};
@@ -60,7 +60,7 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
    {!active&&<div className='absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent'><button onClick={()=>onVisible(channel.id,true)} className='absolute inset-0 flex items-center justify-center'><span className='rounded-full bg-background/95 p-4 shadow-lg'><Play className='h-7 w-7 fill-current'/></span></button></div>}
    {starting&&<div className='absolute inset-0 flex items-center justify-center pointer-events-none'><div className='rounded-full bg-black/70 px-3 py-2 text-xs text-white flex items-center gap-2'><RefreshCw className='w-4 h-4 animate-spin'/>Connecting…</div></div>}
    {error&&<div className='absolute inset-0 flex items-center justify-center bg-black/75 p-4 text-center text-white'><div><Radio className='mx-auto mb-2'/><p className='font-semibold'>Stream unavailable</p><p className='text-xs text-white/70 mt-1'>This source could not be played. The next channel remains available.</p></div></div>}
-   {needsGesture&&!error&&<button onClick={()=>void enableAudio() className='absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/80 px-4 py-2 text-sm font-semibold text-white'>Tap to enable sound</button>}
+   {needsGesture&&!error&&<button onClick={()=>void enableAudio()} className='absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/80 px-4 py-2 text-sm font-semibold text-white'>Tap to enable sound</button>}
    <div className='absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-bold text-white'><span className='h-2 w-2 rounded-full bg-red-500 animate-pulse'/>LIVE</div>
   </div>
   <div className='p-3'>
