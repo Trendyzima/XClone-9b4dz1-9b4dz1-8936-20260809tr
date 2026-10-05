@@ -10,6 +10,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { formatDistanceToNow } from 'date-fns';
 import { formatNumber } from '@/lib/utils';
 import { toast } from 'sonner';
+import { warmOfflineVideos } from '@/lib/offlineMediaCache';
 
 // esbuild-safe module-level constants
 // esbuild guard: no 'as const' on module-level arrays used in .map() render
@@ -390,6 +391,9 @@ export default function VideosPage() {
       if (error) throw error;
 
       const newVideos = data || [];
+      // Persist the first five playable videos locally. Keep the downloads sequential
+      // inside the cache helper so a feed refresh never opens a burst of large transfers.
+      if (pageNum === 0) void warmOfflineVideos(newVideos.map((video: any) => video.video_url).filter(Boolean), 5);
       if (newVideos.length < PAGE_SIZE) setHasMore(false);
 
       if (pageNum === 0) {
