@@ -5,7 +5,7 @@ on:
     branches: [main]
   workflow_dispatch:
   workflow_run:
-    workflows: ["Quality Gate", "Final Source Gate", "Vercel Production Deploy"]
+    workflows: ["Quality Gate", "Final Source Gate", "Workflow Syntax Gate", "Cloudflare Worker Build Gate", "Native Clients", "Testagram Stability Gate"]
     types: [completed]
 
 permissions:
