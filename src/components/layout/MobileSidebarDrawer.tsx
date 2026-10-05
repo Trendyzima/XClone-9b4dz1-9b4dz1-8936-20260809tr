@@ -4,7 +4,7 @@ import {
   Menu, Home, Hash, Bell, Mail, Radio, Sparkles, Bookmark, List, History,
   Briefcase, BarChart3, DollarSign, ShoppingBag, Calendar, Crown, LogOut,
   Settings, HelpCircle, User, FileText, Globe, Trophy, Flame, UserSearch,
-  Gift, Wallet, Users, Megaphone, BadgeCheck, UserPlus, Shield, X,
+  Gift, Wallet, Users, Megaphone, BadgeCheck, UserPlus, Shield, X, Tv,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -42,6 +42,7 @@ export function MobileSidebarDrawer() {
     { icon: Crown,      label: 'Premium',             path: '/premium',         requireAuth: false },
     { icon: List,       label: 'Lists',               path: '/lists',           requireAuth: true },
     { icon: Users,      label: 'Communities',         path: '/communities',     requireAuth: false },
+    { icon: Tv,         label: 'World TV',             path: '/iptv',             requireAuth: false },
     { icon: Bookmark,   label: 'Bookmarks',           path: '/bookmarks',       requireAuth: true },
     { icon: Briefcase,  label: 'Creator Studio',      path: '/creator-studio',  requireAuth: true },
     { icon: Megaphone,  label: 'Ads',                 path: '/my-ads',          requireAuth: true },
