@@ -1,4 +1,5 @@
 name: Testagram Supabase Security Gate
+# Continuous production security lint: migration changes on main must be checked.
 
 on:
   workflow_dispatch:
