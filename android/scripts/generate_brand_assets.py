@@ -25,25 +25,33 @@ run("-i",SOURCE,"-vf","scale=90:90,format=rgba,pad=108:108:9:9:color=black@0",
     "-frames:v","1","-pix_fmt","rgba",
     os.path.join(ROOT,"drawable-nodpi","ic_launcher_foreground_bitmap.png"))
 
-font_bold="/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
-font_regular="/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-screens=[
-    ("WELCOME TO","Your people. Your stories. Your world."),
-    ("DISCOVER MORE","Fresh posts, live moments and conversations."),
-    ("YOUR WORLD, LIVE","Discover. Share. Connect. Stay close."),
+screen_designs=[
+    ("0x062d18",250,120,[
+        "drawbox=x=40:y=40:w=460:h=4:color=white@0.85:t=fill",
+        "drawbox=x=40:y=916:w=460:h=4:color=white@0.55:t=fill",
+        "drawbox=x=60:y=520:w=420:h=8:color=0x9df2bb@0.75:t=fill",
+    ]),
+    ("0x0b6b32",220,155,[
+        "drawbox=x=48:y=70:w=4:h=820:color=white@0.32:t=fill",
+        "drawbox=x=488:y=70:w=4:h=820:color=white@0.32:t=fill",
+        "drawbox=x=80:y=555:w=380:h=10:color=white@0.82:t=fill",
+        "drawbox=x=120:y=590:w=90:h=8:color=0x9df2bb@0.85:t=fill",
+        "drawbox=x=225:y=590:w=90:h=8:color=0x9df2bb@0.55:t=fill",
+        "drawbox=x=330:y=590:w=90:h=8:color=0x9df2bb@0.35:t=fill",
+    ]),
+    ("0x041f12",280,100,[
+        "drawbox=x=32:y=32:w=476:h=6:color=0x8cf2aa@0.8:t=fill",
+        "drawbox=x=32:y=922:w=476:h=6:color=white@0.35:t=fill",
+        "drawbox=x=70:y=535:w=120:h=12:color=white@0.85:t=fill",
+        "drawbox=x=210:y=535:w=120:h=12:color=0x9df2bb@0.6:t=fill",
+        "drawbox=x=350:y=535:w=120:h=12:color=0x9df2bb@0.3:t=fill",
+        "drawbox=x=90:y=580:w=360:h=4:color=white@0.22:t=fill",
+    ]),
 ]
-for i,(title,subtitle) in enumerate(screens,1):
+for i,(background,size,y,decor) in enumerate(screen_designs,1):
     out=os.path.join(ROOT,"drawable-nodpi",f"splash_{i}.png")
-    graph=(
-        "[1:v]scale=250:250[icon];"
-        "[0:v][icon]overlay=(W-w)/2:90,"
-        "drawbox=x=40:y=40:w=460:h=880:color=0x20d866@0.12:t=fill,"
-        f"drawtext=fontfile={font_bold}:text='{title}':fontcolor=white:fontsize=30:x=(w-text_w)/2:y=390,"
-        f"drawtext=fontfile={font_regular}:text='{subtitle}':fontcolor=0xe6fff0:fontsize=19:x=(w-text_w)/2:y=440,"
-        f"drawtext=fontfile={font_bold}:text='TESTAGRAM  •  0{i}/3':fontcolor=white:fontsize=15:x=(w-text_w)/2:y=505,"
-        f"drawtext=fontfile={font_regular}:text='Made for moments that matter.':fontcolor=0xd8f7e2:fontsize=15:x=(w-text_w)/2:y=850"
-    )
-    run("-f","lavfi","-i","color=c=0x062d18:s=540x960:r=1","-i",SOURCE,
+    graph=f"[1:v]scale={size}:{size}[icon];[0:v][icon]overlay=(W-w)/2:{y}," + ",".join(decor)
+    run("-f","lavfi","-i",f"color=c={background}:s=540x960:r=1","-i",SOURCE,
         "-filter_complex",graph,"-frames:v","1","-pix_fmt","rgb24",out)
 
 # Legacy drawable follows the first branded splash.
