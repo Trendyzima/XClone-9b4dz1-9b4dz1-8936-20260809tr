@@ -40,6 +40,7 @@ export default function RidePage() {
   const [dropoffPoint,setDropoffPoint] = useState<Point|null>(null);
   const [rideType,setRideType] = useState<(typeof RIDE_TYPES)[number]['id']>('standard');
   const [fare,setFare] = useState<Fare|null>(null);
+  const [distanceKm,setDistanceKm] = useState<number|null>(null);
   const [activeRide,setActiveRide] = useState<Ride|null>(null);
   const [loading,setLoading] = useState(false);
   const [locating,setLocating] = useState(false);
