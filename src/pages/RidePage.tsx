@@ -11,15 +11,14 @@ type Point = { latitude:number; longitude:number; address:string };
 type Ride = { id:string; status:string; fare?:number; currency?:string; distance_km?:number; duration_minutes?:number; ride_type?:string };
 type Fare = { amount:number; currency:string };
 
-const API_BASE = (import.meta.env.VITE_RIDE_HAILING_API_URL as string | undefined)?.replace(/\/+$/,'') || '';
+const API_BASE = '';
 
 async function api(path:string, init:RequestInit = {}) {
-  if (!API_BASE) throw new Error('Ride service is not connected yet.');
   const token = localStorage.getItem('ride-hailing-token') || localStorage.getItem('token') || '';
   const headers = new Headers(init.headers);
   headers.set('Content-Type','application/json');
   if (token) headers.set('Authorization','Bearer '+token);
-  const response = await fetch(API_BASE+path,{...init,headers});
+  const response = await fetch(path,{...init,headers});
   const body = await response.json().catch(()=>({}));
   if (!response.ok) throw new Error(body?.error || body?.message || 'Ride service request failed.');
   return body;
@@ -47,7 +46,7 @@ export default function RidePage() {
   const [fare,setFare] = useState<Fare|null>(null);
   const [paying,setPaying] = useState(false);
   const [paidRideId,setPaidRideId] = useState<string|null>(null);
-  const connected=Boolean(API_BASE);
+  const connected=true;
 
   const types=useMemo(()=>[
     {id:'standard',name:'Standard',description:'Everyday rides',icon:'🚗'},
@@ -195,7 +194,7 @@ export default function RidePage() {
             <div><h3 className="mb-3 text-sm font-semibold">Choose a ride</h3><div className="grid gap-2 sm:grid-cols-3">{types.map(type=><button type="button" key={type.id} onClick={()=>{setRideType(type.id);setFare(null);}} className={'rounded-2xl border p-3 text-left transition '+(rideType===type.id?'border-emerald-500 bg-emerald-500/10 ring-1 ring-emerald-500':'hover:bg-muted')}><span className="text-2xl">{type.icon}</span><span className="mt-2 block text-sm font-bold">{type.name}</span><span className="block text-xs text-muted-foreground">{type.description}</span></button>)}</div></div>
             {fare && <div className="rounded-2xl border bg-muted/30 p-4"><div className="flex items-center justify-between"><span className="text-sm font-semibold">Estimated fare</span><span className="text-xl font-black">{fare.currency} {fare.amount.toLocaleString()}</span></div><p className="mt-1 text-xs text-muted-foreground">The final fare is set by the ride service after completion.</p></div>}
             <Button type="submit" disabled={loading || !pickup.trim() || !dropoff.trim()} className="h-12 w-full rounded-xl text-base font-bold">{loading?<RefreshCw className="mr-2 h-5 w-5 animate-spin"/>:<Car className="mr-2 h-5 w-5"/>}{loading?'Requesting…':'Request ride'}</Button>
-            {!connected && <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">Set <code>VITE_RIDE_HAILING_API_URL</code> to your secured ride API gateway before enabling live requests.</div>}
+            
           </form>
 
           <div className="space-y-4">
