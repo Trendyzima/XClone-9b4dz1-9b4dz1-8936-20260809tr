@@ -103,6 +103,7 @@ export default function RidePage() {
       try {
         const distance = await fn('ride-distance',{from_latitude:pickupPoint.latitude,from_longitude:pickupPoint.longitude,to_latitude:dropoffPoint.latitude,to_longitude:dropoffPoint.longitude});
         const priced = await fn('ride-fare',{distance_km:Number(distance?.data?.distance_km),ride_type:id});
+        setDistanceKm(Number(distance?.data?.distance_km));
         setFare({amount:Number(priced?.data?.fare),currency:String(priced?.data?.currency || 'KES')});
       } catch(e) { toast.error(e instanceof Error ? e.message : 'Could not refresh fare.'); }
     }
