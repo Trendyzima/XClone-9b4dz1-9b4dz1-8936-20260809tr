@@ -9,6 +9,7 @@ import { useSEO } from '@/hooks/useSEO';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
 import { WalletDashboard } from '@/components/features/WalletDashboard';
+import { WalletSavingsCard } from '@/components/features/WalletSavingsCard';
 import { AdvertiserSurface } from '@/components/features/AdvertiserSurface';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -3726,9 +3727,15 @@ export default function WalletPage({ initialTab, standaloneTitle }: { initialTab
   const [showTour, setShowTour] = useState(false);
   const [canonicalSavingsBalance, setCanonicalSavingsBalance] = useState(0);
   useEffect(() => {
-    if (!user) return;
-    supabase.from('wallet_savings_pockets').select('balance').eq('user_id', user.id).maybeSingle()
-      .then(({ data }) => setCanonicalSavingsBalance(Number(data?.balance ?? 0)));
+    if (!user) { setCanonicalSavingsBalance(0); return; }
+    let cancelled = false;
+    const loadSavings = async () => {
+      const { data, error } = await supabase.rpc('get_user_wallet_summary');
+      if (!cancelled && !error) setCanonicalSavingsBalance(Number(data?.savings_kes ?? 0));
+      if (error) console.error('Savings summary error:', error);
+    };
+    void loadSavings();
+    return () => { cancelled = true; };
   }, [user, wallet]);
 
   useEffect(() => {
@@ -4142,6 +4149,15 @@ export default function WalletPage({ initialTab, standaloneTitle }: { initialTab
             userId={user.id}
             onNavigate={tab => { navigate(WALLET_ROUTE_MAP[tab]); setShowTour(false); }}
             onDismiss={() => setShowTour(false)}
+          />
+        )}
+        {user && (
+          <WalletSavingsCard
+            userId={user.id}
+            walletBalance={walletBalance * (currency === 'KES' ? 1 : currency === 'USD' ? USD_TO_KES : 1)}
+            savingsBalance={canonicalSavingsBalance}
+            currency="KES"
+            onRefresh={async () => { await fetchWallet(); const { data } = await supabase.rpc('get_user_wallet_summary'); setCanonicalSavingsBalance(Number(data?.savings_kes ?? 0)); }}
           />
         )}
         <div className="bg-gradient-to-br from-primary/10 to-purple-500/5 border border-primary/20 rounded-2xl p-5">
