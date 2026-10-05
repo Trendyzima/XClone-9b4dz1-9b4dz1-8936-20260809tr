@@ -529,9 +529,9 @@ export default function HashtagDiscoveryPage() {
                             <span className="text-xs text-muted-foreground flex items-center gap-1">
                               <Users className="w-3 h-3" />{formatNumber(Number(h.post_count ?? h.usage_count ?? 0) + Number(h.federated_post_count ?? 0))} posts
                             </span>
-                            {(h.federated_post_count ?? h.usage_count ?? 0) > 0 && (
+                            {Number(h.federated_post_count ?? 0) > 0 && (
                               <span className="text-xs text-orange-500 font-semibold">
-                                +{formatNumber(h.federated_post_count ?? h.usage_count ?? 0)} federated
+                                +{formatNumber(h.federated_post_count ?? 0)} federated
                               </span>
                             )}
                           </div>
