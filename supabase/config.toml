@@ -22,6 +22,11 @@ verify_jwt = false
 [functions.tv-catalog]
 verify_jwt = false
 
+# Public media proxy: the browser cannot attach a Supabase JWT to HLS.js media requests.
+# The function performs its own public-stream/SSRF validation.
+[functions.tv-stream-proxy]
+verify_jwt = false
+
 [functions.tv-media-control]
 verify_jwt = true
 
