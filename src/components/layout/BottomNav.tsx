@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, Bell, User, Flame, UserSearch, Inbox, ShieldCheck, MessageSquare, HelpCircle } from 'lucide-react';
+import { Home, Bell, User, Flame, UserSearch, Inbox, ShieldCheck, MessageSquare, HelpCircle, Tv } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { useIsRegulator } from '@/hooks/useFeatureUnlock';
@@ -258,6 +258,7 @@ export function BottomNav() {
     { icon: MessageSquare,label: 'Messages', path: '/messages',  badge: unreadMessages,  requireAuth: true },
     { icon: Flame,        label: 'Streak',   path: '/daily-rewards', badge: streakDay, badgeStyle: 'bg-orange-500', requireAuth: true },
     { icon: Inbox,        label: 'Inbox',    path: '/platform-inbox', requireAuth: true, badge: unreadInbox + (isReg ? pendingAppeals : 0) },
+    { icon: Tv,           label: 'World TV',  path: '/iptv',           badge: 0 },
     { icon: Bell,         label: 'Alerts',   path: '/notifications', requireAuth: true,  badge: unreadNotifs },
     { icon: HelpCircle,   label: 'Help',     path: '/help',      badge: unreadHelpReplies, badgeStyle: 'bg-green-500', requireAuth: false },
     { icon: User,         label: 'Profile',  path: user ? `/profile/${user.username}` : '/auth', badge: 0, requireAuth: true },
