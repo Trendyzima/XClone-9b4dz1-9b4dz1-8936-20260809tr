@@ -12,6 +12,7 @@ import android.widget.ImageView;
 import android.widget.LinearLayout;
 
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.splashscreen.SplashScreen;
 
 public final class SplashActivity extends AppCompatActivity {
     private static final int[] SCREENS = {
@@ -27,6 +28,7 @@ public final class SplashActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle state) {
+        SplashScreen.installSplashScreen(this);
         super.onCreate(state);
         getWindow().setStatusBarColor(android.graphics.Color.TRANSPARENT);
         getWindow().setNavigationBarColor(android.graphics.Color.TRANSPARENT);
