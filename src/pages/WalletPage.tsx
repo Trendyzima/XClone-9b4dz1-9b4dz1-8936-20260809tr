@@ -4154,7 +4154,7 @@ export default function WalletPage({ initialTab, standaloneTitle }: { initialTab
         {user && (
           <WalletSavingsCard
             userId={user.id}
-            walletBalance={walletBalance * (currency === 'KES' ? 1 : currency === 'USD' ? USD_TO_KES : 1)}
+            walletBalance={walletBalance * USD_TO_KES}
             savingsBalance={canonicalSavingsBalance}
             currency="KES"
             onRefresh={async () => { await fetchWallet(); const { data } = await supabase.rpc('get_user_wallet_summary'); setCanonicalSavingsBalance(Number(data?.savings_kes ?? 0)); }}
