@@ -19,7 +19,8 @@ export function MarketplaceDeliveryTracker({ deliveryId, compact=false }: { deli
   const [agent,setAgent]=useState<Agent|null>(null);
   const [sharing,setSharing]=useState(false);
   const [loading,setLoading]=useState(true);
-  const [busy,setBusy]=useState(false);\n  const [withdrawResult,setWithdrawResult]=useState<{gross:number;fee:number;net:number;currency:string}|null>(null);
+  const [busy,setBusy]=useState(false);
+  const [withdrawResult,setWithdrawResult]=useState<{gross:number;fee:number;net:number;currency:string}|null>(null);
 
   useEffect(() => {
     let alive=true;
@@ -61,7 +62,17 @@ export function MarketplaceDeliveryTracker({ deliveryId, compact=false }: { deli
     else toast.success('Delivery confirmed. Platform payment is recorded; payout is being held for review.');
   };
 
-  const withdrawEarnings=async()=>{\n    if(!user||busy) return;\n    setBusy(true);\n    const {data,error}=await supabase.rpc('withdraw_marketplace_earnings');\n    setBusy(false);\n    if(error){toast.error(error.message.replace(/_/g,' ').toLowerCase());return;}\n    setWithdrawResult({gross:Number(data?.gross_amount||0),fee:Number(data?.platform_fee||0),net:Number(data?.net_amount||0),currency:String(data?.currency||delivery?.currency||'KES')});\n    toast.success('Withdrawal complete. 10% platform fee retained and 90% released to your Wallet.');\n  };\n\n  const reportBypass=async()=>{
+  const withdrawEarnings=async()=>{
+    if(!user||busy) return;
+    setBusy(true);
+    const {data,error}=await supabase.rpc('withdraw_marketplace_earnings');
+    setBusy(false);
+    if(error){toast.error(error.message.replace(/_/g,' ').toLowerCase());return;}
+    setWithdrawResult({gross:Number(data?.gross_amount||0),fee:Number(data?.platform_fee||0),net:Number(data?.net_amount||0),currency:String(data?.currency||delivery?.currency||'KES')});
+    toast.success('Withdrawal complete. 10% platform fee retained and 90% released to your Wallet.');
+  };
+
+  const reportBypass=async()=>{
     if(!delivery||!user||user.id===delivery.courier_id||busy) return;
     setBusy(true);
     const {data,error}=await supabase.rpc('report_marketplace_delivery_violation',{
@@ -124,7 +135,10 @@ export function MarketplaceDeliveryTracker({ deliveryId, compact=false }: { deli
       <a className="mt-3 inline-flex items-center gap-2 text-xs font-bold text-primary" target="_blank" rel="noreferrer" href={'https://www.openstreetmap.org/?mlat='+lat+'&mlon='+lng+'#map=16/'+lat+'/'+lng}><MapPin className="h-4 w-4"/>Open live position</a>
     </div>}
 
-    {isCourier&&withdrawResult&&<div className="mt-4 rounded-2xl border bg-primary/5 p-4 text-sm"><p className="font-black">Earnings moved to Wallet</p><p className="mt-1 text-xs text-muted-foreground">Gross {withdrawResult.currency} {withdrawResult.gross.toFixed(2)} · Testagram 10% {withdrawResult.currency} {withdrawResult.fee.toFixed(2)} · You received {withdrawResult.currency} {withdrawResult.net.toFixed(2)}.</p></div>}\n    {isCourier&&delivery.status==='delivered'&&delivery.payout_status==='pending'&&<button disabled={busy} onClick={()=>void withdrawEarnings()} className="mt-4 w-full rounded-xl bg-primary px-4 py-3 text-xs font-black text-primary-foreground disabled:opacity-50">{busy?'Releasing earnings securely…':'Withdraw earnings to my Wallet (90%)'}</button>}\n\n    {delivery.status==='delivered'&&isCourier&&delivery.payout_status==='paid'&&<div className="mt-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-4 text-center"><PartyPopper className="mx-auto h-7 w-7 text-emerald-600"/><p className="mt-2 font-black text-emerald-700 dark:text-emerald-400">Congratulations! 🎉</p><p className="text-xs text-muted-foreground">Delivery confirmed and your platform payout has been released to your Wallet.</p></div>}
+    {isCourier&&withdrawResult&&<div className="mt-4 rounded-2xl border bg-primary/5 p-4 text-sm"><p className="font-black">Earnings moved to Wallet</p><p className="mt-1 text-xs text-muted-foreground">Gross {withdrawResult.currency} {withdrawResult.gross.toFixed(2)} · Testagram 10% {withdrawResult.currency} {withdrawResult.fee.toFixed(2)} · You received {withdrawResult.currency} {withdrawResult.net.toFixed(2)}.</p></div>}
+    {isCourier&&delivery.status==='delivered'&&delivery.payout_status==='pending'&&<button disabled={busy} onClick={()=>void withdrawEarnings()} className="mt-4 w-full rounded-xl bg-primary px-4 py-3 text-xs font-black text-primary-foreground disabled:opacity-50">{busy?'Releasing earnings securely…':'Withdraw earnings to my Wallet (90%)'}</button>}
+
+    {delivery.status==='delivered'&&isCourier&&delivery.payout_status==='paid'&&<div className="mt-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 p-4 text-center"><PartyPopper className="mx-auto h-7 w-7 text-emerald-600"/><p className="mt-2 font-black text-emerald-700 dark:text-emerald-400">Congratulations! 🎉</p><p className="text-xs text-muted-foreground">Delivery confirmed and your platform payout has been released to your Wallet.</p></div>}
     {delivery.status==='delivered'&&delivery.payout_status==='blocked'&&<p className="mt-3 text-sm font-semibold text-destructive">Delivery completed, but payout is blocked because the courier account is under payment-policy review.</p>}
     {delivery.status==='delivered'&&delivery.payout_status!=='blocked'&&delivery.payout_status!=='paid'&&<p className="mt-3 text-sm font-semibold text-muted-foreground">Delivered successfully. Payout is pending platform review.</p>}
   </div>;
