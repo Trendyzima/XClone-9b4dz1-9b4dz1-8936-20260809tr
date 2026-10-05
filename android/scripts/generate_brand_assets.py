@@ -36,8 +36,8 @@ def centered(p,w,h,s,y,scale,c):
 def mark(p,w,h,cx,cy,scale):
     rect(p,w,h,cx-50*scale,cy-7*scale,cx+50*scale,cy+7*scale,WHITE)
     rect(p,w,h,cx-9*scale,cy,cx+9*scale,cy+42*scale,WHITE)
-    circle(p,w,h,cx-41*scale,cy,7*scale,WHITE); circle(p,w,h,cx+41*scale,cy,7*scale,WHITE)
-    circle(p,w,h,cx-9*scale,cy+42*scale,9*scale,WHITE); circle(p,w,h,cx+9*scale,cy+42*scale,9*scale,WHITE)
+    circle(p,w,h,int(cx-41*scale),int(cy),max(1,int(7*scale)),WHITE); circle(p,w,h,int(cx+41*scale),int(cy),max(1,int(7*scale)),WHITE)
+    circle(p,w,h,int(cx-9*scale),int(cy+42*scale),max(1,int(9*scale)),WHITE); circle(p,w,h,int(cx+9*scale),int(cy+42*scale),max(1,int(9*scale)),WHITE)
 def make_splash(path,stage):
     w,h=540,960; p=[LIGHT]*(w*h)
     rect(p,w,h,60,70,480,350,GREEN); mark(p,w,h,270,185,2)
@@ -49,7 +49,7 @@ def make_splash(path,stage):
     for i in range(3): circle(p,w,h,245+i*25,790,5,GREEN if i==stage-1 else PALE)
     centered(p,w,h,"TESTAGRAM",845,3,MUTED); png(path,w,h,p)
 def make_icon(path,size):
-    p=[GREEN]*(size*size); mark(p,size,size,size//2,int(size*.43),max(1,size//108)); png(path,size,size,p)
+    p=[GREEN]*(size*size); mark(p,size,size,size/2,size*.43,size/108); png(path,size,size,p)
 def main():
     root=os.path.join(os.path.dirname(__file__),"../app/src/main/res")
     os.makedirs(os.path.join(root,"drawable-nodpi"),exist_ok=True)
