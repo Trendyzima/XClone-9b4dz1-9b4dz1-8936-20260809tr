@@ -3,6 +3,8 @@ import { Car, Clock3, LocateFixed, MapPin, Navigation, RefreshCw, ShieldCheck, S
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/hooks/useAuth';
+import { useWallet } from '@/hooks/useWallet';
+import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
 type Point = { latitude:number; longitude:number; address:string };
@@ -33,6 +35,7 @@ function geolocate():Promise<GeolocationPosition> {
 
 export default function RidePage() {
   const { user } = useAuth();
+  const { wallet, loading: walletLoading, fetchWallet } = useWallet();
   const [pickup,setPickup] = useState('');
   const [dropoff,setDropoff] = useState('');
   const [pickupPoint,setPickupPoint] = useState<Point|null>(null);
@@ -40,6 +43,10 @@ export default function RidePage() {
   const [activeRide,setActiveRide] = useState<Ride|null>(null);
   const [loading,setLoading] = useState(false);
   const [locating,setLocating] = useState(false);
+  const [fareEstimate,setFareEstimate] = useState<number|null>(null);
+  const [fareCurrency,setFareCurrency] = useState('KES');
+  const [paying,setPaying] = useState(false);
+  const [payment,setPayment] = useState<any>(null);
   const connected=Boolean(API_BASE);
 
   const types=useMemo(()=>[
@@ -94,6 +101,33 @@ export default function RidePage() {
     finally { setLocating(false); }
   }
 
+async function estimateFare(distanceKm:number, type:string){
+    const body=await api('/api/v1/promos/calculate-fare',{method:'POST',body:JSON.stringify({distance_km:distanceKm,ride_type:type})});
+    return Number(body?.data?.fare ?? body?.data?.estimated_fare ?? body?.fare ?? 0);
+  }
+
+  async function payRideFromWallet(ride:Ride){
+    if(!ride?.id || ride.fare == null) throw new Error('Ride fare is not available yet.');
+    if(!wallet) throw new Error('Your Testagram Wallet is unavailable.');
+    const amount=Number(ride.fare);
+    if(Number(wallet.balance) < amount) throw new Error('Insufficient Testagram Wallet balance.');
+    setPaying(true);
+    try {
+      const { data, error } = await supabase.rpc('wallet_pay_ride', {
+        p_ride_id: ride.id,
+        p_amount: amount,
+        p_currency: rideCurrency(ride),
+        p_idempotency_key: crypto.randomUUID(),
+      });
+      if(error) throw error;
+      setPayment(data);
+      await fetchWallet();
+      toast.success('Ride paid from your Testagram Wallet');
+    } finally { setPaying(false); }
+  }
+
+  function rideCurrency(ride:Ride){ return fareCurrency || 'KES'; }
+
   async function requestRide(event:FormEvent){
     event.preventDefault();
     if(!user){ toast.error('Sign in to request a ride.'); return; }
@@ -108,7 +142,9 @@ export default function RidePage() {
         dropoff_latitude:destination.latitude,dropoff_longitude:destination.longitude,
         pickup_address:pickup,dropoff_address:dropoff,ride_type:rideType
       })});
-      setActiveRide(body?.data || body?.ride || null);
+      const ride=body?.data || body?.ride || null;
+      setActiveRide(ride);
+      if(ride?.fare != null) setFareEstimate(Number(ride.fare));
       toast.success('Ride requested');
       await loadWallet();
     } catch(e){ toast.error(e instanceof Error ? e.message : 'Could not request ride.'); }
@@ -160,6 +196,7 @@ export default function RidePage() {
 
           <div className="space-y-4">
             <div className="rounded-2xl border bg-muted/30 p-5">
+              <div className="mb-4 rounded-xl border bg-background p-4"><div className="flex items-center justify-between"><span className="text-sm font-semibold">Testagram Wallet</span><span className="text-sm font-black">{walletLoading?'…':wallet?`KES ${Number(wallet.balance).toLocaleString()}`:'Unavailable'}</span></div><p className="mt-1 text-xs text-muted-foreground">Ride payments use your existing Testagram Wallet balance. No separate ride wallet.</p></div>
               <div className="flex items-center gap-3"><ShieldCheck className="h-5 w-5 text-emerald-600"/><div><p className="font-semibold">Ride safety</p><p className="text-xs text-muted-foreground">Use the platform's verified ride flow and never share payment credentials in chat.</p></div></div>
               <div className="mt-5 grid grid-cols-2 gap-3 text-xs"><div className="rounded-xl bg-background p-3"><Clock3 className="mb-2 h-4 w-4"/><b>Live status</b><p className="mt-1 text-muted-foreground">Track ride state</p></div><div className="rounded-xl bg-background p-3"><WalletCards className="mb-2 h-4 w-4"/><b>Wallet ready</b><p className="mt-1 text-muted-foreground">Pay through API</p></div></div>
             </div>
