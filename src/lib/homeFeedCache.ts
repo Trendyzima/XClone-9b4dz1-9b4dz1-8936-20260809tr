@@ -3,6 +3,7 @@ const STORE='home-feed';
 const MAX_ITEMS=80;
 const MAX_CACHE_AGE_MS=7*24*60*60*1000;
 const FEDERATED_MAX_AGE_MS=24*60*60*1000;
+import { warmOfflineFeedItems } from '@/lib/offlineMediaCache';
 function isFreshHomeItem(item:any,now=Date.now()){
   if(item?.type!=='fedpost' && item?.data?.is_federated!==true)return true;
   const ts=Date.parse(String(item?.data?.created_at??item?.data?.published_at??item?.data?.published??''));
@@ -38,7 +39,7 @@ export async function writeHomeFeedCache(value:CachedFeed,key='home'){
   return new Promise<void>((resolve,reject)=>{
     const tx=db.transaction(STORE,'readwrite');
     tx.objectStore(STORE).put({...value,key,items});
-    tx.oncomplete=()=>resolve();
+    tx.oncomplete=()=>{ void warmOfflineFeedItems(items.slice(0, 24)); resolve(); }
     tx.onerror=()=>reject(tx.error);
   });
 }
