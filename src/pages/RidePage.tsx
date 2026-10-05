@@ -45,7 +45,8 @@ export default function RidePage() {
   const [loading,setLoading] = useState(false);
   const [locating,setLocating] = useState(false);
   const [paying,setPaying] = useState(false);
-  const [loadingRide,setLoadingRide] = useState(true);\n  const rideRequestKeyRef = useRef<string | null>(null);
+  const [loadingRide,setLoadingRide] = useState(true);
+  const rideRequestKeyRef = useRef<string | null>(null);
 
   const selectedType = useMemo(() => RIDE_TYPES.find(x=>x.id===rideType)!, [rideType]);
   const canRequest = Boolean(user && pickup.trim() && dropoff.trim() && pickupPoint && dropoffPoint && fare && !loading);
@@ -117,6 +118,8 @@ export default function RidePage() {
     if(!pickupPoint) { toast.error('Set your pickup location first.'); return; }
     setLoading(true);
     try {
+      const idempotencyKey = rideRequestKeyRef.current || crypto.randomUUID();
+      rideRequestKeyRef.current = idempotencyKey;
       const destination = dropoffPoint || await resolveDropoff(dropoff);
       if(!destination || !fare) throw new Error('Please enter a valid destination and wait for the fare.');
       const body = await fn('ride-service',{
@@ -131,10 +134,12 @@ export default function RidePage() {
           dropoff_address:destination.address,
           ride_type:rideType,
           fare:fare.amount,
+          idempotency_key:idempotencyKey,
         },
       });
       setActiveRide(body?.data || null);
-      toast.success('Ride requested');
+      rideRequestKeyRef.current = null;
+      toast.success(body?.data?.idempotent ? 'Ride request already received' : 'Ride requested');
     } catch(e) { toast.error(e instanceof Error ? e.message : 'Could not request ride.'); }
     finally { setLoading(false); }
   }
@@ -159,7 +164,10 @@ export default function RidePage() {
         p_idempotency_key:'ride:'+activeRide.id,
       });
       if(error) throw error;
-      if(!data?.ok) {\n        if(data?.code === 'RISK_BLOCKED') throw new Error('Wallet payment was blocked by Testagram risk controls. Please review your Wallet security and try again later.');\n        throw new Error('Ride payment was not completed.');\n      }
+      if(!data?.ok) {
+        if(data?.code === 'RISK_BLOCKED') throw new Error('Wallet payment was blocked by Testagram risk controls. Please review your Wallet security and try again later.');
+        throw new Error('Ride payment was not completed.');
+      }
       toast.success(`Ride paid from Wallet · KES ${amount.toLocaleString()}`);
       await fetchWallet();
       await loadLatestRide();
