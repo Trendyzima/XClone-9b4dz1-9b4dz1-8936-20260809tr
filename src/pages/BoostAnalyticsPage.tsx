@@ -145,7 +145,7 @@ export default function BoostAnalyticsPage() {
     const amount = parseFloat(topUpAmount);
     if (!amount || amount <= 0) { toast.error('Enter a valid amount'); return; }
     setToppingUp(true);
-    const { error: walletErr } = await supabase.rpc('deduct_from_wallet', { p_user_id: user!.id, p_amount: amount });
+    const { error: walletErr } = await supabase.rpc('deduct_from_wallet', { p_user_id: user!.id, p_amount: amount, p_description: `Boost top-up - ${boostId}` });
     if (walletErr) { toast.error('Insufficient wallet balance'); setToppingUp(false); return; }
     const newBudget = currentBudget + amount;
     const { error } = await supabase.from('boosted_posts').update({ budget: newBudget }).eq('id', boostId);
