@@ -146,11 +146,7 @@ export default function ShoppingMallPage() {
   const loadWallet = async () => {
     if (!user) { setWallet(null); return; }
     setWalletLoading(true);
-    const { data, error } = await supabase
-      .from('wallets')
-      .select('balance,currency,preferred_currency')
-      .eq('user_id', user.id.toString())
-      .maybeSingle();
+    const { data, error } = await supabase.rpc('get_my_wallet').maybeSingle();
     if (error) {
       setWallet(null);
     } else {

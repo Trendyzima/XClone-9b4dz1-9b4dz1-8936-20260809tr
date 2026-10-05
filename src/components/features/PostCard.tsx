@@ -269,25 +269,14 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     if (!tipAmount || tipAmount <= 0) return;
     setTippingLoading(true);
     try {
-      const { error: tipErr } = await supabase.rpc('send_tip_with_platform_cut', {
-        p_from_user_id: user.id,
+      const { error: tipErr } = await supabase.rpc('send_wallet_tip', {
         p_to_user_id: post.user_id,
         p_amount: tipAmount,
-        p_message: tipMessage.trim() || null,
-        p_post_id: post.id,
+        p_note: tipMessage.trim() || `Tip on post ${post.id}`,
+        p_idempotency_key: `post-tip:${post.id}:${user.id}:${crypto.randomUUID()}`,
       });
-      if (tipErr) {
-        const { data: wallet } = await supabase.from('user_wallets').select('id,balance').eq('user_id', user.id).maybeSingle();
-        if (!wallet || Number(wallet.balance) < tipAmount) {
-          toast({ title: 'Insufficient balance', description: 'Top up your wallet to send tips', variant: 'destructive' }); return;
-        }
-        await supabase.from('user_wallets').update({ balance: Number(wallet.balance) - tipAmount }).eq('user_id', user.id);
-        await supabase.from('tips').insert({ from_user_id: user.id, to_user_id: post.user_id, amount: tipAmount, message: tipMessage.trim() || null, post_id: post.id });
-        await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'payment_sent', actor_id: user.id, post_id: post.id  });
-        await supabase.from('creator_earnings').insert({ user_id: post.user_id, source: 'tips', amount: tipAmount, post_id: post.id, status: 'paid' }).catch(() => {});
-      } else {
-        await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'payment_sent', actor_id: user.id, post_id: post.id  });
-      }
+      if (tipErr) throw tipErr;
+      await supabase.from('notifications').insert({ recipient_id: post.user_id, kind: 'payment_sent', actor_id: user.id, post_id: post.id });
       toast({ title: `Tip of $${tipAmount} sent!`, description: `You tipped @${authorUsername}` });
       setShowTipDialog(false);
       setTipAmount(null);

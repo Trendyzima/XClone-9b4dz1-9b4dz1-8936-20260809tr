@@ -141,7 +141,7 @@ export default function SavingsGoalsTab({ userId, walletBalance, currency }: Pro
     if (!amt || amt <= 0) { toast.error('Enter an amount to add'); return; }
     if (amt > walletBalance) { toast.error('Insufficient wallet balance'); return; }
     setDepositing(goal.id);
-    const { error: moveError } = await supabase.rpc('wallet_move_savings', { p_amount: amt, p_direction: 'in' });
+    const { error: moveError } = await supabase.rpc('save_to_wallet_savings', { p_amount: amt, p_idempotency_key: `goal-save:${goal.id}:${userId}:${crypto.randomUUID()}` });
     if (moveError) { setDepositing(null); toast.error(moveError.message || 'Failed to move funds into savings'); return; }
     const newAmt = Math.min(Number(goal.current_amount) + amt, Number(goal.target_amount));
     const isComplete = newAmt >= Number(goal.target_amount);
