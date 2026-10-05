@@ -8,7 +8,7 @@ import {
   ShoppingBag, Calendar, Crown, Briefcase, Settings, HelpCircle,
   History, ChevronDown, ChevronUp, FileText, Wallet, Megaphone,
   Shield, LineChart, Globe, Flame, Trophy, UserSearch, Gift, BookOpen, Inbox,
-  MessageSquare, ShieldCheck, ShoppingCart, Tv,
+  MessageSquare, ShieldCheck, ShoppingCart, Tv, Car,
 } from 'lucide-react';
 import { authService } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
@@ -203,6 +203,7 @@ export function Sidebar() {
   const navItems = [
     { icon: Home, label: 'Home', path: '/', requireAuth: false, badge: 0 },
     { icon: Tv, label: 'World TV', path: '/iptv', requireAuth: false, badge: 0 },
+    { icon: Car, label: 'Ride', path: '/ride', requireAuth: false, badge: 0 },
     { icon: Hash, label: 'Explore', path: '/explore', requireAuth: false, badge: 0 },
     { icon: MessageSquare, label: 'Threads', path: '/threads', requireAuth: false, badge: 0 },
     { icon: Bell, label: 'Notifications', path: '/notifications', requireAuth: true, badge: unreadNotifs },
