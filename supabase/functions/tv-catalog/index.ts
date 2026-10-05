@@ -19,6 +19,9 @@ const SOURCES: Record<string, Source> = {
   "nexus-music": { id:"nexus-music", label:"IPTV Nexus · Music · health checked", url:NEXUS+"/by-category/music.json", country:"INT", priority:154 },
   "nexus-kids": { id:"nexus-kids", label:"IPTV Nexus · Kids · health checked", url:NEXUS+"/by-category/kids.json", country:"INT", priority:153 },
   "nexus-entertainment": { id:"nexus-entertainment", label:"IPTV Nexus · Entertainment · health checked", url:NEXUS+"/by-category/entertainment.json", country:"INT", priority:152 },
+  "iprtl-freetv": { id:"iprtl-freetv", label:"IPRTL · FreeTV · public streams", url:"https://raw.githubusercontent.com/iprtl/m3u/live/Freetv.m3u", country:"INT", priority:119 },
+  "iprtl-pluto": { id:"iprtl-pluto", label:"IPRTL · Pluto · public streams", url:"https://raw.githubusercontent.com/iprtl/m3u/live/Pluto.m3u", country:"INT", priority:118 },
+  "subash-football-cricket": { id:"subash-football-cricket", label:"Subash · Football & Cricket · public FTA", url:"https://raw.githubusercontent.com/subash9860/iptv-football-cricket/main/index.m3u", country:"INT", priority:117 },
 };
 
 const cors = {
@@ -59,7 +62,7 @@ async function upstash(command:string[]) {
 }
 
 async function getCachedChannels(sourceId:string) {
-  const value = await upstash(["GET", "tv:catalog:v5:" + sourceId]);
+  const value = await upstash(["GET", "tv:catalog:v6:" + sourceId]);
   if (typeof value !== "string" || !value) return null;
   try { return JSON.parse(value); } catch { return null; }
 }
@@ -184,7 +187,7 @@ function browserPlaybackUrl(url:string) {
 }
 
 async function onlyLiveChannels(channels:any[],signal:AbortSignal,max=8){
-  const candidates=channels.filter(c=>/^https?:\/\//i.test(String(c?.url||""))).slice(0,max*3); const live:any[]=[]; let cursor=0;
+  const candidates=channels.filter(c=>/^https?:\/\//i.test(String(c?.url||""))).slice(0,max*4); const live:any[]=[]; let cursor=0;
   const worker=async()=>{while(cursor<candidates.length&&live.length<max){const c=candidates[cursor++];if(await probeStream(c.url,signal))live.push({...c,live:true,live_checked_at:new Date().toISOString()});}};
   await Promise.all(Array.from({length:12},()=>worker())); return live.slice(0,max);
 }
@@ -264,6 +267,8 @@ Deno.serve(async(req)=>{
         : NEXUS+"/by-category/"+sourceId.slice("nexus-".length)+".json";
       const rows = await fetchJson(endpoint,controller.signal);
       channels = fromNexus(rows,source.label,source.priority,sourceId === "nexus-ke" ? "KE" : undefined);
+    } else if (sourceId==="iprtl-freetv" || sourceId==="iprtl-pluto" || sourceId==="subash-football-cricket") {
+      channels=await fetchM3U(source,controller.signal,360);
     } else {
       channels=await fetchM3U(source,controller.signal,300);
     }

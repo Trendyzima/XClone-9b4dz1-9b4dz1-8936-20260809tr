@@ -42,7 +42,7 @@ function ChannelTile({channel,active,onSelect}:{channel:TvChannel;active:boolean
 export default function TvChannelsPage(){
  const nav=useNavigate(); const {pathname}=useLocation(); const reelsMode=pathname==='/tv/reels';
  const [channels,setChannels]=useState<TvChannel[]>([]); const [testagramLive,setTestagramLive]=useState<any[]>([]);
- const [active,setActive]=useState(''); const [loading,setLoading]=useState(true); const [sourceIndex,setSourceIndex]=useState(0);
+ const [active,setActive]=useState(''); const [loading,setLoading]=useState(true);
  const [filter,setFilter]=useState(''); const [query,setQuery]=useState(''); const [notice,setNotice]=useState('');
  const [dead,setDead]=useState<Set<string>>(new Set()); const loaded=useRef(new Set<string>());
  const {user}=useAuth();
@@ -160,7 +160,7 @@ export default function TvChannelsPage(){
   setActive(current=>current===id?(filtered.find(c=>c.id!==id&&!dead.has(c.id))?.id||''):current);
  };
 
- const refresh=()=>{loaded.current.clear();setDead(new Set());setActive('');setChannels([]);setSourceIndex(0);setNotice('');void loadSources(getPrioritySourceIds().slice(0,6));};
+ const refresh=()=>{loaded.current.clear();setDead(new Set());setActive('');setChannels([]);setNotice('');void loadSources(getPrioritySourceIds().slice(0,6));};
  const loadMore=async()=>{let next=sourceIndex+1;while(next<TV_SOURCES.length&&TV_SOURCES[next].enabled===false)next++;if(next<TV_SOURCES.length){setSourceIndex(next);await loadSources([TV_SOURCES[next].id]);}};
  const categories=useMemo(()=>[
   ['Kenya',filtered.filter(c=>c.country==='KE')],

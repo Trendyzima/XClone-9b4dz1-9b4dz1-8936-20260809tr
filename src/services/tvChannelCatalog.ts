@@ -21,6 +21,9 @@ export const TV_SOURCES: TvSource[] = [
 {id:'freecast-sports',label:'FreeCastHub · Sports',url:'https://raw.githubusercontent.com/freecasthub/public-iptv/main/sports.m3u',country:'INT',priority:122,enabled:true,policy:'public-free'},
 {id:'freecast-education',label:'FreeCastHub · Education',url:'https://raw.githubusercontent.com/freecasthub/public-iptv/main/education.m3u',country:'INT',priority:121,enabled:true,policy:'public-free'},
 {id:'freecast-weather',label:'FreeCastHub · Weather',url:'https://raw.githubusercontent.com/freecasthub/public-iptv/main/weather.m3u',country:'INT',priority:120,enabled:true,policy:'public-free'},
+{id:'iprtl-freetv',label:'IPRTL · FreeTV · public streams',url:'https://raw.githubusercontent.com/iprtl/m3u/live/Freetv.m3u',country:'INT',priority:119,enabled:true,policy:'community-unverified'},
+{id:'iprtl-pluto',label:'IPRTL · Pluto · public streams',url:'https://raw.githubusercontent.com/iprtl/m3u/live/Pluto.m3u',country:'INT',priority:118,enabled:true,policy:'community-unverified'},
+{id:'subash-football-cricket',label:'Subash · Football & Cricket · public FTA',url:'https://raw.githubusercontent.com/subash9860/iptv-football-cricket/main/index.m3u',country:'INT',priority:117,enabled:true,policy:'community-unverified'},
 ];
 function attr(line:string,key:string){ return line.match(new RegExp(key+'="([^"]*)"'))?.[1]?.trim() || undefined; }
 const clean=(v?:string)=>v?.replace(/\s+/g,' ').trim()||undefined;
