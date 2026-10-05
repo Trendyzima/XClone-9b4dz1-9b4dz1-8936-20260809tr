@@ -4,8 +4,8 @@ import os, shutil, subprocess
 
 ROOT=os.path.abspath(os.path.join(os.path.dirname(__file__),"../app/src/main/res"))
 SOURCE=os.path.abspath(os.path.join(os.path.dirname(__file__),"../branding/testagram-icon.webp"))
-FFMPEG=shutil.which("ffmpeg")
-if not FFMPEG:
+FFMPEG=shutil.which("ffmpeg") or os.path.abspath(os.path.join(os.path.dirname(__file__),"../../node_modules/ffmpeg-static/ffmpeg"))
+if not os.path.isfile(FFMPEG):
     raise SystemExit("ffmpeg is required to generate the branded Android PNG assets.")
 
 def run(*args):
