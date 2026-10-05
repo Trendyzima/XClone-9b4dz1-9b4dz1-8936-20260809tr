@@ -1,0 +1,53 @@
+name: Testagram Production Quality Gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    name: Web lint, typecheck and production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npm run typecheck
+      - name: Production build
+        run: npm run build
+
+  supabase-migration-static-check:
+    name: Supabase migration sanity check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Check migration SQL
+        shell: bash
+        run: |
+          test -s supabase/migrations/20261005190000_harden_wallet_ride_fraud.sql
+          grep -q "wallet_pay_ride" supabase/migrations/20261005190000_harden_wallet_ride_fraud.sql
+          grep -q "idempotency_key" supabase/migrations/20261005190000_harden_wallet_ride_fraud.sql
+          grep -q "wallet_risk_events" supabase/migrations/20261005190000_harden_wallet_ride_fraud.sql
+          echo "Migration sanity checks passed."
