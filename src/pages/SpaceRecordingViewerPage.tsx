@@ -302,9 +302,8 @@ export default function SpaceRecordingViewerPage() {
   const handleTipHost = async () => {
     if (!user || !recording || !tipHostAmount) return;
     setSendingHostTip(true);
-    const { error: deductErr } = await supabase.rpc('deduct_from_wallet', { p_user_id: user.id, p_amount: tipHostAmount });
-    if (deductErr) { toast.error('Insufficient wallet balance'); setSendingHostTip(false); return; }
-    await supabase.rpc('add_to_wallet', { p_user_id: recording.user_id, p_amount: tipHostAmount }).then(() => {}).catch(() => {});
+    const { error: tipErr } = await supabase.rpc('send_wallet_tip', { p_to_user_id: recording.user_id, p_amount: tipHostAmount, p_note: `Tip for podcast: ${recording.title}` });
+    if (tipErr) { toast.error(tipErr.message || 'Insufficient wallet balance'); setSendingHostTip(false); return; }
     await supabase.from('tips').insert({ from_user_id: user.id, to_user_id: recording.user_id, amount: tipHostAmount, message: `Tip for podcast: ${recording.title}` }).then(() => {}).catch(() => {});
     toast.success(`$${tipHostAmount} tip sent to @${host?.username}!`);
     setTipHostSent(true);
