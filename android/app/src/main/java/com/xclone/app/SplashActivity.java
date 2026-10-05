@@ -14,8 +14,8 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.splashscreen.SplashScreen;
 
 public final class SplashActivity extends AppCompatActivity {
-    private static final long SCREEN_MS = 2100L;
-    private static final long FADE_MS = 420L;
+    private static final long SCREEN_MS = 3600L;
+    private static final long FADE_MS = 650L;
 
     private final Handler handler = new Handler(Looper.getMainLooper());
     private SplashCanvasView splash;
