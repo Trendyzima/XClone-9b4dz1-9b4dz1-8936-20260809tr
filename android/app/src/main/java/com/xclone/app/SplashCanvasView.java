@@ -69,7 +69,8 @@ public final class SplashCanvasView extends View {
         drawChatBubble(c, w * .18f, h * .57f, w * .58f, h * .12f);
         drawChatBubble(c, w * .28f, h * .68f, w * .47f, h * .10f);
         drawNodes(c, w, h);
-        drawCaption(c, "PEOPLE  •  POSTS  •  COMMUNITIES", w * .08f, h * .80f);\n        drawMicro(c, "Share your voice. Find your people.", w * .08f, h * .845f);
+        drawCaption(c, "PEOPLE  •  POSTS  •  COMMUNITIES", w * .08f, h * .80f);
+        drawMicro(c, "Share your voice. Find your people.", w * .08f, h * .845f);
     }
 
     private void drawLive(Canvas c, float w, float h) {
@@ -88,7 +89,8 @@ public final class SplashCanvasView extends View {
         c.drawPath(play, p);
         p.setColor(Color.rgb(255, 70, 82));
         c.drawCircle(w * .22f, h * .49f, 9, p);
-        drawCaption(c, "SPORTS  •  MUSIC  •  NEWS  •  WORLD TV", w * .08f, h * .79f);\n        drawMicro(c, "One place for the moments happening now.", w * .08f, h * .835f);
+        drawCaption(c, "SPORTS  •  MUSIC  •  NEWS  •  WORLD TV", w * .08f, h * .79f);
+        drawMicro(c, "One place for the moments happening now.", w * .08f, h * .835f);
     }
 
     private void drawDiscover(Canvas c, float w, float h) {
@@ -103,7 +105,8 @@ public final class SplashCanvasView extends View {
         }
         c.drawPath(wave, stroke);
         drawCards(c, w, h);
-        drawCaption(c, "CREATORS  •  VIDEO  •  MUSIC  •  IDEAS", w * .08f, h * .80f);\n        drawMicro(c, "Follow what moves you. Discover what is next.", w * .08f, h * .845f);
+        drawCaption(c, "CREATORS  •  VIDEO  •  MUSIC  •  IDEAS", w * .08f, h * .80f);
+        drawMicro(c, "Follow what moves you. Discover what is next.", w * .08f, h * .845f);
     }
 
     private void drawTag(Canvas c, String text, float x, float y, float maxW) {
@@ -165,7 +168,14 @@ public final class SplashCanvasView extends View {
         p.setLetterSpacing(0);
     }
 
-    private void drawMicro(Canvas c, String text, float x, float y) {\n        p.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));\n        p.setTextSize(Math.max(11, getWidth() * .029f));\n        p.setColor(Color.argb(165, 210, 255, 225));\n        c.drawText(text, x, y, p);\n    }\n\n    private void drawFooter(Canvas c, float w, float h) {
+    private void drawMicro(Canvas c, String text, float x, float y) {
+        p.setTypeface(Typeface.create("sans-serif", Typeface.NORMAL));
+        p.setTextSize(Math.max(11, getWidth() * .029f));
+        p.setColor(Color.argb(165, 210, 255, 225));
+        c.drawText(text, x, y, p);
+    }
+
+    private void drawFooter(Canvas c, float w, float h) {
         p.setTypeface(Typeface.create("sans-serif", Typeface.BOLD));
         p.setTextSize(Math.max(13, w * .035f));
         p.setColor(Color.argb(190, 255, 255, 255));
