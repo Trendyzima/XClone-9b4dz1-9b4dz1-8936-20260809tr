@@ -20,7 +20,7 @@ public final class SplashActivity extends AppCompatActivity {
             R.drawable.splash_2,
             R.drawable.splash_3
     };
-    private static final long SCREEN_MS = 700L;
+    private static final long SCREEN_MS = 950L;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private ImageView image;
     private int index = 0;
