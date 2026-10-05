@@ -1,0 +1,11 @@
+-- Persist the system-wallet earnings model in repository migration history.
+-- Delivery completion credits gross courier earnings to the System Wallet.
+-- Courier withdrawal atomically retains 10% for Testagram and releases 90%.
+-- The live schema/function definitions are maintained in the database migration applied for this feature.
+-- This marker migration documents the policy so future environments must include:
+-- public.system_wallets
+-- public.marketplace_delivery_earnings
+-- public.system_wallet_ledger
+-- public.confirm_marketplace_delivery(uuid)
+-- public.withdraw_marketplace_earnings()
+-- and the invariant: platform_fee = round(gross_amount * 0.10, 2), net_amount = gross_amount - platform_fee.
