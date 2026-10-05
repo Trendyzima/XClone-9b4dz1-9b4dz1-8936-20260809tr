@@ -2,7 +2,7 @@ name: Surgical Repair Engine
 
 on:
   workflow_run:
-    workflows: ["Quality Gate", "Final Source Gate", "Vercel Production Deploy", "Workflow Syntax Gate"]
+    workflows: ["Quality Gate", "Final Source Gate", "Workflow Syntax Gate", "Cloudflare Worker Build Gate", "Native Clients", "Testagram Stability Gate", "Federation Gate", "Operations Gate", "Supabase API Connection Gate"]
     types: [completed]
 
 permissions:
