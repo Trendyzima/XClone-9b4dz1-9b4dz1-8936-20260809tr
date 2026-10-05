@@ -40,6 +40,7 @@ export default function RidePage() {
   const [dropoffPoint,setDropoffPoint] = useState<Point|null>(null);
   const [rideType,setRideType] = useState<(typeof RIDE_TYPES)[number]['id']>('standard');
   const [fare,setFare] = useState<Fare|null>(null);
+  const [paymentQuote,setPaymentQuote] = useState<{fare:number;platform_fee:number;mpesa_b2c_fee:number;driver_payout:number;total_charge:number}|null>(null);
   const [distanceKm,setDistanceKm] = useState<number|null>(null);
   const [activeRide,setActiveRide] = useState<Ride|null>(null);
   const [loading,setLoading] = useState(false);
@@ -58,7 +59,7 @@ export default function RidePage() {
     try {
       const body = await fn('ride-service', { method:'GET', path:'/api/v1/rides' });
       const rides = body?.data?.rides || [];
-      if(Array.isArray(rides) && rides[0]) setActiveRide(rides[0]);
+      if(Array.isArray(rides) && rides[0]) { setActiveRide(rides[0]); if(rides[0].status === 'completed') { const quote = await supabase.rpc('wallet_ride_fee_quote',{p_ride_id:rides[0].id}); if(!quote.error && quote.data?.ok) setPaymentQuote(quote.data); } else setPaymentQuote(null); }
     } catch(e) {
       toast.error(e instanceof Error ? e.message : 'Could not load your rides.');
     } finally { setLoadingRide(false); }
@@ -149,9 +150,15 @@ export default function RidePage() {
       toast.error('Ride wallet payments currently require KES.');
       return;
     }
-    if(Number(wallet.balance) < amount) { toast.error('Insufficient wallet balance. Top up your Testagram Wallet first.'); return; }
     setPaying(true);
     try {
+      const quoteResult = await supabase.rpc('wallet_ride_fee_quote',{p_ride_id:activeRide.id});
+      if(quoteResult.error) throw quoteResult.error;
+      const quote = quoteResult.data;
+      if(!quote?.ok) throw new Error('Unable to calculate the final ride charge.');
+      setPaymentQuote(quote);
+      const totalCharge = Number(quote.total_charge || amount);
+      if(Number(wallet.balance) < totalCharge) throw new Error(`Insufficient wallet balance. You need KES ${totalCharge.toLocaleString()}.`);
       const { data, error } = await supabase.rpc('wallet_pay_ride',{
         p_ride_id:activeRide.id,
         p_amount:amount,
@@ -160,7 +167,7 @@ export default function RidePage() {
       });
       if(error) throw error;
       if(!data?.ok) throw new Error('Ride payment was not completed.');
-      toast.success(`Ride paid from Wallet · KES ${amount.toLocaleString()}`);
+      toast.success(`Ride paid from Wallet · KES ${Number(data.amount || quote.total_charge).toLocaleString()}`);
       await fetchWallet();
       await loadLatestRide();
     } catch(e) { toast.error(e instanceof Error ? e.message : 'Wallet payment failed.'); }
@@ -233,7 +240,7 @@ export default function RidePage() {
                 {activeRide.dropoff_address && <p className="text-muted-foreground">To <span className="font-medium text-foreground">{activeRide.dropoff_address}</span></p>}
                 <div className="grid grid-cols-2 gap-3 pt-2 text-xs"><div className="rounded-xl bg-muted/40 p-3"><b>Ride</b><p className="mt-1 text-muted-foreground capitalize">{activeRide.ride_type || 'standard'}</p></div><div className="rounded-xl bg-muted/40 p-3"><b>Fare</b><p className="mt-1 text-muted-foreground">{activeRide.fare ? `KES ${Number(activeRide.fare).toLocaleString()}` : 'Pending'}</p></div></div>
               </div>
-              {canPay && <Button onClick={()=>void payForRide()} disabled={paying || walletLoading} className="mt-4 h-11 w-full rounded-xl font-bold">{paying?<RefreshCw className="mr-2 h-4 w-4 animate-spin"/>:<CheckCircle2 className="mr-2 h-4 w-4"/>}{paying?'Processing Wallet payment…':`Pay KES ${Number(activeRide.fare).toLocaleString()} from Wallet`}</Button>}
+              {canPay && <div className="mt-4 space-y-3">{paymentQuote && <div className="rounded-xl border bg-muted/30 p-3 text-xs"><div className="flex justify-between"><span>Ride fare</span><b>KES {paymentQuote.fare.toLocaleString()}</b></div><div className="mt-1 flex justify-between"><span>Testagram service fee (10%)</span><b>KES {paymentQuote.platform_fee.toLocaleString()}</b></div><div className="mt-1 flex justify-between"><span>M-Pesa B2C cost reserve</span><b>KES {paymentQuote.mpesa_b2c_fee.toLocaleString()}</b></div><div className="mt-2 flex justify-between border-t pt-2 text-sm"><span className="font-bold">Total</span><b>KES {paymentQuote.total_charge.toLocaleString()}</b></div></div>}<p className="text-[11px] text-muted-foreground">The Safaricom B2C cost is included in the platform charge and reserved for the payout path.</p><Button onClick={()=>void payForRide()} disabled={paying || walletLoading} className="h-11 w-full rounded-xl font-bold">{paying?<RefreshCw className="mr-2 h-4 w-4 animate-spin"/>:<CheckCircle2 className="mr-2 h-4 w-4"/>}{paying?'Processing Wallet payment…':`Pay ${paymentQuote ? `KES ${paymentQuote.total_charge.toLocaleString()}` : `KES ${Number(activeRide.fare).toLocaleString()}`} from Wallet`}</Button></div>}
               {activeRide.status === 'completed' && !canPay && <div className="mt-4 rounded-xl bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300"><AlertCircle className="mr-1 inline h-4 w-4"/>Payment is waiting for a valid completed fare.</div>}
             </div> : <div className="rounded-2xl border p-5"><div className="flex items-center gap-3"><Smartphone className="h-5 w-5 text-primary"/><div><p className="font-semibold">Ready when you are</p><p className="text-xs text-muted-foreground">Your first ride will appear here with its live status and Wallet settlement.</p></div></div></div>}
 
