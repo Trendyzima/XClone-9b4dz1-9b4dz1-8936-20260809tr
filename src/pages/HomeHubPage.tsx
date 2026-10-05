@@ -38,6 +38,79 @@ function blendPublisherItems(nativeItems: Item[], publishers: FeedItem[], seed: 
   if (existing.has(String(publisher.id))) return nativeItems;
   return [...nativeItems.slice(0, slot), { type:'publisher' as const, data:publisher }, ...nativeItems.slice(slot)];
 }
+function composeForYouContent(items: Item[]): Item[] {
+  if (items.length < 3) return items;
+
+  const affinitySources = new Set([
+    'following-local',
+    'following-thread',
+    'following-federated',
+    'following-community',
+    'following-hashtag-local',
+  ]);
+  const affinity = items.filter((item) => affinitySources.has(String(item.data?.feed_source ?? '')));
+  const discovery = items.filter((item) => !affinitySources.has(String(item.data?.feed_source ?? '')));
+
+  // X-style For You composition: keep the followed graph prominent, but
+  // continuously interleave discovery so the feed does not become a wall of
+  // followed posts. This is content ordering only; the existing UI is untouched.
+  if (!affinity.length || !discovery.length) return items;
+
+  const result: Item[] = [];
+  const used = new Set<string>();
+  let a = 0;
+  let d = 0;
+
+  const keyOf = (item: Item) => String(item.data?.id ?? item.data?.uri ?? '');
+  const authorOf = (item: Item) => String(
+    item.data?.author_id ??
+    item.data?.user_id ??
+    item.data?.owner_id ??
+    item.data?.actor_uri ??
+    item.data?.user_profiles?.id ??
+    ''
+  );
+
+  while (result.length < items.length && (a < affinity.length || d < discovery.length)) {
+    const takeAffinity = a < affinity.length && (result.length % 3 !== 2 || d >= discovery.length);
+    const pool = takeAffinity ? affinity : discovery;
+    const start = takeAffinity ? a : d;
+    let chosenIndex = start;
+    let chosen: Item | undefined;
+
+    for (let i = start; i < pool.length; i += 1) {
+      const candidate = pool[i];
+      if (used.has(keyOf(candidate))) continue;
+      const recent = result.slice(-2);
+      const author = authorOf(candidate);
+      const sameAuthor = author && recent.filter((x) => authorOf(x) === author).length >= 2;
+      const source = String(candidate.data?.feed_source ?? candidate.type);
+      const sameSource = recent.filter((x) => String(x.data?.feed_source ?? x.type) === source).length >= 2;
+      if (!sameAuthor && !sameSource) {
+        chosenIndex = i;
+        chosen = candidate;
+        break;
+      }
+    }
+
+    if (!chosen) {
+      chosen = pool[start];
+      chosenIndex = start;
+    }
+    if (!chosen) break;
+
+    if (takeAffinity) a = chosenIndex + 1;
+    else d = chosenIndex + 1;
+
+    const key = keyOf(chosen);
+    if (used.has(key)) continue;
+    used.add(key);
+    result.push(chosen);
+  }
+
+  return result;
+}
+
 const TABS: {id:Tab;label:string}[] = [
   {id:'all',label:'For you'},{id:'following',label:'Following'},{id:'explore',label:'Explore'},
   {id:'media',label:'Media'},{id:'communities',label:'Communities'},{id:'polls',label:'Polls'},
@@ -289,7 +362,7 @@ export default function HomeHubPage(){
           });
         }
       }else{
-        setItems(next);feedBufferRef.current=mergeHomeFeedItems([],next,80);feedBufferOffsetRef.current=next.length;cacheCursorRef.current=nextCursorRef.current;setLoading(false);
+        const composed = composeForYouContent(next);setItems(composed);feedBufferRef.current=mergeHomeFeedItems([],composed,80);feedBufferOffsetRef.current=next.length;cacheCursorRef.current=nextCursorRef.current;setLoading(false);
       }
       setHasMore(Boolean(cacheCursorRef.current));
       await persistBuffer();
