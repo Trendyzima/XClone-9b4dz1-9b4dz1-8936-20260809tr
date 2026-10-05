@@ -65,49 +65,64 @@ function sourceKey(item: any) {
 
 function candidateScore(item: any) {
   const d = item?.data || {};
+  const affinity = Number(item.affinityScore ?? d.affinity_score ?? 0);
   const ageHours = Math.max(0, (Date.now() - new Date(d.created_at || 0).getTime()) / 3600000);
   const engagement = Math.log1p(Math.max(0, Number(d.likes_count ?? 0))) * 1.8
     + Math.log1p(Math.max(0, Number(d.replies_count ?? 0))) * 1.4
     + Math.log1p(Math.max(0, Number(d.reposts_count ?? 0))) * 2.2
     + Math.log1p(Math.max(0, Number(d.views_count ?? 0))) * 0.2;
   const freshness = Math.exp(-ageHours / 36) * 12;
-  const sourceBoost = ['following-local','following-thread','following-federated'].includes(item.source) ? 12
+  const sourceBoost = ['following-local','following-thread','following-federated','following-community','following-hashtag-local'].includes(item.source) ? 12
     : item.source === 'recommendation' ? 8 : item.source === 'thread' ? 3 : 0;
   const federationBoost = item.source === 'following-federated' ? 3 : item.source === 'federated' ? 1 : 0;
-  return sourceBoost + federationBoost + freshness + engagement + Number(d.recommendation_score ?? 0) * 5;
+  return affinity + sourceBoost + federationBoost + freshness + engagement + Number(d.recommendation_score ?? 0) * 5;
 }
 
 function blend(items: any[], limit: number) {
-  const ranked = items
-    .filter((x) => x?.data?.created_at)
-    .sort((a, b) =>
-      candidateScore(b) - candidateScore(a) ||
-      new Date(b.data.created_at).getTime() - new Date(a.data.created_at).getTime());
+  const eligible = items.filter((x) => x?.data?.created_at);
+  const ranked = [...eligible].sort((a, b) =>
+    candidateScore(b) - candidateScore(a) ||
+    new Date(b.data.created_at).getTime() - new Date(a.data.created_at).getTime());
 
-  const used = new Set<string>();
+  // X-style ranking: affinity is a priority signal, not a separate silo.
+  // Followed people/communities/hashtags get a strong head start, while
+  // freshness, engagement and discovery candidates can still outrank weak
+  // affinity content. The composer deliberately mixes the lanes instead of
+  // dumping all followed content at the top.
+  const priority = ranked.filter((x) => Number(x.affinityScore ?? 0) >= 20);
+  const discovery = ranked.filter((x) => Number(x.affinityScore ?? 0) < 20);
   const out: any[] = [];
-  let lastSource = '';
-  let sameSourceStreak = 0;
+  const used = new Set<string>();
+  let p = 0;
+  let d = 0;
+  let prioritySlots = 0;
 
-  for (const item of ranked) {
-    if (out.length >= limit) break;
-    const key = sourceKey(item);
+  // Target roughly 60% affinity-driven content, with discovery continuously
+  // mixed in. If affinity candidates are scarce, discovery fills the gap.
+  while (out.length < limit && (p < priority.length || d < discovery.length)) {
+    const shouldPriority = prioritySlots < Math.ceil(limit * 0.6) &&
+      p < priority.length &&
+      (out.length % 3 !== 2 || d >= discovery.length);
+
+    const pool = shouldPriority ? priority : discovery;
+    let chosen = pool === priority ? priority[p++] : discovery[d++];
+    if (!chosen) continue;
+
+    const key = sourceKey(chosen);
     if (used.has(key)) continue;
 
-    // Soft diversity: source is considered, but never gets a reserved lane.
-    // A strong Fediverse item can beat a local item; we only avoid long runs
-    // from the same source when another unused source is available.
-    const source = String(item.source || 'local');
-    const hasAlternative = ranked.some((candidate) =>
-      !used.has(sourceKey(candidate)) &&
-      String(candidate.source || 'local') !== source
-    );
-    if (source === lastSource && sameSourceStreak >= 2 && hasAlternative) continue;
+    // Avoid monotonous runs from the same surface/author while preserving
+    // strong follow affinity.
+    const recent = out.slice(-2);
+    const chosenAuthor = String(chosen.data?.author_id || chosen.data?.user_id || chosen.data?.owner_id || '');
+    const sameAuthor = chosenAuthor && recent.filter((x) =>
+      String(x.data?.author_id || x.data?.user_id || x.data?.owner_id || '') === chosenAuthor).length >= 2;
+    const sameSource = recent.filter((x) => String(x._source || '') === String(chosen.source || '')).length >= 2;
+    if (sameAuthor || sameSource) continue;
 
     used.add(key);
-    out.push({ type: item.type, data: item.data });
-    if (source === lastSource) sameSourceStreak += 1;
-    else { lastSource = source; sameSourceStreak = 1; }
+    out.push({ type: chosen.type, data: { ...chosen.data, feed_source: chosen.source } });
+    if (shouldPriority) prioritySlots += 1;
   }
 
   return out;
@@ -187,6 +202,20 @@ export default async function handler(request: RequestLike) {
       .map((row: any) => String(row.following_id || ''))
       .filter(Boolean))];
 
+    // Expand the affinity graph beyond people: local hashtag follows and
+    // joined communities are first-class interests and should influence Home
+    // immediately, just like followed accounts and federated follows.
+    const [hashtagFollowRows, communityMemberRows] = auth
+      ? await Promise.all([
+          admin.from('hashtag_follows').select('hashtag_id').eq('user_id', auth.id).limit(100),
+          admin.from('community_members').select('community_id,status').eq('user_id', auth.id).limit(100),
+        ])
+      : [{ data: [], error: null }, { data: [], error: null }];
+    const followedHashtagIds = [...new Set((hashtagFollowRows.data || []).map((r: any) => String(r.hashtag_id || '')).filter(Boolean))];
+    const joinedCommunityIds = [...new Set((communityMemberRows.data || [])
+      .filter((r: any) => !r.status || ['active','accepted','member'].includes(String(r.status).toLowerCase()))
+      .map((r: any) => String(r.community_id || '')).filter(Boolean))];
+
     const sourceLimit = Math.max(6, Math.ceil(limit * 2));
     const recommendationQuery = auth
       ? admin.from('content_recommendations')
@@ -218,6 +247,21 @@ export default async function handler(request: RequestLike) {
         .in('owner_id', followedLocalIds).order('created_at',{ascending:false}).limit(sourceLimit)
       : null;
 
+    const followedHashtagPostsQuery = followedHashtagIds.length
+      ? admin.from('post_hashtags')
+        .select('post_id,hashtags!inner(id,tag)')
+        .in('hashtag_id', followedHashtagIds.slice(0, 100))
+        .limit(sourceLimit * 3)
+      : null;
+    const communityPostsQuery = joinedCommunityIds.length
+      ? admin.from('posts')
+        .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
+        .in('community_id', joinedCommunityIds.slice(0, 100))
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
+        .limit(sourceLimit)
+      : null;
+
     if (cursor.post) { postsQuery.lt('created_at', cursor.post); followingPostsQuery?.lt('created_at', cursor.post); }
     if (cursor.thread) { threadsQuery.lt('created_at', cursor.thread); followingThreadsQuery?.lt('created_at', cursor.thread); }
 
@@ -247,12 +291,14 @@ export default async function handler(request: RequestLike) {
         })()
       : Promise.resolve({ items: [], pagination: { hasMore: false, nextCursor: null } });
 
-    const [recommendationResult, postsResult, followingPostsResult, threadsResult, followingThreadsResult, fedResult] = await Promise.all([
+    const [recommendationResult, postsResult, followingPostsResult, threadsResult, followingThreadsResult, followedHashtagPostsResult, communityPostsResult, fedResult] = await Promise.all([
       recommendationQuery,
       postsQuery,
       followingPostsQuery || Promise.resolve({ data: [], error: null }),
       threadsQuery,
       followingThreadsQuery || Promise.resolve({ data: [], error: null }),
+      followedHashtagPostsQuery || Promise.resolve({ data: [], error: null }),
+      communityPostsQuery || Promise.resolve({ data: [], error: null }),
       federatedPromise,
     ]);
     // Organic discovery is intentionally outside the critical Home feed path.
@@ -331,15 +377,34 @@ export default async function handler(request: RequestLike) {
     });
 
     const followingLocal = (followingPostsResult.data || []).map((p: any) => ({
-      type: 'post', source: 'following-local',
+      type: 'post', source: 'following-local', affinityScore: 48,
       data: { ...p, poll: pollByPostId.get(String(p.id)) ?? null, is_federated: false, feed_reason: 'From someone you follow' },
     }));
     const local = (postsResult.data || [])
       .filter((p: any) => !followedLocalIds.includes(String(p.author_id || p.user_id || '')))
       .map((p: any) => ({ type: 'post', source: 'local', data: { ...p, poll: pollByPostId.get(String(p.id)) ?? null, is_federated: false } }));
     const followingThreads = (followingThreadsResult.data || []).map((t: any) => ({
-      type: 'thread', source: 'following-thread',
+      type: 'thread', source: 'following-thread', affinityScore: 42,
       data: { ...t, is_federated: false, feed_reason: 'From someone you follow' },
+    }));
+
+    const followingHashtagPostIds = [...new Set((followedHashtagPostsResult.data || [])
+      .map((r: any) => String(r.post_id || '')).filter(Boolean))];
+    const followedHashtagPosts = followingHashtagPostIds.length
+      ? (await admin.from('posts')
+          .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
+          .in('id', followingHashtagPostIds.slice(0, sourceLimit * 2))
+          .is('community_id', null).is('deleted_at', null)
+          .order('created_at', { ascending: false }).limit(sourceLimit)).data || []
+      : [];
+    const followedHashtagItems = followedHashtagPosts.map((p: any) => ({
+      type: 'post', source: 'following-hashtag-local', affinityScore: 34,
+      data: { ...p, is_federated: false, feed_reason: 'From a hashtag you follow' },
+    }));
+
+    const followingCommunity = (communityPostsResult.data || []).map((p: any) => ({
+      type: 'post', source: 'following-community', affinityScore: 38,
+      data: { ...p, is_federated: false, feed_reason: 'From a community you joined' },
     }));
     const threads = (threadsResult.data || [])
       .filter((t: any) => !followedLocalIds.includes(String(t.owner_id || '')))
@@ -347,7 +412,9 @@ export default async function handler(request: RequestLike) {
     const fedItems = Array.isArray(fedResult?.items) ? fedResult.items : [];
 
     const fed = fedItems.map((p: any) => ({
-      type: 'fedpost', source: p.feed_source === 'following_actor' || p.feed_source === 'following_hashtag' ? 'following-federated' : 'federated',
+      type: 'fedpost',
+      source: p.feed_source === 'following_actor' || p.feed_source === 'following_hashtag' ? 'following-federated' : 'federated',
+      affinityScore: p.feed_source === 'following_actor' || p.feed_source === 'following_hashtag' ? 46 : 0,
       data: {
         ...p,
         id: p.id ?? p.uri,
@@ -362,7 +429,13 @@ export default async function handler(request: RequestLike) {
       },
     }));
 
-    const followed = [...followingLocal, ...followingThreads, ...fed.filter((item: any) => item.source === 'following-federated')];
+    const followed = [
+      ...followingLocal,
+      ...followingThreads,
+      ...followedHashtagItems,
+      ...followingCommunity,
+      ...fed.filter((item: any) => item.source === 'following-federated'),
+    ];
     const discovery = [...recommendations, ...local, ...threads, ...fed.filter((item: any) => item.source !== 'following-federated')];
     const items = injectFollowing(discovery, followed, limit);
     const lastPost = postsResult.data?.at(-1)?.created_at;
