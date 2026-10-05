@@ -1,0 +1,3 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+const json=(body:any,status=200)=>new Response(JSON.stringify(body),{status,headers:{"content-type":"application/json"}});
+Deno.serve(async req=>{try{const {distance_km,ride_type="standard"}=await req.json();const km=Number(distance_km);if(!Number.isFinite(km)||km<=0)return json({error:"Invalid distance"},400);const base=ride_type==="comfort"?220:ride_type==="xl"?300:150;const per=ride_type==="comfort"?75:ride_type==="xl"?95:55;const amount=Math.max(base,Math.round(base+km*per));return json({data:{fare:amount,estimated_fare:amount,currency:"KES"}})}catch(e){return json({error:e instanceof Error?e.message:"Fare failed"},500)}});
