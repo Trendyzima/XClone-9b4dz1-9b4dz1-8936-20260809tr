@@ -232,7 +232,7 @@ export default function TvChannelsPage(){
    </section>
 
    {!loading&&!filtered.length&&<div className='rounded-2xl border py-20 text-center text-muted-foreground'><Globe2 className='mx-auto mb-3 h-10 w-10'/><p className='font-semibold'>No channels matched</p><p className='mt-1 text-sm'>Try another country, category or search.</p></div>}
-   <div className='mt-8 text-center'><Button variant='outline' onClick={()=>void loadMore()} disabled={loading||sourceIndex>=TV_SOURCES.length-1}><ChevronRight className='mr-2'/>Load more live sources</Button><p className='mt-2 text-[11px] text-muted-foreground'>Channel metadata stays stable; reactions, hashtags and mentions connect this channel to the wider Testagram discovery system. Video playback remains strictly one channel at a time.</p></div>
+   <div className='mt-8 text-center'><Button variant='outline' onClick={()=>void loadMore()} disabled={loading||TV_SOURCES.filter(s=>s.enabled!==false).every(s=>loaded.current.has(s.id))}><ChevronRight className='mr-2'/>Load more live sources</Button><p className='mt-2 text-[11px] text-muted-foreground'>Channel metadata stays stable; reactions, hashtags and mentions connect this channel to the wider Testagram discovery system. Video playback remains strictly one channel at a time.</p></div>
    {loading&&<div className='py-8 text-center text-sm text-muted-foreground'><RefreshCw className='mx-auto mb-2 h-5 w-5 animate-spin'/>Discovering live channels…</div>}
    <footer className='mt-10 border-t pt-5 text-center text-[11px] leading-5 text-muted-foreground'>Testagram does not host or copy broadcast video files. Channel availability depends on the public stream source and its rights/availability.</footer>
   </main>
