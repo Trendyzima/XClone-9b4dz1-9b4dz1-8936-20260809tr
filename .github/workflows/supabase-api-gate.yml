@@ -39,7 +39,7 @@ jobs:
       - name: Install deterministic Supabase CLI
         uses: supabase/setup-cli@v1
         with:
-          version: 2.40.7
+          version: 2.118.0
 
       - name: Verify Management API authentication
         if: github.event_name == 'workflow_dispatch'
