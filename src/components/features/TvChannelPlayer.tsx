@@ -51,7 +51,8 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
  useEffect(()=>{const video=ref.current;if(!video)return;const recoverable=()=>{if(active&&!starting)setStarting(true);retry();};video.addEventListener('waiting',recoverable);video.addEventListener('stalled',recoverable);return()=>{video.removeEventListener('waiting',recoverable);video.removeEventListener('stalled',recoverable);};},[active,retry,starting]);
  useEffect(()=>{const stop=(e:Event)=>{if((e as CustomEvent<string>).detail===channel.id)return;cleanup();setStarting(false);};window.addEventListener('testagram-tv-play',stop);return()=>window.removeEventListener('testagram-tv-play',stop);},[channel.id,cleanup]);
 
- const enableAudio=useCallback(async()=>{const v=ref.current;if(!v)return;audioPreferenceRef.current=false;v.defaultMuted=false;v.muted=false;v.volume=1;try{await v.play();setMuted(false);setNeedsGesture(false);try{localStorage.setItem('testagram-tv-audio','on');}catch{}}catch{setNeedsGesture(true);}},[]);\n const toggle=()=>{const v=ref.current;if(!v)return;const next=!muted;if(next){v.muted=true;setMuted(true);try{localStorage.setItem('testagram-tv-audio','off');}catch{}}else{void enableAudio();}};
+ const enableAudio=useCallback(async()=>{const v=ref.current;if(!v)return;audioPreferenceRef.current=false;v.defaultMuted=false;v.muted=false;v.volume=1;try{await v.play();setMuted(false);setNeedsGesture(false);try{localStorage.setItem('testagram-tv-audio','on');}catch{}}catch{setNeedsGesture(true);}},[]);
+ const toggle=()=>{const v=ref.current;if(!v)return;const next=!muted;if(next){v.muted=true;setMuted(true);try{localStorage.setItem('testagram-tv-audio','off');}catch{}}else{void enableAudio();}};
  const fullscreen=()=>{(ref.current as any)?.requestFullscreen?.();};
 
  return <article ref={wrap} className='snap-start overflow-hidden rounded-2xl border bg-card shadow-sm'>
