@@ -19,7 +19,7 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
  const cleanup=useCallback(()=>{if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;hls.current?.destroy();hls.current=null;const v=ref.current;if(v){v.pause();v.removeAttribute('src');v.load();}},[]);
  const healthy=useCallback(()=>{setStarting(false);setError(false);setNeedsGesture(false);retryRef.current=0;onHealth?.(channel.id,true);},[channel.id,onHealth]);
 
- const retry=useCallback(()=>{if(!active)return;if(retryTimer.current)clearTimeout(retryTimer.current);const isHls=/\\.m3u8(?:$|[?#])/i.test(channel.url);if(!isHls&&retryRef.current>=3){setStarting(false);setError(true);onHealth?.(channel.id,false);return;}if(isHls&&retryRef.current>=4){setStarting(false);setError(true);onHealth?.(channel.id,false);return;}retryRef.current++;retryTimer.current=setTimeout(()=>active&&startRef.current?.(),700*Math.pow(2,Math.min(retryRef.current-1,3)));},[active,channel.id,channel.url,onHealth]);
+ const retry=useCallback(()=>{if(!active)return;if(retryTimer.current)clearTimeout(retryTimer.current);const isHls=/\.m3u8(?:$|[?#])/i.test(channel.url);if(!isHls&&retryRef.current>=3){setStarting(false);setError(true);onHealth?.(channel.id,false);return;}if(isHls&&retryRef.current>=4){setStarting(false);setError(true);onHealth?.(channel.id,false);return;}retryRef.current++;retryTimer.current=setTimeout(()=>active&&startRef.current?.(),700*Math.pow(2,Math.min(retryRef.current-1,3)));},[active,channel.id,channel.url,onHealth]);
 
  const start=useCallback(()=>{
   const video=ref.current;if(!video||!active)return;cleanup();setStarting(true);setError(false);setNeedsGesture(false);
