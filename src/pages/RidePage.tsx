@@ -9,8 +9,6 @@ import { toast } from 'sonner';
 
 type Point = { latitude:number; longitude:number; address:string };
 type Ride = { id:string; status:string; fare?:number; estimated_fare?:number; distance_km?:number; duration_minutes?:number; ride_type?:string };
-type Wallet = { balance:number; currency:string; };
-type WalletTx = { id:string; type:string; amount:number; description:string; balance_after:number; created_at:string };
 
 const API_BASE = (import.meta.env.VITE_RIDE_HAILING_API_URL as string | undefined)?.replace(/\/+$/,'') || '';
 
@@ -55,19 +53,7 @@ export default function RidePage() {
     {id:'xl',name:'XL',description:'Groups & luggage',icon:'🚐'},
   ],[]);
 
-  useEffect(()=>{ if(!user) return; void loadLatestRide(); void loadWallet(); },[user?.id]);
-
-  async function loadWallet(){
-    if(!connected) return;
-    setWalletLoading(true);
-    try {
-      const [w,t]=await Promise.all([api('/api/v1/wallet'),api('/api/v1/wallet/transactions?per_page=5')]);
-      setWallet(w?.data || w?.wallet || null);
-      const rows=t?.data?.transactions || t?.data || t?.transactions || [];
-      if(Array.isArray(rows)) setTransactions(rows);
-    } catch(e){ toast.error(e instanceof Error ? e.message : 'Could not load wallet.'); }
-    finally { setWalletLoading(false); }
-  }
+  useEffect(()=>{ if(!user) return; void loadLatestRide(); void fetchWallet(); },[user?.id,fetchWallet]);
 
   async function payRideWithWallet(){
     if(!activeRide?.id) return;
@@ -80,6 +66,13 @@ export default function RidePage() {
       await loadWallet();
     } catch(e){ toast.error(e instanceof Error ? e.message : 'Wallet payment failed.'); }
     finally { setPaying(false); }
+  }
+
+  async function geocodeAddress(address:string){
+    const body=await api('/api/v1/geo/geocode?address='+encodeURIComponent(address));
+    const result=body?.data?.results?.[0] || body?.results?.[0];
+    if(!result?.latitude || !result?.longitude) throw new Error('Destination could not be located.');
+    return {latitude:Number(result.latitude),longitude:Number(result.longitude),address:result.formatted_address || address};
   }
 
   async function loadLatestRide(){
@@ -147,7 +140,7 @@ async function estimateFare(distanceKm:number, type:string){
       setActiveRide(ride);
       if(ride?.fare != null) setFareEstimate(Number(ride.fare));
       toast.success('Ride requested');
-      await loadWallet();
+      await fetchWallet();
     } catch(e){ toast.error(e instanceof Error ? e.message : 'Could not request ride.'); }
     finally { setLoading(false); }
   }
@@ -201,7 +194,7 @@ async function estimateFare(distanceKm:number, type:string){
               <div className="flex items-center gap-3"><ShieldCheck className="h-5 w-5 text-emerald-600"/><div><p className="font-semibold">Ride safety</p><p className="text-xs text-muted-foreground">Use the platform's verified ride flow and never share payment credentials in chat.</p></div></div>
               <div className="mt-5 grid grid-cols-2 gap-3 text-xs"><div className="rounded-xl bg-background p-3"><Clock3 className="mb-2 h-4 w-4"/><b>Live status</b><p className="mt-1 text-muted-foreground">Track ride state</p></div><div className="rounded-xl bg-background p-3"><WalletCards className="mb-2 h-4 w-4"/><b>Wallet ready</b><p className="mt-1 text-muted-foreground">Pay through API</p></div></div>
             </div>
-            {wallet && <div className="rounded-2xl border bg-emerald-500/5 p-5"><div className="flex items-center justify-between"><div><p className="text-sm font-semibold">Testagram Wallet</p><p className="mt-1 text-2xl font-black">{wallet.balance.toFixed(2)} {wallet.currency}</p></div><WalletCards className="h-6 w-6 text-emerald-600"/></div><p className="mt-2 text-xs text-muted-foreground">Your ride payments are charged directly from this wallet.</p>{transactions.length>0 && <div className="mt-4 space-y-2">{transactions.slice(0,3).map(tx=><div key={tx.id} className="flex justify-between text-xs"><span>{tx.description}</span><span className={tx.type==='debit'?'text-red-600':'text-emerald-600'}>{tx.type==='debit'?'-':'+'}{tx.amount.toFixed(2)}</span></div>)}</div>}</div>}
+            {wallet && <div className="rounded-2xl border bg-emerald-500/5 p-5"><div className="flex items-center justify-between"><div><p className="text-sm font-semibold">Testagram Wallet</p><p className="mt-1 text-2xl font-black">{Number(wallet.balance).toFixed(2)} {wallet.currency}</p></div><WalletCards className="h-6 w-6 text-emerald-600"/></div><p className="mt-2 text-xs text-muted-foreground">Ride payments are charged directly from your Testagram Wallet.</p></div>}
             {activeRide && <div className="rounded-2xl border p-5"><div className="flex items-center justify-between"><p className="font-bold">Your latest ride</p><span className="rounded-full bg-emerald-500/10 px-2 py-1 text-xs font-semibold text-emerald-600">{activeRide.status}</span></div><div className="mt-4 space-y-2 text-sm text-muted-foreground"><p>Ride: <span className="font-medium text-foreground">{activeRide.ride_type || 'Standard'}</span></p>{activeRide.fare != null && <p>Fare: <span className="font-medium text-foreground">{activeRide.fare}</span></p>}{activeRide.duration_minutes != null && <p>ETA: <span className="font-medium text-foreground">{activeRide.duration_minutes} min</span></p>}</div>{activeRide.status==='completed' && <Button type="button" onClick={payRideWithWallet} disabled={paying} className="mt-4 w-full">{paying?<RefreshCw className="mr-2 h-4 w-4 animate-spin"/>:<WalletCards className="mr-2 h-4 w-4"/>}{paying?'Processing…':'Pay from wallet'}</Button>}</div>}
             <div className="rounded-2xl border p-5"><div className="flex items-center gap-3"><Smartphone className="h-5 w-5 text-primary"/><div><p className="font-semibold">Built for Testagram</p><p className="text-xs text-muted-foreground">Ride access now lives beside Home, World TV and the rest of your sidebar.</p></div></div></div>
           </div>
