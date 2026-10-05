@@ -93,6 +93,7 @@ export default function TvChannelsPage(){
  },[channels,dead,filter,query]);
 
  useEffect(()=>{if(!active&&filtered[0])setActive(filtered[0].id);},[active,filtered]);
+ const featured=filtered.find(c=>c.id===active)||filtered[0];
 
  useEffect(()=>{
   let cancelled=false;
@@ -125,7 +126,6 @@ export default function TvChannelsPage(){
 
  const refresh=()=>{loaded.current.clear();setDead(new Set());setActive('');setChannels([]);setSourceIndex(0);setNotice('');void loadSources(getPrioritySourceIds().slice(0,6));};
  const loadMore=async()=>{let next=sourceIndex+1;while(next<TV_SOURCES.length&&TV_SOURCES[next].enabled===false)next++;if(next<TV_SOURCES.length){setSourceIndex(next);await loadSources([TV_SOURCES[next].id]);}};
- const featured=filtered.find(c=>c.id===active)||filtered[0];
  const categories=useMemo(()=>[
   ['Kenya',filtered.filter(c=>c.country==='KE')],
   ['News',filtered.filter(c=>/news/i.test((c.group||'')+' '+c.name))],
