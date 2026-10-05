@@ -408,7 +408,12 @@ export default function HashtagPage() {
 
       {/* Posts */}
       <div>
-        {(sortMode === 'recent' ? [...posts, ...federatedPosts] : [...topPosts, ...federatedPosts]).length === 0 ? (
+        {(sortMode === 'recent'
+          ? [...posts, ...federatedPosts].sort((a: any, b: any) => Date.parse(String(b.created_at ?? '')) - Date.parse(String(a.created_at ?? '')))
+          : [...topPosts, ...federatedPosts].sort((a: any, b: any) => (
+              (Number(b.likes_count ?? b.like_count ?? 0) + Number(b.reposts_count ?? b.announce_count ?? 0) * 2 + Number(b.replies_count ?? b.reply_count ?? 0))
+              - (Number(a.likes_count ?? a.like_count ?? 0) + Number(a.reposts_count ?? a.announce_count ?? 0) * 2 + Number(a.replies_count ?? a.reply_count ?? 0))
+            ))).length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             <Flame className="w-12 h-12 mx-auto mb-3 opacity-20" />
             <p>No posts found with this hashtag</p>
