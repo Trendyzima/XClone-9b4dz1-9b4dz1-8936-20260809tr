@@ -112,10 +112,11 @@ function parseM3U(text:string, source:Source, max=25000) {
     if(!info || !/^https?:\/\//i.test(line)) { info=null; continue; }
     const comma=info.indexOf(",");
     const name=clean(comma>=0?info.slice(comma+1):attr(info,"tvg-name"))||"Live TV";
-    if(blocked.test(name)) { info=null; continue; }
+    const tvgId=clean(attr(info,"tvg-id"));
+    if(blocked.test(name) || blocked.test(line)) { info=null; continue; }
     const url=line;
     out.push({
-      id:idFor(name,url), name, url,
+      id:idFor(tvgId||name,url), tvg_id:tvgId, name, url,
       logo:clean(attr(info,"tvg-logo")),
       group:clean(attr(info,"group-title")),
       country:clean(attr(info,"tvg-country"))||source.country,
@@ -248,7 +249,7 @@ Deno.serve(async(req)=>{
   if(!source) return new Response(JSON.stringify({error:"Unknown TV source"}),{status:404,headers:cors});
 
   const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),10000);
+  const timer=setTimeout(()=>controller.abort(),25000);
   try {
     const cached = await getCachedChannels(sourceId);
     if (cached && Array.isArray(cached.channels)) {
@@ -289,10 +290,10 @@ Deno.serve(async(req)=>{
         : NEXUS+"/by-category/"+sourceId.slice("nexus-".length)+".json";
       const rows = await fetchJson(endpoint,controller.signal);
       channels = fromNexus(rows,source.label,source.priority,sourceId === "nexus-ke" ? "KE" : undefined);
-    } else if (sourceId==="iprtl-freetv" || sourceId==="iprtl-pluto" || sourceId==="subash-football-cricket") {
-      channels=await fetchM3U(source,controller.signal,25000);
+    } else if (source.format==="json") {
+      channels=parseJSON(await fetchJson(source.url,controller.signal),source,25000);
     } else {
-      channels=await fetchM3U(source,controller.signal,300);
+      channels=await fetchM3U(source,controller.signal,25000);
     }
 
     const seenUrl=new Set<string>();
