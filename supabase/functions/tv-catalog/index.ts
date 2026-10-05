@@ -1,10 +1,14 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
-type Source = { id: string; label: string; url: string; country?: string; priority: number };
+type Source = { id: string; label: string; url: string; country?: string; priority: number; format?: "m3u"|"json" };
 
 const NEXUS = "https://dearbulut.github.io/iptv/api/v1";
 
 const SOURCES: Record<string, Source> = {
+  "world-ip-tv-verified": { id:"world-ip-tv-verified", label:"World IPTV Checker · daily verified public streams", url:"https://romaxa55.github.io/world_ip_tv/output/index.m3u", country:"INT", priority:170, format:"m3u" },
+  "nexus-best": { id:"nexus-best", label:"IPTV Nexus · Best healthy public streams", url:"https://dearbulut.github.io/iptv/playlists/best.m3u", country:"INT", priority:169, format:"m3u" },
+  "shovo-global": { id:"shovo-global", label:"IPTV By Shovo · Global public streams", url:"https://shovo127.github.io/IPTV-By-Shovo/index.m3u", country:"INT", priority:168, format:"m3u" },
+  "usama-snapshot": { id:"usama-snapshot", label:"UsamaSarwar IPTV · verified snapshot", url:"https://raw.githubusercontent.com/UsamaSarwar/iptv/main/public/channels-snapshot.json", country:"INT", priority:167, format:"json" },
   "iptv-org-global": { id:"iptv-org-global", label:"IPTV-ORG · Global public", url:"https://iptv-org.github.io/iptv/index.m3u", country:"INT", priority:135 },
   "iptv-org-news": { id:"iptv-org-news", label:"IPTV-ORG · News", url:"https://iptv-org.github.io/iptv/categories/news.m3u", country:"INT", priority:128 },
   "iptv-org-sports": { id:"iptv-org-sports", label:"IPTV-ORG · Sports", url:"https://iptv-org.github.io/iptv/categories/sports.m3u", country:"INT", priority:127 },
@@ -21,7 +25,10 @@ const SOURCES: Record<string, Source> = {
   "nexus-entertainment": { id:"nexus-entertainment", label:"IPTV Nexus · Entertainment · health checked", url:NEXUS+"/by-category/entertainment.json", country:"INT", priority:152 },
   "iprtl-freetv": { id:"iprtl-freetv", label:"IPRTL · FreeTV · public streams", url:"https://raw.githubusercontent.com/iprtl/m3u/live/Freetv.m3u", country:"INT", priority:119 },
   "iprtl-pluto": { id:"iprtl-pluto", label:"IPRTL · Pluto · public streams", url:"https://raw.githubusercontent.com/iprtl/m3u/live/Pluto.m3u", country:"INT", priority:118 },
-  "subash-football-cricket": { id:"subash-football-cricket", label:"Subash · Football & Cricket · public FTA", url:"https://raw.githubusercontent.com/subash9860/iptv-football-cricket/main/index.m3u", country:"INT", priority:117 },
+  "subash-football-cricket": { id:"subash-football-cricket", label:"Subash · Football & Cricket · public FTA", url:"https://raw.githubusercontent.com/subash9860/iptv-football-cricket/main/index.m3u", country:"INT", priority:117, format:"m3u" },
+  "dhanytv-indonesia": { id:"dhanytv-indonesia", label:"dhanytv · Indonesia public channels", url:"https://raw.githubusercontent.com/dhasap/dhanytv/main/dhanytv-ott.m3u", country:"ID", priority:116, format:"m3u" },
+  "blitz-latam": { id:"blitz-latam", label:"Blitz IPTV Player · public channel snapshot", url:"https://raw.githubusercontent.com/blitzandres/iptv-player/main/channels.json", country:"INT", priority:115, format:"json" },
+  "freecast-global": { id:"freecast-global", label:"FreeCastHub · Global public broadcasters", url:"https://raw.githubusercontent.com/freecasthub/public-iptv/main/playlist.m3u", country:"INT", priority:114, format:"m3u" },
 };
 
 const cors = {
@@ -77,6 +84,21 @@ const attr = (line:string,key:string) => line.match(new RegExp(key+'="([^"]*)"',
 
 function idFor(name:string,url:string) {
   return btoa(unescape(encodeURIComponent((name+"|"+url).toLowerCase()))).replace(/[^a-z0-9]/gi,"").slice(0,80);
+}
+
+function parseJSON(payload:unknown, source:Source, max=25000) {
+  const rows = Array.isArray(payload) ? payload : (payload && typeof payload === "object" && Array.isArray((payload as any).channels) ? (payload as any).channels : []);
+  return rows.slice(0,max).map((c:any)=>({
+    id:String(c?.id || c?.tvg_id || idFor(String(c?.name||"Live TV"),String(c?.url||""))),
+    name:String(c?.name || "Live TV"),
+    url:String(c?.url || "").trim(),
+    logo:typeof c?.logo==="string" ? c.logo : undefined,
+    group:typeof c?.group==="string" ? c.group : (typeof c?.category==="string" ? c.category : undefined),
+    country:typeof c?.country==="string" ? c.country : source.country,
+    language:typeof c?.language==="string" ? c.language : undefined,
+    source:source.label,
+    priority:source.priority
+  })).filter((c:any)=>/^https?:\/\//i.test(c.url) && !blocked.test(c.name) && !blocked.test(c.url));
 }
 
 function parseM3U(text:string, source:Source, max=25000) {
@@ -273,11 +295,17 @@ Deno.serve(async(req)=>{
       channels=await fetchM3U(source,controller.signal,300);
     }
 
-    const seen=new Set<string>();
+    const seenUrl=new Set<string>();
+    const seenIdentity=new Set<string>();
+    const normalize=(value:string)=>value.toLowerCase().normalize("NFKD").replace(/[\\u0300-\\u036f]/g,"").replace(/[^a-z0-9]+/g," ").trim();
     channels=channels.filter(c=>{
-      const key=String(c.url||"").toLowerCase();
-      if(!key||seen.has(key)||blocked.test(c.name||"")) return false;
-      seen.add(key); return true;
+      const urlKey=String(c.url||"").toLowerCase().trim();
+      const tvg=normalize(String(c.tvg_id||c.id||""));
+      const name=normalize(String(c.name||""));
+      const country=normalize(String(c.country||""));
+      const identity=tvg ? "id:"+tvg : country ? "name:"+name+"|country:"+country : "url:"+urlKey;
+      if(!urlKey||seenUrl.has(urlKey)||seenIdentity.has(identity)||blocked.test(c.name||"")||blocked.test(c.url||"")) return false;
+      seenUrl.add(urlKey); seenIdentity.add(identity); return true;
     }).sort((a,b)=>b.priority-a.priority);
     // Catalog mode: index the public catalogue without probing every stream.
     // Playback health is checked only when a user selects a channel, keeping the
