@@ -35,12 +35,25 @@ export function parseM3U(text:string,source:TvSource,max=180):TvChannel[]{
   out.push({id,name,url:line,logo,group,country,language,source:source.label,priority:source.priority}); info=null;
  } return out;
 }
+function unwrapTvProxyUrl(value:string):string{
+ let current=value;
+ for(let i=0;i<3;i++){
+  try{
+   const parsed=new URL(current);
+   if(!parsed.pathname.endsWith('/functions/v1/tv-stream-proxy')) return current;
+   const nested=parsed.searchParams.get('url');
+   if(!nested) return current;
+   current=decodeURIComponent(nested);
+  }catch{return current;}
+ }
+ return current;
+}
 export async function loadTvSource(source:TvSource,signal?:AbortSignal){
  const endpoint=supabaseUrl+'/functions/v1/tv-catalog?source='+encodeURIComponent(source.id);
  const response=await fetch(endpoint,{signal,headers:{Accept:'application/json'}});
  if(!response.ok) throw new Error(source.label+': HTTP '+response.status);
  const payload=await response.json();
- return Array.isArray(payload?.channels)?(payload.channels as TvChannel[]).filter(c=>c.live===true):[];
+ return Array.isArray(payload?.channels)?(payload.channels as TvChannel[]).filter(c=>c.live===true).map(c=>({...c,url:unwrapTvProxyUrl(String(c.url))})):[];
 }
 export function getPrioritySourceIds(){ return TV_SOURCES.filter(s=>s.enabled!==false).sort((a,b)=>b.priority-a.priority).map(s=>s.id); }
 export async function loadTvHealth(channelIds:string[]){
