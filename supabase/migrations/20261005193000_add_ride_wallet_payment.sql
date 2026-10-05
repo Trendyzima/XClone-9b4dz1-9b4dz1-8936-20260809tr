@@ -35,6 +35,7 @@ begin
     raise exception using errcode='22023', message='Unsupported ride currency';
   end if;
 
+  if key is null then raise exception using errcode='22023',message='Idempotency key is required'; end if;
   if key is not null then
     select jsonb_build_object(
       'success', true,
