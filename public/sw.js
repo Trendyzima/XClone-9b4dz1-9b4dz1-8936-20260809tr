@@ -27,9 +27,9 @@ function isMediaRequest(request, url) {
   const accept = request.headers.get('accept') || '';
   return request.destination === 'video' ||
     request.destination === 'audio' ||
-    /\\.(mp4|webm|mov|m4v|m3u8|ts|m4s|aac|mp3)(?:$|[?#])/i.test(path) ||
-    /video\\//i.test(accept) ||
-    /application\\/(?:vnd\\.apple\\.mpegurl|x-mpegurl)/i.test(accept);
+    /\.(mp4|webm|mov|m4v|m3u8|ts|m4s|aac|mp3)(?:$|[?#])/i.test(path) ||
+    /video\//i.test(accept) ||
+    /application\/(?:vnd\.apple\.mpegurl|x-mpegurl)/i.test(accept);
 }
 
 async function trimMediaCache() {
