@@ -1,6 +1,6 @@
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {useLocation,useNavigate} from 'react-router-dom';
-import {AtSign,ChevronRight,Clapperboard,Globe2,Hash,Heart,Play,Radio,RefreshCw,Search,Sparkles,Tv,Wifi} from 'lucide-react';
+import {AtSign,ChevronRight,Clapperboard,Globe2,Hash,Heart,MessageCircle,Play,Radio,RefreshCw,Search,Send,Sparkles,Tv,Wifi} from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {TvChannelPlayer} from '@/components/features/TvChannelPlayer';
 import {TestagramLiveChannelCard} from '@/components/features/TestagramLiveChannelCard';
@@ -8,12 +8,18 @@ import {supabase} from '@/lib/supabase';
 import {useAuth} from '@/hooks/useAuth';
 import {getMyTvReaction,getTvReactionCounts,setTvReaction,TV_REACTIONS} from '@/services/tvChannelInteractionService';
 import {TV_SOURCES,loadTvSource,type TvChannel,getPrioritySourceIds} from '@/services/tvChannelCatalog';
+import {createTvReply,getTvReplies,type TvReply} from '@/services/tvChannelReplyService';
 
 const filters=[['For you',''],['Kenya','KE'],['Africa','AF'],['International','INT'],['News','news'],['Sports','sport'],['Music','music'],['Kids','kid']];
 
 function mergeTvChannelsStable(existing:TvChannel[],incoming:TvChannel[]){
  const seen=new Set<string>();
  return [...existing,...incoming].filter(channel=>{if(seen.has(channel.id))return false;seen.add(channel.id);return true;});
+}
+
+function renderReplyText(content:string,onTag:(kind:'hashtag'|'mention',value:string)=>void){
+ const parts=content.split(/(#[a-zA-Z0-9_]+|@[a-zA-Z0-9_]+)/g);
+ return <>{parts.map((part,i)=>part.startsWith('#')?<button key={i} onClick={()=>onTag('hashtag',part.slice(1))} className='font-semibold text-primary hover:underline'>{part}</button>:part.startsWith('@')?<button key={i} onClick={()=>onTag('mention',part.slice(1))} className='font-semibold text-primary hover:underline'>{part}</button>:<span key={i}>{part}</span>)}</>;
 }
 
 function channelTags(channel:TvChannel){
@@ -43,6 +49,10 @@ export default function TvChannelsPage(){
  const [tvReactionCounts,setTvReactionCounts]=useState<{emoji:string;count:number}[]>([]);
  const [myTvReaction,setMyTvReaction]=useState<string|null>(null);
  const [reactionBusy,setReactionBusy]=useState(false);
+ const [tvReplies,setTvReplies]=useState<TvReply[]>([]);
+ const [replyText,setReplyText]=useState('');
+ const [replyBusy,setReplyBusy]=useState(false);
+ const [showReplies,setShowReplies]=useState(false);
 
  const loadSources=useCallback(async(ids:string[])=>{
   const targets=TV_SOURCES.filter(s=>s.enabled!==false&&ids.includes(s.id)&&!loaded.current.has(s.id));
@@ -98,6 +108,14 @@ export default function TvChannelsPage(){
  useEffect(()=>{
   let cancelled=false;
   if(!featured)return;
+  setTvReplies([]);
+  void getTvReplies(featured.id).then(items=>{if(!cancelled)setTvReplies(items);});
+  return()=>{cancelled=true;};
+ },[featured?.id]);
+
+ useEffect(()=>{
+  let cancelled=false;
+  if(!featured)return;
   const loadReactions=async()=>{
    const [counts,mine]=await Promise.all([getTvReactionCounts(featured.id),getMyTvReaction(featured.id,user?.id)]);
    if(!cancelled){setTvReactionCounts(counts);setMyTvReaction(mine);}
@@ -105,6 +123,24 @@ export default function TvChannelsPage(){
   void loadReactions();
   return()=>{cancelled=true;};
  },[featured?.id,user?.id]);
+
+ const openReplyTag=(kind:'hashtag'|'mention',value:string)=>{
+  nav('/search?q='+encodeURIComponent((kind==='hashtag'?'#':'@')+value)+'&tab='+(kind==='hashtag'?'Hashtags':'People'));
+ };
+
+ const submitTvReply=async()=>{
+  if(!user){nav('/login');return;}
+  const clean=replyText.trim();
+  if(!clean||replyBusy||!featured)return;
+  setReplyBusy(true);
+  try{
+   const created=await createTvReply(featured.id,user.id,clean);
+   setTvReplies(prev=>[created,...prev]);
+   setReplyText('');
+   setShowReplies(true);
+  }catch{setNotice('Your reply could not be posted. Please try again.');}
+  finally{setReplyBusy(false);}
+ };
 
  const reactToChannel=async(emoji:string)=>{
   if(!user){nav('/login');return;}
