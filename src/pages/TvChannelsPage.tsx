@@ -202,7 +202,21 @@ export default function TvChannelsPage(){
       <div className='mt-5 border-t pt-4'>
        <div className='flex items-center gap-2 text-xs font-bold'><Heart className='h-4 w-4 text-primary'/>React to this channel</div>
        <div className='mt-2 flex items-center gap-2 overflow-x-auto pb-1'>{TV_REACTIONS.map(emoji=><button key={emoji} disabled={reactionBusy} onClick={()=>void reactToChannel(emoji)} className={'shrink-0 rounded-full border px-3 py-1.5 text-sm transition hover:-translate-y-0.5 hover:bg-muted '+(myTvReaction===emoji?'border-primary bg-primary/10 shadow-sm':'')}>{emoji}<span className='ml-1 text-[11px] font-semibold'>{tvReactionCounts.find(x=>x.emoji===emoji)?.count||0}</span></button>)}</div>
-       <div className='mt-3 flex flex-wrap gap-1.5'>{channelTags(featured).map(tag=><button key={tag} onClick={()=>nav('/search?q=%23'+encodeURIComponent(tag)+'&tab=Hashtags')} className='inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/15'><Hash className='h-3 w-3'/>#{tag}</button>)}<button onClick={()=>nav('/search?q=%40'+encodeURIComponent(featured.name)+'&tab=People')} className='inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold hover:bg-muted/70'><AtSign className='h-3 w-3'/>Find mentions</button></div>
+       <div className='mt-3 flex flex-wrap gap-1.5'>{channelTags(featured).map(tag=><button key={tag} onClick={()=>nav('/search?q=%23'+encodeURIComponent(tag)+'&tab=Hashtags')} className='inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/15'><Hash className='h-3 w-3'/>#${tag}</button>)}<button onClick={()=>nav('/search?q=%40'+encodeURIComponent(featured.name)+'&tab=People')} className='inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold hover:bg-muted/70'><AtSign className='h-3 w-3'/>Find mentions</button></div>
+       <div className='mt-4 rounded-2xl border bg-background/70 p-3'>
+        <button onClick={()=>setShowReplies(v=>!v)} className='flex w-full items-center justify-between text-xs font-bold'><span className='flex items-center gap-2'><MessageCircle className='h-4 w-4 text-primary'/>Replies</span><span className='rounded-full bg-muted px-2 py-0.5'>${tvReplies.length}</span></button>
+        <div className='mt-3 flex gap-2'>
+         <textarea value={replyText} onChange={e=>setReplyText(e.target.value)} maxLength={1000} rows={2} placeholder='Reply with @mentions and #hashtags…' className='min-w-0 flex-1 resize-none rounded-xl border bg-muted/30 px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary/20'/>
+         <Button size='icon' onClick={()=>void submitTvReply()} disabled={!replyText.trim()||replyBusy} title='Post reply'><Send className='h-4 w-4'/></Button>
+        </div>
+        <p className='mt-1 text-[10px] text-muted-foreground'>#hashtags and @handles are detected automatically and stay connected to Testagram Search.</p>
+        {showReplies&&<div className='mt-3 max-h-72 space-y-2 overflow-y-auto border-t pt-3'>
+         {tvReplies.length===0?<p className='py-4 text-center text-xs text-muted-foreground'>No replies yet. Start the conversation.</p>:tvReplies.map(reply=><div key={reply.id} className='rounded-xl bg-muted/40 p-2.5'>
+          <div className='flex items-center gap-2'><div className='h-6 w-6 overflow-hidden rounded-full bg-muted'>{reply.profile?.avatar_url&&<img src={reply.profile.avatar_url} alt='' className='h-full w-full object-cover'/>}</div><span className='text-[11px] font-bold'>@${reply.profile?.username||'user'}</span><span className='text-[10px] text-muted-foreground'>{new Date(reply.created_at).toLocaleString([], {month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'})}</span></div>
+          <div className='mt-1 whitespace-pre-wrap break-words text-xs leading-5'>{renderReplyText(reply.content,openReplyTag)}</div>
+         </div>)}
+        </div>}
+       </div>
       </div>
      </div>
     </div>
