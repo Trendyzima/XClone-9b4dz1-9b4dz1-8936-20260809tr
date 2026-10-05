@@ -137,6 +137,7 @@ async function estimateFare(distanceKm:number, type:string){
     try {
       let point=pickupPoint;
       if(!point){ const pos=await geolocate(); point={latitude:pos.coords.latitude,longitude:pos.coords.longitude,address:pickup}; }
+      const destination=await geocodeAddress(dropoff);
       const body=await api('/api/v1/rides',{method:'POST',body:JSON.stringify({
         pickup_latitude:point.latitude,pickup_longitude:point.longitude,
         dropoff_latitude:destination.latitude,dropoff_longitude:destination.longitude,
