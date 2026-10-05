@@ -1,13 +1,25 @@
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';
 import {useLocation,useNavigate} from 'react-router-dom';
-import {ChevronRight,Clapperboard,Globe2,Play,Radio,RefreshCw,Search,Sparkles,Tv,Wifi} from 'lucide-react';
+import {AtSign,ChevronRight,Clapperboard,Globe2,Hash,Heart,Play,Radio,RefreshCw,Search,Sparkles,Tv,Wifi} from 'lucide-react';
 import {Button} from '@/components/ui/button';
 import {TvChannelPlayer} from '@/components/features/TvChannelPlayer';
 import {TestagramLiveChannelCard} from '@/components/features/TestagramLiveChannelCard';
 import {supabase} from '@/lib/supabase';
-import {TV_SOURCES,dedupeTvChannels,rankRecommendedTvChannels,loadTvSource,type TvChannel,getPrioritySourceIds} from '@/services/tvChannelCatalog';
+import {useAuth} from '@/hooks/useAuth';
+import {getMyTvReaction,getTvReactionCounts,setTvReaction,TV_REACTIONS} from '@/services/tvChannelInteractionService';
+import {TV_SOURCES,loadTvSource,type TvChannel,getPrioritySourceIds} from '@/services/tvChannelCatalog';
 
 const filters=[['For you',''],['Kenya','KE'],['Africa','AF'],['International','INT'],['News','news'],['Sports','sport'],['Music','music'],['Kids','kid']];
+
+function mergeTvChannelsStable(existing:TvChannel[],incoming:TvChannel[]){
+ const seen=new Set<string>();
+ return [...existing,...incoming].filter(channel=>{if(seen.has(channel.id))return false;seen.add(channel.id);return true;});
+}
+
+function channelTags(channel:TvChannel){
+ const raw=[channel.country,channel.group,channel.language,'TestagramTV','WorldTV','LiveTV'].filter(Boolean).map(String);
+ return Array.from(new Set(raw.map(value=>value.replace(/[^a-zA-Z0-9]+/g,'').toLowerCase()).filter(Boolean))).slice(0,6);
+}
 
 function ChannelTile({channel,active,onSelect}:{channel:TvChannel;active:boolean;onSelect:()=>void}){
  return <button onClick={onSelect} className={'group w-full overflow-hidden rounded-2xl border bg-card text-left transition-all hover:-translate-y-0.5 hover:shadow-lg '+(active?'ring-2 ring-primary shadow-md':'')}>
@@ -27,13 +39,17 @@ export default function TvChannelsPage(){
  const [active,setActive]=useState(''); const [loading,setLoading]=useState(true); const [sourceIndex,setSourceIndex]=useState(0);
  const [filter,setFilter]=useState(''); const [query,setQuery]=useState(''); const [notice,setNotice]=useState('');
  const [dead,setDead]=useState<Set<string>>(new Set()); const loaded=useRef(new Set<string>());
+ const {user}=useAuth();
+ const [tvReactionCounts,setTvReactionCounts]=useState<{emoji:string;count:number}[]>([]);
+ const [myTvReaction,setMyTvReaction]=useState<string|null>(null);
+ const [reactionBusy,setReactionBusy]=useState(false);
 
  const loadSources=useCallback(async(ids:string[])=>{
   const targets=TV_SOURCES.filter(s=>s.enabled!==false&&ids.includes(s.id)&&!loaded.current.has(s.id));
   if(!targets.length)return; setLoading(true);
   const results=await Promise.allSettled(targets.map(s=>loadTvSource(s)));
   const good=results.flatMap(r=>r.status==='fulfilled'?r.value:[]);
-  targets.forEach(s=>loaded.current.add(s.id)); setChannels(prev=>dedupeTvChannels([...prev,...good]));
+  targets.forEach(s=>loaded.current.add(s.id)); setChannels(prev=>mergeTvChannelsStable(prev,good));
   const failed=results.filter(r=>r.status==='rejected').length;
   if(failed)setNotice(failed+' live source(s) could not be reached. Other public streams remain available.');
   setLoading(false);
@@ -46,7 +62,7 @@ export default function TvChannelsPage(){
    const payload=await response.json();
    if(Array.isArray(payload?.channels)){
     const catalogue=payload.channels as TvChannel[];
-    setChannels(prev=>dedupeTvChannels([...prev,...catalogue]));
+    setChannels(prev=>mergeTvChannelsStable(prev,catalogue));
     setNotice(prev=>prev||('Worldwide catalogue: '+catalogue.length.toLocaleString()+' public channels indexed.'));
    }
   }catch{}
@@ -74,9 +90,32 @@ export default function TvChannelsPage(){
    return country&&(!q||text.includes(q));
   });
   return result;
- },[channels,dead,filter,query,healthMap]);
+ },[channels,dead,filter,query]);
 
  useEffect(()=>{if(!active&&filtered[0])setActive(filtered[0].id);},[active,filtered]);
+
+ useEffect(()=>{
+  let cancelled=false;
+  if(!featured)return;
+  const loadReactions=async()=>{
+   const [counts,mine]=await Promise.all([getTvReactionCounts(featured.id),getMyTvReaction(featured.id,user?.id)]);
+   if(!cancelled){setTvReactionCounts(counts);setMyTvReaction(mine);}
+  };
+  void loadReactions();
+  return()=>{cancelled=true;};
+ },[featured?.id,user?.id]);
+
+ const reactToChannel=async(emoji:string)=>{
+  if(!user){nav('/login');return;}
+  if(reactionBusy||!featured)return;
+  setReactionBusy(true);
+  try{
+   const next=await setTvReaction(featured.id,user.id,emoji,myTvReaction);
+   setMyTvReaction(next);
+   setTvReactionCounts(await getTvReactionCounts(featured.id));
+  }catch{setNotice('Sign in is required and the reaction could not be saved.');}
+  finally{setReactionBusy(false);}
+ };
 
  const health=(id:string,healthy:boolean)=>{
   if(healthy){setDead(prev=>{if(!prev.has(id))return prev;const n=new Set(prev);n.delete(id);return n;});return;}
@@ -124,6 +163,11 @@ export default function TvChannelsPage(){
       <p className='mt-2 text-sm text-muted-foreground'>{featured.country||'International'}{featured.group?' · '+featured.group:''}</p>
       <p className='mt-5 text-sm leading-6 text-muted-foreground'>Only the selected channel is opened as a video stream. Channel cards remain lightweight until you choose one, keeping playback steady and conserving data.</p>
       <div className='mt-6 flex flex-wrap gap-2'><Button onClick={()=>document.getElementById('channel-browser')?.scrollIntoView({behavior:'smooth'})}><Play className='mr-2 h-4 w-4 fill-current'/>Browse channels</Button><Button variant='outline' onClick={()=>nav('/tv/reels')}>TV Reels</Button></div>
+      <div className='mt-5 border-t pt-4'>
+       <div className='flex items-center gap-2 text-xs font-bold'><Heart className='h-4 w-4 text-primary'/>React to this channel</div>
+       <div className='mt-2 flex items-center gap-2 overflow-x-auto pb-1'>{TV_REACTIONS.map(emoji=><button key={emoji} disabled={reactionBusy} onClick={()=>void reactToChannel(emoji)} className={'shrink-0 rounded-full border px-3 py-1.5 text-sm transition hover:-translate-y-0.5 hover:bg-muted '+(myTvReaction===emoji?'border-primary bg-primary/10 shadow-sm':'')}>{emoji}<span className='ml-1 text-[11px] font-semibold'>{tvReactionCounts.find(x=>x.emoji===emoji)?.count||0}</span></button>)}</div>
+       <div className='mt-3 flex flex-wrap gap-1.5'>{channelTags(featured).map(tag=><button key={tag} onClick={()=>nav('/search?q=%23'+encodeURIComponent(tag)+'&tab=Hashtags')} className='inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary hover:bg-primary/15'><Hash className='h-3 w-3'/>#{tag}</button>)}<button onClick={()=>nav('/search?q=%40'+encodeURIComponent(featured.name)+'&tab=People')} className='inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-[11px] font-semibold hover:bg-muted/70'><AtSign className='h-3 w-3'/>Find mentions</button></div>
+      </div>
      </div>
     </div>
    </section>}
@@ -138,7 +182,7 @@ export default function TvChannelsPage(){
    </section>
 
    {!loading&&!filtered.length&&<div className='rounded-2xl border py-20 text-center text-muted-foreground'><Globe2 className='mx-auto mb-3 h-10 w-10'/><p className='font-semibold'>No channels matched</p><p className='mt-1 text-sm'>Try another country, category or search.</p></div>}
-   <div className='mt-8 text-center'><Button variant='outline' onClick={()=>void loadMore()} disabled={loading||sourceIndex>=TV_SOURCES.length-1}><ChevronRight className='mr-2'/>Load more live sources</Button><p className='mt-2 text-[11px] text-muted-foreground'>Channel metadata loads progressively; video playback is strictly one channel at a time.</p></div>
+   <div className='mt-8 text-center'><Button variant='outline' onClick={()=>void loadMore()} disabled={loading||sourceIndex>=TV_SOURCES.length-1}><ChevronRight className='mr-2'/>Load more live sources</Button><p className='mt-2 text-[11px] text-muted-foreground'>Channel metadata stays stable; reactions, hashtags and mentions connect this channel to the wider Testagram discovery system. Video playback remains strictly one channel at a time.</p></div>
    {loading&&<div className='py-8 text-center text-sm text-muted-foreground'><RefreshCw className='mx-auto mb-2 h-5 w-5 animate-spin'/>Discovering live channels…</div>}
    <footer className='mt-10 border-t pt-5 text-center text-[11px] leading-5 text-muted-foreground'>Testagram does not host or copy broadcast video files. Channel availability depends on the public stream source and its rights/availability.</footer>
   </main>
