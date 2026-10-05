@@ -11,7 +11,7 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
  const ref=useRef<HTMLVideoElement>(null); const wrap=useRef<HTMLDivElement>(null); const hls=useRef<Hls|null>(null);
  const retryRef=useRef(0); const retryTimer=useRef<ReturnType<typeof setTimeout>|null>(null); const startRef=useRef<(()=>void)|null>(null);
  const playbackUrlRef=useRef(channel.url);
- const [muted,setMuted]=useState(true); const [error,setError]=useState(false); const [starting,setStarting]=useState(false); const [needsGesture,setNeedsGesture]=useState(false);
+ const [muted,setMuted]=useState(()=>{try{return localStorage.getItem('testagram-tv-audio')!=='on';}catch{return true;}}); const [error,setError]=useState(false); const [starting,setStarting]=useState(false); const [needsGesture,setNeedsGesture]=useState(false);
  const proxyUrl=useCallback(()=>supabaseUrl+'/functions/v1/tv-stream-proxy?url='+encodeURIComponent(channel.url),[channel.url]);
 
  useEffect(()=>{const el=wrap.current;if(!el)return;const io=new IntersectionObserver(([e])=>onVisible(channel.id,e.isIntersecting&&e.intersectionRatio>=.58),{threshold:[0,.25,.58,.85]});io.observe(el);return()=>io.disconnect();},[channel.id,onVisible]);
@@ -23,8 +23,8 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
 
  const start=useCallback(()=>{
   const video=ref.current;if(!video||!active)return;cleanup();setStarting(true);setError(false);setNeedsGesture(false);
-  window.dispatchEvent(new CustomEvent('testagram-tv-play',{detail:channel.id}));video.playsInline=true;video.autoplay=true;video.muted=true;
-  const play=()=>{void video.play().then(healthy).catch((e:any)=>{if(e?.name==='NotAllowedError'){setNeedsGesture(true);setStarting(false);return;}retry();});};
+  window.dispatchEvent(new CustomEvent('testagram-tv-play',{detail:channel.id}));video.playsInline=true;video.autoplay=true;video.defaultMuted=muted;video.muted=muted;video.volume=1;
+  const play=()=>{video.muted=muted;video.defaultMuted=muted;video.volume=1;void video.play().then(()=>{setNeedsGesture(false);healthy();}).catch((e:any)=>{if(e?.name==='NotAllowedError'){setNeedsGesture(true);setStarting(false);return;}retry();});};
   const directUrl=channel.url;
   const looksLikeHls=/\.m3u8(?:$|[?#])/i.test(directUrl);
   const playbackUrl=looksLikeHls?proxyUrl():directUrl;
@@ -47,10 +47,10 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
  useEffect(()=>{retryRef.current=0;playbackUrlRef.current=channel.url;if(active){start();return cleanup;}cleanup();setError(false);setStarting(false);setNeedsGesture(false);},[active,channel.url,start,cleanup]);
 
  useEffect(()=>{const onOnline=()=>{retryRef.current=0;if(active)startRef.current?.();};const onOffline=()=>setStarting(true);window.addEventListener('online',onOnline);window.addEventListener('offline',onOffline);return()=>{window.removeEventListener('online',onOnline);window.removeEventListener('offline',onOffline);};},[active]);
- useEffect(()=>{const video=ref.current;if(!video)return;const recoverable=()=>{if(active&&!starting)setStarting(true);retry();};video.addEventListener('waiting',recoverable);video.addEventListener('stalled',recoverable);return()=>{video.removeEventListener('waiting',recoverable);video.removeEventListener('stalled',recoverable);};},[active,retry,starting]);
+ useEffect(()=>{const video=ref.current;if(!video)return;const syncAudio=()=>setMuted(video.muted||video.volume===0);video.addEventListener('volumechange',syncAudio);return()=>video.removeEventListener('volumechange',syncAudio);},[]);\n useEffect(()=>{const video=ref.current;if(!video)return;const recoverable=()=>{if(active&&!starting)setStarting(true);retry();};video.addEventListener('waiting',recoverable);video.addEventListener('stalled',recoverable);return()=>{video.removeEventListener('waiting',recoverable);video.removeEventListener('stalled',recoverable);};},[active,retry,starting]);
  useEffect(()=>{const stop=(e:Event)=>{if((e as CustomEvent<string>).detail===channel.id)return;cleanup();setStarting(false);};window.addEventListener('testagram-tv-play',stop);return()=>window.removeEventListener('testagram-tv-play',stop);},[channel.id,cleanup]);
 
- const toggle=()=>{const v=ref.current;if(!v)return;const next=!muted;v.muted=next;setMuted(next);if(!next)void v.play().catch(()=>setNeedsGesture(true));};
+ const enableAudio=useCallback(async()=>{const v=ref.current;if(!v)return;v.defaultMuted=false;v.muted=false;v.volume=1;try{await v.play();setMuted(false);setNeedsGesture(false);try{localStorage.setItem('testagram-tv-audio','on');}catch{}}catch{setNeedsGesture(true);}},[]);\n const toggle=()=>{const v=ref.current;if(!v)return;const next=!muted;if(next){v.muted=true;setMuted(true);try{localStorage.setItem('testagram-tv-audio','off');}catch{}}else{void enableAudio();}};
  const fullscreen=()=>{(ref.current as any)?.requestFullscreen?.();};
 
  return <article ref={wrap} className='snap-start overflow-hidden rounded-2xl border bg-card shadow-sm'>
@@ -60,11 +60,11 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
    {!active&&<div className='absolute inset-0 bg-gradient-to-t from-black/75 via-black/10 to-transparent'><button onClick={()=>onVisible(channel.id,true)} className='absolute inset-0 flex items-center justify-center'><span className='rounded-full bg-background/95 p-4 shadow-lg'><Play className='h-7 w-7 fill-current'/></span></button></div>}
    {starting&&<div className='absolute inset-0 flex items-center justify-center pointer-events-none'><div className='rounded-full bg-black/70 px-3 py-2 text-xs text-white flex items-center gap-2'><RefreshCw className='w-4 h-4 animate-spin'/>Connecting…</div></div>}
    {error&&<div className='absolute inset-0 flex items-center justify-center bg-black/75 p-4 text-center text-white'><div><Radio className='mx-auto mb-2'/><p className='font-semibold'>Stream unavailable</p><p className='text-xs text-white/70 mt-1'>This source could not be played. The next channel remains available.</p></div></div>}
-   {needsGesture&&!error&&<button onClick={toggle} className='absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/80 px-4 py-2 text-sm font-semibold text-white'>Tap to enable sound</button>}
+   {needsGesture&&!error&&<button onClick={()=>void enableAudio() className='absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/80 px-4 py-2 text-sm font-semibold text-white'>Tap to enable sound</button>}
    <div className='absolute left-3 top-3 flex items-center gap-2 rounded-full bg-black/70 px-2.5 py-1 text-[11px] font-bold text-white'><span className='h-2 w-2 rounded-full bg-red-500 animate-pulse'/>LIVE</div>
   </div>
   <div className='p-3'>
-   <div className='flex items-start justify-between gap-3'><div className='min-w-0'><h2 className='font-bold line-clamp-2'>{channel.name}</h2><div className='mt-1 flex items-center gap-2 text-xs text-muted-foreground'><Globe2 className='h-3.5 w-3.5'/><span>{channel.country||'International'}</span>{channel.group&&<><span>•</span><span className='truncate'>{channel.group}</span></>}</div></div><div className='flex shrink-0 gap-1'><Button size='icon' variant='outline' onClick={toggle} aria-label={muted?'Unmute':'Mute'}>{muted?<VolumeX/>:<Volume2/>}</Button><Button size='icon' variant='outline' onClick={fullscreen} aria-label='Fullscreen'><Maximize2/></Button></div></div>
+   <div className='flex items-start justify-between gap-3'><div className='min-w-0'><h2 className='font-bold line-clamp-2'>{channel.name}</h2><div className='mt-1 flex items-center gap-2 text-xs text-muted-foreground'><Globe2 className='h-3.5 w-3.5'/><span>{channel.country||'International'}</span>{channel.group&&<><span>•</span><span className='truncate'>{channel.group}</span></>}</div></div><div className='flex shrink-0 gap-1'><Button size='icon' variant='outline' onClick={toggle} aria-label={muted?'Unmute channel':'Mute channel'} title={muted?'Enable channel sound':'Mute channel'}>{muted?<VolumeX/>:<Volume2/>}</Button><Button size='icon' variant='outline' onClick={fullscreen} aria-label='Fullscreen'><Maximize2/></Button></div></div>
    <div className='mt-2 text-[11px] text-muted-foreground truncate'>Source: {channel.source}</div>
   </div>
  </article>;
