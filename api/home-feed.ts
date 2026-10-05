@@ -117,7 +117,7 @@ function blend(items: any[], limit: number) {
     const chosenAuthor = String(chosen.data?.author_id || chosen.data?.user_id || chosen.data?.owner_id || '');
     const sameAuthor = chosenAuthor && recent.filter((x) =>
       String(x.data?.author_id || x.data?.user_id || x.data?.owner_id || '') === chosenAuthor).length >= 2;
-    const sameSource = recent.filter((x) => String(x._source || '') === String(chosen.source || '')).length >= 2;
+    const sameSource = recent.filter((x) => String(x.data?.feed_source || x._source || '') === String(chosen.source || '')).length >= 2;
     if (sameAuthor || sameSource) continue;
 
     used.add(key);
@@ -351,7 +351,7 @@ export default async function handler(request: RequestLike) {
         .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
         .in('id', recommendedIds).is('community_id', null).is('deleted_at', null).limit(sourceLimit)
       : { data: [], error: null };
-    const feedPostIds = [...(postsResult.data || []), ...(followingPostsResult.data || []), ...(recommendedResult.data || [])]
+    const feedPostIds = [...(postsResult.data || []), ...(followingPostsResult.data || []), ...(recommendedResult.data || []), ...(communityPostsResult.data || []), ...((followedHashtagPostsResult.data || []).map((r: any) => ({ id: r.post_id })))]
       .map((p: any) => String(p.id || ''))
       .filter(Boolean);
     const pollByPostId = new Map<string, any>();
