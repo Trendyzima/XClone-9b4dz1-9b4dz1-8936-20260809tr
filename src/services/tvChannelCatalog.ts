@@ -3,7 +3,11 @@ import {supabaseUrl} from '@/lib/supabase';
 export type TvChannel = { id:string; name:string; url:string; logo?:string; country?:string; language?:string; group?:string; source:string; priority:number; live?:boolean; live_checked_at?:string };
 export type TvSource = { id:string; label:string; url:string; country?:string; priority:number; enabled?:boolean; policy?:'public-free'|'community-unverified' };
 export const TV_SOURCES: TvSource[] = [
+{id:'world-ip-tv-verified',label:'World IPTV Checker · daily verified public streams',url:'https://romaxa55.github.io/world_ip_tv/output/index.m3u',country:'INT',priority:170,enabled:true,policy:'public-free'},
 {id:'nexus-ke',label:'IPTV Nexus · Kenya · public streams',url:'https://dearbulut.github.io/iptv/api/v1/by-country/ke.json',country:'KE',priority:160,enabled:true,policy:'public-free'},
+{id:'nexus-best',label:'IPTV Nexus · Best healthy public streams',url:'https://dearbulut.github.io/iptv/playlists/best.m3u',country:'INT',priority:169,enabled:true,policy:'public-free'},
+{id:'shovo-global',label:'IPTV By Shovo · Global public streams',url:'https://shovo127.github.io/IPTV-By-Shovo/index.m3u',country:'INT',priority:168,enabled:true,policy:'public-free'},
+{id:'usama-snapshot',label:'UsamaSarwar IPTV · verified snapshot',url:'https://raw.githubusercontent.com/UsamaSarwar/iptv/main/public/channels-snapshot.json',country:'INT',priority:167,enabled:true,policy:'public-free'},
 {id:'nexus-news',label:'IPTV Nexus · News · public streams',url:'https://dearbulut.github.io/iptv/api/v1/by-category/news.json',country:'INT',priority:156,enabled:true,policy:'public-free'},
 {id:'nexus-sports',label:'IPTV Nexus · Sports · public streams',url:'https://dearbulut.github.io/iptv/api/v1/by-category/sports.json',country:'INT',priority:155,enabled:true,policy:'public-free'},
 {id:'nexus-music',label:'IPTV Nexus · Music · public streams',url:'https://dearbulut.github.io/iptv/api/v1/by-category/music.json',country:'INT',priority:154,enabled:true,policy:'public-free'},
@@ -24,6 +28,9 @@ export const TV_SOURCES: TvSource[] = [
 {id:'iprtl-freetv',label:'IPRTL · FreeTV · public streams',url:'https://raw.githubusercontent.com/iprtl/m3u/live/Freetv.m3u',country:'INT',priority:119,enabled:true,policy:'community-unverified'},
 {id:'iprtl-pluto',label:'IPRTL · Pluto · public streams',url:'https://raw.githubusercontent.com/iprtl/m3u/live/Pluto.m3u',country:'INT',priority:118,enabled:true,policy:'community-unverified'},
 {id:'subash-football-cricket',label:'Subash · Football & Cricket · public FTA',url:'https://raw.githubusercontent.com/subash9860/iptv-football-cricket/main/index.m3u',country:'INT',priority:117,enabled:true,policy:'community-unverified'},
+{id:'dhanytv-indonesia',label:'dhanytv · Indonesia public channels',url:'https://raw.githubusercontent.com/dhasap/dhanytv/main/dhanytv-ott.m3u',country:'ID',priority:116,enabled:true,policy:'public-free'},
+{id:'blitz-latam',label:'Blitz IPTV Player · public channel snapshot',url:'https://raw.githubusercontent.com/blitzandres/iptv-player/main/channels.json',country:'INT',priority:115,enabled:true,policy:'community-unverified'},
+{id:'freecast-global',label:'FreeCastHub · Global public broadcasters',url:'https://raw.githubusercontent.com/freecasthub/public-iptv/main/playlist.m3u',country:'INT',priority:114,enabled:true,policy:'public-free'},
 ];
 function attr(line:string,key:string){ return line.match(new RegExp(key+'="([^"]*)"'))?.[1]?.trim() || undefined; }
 const clean=(v?:string)=>v?.replace(/\s+/g,' ').trim()||undefined;
