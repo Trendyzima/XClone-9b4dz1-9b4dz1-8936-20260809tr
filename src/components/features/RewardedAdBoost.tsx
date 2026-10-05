@@ -170,16 +170,8 @@ export function RewardedAdBoost({ postId, postContent, onClose, onBoostApplied }
         console.warn('[RewardedBoost] Boost insert warn:', boostError.message);
       }
 
-      await supabase.from('user_wallets')
-        .upsert({ user_id: user.id, credits: 25 }, { onConflict: 'user_id' })
-        .then(() => {});
-
-      await supabase.from('credit_transactions').insert({
-        user_id: user.id,
-        amount: 25,
-        reason: 'rewarded_ad_boost',
-        metadata: { post_id: postId, boost_type: selected.rewardType },
-      }).then(() => {});
+      const { error: rewardError } = await supabase.rpc('claim_rewarded_ad', { p_idempotency_key: `rewarded-boost:${postId}:${user.id}:${crypto.randomUUID()}` });
+      if (rewardError) throw rewardError;
 
       const estimatedRevenue = AD_REVENUE_SPLIT.ESTIMATED_CPM.rewarded / 1000;
       const creatorShare = estimatedRevenue * AD_REVENUE_SPLIT.CREATOR_SHARE;
