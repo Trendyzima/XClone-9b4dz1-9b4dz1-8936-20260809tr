@@ -188,6 +188,42 @@ export async function warmOfflineFeedItems(items: any[]) {
   ]);
 }
 
+const VIDEO_FEED_DB = 'testagram-offline-video-feed-v1';
+const VIDEO_FEED_STORE = 'feeds';
+
+function openVideoFeedDb(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === 'undefined') { reject(new Error('IndexedDB unavailable')); return; }
+    const request = indexedDB.open(VIDEO_FEED_DB, 1);
+    request.onupgradeneeded = () => request.result.createObjectStore(VIDEO_FEED_STORE, { keyPath: 'key' });
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function writeOfflineVideoFeed(key: string, posts: any[]) {
+  try {
+    const db = await openVideoFeedDb();
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction(VIDEO_FEED_STORE, 'readwrite');
+      tx.objectStore(VIDEO_FEED_STORE).put({ key, posts: posts.slice(0, 20), updatedAt: Date.now() });
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+  } catch {}
+}
+
+export async function readOfflineVideoFeed(key: string): Promise<any[] | null> {
+  try {
+    const db = await openVideoFeedDb();
+    return await new Promise((resolve, reject) => {
+      const req = db.transaction(VIDEO_FEED_STORE).objectStore(VIDEO_FEED_STORE).get(key);
+      req.onsuccess = () => resolve(req.result?.posts ?? null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch { return null; }
+}
+
 export function isOffline() {
   return typeof navigator !== 'undefined' && navigator.onLine === false;
 }
