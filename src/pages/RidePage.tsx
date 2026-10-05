@@ -88,7 +88,7 @@ export default function RidePage() {
     const km = Number(distance?.data?.distance_km);
     if(!Number.isFinite(km) || km <= 0) throw new Error('Could not calculate route distance.');
     const priced = await fn('ride-fare',{distance_km:km,ride_type:rideType});
-    setFare({amount:Number(priced?.data?.fare),currency:String(priced?.data?.currency || 'KES')});
+    setDistanceKm(km);\n    setFare({amount:Number(priced?.data?.fare),currency:String(priced?.data?.currency || 'KES')});
     return point;
   }
 
