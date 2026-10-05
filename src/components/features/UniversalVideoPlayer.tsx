@@ -1,5 +1,6 @@
 import { forwardRef, useCallback, useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
+import { getOfflineMediaUrl, cacheMedia, isOffline } from '@/lib/offlineMediaCache';
 
 export interface UniversalVideoPlayerProps extends React.VideoHTMLAttributes<HTMLVideoElement> {
   src: string;
@@ -17,6 +18,7 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
   const retryCountRef = useRef(0);
   const retryingRef = useRef(false);
   const lastSrcRef = useRef('');
+  const objectUrlRef = useRef<string | null>(null);
   const mountedRef = useRef(true);
   const [recovering, setRecovering] = useState(false);
   const [fatalError, setFatalError] = useState(false);
@@ -95,6 +97,10 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
     setFatalError(false);
     setShowPlayFallback(false);
     lastSrcRef.current = src;
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
 
     if (!src) {
       video.removeAttribute('src');
@@ -102,8 +108,30 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
       return;
     }
 
-    if (isHls(src) && Hls.isSupported()) {
-      const hls = new Hls({
+    let cancelled = false;
+    const configureVideo = async () => {
+      let playbackSrc = src;
+      // When connectivity disappears, switch the element to a locally persisted
+      // Blob URL. Online playback remains network-first so normal streaming latency
+      // and HLS behavior are unchanged.
+      if (isOffline() && !isHls(src)) {
+        const cachedUrl = await getOfflineMediaUrl(src);
+        if (cancelled) {
+          if (cachedUrl) URL.revokeObjectURL(cachedUrl);
+          return;
+        }
+        if (cachedUrl) {
+          objectUrlRef.current = cachedUrl;
+          playbackSrc = cachedUrl;
+        }
+      } else if (!isHls(src)) {
+        // Warm the persistent cache in the background; never delay first paint.
+        void cacheMedia(src, 'video');
+      }
+
+      if (cancelled) return;
+      if (isHls(playbackSrc) && Hls.isSupported()) {
+        const hls = new Hls({
         autoStartLoad: true,
         enableWorker: true,
         lowLatencyMode: false,
@@ -136,7 +164,7 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
         },
       });
       hlsRef.current = hls;
-      hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(src));
+      hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(playbackSrc));
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (!data.fatal) return;
         if (data.type === Hls.ErrorTypes.MEDIA_ERROR && retryCountRef.current < retryLimit) {
@@ -152,17 +180,24 @@ export const UniversalVideoPlayer = forwardRef<HTMLVideoElement, UniversalVideoP
         setRecovering(false);
       });
       hls.attachMedia(video);
-    } else if (isHls(src) && video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = src;
+    } else if (isHls(playbackSrc) && video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = playbackSrc;
       video.load();
     } else {
-      video.src = src;
+      video.src = playbackSrc;
       video.load();
     }
+    };
+    void configureVideo();
 
     return () => {
+      cancelled = true;
       cleanupHls();
       if (retryTimerRef.current) clearTimeout(retryTimerRef.current);
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
     };
   }, [cleanupHls, isHls, recover, retryLimit, retryNonce, src]);
 
