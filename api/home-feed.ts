@@ -463,11 +463,6 @@ export default async function handler(request: RequestLike) {
     const discoveryFederatedCandidateCount = fedCandidateCount - followedFederatedCandidateCount;
     const renderedFederatedCount = items.filter((item: any) => item.type === 'fedpost').length;
     const federationLatencyMs = Number(fedResult?._meta?.latencyMs ?? (includeFederated ? Date.now() - federationStarted : 0));
-    const fedCandidateCount = fed.length;
-    const followedFederatedCandidateCount = fed.filter((item: any) => item.source === 'following-federated').length;
-    const discoveryFederatedCandidateCount = fedCandidateCount - followedFederatedCandidateCount;
-    const renderedFederatedCount = items.filter((item: any) => item.type === 'fedpost').length;
-    const federationLatencyMs = Number(fedResult?._meta?.latencyMs ?? (includeFederated ? Date.now() - federationStarted : 0));
     const lastPost = postsResult.data?.at(-1)?.created_at;
     const lastThread = threadsResult.data?.at(-1)?.created_at;
     const nextFed = fedResult?.pagination?.nextCursor ?? null;
