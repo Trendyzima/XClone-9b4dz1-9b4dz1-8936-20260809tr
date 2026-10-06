@@ -232,6 +232,21 @@ export default function HomeHubPage(){
           if (next.length > 0 || cursorOverride) {
             setNextCursor(payload?.nextCursor ?? null); nextCursorRef.current=payload?.nextCursor ?? null;
             setHasMore(Boolean(payload?.hasMore) && next.length > 0);
+
+            // A slow federation source must never erase already-rendered remote
+            // posts from the Home cache. The aggregator reports degradation
+            // explicitly; retain the existing Fediverse slice until the next
+            // successful federation refresh.
+            const federationDegraded = Boolean(payload?.instrumentation?.federationError);
+            if (federationDegraded && feedBufferRef.current.some((item) => item.type === 'fedpost')) {
+              const incomingKeys = new Set(next.map((item:any) => String(item?.data?.id ?? item?.data?.uri ?? '')));
+              const retainedFed = feedBufferRef.current.filter((item) =>
+                item.type === 'fedpost' &&
+                !incomingKeys.has(String(item.data?.id ?? item.data?.uri ?? ''))
+              );
+              return [...next, ...retainedFed].slice(0, 12) as Item[];
+            }
+
             return next.map((item:any)=>({ type:item.type, data:item.data })) as Item[];
           }
         }
@@ -381,7 +396,11 @@ export default function HomeHubPage(){
     void readHomeFeedCache().then(cached=>{
       if(!active)return;
       if(cached?.items?.length){
-        const freshCached=cached.items.filter((item:any)=>item?.type!=='fedpost'||Date.parse(String(item?.data?.created_at??item?.data?.published_at??item?.data?.published??''))>=Date.now()-24*60*60*1000);
+        // Keep cached federation entries across refreshes. The server-side
+        // federated-feed already applies its freshness/moderation window; the
+        // client must not independently discard valid remote posts just because
+        // they are older than 24h while a refresh is in flight.
+        const freshCached=cached.items;
         feedBufferRef.current=freshCached;
         feedBufferOffsetRef.current=Math.min(6,cached.items.length);
         setItems(freshCached.slice(0,6));
