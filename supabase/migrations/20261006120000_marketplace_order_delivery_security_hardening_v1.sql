@@ -286,4 +286,80 @@ create trigger marketplace_inventory_reservation_fallback after insert on public
 for each row when(new.product_id is not null)
 execute function public.ensure_marketplace_inventory_reservation();
 
+create or replace function public.resolve_marketplace_dispute(
+  p_dispute_id uuid,p_resolution text,p_note text default null
+) returns jsonb language plpgsql security definer set search_path=''
+as $$
+declare d public.marketplace_order_disputes%rowtype; o public.orders%rowtype;
+  w public.wallets%rowtype; ua uuid; pa uuid; ledger_id uuid; before_balance numeric; refund_amount numeric; pay_currency text;
+begin
+  if auth.uid() is null or not public.testagram_is_owner() then raise exception 'OWNER_REQUIRED'; end if;
+  if p_resolution not in ('refund_buyer','release_seller','reject') then raise exception 'INVALID_DISPUTE_RESOLUTION'; end if;
+  select * into d from public.marketplace_order_disputes where id=p_dispute_id for update;
+  if not found then raise exception 'DISPUTE_NOT_FOUND'; end if;
+  select * into o from public.orders where id=d.order_id for update;
+  if not found then raise exception 'ORDER_NOT_FOUND'; end if;
+  if d.status not in ('open','under_review','manual_review') then
+    return jsonb_build_object('ok',true,'already_resolved',true,'status',d.status);
+  end if;
+
+  if p_resolution='refund_buyer' then
+    if o.escrow_status<>'disputed' or o.payment_amount_minor is null then
+      update public.marketplace_order_disputes set status='manual_review',
+        resolution_note='Refund requires manual financial reconciliation because escrow is no longer held.',
+        resolved_by=auth.uid(),resolved_at=now(),updated_at=now() where id=d.id;
+      return jsonb_build_object('ok',false,'status','manual_review');
+    end if;
+    pay_currency:=upper(coalesce(o.payment_currency,o.currency,'KES'));
+    select * into w from public.wallets where user_id=o.buyer_id::text for update;
+    if not found then raise exception 'BUYER_WALLET_NOT_FOUND'; end if;
+    perform private.ensure_user_financial_accounts(o.buyer_id,pay_currency);
+    select id into ua from public.wallet_accounts where account_type='USER' and user_id=o.buyer_id and currency=pay_currency limit 1;
+    select id into pa from public.wallet_accounts where account_type='PLATFORM' and currency=pay_currency limit 1;
+    if ua is null or pa is null then raise exception 'FINANCIAL_ACCOUNTS_NOT_READY'; end if;
+    refund_amount:=round(o.payment_amount_minor/100.0,2);
+    before_balance:=coalesce(w.balance,0);
+    ledger_id:=private.post_wallet_ledger('MARKETPLACE_DISPUTE_REFUND','marketplace_order',o.id,
+      'marketplace-dispute-refund:'||o.id::text,'Marketplace dispute refund',
+      jsonb_build_array(jsonb_build_object('account_id',pa,'direction','DEBIT','amount_minor',o.payment_amount_minor),
+                        jsonb_build_object('account_id',ua,'direction','CREDIT','amount_minor',o.payment_amount_minor)),
+      jsonb_build_object('dispute_id',d.id,'reason',d.reason));
+    update public.wallets set balance=balance+refund_amount,updated_at=now() where id=w.id;
+    perform set_config('testagram.marketplace_transition','1',true);
+    update public.orders set status='cancelled',escrow_status='refunded',cancelled_at=coalesce(cancelled_at,now()),
+      cancellation_reason='DISPUTE_REFUND',updated_at=now() where id=o.id;
+    update public.marketplace_order_disputes set status='resolved_refund',
+      resolution_note=left(coalesce(p_note,'Refund approved'),1000),resolved_by=auth.uid(),resolved_at=now(),updated_at=now()
+      where id=d.id;
+    insert into public.wallet_transactions(wallet_id,user_id,kind,type,amount,amount_cents,currency,direction,status,
+      balance_before,balance_after,provider,provider_order_id,provider_reference,provider_status,description,metadata,
+      payment_method,reference,transfer_id,counterparty_user_id,idempotency_key,completed_at,created_at,updated_at)
+    values(w.id,o.buyer_id::text,'refund','refund',refund_amount,o.payment_amount_minor,pay_currency,'in','completed',
+      before_balance,before_balance+refund_amount,'testagram_escrow',o.id::text,'DISPUTE-REFUND-'||o.id::text,'completed',
+      'Marketplace dispute refund',jsonb_build_object('dispute_id',d.id,'ledger_transaction_id',ledger_id),'wallet',
+      'dispute-refund:'||o.id::text,o.id,o.seller_id::text,'marketplace-dispute-refund:'||o.id::text,now(),now(),now());
+    insert into public.marketplace_security_audit(actor_id,order_id,action,metadata)
+    values(auth.uid(),o.id,'DISPUTE_RESOLVED_REFUND',jsonb_build_object('dispute_id',d.id,'ledger_transaction_id',ledger_id));
+    return jsonb_build_object('ok',true,'status','resolved_refund','ledger_transaction_id',ledger_id);
+  elsif p_resolution='release_seller' then
+    if o.escrow_status<>'disputed' then raise exception 'ESCROW_NOT_DISPUTED'; end if;
+    perform set_config('testagram.marketplace_transition','1',true);
+    update public.orders set escrow_status='held',updated_at=now() where id=o.id;
+    update public.marketplace_order_disputes set status='resolved_release',
+      resolution_note=left(coalesce(p_note,'Release approved'),1000),resolved_by=auth.uid(),resolved_at=now(),updated_at=now()
+      where id=d.id;
+    return jsonb_build_object('ok',true,'status','resolved_release');
+  else
+    perform set_config('testagram.marketplace_transition','1',true);
+    update public.orders set escrow_status=case when escrow_status='disputed' then 'held' else escrow_status end,updated_at=now() where id=o.id;
+    update public.marketplace_order_disputes set status='rejected',
+      resolution_note=left(coalesce(p_note,'Dispute rejected'),1000),resolved_by=auth.uid(),resolved_at=now(),updated_at=now()
+      where id=d.id;
+    return jsonb_build_object('ok',true,'status','rejected');
+  end if;
+end
+$$;
+revoke execute on function public.resolve_marketplace_dispute(uuid,text,text) from public,anon;
+grant execute on function public.resolve_marketplace_dispute(uuid,text,text) to authenticated;
+
 commit;
