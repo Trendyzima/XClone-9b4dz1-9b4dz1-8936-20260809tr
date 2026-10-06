@@ -548,7 +548,8 @@ export default async function handler(request: RequestLike) {
         discoveryFederatedCandidates: discoveryFederatedCandidateCount,
         federatedCandidatesRendered: renderedFederatedCount,
         federationQueryLatencyMs: federationLatencyMs,
-        federationError: fedResult?._meta?.error ?? null,\n        activeCreditBoostBonusesApplied: creditBoostBonusRows.length,
+        federationError: fedResult?._meta?.error ?? null,
+        activeCreditBoostBonusesApplied: creditBoostBonusRows.length,
       },
     }, 200, request);
   } catch (error) {
