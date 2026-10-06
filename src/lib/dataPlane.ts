@@ -1,6 +1,6 @@
 import { supabase, supabaseSecondary } from '@/lib/supabase';
 
-export type DataPlane = 'primary' | 'secondary';
+export type DataPlane = 'primary' | 'secondary'; // dual-plane routing contract
 
 export const DATA_PLANE_FEATURES = {
   authAndIdentity: { canonical: 'primary', clientAccess: 'primary' },
