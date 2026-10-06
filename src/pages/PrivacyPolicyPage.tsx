@@ -26,6 +26,16 @@ function getPolicyIconNode(title: string, colorClass: string) {
 
 const POLICY_SECTIONS: PolicySection[] = [
   {
+    iconColor: 'text-violet-600',
+    iconBg: 'bg-violet-500/10',
+    title: 'Age Eligibility',
+    points: [
+      'Testagram is an adults-only service for people aged 18 and above.',
+      'We collect and use date-of-birth information at account access to enforce this age restriction and to maintain the legal acceptance record for the Terms of Service, Privacy Policy, and Community Guidelines.',
+      'People under 18 are not permitted to create or use Testagram accounts, including with parent or guardian consent.',
+    ],
+  },
+  {
     iconColor: 'text-blue-600',
     iconBg: 'bg-blue-500/10',
     title: 'Information We Collect',
