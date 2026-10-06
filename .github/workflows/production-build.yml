@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Data-plane safety gate
+        run: node scripts/verify-data-plane.mjs
+
       - name: Typecheck
         run: npm run typecheck
 
