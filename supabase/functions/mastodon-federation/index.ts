@@ -55,9 +55,9 @@ async function outbox(a:any,u:URL){
   const rows=r.data||[];
   const items=rows.slice(0,limit).map((p:any)=>{
     const id=`${a.actor_id}/statuses/${p.id}`;
-    const object:any={'@context':AP,id,type:'Note',attributedTo:a.actor_id,content:str(p.content),published:p.created_at,updated:p.edited_at||p.updated_at||p.created_at,url:id,to:[PUBLIC],cc:[a.followers_url]};
+    const object:any={'@context':AP,id,type:'Note',attributedTo:a.actor_id,content:str(p.content),published:p.created_at,updated:p.edited_at||p.updated_at||p.created_at,url:id,to:[`${AP}#Public`],cc:[a.followers_url]};
     if(p.quoted_post_id)object.quote=`${a.actor_id}/statuses/${p.quoted_post_id}`;
-    return {'@context':AP,id:`${id}/activity`,type:'Create',actor:a.actor_id,published:p.created_at,to:[PUBLIC],cc:[a.followers_url],object};
+    return {'@context':AP,id:`${id}/activity`,type:'Create',actor:a.actor_id,published:p.created_at,to:[`${AP}#Public`],cc:[a.followers_url],object};
   });
   const hasMore=rows.length>limit;
   const next=hasMore? `${a.actor_id}/outbox?limit=${limit}&before=${encodeURIComponent(rows[limit].created_at)}` : null;
