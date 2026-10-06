@@ -49,14 +49,13 @@ function decodeCursor(v:string|null){if(!v)return null;try{return JSON.parse(new
 function encodeCursor(v:any){return btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(v))));}
 async function outbox(a:any,u:URL){
   const limit=Math.min(Math.max(Number(u.searchParams.get('limit')||20),1),40),before=u.searchParams.get('before');
-  let q=db.from('posts').select('id,content,created_at,updated_at,edited_at,reply_to_post_id,quoted_post_id,deleted_at',{count:'exact'}).eq('author_id',a.user_id).is('deleted_at',null).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(limit+1);
+  let q=db.from('posts').select('id,content,created_at,updated_at,edited_at,quoted_post_id,deleted_at',{count:'exact'}).eq('author_id',a.user_id).is('deleted_at',null).order('created_at',{ascending:false}).order('id',{ascending:false}).limit(limit+1);
   if(before)q=q.lt('created_at',before);
   const r=await q;if(r.error)throw r.error;
   const rows=r.data||[];
   const items=rows.slice(0,limit).map((p:any)=>{
     const id=`${a.actor_id}/statuses/${p.id}`;
     const object:any={'@context':AP,id,type:'Note',attributedTo:a.actor_id,content:str(p.content),published:p.created_at,updated:p.edited_at||p.updated_at||p.created_at,url:id,to:[PUBLIC],cc:[a.followers_url]};
-    if(p.reply_to_post_id)object.inReplyTo=`${a.actor_id}/statuses/${p.reply_to_post_id}`;
     if(p.quoted_post_id)object.quote=`${a.actor_id}/statuses/${p.quoted_post_id}`;
     return {'@context':AP,id:`${id}/activity`,type:'Create',actor:a.actor_id,published:p.created_at,to:[PUBLIC],cc:[a.followers_url],object};
   });
