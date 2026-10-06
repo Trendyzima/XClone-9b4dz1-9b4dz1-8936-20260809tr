@@ -12,6 +12,11 @@ on:
         description: "Exact Git commit SHA to deploy and prove"
         required: false
         type: string
+      force_federation_audit:
+        description: "Force the full production ActivityPub contract audit"
+        required: false
+        default: true
+        type: boolean
 
 concurrency:
   group: production-deployment-reconciliation
