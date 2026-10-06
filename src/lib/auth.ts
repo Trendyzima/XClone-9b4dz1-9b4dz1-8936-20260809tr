@@ -16,7 +16,7 @@ function normalizeIdentifier(input: string) {
   const value = input.trim();
   if (!value) throw new Error('Enter your email or phone number');
   if (value.includes('@')) {
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) throw new Error('Enter a valid email address');
+    if (!/^\S+@\S+\.\S+$/.test(value)) throw new Error('Enter a valid email address');
     return { kind: 'email' as const, value: value.toLowerCase() };
   }
   return { kind: 'phone' as const, value: normalizeKenyaPhone(value) };
@@ -56,23 +56,18 @@ export function mapSupabaseUser(user: User): AuthUser {
 const LEGAL_POLICY_VERSION = '2026-09';
 const LEGAL_CONSENT_STORAGE_KEY = 'testagram-legal-consent';
 
-type LegalConsent = { birthDate: string; version: string; acceptedAt: string };
-
-function readLegalConsent(): LegalConsent | null {
+function readLegalConsent(): { birthDate: string; version: string; acceptedAt: string } | null {
   try {
     const raw = window.localStorage.getItem(LEGAL_CONSENT_STORAGE_KEY);
     if (!raw) return null;
-    const parsed = JSON.parse(raw) as LegalConsent;
+    const parsed = JSON.parse(raw) as { birthDate: string; version: string; acceptedAt: string };
     return parsed?.version === LEGAL_POLICY_VERSION && parsed?.birthDate ? parsed : null;
   } catch {
     return null;
   }
 }
 
-export async function finalizeAuthenticatedSession(
-  user: User,
-  options: { requireFreshLegalConsent?: boolean } = {},
-): Promise<AuthUser> {
+export async function finalizeAuthenticatedSession(user: User, options: { requireFreshLegalConsent?: boolean } = {}): Promise<AuthUser> {
   const consent = readLegalConsent();
   const { data: legalProfile, error: legalReadError } = await supabase
     .from('profiles')
@@ -87,9 +82,7 @@ export async function finalizeAuthenticatedSession(
   adultCutoff.setFullYear(adultCutoff.getFullYear() - 18);
   const isAdult = !!birthDate && !Number.isNaN(birthDate.getTime()) && birthDate <= adultCutoff;
 
-  if (legalProfile?.birth_date && !isAdult) {
-    throw new Error('AGE_RESTRICTION');
-  }
+  if (legalProfile?.birth_date && !isAdult) throw new Error('AGE_RESTRICTION');
 
   const alreadyAccepted =
     isAdult &&
@@ -99,9 +92,7 @@ export async function finalizeAuthenticatedSession(
     !!legalProfile?.legal_age_confirmed_at &&
     legalProfile?.legal_policy_version === LEGAL_POLICY_VERSION;
 
-  if (options.requireFreshLegalConsent && !consent) {
-    throw new Error('LEGAL_ACCEPTANCE_REQUIRED');
-  }
+  if (options.requireFreshLegalConsent && !consent) throw new Error('LEGAL_ACCEPTANCE_REQUIRED');
 
   if (!alreadyAccepted || options.requireFreshLegalConsent) {
     if (!consent) throw new Error('LEGAL_ACCEPTANCE_REQUIRED');
@@ -118,46 +109,22 @@ export async function finalizeAuthenticatedSession(
 
 export async function mapSupabaseUserWithCanonicalProfile(user: User): Promise<AuthUser> {
   const mapped = mapSupabaseUser(user);
-
-  // User creation is provisioned by the auth.users trigger. For an existing
-  // session, keep the hot path read-only: one indexed profile lookup instead
-  // of a read + upsert + read sequence on every sign-in/session restore.
-  let { data: profile, error } = await supabase
-    .from('profiles')
-    .select('id, username, avatar_url, verified_tier')
-    .eq('id', user.id)
-    .maybeSingle();
-
+  let { data: profile, error } = await supabase.from('profiles').select('id, username, avatar_url, verified_tier').eq('id', user.id).maybeSingle();
   if (error) throw new Error(`Canonical profile lookup failed: ${error.message}`);
-
-  // Repair only legacy/incomplete accounts. New accounts should already have
-  // a profile because public.handle_new_user() runs in auth.users.
   if (!profile?.username) {
     await ensureCanonicalProfile(user);
-    const repaired = await supabase
-      .from('profiles')
-      .select('id, username, avatar_url, verified_tier')
-      .eq('id', user.id)
-      .maybeSingle();
+    const repaired = await supabase.from('profiles').select('id, username, avatar_url, verified_tier').eq('id', user.id).maybeSingle();
     profile = repaired.data;
     error = repaired.error;
     if (error) throw new Error(`Canonical profile repair lookup failed: ${error.message}`);
   }
-
   if (!profile?.username) return mapped;
-  return {
-    ...mapped,
-    username: profile.username,
-    avatar: profile.avatar_url || mapped.avatar,
-    verified: !!profile.verified_tier && profile.verified_tier !== 'none',
-  };
+  return { ...mapped, username: profile.username, avatar: profile.avatar_url || mapped.avatar, verified: !!profile.verified_tier && profile.verified_tier !== 'none' };
 }
 
 const AUTH_REQUEST_TIMEOUT_MS = 15_000;
-
-// Auth emails must never redirect to Capacitor's local WebView origin (typically
-// http://localhost). The production callback is the canonical public auth route.
 const CANONICAL_AUTH_REDIRECT_URL = 'https://testagram.site/auth';
+
 async function withAuthTimeout<T>(operation: Promise<T>, label: string): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => { timeoutId = setTimeout(() => reject(new Error(`${label} timed out. Check your connection and try again.`)), AUTH_REQUEST_TIMEOUT_MS); });
@@ -165,39 +132,43 @@ async function withAuthTimeout<T>(operation: Promise<T>, label: string): Promise
 }
 
 export class AuthService {
-  async sendOtp(email: string) {
+  async sendMagicLink(email: string) {
     const identifier = normalizeIdentifier(email);
-    if (identifier.kind !== 'email') throw new Error('Enter an email address for email OTP');
-    const { error } = await withAuthTimeout(supabase.auth.signInWithOtp({ email: identifier.value, options: { shouldCreateUser: true, emailRedirectTo: CANONICAL_AUTH_REDIRECT_URL } }), 'Email OTP request');
+    if (identifier.kind !== 'email') throw new Error('Enter an email address for a sign-in link');
+    const { error } = await withAuthTimeout(
+      supabase.auth.signInWithOtp({
+        email: identifier.value,
+        options: { shouldCreateUser: true, emailRedirectTo: CANONICAL_AUTH_REDIRECT_URL },
+      }),
+      'Email sign-in link request',
+    );
     if (error) throw error;
   }
+
+  async sendOtp(email: string) {
+    return this.sendMagicLink(email);
+  }
+
   async sendPhoneOtp(phoneInput: string) {
     const phone = normalizeKenyaPhone(phoneInput);
     const { error } = await withAuthTimeout(supabase.auth.signInWithOtp({ phone, options: { shouldCreateUser: true } }), 'SMS OTP request');
     if (error) throw error;
     return phone;
   }
-  async verifyEmailOtp(email: string, token: string) {
-    const identifier = normalizeIdentifier(email); const cleanToken = token.replace(/\D/g, '');
-    if (identifier.kind !== 'email') throw new Error('Enter the email used to request the code');
-    if (cleanToken.length !== 6) throw new Error('Enter the 6-digit code from your email');
-    const { data, error } = await withAuthTimeout(supabase.auth.verifyOtp({ email: identifier.value, token: cleanToken, type: 'email' }), 'Email OTP verification');
-    if (error) throw error; if (!data.user) throw new Error('Email verification succeeded but no user session was returned'); return data.user;
-  }
-  async verifyPhoneOtp(phoneInput: string, token: string) {
-    const phone = normalizeKenyaPhone(phoneInput); const cleanToken = token.replace(/\D/g, '');
-    if (cleanToken.length !== 6) throw new Error('Enter the 6-digit code from your SMS');
-    const { data, error } = await withAuthTimeout(supabase.auth.verifyOtp({ phone, token: cleanToken, type: 'sms' }), 'SMS OTP verification');
-    if (error) throw error; if (!data.user) throw new Error('Phone verification succeeded but no user session was returned'); return data.user;
-  }
+
   async signInWithPassword(identifierInput: string, password: string) {
-    const identifier = normalizeIdentifier(identifierInput); if (!password) throw new Error('Enter your password');
+    const identifier = normalizeIdentifier(identifierInput);
+    if (!password) throw new Error('Enter your password');
     const credentials = identifier.kind === 'email' ? { email: identifier.value, password } : { phone: identifier.value, password };
     const { data, error } = await withAuthTimeout(supabase.auth.signInWithPassword(credentials), 'Password sign-in');
-    if (error) throw error; if (!data.user) throw new Error('Sign-in succeeded but no user session was returned'); return data.user;
+    if (error) throw error;
+    if (!data.user) throw new Error('Sign-in succeeded but no user session was returned');
+    return data.user;
   }
+
   async signUpWithPassword(identifierInput: string, password: string, username?: string) {
-    const identifier = normalizeIdentifier(identifierInput); if (password.length < 8) throw new Error('Password must be at least 8 characters');
+    const identifier = normalizeIdentifier(identifierInput);
+    if (password.length < 8) throw new Error('Password must be at least 8 characters');
     const metadata = username?.trim() ? { username: username.trim() } : {};
     const credentials = identifier.kind === 'email'
       ? { email: identifier.value, password, options: { data: metadata, emailRedirectTo: CANONICAL_AUTH_REDIRECT_URL } }
@@ -207,26 +178,35 @@ export class AuthService {
     if (!data.user) throw new Error('Account creation succeeded but no user was returned');
     return { user: data.user, session: data.session, requiresConfirmation: !data.session, identifierKind: identifier.kind, identifier: identifier.value };
   }
+
   async resendSignupPhone(phoneInput: string) {
     const phone = normalizeKenyaPhone(phoneInput);
     const { error } = await withAuthTimeout(supabase.auth.resend({ type: 'sms', phone }), 'Signup SMS confirmation');
     if (error) throw error;
   }
+
   async resendSignupEmail(email: string) {
-    const identifier = normalizeIdentifier(email); if (identifier.kind !== 'email') throw new Error('Enter the signup email address');
-    const { error } = await withAuthTimeout(supabase.auth.resend({ type: 'signup', email: identifier.value, options: { emailRedirectTo: `${window.location.origin}/auth` } }), 'Signup confirmation email');
+    const identifier = normalizeIdentifier(email);
+    if (identifier.kind !== 'email') throw new Error('Enter the signup email address');
+    const { error } = await withAuthTimeout(supabase.auth.resend({ type: 'signup', email: identifier.value, options: { emailRedirectTo: CANONICAL_AUTH_REDIRECT_URL } }), 'Signup confirmation email');
     if (error) throw error;
   }
+
   async resetPassword(email: string) {
-    const identifier = normalizeIdentifier(email); if (identifier.kind !== 'email') throw new Error('Password recovery requires an email address');
+    const identifier = normalizeIdentifier(email);
+    if (identifier.kind !== 'email') throw new Error('Password recovery requires an email address');
     const { error } = await withAuthTimeout(supabase.auth.resetPasswordForEmail(identifier.value, { redirectTo: `${CANONICAL_AUTH_REDIRECT_URL}?reset=1` }), 'Password recovery email');
     if (error) throw error;
   }
+
   async updatePassword(password: string) {
     if (password.length < 8) throw new Error('Password must be at least 8 characters');
     const { data, error } = await withAuthTimeout(supabase.auth.updateUser({ password }), 'Password update');
-    if (error) throw error; if (!data.user) throw new Error('Password update did not return a user'); return data.user;
+    if (error) throw error;
+    if (!data.user) throw new Error('Password update did not return a user');
+    return data.user;
   }
+
   async signOut() { const { error } = await supabase.auth.signOut(); if (error) throw error; }
   mapUser(user: User): AuthUser { return mapSupabaseUser(user); }
 }
