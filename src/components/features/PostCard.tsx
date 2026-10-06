@@ -58,7 +58,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const { toast } = useToast();
   const remoteStatusUri = (post as any).remote_status_uri || ((post as any).uri?.startsWith?.('https://') ? (post as any).uri : '');
   const interactionPostId = remoteStatusUri || post.id;
-  const isFederatedPost = Boolean(remoteStatusUri);
+  const isFederatedPost = Boolean(remoteStatusUri || (post as any).is_federated || (post as any).federation_id);
   // Supabase profile joins are returned as `profiles` in several profile-page
   // queries, while federation uses `user_profiles`. Resolve both shapes once
   // so every post surface renders the canonical author identity.
@@ -574,11 +574,20 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
       className="border-b border-border p-4 hover:bg-muted/5 transition-colors cursor-pointer"
       onClick={handlePostClick}
     >
-      {boostLabel && (
-        <div className={`flex items-center gap-1.5 text-xs font-semibold mb-2 px-1 ${boostLabel === 'Sponsored Content' ? 'text-blue-500' : 'text-amber-500'}`}>
-          {boostLabel === 'Sponsored Content'
-            ? <><TrendingUp className="w-3 h-3" /> Sponsored Content</>
-            : <><Zap className="w-3 h-3" /> Boosted Content</>}
+      {(boostLabel || isFederatedPost) && (
+        <div className="flex items-center gap-2 text-[11px] font-semibold mb-2 px-1">
+          {boostLabel && (
+            <span className={boostLabel === 'Sponsored Content' ? 'text-blue-500' : 'text-amber-500'}>
+              {boostLabel === 'Sponsored Content'
+                ? <><TrendingUp className="w-3 h-3 inline mr-1" /> Sponsored Content</>
+                : <><Zap className="w-3 h-3 inline mr-1" /> Boosted Content</>}
+            </span>
+          )}
+          {isFederatedPost && (
+            <span className="text-muted-foreground">
+              <Globe className="w-3 h-3 inline mr-1" /> Fediverse
+            </span>
+          )}
         </div>
       )}
       <div className="flex space-x-3">
