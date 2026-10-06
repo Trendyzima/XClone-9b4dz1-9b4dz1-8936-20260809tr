@@ -78,7 +78,8 @@ function candidateScore(item: any) {
   // Followed federation gets the strongest signal; fresh public federation still
   // receives a meaningful boost instead of the historical zero-affinity score.
   const federationBoost = item.source === 'following-federated' ? 16 : item.source === 'federated' ? 10 : 0;
-  return affinity + sourceBoost + federationBoost + freshness + engagement + Number(d.recommendation_score ?? 0) * 5;
+  const creditBoost = Math.min(12, Math.max(0, Number(d.credit_boost_score ?? 0)));
+  return affinity + sourceBoost + federationBoost + freshness + engagement + Number(d.recommendation_score ?? 0) * 5 + creditBoost;
 }
 
 function blend(items: any[], limit: number) {
@@ -363,6 +364,33 @@ export default async function handler(request: RequestLike) {
     const feedPostIds = [...(postsResult.data || []), ...(followingPostsResult.data || []), ...(recommendedResult.data || []), ...(communityPostsResult.data || []), ...((followedHashtagPostsResult.data || []).map((r: any) => ({ id: r.post_id })))]
       .map((p: any) => String(p.id || ''))
       .filter(Boolean);
+
+    // Credits boosts are a ranking signal on the same Home candidate pool.
+    // The read-only RPC exposes only active boost scores for IDs already in this page,
+    // so the feed never trusts browser-controlled boost flags and never needs service-role access.
+    const creditBoostPostIds = [...new Set(feedPostIds)].filter(Boolean);
+    const creditBoostProfileIds = [...new Set(
+      [...(postsResult.data || []), ...(followingPostsResult.data || []), ...(recommendedResult.data || []), ...(communityPostsResult.data || [])]
+        .map((p: any) => String(p.author_id || p.user_id || ''))
+        .filter(Boolean)
+    )];
+    const { data: creditBoostRows, error: creditBoostError } = creditBoostPostIds.length || creditBoostProfileIds.length
+      ? await admin.rpc('get_credit_boost_bonuses', {
+          p_source_ids: creditBoostPostIds,
+          p_profile_ids: creditBoostProfileIds,
+        })
+      : { data: [], error: null };
+    if (creditBoostError) console.warn('[home-feed] credits boosts', creditBoostError);
+    const creditBoostByKey = new Map<string, number>();
+    for (const row of creditBoostRows || []) {
+      creditBoostByKey.set(String(row.source_type) + ':' + String(row.source_id), Number(row.bonus || 0));
+    }
+    const applyCreditBoost = (post: any) => {
+      const postId = String(post.id || '');
+      const profileId = String(post.author_id || post.user_id || '');
+      const score = (creditBoostByKey.get('post:' + postId) || 0) + (creditBoostByKey.get('profile:' + profileId) || 0);
+      return score > 0 ? { ...post, credit_boost_score: Math.min(12, score), is_credit_boosted: true, boost_label: 'Boosted' } : post;
+    };
     const pollByPostId = new Map<string, any>();
     if (feedPostIds.length) {
       const { data: pollRows, error: pollError } = await admin
@@ -381,17 +409,17 @@ export default async function handler(request: RequestLike) {
     );
     const recommendations = (recommendedResult.data || []).map((p: any) => {
       const r = recommendationById.get(String(p.id));
-      return { type: 'post', source: 'recommendation', data: { ...p, is_federated: false,
+      return { type: 'post', source: 'recommendation', data: { ...applyCreditBoost(p), is_federated: false,
         feed_reason: r?.reason || 'Recommended for you', recommendation_score: Number(r?.score || 0) } };
     });
 
     const followingLocal = (followingPostsResult.data || []).map((p: any) => ({
       type: 'post', source: 'following-local', affinityScore: 48,
-      data: { ...p, poll: pollByPostId.get(String(p.id)) ?? null, is_federated: false, feed_reason: 'From someone you follow' },
+      data: { ...applyCreditBoost(p), poll: pollByPostId.get(String(p.id)) ?? null, is_federated: false, feed_reason: 'From someone you follow' },
     }));
     const local = (postsResult.data || [])
       .filter((p: any) => !followedLocalIds.includes(String(p.author_id || p.user_id || '')))
-      .map((p: any) => ({ type: 'post', source: 'local', data: { ...p, poll: pollByPostId.get(String(p.id)) ?? null, is_federated: false } }));
+      .map((p: any) => ({ type: 'post', source: 'local', data: { ...applyCreditBoost(p), poll: pollByPostId.get(String(p.id)) ?? null, is_federated: false } }));
     const followingThreads = (followingThreadsResult.data || []).map((t: any) => ({
       type: 'thread', source: 'following-thread', affinityScore: 42,
       data: { ...t, is_federated: false, feed_reason: 'From someone you follow' },
@@ -408,12 +436,12 @@ export default async function handler(request: RequestLike) {
       : [];
     const followedHashtagItems = followedHashtagPosts.map((p: any) => ({
       type: 'post', source: 'following-hashtag-local', affinityScore: 34,
-      data: { ...p, is_federated: false, feed_reason: 'From a hashtag you follow' },
+      data: { ...applyCreditBoost(p), is_federated: false, feed_reason: 'From a hashtag you follow' },
     }));
 
     const followingCommunity = (communityPostsResult.data || []).map((p: any) => ({
       type: 'post', source: 'following-community', affinityScore: 38,
-      data: { ...p, is_federated: false, feed_reason: 'From a community you joined' },
+      data: { ...applyCreditBoost(p), is_federated: false, feed_reason: 'From a community you joined' },
     }));
     const threads = (threadsResult.data || [])
       .filter((t: any) => !followedLocalIds.includes(String(t.owner_id || '')))
