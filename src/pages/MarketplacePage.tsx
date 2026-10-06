@@ -1,6 +1,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
+import { readPublicExpansion } from '@/lib/dataPlane';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useSEO } from '@/hooks/useSEO';
@@ -619,14 +620,41 @@ export default function MarketplacePage() {
     try {
       const from = page * MARKET_PAGE_SIZE;
       const to = from + MARKET_PAGE_SIZE - 1;
-      const { data, error } = await supabase
+      const primaryQuery = supabase
         .from('products')
         .select('*, profiles(id, username, avatar_url, verified_tier)')
         .eq('is_active', true)
         .order('created_at', { ascending: false })
         .range(from, to);
-      if (error) throw error;
-      const incoming = data ?? [];
+      const result = page === 0
+        ? await readPublicExpansion(
+            'products',
+            (client) => primaryQuery,
+            (client) => client
+              .from('products')
+              .select('id, owner_id, name, description, image_url, external_url, price_cents, currency, created_at')
+              .order('created_at', { ascending: false })
+              .limit(MARKET_PAGE_SIZE),
+          )
+        : { primary: (await primaryQuery).data, secondary: null as any[] | null, primaryError: null };
+
+      if (result.primaryError) throw result.primaryError;
+      const primaryProducts = Array.isArray(result.primary) ? result.primary : [];
+      const secondaryProducts = Array.isArray(result.secondary)
+        ? result.secondary.map((p: any) => ({
+            ...p,
+            profiles: {
+              id: p.owner_id,
+              username: 'legacy_testagram',
+              avatar_url: null,
+              verified_tier: 'none',
+            },
+            _data_plane: 'secondary',
+          }))
+        : [];
+      const incoming = [...primaryProducts, ...secondaryProducts]
+        .filter((p: any, index: number, all: any[]) => all.findIndex((x: any) => String(x.id) === String(p.id)) === index)
+        .slice(0, MARKET_PAGE_SIZE);
       setProducts(prev => {
         if (replace) return incoming;
         const seen = new Set(prev.map((p: any) => p.id));
