@@ -132,24 +132,40 @@ async function withAuthTimeout<T>(operation: Promise<T>, label: string): Promise
 }
 
 export class AuthService {
-  async sendMagicLink(email: string) {
-    const identifier = normalizeIdentifier(email);
-    if (identifier.kind !== 'email') throw new Error('Enter an email address for a sign-in link');
-    const { data, error } = await withAuthTimeout(
-      supabase.functions.invoke('testagram-magic-link', {
-        body: { email: identifier.value, redirect_to: CANONICAL_AUTH_REDIRECT_URL },
+  async sendEmailOtp(emailInput: string, shouldCreateUser = false) {
+    const identifier = normalizeIdentifier(emailInput);
+    if (identifier.kind !== 'email') throw new Error('Enter an email address for email verification');
+    const { error } = await withAuthTimeout(
+      supabase.auth.signInWithOtp({
+        email: identifier.value,
+        options: { shouldCreateUser, emailRedirectTo: CANONICAL_AUTH_REDIRECT_URL },
       }),
-      'Email sign-in link request',
+      'Email OTP request',
     );
-    if (error) {
-      const detail = typeof data === 'object' && data && 'error' in data ? String((data as { error?: unknown }).error ?? '') : '';
-      throw new Error(detail || error.message || 'We could not send the Testagram sign-in link.');
-    }
-    if (!data?.ok) throw new Error('We could not send the Testagram sign-in link.');
+    if (error) throw error;
+    return identifier.value;
+  }
+
+  async verifyEmailOtp(emailInput: string, token: string, type: 'email' | 'signup' = 'email') {
+    const identifier = normalizeIdentifier(emailInput);
+    if (identifier.kind !== 'email') throw new Error('Enter the email used for verification');
+    const code = token.trim().replace(/\s+/g, '');
+    if (!/^\d{6}$/.test(code)) throw new Error('Enter the 6-digit verification code');
+    const { data, error } = await withAuthTimeout(
+      supabase.auth.verifyOtp({ email: identifier.value, token: code, type }),
+      'Email OTP verification',
+    );
+    if (error) throw error;
+    if (!data.user) throw new Error('Verification succeeded but no user session was returned');
+    return data.user;
+  }
+
+  async sendMagicLink(email: string) {
+    return this.sendEmailOtp(email, false);
   }
 
   async sendOtp(email: string) {
-    return this.sendMagicLink(email);
+    return this.sendEmailOtp(email, false);
   }
 
   async sendPhoneOtp(phoneInput: string) {
