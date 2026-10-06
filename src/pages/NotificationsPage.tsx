@@ -143,7 +143,7 @@ export default function NotificationsPage() {
     useFediversePolling(activeTab === 'fediverse' ? user?.id : null);
 
   const isPaymentType = (type: string) =>
-    ['payment_success', 'payment_sent', 'payment_failed', 'payout_sent', 'deposit_confirmed', 'boost_activated', 'ad_active', 'ad_rejected', 'new_ad'].includes(type);
+    ['payment_success', 'payment_sent', 'payment_received', 'payment_failed', 'payout_sent', 'payout_pending', 'deposit_confirmed', 'wallet_credit', 'tip_received', 'wallet_security_alert', 'savings_activity', 'reward_received', 'streak_milestone', 'boost_activated', 'ad_active', 'ad_rejected', 'new_ad'].includes(type);
 
   const fetchNotifications = async (cursorValue?: string | null, replace = true): Promise<boolean> => {
     if (!user) return false;
@@ -259,8 +259,15 @@ export default function NotificationsPage() {
       case 'payment_success':
       case 'deposit_confirmed': return <CheckCircle2 className="w-8 h-8 text-green-600" />;
       case 'payment_sent':
-      case 'payout_sent':       return <ArrowDownLeft className="w-8 h-8 text-blue-600" />;
-      case 'payment_failed':    return <CreditCard className="w-8 h-8 text-destructive" />;
+      case 'payment_received':
+      case 'payout_sent':
+      case 'payout_pending':    return <ArrowDownLeft className="w-8 h-8 text-blue-600" />;
+      case 'payment_failed':
+      case 'wallet_security_alert': return <CreditCard className="w-8 h-8 text-destructive" />;
+      case 'wallet_credit':
+      case 'tip_received':
+      case 'reward_received':
+      case 'savings_activity': return <DollarSign className="w-8 h-8 text-green-600" />;
       case 'boost_activated':   return <TrendingUp className="w-8 h-8 text-purple-600" />;
       case 'streak_milestone':   return <Flame className="w-8 h-8 text-orange-500" />;
       case 'ad_active':          return <CheckCircle2 className="w-8 h-8 text-green-600" />;
@@ -282,7 +289,21 @@ export default function NotificationsPage() {
       case 'payment_success':
         return meta.message ?? `M-Pesa payment of KES ${meta.amount ?? ''} confirmed`;
       case 'deposit_confirmed':
-        return `Deposit of KES ${meta.kes_amount ?? meta.amount ?? ''} confirmed · Receipt: ${meta.receipt ?? ''}`;
+        return `Deposit of KES ${meta.kes_amount ?? meta.amount ?? meta.amount_kes ?? ''} confirmed${meta.receipt ? ` · Receipt: ${meta.receipt}` : ''}`;
+      case 'payment_received':
+        return `You received ${meta.amount ?? ''} ${meta.currency ?? 'KES'}`;
+      case 'wallet_credit':
+        return `Your wallet was credited with ${meta.amount ?? ''} ${meta.currency ?? 'KES'}`;
+      case 'tip_received':
+        return `You received ${meta.amount ?? ''} ${meta.currency ?? 'KES'} in your wallet`;
+      case 'reward_received':
+        return `You received a ${meta.reward_type ?? 'wallet'} reward`;
+      case 'savings_activity':
+        return `Your savings balance was updated by ${meta.amount ?? ''} ${meta.currency ?? 'KES'}`;
+      case 'wallet_security_alert':
+        return meta.body ?? 'A wallet transaction was blocked or requires security review.';
+      case 'payout_pending':
+        return `Your payout of ${meta.amount ?? ''} ${meta.currency ?? 'KES'} is being processed`;
       case 'payment_sent':
         if (meta.purpose === 'creator_payout') return `Creator payout of $${meta.amount} (KES ${meta.kes_amount}) sent to ${meta.phone}`;
         if (meta.purpose === 'paypal_withdrawal') return `PayPal withdrawal of $${meta.amount} submitted to ${meta.email}`;
