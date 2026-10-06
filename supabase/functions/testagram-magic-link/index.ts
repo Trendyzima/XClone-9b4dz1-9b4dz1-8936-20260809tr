@@ -1,3 +1,4 @@
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 
 const BRAND_URL = "https://testagram.site";
@@ -45,23 +46,16 @@ function brandedHtml(email: string, actionUrl: string) {
 }
 
 async function generateMagicLink(supabaseUrl: string, adminKey: string, email: string, redirectTo: string) {
-  const response = await fetch(supabaseUrl + "/auth/v1/admin/generate_link", {
-    method: "POST",
-    headers: { apikey: adminKey, Authorization: "Bearer " + adminKey, "Content-Type": "application/json" },
-    body: JSON.stringify({ type: "magiclink", email, redirect_to: redirectTo }),
-  });
-  const body = await response.text();
-  if (!response.ok) {
-    console.error("MAGIC_LINK_GENERATE_REJECTED", JSON.stringify({ status: response.status, body: body.slice(0, 500) }));
-    throw new Error("GENERATE_LINK_HTTP_" + response.status);
+  const admin = createClient(supabaseUrl, adminKey, { auth: { autoRefreshToken: false, persistSession: false } });
+  const { data, error } = await admin.auth.admin.generateLink({ type: "magiclink", email, options: { redirectTo } });
+  if (error) {
+    console.error("MAGIC_LINK_GENERATE_REJECTED", JSON.stringify({ status: error.status, code: error.code, message: error.message }));
+    throw new Error("GENERATE_LINK_FAILED:" + (error.code || error.message || "UNKNOWN"));
   }
-  let parsed: { action_link?: string; actionLink?: string };
-  try { parsed = JSON.parse(body); } catch { throw new Error("GENERATE_LINK_INVALID_RESPONSE"); }
-  const actionLink = parsed.action_link ?? parsed.actionLink;
+  const actionLink = data?.properties?.action_link;
   if (!actionLink) throw new Error("GENERATE_LINK_MISSING_ACTION_LINK");
   return actionLink;
 }
-
 async function sendEmail(resendKey: string, email: string, actionUrl: string) {
   const response = await fetch("https://api.resend.com/emails", {
     method: "POST",
