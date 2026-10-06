@@ -11,7 +11,7 @@ import { useSEO } from '@/hooks/useSEO';
 import { useAuthStore } from '@/stores/authStore';
 import { LegalAcceptanceGate, readLegalConsent } from '@/components/auth/LegalAcceptanceGate';
 
-type AuthMode = 'signin' | 'signup' | 'link-sent' | 'recover' | 'reset';
+type AuthMode = 'signin' | 'signup' | 'otp' | 'recover' | 'reset';
 
 function BrandMark() {
   return (
@@ -32,6 +32,8 @@ export default function AuthPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
+  const [otp, setOtp] = useState('');
+  const [otpPurpose, setOtpPurpose] = useState<'signin' | 'signup'>('signin');
   const [username, setUsername] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -50,7 +52,7 @@ export default function AuthPage() {
   }, []);
 
   useEffect(() => {
-    if (authUser && !['link-sent', 'reset'].includes(mode)) navigate('/', { replace: true });
+    if (authUser && !['otp', 'reset'].includes(mode)) navigate('/', { replace: true });
   }, [authUser, mode, navigate]);
 
   const applyPendingReferral = async () => {
@@ -88,22 +90,51 @@ export default function AuthPage() {
     try {
       const result = await authService.signUpWithPassword(email, password, username);
       if (result.session) { await finishLogin(result.user); return; }
-      setMode('link-sent');
-      toast({ title: 'Check your email', description: 'We sent a secure Testagram link. Click it to finish creating your account.' });
+      setOtpPurpose('signup');
+      setOtp('');
+      setMode('otp');
+      toast({ title: 'Verification code sent', description: 'Enter the 6-digit code we sent to your email.' });
     } catch (error: any) {
       toast({ title: 'Could not create account', description: error?.message || 'Please try again.', variant: 'destructive' });
     } finally { setLoading(false); }
   };
 
-  const sendMagicLink = async (event: FormEvent) => {
+  const sendEmailOtp = async (event: FormEvent) => {
     event.preventDefault(); setLoading(true);
     try {
-      await authService.sendMagicLink(email);
-      setMode('link-sent');
-      toast({ title: 'Testagram link sent', description: 'Open your email and click the secure Testagram link to sign in.' });
+      await authService.sendEmailOtp(email, false);
+      setOtpPurpose('signin');
+      setOtp('');
+      setMode('otp');
+      toast({ title: 'Verification code sent', description: 'Enter the 6-digit code we sent to your email.' });
     } catch (error: any) {
-      const message = error?.message || 'We could not send the sign-in link.';
-      toast({ title: 'Sign-in link failed', description: message, variant: 'destructive' });
+      toast({ title: 'Code request failed', description: error?.message || 'We could not send the verification code.', variant: 'destructive' });
+    } finally { setLoading(false); }
+  };
+
+  const verifyEmailOtp = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!/^\d{6}$/.test(otp.trim())) {
+      toast({ title: 'Invalid code', description: 'Enter the 6-digit verification code from your email.', variant: 'destructive' });
+      return;
+    }
+    setLoading(true);
+    try {
+      await finishLogin(await authService.verifyEmailOtp(email, otp, otpPurpose === 'signup' ? 'signup' : 'email'));
+    } catch (error: any) {
+      setLoading(false);
+      toast({ title: 'Verification failed', description: error?.message || 'The code is invalid or expired.', variant: 'destructive' });
+    }
+  };
+
+  const resendEmailOtp = async () => {
+    setLoading(true);
+    try {
+      await authService.sendEmailOtp(email, otpPurpose === 'signup');
+      setOtp('');
+      toast({ title: 'New code sent', description: 'Check your email for the latest 6-digit verification code.' });
+    } catch (error: any) {
+      toast({ title: 'Could not resend code', description: error?.message || 'Please try again.', variant: 'destructive' });
     } finally { setLoading(false); }
   };
 
@@ -137,8 +168,8 @@ export default function AuthPage() {
   if (!legalAccepted) return <div className="min-h-screen bg-gradient-to-b from-background via-background to-primary/5 p-4 flex items-center justify-center"><LegalAcceptanceGate onAccepted={() => setLegalAccepted(true)} /></div>;
 
   const go = (next: AuthMode) => { setLoading(false); setPassword(''); setConfirmation(''); setMode(next); };
-  const title = mode === 'signin' ? 'Welcome back' : mode === 'signup' ? 'Create your account' : mode === 'recover' ? 'Reset your password' : mode === 'reset' ? 'Choose a new password' : 'Check your email';
-  const subtitle = mode === 'signin' ? 'Sign in to continue your Testagram journey.' : mode === 'signup' ? 'Join Testagram and start sharing what matters.' : mode === 'recover' ? 'We’ll send a secure reset link to your email.' : mode === 'reset' ? 'Your new password should be at least 8 characters.' : 'We sent a secure Testagram link. There is no code to enter.';
+  const title = mode === 'signin' ? 'Welcome back' : mode === 'signup' ? 'Create your account' : mode === 'otp' ? 'Enter your verification code' : mode === 'recover' ? 'Reset your password' : 'Choose a new password';
+  const subtitle = mode === 'signin' ? 'Sign in to continue your Testagram journey.' : mode === 'signup' ? 'Join Testagram and start sharing what matters.' : mode === 'otp' ? `We sent a 6-digit code to ${email}. Enter it below to continue.` : mode === 'recover' ? 'We’ll send a secure reset link to your email.' : 'Your new password should be at least 8 characters.';
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_hsl(var(--primary)/.13),_transparent_38%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--muted)/.35))] px-4 py-6 sm:py-10">
@@ -179,24 +210,25 @@ export default function AuthPage() {
 
                   {mode === 'signin' && <button onClick={() => go('recover')} className="mt-4 w-full text-center text-sm font-semibold text-muted-foreground hover:text-primary">Forgot your password?</button>}
 
-                  <div className="my-6 flex items-center gap-3"><div className="h-px flex-1 bg-border" /><span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">or email me a link</span><div className="h-px flex-1 bg-border" /></div>
-                  <form onSubmit={sendMagicLink} className="space-y-3.5">
+                  <div className="my-6 flex items-center gap-3"><div className="h-px flex-1 bg-border" /><span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">or use email code</span><div className="h-px flex-1 bg-border" /></div>
+                  <form onSubmit={sendEmailOtp} className="space-y-3.5">
                     <Field icon={Mail} type="email" inputMode="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
-                    <Button disabled={loading} type="submit" className="h-13 w-full rounded-2xl font-black">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Send Testagram sign-in link'}</Button>
+                    <Button disabled={loading} type="submit" variant="outline" className="h-13 w-full rounded-2xl font-black">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Email me a verification code'}</Button>
                   </form>
                 </>
               )}
 
-              {mode === 'link-sent' && <div className="space-y-5">
-                <div className="rounded-3xl border border-primary/15 bg-primary/5 p-7 text-center">
-                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl bg-primary/10"><Mail className="h-8 w-8 text-primary" /></div>
-                  <h3 className="text-xl font-black">Check your inbox</h3>
-                  <p className="mt-3 text-sm leading-6 text-muted-foreground">We sent a secure Testagram link to <strong className="text-foreground">{email}</strong>.</p>
-                  <p className="mt-2 text-sm font-semibold text-foreground">Just click the link. No OTP or verification code is required.</p>
+              {mode === 'otp' && <form onSubmit={verifyEmailOtp} className="space-y-4">
+                <div className="rounded-3xl border border-primary/15 bg-primary/5 p-6 text-center">
+                  <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10"><Mail className="h-7 w-7 text-primary" /></div>
+                  <p className="text-sm text-muted-foreground">Verification code sent to</p>
+                  <p className="mt-1 font-bold break-all">{email}</p>
                 </div>
-                <Button variant="outline" onClick={() => go('signin')} className="h-13 w-full rounded-2xl">Use another email</Button>
-                <p className="text-center text-xs leading-5 text-muted-foreground">If you do not see it, check Spam/Junk and wait a moment before requesting another link.</p>
-              </div>}
+                <Field icon={KeyRound} type="text" inputMode="numeric" autoComplete="one-time-code" placeholder="6-digit verification code" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))} required maxLength={6} />
+                <Button disabled={loading || otp.length !== 6} type="submit" className="h-13 w-full rounded-2xl font-black">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Verify code & continue'}</Button>
+                <button type="button" onClick={resendEmailOtp} disabled={loading} className="w-full text-center text-sm font-semibold text-muted-foreground hover:text-primary disabled:opacity-50">Resend verification code</button>
+                <button type="button" onClick={() => go('signin')} disabled={loading} className="w-full text-center text-sm font-semibold text-muted-foreground hover:text-foreground">Use another email</button>
+              </form>}
 
               {mode === 'recover' && <form onSubmit={requestReset} className="space-y-4"><div className="rounded-2xl border border-primary/15 bg-primary/5 p-4 text-sm leading-6 text-muted-foreground"><KeyRound className="mb-2 h-5 w-5 text-primary" />Enter the email linked to your Testagram account. We’ll send a secure, time-limited reset link.</div><Field icon={Mail} type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required /><Button disabled={loading} className="h-13 w-full rounded-2xl font-black">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Send reset link'}</Button></form>}
 
