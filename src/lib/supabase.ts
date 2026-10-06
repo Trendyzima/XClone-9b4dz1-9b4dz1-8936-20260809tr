@@ -1,10 +1,10 @@
 import { createClient } from '@supabase/supabase-js';
 
 const PRIMARY_SUPABASE_URL = 'https://ffrhglgkukgsuhxenena.supabase.co';
-const PRIMARY_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya';
+const PRIMARY_SUPABASE_PUBLISHABLE_KEY = '';
 
 const SECONDARY_SUPABASE_URL = 'https://aepbqfrmheihfsauzcby.supabase.co';
-const SECONDARY_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_f331BL1gsNy-otXRmQPtrw_SG8tCWLn';
+const SECONDARY_SUPABASE_PUBLISHABLE_KEY = '';
 
 const configuredPrimaryUrl = import.meta.env.VITE_SUPABASE_URL?.trim();
 const configuredPrimaryKey = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY)?.trim();
