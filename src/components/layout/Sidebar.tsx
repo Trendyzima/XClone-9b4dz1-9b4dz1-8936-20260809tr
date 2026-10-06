@@ -6,7 +6,7 @@ import {
   Home, Search, Bell, Mail, User, Hash, Radio, LogOut, Plus, Users,
   TrendingUp, Sparkles, Bookmark, List, DollarSign, BarChart3,
   ShoppingBag, Calendar, Crown, Briefcase, Settings, HelpCircle,
-  History, ChevronDown, ChevronUp, FileText, Wallet, Megaphone,
+  History, ChevronDown, ChevronUp, FileText, Wallet, Megaphone, Coins,
   Shield, LineChart, Globe, Flame, Trophy, UserSearch, Gift, BookOpen, Inbox,
   MessageSquare, ShieldCheck, ShoppingCart, Tv, Car,
 } from 'lucide-react';
@@ -254,6 +254,7 @@ export function Sidebar() {
     { icon: List, label: 'Lists', path: '/lists', requireAuth: true },
     { icon: History, label: 'History', path: '/history', requireAuth: true },
     { icon: Flame, label: 'Daily Rewards', path: '/daily-rewards', requireAuth: true },
+    { icon: Coins, label: 'Credits', path: '/credits', requireAuth: true },
     { icon: UserSearch, label: 'Discover', path: '/discover', requireAuth: false },
     { icon: Gift, label: 'Refer & Earn', path: '/referral', requireAuth: true },
     { icon: Wallet, label: 'Wallet', path: '/wallet', requireAuth: true },
