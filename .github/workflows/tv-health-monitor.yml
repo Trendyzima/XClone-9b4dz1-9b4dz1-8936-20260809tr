@@ -60,9 +60,23 @@ jobs:
           const endpoint=process.env.SUPABASE_URL+'/functions/v1/tv-health';
           const token=process.env.GITHUB_OIDC_TOKEN;
           const batchSize=500;
+          const maxPerRun=5000;
+          const alwaysProbe=Math.min(1000, channels.length);
+          const rotating=channels.slice(alwaysProbe).sort((a,b)=>String(a.id).localeCompare(String(b.id)));
+          const runSlot=Math.floor(Date.now()/900000); // 15-minute schedule slot
+          const rotatingPerRun=Math.min(maxPerRun-alwaysProbe, rotating.length);
+          let selected=channels.slice(0,alwaysProbe);
+          if(rotatingPerRun>0){
+            const start=(runSlot*rotatingPerRun)%rotating.length;
+            selected=selected.concat(
+              rotating.slice(start,start+rotatingPerRun),
+              start+rotatingPerRun>rotating.length ? rotating.slice(0,(start+rotatingPerRun)-rotating.length) : []
+            );
+          }
+          console.log(JSON.stringify({catalog_channels:channels.length,selected_for_run:selected.length,always_probe:alwaysProbe,rotating_per_run:rotatingPerRun,run_slot:runSlot}));
           let checked=0;
-          for(let i=0;i<channels.length;i+=batchSize){
-            const batch=channels.slice(i,i+batchSize);
+          for(let i=0;i<selected.length;i+=batchSize){
+            const batch=selected.slice(i,i+batchSize);
             const r=await fetch(endpoint,{
               method:'POST',
               headers:{
