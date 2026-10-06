@@ -8,7 +8,7 @@ type Delivery = {
   id:string; order_id:string; buyer_id:string; seller_id:string; status:string; dropoff_address:string;
   courier_id:string|null; courier_lat:number|null; courier_lng:number|null; courier_updated_at:string|null;
   eta_minutes:number|null; currency:string; delivery_fee_minor:number; payment_status:string;
-  payment_confirmed_at:string|null; payout_status:string; courier_payout_minor:number;
+  payment_confirmed_at:string|null; delivery_verified_at:string|null; payout_status:string; courier_payout_minor:number;
 };
 
 type Agent = { user_id:string; active:boolean; blocked_at:string|null };
