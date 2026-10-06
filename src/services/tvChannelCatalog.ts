@@ -1,4 +1,4 @@
-import {supabaseUrl} from '@/lib/supabase';
+import {supabaseUrl, supabaseSecondary} from '@/lib/supabase';
 
 export type TvChannel = { id:string; tvg_id?:string; name:string; url:string; logo?:string; country?:string; language?:string; group?:string; source:string; priority:number; live?:boolean; live_checked_at?:string };
 export type TvSource = { id:string; label:string; url:string; country?:string; priority:number; enabled?:boolean; policy?:'public-free'|'community-unverified' };
@@ -56,6 +56,33 @@ function unwrapTvProxyUrl(value:string):string{
  return current;
 }
 export async function loadTvSource(source:TvSource,signal?:AbortSignal){
+ // Secondary is the long-term canonical read plane for the large TV catalog.
+ // During rollout it may be empty, so the primary catalog function remains a
+ // safe ingestion fallback. No primary auth/session is sent to the secondary.
+ try{
+  const {data,error}=await supabaseSecondary
+    .from('tv_catalog_channels')
+    .select('channel_id,tvg_id,name,stream_url,logo_url,country,language,group_name,source,source_id,priority,is_active')
+    .eq('source_id',source.id)
+    .eq('is_active',true)
+    .order('priority',{ascending:false})
+    .limit(25000);
+  if(!error && Array.isArray(data) && data.length){
+   return data.map((c:any)=>({
+    id:String(c.channel_id),
+    tvg_id:c.tvg_id||undefined,
+    name:String(c.name||'Live TV'),
+    url:unwrapTvProxyUrl(String(c.stream_url)),
+    logo:c.logo_url||undefined,
+    country:c.country||source.country,
+    language:c.language||undefined,
+    group:c.group_name||undefined,
+    source:String(c.source||source.label),
+    priority:Number(c.priority||source.priority),
+    live:true,
+   } as TvChannel));
+  }
+ }catch{}
  const endpoint=supabaseUrl+'/functions/v1/tv-catalog?source='+encodeURIComponent(source.id);
  const response=await fetch(endpoint,{signal,headers:{Accept:'application/json'}});
  if(!response.ok) throw new Error(source.label+': HTTP '+response.status);
@@ -65,6 +92,16 @@ export async function loadTvSource(source:TvSource,signal?:AbortSignal){
 export function getPrioritySourceIds(){ return TV_SOURCES.filter(s=>s.enabled!==false).sort((a,b)=>b.priority-a.priority).map(s=>s.id); }
 export async function loadTvHealth(channelIds:string[]){
  const wanted=new Set(channelIds.map(String));
+ try{
+  const {data,error}=await supabaseSecondary
+    .from('tv_catalog_health')
+    .select('channel_id,is_online,last_checked_at,latency_ms,consecutive_successes,priority')
+    .eq('is_online',true)
+    .limit(20000);
+  if(!error && Array.isArray(data) && data.length){
+   return new Map(data.filter((x:any)=>wanted.has(String(x.channel_id))).map((x:any)=>[String(x.channel_id),x]));
+  }
+ }catch{}
  const url=supabaseUrl+'/rest/v1/tv_channel_health?is_online=eq.true&select=channel_id,is_online,last_checked_at,latency_ms,consecutive_successes,priority&limit=20000';
  const r=await fetch(url,{headers:{Accept:'application/json'}});
  if(!r.ok) return new Map<string,any>();
