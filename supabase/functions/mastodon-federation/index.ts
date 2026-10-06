@@ -4,7 +4,7 @@ const ROOT='https://testagram.site';
 const SUPABASE_URL=Deno.env.get('SUPABASE_URL')!;const SERVICE=Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')||Deno.env.get('SUPABASE_SECRET_KEY')||'';
 const db=createClient(SUPABASE_URL,SERVICE,{auth:{persistSession:false,autoRefreshToken:false}});
 const AP='https://www.w3.org/ns/activitystreams',SEC='https://w3id.org/security/v1',TOOT='http://joinmastodon.org/ns#';
-const H={'Content-Type':'application/activity+json; charset=utf-8','Access-Control-Allow-Origin':'*','Cache-Control':'public, max-age=60'};
+const H={'Content-Type':'application/activity+json; charset=utf-8','Access-Control-Allow-Origin':'*','Cache-Control':'no-store','CDN-Cache-Control':'no-store'};
 const json=(v:unknown,s=200,extra:Record<string,string>={})=>new Response(JSON.stringify(v),{status:s,headers:{...H,...extra}});
 const str=(v:unknown)=>typeof v==='string'?v:'';const uri=(v:unknown)=>typeof v==='string'?v:v&&typeof v==='object'?str((v as any).id):'';
 const context=[AP,SEC,{toot:TOOT,discoverable:'toot:discoverable',indexable:'toot:indexable',featured:'toot:featured'}];
