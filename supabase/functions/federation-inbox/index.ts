@@ -29,7 +29,7 @@ function parts(v:string){const o:any={};for(const p of v.split(/,(?=\w+=)/)){con
 async function verifyLegacy(req:Request,raw:string,actor:string){
   const sig=req.headers.get("signature"),digest=req.headers.get("digest"),date=req.headers.get("date");
   if(!sig||!digest||!date)throw Error("missing HTTP signature headers");
-  const when=Date.parse(date);if(!Number.isFinite(when)||Math.abs(Date.now()-when)>60*60*1000)throw Error("stale Date header");
+  const when=Date.parse(date);if(!Number.isFinite(when)||Math.abs(Date.now()-when)>15*60*1000)throw Error("stale Date header");
   const expected="SHA-256="+b64(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(raw)));
   if(digest.toLowerCase()!==expected.toLowerCase())throw Error("digest mismatch");
   const p=parts(sig);if(!p.signature||!p.keyId||!p.headers)throw Error("unsupported HTTP signature");
@@ -115,6 +115,10 @@ async function signAccept(local:any,key:any,inbox:string,activity:any){
 async function processActivity(activity:any,actor:string){
   const type=str(activity.type),id=str(activity.id)||`urn:testagram:inbound:${crypto.randomUUID()}`;
   const objectUri=uri(activity.object);
+  const object=activity.object&&typeof activity.object==='object'?activity.object:null;
+  const objectActor=uri(object?.attributedTo)||uri(object?.actor);
+  const actorOwnsObject=!objectActor||objectActor===actor;
+  if(['Update','Delete'].includes(type)&&objectUri&&!actorOwnsObject)throw Error('activity actor is not authorized to modify the referenced object');
   if(type==="Follow"&&objectUri){
     const local=await localActorForTarget(objectUri);
     if(local.data?.user_id){
@@ -172,7 +176,7 @@ async function processActivity(activity:any,actor:string){
   if(["Create","Update","Delete","Like","Announce","EmojiReact"].includes(type)){
     const object=activity.object&&typeof activity.object==="object"?activity.object:null;
     const objectId=uri(object)||str(activity.object);
-    if(type==="Create"&&objectId&&object){
+    if((type==="Create"||type==="Update")&&objectId&&object){
       await db.from("federated_objects").upsert({uri:objectId,object_type:str(object.type)||"Object",actor_uri:actor,url:uri(object.url)||objectId,content:str(object.content)||null,summary:str(object.summary)||null,published_at:str(object.published)||null,updated_at:str(object.updated)||null,sensitive:Boolean(object.sensitive),in_reply_to_uri:uri(object.inReplyTo)||null,quote_uri:str(object.quoteUri)||str(object.quoteUrl)||str(object._misskey_quote)||null,language_code:str(object.language)||null,attachments:Array.isArray(object.attachment)?object.attachment:[],tags:Array.isArray(object.tag)?object.tag:[],raw_object:object},{onConflict:"uri"});
     }
     if(type==="Delete"&&objectId)await db.from("federated_objects").update({deleted_at:new Date().toISOString(),tombstone:true}).eq("uri",objectId).eq("actor_uri",actor);
