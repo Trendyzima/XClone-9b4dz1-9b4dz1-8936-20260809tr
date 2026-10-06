@@ -25,6 +25,7 @@ import { ProfileGovernanceCard } from '@/components/features/ProfileGovernanceCa
 import { AdvertiserSurface } from '@/components/features/AdvertiserSurface';
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import { ProfileMiniSidebar } from '@/components/layout/ProfileMiniSidebar';
+import { CreditBoostDialog } from '@/components/features/CreditBoostDialog';
 
 function ProfileAdBanner() { return <PageAdBanner />; }
 
@@ -1071,7 +1072,7 @@ export default function ProfilePage() {
         </div>
       </section>
       <ProfileAdBanner />
-        {isOwnProfile && <AdvertiserSurface variant="profile" />}
+        {isOwnProfile && <AdvertiserSurface variant="profile" />}\n        {isOwnProfile && <div className="px-4 mt-3"><button onClick={()=>setShowCreditProfileBoost(true)} className="w-full rounded-2xl border border-primary/20 bg-primary/5 p-3 text-left hover:bg-primary/10 transition-colors"><span className="text-sm font-bold">✨ Boost your profile with Credits</span><span className="block text-xs text-muted-foreground mt-1">Use earned Testagram credits to increase organic profile discovery.</span></button></div>}
 
       <div className="border-b border-border">
         {profile.cover_image && (
@@ -1577,7 +1578,7 @@ export default function ProfilePage() {
       )}
       {profile && <div className="px-4 mt-1"><SubscriberBadge creatorId={profile.id} /></div>}
 
-      <ProfileGovernanceCard profileId={profile.id} username={profile.username} isOwnProfile={isOwnProfile} />
+      <ProfileGovernanceCard profileId={profile.id} username={profile.username} isOwnProfile={isOwnProfile} />\n      {isOwnProfile && profile && <CreditBoostDialog open={showCreditProfileBoost} onOpenChange={setShowCreditProfileBoost} targetType="profile" targetId={profile.id} title="Boost your Testagram profile" />}
 
       {/* Tabs */}
       <div className="sticky top-14 z-30 bg-background border-b border-border">
