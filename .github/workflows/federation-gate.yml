@@ -67,7 +67,9 @@ jobs:
           get "/nodeinfo/2.1" 200 "application/json"
           get "/users/crissbeat" 200 "application/activity+json"
           get "/users/crissbeat/outbox" 200 "application/activity+json"
-          inbox_status="$(curl -sS --max-redirs 0 --connect-timeout 10 --max-time 30 -o /dev/null -w '%{http_code}' "$base/inbox")"
-          echo "/inbox GET -> HTTP $inbox_status"
-          [[ "$inbox_status" == "405" ]] || exit 1
-          echo "Production ActivityPub discovery, actor, collection, and inbox contracts passed."
+          for inbox_path in "/inbox" "/users/crissbeat/inbox" "/users/crissbeat/inbox/"; do
+            inbox_status="$(curl -sS --max-redirs 0 --connect-timeout 10 --max-time 30 -o /dev/null -w '%{http_code}' "$base$inbox_path")"
+            echo "$inbox_path GET -> HTTP $inbox_status"
+            [[ "$inbox_status" == "405" ]] || exit 1
+          done
+          echo "Production ActivityPub discovery, actor, collection, and all public inbox route contracts passed."
