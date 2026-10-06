@@ -36,17 +36,15 @@ jobs:
         uses: cloudflare/wrangler-action@v4.0.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          workingDirectory: cloudflare/cdn-worker
           wranglerVersion: "4.135.0"
-          command: deploy
+          command: deploy --config cloudflare/cdn-worker/wrangler.toml
 
       - name: Validate deployment
         uses: cloudflare/wrangler-action@v4.0.0
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          workingDirectory: cloudflare/cdn-worker
           wranglerVersion: "4.135.0"
-          command: deployments status
+          command: deployments status --name testagram-cdn
 
       - name: Verify source invariants
         run: |
