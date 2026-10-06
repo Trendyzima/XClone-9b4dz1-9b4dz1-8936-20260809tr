@@ -29,6 +29,21 @@
     {
       "pattern": "www.testagram.site",
       "custom_domain": true
+    },
+    {
+      "pattern": "testagram.site/.well-known/webfinger*"
+    },
+    {
+      "pattern": "testagram.site/.well-known/nodeinfo*"
+    },
+    {
+      "pattern": "testagram.site/nodeinfo/*"
+    },
+    {
+      "pattern": "testagram.site/users/*"
+    },
+    {
+      "pattern": "testagram.site/inbox"
     }
   ],
   "triggers": {
