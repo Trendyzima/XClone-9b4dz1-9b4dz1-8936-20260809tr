@@ -284,6 +284,7 @@ export default async function handler(request: RequestLike) {
     const fedQuery = new URLSearchParams({ limit: String(sourceLimit) });
     if (cursor.fed) fedQuery.set('before', cursor.fed);
 
+    const federationStarted = Date.now();
     const federatedPromise = includeFederated
       ? (async () => {
           const controller = new AbortController();
