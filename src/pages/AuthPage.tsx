@@ -8,6 +8,7 @@ import { authService, finalizeAuthenticatedSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { useSEO } from '@/hooks/useSEO';
 import { useAuthStore } from '@/stores/authStore';
+import { LegalAcceptanceGate, readLegalConsent } from '@/components/auth/LegalAcceptanceGate';
 
 function AuthAdBanner() {
   const pushed = useRef(false);
@@ -57,6 +58,7 @@ export default function AuthPage() {
   const navigate = useNavigate();
   const authUser = useAuthStore((state) => state.user);
   const login = useAuthStore((state) => state.login);
+  const [legalAccepted, setLegalAccepted] = useState(() => !!readLegalConsent());
 
   const applyPendingReferral = async () => {
     const code = window.localStorage.getItem('testagram-referral-code');
@@ -300,6 +302,14 @@ export default function AuthPage() {
     setLoading(false);
     setMode(method === 'phone' ? 'signin' : 'signin');
   };
+
+  if (!legalAccepted) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
+        <LegalAcceptanceGate onAccepted={() => setLegalAccepted(true)} />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4">
