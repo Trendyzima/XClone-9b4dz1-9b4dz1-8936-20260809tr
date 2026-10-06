@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 const MAX_RESPONSE_BYTES=1500000,TIMEOUT_MS=12000;
-const INBOX_RETENTION_DAYS=7;
+const INBOX_RETENTION_DAYS=7; // RFC9421 + Mastodon interoperability hardened
 
 function private4(ip:string){const p=ip.split(".").map(Number);if(p.length!==4||p.some(n=>!Number.isInteger(n)||n<0||n>255))return true;const[a,b]=p;return a===0||a===10||a===127||(a===100&&b>=64&&b<=127)||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&(b===0||b===168))||(a===198&&(b===18||b===19))||a>=224;}
 function private6(ip:string){const x=ip.toLowerCase().split("%")[0];if(x==="::"||x==="::1"||x.startsWith("fc")||x.startsWith("fd")||x.startsWith("fe8")||x.startsWith("fe9")||x.startsWith("fea")||x.startsWith("feb")||x.startsWith("ff"))return true;const m=x.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);return !!m&&private4(m[1]);}
