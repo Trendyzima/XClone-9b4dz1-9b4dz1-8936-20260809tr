@@ -1,4 +1,5 @@
 import {supabase} from '@/lib/supabase';
+import {readPublicWithFallback} from '@/lib/dataPlane';
 
 export const TV_REACTIONS=['❤️','🔥','👏','😂','😮','😢'];
 
@@ -6,8 +7,13 @@ export type TvReactionCounts={emoji:string;count:number}[];
 
 export async function getTvReactionCounts(channelId:string):Promise<TvReactionCounts>{
   if(!channelId)return [];
-  const {data,error}=await supabase.from('tv_channel_reactions').select('emoji').eq('channel_id',channelId);
-  if(error)return [];
+  const result=await readPublicWithFallback(
+    'tv_channel_reactions',
+    (client)=>client.from('tv_channel_reactions').select('emoji').eq('channel_id',channelId),
+    (client)=>client.from('tv_channel_reactions').select('emoji').eq('channel_id',channelId),
+  );
+  const data=result.data as any[] | null;
+  if(result.primaryError && result.source==='primary')return [];
   const counts=new Map<string,number>();
   (data||[]).forEach((row:any)=>counts.set(String(row.emoji),Number(counts.get(String(row.emoji))||0)+1));
   return Array.from(counts.entries()).map(([emoji,count])=>({emoji,count})).sort((a,b)=>b.count-a.count);
