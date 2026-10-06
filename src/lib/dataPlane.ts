@@ -49,10 +49,8 @@ export function clientFor(plane: DataPlane) {
 }
 
 export function assertWritePlane(table: string, plane: DataPlane = 'primary') {
-  if (plane !== 'primary' || PRIMARY_ONLY_TABLES.has(table)) {
-    if (plane !== 'primary') {
-      throw new Error(`Writes to "${table}" are restricted to the primary Testagram data plane.`);
-    }
+  if (plane !== 'primary') {
+    throw new Error(`Writes to "${table}" are restricted to the primary Testagram data plane.`);
   }
 }
 
