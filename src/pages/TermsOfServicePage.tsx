@@ -30,7 +30,7 @@ const TERMS_SECTIONS: TermsSection[] = [
     iconBg: 'bg-blue-500/10',
     title: '1. Eligibility & Account',
     points: [
-      'Testagram is intended for adults. If a person under 18 is permitted to use the service, required age-verification and verifiable parent or guardian consent must be obtained before processing their personal data, as required by applicable law.',
+      'Testagram is an adults-only service. You must be 18 years of age or older to create, access, or use a Testagram account. People under 18 are not permitted to use the service, including with parent or guardian consent.',
       'You may maintain accounts only as permitted by the product. Creating accounts to evade enforcement, impersonate others, abuse promotions, or circumvent security controls is prohibited.',
       'You are responsible for keeping your login credentials secure. Do not share your password with anyone.',
       'You must provide accurate information when creating your account. Impersonating another person or entity is prohibited.',
