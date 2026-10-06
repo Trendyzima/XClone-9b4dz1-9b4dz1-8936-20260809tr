@@ -265,8 +265,111 @@ async function proxySupabase(request: Request, targetPath: string) {
   return new Response(response.body, { status: response.status, headers: out });
 }
 
+
+function isBlockedTvHost(hostname: string) {
+  const h = hostname.toLowerCase().replace(/\.$/, '');
+  if (!h || h === 'localhost' || h.endsWith('.localhost') || h.endsWith('.local') || h.endsWith('.internal')) return true;
+  if (h === 'metadata.google.internal' || h === 'metadata.google') return true;
+  if (h.includes(':')) {
+    const compact = h.replace(/^\[|\]$/g, '');
+    if (compact === '::1' || compact === '::' || compact.startsWith('fc') || compact.startsWith('fd') ||
+        compact.startsWith('fe8') || compact.startsWith('fe9') || compact.startsWith('fea') || compact.startsWith('feb')) return true;
+    if (compact.startsWith('::ffff:')) return isBlockedTvHost(compact.slice(7));
+  }
+  const parts = h.split('.').map(Number);
+  if (parts.length === 4 && parts.every(Number.isFinite)) {
+    const [a,b] = parts;
+    if (a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) ||
+        (a === 192 && b === 168) || (a === 172 && b >= 16 && b <= 31)) return true;
+  }
+  return false;
+}
+
+function tvProxyUrl(target: string) {
+  return 'https://testagram.site/tv-stream?url=' + encodeURIComponent(target);
+}
+
+function isTvManifest(url: URL, response: Response) {
+  const type = (response.headers.get('content-type') || '').toLowerCase();
+  return /mpegurl|m3u8|application\/vnd\.apple\.mpegurl/.test(type) || /\.m3u8(?:$|[?#])/i.test(url.pathname + url.search);
+}
+
+async function fetchTvUpstream(target: URL, headers: Headers) {
+  let current = new URL(target);
+  for (let hop = 0; hop < 5; hop++) {
+    if (!/^https?:$/.test(current.protocol) || isBlockedTvHost(current.hostname)) throw new Error('Blocked stream redirect target');
+    const response = await fetch(current.toString(), { headers, redirect: 'manual' });
+    if (response.status < 300 || response.status >= 400) return { response, url: current };
+    const location = response.headers.get('location');
+    if (!location) return { response, url: current };
+    current = new URL(location, current);
+  }
+  throw new Error('Too many stream redirects');
+}
+
+async function handleTvStream(request: Request) {
+  if (request.method === 'OPTIONS') return new Response('ok', { status: 204, headers: new Headers({
+    'Access-Control-Allow-Origin':'*',
+    'Access-Control-Allow-Headers':'range, content-type',
+    'Access-Control-Allow-Methods':'GET,OPTIONS',
+    'Access-Control-Max-Age':'86400',
+    'Cache-Control':'no-store',
+  })});
+  if (request.method !== 'GET') return new Response('Method Not Allowed', { status: 405 });
+  const requestUrl = new URL(request.url);
+  const raw = requestUrl.searchParams.get('url');
+  if (!raw) return new Response(JSON.stringify({ok:false,error:'Missing stream url'}), {status:400,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','access-control-allow-origin':'*'}});
+  let target: URL;
+  try { target = new URL(raw); } catch {
+    return new Response(JSON.stringify({ok:false,error:'Invalid stream url'}), {status:400,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','access-control-allow-origin':'*'}});
+  }
+  if (!/^https?:$/.test(target.protocol) || isBlockedTvHost(target.hostname)) {
+    return new Response(JSON.stringify({ok:false,error:'Blocked stream host'}), {status:403,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','access-control-allow-origin':'*'}});
+  }
+  const upstreamHeaders = new Headers();
+  upstreamHeaders.set('Accept','*/*');
+  upstreamHeaders.set('User-Agent','TestagramTV/4.0');
+  const range = request.headers.get('range');
+  if (range) upstreamHeaders.set('Range', range);
+  try {
+    const {response: upstream, url: finalUrl} = await fetchTvUpstream(target, upstreamHeaders);
+    if (!upstream.ok && upstream.status !== 206) {
+      return new Response(JSON.stringify({ok:false,error:'Upstream stream unavailable',status:upstream.status}), {status:502,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','access-control-allow-origin':'*'}});
+    }
+    const cors = new Headers({'Access-Control-Allow-Origin':'*','Access-Control-Expose-Headers':'Content-Length,Content-Range,Accept-Ranges,Content-Type,ETag','Vary':'Origin','X-Testagram-TV-Edge':'1'});
+    if (isTvManifest(finalUrl, upstream)) {
+      const manifest = await upstream.text();
+      const rewritten = manifest.split(/\r?\n/).map(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return line;
+        const attrs = line.replace(/URI="([^"]+)"/gi, (_full, uri) => {
+          try { return 'URI="' + tvProxyUrl(new URL(uri, finalUrl).toString()) + '"'; } catch { return _full; }
+        });
+        if (trimmed.startsWith('#')) return attrs;
+        try { return tvProxyUrl(new URL(trimmed, finalUrl).toString()); } catch { return line; }
+      }).join('\n');
+      cors.set('Content-Type','application/vnd.apple.mpegurl; charset=utf-8');
+      cors.set('Cache-Control','no-store, max-age=0');
+      return new Response(rewritten, {status:upstream.status,headers:cors});
+    }
+    const out = new Headers(cors);
+    for (const name of ['content-type','content-length','content-range','accept-ranges','etag','last-modified']) {
+      const value = upstream.headers.get(name);
+      if (value) out.set(name,value);
+    }
+    const cacheable = !range && upstream.status === 200;
+    out.set('Cache-Control', cacheable ? 'public, max-age=8, s-maxage=8' : 'no-store');
+    return new Response(upstream.body,{status:upstream.status,headers:out});
+  } catch (error) {
+    console.error('[testagram-tv-edge]',error);
+    return new Response(JSON.stringify({ok:false,error:'TV stream edge failure'}), {status:504,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store','access-control-allow-origin':'*'}});
+  }
+}
+
 async function handleApi(request: Request, env: Env) {
   const url = new URL(request.url);
+
+  if (url.pathname === '/tv-stream') return handleTvStream(request);
 
   // Keep production liveness/readiness deterministic in the Worker runtime.
   // These two endpoints must never depend on dynamic module loading: a module
@@ -375,6 +478,7 @@ export default {
     }
 
     try {
+      if (url.pathname === '/tv-stream') return await handleTvStream(request);
       if (url.pathname.startsWith('/api/')) {
         const limiter = (env as any).RATE_LIMITER;
         if (limiter?.limit && url.pathname !== '/api/health' && url.pathname !== '/api/ready') {
