@@ -47,3 +47,27 @@ jobs:
           deno check --node-modules-dir=none supabase/functions/_shared/federation-security.ts
       - name: Run conformance tests
         run: deno test --node-modules-dir=none supabase/functions/_shared/activitypub-conformance.test.ts
+      - name: Probe production ActivityPub contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="https://testagram.site"
+          get() {
+            local path="$1" expected="$2" accept="$3"
+            local headers body status
+            headers="$(mktemp)"; body="$(mktemp)"
+            status="$(curl -sS --max-redirs 0 --connect-timeout 10 --max-time 30 -D "$headers" -o "$body" -w '%{http_code}' -H "Accept: $accept" "$base$path")"
+            echo "$path -> HTTP $status"
+            [[ "$status" == "$expected" ]] || { cat "$headers"; head -c 1000 "$body"; exit 1; }
+            rm -f "$headers" "$body"
+          }
+          get "/.well-known/webfinger?resource=acct:crissbeat@testagram.site" 200 "application/jrd+json"
+          get "/.well-known/nodeinfo" 200 "application/json"
+          get "/nodeinfo/2.0" 200 "application/json"
+          get "/nodeinfo/2.1" 200 "application/json"
+          get "/users/crissbeat" 200 "application/activity+json"
+          get "/users/crissbeat/outbox" 200 "application/activity+json"
+          inbox_status="$(curl -sS --max-redirs 0 --connect-timeout 10 --max-time 30 -o /dev/null -w '%{http_code}' "$base/inbox")"
+          echo "/inbox GET -> HTTP $inbox_status"
+          [[ "$inbox_status" == "405" ]] || exit 1
+          echo "Production ActivityPub discovery, actor, collection, and inbox contracts passed."
