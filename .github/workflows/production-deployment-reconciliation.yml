@@ -1091,6 +1091,30 @@ jobs:
           set -euo pipefail
           APP_ORIGIN="https://testagram.site"
 
+          # The public origin itself is a first-class production contract. A healthy
+          # API is not sufficient if the browser root is accidentally routed to an
+          # API/edge handler and returns a JSON 404/Not Found response.
+          homepage_status="$(curl --silent --show-error --location --connect-timeout 10 --max-time 30 \
+            -H 'Accept: text/html,application/xhtml+xml' \
+            -o /tmp/testagram-homepage.html -w '%{http_code}' \
+            "$APP_ORIGIN/")"
+          [[ "$homepage_status" == "200" ]] || {
+            echo "::error::Production homepage returned HTTP $homepage_status; expected 200."
+            head -c 2000 /tmp/testagram-homepage.html || true
+            exit 1
+          }
+          grep -qi '<html' /tmp/testagram-homepage.html || {
+            echo "::error::Production homepage returned 200 but did not contain HTML; possible API/JSON route leakage."
+            head -c 2000 /tmp/testagram-homepage.html || true
+            exit 1
+          }
+          if grep -qE '^\\s*\\{.*"(error|message)"\\s*:' /tmp/testagram-homepage.html; then
+            echo "::error::Production homepage returned an error JSON payload instead of the application shell."
+            head -c 2000 /tmp/testagram-homepage.html || true
+            exit 1
+          fi
+          echo "Production homepage contract passed (HTTP 200 HTML shell)."
+
           for endpoint in "/api/health" "/api/ready"; do
             status="$(curl --silent --show-error --location --connect-timeout 10 --max-time 30               -o /tmp/testagram-api-response.json -w '%{http_code}' "$APP_ORIGIN$endpoint")"
             [[ "$status" == "200" ]] || {
