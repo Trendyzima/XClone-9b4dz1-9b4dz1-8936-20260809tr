@@ -74,7 +74,7 @@ function candidateScore(item: any) {
   const freshness = Math.exp(-ageHours / 36) * 12;
   const sourceBoost = ['following-local','following-thread','following-federated','following-community','following-hashtag-local'].includes(item.source) ? 12
     : item.source === 'recommendation' ? 8 : item.source === 'thread' ? 3 : 0;
-  const federationBoost = item.source === 'following-federated' ? 3 : item.source === 'federated' ? 1 : 0;
+  // Remote discovery must compete on equal footing with local discovery.\n  // Followed federation gets the strongest signal; fresh public federation still\n  // receives a meaningful boost instead of the historical zero-affinity score.\n  const federationBoost = item.source === 'following-federated' ? 16 : item.source === 'federated' ? 10 : 0;
   return affinity + sourceBoost + federationBoost + freshness + engagement + Number(d.recommendation_score ?? 0) * 5;
 }
 
@@ -125,13 +125,25 @@ function blend(items: any[], limit: number) {
     if (shouldPriority) prioritySlots += 1;
   }
 
-  return out;
+  // Home is a mixed feed, but federation is a first-class source. If the
+  // candidate set contains remote posts, guarantee at least one remote item
+  // survives the first page. Prefer followed federation; otherwise use the
+  // strongest discovery item. Insert it into the middle of the feed so this is
+  // an organic blend, not a hard "Fediverse card at the top" rule.
+  const fedCandidates = ranked.filter((x) => x?.type === 'fedpost');
+  if (fedCandidates.length && !out.some((x) => x?.type === 'fedpost')) {
+    const guaranteed = fedCandidates[0];
+    const insertAt = Math.min(Math.max(1, Math.floor(out.length / 2)), out.length);
+    out.splice(insertAt, 0, { type: guaranteed.type, data: { ...guaranteed.data, feed_source: guaranteed.source } });
+  }
+
+  return out.slice(0, limit);
 }
 
 function injectFollowing(discovery: any[], following: any[], limit: number) {
-  // No fixed 50% reservation. Following content receives an affinity boost
-  // inside the same global ranking as local, recommended, and federated content.
-  // This makes federation organic rather than a separate lane.
+  // Following content—including followed Fediverse actors—enters the same
+  // ranking as local discovery, but with a materially higher affinity score.
+  // The blend function guarantees a remote item when federation has candidates.
   const all = [...following, ...discovery];
   const deduped: any[] = [];
   const seen = new Set<string>();
@@ -284,7 +296,7 @@ export default async function handler(request: RequestLike) {
             return await response.json();
           } catch (error) {
             console.warn('[home-feed] federated source degraded', error);
-            return { items: [], pagination: { hasMore: false, nextCursor: null } };
+            return { items: [], pagination: { hasMore: false, nextCursor: null }, _meta: { error: error instanceof DOMException && error.name === 'AbortError' ? 'timeout' : 'fetch_error', message: String(error) } };
           } finally {
             clearTimeout(timer);
           }
@@ -414,7 +426,7 @@ export default async function handler(request: RequestLike) {
     const fed = fedItems.map((p: any) => ({
       type: 'fedpost',
       source: p.feed_source === 'following_actor' || p.feed_source === 'following_hashtag' ? 'following-federated' : 'federated',
-      affinityScore: p.feed_source === 'following_actor' || p.feed_source === 'following_hashtag' ? 46 : 0,
+      affinityScore: p.feed_source === 'following_actor' || p.feed_source === 'following_hashtag' ? 58 : 14,
       data: {
         ...p,
         id: p.id ?? p.uri,
@@ -425,7 +437,7 @@ export default async function handler(request: RequestLike) {
         image_url: p.image_url ?? p.preview_image_url ?? p.thumbnail_url,
         video_url: p.video_url ?? p.videoUrl,
         is_video: Boolean(p.is_video || p.video_url || p.videoUrl),
-        is_federated: true,
+        is_federated: true,\n        is_federated_discovery: true,
       },
     }));
 
@@ -437,7 +449,7 @@ export default async function handler(request: RequestLike) {
       ...fed.filter((item: any) => item.source === 'following-federated'),
     ];
     const discovery = [...recommendations, ...local, ...threads, ...fed.filter((item: any) => item.source !== 'following-federated')];
-    const items = injectFollowing(discovery, followed, limit);
+    const items = injectFollowing(discovery, followed, limit);\n    const fedCandidateCount = fed.length;\n    const followedFederatedCandidateCount = fed.filter((item: any) => item.source === 'following-federated').length;\n    const discoveryFederatedCandidateCount = fedCandidateCount - followedFederatedCandidateCount;\n    const renderedFederatedCount = items.filter((item: any) => item.type === 'fedpost').length;\n    const federationLatencyMs = Number(fedResult?._meta?.latencyMs ?? (includeFederated ? Date.now() - federationStarted : 0));
     const lastPost = postsResult.data?.at(-1)?.created_at;
     const lastThread = threadsResult.data?.at(-1)?.created_at;
     const nextFed = fedResult?.pagination?.nextCursor ?? null;
