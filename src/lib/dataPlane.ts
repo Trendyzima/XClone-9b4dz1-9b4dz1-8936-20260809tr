@@ -42,6 +42,7 @@ export const PUBLIC_READ_FALLBACK_TABLES = new Set([
   'podcast_episodes',
   'news_items',
   'content_recommendations',
+  'tv_channel_reactions',
 ]);
 
 export function clientFor(plane: DataPlane) {
