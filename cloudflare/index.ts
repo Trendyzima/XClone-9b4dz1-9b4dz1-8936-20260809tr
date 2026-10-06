@@ -207,7 +207,14 @@ function supabaseRewrite(pathname: string) {
   if (pathname === '/.well-known/oauth-authorization-server') return '/functions/v1/mastodon-api/.well-known/oauth-authorization-server';
   if (pathname === '/nodeinfo/2.0') return '/functions/v1/mastodon-federation/nodeinfo/2.0';
   if (pathname === '/nodeinfo/2.1') return '/functions/v1/mastodon-federation/nodeinfo/2.1';
-  if (pathname === '/inbox') return '/functions/v1/mastodon-federation/inbox';
+  // ActivityPub delivery endpoints are owned by the hardened inbox verifier.
+  // Do not send public inbox traffic through the read-only discovery/actor function:
+  // that function historically returned 404 for /inbox when its deployed revision
+  // did not contain the POST relay. Keeping the write endpoint explicit makes the
+  // public contract independent of the discovery function's route table.
+  if (pathname === '/inbox' || /^\/users\/[^/]+\/inbox\/?$/.test(pathname)) {
+    return '/functions/v1/federation-inbox';
+  }
   if (pathname === '/outbox') return '/functions/v1/mastodon-federation/outbox';
 
   const user = pathname.match(/^\/users\/([^/]+)(\/.*)?$/);
