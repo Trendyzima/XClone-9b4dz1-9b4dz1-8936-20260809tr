@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import type { ComponentProps, ComponentType } from 'react';
 import { ArrowLeft, CheckCircle2, Eye, EyeOff, KeyRound, Loader2, Mail, ShieldCheck, Smartphone, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,7 @@ function BrandMark() {
   );
 }
 
-function Field({ icon: Icon, ...props }: React.ComponentProps<typeof Input> & { icon: React.ComponentType<{ className?: string }> }) {
+function Field({ icon: Icon, ...props }: ComponentProps<typeof Input> & { icon: ComponentType<{ className?: string }> }) {
   return <div className="relative"><Icon className="pointer-events-none absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input {...props} className={'h-13 rounded-2xl border-border/70 bg-background/80 pl-11 pr-4 shadow-sm transition focus-visible:ring-2 focus-visible:ring-primary/30 ' + (props.className || '')} /></div>;
 }
 
