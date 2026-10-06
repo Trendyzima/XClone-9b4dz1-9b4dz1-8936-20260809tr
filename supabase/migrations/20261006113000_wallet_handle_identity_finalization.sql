@@ -144,15 +144,17 @@ begin
     raise exception 'INVALID_WALLET_HANDLE';
   end if;
 
-  account_id := public.resolve_wallet_handle(h,'KES');
-  select wa.user_id,wa.status,p.username
-    into account_user_id,account_status,username
+  select wa.id,wa.user_id,wa.status,p.username
+    into account_id,account_user_id,account_status,username
   from public.wallet_accounts wa join public.profiles p on p.id=wa.user_id
-  where wa.id=account_id;
+  where wa.account_type='USER'
+    and wa.currency='KES'
+    and wa.status='ACTIVE'
+    and (lower(p.username)=h or lower(wa.wallet_address)=lower(btrim(p_handle)))
+  order by wa.created_at
+  limit 1;
 
-  if account_user_id is null or coalesce(account_status,'')<>'ACTIVE' then
-    raise exception 'WALLET_IDENTITY_NOT_READY';
-  end if;
+  if account_user_id is null then raise exception 'WALLET_HANDLE_NOT_FOUND'; end if;
 
   perform private.ensure_user_wallet_identity(account_user_id);
   select w.id into wallet_id from public.wallets w where w.user_id=account_user_id::text limit 1;
