@@ -26,6 +26,8 @@ public final class TestagramFirebaseMessagingService extends FirebaseMessagingSe
     public static final String PREFS = "testagram_push";
     public static final String TOKEN_KEY = "fcm_token";
     public static final String CHANNEL_ID = "testagram_notifications";
+    public static final String URGENT_CHANNEL_ID = "testagram_notifications_urgent";
+    public static final String UPDATES_CHANNEL_ID = "testagram_notifications_updates";
     public static final String EXTRA_PUSH_URL = "testagram_push_url";
     private static final String DEFAULT_TITLE = "Testagram";
 
@@ -56,7 +58,9 @@ public final class TestagramFirebaseMessagingService extends FirebaseMessagingSe
     }
 
     private void showNotification(String title, String body, Map<String, String> data) {
-        ensureNotificationChannel();
+        String kind = firstNonBlank(data.get("type"), data.get("event_name"), "notification");
+        String channelId = channelFor(kind);
+        ensureNotificationChannels();
 
         Intent intent = new Intent(this, MainActivity.class);
         intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
@@ -78,12 +82,12 @@ public final class TestagramFirebaseMessagingService extends FirebaseMessagingSe
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
         );
 
-        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, channelId)
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentTitle(title)
                 .setContentText(body)
                 .setStyle(new NotificationCompat.BigTextStyle().bigText(body))
-                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .setPriority(isUrgent(kind) ? NotificationCompat.PRIORITY_HIGH : NotificationCompat.PRIORITY_DEFAULT)
                 .setAutoCancel(true)
                 .setContentIntent(pendingIntent);
 
@@ -106,19 +110,35 @@ public final class TestagramFirebaseMessagingService extends FirebaseMessagingSe
         }
     }
 
-    private void ensureNotificationChannel() {
+    private void ensureNotificationChannels() {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
-
         NotificationManager manager = getSystemService(NotificationManager.class);
         if (manager == null) return;
+        NotificationChannel normal = new NotificationChannel(CHANNEL_ID, "Testagram notifications", NotificationManager.IMPORTANCE_DEFAULT);
+        normal.setDescription("Routine Testagram activity and social notifications.");
+        NotificationChannel urgent = new NotificationChannel(URGENT_CHANNEL_ID, "Testagram important alerts", NotificationManager.IMPORTANCE_HIGH);
+        urgent.setDescription("Wallet, security, messages and other time-sensitive Testagram alerts.");
+        NotificationChannel updates = new NotificationChannel(UPDATES_CHANNEL_ID, "Testagram updates", NotificationManager.IMPORTANCE_DEFAULT);
+        updates.setDescription("Product announcements, feature updates and Testagram news.");
+        manager.createNotificationChannel(normal);
+        manager.createNotificationChannel(urgent);
+        manager.createNotificationChannel(updates);
+    }
 
-        NotificationChannel channel = new NotificationChannel(
-                CHANNEL_ID,
-                "Testagram notifications",
-                NotificationManager.IMPORTANCE_DEFAULT
-        );
-        channel.setDescription("Messages, mentions, follows, calls and other Testagram alerts.");
-        manager.createNotificationChannel(channel);
+    private static boolean isUrgent(String kind) {
+        String k = kind == null ? "" : kind.toLowerCase();
+        return k.contains("security") || k.contains("blocked") || k.contains("fraud")
+                || k.contains("payment") || k.contains("wallet") || k.contains("payout")
+                || k.contains("mpesa") || k.contains("ride") || k.contains("order")
+                || k.contains("message") || k.contains("call") || k.contains("mention");
+    }
+
+    private static String channelFor(String kind) {
+        String k = kind == null ? "" : kind.toLowerCase();
+        if (isUrgent(k)) return URGENT_CHANNEL_ID;
+        if (k.contains("campaign") || k.contains("announcement") || k.contains("update")
+                || k.contains("news") || k.contains("release")) return UPDATES_CHANNEL_ID;
+        return CHANNEL_ID;
     }
 
     private static String firstNonBlank(String... values) {
