@@ -11,6 +11,7 @@ import { CommunitySpotlightStrip } from '@/components/features/CommunitySpotligh
 import { LiveSpaceBanner } from '@/components/features/LiveSpaceBanner';
 import { formatDistanceToNow } from 'date-fns';
 import { supabase, supabaseSecondary } from '@/lib/supabase';
+import { readPublicExpansion } from '@/lib/dataPlane';
 import { formatNumber } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -63,8 +64,34 @@ function ExploreMarketplace({ searchQuery, navigate }: { searchQuery: string; na
         .order('views_count', { ascending: false })
         .limit(20);
       if (catFilter !== 'all') query = query.eq('category', catFilter);
-      const { data } = await query;
-      if (!cancelled) { setProducts(data ?? []); setLoading(false); }
+
+      const result = await readPublicExpansion(
+        'products',
+        (client) => query,
+        (client) => client
+          .from('products')
+          .select('id, owner_id, name, description, image_url, external_url, price_cents, currency, created_at')
+          .order('created_at', { ascending: false })
+          .limit(20),
+      );
+      const primaryProducts = Array.isArray(result.primary) ? result.primary : [];
+      const secondaryProducts = Array.isArray(result.secondary)
+        ? result.secondary.map((p: any) => ({
+            ...p,
+            user_profiles: {
+              id: p.owner_id,
+              username: 'legacy_testagram',
+              display_name: 'Testagram',
+              avatar_url: null,
+              verified_tier: 'none',
+            },
+            _data_plane: 'secondary',
+          }))
+        : [];
+      const mergedProducts = [...primaryProducts, ...secondaryProducts]
+        .filter((p: any, index: number, all: any[]) => all.findIndex((x: any) => String(x.id) === String(p.id)) === index)
+        .slice(0, 20);
+      if (!cancelled) { setProducts(mergedProducts); setLoading(false); }
     })();
     return () => { cancelled = true; };
   }, [catFilter]);
