@@ -56,7 +56,25 @@ async function verifyRfc9421(req:Request,raw:string,actor:string,signatureTarget
   const a=await federationJson(actor);if(!actorKeyMatches(a,actor))throw Error("remote actor key invalid");
   const key=await crypto.subtle.importKey("spki",pem(a.publicKey.publicKeyPem),{name:"RSASSA-PKCS1-v1_5",hash:"SHA-256"},false,["verify"]);
   const target=signatureTarget || new URL(req.url).toString();
-  const base=`"@method": ${req.method}\n"@target-uri": ${target}\n"content-digest": ${digest}\n"@signature-params": ${params}`;
+  const requestUrl=new URL(target);
+  const signedLines:string[]=[];
+  for(const component of comps){
+    if(component==="@method") signedLines.push(`"@method": ${req.method.toUpperCase()}`);
+    else if(component==="@target-uri") signedLines.push(`"@target-uri": ${target}`);
+    else if(component==="@authority") signedLines.push(`"@authority": ${requestUrl.host}`);
+    else if(component==="@scheme") signedLines.push(`"@scheme": ${requestUrl.protocol.replace(/:$/,"")}`);
+    else if(component==="@path") signedLines.push(`"@path": ${requestUrl.pathname}`);
+    else if(component==="@query") signedLines.push(`"@query": ${requestUrl.search?requestUrl.search.slice(1):""}`);
+    else if(component==="@query-param"){
+      const eq=component.indexOf("="); if(eq<0)throw Error("unsupported @query-param component");
+    } else {
+      const value=req.headers.get(component);
+      if(value===null)throw Error(`signed header missing: ${component}`);
+      signedLines.push(`"${component}": ${value}`);
+    }
+  }
+  signedLines.push(`"@signature-params": ${params}`);
+  const base=signedLines.join("\n");
   if(!await crypto.subtle.verify("RSASSA-PKCS1-v1_5",key,ub64(sm[1]),new TextEncoder().encode(base)))throw Error("RFC9421 signature invalid");
 }
 async function verify(req:Request,raw:string,actor:string){
