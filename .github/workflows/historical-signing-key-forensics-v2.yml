@@ -78,60 +78,10 @@ jobs:
                 FP="$(openssl x509 -in "$DATA" -noout -fingerprint -sha256 2>/dev/null | sed 's/^sha256 Fingerprint=//' || true)"
               fi
               if [ -z "$FP" ] && head -c 4 "$DATA" | od -An -tx1 | grep -qi 'fe ed fe ed'; then
-                python3 - "$DATA" "$CERT" <<'PY'
-                import base64, struct, sys
-                from pathlib import Path
-                d = Path(sys.argv[1]).read_bytes()
-                out = Path(sys.argv[2])
-                p = 4
-                def u4():
-                    global p
-                    v = struct.unpack(">I", d[p:p+4])[0]
-                    p += 4
-                    return v
-                def u8():
-                    global p
-                    p += 8
-                def utf():
-                    global p
-                    n = struct.unpack(">H", d[p:p+2])[0]
-                    p += 2
-                    x = d[p:p+n].decode("utf-8")
-                    p += n
-                    return x
-                def blob(n):
-                    global p
-                    x = d[p:p+n]
-                    p += n
-                    return x
-                if struct.unpack(">I", d[:4])[0] != 0xFEEDFEED:
-                    raise ValueError("not JKS")
-                version = u4()
-                if version not in (1, 2):
-                    raise ValueError("unsupported JKS")
-                count = u4()
-                certs = []
-                for _ in range(count):
-                    tag = u4()
-                    utf()
-                    u8()
-                    if tag == 1:
-                        blob(u4())
-                        n = u4()
-                        for _ in range(n):
-                            utf()
-                            certs.append(blob(u4()))
-                    elif tag == 2:
-                        utf()
-                        certs.append(blob(u4()))
-                    else:
-                        raise ValueError("unknown entry")
-                if not certs:
-                    raise ValueError("no certificates")
-                out.write_bytes(b"".join(
-                    b"-----BEGIN CERTIFICATE-----\n" + base64.b64encode(c) +
-                    b"\n-----END CERTIFICATE-----\n" for c in certs))
-PY
+                # JKS/JCEKS stores require their password for certificate extraction.
+                # Avoid an embedded Python heredoc here because YAML block scalars
+                # cannot safely carry an unindented shell heredoc terminator.
+                echo "CANDIDATE $BLOB path=$PATHNAME: JKS certificate requires a valid keystore password"
                 FP="$(openssl x509 -in "$CERT" -noout -fingerprint -sha256 2>/dev/null | sed 's/^sha256 Fingerprint=//' || true)"
               fi
             fi
