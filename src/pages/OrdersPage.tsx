@@ -79,12 +79,12 @@ function OrderDetailSheet({ order, isSeller, onClose, navigate, onStatusUpdate }
 
   const handleStatusChange = async (newStatus: string) => {
     setUpdating(true);
-    const { error } = await supabase.from('orders').update({
-      status: newStatus,
-      ...(newStatus === 'shipped'   ? { shipped_at:   new Date().toISOString() } : {}),
-      ...(newStatus === 'delivered' ? { delivered_at: new Date().toISOString() } : {}),
-    }).eq('id', order.id);
-    if (error) { toast.error(error.message); setUpdating(false); return; }
+    const { error } = await supabase.rpc('advance_marketplace_order', {
+      p_order_id: order.id,
+      p_next_status: newStatus,
+      p_reason: null,
+    });
+    if (error) { toast.error(error.message.replace(/_/g, ' ').toLowerCase()); setUpdating(false); return; }
     supabase.functions.invoke('send-push-notification', {
       body: {
         user_id: order.buyer_id,
@@ -503,15 +503,12 @@ function SellerOrderCard({ order, onStatusUpdate, navigate, onDetail }: {
 
   const handleStatusChange = async (newStatus: string) => {
     setUpdating(true);
-    const { error } = await supabase
-      .from('orders')
-      .update({
-        status: newStatus,
-        ...(newStatus === 'shipped'   ? { shipped_at:   new Date().toISOString() } : {}),
-        ...(newStatus === 'delivered' ? { delivered_at: new Date().toISOString() } : {}),
-      })
-      .eq('id', order.id);
-    if (error) { toast.error(error.message); setUpdating(false); return; }
+    const { error } = await supabase.rpc('advance_marketplace_order', {
+      p_order_id: order.id,
+      p_next_status: newStatus,
+      p_reason: null,
+    });
+    if (error) { toast.error(error.message.replace(/_/g, ' ').toLowerCase()); setUpdating(false); return; }
 
     // Notify buyer in-app
     await supabase.from('notifications').insert({ recipient_id: order.buyer_id, kind: 'payment_sent', actor_id: order.seller_id,
