@@ -21,6 +21,9 @@ export function MarketplaceDeliveryTracker({ deliveryId, compact=false }: { deli
   const [loading,setLoading]=useState(true);
   const [busy,setBusy]=useState(false);
   const [withdrawResult,setWithdrawResult]=useState<{gross:number;fee:number;net:number;currency:string}|null>(null);
+  const [deliveryCode,setDeliveryCode]=useState('');
+  const [codeBusy,setCodeBusy]=useState(false);
+  const [issuedCode,setIssuedCode]=useState<string|null>(null);
 
   useEffect(() => {
     let alive=true;
@@ -51,6 +54,26 @@ export function MarketplaceDeliveryTracker({ deliveryId, compact=false }: { deli
     },()=>undefined,{enableHighAccuracy:true,maximumAge:5000,timeout:15000});
     return()=>{if(watch!=null) navigator.geolocation.clearWatch(watch);};
   },[user,delivery,sharing]);
+
+  const issueDeliveryCode=async()=>{
+    if(!delivery||!isBuyer||codeBusy) return;
+    setCodeBusy(true);
+    const {data,error}=await supabase.rpc('issue_marketplace_delivery_code',{p_delivery_id:delivery.id});
+    setCodeBusy(false);
+    if(error){toast.error(error.message.replace(/_/g,' ').toLowerCase());return;}
+    setIssuedCode(String(data?.code||''));
+    toast.success('Secure delivery code generated. Give it to the courier only after you receive the package.');
+  };
+
+  const verifyDeliveryCode=async()=>{
+    if(!delivery||!isCourier||codeBusy) return;
+    setCodeBusy(true);
+    const {error}=await supabase.rpc('verify_marketplace_delivery_code',{p_delivery_id:delivery.id,p_code:deliveryCode.trim()});
+    setCodeBusy(false);
+    if(error){toast.error(error.message.replace(/_/g,' ').toLowerCase());return;}
+    setDeliveryCode('');
+    toast.success('Delivery verified. Buyer confirmation can now release seller escrow.');
+  };
 
   const confirmDelivery=async()=>{
     if(!delivery||!user||user.id!==delivery.buyer_id||busy) return;
@@ -125,7 +148,15 @@ export function MarketplaceDeliveryTracker({ deliveryId, compact=false }: { deli
 
     {isCourier&&delivery.status!=='delivered'&&delivery.status!=='cancelled'&&<button className="mt-3 rounded-xl border px-4 py-2 text-xs font-bold" onClick={()=>setSharing(v=>!v)}>{sharing?'Stop sharing location':'Start live location'}</button>}
 
-    {isBuyer&&delivery.status!=='delivered'&&delivery.status!=='cancelled'&&delivery.courier_id&&<button disabled={busy} onClick={()=>void confirmDelivery()} className="mt-3 w-full rounded-xl bg-emerald-600 px-4 py-3 text-xs font-black text-white disabled:opacity-50">{busy?'Confirming securely…':'Confirm delivery & release courier payout'}</button>}
+    {isBuyer&&delivery.status!=='delivered'&&delivery.status!=='cancelled'&&delivery.courier_id&&<div className="mt-3 space-y-2">
+      <button disabled={codeBusy} onClick={()=>void issueDeliveryCode()} className="w-full rounded-xl border border-primary/30 px-4 py-3 text-xs font-black text-primary disabled:opacity-50">{codeBusy?'Generating secure code…':'Generate secure delivery code'}</button>
+      {issuedCode&&<div className="rounded-2xl border bg-primary/5 p-4 text-center"><p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">Give this code to the courier after you receive the package</p><p className="mt-2 text-3xl font-black tracking-[0.35em]">{issuedCode}</p><p className="mt-1 text-[11px] text-muted-foreground">One-time · expires in 60 minutes</p></div>}
+    </div>}
+    {isCourier&&delivery.status!=='delivered'&&delivery.status!=='cancelled'&&delivery.courier_id===user?.id&&<div className="mt-3 space-y-2">
+      <input inputMode="numeric" maxLength={6} value={deliveryCode} onChange={e=>setDeliveryCode(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="6-digit buyer delivery code" className="w-full rounded-xl border bg-background px-4 py-3 text-sm text-center tracking-[0.3em] font-bold" />
+      <button disabled={codeBusy||deliveryCode.length!==6} onClick={()=>void verifyDeliveryCode()} className="w-full rounded-xl bg-emerald-600 px-4 py-3 text-xs font-black text-white disabled:opacity-50">{codeBusy?'Verifying…':'Verify code & mark delivered'}</button>
+    </div>}
+    {isBuyer&&delivery.status==='delivered'&&delivery.delivery_verified_at&&<button disabled={busy} onClick={()=>void confirmDelivery()} className="mt-3 w-full rounded-xl bg-emerald-600 px-4 py-3 text-xs font-black text-white disabled:opacity-50">{busy?'Confirming securely…':'Confirm receipt & release seller escrow'}</button>}
 
     {delivery.courier_id&&user&&user.id!==delivery.courier_id&&active&&<button disabled={busy} onClick={()=>void reportBypass()} className="mt-2 w-full rounded-xl border border-destructive/30 px-4 py-2 text-xs font-bold text-destructive disabled:opacity-50">Report off-platform payment / cash request</button>}
 
