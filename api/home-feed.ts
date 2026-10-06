@@ -74,7 +74,10 @@ function candidateScore(item: any) {
   const freshness = Math.exp(-ageHours / 36) * 12;
   const sourceBoost = ['following-local','following-thread','following-federated','following-community','following-hashtag-local'].includes(item.source) ? 12
     : item.source === 'recommendation' ? 8 : item.source === 'thread' ? 3 : 0;
-  // Remote discovery must compete on equal footing with local discovery.\n  // Followed federation gets the strongest signal; fresh public federation still\n  // receives a meaningful boost instead of the historical zero-affinity score.\n  const federationBoost = item.source === 'following-federated' ? 16 : item.source === 'federated' ? 10 : 0;
+  // Remote discovery must compete on equal footing with local discovery.
+  // Followed federation gets the strongest signal; fresh public federation still
+  // receives a meaningful boost instead of the historical zero-affinity score.
+  const federationBoost = item.source === 'following-federated' ? 16 : item.source === 'federated' ? 10 : 0;
   return affinity + sourceBoost + federationBoost + freshness + engagement + Number(d.recommendation_score ?? 0) * 5;
 }
 
@@ -284,7 +287,7 @@ export default async function handler(request: RequestLike) {
     const federatedPromise = includeFederated
       ? (async () => {
           const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), 2500);
+          const timer = setTimeout(() => controller.abort(), 6500);
           try {
             const response = await fetch(SUPABASE_URL + '/functions/v1/federated-feed?' + fedQuery, {
               headers: auth
@@ -292,8 +295,12 @@ export default async function handler(request: RequestLike) {
                 : { apikey: SUPABASE_ANON_KEY },
               signal: controller.signal,
             });
-            if (!response.ok) return { items: [], pagination: { hasMore: false, nextCursor: null } };
-            return await response.json();
+            if (!response.ok) {
+              console.warn('[home-feed] federated source http', response.status);
+              return { items: [], pagination: { hasMore: false, nextCursor: null }, _meta: { error: `http_${response.status}` } };
+            }
+            const payload = await response.json();
+            return { ...payload, _meta: { ...(payload?._meta || {}), latencyMs: Date.now() - federationStarted } };
           } catch (error) {
             console.warn('[home-feed] federated source degraded', error);
             return { items: [], pagination: { hasMore: false, nextCursor: null }, _meta: { error: error instanceof DOMException && error.name === 'AbortError' ? 'timeout' : 'fetch_error', message: String(error) } };
@@ -437,7 +444,8 @@ export default async function handler(request: RequestLike) {
         image_url: p.image_url ?? p.preview_image_url ?? p.thumbnail_url,
         video_url: p.video_url ?? p.videoUrl,
         is_video: Boolean(p.is_video || p.video_url || p.videoUrl),
-        is_federated: true,\n        is_federated_discovery: true,
+        is_federated: true,
+        is_federated_discovery: true,
       },
     }));
 
@@ -449,7 +457,17 @@ export default async function handler(request: RequestLike) {
       ...fed.filter((item: any) => item.source === 'following-federated'),
     ];
     const discovery = [...recommendations, ...local, ...threads, ...fed.filter((item: any) => item.source !== 'following-federated')];
-    const items = injectFollowing(discovery, followed, limit);\n    const fedCandidateCount = fed.length;\n    const followedFederatedCandidateCount = fed.filter((item: any) => item.source === 'following-federated').length;\n    const discoveryFederatedCandidateCount = fedCandidateCount - followedFederatedCandidateCount;\n    const renderedFederatedCount = items.filter((item: any) => item.type === 'fedpost').length;\n    const federationLatencyMs = Number(fedResult?._meta?.latencyMs ?? (includeFederated ? Date.now() - federationStarted : 0));
+    const items = injectFollowing(discovery, followed, limit);
+    const fedCandidateCount = fed.length;
+    const followedFederatedCandidateCount = fed.filter((item: any) => item.source === 'following-federated').length;
+    const discoveryFederatedCandidateCount = fedCandidateCount - followedFederatedCandidateCount;
+    const renderedFederatedCount = items.filter((item: any) => item.type === 'fedpost').length;
+    const federationLatencyMs = Number(fedResult?._meta?.latencyMs ?? (includeFederated ? Date.now() - federationStarted : 0));
+    const fedCandidateCount = fed.length;
+    const followedFederatedCandidateCount = fed.filter((item: any) => item.source === 'following-federated').length;
+    const discoveryFederatedCandidateCount = fedCandidateCount - followedFederatedCandidateCount;
+    const renderedFederatedCount = items.filter((item: any) => item.type === 'fedpost').length;
+    const federationLatencyMs = Number(fedResult?._meta?.latencyMs ?? (includeFederated ? Date.now() - federationStarted : 0));
     const lastPost = postsResult.data?.at(-1)?.created_at;
     const lastThread = threadsResult.data?.at(-1)?.created_at;
     const nextFed = fedResult?.pagination?.nextCursor ?? null;
@@ -466,7 +484,15 @@ export default async function handler(request: RequestLike) {
       hasMore,
       nextCursor,
       latencyMs: Date.now() - started,
-      algorithm: 'follow-affinity-recommendation-v5-cross-surface',
+      algorithm: 'follow-affinity-recommendation-v6-federation-first-class',
+      instrumentation: {
+        federatedCandidatesFetched: fedCandidateCount,
+        followedFederatedCandidates: followedFederatedCandidateCount,
+        discoveryFederatedCandidates: discoveryFederatedCandidateCount,
+        federatedCandidatesRendered: renderedFederatedCount,
+        federationQueryLatencyMs: federationLatencyMs,
+        federationError: fedResult?._meta?.error ?? null,
+      },
     }, 200, request);
   } catch (error) {
     console.error('[home-feed]', error);
