@@ -15,7 +15,8 @@ const TYPES = [['reach','Reach','Maximize impressions'],['engagement','Engagemen
 export default function BoostCreatePage() {
   useSEO({ noindex: true, title: 'Create Boost Campaign', url: '/boost-create' });
   const { user } = useAuth(); const navigate = useNavigate(); const [params] = useSearchParams();
-  const postId=params.get('post_id')??''; const [post,setPost]=useState<any>(null); const [wallet,setWallet]=useState(0);\n  const [creditDialogOpen,setCreditDialogOpen]=useState(false);
+  const postId=params.get('post_id')??''; const [post,setPost]=useState<any>(null); const [wallet,setWallet]=useState(0);
+  const [creditDialogOpen,setCreditDialogOpen]=useState(false);
   const [type,setType]=useState('reach'); const [daily,setDaily]=useState(100); const [days,setDays]=useState(7);
   const [ageMin,setAgeMin]=useState(18); const [ageMax,setAgeMax]=useState(55); const [interests,setInterests]=useState<string[]>([]);
   const [busy,setBusy]=useState(false); const [done,setDone]=useState(false); const total=daily*days;
