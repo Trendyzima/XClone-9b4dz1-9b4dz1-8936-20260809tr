@@ -8,10 +8,6 @@ on:
     types: [closed]
   workflow_dispatch:
     inputs:
-      target_sha:
-        description: "Exact Git commit SHA to deploy and prove"
-        required: false
-        type: string
       force_federation_audit:
         description: "Force the full production ActivityPub contract audit"
         required: false
@@ -42,8 +38,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TARGET_SHA="${{ github.event.inputs.target_sha || github.sha }}"
-          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::target_sha must be a full SHA"; exit 1; }
+          TARGET_SHA="$GITHUB_SHA"
+          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::GitHub provided an invalid triggering SHA."; exit 1; }
+          echo "Production reconciliation is immutable: deploying only the commit that triggered this run ($TARGET_SHA)."
           echo "sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Checkout exact target revision
@@ -1216,3 +1213,6 @@ jobs:
 # Mall canonical-profile typecheck reconciliation: 2026-09-20.
 
 # Poll-card hydration + exact-SHA production reconciliation trigger: 2026-10-01.
+
+# Production reconciliation hardening: never deploy an arbitrary historical target SHA.
+# The workflow always reconciles the exact commit that triggered the run.
