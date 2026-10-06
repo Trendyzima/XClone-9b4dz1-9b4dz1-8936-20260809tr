@@ -49,6 +49,29 @@ export default function AuthPage() {
     if (params.get('reset') === '1') setMode('reset');
     const ref = params.get('ref')?.trim();
     if (ref) window.localStorage.setItem('testagram-referral-code', ref);
+
+    const tokenHash = params.get('token_hash')?.trim();
+    const tokenType = params.get('type')?.trim() as 'email' | 'signup' | 'magiclink' | 'recovery' | 'invite' | null;
+    if (!tokenHash || !tokenType) return;
+
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase.auth.verifyOtp({ token_hash: tokenHash, type: tokenType });
+        if (error) throw error;
+        if (!data.user) throw new Error('Verification succeeded but no user session was returned');
+        if (cancelled) return;
+        window.history.replaceState({}, document.title, tokenType === 'recovery' ? '/auth?reset=1' : '/auth');
+        await finishLogin(data.user);
+      } catch (error: any) {
+        if (!cancelled) {
+          setLoading(false);
+          toast({ title: 'Verification link expired', description: error?.message || 'Request a new verification email.', variant: 'destructive' });
+        }
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
