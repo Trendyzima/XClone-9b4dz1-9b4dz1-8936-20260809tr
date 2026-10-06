@@ -5,8 +5,9 @@ import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
-import { TrendingUp, Target, Calendar, DollarSign, Loader2 } from 'lucide-react';
+import { TrendingUp, Target, Calendar, DollarSign, Loader2, Coins } from 'lucide-react';
 import { PaymentDialog } from './PaymentDialog';
+import { CreditsBoostDialog } from './CreditsBoostDialog';
 import { useToast } from '@/hooks/use-toast';
 
 interface BoostPostDialogProps { open: boolean; onOpenChange: (open: boolean) => void; postId: string; }
@@ -17,6 +18,7 @@ export function BoostPostDialog({ open, onOpenChange, postId }: BoostPostDialogP
   const [budget, setBudget] = useState(10);
   const [duration, setDuration] = useState(7);
   const [showPayment, setShowPayment] = useState(false);
+  const [showCredits, setShowCredits] = useState(false);
   const [creating, setCreating] = useState(false);
   const [promotionId, setPromotionId] = useState<string | null>(null);
 
@@ -50,6 +52,16 @@ export function BoostPostDialog({ open, onOpenChange, postId }: BoostPostDialogP
       <DialogContent className="sm:max-w-lg">
         <DialogHeader><DialogTitle className="flex items-center gap-2"><TrendingUp className="w-5 h-5 text-primary" />Boost Your Post</DialogTitle></DialogHeader>
         <div className="space-y-6">
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+            <div className="flex items-center gap-2 font-semibold"><Coins className="w-4 h-4 text-primary" />Use your Testagram Credits</div>
+            <p className="text-sm text-muted-foreground mt-1">No wallet money required. Credits give the post an organic discovery ranking signal.</p>
+            <Button className="w-full mt-3" variant="outline" onClick={() => setShowCredits(true)}>
+              <Coins className="w-4 h-4 mr-2" /> Boost with Credits
+            </Button>
+          </div>
+
+          <div className="relative flex items-center gap-3 text-xs text-muted-foreground"><div className="h-px bg-border flex-1"/><span>or use wallet money</span><div className="h-px bg-border flex-1"/></div>
+
           <div className="space-y-3">
             <div className="flex items-center justify-between"><Label className="flex items-center gap-2"><DollarSign className="w-4 h-4" />Daily Budget</Label><span className="text-2xl font-bold">${budget}</span></div>
             <Slider value={[budget]} onValueChange={(value) => setBudget(value[0])} min={5} max={100} step={5} className="w-full" />
@@ -66,5 +78,6 @@ export function BoostPostDialog({ open, onOpenChange, postId }: BoostPostDialogP
       </DialogContent>
     </Dialog>
     <PaymentDialog open={showPayment} onOpenChange={setShowPayment} amount={budget * duration} type="boost_post" metadata={{ promotion_id: promotionId, post_id: postId, budget, duration, ad_platform: 'testagram' }} onSuccess={handlePaymentSuccess} />
+    <CreditsBoostDialog sourceType="post" sourceId={postId} open={showCredits} onOpenChange={setShowCredits} onSuccess={() => onOpenChange(false)} />
   </>);
 }
