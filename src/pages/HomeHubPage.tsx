@@ -13,7 +13,7 @@ import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import * as federation from '@/api/federation';
 import { Loader2, Sparkles, Users, ShoppingBag, BarChart3, RefreshCw, ArrowRight } from 'lucide-react';
 import { readHomeFeedCache, writeHomeFeedCache, saveHomeScroll, mergeHomeFeedItems, isHomeFeedCacheUsable } from '@/lib/homeFeedCache';
-import { FederatedOrganicCard, FederatedOrganicInjection, FederatedHashtagDiscovery } from '@/components/features/FederatedOrganicDiscovery';
+import { FederatedHashtagDiscovery } from '@/components/features/FederatedOrganicDiscovery';
 import { loadPublisherFeed, PublisherFeedCard, type FeedItem } from '@/components/features/PublisherFeedStream';
 import { TvPostStream } from '@/components/features/TvPostStream';
 import { NewsifyTrendingRail } from '@/components/features/NewsifyTrendingRail';
@@ -140,12 +140,12 @@ function HomeFeedItem({item,index,lastElementRef,tab,onUpdate,onNavigate}:{item:
   return <div ref={ref}>
     {item.type==='post'&&<PostCard post={item.data} onUpdate={onUpdate}/>}
     {item.type==='thread'&&<ThreadCard thread={item.data}/>}
-    {item.type==='fedpost'&&(item.data?.is_federated_discovery?<FederatedOrganicCard item={item.data}/>:<PostCard post={item.data} onUpdate={onUpdate}/>)}
+    {item.type==='fedpost'&&<PostCard post={item.data} onUpdate={onUpdate}/>} 
     {item.type==='community'&&<CommunityCard community={item.data} onOpen={()=>onNavigate('/c/'+item.data.name)}/>}
     {item.type==='poll'&&<FeedPollCard poll={item.data} postId={item.data?.post_id} repliesCount={item.data?.replies_count ?? 0} />}
     {item.type==='product'&&<ProductCard product={item.data} onOpen={()=>onNavigate('/p/'+item.data.id)}/>}
     {item.type==='publisher'&&<PublisherFeedCard item={item.data as FeedItem}/>}
-    {tab==='all'&&index>0&&index%4===0&&<FederatedOrganicInjection surface="home"/>}
+    
   </div>;
 }
 
