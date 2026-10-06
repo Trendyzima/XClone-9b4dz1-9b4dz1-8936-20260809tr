@@ -1002,6 +1002,20 @@ jobs:
             cat /tmp/testagram-worker-domain.json
             exit 1
           fi
+          echo "Purging previously cached public ActivityPub responses..."
+          purge_status="$(curl -sS -o /tmp/testagram-activitypub-purge.json -w '%{http_code}' \
+            -X POST \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            --data '{"files":["https://testagram.site/.well-known/webfinger","https://testagram.site/.well-known/nodeinfo","https://testagram.site/nodeinfo/2.0","https://testagram.site/nodeinfo/2.1","https://testagram.site/users/crissbeat","https://testagram.site/users/crissbeat/outbox","https://testagram.site/inbox","https://testagram.site/outbox"]}' \
+            "https://api.cloudflare.com/client/v4/zones/${{ secrets.CLOUDFLARE_ZONE_ID }}/purge_cache")"
+          if [[ "$purge_status" != "200" ]] || ! jq -e '.success == true' /tmp/testagram-activitypub-purge.json >/dev/null 2>&1; then
+            echo "::error::Cloudflare ActivityPub cache purge failed (HTTP $purge_status)."
+            cat /tmp/testagram-activitypub-purge.json
+            exit 1
+          fi
+          echo "ActivityPub cache purge completed successfully."
           echo "Verified Custom Domain testagram.site is attached to Worker testagram-web."
           echo "Cloudflare Worker deployment and Custom Domain reconciliation completed."
 
