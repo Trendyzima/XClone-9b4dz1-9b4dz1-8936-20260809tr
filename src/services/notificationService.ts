@@ -9,11 +9,15 @@ import type { NotificationEventInput, NotificationEventRecord } from '../types/n
 export async function emitNotification(input: NotificationEventInput): Promise<NotificationEventRecord> {
   const { data, error } = await supabase.rpc('create_domain_notification', {
     p_recipient_id: input.recipientId,
-    p_event_type: input.eventType,
+    p_kind: input.eventType,
     p_actor_id: input.actorId ?? null,
-    p_entity_type: input.entityType ?? null,
-    p_entity_id: input.entityId ?? null,
-    p_payload: input.payload ?? {},
+    p_post_id: input.entityType === 'post' ? input.entityId ?? null : null,
+    p_type: input.eventType,
+    p_data: {
+      ...(input.payload ?? {}),
+      ...(input.entityType ? { entity_type: input.entityType } : {}),
+      ...(input.entityId ? { entity_id: input.entityId } : {}),
+    },
     p_unique_key: input.uniqueKey ?? null,
   });
   if (error) throw new Error(`Notification enqueue failed: ${error.message}`);
