@@ -405,9 +405,11 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     : mediaUrls.find((url: string) => /\.(mp4|webm|mov|m4v|ogv)(?:[?#].*)?$/i.test(url));
   const hasVideo = Boolean((post as any).is_video || resolvedVideoUrl);
 
-  const boostLabel = post.is_boosted
-    ? post.boost_type === 'paid' ? 'Sponsored Content' : 'Boosted Content'
-    : null;
+  const boostLabel = (post as any).is_credit_boosted
+    ? 'Boosted Content'
+    : post.is_boosted
+      ? post.boost_type === 'paid' ? 'Sponsored Content' : 'Boosted Content'
+      : null;
 
   useEffect(() => {
     let cancelled = false;
