@@ -51,8 +51,10 @@ export default function AuthPage() {
     if (ref) window.localStorage.setItem('testagram-referral-code', ref);
 
     const tokenHash = params.get('token_hash')?.trim();
-    const tokenType = params.get('type')?.trim() as 'email' | 'signup' | 'magiclink' | 'recovery' | 'invite' | null;
-    if (!tokenHash || !tokenType) return;
+    const requestedTokenType = params.get('type')?.trim();
+    const allowedTokenTypes = new Set(['email', 'signup', 'magiclink', 'recovery', 'invite', 'email_change']);
+    if (!tokenHash || !requestedTokenType || !allowedTokenTypes.has(requestedTokenType)) return;
+    const tokenType = requestedTokenType as 'email' | 'signup' | 'magiclink' | 'recovery' | 'invite' | 'email_change';
 
     let cancelled = false;
     (async () => {
@@ -67,7 +69,7 @@ export default function AuthPage() {
       } catch (error: any) {
         if (!cancelled) {
           setLoading(false);
-          toast({ title: 'Verification link expired', description: error?.message || 'Request a new verification email.', variant: 'destructive' });
+          toast({ title: 'Verification link failed', description: error?.message || 'Request a new verification email.', variant: 'destructive' });
         }
       }
     })();
