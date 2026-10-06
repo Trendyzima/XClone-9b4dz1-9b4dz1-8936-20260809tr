@@ -892,7 +892,8 @@ jobs:
           fi
 
           echo "Cloudflare route reconciliation passed: apex/www have no competing or disabled route; testagram-web is authoritative."
-          echo "Cloudflare route API: GET/DELETE /zones/{zone_id}/workers/routes."      - name: Reconcile Resend DNS authentication for testagram.site
+          echo "Cloudflare route API: GET/DELETE /zones/{zone_id}/workers/routes."
+      - name: Reconcile Resend DNS authentication for testagram.site
         shell: bash
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
