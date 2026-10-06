@@ -82,8 +82,17 @@ export async function finalizeAuthenticatedSession(
 
   if (legalReadError) throw new Error(`Legal policy status lookup failed: ${legalReadError.message}`);
 
+  const birthDate = legalProfile?.birth_date ? new Date(legalProfile.birth_date + 'T00:00:00') : null;
+  const adultCutoff = new Date();
+  adultCutoff.setFullYear(adultCutoff.getFullYear() - 18);
+  const isAdult = !!birthDate && !Number.isNaN(birthDate.getTime()) && birthDate <= adultCutoff;
+
+  if (legalProfile?.birth_date && !isAdult) {
+    throw new Error('AGE_RESTRICTION');
+  }
+
   const alreadyAccepted =
-    !!legalProfile?.birth_date &&
+    isAdult &&
     !!legalProfile?.legal_terms_accepted_at &&
     !!legalProfile?.legal_privacy_accepted_at &&
     !!legalProfile?.legal_content_policy_accepted_at &&
