@@ -315,6 +315,7 @@ export default function ProfilePage() {
   const [loadingTips, setLoadingTips] = useState(false);
   const [profileViews7d, setProfileViews7d] = useState(0);
   const [showSubscribeDialog, setShowSubscribeDialog] = useState(false);
+  const [showCreditProfileBoost, setShowCreditProfileBoost] = useState(false);
   const [subscribing, setSubscribing] = useState(false);
   const [activeSubscription, setActiveSubscription] = useState(null);
   const [tipGoal, setTipGoal] = useState(null as number | null);
