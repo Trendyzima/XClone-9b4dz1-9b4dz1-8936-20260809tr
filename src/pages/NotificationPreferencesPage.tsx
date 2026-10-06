@@ -70,6 +70,18 @@ const NOTIF_GROUPS = [
     ],
   },
   {
+    label: 'Wallet & Security',
+    color: 'from-emerald-600/10 to-cyan-500/5 border-emerald-600/20',
+    types: [
+      { key: 'payment_received', label: 'Money received', description: 'When money reaches your wallet', iconFn: iconDollar, color: 'text-green-600' },
+      { key: 'wallet_credit', label: 'Wallet credits', description: 'When your wallet is credited', iconFn: iconDollar, color: 'text-green-600' },
+      { key: 'payout_pending', label: 'Payout processing', description: 'When a payout is being processed', iconFn: iconSmartphone, color: 'text-blue-600' },
+      { key: 'wallet_security_alert', label: 'Security alerts', description: 'Blocked or review-required wallet activity', iconFn: iconShield, color: 'text-red-500' },
+      { key: 'savings_activity', label: 'Savings', description: 'Changes to your savings balance', iconFn: iconGift, color: 'text-emerald-600' },
+      { key: 'reward_received', label: 'Wallet rewards', description: 'Rewards credited to your wallet', iconFn: iconGift, color: 'text-amber-500' },
+    ],
+  },
+  {
     label: 'Creator & Ads',
     color: 'from-orange-600/10 to-amber-500/5 border-orange-600/20',
     types: [
@@ -110,8 +122,8 @@ function buildDefaults(): NotifPref[] {
   return ALL_TYPES.map(key => ({
     notif_type: key,
     in_app: true,
-    push: ['like', 'follow', 'mention', 'reply', 'deposit_confirmed', 'payment_sent'].includes(key),
-    email: ['deposit_confirmed', 'payment_failed'].includes(key),
+    push: ['like', 'follow', 'mention', 'reply', 'deposit_confirmed', 'payment_sent', 'payment_received', 'wallet_credit', 'payout_pending', 'wallet_security_alert'].includes(key),
+    email: ['deposit_confirmed', 'payment_failed', 'wallet_security_alert'].includes(key),
   }));
 }
 
