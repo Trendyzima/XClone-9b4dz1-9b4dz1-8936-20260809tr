@@ -50,7 +50,7 @@ async function verifyRfc9421(req:Request,raw:string,actor:string,signatureTarget
   const m=input.match(/^sig1=(\([^)]*\))(.*)$/);if(!m)throw Error("malformed Signature-Input");
   const comps=[...m[1].matchAll(/"([^"]+)"/g)].map(x=>x[1]);
   const params=m[1]+m[2],created=Number(m[2].match(/;created=(\d+)/)?.[1]||0),keyId=m[2].match(/;keyid="([^"]+)"/)?.[1]||"",alg=m[2].match(/;alg="([^"]+)"/)?.[1]||"";
-  if(alg!=="rsa-v1_5-sha256"||keyId.split("#")[0]!==actor||!created||Math.abs(Date.now()/1000-created)>300||!comps.includes("@method")||!comps.includes("@target-uri")||!comps.includes("content-digest"))throw Error("invalid RFC9421 signature parameters");
+  if((alg && alg!=="rsa-v1_5-sha256")||keyId.split("#")[0]!==actor||!created||Math.abs(Date.now()/1000-created)>300||!comps.includes("@method")||!comps.includes("@target-uri")||!comps.includes("content-digest"))throw Error("invalid RFC9421 signature parameters");
   const dm=digest.match(/^sha-256=:([^:]+):$/i),sm=sig.match(/^sig1=:([^:]+):$/);if(!dm||!sm)throw Error("invalid RFC9421 digest/signature");
   const expected=b64(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(raw)));if(dm[1]!==expected)throw Error("Content-Digest mismatch");
   const a=await federationJson(actor);if(!actorKeyMatches(a,actor))throw Error("remote actor key invalid");
