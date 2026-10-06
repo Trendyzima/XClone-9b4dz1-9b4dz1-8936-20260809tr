@@ -1,0 +1,16 @@
+begin;
+drop function if exists public.create_credit_boost(text,uuid,bigint,integer,jsonb,text);
+drop function if exists public.cancel_credit_boost(uuid);
+drop policy if exists credit_boost_ledger_owner_read on public.credit_boost_ledger;
+drop index if exists public.boosts_active_target_idx;
+alter table public.boosts drop constraint if exists boosts_funding_source_check;
+alter table public.boosts drop constraint if exists boosts_target_type_check;
+alter table public.boosts drop constraint if exists boosts_credit_budget_check;
+alter table public.boosts drop column if exists funding_source;
+alter table public.boosts drop column if exists credit_budget;
+alter table public.boosts drop column if exists credit_spent;
+alter table public.boosts drop column if exists target_type;
+alter table public.boosts drop column if exists target_id;
+revoke execute on function public.get_credit_boost_bonuses(uuid[],uuid[]) from public,anon,authenticated;
+grant execute on function public.get_credit_boost_bonuses(uuid[],uuid[]) to service_role;
+commit;
