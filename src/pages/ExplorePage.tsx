@@ -10,7 +10,7 @@ import { TrendingVideosSection } from '@/components/features/TrendingVideosSecti
 import { CommunitySpotlightStrip } from '@/components/features/CommunitySpotlightStrip';
 import { LiveSpaceBanner } from '@/components/features/LiveSpaceBanner';
 import { formatDistanceToNow } from 'date-fns';
-import { supabase } from '@/lib/supabase';
+import { supabase, supabaseSecondary } from '@/lib/supabase';
 import { formatNumber } from '@/lib/utils';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
@@ -320,8 +320,59 @@ function CategoryTabContent({
       }
 
       const { data } = await query.limit(30);
+
+      // Secondary Supabase is a public/legacy read plane. It has an older
+      // posts shape and intentionally has no primary auth session, so only
+      // public, non-interactive discovery data is read from it. Never send
+      // the primary user's JWT to the secondary project.
+      let secondaryPosts: any[] = [];
+      try {
+        const secondaryResult = await supabaseSecondary
+          .from('posts')
+          .select('id, content, body, image_url, video_url, is_video, views_count, likes_count, reposts_count, replies_count, created_at, author_id')
+          .or(orFilter)
+          .is('community_id', null)
+          .is('deleted_at', null)
+          .gte('created_at', since7d)
+          .order('created_at', { ascending: false })
+          .limit(20);
+
+        secondaryPosts = (secondaryResult.data ?? []).map((p: any) => ({
+          ...p,
+          content: p.content ?? p.body ?? '',
+          // Secondary legacy identities are not authoritative Testagram
+          // profiles. Keep them explicitly labelled rather than inventing a
+          // primary profile relationship.
+          user_profiles: {
+            id: p.author_id,
+            username: 'legacy_testagram',
+            display_name: 'Testagram',
+            avatar_url: null,
+            verified_tier: 'none',
+          },
+          _data_plane: 'secondary',
+        }));
+      } catch {
+        // Secondary is an enhancement/fallback. Primary discovery must remain
+        // fully functional if the second project is unavailable.
+      }
+
       if (!cancelled) {
-        const finalPosts = data ?? [];
+        const primaryPosts = data ?? [];
+        const merged = [...primaryPosts, ...secondaryPosts];
+        const seen = new Set<string>();
+        const finalPosts = merged
+          .filter((p: any) => {
+            const key = String(p.id);
+            if (seen.has(key)) return false;
+            seen.add(key);
+            return true;
+          })
+          .sort((a: any, b: any) => {
+            if (activeTab === 'News') return +new Date(b.created_at) - +new Date(a.created_at);
+            return Number(b.likes_count ?? b.views_count ?? 0) - Number(a.likes_count ?? a.views_count ?? 0);
+          })
+          .slice(0, 30);
         setPosts(finalPosts);
         setLoading(false);
         // Fetch reactions for these posts
