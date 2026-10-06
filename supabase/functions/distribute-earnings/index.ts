@@ -144,11 +144,20 @@ serve(async (req) => {
         });
         if (earningErr) { results.errors.push(`earning ${video.id}: ${earningErr.message}`); continue; }
 
-        const { error: walletErr } = await supabase.rpc('add_to_wallet', {
-          p_user_id: video.user_id,
-          p_amount:  earned,
+        const { data: walletCredit, error: walletErr } = await supabase.rpc('credit_creator_earning_to_wallet', {
+          p_creator_id: video.user_id,
+          p_amount: earned,
+          p_currency: 'KES',
+          p_reference_type: 'video_fund',
+          p_reference_id: video.id,
+          p_idempotency_key: `video-fund:${video.id}`,
+          p_description: 'Video creator fund earnings',
         });
-        if (walletErr) { results.errors.push(`wallet ${video.id}: ${walletErr.message}`); continue; }
+        if (walletErr || !walletCredit?.ok) {
+          results.errors.push(`canonical wallet ${video.id}: ${walletErr?.message || 'credit failed'}`);
+          continue;
+        }
+        await supabase.from('creator_earnings').update({ wallet_credited: true }).eq('user_id', video.user_id).eq('post_id', video.id).eq('wallet_credited', false);
 
         // Track platform vs creator split in revenue_shares (60% platform / 40% creator for video fund)
         const platformCut = parseFloat((earned * 0.60).toFixed(6));
@@ -236,10 +245,27 @@ serve(async (req) => {
             .gte('created_at', thisMonth.toISOString()).limit(1).maybeSingle();
           if (existing) continue;
 
-          await supabase.from('creator_earnings').insert({
+          const { data: adEarning, error: adEarningErr } = await supabase.from('creator_earnings').insert({
             user_id: creatorId, source: 'ad_revenue_share', amount: share, status: 'completed',
+          }).select('id').single();
+          if (adEarningErr) {
+            results.errors.push(`ad earning ${creatorId}: ${adEarningErr.message}`);
+            continue;
+          }
+          const { data: adWalletCredit, error: adWalletErr } = await supabase.rpc('credit_creator_earning_to_wallet', {
+            p_creator_id: creatorId,
+            p_amount: share,
+            p_currency: 'KES',
+            p_reference_type: 'ad_revenue_share',
+            p_reference_id: adEarning.id,
+            p_idempotency_key: `ad-revenue:${adEarning.id}`,
+            p_description: 'Creator advertising revenue share',
           });
-          await supabase.rpc('add_to_wallet', { p_user_id: creatorId, p_amount: share });
+          if (adWalletErr || !adWalletCredit?.ok) {
+            results.errors.push(`canonical ad wallet ${creatorId}: ${adWalletErr?.message || 'credit failed'}`);
+            continue;
+          }
+          await supabase.from('creator_earnings').update({ wallet_credited: true }).eq('id', adEarning.id);
           results.adRevenue += share;
           console.log(`Ad revenue share: user=${creatorId} views=${views} share=$${share.toFixed(4)}`);
         }
