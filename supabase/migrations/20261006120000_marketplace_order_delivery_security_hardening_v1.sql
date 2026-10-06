@@ -90,13 +90,10 @@ create table if not exists public.marketplace_order_disputes (
 create index if not exists marketplace_order_disputes_status_idx on public.marketplace_order_disputes(status,created_at);
 alter table public.marketplace_order_disputes enable row level security;
 revoke all on public.marketplace_order_disputes from anon,authenticated;
-grant select,insert on public.marketplace_order_disputes to authenticated;
+grant select on public.marketplace_order_disputes to authenticated;
 create policy marketplace_order_disputes_read on public.marketplace_order_disputes for select to authenticated using(
   exists(select 1 from public.orders o where o.id=order_id and (o.buyer_id=(select auth.uid()) or o.seller_id=(select auth.uid())))
 );
-create policy marketplace_order_disputes_buyer_open on public.marketplace_order_disputes for insert to authenticated
-with check(opened_by=(select auth.uid()) and exists(select 1 from public.orders o where o.id=order_id and o.buyer_id=(select auth.uid())));
-
 alter table public.marketplace_deliveries
   add column if not exists delivery_code_hash text,
   add column if not exists delivery_code_issued_at timestamptz,
