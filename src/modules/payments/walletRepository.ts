@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { supabase } from "@/lib/supabase";
 
 /**
  * Canonical wallet repository.
@@ -7,11 +7,6 @@ import { createClient } from "@supabase/supabase-js";
  * Wallet balances are changed only by authenticated RPCs / trusted Edge
  * Functions so the balance and wallet_transactions rows stay atomic.
  */
-const supabase = createClient(
-  import.meta.env.VITE_SUPABASE_URL,
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-);
-
 export class WalletRepository {
   async getWallet(_userId: string) {
     const { data, error } = await supabase.rpc("get_my_wallet");
