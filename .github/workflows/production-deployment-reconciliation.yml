@@ -1117,13 +1117,15 @@ jobs:
               exit 1
             }
           done
-          inbox_status="$(curl --silent --show-error --max-redirs 0 --connect-timeout 10 --max-time 30             -o /tmp/testagram-inbox-response -w '%{http_code}' "$APP_ORIGIN/inbox")"
-          [[ "$inbox_status" == "405" ]] || {
-            echo "::error::Production ActivityPub inbox GET contract returned HTTP $inbox_status; expected 405."
-            head -c 2000 /tmp/testagram-inbox-response || true
-            exit 1
-          }
-          echo "Production ActivityPub discovery, actor, outbox and inbox contracts passed."
+          for inbox_endpoint in "/inbox" "/users/crissbeat/inbox" "/users/crissbeat/inbox/"; do
+            inbox_status="$(curl --silent --show-error --max-redirs 0 --connect-timeout 10 --max-time 30               -o /tmp/testagram-inbox-response -w '%{http_code}' "$APP_ORIGIN$inbox_endpoint")"
+            [[ "$inbox_status" == "405" ]] || {
+              echo "::error::Production ActivityPub inbox GET contract $inbox_endpoint returned HTTP $inbox_status; expected 405."
+              head -c 2000 /tmp/testagram-inbox-response || true
+              exit 1
+            }
+          done
+          echo "Production ActivityPub discovery, actor, outbox and all public inbox route contracts passed."
 
           feed_status="$(curl --silent --show-error --location --connect-timeout 10 --max-time 30             -o /tmp/testagram-home-feed.json -w '%{http_code}'             "$APP_ORIGIN/api/home-feed?limit=6&includeFederated=0")"
           [[ "$feed_status" == "200" ]] || {
