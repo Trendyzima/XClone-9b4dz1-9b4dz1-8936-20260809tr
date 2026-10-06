@@ -409,6 +409,11 @@ jobs:
             done
           }
 
+          # Canonical public ActivityPub surface. These functions are intentionally
+          # reconciled here because Cloudflare only proxies to them; a green Worker
+          # deployment is not sufficient if the Supabase federation functions are stale.
+          deploy_function mastodon-federation "--no-verify-jwt"
+          deploy_function federation-inbox "--no-verify-jwt"
           deploy_function gateway-relay "--no-verify-jwt"
           deploy_function federated-feed
           deploy_function megalodon-gateway
@@ -1105,6 +1110,31 @@ jobs:
               exit 1
             }
           done
+
+          # Federation production contract: fail the reconciliation if the public
+          # discovery/actor endpoints are still served by a stale/competing route.
+          declare -a FEDERATION_ENDPOINTS=(
+            "/.well-known/nodeinfo"
+            "/nodeinfo/2.0"
+            "/nodeinfo/2.1"
+            "/users/crissbeat"
+            "/users/crissbeat/outbox"
+          )
+          for endpoint in "${FEDERATION_ENDPOINTS[@]}"; do
+            status="$(curl --silent --show-error --max-redirs 0 --connect-timeout 10 --max-time 30               -H 'Accept: application/activity+json, application/ld+json;q=0.9, application/json;q=0.8'               -o /tmp/testagram-federation-response -w '%{http_code}'               "$APP_ORIGIN$endpoint")"
+            [[ "$status" == "200" ]] || {
+              echo "::error::Production ActivityPub endpoint $endpoint returned HTTP $status."
+              head -c 2000 /tmp/testagram-federation-response || true
+              exit 1
+            }
+          done
+          inbox_status="$(curl --silent --show-error --max-redirs 0 --connect-timeout 10 --max-time 30             -o /tmp/testagram-inbox-response -w '%{http_code}' "$APP_ORIGIN/inbox")"
+          [[ "$inbox_status" == "405" ]] || {
+            echo "::error::Production ActivityPub inbox GET contract returned HTTP $inbox_status; expected 405."
+            head -c 2000 /tmp/testagram-inbox-response || true
+            exit 1
+          }
+          echo "Production ActivityPub discovery, actor, outbox and inbox contracts passed."
 
           feed_status="$(curl --silent --show-error --location --connect-timeout 10 --max-time 30             -o /tmp/testagram-home-feed.json -w '%{http_code}'             "$APP_ORIGIN/api/home-feed?limit=6&includeFederated=0")"
           [[ "$feed_status" == "200" ]] || {
