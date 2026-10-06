@@ -128,17 +128,6 @@ function blend(items: any[], limit: number) {
     if (shouldPriority) prioritySlots += 1;
   }
 
-  // Home is a mixed feed, but federation is a first-class source. If the
-  // candidate set contains remote posts, guarantee at least one remote item
-  // survives the first page. Prefer followed federation; otherwise use the
-  // strongest discovery item. Insert it into the middle of the feed so this is
-  // an organic blend, not a hard "Fediverse card at the top" rule.
-  const fedCandidates = ranked.filter((x) => x?.type === 'fedpost');
-  if (fedCandidates.length && !out.some((x) => x?.type === 'fedpost')) {
-    const guaranteed = fedCandidates[0];
-    const insertAt = Math.min(Math.max(1, Math.floor(out.length / 2)), out.length);
-    out.splice(insertAt, 0, { type: guaranteed.type, data: { ...guaranteed.data, feed_source: guaranteed.source } });
-  }
 
   return out.slice(0, limit);
 }
