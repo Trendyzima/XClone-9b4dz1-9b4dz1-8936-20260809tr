@@ -39,12 +39,13 @@ function actionCopy(type: string) {
   return map[type] ?? { subject: "Testagram account notification", title: "Testagram account", intro: "We received a request involving your Testagram account.", button: "Open Testagram" };
 }
 
-function confirmationUrl(supabaseUrl: string, tokenHash: string, type: string, redirectTo: string) {
-  if (!supabaseUrl) throw new Error("SUPABASE_URL_NOT_CONFIGURED");
-  const url = new URL("/auth/v1/verify", supabaseUrl);
-  url.searchParams.set("token", tokenHash);
+function confirmationUrl(_supabaseUrl: string, tokenHash: string, type: string, _redirectTo: string) {
+  // Keep every user-facing auth URL on Testagram. The frontend consumes the
+  // single-use token_hash and establishes the Supabase session itself.
+  const url = new URL("/auth", BRAND_URL);
+  url.searchParams.set("token_hash", tokenHash);
   url.searchParams.set("type", type === "magiclink" ? "magiclink" : type);
-  url.searchParams.set("redirect_to", redirectTo);
+  if (type === "recovery") url.searchParams.set("reset", "1");
   return url.toString();
 }
 
