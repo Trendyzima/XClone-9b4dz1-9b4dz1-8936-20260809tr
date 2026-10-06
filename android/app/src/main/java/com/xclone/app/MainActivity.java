@@ -468,13 +468,21 @@ public final class MainActivity extends AppCompatActivity {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return;
         android.app.NotificationManager manager = getSystemService(android.app.NotificationManager.class);
         if (manager == null) return;
-        android.app.NotificationChannel channel = new android.app.NotificationChannel(
-                TestagramFirebaseMessagingService.CHANNEL_ID,
-                "Testagram notifications",
-                android.app.NotificationManager.IMPORTANCE_DEFAULT
-        );
-        channel.setDescription("Messages, mentions, follows, calls and other Testagram alerts.");
-        manager.createNotificationChannel(channel);
+        android.app.NotificationChannel normal = new android.app.NotificationChannel(
+                TestagramFirebaseMessagingService.CHANNEL_ID, "Testagram notifications",
+                android.app.NotificationManager.IMPORTANCE_DEFAULT);
+        normal.setDescription("Routine Testagram activity and social notifications.");
+        android.app.NotificationChannel urgent = new android.app.NotificationChannel(
+                TestagramFirebaseMessagingService.URGENT_CHANNEL_ID, "Testagram important alerts",
+                android.app.NotificationManager.IMPORTANCE_HIGH);
+        urgent.setDescription("Wallet, security, messages and other time-sensitive Testagram alerts.");
+        android.app.NotificationChannel updates = new android.app.NotificationChannel(
+                TestagramFirebaseMessagingService.UPDATES_CHANNEL_ID, "Testagram updates",
+                android.app.NotificationManager.IMPORTANCE_DEFAULT);
+        updates.setDescription("Product announcements, feature updates and Testagram news.");
+        manager.createNotificationChannel(normal);
+        manager.createNotificationChannel(urgent);
+        manager.createNotificationChannel(updates);
     }
 
     private void requestNotificationPermission() {
