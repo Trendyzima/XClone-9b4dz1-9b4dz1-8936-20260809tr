@@ -51,3 +51,5 @@ jobs:
           grep -q "idempotency_key" supabase/migrations/20261005190000_harden_wallet_ride_fraud.sql
           grep -q "wallet_risk_events" supabase/migrations/20261005190000_harden_wallet_ride_fraud.sql
           echo "Migration sanity checks passed."
+
+# CI trigger heartbeat: intentionally no-op; keeps push-based gates active.
