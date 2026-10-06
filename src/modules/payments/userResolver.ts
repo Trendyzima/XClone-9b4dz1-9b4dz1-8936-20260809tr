@@ -1,21 +1,30 @@
-// Resolves a user identity from M-Pesa payment data
-// Maps phone number -> user wallet/profile
+import { supabase } from '@/lib/supabase';
+import { normalizeKenyaPhone } from '@/services/walletPhoneAuthService';
 
-export async function resolveUserByPhone(phone: string) {
-  // NOTE: This assumes your repo has a Supabase client or DB layer
-  // Replace `db` with your actual database client import
+export type ResolvedWalletUser = {
+  user_id: string;
+  wallet_id: string;
+  phone_e164: string;
+};
 
-  const normalized = phone.replace(/\s|\+/g, "");
+/**
+ * Resolve an M-Pesa phone to the canonical Testagram wallet identity.
+ * The old implementation queried a non-existent wallets.phone column and
+ * depended on a global DB object. Verified wallet phone identities are now
+ * the only browser-readable phone -> wallet mapping.
+ */
+export async function resolveUserByPhone(phone: string): Promise<ResolvedWalletUser> {
+  const phoneE164 = normalizeKenyaPhone(phone);
 
-  const { data, error } = await (global as any).db
-    ?.from("wallets")
-    .select("user_id, balance, phone")
-    .eq("phone", normalized)
-    .single();
+  const { data, error } = await supabase
+    .from('wallet_phone_identities')
+    .select('user_id,wallet_id,phone_e164')
+    .eq('phone_e164', phoneE164)
+    .not('verified_at', 'is', null)
+    .maybeSingle();
 
-  if (error || !data) {
-    throw new Error("User wallet not found for phone: " + phone);
-  }
+  if (error) throw error;
+  if (!data) throw new Error('Verified wallet identity not found for phone.');
 
-  return data;
+  return data as ResolvedWalletUser;
 }
