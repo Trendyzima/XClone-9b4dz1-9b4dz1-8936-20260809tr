@@ -64,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const finalizationInFlight = new Map<string, Promise<void>>();
 
-    const hydrateUser = (user: User) => {
+    const hydrateUser = (user: User, requireFreshLegalConsent = false) => {
       // Never expose an authenticated app state until the canonical profile
       // boundary has succeeded. The work is deferred out of onAuthStateChange
       // because Supabase warns that async auth calls inside the callback can
@@ -81,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             resolve();
             return;
           }
-          void finalizeAuthenticatedSession(user)
+          void finalizeAuthenticatedSession(user, { requireFreshLegalConsent })
             .then((mappedUser) => {
               if (!mounted) return;
               login(mappedUser);
@@ -132,7 +132,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (event === 'USER_UPDATED') {
           trackTestagramEvent(TestagramEvent.PROFILE_UPDATED, { source: 'auth_user_updated' });
         }
-        hydrateUser(session.user);
+        hydrateUser(session.user, event === 'SIGNED_IN');
       }
     });
 
