@@ -29,8 +29,7 @@
     {
       "pattern": "www.testagram.site",
       "custom_domain": true
-    },
-    "testagram.site/.well-known/webfinger*"
+    }
   ],
   "triggers": {
     "crons": [
