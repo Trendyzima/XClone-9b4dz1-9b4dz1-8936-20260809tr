@@ -20,7 +20,6 @@ export function CreditBoostDialog({
   targetId: string;
   title?: string;
 }) {
-  const [credits, setCredits] = useState(0);
   const [balance, setBalance] = useState(0);
   const [duration, setDuration] = useState(72);
   const [busy, setBusy] = useState(false);
