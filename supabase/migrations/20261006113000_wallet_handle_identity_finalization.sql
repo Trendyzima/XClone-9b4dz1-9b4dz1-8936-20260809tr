@@ -135,12 +135,96 @@ security definer
 set search_path = public, pg_temp
 as $function$
 declare
-  h text := lower(regexp_replace(btrim(coalesce(p_handle,'')),'^@',''));
+  raw_handle text := lower(btrim(coalesce(p_handle,'')));
+  h text;
   account_id uuid; account_user_id uuid; wallet_id uuid;
   username text; account_status text;
 begin
   if auth.uid() is null then raise exception 'AUTH_REQUIRED'; end if;
-  if h='' or length(h)>30 or h !~ '^[a-z0-9_][a-z0-9_.-]{1,29}$' then
+  h := regexp_replace(raw_handle,'^@','');
+  h := regexp_replace(h,'^tg:','');
+  if h='' or length(h)>30 or h !~ '^[a-z0-9_][a-z0-9_.-]{1,29}
+    raise exception 'INVALID_WALLET_HANDLE';
+  end if;
+
+  select wa.id,wa.user_id,wa.status,p.username
+    into account_id,account_user_id,account_status,username
+  from public.wallet_accounts wa join public.profiles p on p.id=wa.user_id
+  where wa.account_type='USER'
+    and wa.currency='KES'
+    and wa.status='ACTIVE'
+    and (lower(p.username)=h or lower(wa.wallet_address)=lower(btrim(p_handle)))
+  order by wa.created_at
+  limit 1;
+
+  if account_user_id is null then raise exception 'WALLET_HANDLE_NOT_FOUND'; end if;
+
+  perform private.ensure_user_wallet_identity(account_user_id);
+  select w.id into wallet_id from public.wallets w where w.user_id=account_user_id::text limit 1;
+  if wallet_id is null then raise exception 'WALLET_IDENTITY_NOT_READY'; end if;
+
+  return jsonb_build_object(
+    'handle',username,'wallet_address','tg:'||username,'user_id',account_user_id,
+    'wallet_id',wallet_id,'account_id',account_id,'currency','KES',
+    'wallet_status',(select status from public.wallets where id=wallet_id),
+    'account_status',account_status
+  );
+end;
+$function$;
+revoke all on function public.resolve_wallet_identity(text) from public,anon;
+grant execute on function public.resolve_wallet_identity(text) to authenticated;
+
+create or replace function public.send_wallet_money(
+  p_recipient_username text,
+  p_amount_kes numeric,
+  p_note text default null,
+  p_idempotency_key text default null,
+  p_pin text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $function$
+declare
+  u uuid := auth.uid(); r uuid; ps public.wallet_security%rowtype;
+  key text := nullif(trim(p_idempotency_key),''); a numeric := round(p_amount_kes,2);
+  resolved jsonb;
+begin
+  if u is null then raise exception using errcode='28000',message='Authentication required'; end if;
+  if a is null or a<10 or a>10000 or a<>trunc(a) then
+    raise exception using errcode='22023',message='Send amount must be a whole KES amount between KES 10 and KES 10,000';
+  end if;
+  if key is null or length(key)<8 or key !~ '^[A-Za-z0-9:_-]+$' then
+    raise exception using errcode='22023',message='Valid idempotency key is required';
+  end if;
+
+  select * into ps from public.wallet_security where user_id=u;
+  if ps.pin_hash is null then raise exception using errcode='42501',message='Set your wallet PIN before sending money'; end if;
+  if ps.pin_locked_until is not null and ps.pin_locked_until>now() then raise exception using errcode='42501',message='Wallet PIN is temporarily locked'; end if;
+  if p_pin is null or crypt(p_pin,ps.pin_hash)<>ps.pin_hash then
+    update public.wallet_security
+      set pin_failed_attempts=pin_failed_attempts+1,
+          pin_locked_until=case when pin_failed_attempts+1>=5 then now()+interval '15 minutes' else null end,
+          updated_at=now()
+      where user_id=u;
+    raise exception using errcode='42501',message='Invalid wallet PIN';
+  end if;
+  update public.wallet_security set pin_failed_attempts=0,pin_locked_until=null,updated_at=now() where user_id=u;
+
+  resolved := public.resolve_wallet_identity(p_recipient_username);
+  r := (resolved->>'user_id')::uuid;
+  if r=u then raise exception using errcode='22023',message='You cannot send money to yourself'; end if;
+
+  return public.p2p_wallet_transfer(u,r,a,p_note,key);
+end;
+$function$;
+revoke all on function public.send_wallet_money(text,numeric,text,text) from public,anon,authenticated;
+revoke all on function public.send_wallet_money(text,numeric,text,text,text) from public,anon;
+grant execute on function public.send_wallet_money(text,numeric,text,text,text) to authenticated;
+
+commit;
+ then
     raise exception 'INVALID_WALLET_HANDLE';
   end if;
 
