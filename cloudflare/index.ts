@@ -227,16 +227,34 @@ async function proxySupabase(request: Request, targetPath: string) {
   const headers = new Headers(request.headers);
   headers.delete('host');
 
+  const isFederationProxy =
+    targetPath.startsWith('/functions/v1/mastodon-federation/') ||
+    targetPath.startsWith('/functions/v1/federation-inbox/');
+
   const response = await fetch(target, {
     method: request.method,
     headers,
     body: ['GET', 'HEAD'].includes(request.method) ? undefined : request.body,
     redirect: 'manual',
+    ...(isFederationProxy
+      ? {
+          cache: 'no-store',
+          cf: {
+            cacheTtlByStatus: {
+              '200-599': -1,
+            },
+          },
+        }
+      : {}),
   });
 
   const out = new Headers(response.headers);
   out.delete('content-length');
   out.delete('transfer-encoding');
+  if (isFederationProxy) {
+    out.set('Cache-Control', 'no-store');
+    out.set('CDN-Cache-Control', 'no-store');
+  }
   return new Response(response.body, { status: response.status, headers: out });
 }
 
