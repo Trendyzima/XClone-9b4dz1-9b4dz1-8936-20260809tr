@@ -53,10 +53,57 @@ export function mapSupabaseUser(user: User): AuthUser {
   return { id: user.id, email, username, avatar: user.user_metadata?.avatar_url || user.user_metadata?.picture };
 }
 
-export async function finalizeAuthenticatedSession(user: User): Promise<AuthUser> {
-  // Every authenticated entry point (password, email OTP, phone OTP, and
-  // restored sessions) must cross the same canonical profile boundary before
-  // the UI treats the session as ready.
+const LEGAL_POLICY_VERSION = '2026-09';
+const LEGAL_CONSENT_STORAGE_KEY = 'testagram-legal-consent';
+
+type LegalConsent = { birthDate: string; version: string; acceptedAt: string };
+
+function readLegalConsent(): LegalConsent | null {
+  try {
+    const raw = window.localStorage.getItem(LEGAL_CONSENT_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as LegalConsent;
+    return parsed?.version === LEGAL_POLICY_VERSION && parsed?.birthDate ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function finalizeAuthenticatedSession(
+  user: User,
+  options: { requireFreshLegalConsent?: boolean } = {},
+): Promise<AuthUser> {
+  const consent = readLegalConsent();
+  const { data: legalProfile, error: legalReadError } = await supabase
+    .from('profiles')
+    .select('birth_date, legal_terms_accepted_at, legal_privacy_accepted_at, legal_content_policy_accepted_at, legal_age_confirmed_at, legal_policy_version')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (legalReadError) throw new Error(`Legal policy status lookup failed: ${legalReadError.message}`);
+
+  const alreadyAccepted =
+    !!legalProfile?.birth_date &&
+    !!legalProfile?.legal_terms_accepted_at &&
+    !!legalProfile?.legal_privacy_accepted_at &&
+    !!legalProfile?.legal_content_policy_accepted_at &&
+    !!legalProfile?.legal_age_confirmed_at &&
+    legalProfile?.legal_policy_version === LEGAL_POLICY_VERSION;
+
+  if (options.requireFreshLegalConsent && !consent) {
+    throw new Error('LEGAL_ACCEPTANCE_REQUIRED');
+  }
+
+  if (!alreadyAccepted || options.requireFreshLegalConsent) {
+    if (!consent) throw new Error('LEGAL_ACCEPTANCE_REQUIRED');
+    const { error } = await supabase.rpc('accept_testagram_legal', { p_birth_date: consent.birthDate });
+    if (error) {
+      if (error.message.includes('AGE_RESTRICTION')) throw new Error('AGE_RESTRICTION');
+      throw new Error(`Legal acceptance could not be recorded: ${error.message}`);
+    }
+    try { window.localStorage.removeItem(LEGAL_CONSENT_STORAGE_KEY); } catch {}
+  }
+
   return mapSupabaseUserWithCanonicalProfile(user);
 }
 
