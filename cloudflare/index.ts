@@ -202,14 +202,16 @@ async function invokeNode(pathname: string, request: Request, env: Env) {
 }
 
 function supabaseRewrite(pathname: string) {
-  if (pathname === '/.well-known/webfinger') return '/functions/v1/mastodon-edge/.well-known/webfinger';
+  if (pathname === '/.well-known/webfinger') return '/functions/v1/mastodon-federation/.well-known/webfinger';
   if (pathname === '/.well-known/nodeinfo') return '/functions/v1/mastodon-federation/.well-known/nodeinfo';
   if (pathname === '/.well-known/oauth-authorization-server') return '/functions/v1/mastodon-api/.well-known/oauth-authorization-server';
   if (pathname === '/nodeinfo/2.0') return '/functions/v1/mastodon-federation/nodeinfo/2.0';
-  if (pathname === '/inbox') return '/functions/v1/mastodon-edge/inbox';
+  if (pathname === '/nodeinfo/2.1') return '/functions/v1/mastodon-federation/nodeinfo/2.1';
+  if (pathname === '/inbox') return '/functions/v1/mastodon-federation/inbox';
+  if (pathname === '/outbox') return '/functions/v1/mastodon-federation/outbox';
 
   const user = pathname.match(/^\/users\/([^/]+)(\/.*)?$/);
-  if (user) return `/functions/v1/mastodon-edge/users/${user[1]}${user[2] || ''}`;
+  if (user) return `/functions/v1/mastodon-federation/users/${user[1]}${user[2] || ''}`;
 
   const api = pathname.match(/^\/api\/(v1|v2)\/(.*)$/);
   if (api) return `/functions/v1/mastodon-api/api/${api[1]}/${api[2]}`;
