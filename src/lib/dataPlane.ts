@@ -64,8 +64,8 @@ export function assertWritePlane(table: string, plane: DataPlane = 'primary') {
  */
 export async function readPublicWithFallback<T>(
   table: string,
-  primaryQuery: (client: typeof supabase) => Promise<{ data: T | null; error: any }>,
-  secondaryQuery?: (client: typeof supabaseSecondary) => Promise<{ data: T | null; error: any }>,
+  primaryQuery: (client: typeof supabase) => PromiseLike<{ data: T | null; error: any }>,
+  secondaryQuery?: (client: typeof supabaseSecondary) => PromiseLike<{ data: T | null; error: any }>,
 ): Promise<{ data: T | null; source: DataPlane; primaryError?: any; secondaryError?: any }> {
   const primary = await primaryQuery(supabase);
   if (!primary.error && primary.data != null) {
