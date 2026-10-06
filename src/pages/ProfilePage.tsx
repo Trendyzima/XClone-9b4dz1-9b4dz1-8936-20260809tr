@@ -290,6 +290,7 @@ export default function ProfilePage() {
   const [showGiftPremiumDialog, setShowGiftPremiumDialog] = useState(false);
   const [giftingPremium, setGiftingPremium] = useState(false);
   const [showTipDialog, setShowTipDialog] = useState(false);
+  const [showCreditProfileBoost, setShowCreditProfileBoost] = useState(false);
   const [tipAmount, setTipAmount] = useState(null as number | null);
   const [customTipAmount, setCustomTipAmount] = useState('');
   const [sendingTip, setSendingTip] = useState(false);
