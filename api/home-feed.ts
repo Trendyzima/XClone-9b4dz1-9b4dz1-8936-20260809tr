@@ -475,6 +475,50 @@ export default async function handler(request: RequestLike) {
       ...fed.filter((item: any) => item.source === 'following-federated'),
     ];
     const discovery = [...recommendations, ...local, ...threads, ...fed.filter((item: any) => item.source !== 'following-federated')];
+
+    // Credit boosts are an organic-ranking signal, not a separate ad lane.
+    // The canonical credit boost ledger owns eligibility, caps, idempotency and spend.
+    // Home only consumes the server-calculated bonus.
+    let creditBoostBonusRows: any[] = [];
+    if (SUPABASE_SERVICE_ROLE_KEY) {
+      const localCandidates = [...followed, ...discovery].filter((item: any) =>
+        item?.type === 'post' || item?.type === 'poll'
+      );
+      const sourceIds = [...new Set(localCandidates
+        .map((item: any) => String(item.data?.id || ''))
+        .filter((id: string) => /^[0-9a-f-]{36}$/i.test(id)))];
+      const profileIds = [...new Set(localCandidates
+        .map((item: any) => String(item.data?.author_id || item.data?.user_id || item.data?.owner_id || ''))
+        .filter((id: string) => /^[0-9a-f-]{36}$/i.test(id)))];
+      if (sourceIds.length || profileIds.length) {
+        const { data, error } = await admin.rpc('get_credit_boost_bonuses', {
+          p_source_ids: sourceIds,
+          p_profile_ids: profileIds,
+        });
+        if (!error) {
+          creditBoostBonusRows = data || [];
+          const bySource = new Map<string, number>();
+          const byProfile = new Map<string, number>();
+          for (const row of creditBoostBonusRows) {
+            const key = String(row.source_id || '');
+            if (row.source_type === 'profile') byProfile.set(key, Number(row.bonus || 0));
+            else bySource.set(key, Number(row.bonus || 0));
+          }
+          const annotate = (item: any) => {
+            if (!item?.data) return item;
+            const sourceId = String(item.data.id || '');
+            const profileId = String(item.data.author_id || item.data.user_id || item.data.owner_id || '');
+            const bonus = (bySource.get(sourceId) || 0) + (byProfile.get(profileId) || 0);
+            return bonus > 0 ? { ...item, data: { ...item.data, credit_boost_bonus: bonus } } : item;
+          };
+          for (let i = 0; i < followed.length; i += 1) followed[i] = annotate(followed[i]);
+          for (let i = 0; i < discovery.length; i += 1) discovery[i] = annotate(discovery[i]);
+        } else {
+          console.warn('[home-feed] credit boost ranking degraded', error);
+        }
+      }
+    }
+
     const items = injectFollowing(discovery, followed, limit);
     const fedCandidateCount = fed.length;
     const followedFederatedCandidateCount = fed.filter((item: any) => item.source === 'following-federated').length;
@@ -504,7 +548,7 @@ export default async function handler(request: RequestLike) {
         discoveryFederatedCandidates: discoveryFederatedCandidateCount,
         federatedCandidatesRendered: renderedFederatedCount,
         federationQueryLatencyMs: federationLatencyMs,
-        federationError: fedResult?._meta?.error ?? null,
+        federationError: fedResult?._meta?.error ?? null,\n        activeCreditBoostBonusesApplied: creditBoostBonusRows.length,
       },
     }, 200, request);
   } catch (error) {
