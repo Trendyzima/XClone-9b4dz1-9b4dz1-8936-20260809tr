@@ -113,8 +113,8 @@ export function MarketplaceDeliveryTracker({ deliveryId, compact=false }: { deli
     {delivery.status==='pending'&&user&&<div className="mt-3 flex flex-wrap gap-2">
       <button className="rounded-xl bg-primary px-4 py-2 text-xs font-bold disabled:opacity-50" disabled={!!agent?.blocked_at||agent?.active===false&&!!agent} onClick={async()=>{
         if(!agent){
-          const {error}=await supabase.from('marketplace_delivery_agents').upsert({user_id:user.id,display_name:user.email||'Testagram Courier'});
-          if(error){toast.error('Courier registration failed.');return;}
+          const {data:registration,error}=await supabase.rpc('register_marketplace_delivery_agent',{p_display_name:user.email||'Testagram Courier',p_phone:null});
+          if(error||registration?.blocked){toast.error(registration?.reason||'Courier registration failed.');return;}
         }
         const {error}=await supabase.rpc('claim_marketplace_delivery',{p_delivery_id:delivery.id});
         if(error){toast.error(error.message.replace(/_/g,' ').toLowerCase());return;}
