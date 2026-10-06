@@ -143,7 +143,7 @@ Deno.serve(async (request) => {
       if (!uniqueUris.length) return;
       const { data, error } = await admin
         .from("federated_actors")
-        .select("id,actor_uri,username,display_name,bio,avatar_url,header_url,profile_url,followers_count,following_count,fields,emojis")
+        .select("id,actor_uri,username,domain,display_name,bio,avatar_url,raw_actor")
         .in("actor_uri", uniqueUris)
         .limit(Math.min(uniqueUris.length, 100));
       if (error) throw error;
@@ -151,19 +151,19 @@ Deno.serve(async (request) => {
         const profile = {
           id: row.actor_uri,
           actor_uri: row.actor_uri,
-          url: row.profile_url ?? row.actor_uri,
-          profile_url: row.profile_url ?? row.actor_uri,
+          url: row.actor_uri,
+          profile_url: row.actor_uri,
           username: row.username ?? "unknown",
           preferredUsername: row.username ?? "unknown",
           display_name: row.display_name ?? row.username ?? "unknown",
-          domain: (() => { try { return new URL(String(row.actor_uri)).hostname; } catch { return ""; } })(),
+          domain: row.domain ?? (() => { try { return new URL(String(row.actor_uri)).hostname; } catch { return ""; } })(),
           bio: row.bio ?? null,
           avatar_url: row.avatar_url ?? null,
-          header_url: row.header_url ?? null,
-          fields: Array.isArray(row.fields) ? row.fields : [],
-          emojis: Array.isArray(row.emojis) ? row.emojis : [],
-          followers_count: Number(row.followers_count ?? 0),
-          following_count: Number(row.following_count ?? 0),
+          header_url: null,
+          fields: Array.isArray(row.raw_actor?.attachment) ? row.raw_actor.attachment : [],
+          emojis: Array.isArray(row.raw_actor?.emojis) ? row.raw_actor.emojis : [],
+          followers_count: Number(row.raw_actor?.followers_count ?? 0),
+          following_count: Number(row.raw_actor?.following_count ?? 0),
         };
         hydratedActorProfiles.set(String(row.actor_uri), profile);
       }
