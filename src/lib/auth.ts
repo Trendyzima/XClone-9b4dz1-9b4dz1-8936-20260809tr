@@ -135,14 +135,17 @@ export class AuthService {
   async sendMagicLink(email: string) {
     const identifier = normalizeIdentifier(email);
     if (identifier.kind !== 'email') throw new Error('Enter an email address for a sign-in link');
-    const { error } = await withAuthTimeout(
-      supabase.auth.signInWithOtp({
-        email: identifier.value,
-        options: { shouldCreateUser: true, emailRedirectTo: CANONICAL_AUTH_REDIRECT_URL },
+    const { data, error } = await withAuthTimeout(
+      supabase.functions.invoke('testagram-magic-link', {
+        body: { email: identifier.value, redirect_to: CANONICAL_AUTH_REDIRECT_URL },
       }),
       'Email sign-in link request',
     );
-    if (error) throw error;
+    if (error) {
+      const detail = typeof data === 'object' && data && 'error' in data ? String((data as { error?: unknown }).error ?? '') : '';
+      throw new Error(detail || error.message || 'We could not send the Testagram sign-in link.');
+    }
+    if (!data?.ok) throw new Error('We could not send the Testagram sign-in link.');
   }
 
   async sendOtp(email: string) {
