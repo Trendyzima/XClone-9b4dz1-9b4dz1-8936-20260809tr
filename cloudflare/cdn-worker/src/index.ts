@@ -97,7 +97,7 @@ export default {
     headers.set('etag', object.httpEtag);
     headers.set('cache-control', 'public, max-age=300, s-maxage=86400, stale-while-revalidate=604800');
     headers.set('x-testagram-cdn', 'cloudflare');
-    headers.set('x-testagram-cdn-version', '2026-10-02-health-v2');
+    headers.set('x-testagram-cdn-version', '2026-10-06-health-v3');
     headers.set('x-testagram-cache-plane', cachedRoute ? 'upstash-hit' : 'upstash-miss');
     return new Response(request.method === 'HEAD' ? null : object.body, { status: 200, headers });
   },
