@@ -127,8 +127,8 @@ export default function AuthPage() {
   const sendEmailOtp = async (event: FormEvent) => {
     event.preventDefault(); setLoading(true);
     try {
-      await authService.sendEmailOtp(email, false);
-      setOtpPurpose('signin');
+      await authService.sendEmailOtp(email, mode === 'signup');
+      setOtpPurpose(mode === 'signup' ? 'signup' : 'signin');
       setOtp('');
       setMode('otp');
       toast({ title: 'Verification code sent', description: 'Enter the 6-digit code we sent to your email.' });
