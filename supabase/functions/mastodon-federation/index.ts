@@ -9,6 +9,15 @@ const json=(v:unknown,s=200,extra:Record<string,string>={})=>new Response(JSON.s
 const str=(v:unknown)=>typeof v==='string'?v:'';const uri=(v:unknown)=>typeof v==='string'?v:v&&typeof v==='object'?str((v as any).id):'';
 const context=[AP,SEC,{toot:TOOT,discoverable:'toot:discoverable',indexable:'toot:indexable',featured:'toot:featured'}];
 async function actor(username:string){
+  const canonical=await db.from('activitypub_actors').select('actor_id,username,user_id,inbox_url,outbox_url,followers_url,following_url').eq('username',username).maybeSingle();
+  if(canonical.error)throw canonical.error;
+  if(canonical.data){
+    const [p,k]=await Promise.all([
+      db.from('profiles').select('display_name,bio,avatar_url').eq('id',canonical.data.user_id).maybeSingle(),
+      db.from('activitypub_keys').select('key_id,public_key_pem').eq('user_id',canonical.data.user_id).maybeSingle()
+    ]);
+    return {...canonical.data,actor_url:canonical.data.actor_id,public_key_id:k.data?.key_id||canonical.data.actor_id+'#main-key',public_key_pem:k.data?.public_key_pem||null,display_name:p.data?.display_name||username,bio:p.data?.bio||null,avatar_url:p.data?.avatar_url||null};
+  }
   const r=await db.from('federated_actors').select('*').eq('username',username).maybeSingle();
   if(r.error)throw r.error;
   if(r.data)return r.data;
