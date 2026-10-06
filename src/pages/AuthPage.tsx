@@ -41,6 +41,8 @@ export default function AuthPage() {
   const authUser = useAuthStore((state) => state.user);
   const login = useAuthStore((state) => state.login);
   const [legalAccepted, setLegalAccepted] = useState(() => !!readLegalConsent());
+  const [magicLinkLockedUntil, setMagicLinkLockedUntil] = useState<number | null>(null);
+  const [magicLinkSecondsLeft, setMagicLinkSecondsLeft] = useState(0);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -182,7 +184,7 @@ export default function AuthPage() {
                   <div className="my-6 flex items-center gap-3"><div className="h-px flex-1 bg-border" /><span className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground">or email me a link</span><div className="h-px flex-1 bg-border" /></div>
                   <form onSubmit={sendMagicLink} className="space-y-3.5">
                     <Field icon={Mail} type="email" inputMode="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required />
-                    <Button disabled={loading} type="submit" className="h-13 w-full rounded-2xl font-black">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Send Testagram sign-in link'}</Button>
+                    <Button disabled={loading || magicLinkSecondsLeft > 0} type="submit" className="h-13 w-full rounded-2xl font-black">{loading ? <Loader2 className="h-4 w-4 animate-spin" /> : magicLinkSecondsLeft > 0 ? `Try again in ${Math.floor(magicLinkSecondsLeft / 60)}:${String(magicLinkSecondsLeft % 60).padStart(2, '0')}` : 'Send Testagram sign-in link'}</Button>
                   </form>
                 </>
               )}
