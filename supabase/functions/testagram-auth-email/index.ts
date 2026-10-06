@@ -155,22 +155,45 @@ Deno.serve(async (req) => {
 
     const copy = actionCopy(actionType);
 
-    if (actionType === "email_change" && user.new_email && data.token_new && data.token_hash) {
-      const newUrl = confirmationUrl(String(Deno.env.get("SUPABASE_URL") ?? ""), String(data.token_hash), actionType, redirectTo);
-      await sendOne(
-        String(user.new_email),
-        copy.subject,
-        brandedHtml({ email: String(user.new_email), actionType, title: copy.title, intro: copy.intro, button: copy.button, actionUrl: newUrl, token: data.token_new }),
-        `Testagram: ${copy.intro} ${data.token_new}`,
-      );
-      if (data.token && data.token_hash_new) {
-        const currentUrl = confirmationUrl(String(Deno.env.get("SUPABASE_URL") ?? ""), String(data.token_hash_new), actionType, redirectTo);
+    if (actionType === "email_change" && user.new_email) {
+      const newEmail = String(user.new_email);
+      if (!newEmail.includes("@")) throw new Error("Invalid new email");
+
+      // Supabase intentionally uses counterintuitive field names for backwards
+      // compatibility. When Secure Email Change is enabled, the new address
+      // receives token_new + token_hash, while the current address receives
+      // token + token_hash_new.
+      if (data.token_new && data.token_hash) {
+        const newUrl = confirmationUrl(String(Deno.env.get("SUPABASE_URL") ?? ""), String(data.token_hash), actionType, redirectTo);
         await sendOne(
-          email,
-          "Confirm your Testagram email change",
-          brandedHtml({ email, actionType, title: "Confirm your email change", intro: "A request was made to change the email address on your Testagram account. Confirm it if this was you.", button: "Confirm email change", actionUrl: currentUrl, token: data.token }),
-          "Testagram: confirm your email change using the verification code in this email.",
+          newEmail,
+          copy.subject,
+          brandedHtml({ email: newEmail, actionType, title: copy.title, intro: copy.intro, button: copy.button, actionUrl: newUrl, token: data.token_new }),
+          `Testagram: ${copy.intro} ${data.token_new}`,
         );
+
+        if (data.token && data.token_hash_new) {
+          const currentUrl = confirmationUrl(String(Deno.env.get("SUPABASE_URL") ?? ""), String(data.token_hash_new), actionType, redirectTo);
+          await sendOne(
+            email,
+            "Confirm your Testagram email change",
+            brandedHtml({ email, actionType, title: "Confirm your email change", intro: "A request was made to change the email address on your Testagram account. Confirm it if this was you.", button: "Confirm email change", actionUrl: currentUrl, token: data.token }),
+            "Testagram: confirm your email change using the verification code in this email.",
+          );
+        }
+      } else if (data.token_hash && (data.token || data.token_new)) {
+        // Secure Email Change disabled: the single verification email goes
+        // to the NEW address, never the current address.
+        const token = String(data.token ?? data.token_new);
+        const newUrl = confirmationUrl(String(Deno.env.get("SUPABASE_URL") ?? ""), String(data.token_hash), actionType, redirectTo);
+        await sendOne(
+          newEmail,
+          copy.subject,
+          brandedHtml({ email: newEmail, actionType, title: copy.title, intro: copy.intro, button: copy.button, actionUrl: newUrl, token }),
+          `Testagram: ${copy.intro} ${token}`,
+        );
+      } else {
+        throw new Error("Incomplete email change payload");
       }
     } else if (data.token_hash) {
       const verifyType = actionType === "signup" ? "signup" : actionType === "recovery" ? "recovery" : actionType === "invite" ? "invite" : actionType === "magiclink" ? "magiclink" : actionType;
