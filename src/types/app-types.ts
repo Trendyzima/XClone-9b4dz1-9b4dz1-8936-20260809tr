@@ -7,6 +7,8 @@ export interface AuthUser {
   creator_tier?: string;
   is_creator?: boolean;
   verified?: boolean;
+  identityVerificationStatus?: 'not_required' | 'pending' | 'submitted' | 'under_review' | 'approved' | 'rejected' | 'blocked';
+  identityVerifiedAt?: string;
 }
 
 export interface UserProfile {
