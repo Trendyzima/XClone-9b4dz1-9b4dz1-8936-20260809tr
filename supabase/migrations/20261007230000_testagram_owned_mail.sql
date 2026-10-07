@@ -17,7 +17,9 @@ create table if not exists public.mail_messages (
   created_at timestamptz not null default now(),
   sent_at timestamptz,
   last_error text,
-  message_id text
+  message_id text,
+  request_hash text,
+  updated_at timestamptz not null default now()
 );
 
 create index if not exists mail_messages_queue_idx
@@ -25,6 +27,10 @@ create index if not exists mail_messages_queue_idx
 
 create index if not exists mail_messages_created_idx
   on public.mail_messages(created_at desc);
+
+create index if not exists mail_messages_stuck_sending_idx
+  on public.mail_messages(status, updated_at)
+  where status='sending';
 
 alter table public.mail_messages enable row level security;
 revoke all on public.mail_messages from anon, authenticated;
