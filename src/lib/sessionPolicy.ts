@@ -1,52 +1,56 @@
 import { supabase } from './supabase';
 
 export const TESTAGRAM_SESSION_MAX_AGE_MS = 2 * 60 * 60 * 1000;
-const STORAGE_KEY = 'testagram-session-started-at-v1';
+const STORAGE_KEY = 'testagram-session-start-v2';
 
-function readStartedAt(): number | null {
+type StoredStart = { userId: string; startedAt: number };
+
+function readStart(): StoredStart | null {
   try {
-    const value = Number(window.localStorage.getItem(STORAGE_KEY));
-    return Number.isFinite(value) && value > 0 ? value : null;
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const value = JSON.parse(raw) as StoredStart;
+    return value && typeof value.userId === 'string' && Number.isFinite(value.startedAt) ? value : null;
   } catch { return null; }
 }
 
-function writeStartedAt(value: number) {
-  try { window.localStorage.setItem(STORAGE_KEY, String(value)); } catch {}
+function writeStart(userId: string, startedAt: number) {
+  try { window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ userId, startedAt })); } catch {}
 }
 
-function clearStartedAt() {
+function clearStart() {
   try { window.localStorage.removeItem(STORAGE_KEY); } catch {}
 }
 
 export function sessionHasExpired(now = Date.now()) {
-  const startedAt = readStartedAt();
-  return !!startedAt && now - startedAt >= TESTAGRAM_SESSION_MAX_AGE_MS;
+  const start = readStart();
+  return !!start && now - start.startedAt >= TESTAGRAM_SESSION_MAX_AGE_MS;
 }
 
-export function markAuthenticatedSessionStarted() {
-  const existing = readStartedAt();
-  if (!existing || Date.now() - existing >= TESTAGRAM_SESSION_MAX_AGE_MS) {
-    writeStartedAt(Date.now());
+export function markAuthenticatedSessionStarted(userId: string) {
+  const existing = readStart();
+  if (!existing || existing.userId !== userId || Date.now() - existing.startedAt >= TESTAGRAM_SESSION_MAX_AGE_MS) {
+    writeStart(userId, Date.now());
   }
 }
 
 export async function enforceTestagramSessionLifetime() {
   const { data } = await supabase.auth.getSession();
   if (!data.session?.user) {
-    clearStartedAt();
+    clearStart();
     return false;
   }
 
-  const startedAt = readStartedAt();
-  if (!startedAt) {
-    // Existing sessions created before this policy get a fresh two-hour
-    // application lifetime when first observed.
-    writeStartedAt(Date.now());
+  const userId = data.session.user.id;
+  const existing = readStart();
+
+  if (!existing || existing.userId !== userId) {
+    writeStart(userId, Date.now());
     return true;
   }
 
-  if (Date.now() - startedAt >= TESTAGRAM_SESSION_MAX_AGE_MS) {
-    clearStartedAt();
+  if (Date.now() - existing.startedAt >= TESTAGRAM_SESSION_MAX_AGE_MS) {
+    clearStart();
     await supabase.auth.signOut();
     return false;
   }
@@ -55,5 +59,5 @@ export async function enforceTestagramSessionLifetime() {
 }
 
 export function clearTestagramSessionLifetime() {
-  clearStartedAt();
+  clearStart();
 }
