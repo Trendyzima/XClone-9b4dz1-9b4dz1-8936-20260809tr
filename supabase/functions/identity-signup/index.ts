@@ -214,7 +214,7 @@ Deno.serve(async (req) => {
       const otpExpires = new Date(now.getTime() + 10*60*1000).toISOString();
       const registrationHash = await tokenHash(registrationToken);
       const codeHash = await otpHash(email, code);
-      const { data: existing } = await admin.schema("private").from("identity_signup_intents").select("id").ilike("email", email).maybeSingle();
+      const { data: existing } = await admin.schema("private").from("identity_signup_intents").select("id").ilike("email", email).order("updated_at",{ascending:false}).limit(1).maybeSingle();
       const record = {
         email, email_otp_hash: codeHash, email_otp_expires_at: otpExpires, email_verified_at: null,
         registration_token_hash: registrationHash, legal_terms_accepted_at: now.toISOString(),
@@ -251,7 +251,7 @@ Deno.serve(async (req) => {
       const email = normalizeEmail(existingUser.email || "");
       const registrationToken = randomToken();
       const registrationHash = await tokenHash(registrationToken);
-      const { data: prior } = await admin.schema("private").from("identity_signup_intents").select("id").eq("completed_user_id", existingUser.id).maybeSingle();
+      const { data: prior } = await admin.schema("private").from("identity_signup_intents").select("id").eq("completed_user_id", existingUser.id).order("updated_at",{ascending:false}).limit(1).maybeSingle();
       const record:any = {
         email, email_verified_at: now, email_otp_hash:null, email_otp_expires_at:null,
         registration_token_hash: registrationHash,
@@ -322,7 +322,7 @@ Deno.serve(async (req) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : "UNKNOWN_ERROR";
     const status = /RESTRICTION|NOT_APPROVED|NOT_VERIFIED|EXPIRED|REQUIRED|NOT_CONFIGURED/.test(message) ? 400 : 500;
-    console.error("IDENTITY_SIGNUP_FAILURE", JSON.stringify({ error: message }));
+    console.error("IDENTITY_SIGNUP_FAILURE", JSON.stringify({ error: message, raw: String(error), stack: error instanceof Error ? error.stack : undefined }));
     return json({ok:false,error:message},status);
   }
 });
