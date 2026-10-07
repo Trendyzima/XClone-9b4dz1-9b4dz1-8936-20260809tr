@@ -110,8 +110,10 @@ async function createIdentitySession(intent: any) {
       body: JSON.stringify({
         user_id: intent.id,
         document_type: "national_id",
+        issuing_country: "KE",
         verification_mode: "identity",
         sandbox: false,
+        source: "api",
       }),
       signal: controller.signal,
     });
