@@ -5,7 +5,6 @@ import { useAuthStore } from '@/stores/authStore';
 import { finalizeAuthenticatedSession } from '@/lib/auth';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 import { clearTestagramSessionLifetime, enforceTestagramSessionLifetime, markAuthenticatedSessionStarted } from '@/lib/sessionPolicy';
-import { clearTestagramSessionLifetime, enforceTestagramSessionLifetime, markAuthenticatedSessionStarted } from '@/lib/sessionPolicy';
 
 function normalizedPathname() {
   if (typeof window === 'undefined') return '/';
@@ -70,6 +69,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let mounted = true;
 
+    const lifetimeTimer = window.setInterval(() => {
+      void enforceTestagramSessionLifetime().then((valid) => {
+        if (!valid && mounted) {
+          logout();
+          window.location.replace('/auth');
+        }
+      });
+    }, 30_000);
 
     const finalizationInFlight = new Map<string, Promise<void>>();
 
@@ -88,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           void enforceTestagramSessionLifetime().then((valid) => {
             if (!valid) throw new Error('SESSION_EXPIRED');
-            markAuthenticatedSessionStarted();
+            markAuthenticatedSessionStarted(user.id);
             return finalizeAuthenticatedSession(user, { requireFreshLegalConsent });
           })
             .then(async (mappedUser) => {
@@ -147,14 +154,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       finalizationInFlight.set(user.id, task);
     };
 
-    const timer = window.setInterval(() => { void enforceTestagramSessionLifetime(); }, 30_000);
+    const timer = window.setInterval(() => { void enforceTwoHourMaximum(); }, 30_000);
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === SESSION_STARTED_AT_KEY && event.newValue === null) void supabase.auth.signOut();
+    };
+    window.addEventListener('storage', onStorage);
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) markAuthenticatedSessionStarted();
-      if (event === 'INITIAL_SESSION' && session) markAuthenticatedSessionStarted();
+      if (event === 'SIGNED_IN' && session) {
+        window.localStorage.setItem(SESSION_STARTED_AT_KEY, String(Date.now()));
+      }
+
+      if (event === 'INITIAL_SESSION' && session && !window.localStorage.getItem(SESSION_STARTED_AT_KEY)) {
+        window.localStorage.setItem(SESSION_STARTED_AT_KEY, String(sessionStartedAtFromJwt(session.access_token)));
+      }
 
       if (event === 'SIGNED_OUT') {
-        clearTestagramSessionLifetime();
+        window.localStorage.removeItem(SESSION_STARTED_AT_KEY);
         trackTestagramEvent(TestagramEvent.LOGGED_OUT, { auth_event: event });
         clearTestagramSessionLifetime();
         logout();
