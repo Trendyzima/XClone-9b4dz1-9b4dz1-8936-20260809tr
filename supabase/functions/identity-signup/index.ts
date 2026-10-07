@@ -106,7 +106,7 @@ async function createDiditSession(intent: any) {
       workflow_id: DIDIT_WORKFLOW_ID,
       vendor_data: intent.id,
       callback: CALLBACK_URL,
-      callback_method: "both",
+      callback_method: "initiator",
       metadata: { purpose: "testagram_account_creation", registration_id: intent.id },
       language: "en",
       contact_details: { email: intent.email, send_notification_emails: false },
