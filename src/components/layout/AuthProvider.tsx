@@ -154,23 +154,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       finalizationInFlight.set(user.id, task);
     };
 
-    const timer = window.setInterval(() => { void enforceTwoHourMaximum(); }, 30_000);
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === SESSION_STARTED_AT_KEY && event.newValue === null) void supabase.auth.signOut();
-    };
-    window.addEventListener('storage', onStorage);
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        window.localStorage.setItem(SESSION_STARTED_AT_KEY, String(Date.now()));
-      }
-
-      if (event === 'INITIAL_SESSION' && session && !window.localStorage.getItem(SESSION_STARTED_AT_KEY)) {
-        window.localStorage.setItem(SESSION_STARTED_AT_KEY, String(sessionStartedAtFromJwt(session.access_token)));
-      }
-
       if (event === 'SIGNED_OUT') {
-        window.localStorage.removeItem(SESSION_STARTED_AT_KEY);
+        clearTestagramSessionLifetime();
         trackTestagramEvent(TestagramEvent.LOGGED_OUT, { auth_event: event });
         clearTestagramSessionLifetime();
         logout();
