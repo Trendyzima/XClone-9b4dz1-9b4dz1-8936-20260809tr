@@ -1,0 +1,15 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Testagram TV metadata is server-only. The Edge control plane uses
+    // a Google service-account OAuth token and IAM, so client rules remain closed.
+    match /tv_live_streams/{streamId} {
+      allow read, write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
