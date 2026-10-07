@@ -1,5 +1,5 @@
 -- Testagram-owned identity engine foundation.
-do $
+do $$
 begin
   if exists (select 1 from information_schema.columns where table_schema='private' and table_name='identity_signup_intents' and column_name='didit_session_id')
      and not exists (select 1 from information_schema.columns where table_schema='private' and table_name='identity_signup_intents' and column_name='verification_session_id') then
@@ -9,7 +9,7 @@ begin
      and not exists (select 1 from information_schema.columns where table_schema='private' and table_name='identity_signup_intents' and column_name='verification_stage') then
     alter table private.identity_signup_intents rename column didit_status to verification_stage;
   end if;
-end $;
+end $$;
 
 alter table public.identity_verifications
   drop constraint if exists identity_verifications_verification_method_check;
