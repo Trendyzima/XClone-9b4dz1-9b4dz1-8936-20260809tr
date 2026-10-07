@@ -91,3 +91,12 @@ create policy "deny_direct_client_access" on private.identity_verification_sessi
 create policy "deny_direct_client_access" on private.identity_verification_evidence for all to anon, authenticated using (false) with check (false);
 create policy "deny_direct_client_access" on private.identity_engine_results for all to anon, authenticated using (false) with check (false);
 create policy "deny_direct_client_access" on private.identity_signup_intents for all to anon, authenticated using (false) with check (false);
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values ('identity-evidence','identity-evidence',false,10485760,array['image/jpeg','image/png','image/webp','video/webm','video/mp4'])
+on conflict (id) do update set public=false, file_size_limit=10485760,
+  allowed_mime_types=array['image/jpeg','image/png','image/webp','video/webm','video/mp4'];
+
+comment on table private.identity_verification_sessions is 'Testagram-owned verification session state. No external identity provider.';
+comment on table private.identity_verification_evidence is 'Private capture manifest; raw files live only in the private identity-evidence bucket.';
+comment on table private.identity_engine_results is 'Signed output from Testagram identity engine. Client input alone can never approve an identity.';
