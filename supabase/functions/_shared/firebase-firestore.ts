@@ -11,13 +11,13 @@ type ServiceAccount = {
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
 const b64url = (bytes: Uint8Array) =>
-  btoa(String.fromCharCode(...bytes))
-    .replace(/\\+/g, "-")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
     .replace(/\\//g, "_")
     .replace(/=+$/g, "");
 
 const textB64url = (value: string) =>
-  b64url(new TextEncoder().encode(value));
+  const body = pem.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, "");
 
 const pemToDer = (pem: string) => {
   const body = pem.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\\s/g, "");
