@@ -37,7 +37,7 @@ async function verifySignature(body:any,timestamp:string){
 }
 async function idHmac(id:string){
   if(!IDENTITY_SECRET) throw new Error("IDENTITY_SECRET_NOT_CONFIGURED");
-  return hmacHexWithSecret("id|"+id,IDENTITY_SECRET);
+  return hmacHexWithSecret("ke-nid|" + id, IDENTITY_SECRET);
 }
 async function hmacHexWithSecret(value:string,secret:string){
   const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
@@ -53,15 +53,21 @@ function findWarnings(decision:any):string[]{
   }
   return warnings;
 }
+function normalizeId(value: unknown) {
+  const id = String(value ?? "").replace(/\D/g, "");
+  return /^\d{6,12}$/.test(id) ? id : "";
+}
 function findId(decision:any){
   const items=Array.isArray(decision?.id_verifications)?decision.id_verifications:[];
   const approved=items.find((x:any)=>x?.status==="Approved") ?? items[0];
   if(!approved)return null;
-  const personal=typeof approved.personal_number==="string"?approved.personal_number.replace(/[^A-Za-z0-9]/g,"").toUpperCase():"";
-  const document=typeof approved.document_number==="string"?approved.document_number.replace(/[^A-Za-z0-9]/g,"").toUpperCase():"";
+  const document=normalizeId(approved.document_number);
+  const personal=normalizeId(approved.personal_number);
+  const mrz=normalizeId(approved.mrz?.document_number);
+  const id=document || personal || mrz;
   return {
-    id: personal || document,
-    last4:(personal||document).slice(-4),
+    id,
+    last4:id.slice(-4),
     dob:typeof approved.date_of_birth==="string"?approved.date_of_birth:null,
     issuingState:typeof approved.issuing_state==="string"?approved.issuing_state:null,
     documentType:typeof approved.document_type==="string"?approved.document_type:null,
@@ -109,20 +115,27 @@ Deno.serve(async(req)=>{
 
     if(status==="Approved"){
       const extracted=findId(decision);
-      if(!extracted?.id||extracted.issuingState!=="KEN"||!/identity.?card/i.test(extracted.documentType||"")){
+      if(!extracted?.id||extracted.issuingState!=="KEN"||!/identity\s*card/i.test(extracted.documentType||"")){
         identityStatus="rejected"; rejectionReason="IDENTITY_DATA_MISSING_OR_UNEXPECTED_DOCUMENT";
-      } else if(!extracted.dob||extracted.dob!==intent.birth_date||!/^\\d{4}-\\d{2}-\\d{2}$/.test(extracted.dob)){
+      }else if(!extracted.dob||extracted.dob!==intent.birth_date||!/^\d{4}-\d{2}-\d{2}$/.test(extracted.dob)){
         identityStatus="rejected"; rejectionReason="BIRTH_DATE_MISMATCH";
-      } else if(warnings.includes("POSSIBLE_DUPLICATED_FACE")||warnings.includes("FACE_IN_BLOCKLIST")){
+      }else if(warnings.includes("POSSIBLE_DUPLICATED_FACE")||warnings.includes("FACE_IN_BLOCKLIST")){
         identityStatus="blocked"; rejectionReason=warnings.find((w)=>w==="POSSIBLE_DUPLICATED_FACE"||w==="FACE_IN_BLOCKLIST")||"DUPLICATE_FACE";
-      } else {
+      }else{
         fingerprint=await idHmac(extracted.id);
         last4=extracted.last4;
         verifiedDob=extracted.dob;
-        const {error:updateError}=await admin.schema("private").from("identity_signup_intents").update({
-          identity_status:"approved",didit_status:status,id_number_hmac:fingerprint,id_number_last4:last4,
-          verified_birth_date:verifiedDob,provider_reference:providerReference,rejection_reason:null,updated_at:new Date().toISOString()
-        }).eq("id",intent.id);
+        const {data:duplicate}=await admin.from("identity_verifications").select("id,user_id").eq("id_number_hmac",fingerprint).maybeSingle();
+        if(duplicate){
+          identityStatus="blocked"; rejectionReason="IDENTITY_ALREADY_REGISTERED";
+        }else{
+          const {error:updateError}=await admin.schema("private").from("identity_signup_intents").update({
+            identity_status:"approved",didit_status:status,id_number_hmac:fingerprint,id_number_last4:last4,
+            verified_birth_date:verifiedDob,provider_reference:providerReference,rejection_reason:null,updated_at:new Date().toISOString()
+          }).eq("id",intent.id);
+          if(updateError)throw updateError;
+        }
+      }
         if(updateError){
           if(updateError.code==="23505"){
             identityStatus="blocked"; rejectionReason="IDENTITY_ALREADY_REGISTERED";
