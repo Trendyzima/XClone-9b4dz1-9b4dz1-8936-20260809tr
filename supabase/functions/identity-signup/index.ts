@@ -5,10 +5,9 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
 const SERVICE_KEY = secretKeys.default || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || "";
 const RESEND_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const DIDIT_API_KEY = Deno.env.get("DIDIT_API_KEY") ?? "";
-const DIDIT_WORKFLOW_ID = Deno.env.get("DIDIT_WORKFLOW_ID") ?? "";
+const IDSWYFT_BASE_URL = (Deno.env.get("IDSWYFT_BASE_URL") ?? "").replace(/\/$/, "");
+const IDSWYFT_API_KEY = Deno.env.get("IDSWYFT_API_KEY") ?? "";
 const IDENTITY_SECRET = Deno.env.get("IDENTITY_PREAUTH_SECRET") ?? "";
-const CALLBACK_URL = "https://testagram.site/verify-identity";
 const FROM = "Testagram <noreply@testagram.site>";
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
@@ -97,50 +96,57 @@ async function getIntent(token: string, allowCompletedUser = false) {
   if (new Date(data.expires_at).getTime() < Date.now()) throw new Error("REGISTRATION_EXPIRED");
   return data;
 }
-async function createDiditSession(intent: any) {
-  if (!DIDIT_API_KEY || !DIDIT_WORKFLOW_ID) throw new Error("DIDIT_NOT_CONFIGURED");
+async function createIdentitySession(intent: any) {
+  if (!IDSWYFT_BASE_URL || !IDSWYFT_API_KEY) throw new Error("IDENTITY_PROVIDER_NOT_CONFIGURED");
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
-  let response: Response;
+  const timeout = setTimeout(() => controller.abort(), 20000);
   try {
-    response = await fetch("https://verification.didit.me/v3/session/", {
-    method: "POST",
-    headers: { "x-api-key": DIDIT_API_KEY, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      workflow_id: DIDIT_WORKFLOW_ID,
-      vendor_data: intent.id,
-      callback: CALLBACK_URL,
-      callback_method: "initiator",
-      metadata: { purpose: "testagram_account_creation", registration_id: intent.id },
-      language: "en",
-      contact_details: { email: intent.email, send_notification_emails: false },
-      expected_details: { date_of_birth: intent.birth_date, id_country: "KEN", expected_document_types: ["ID"] },
-    }),
-    signal: controller.signal,
-  });
+    const response = await fetch(IDSWYFT_BASE_URL + "/api/v2/verify/initialize", {
+      method: "POST",
+      headers: {
+        "X-API-Key": IDSWYFT_API_KEY,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        user_id: intent.id,
+        document_type: "national_id",
+        verification_mode: "identity",
+        sandbox: false,
+      }),
+      signal: controller.signal,
+    });
+    const body = await response.text();
+    if (!response.ok) {
+      let detail = "";
+      try { const parsed = JSON.parse(body); detail = String(parsed?.message || parsed?.error || ""); } catch {}
+      throw new Error("IDENTITY_PROVIDER_HTTP_" + response.status + (detail ? "_" + detail.slice(0,120).replace(/[^A-Za-z0-9_-]/g,"_") : ""));
+    }
+    let session: any;
+    try { session = JSON.parse(body); } catch { throw new Error("IDENTITY_PROVIDER_INVALID_RESPONSE"); }
+    if (!session?.verification_id || !session?.session_token || !session?.verification_url) {
+      throw new Error("IDENTITY_PROVIDER_RESPONSE_MISSING_FIELDS");
+    }
+    const { error } = await admin.schema("private").from("identity_signup_intents").update({
+      didit_session_id: session.verification_id,
+      didit_status: session.status ?? "AWAITING_FRONT",
+      provider_reference: session.verification_id,
+      updated_at: new Date().toISOString(),
+    }).eq("id", intent.id);
+    if (error) throw error;
+    return {
+      session_id: session.verification_id,
+      session_token: session.session_token,
+      url: session.verification_url,
+      verification_id: session.verification_id,
+    };
   } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw new Error("DIDIT_SESSION_TIMEOUT");
-    throw error instanceof Error ? error : new Error("DIDIT_SESSION_REQUEST_FAILED");
+    if (error instanceof DOMException && error.name === "AbortError") throw new Error("IDENTITY_PROVIDER_TIMEOUT");
+    throw error instanceof Error ? error : new Error("IDENTITY_PROVIDER_REQUEST_FAILED");
   } finally {
     clearTimeout(timeout);
   }
-  const body = await response.text();
-  if (!response.ok) {
-    let detail = "";
-    try { const parsed = JSON.parse(body); detail = String(parsed?.message || parsed?.detail || parsed?.error || ""); } catch {}
-    throw new Error("DIDIT_SESSION_HTTP_" + response.status + (detail ? "_" + detail.slice(0,120).replace(/[^A-Za-z0-9_-]/g,"_") : ""));
-  }
-  let session: any;
-  try { session = JSON.parse(body); } catch { throw new Error("DIDIT_SESSION_INVALID_RESPONSE"); }
-  if (!session?.session_id || !session?.url) throw new Error("DIDIT_SESSION_RESPONSE_MISSING_FIELDS");
-  const { error } = await admin.schema("private").from("identity_signup_intents").update({
-    didit_session_id: session.session_id,
-    didit_status: session.status ?? "Not Started",
-    updated_at: new Date().toISOString(),
-  }).eq("id", intent.id);
-  if (error) throw error;
-  return { session_id: session.session_id, url: session.url };
 }
+
 function errorDetails(error: unknown) {
   if (error instanceof Error) return { message: error.message, stack: error.stack };
   if (error && typeof error === "object") {
@@ -179,8 +185,8 @@ async function finalizeAccount(intent: any, password: string) {
       id_number_last4: intent.id_number_last4,
       country_code: "KE",
       status: "approved",
-      verification_method: "provider",
-      provider: "didit",
+      verification_method: "self_hosted",
+      provider: "idswyft",
       provider_reference: intent.provider_reference,
       submitted_at: now,
       reviewed_at: now,
@@ -207,9 +213,7 @@ async function finalizeAccount(intent: any, password: string) {
       .filter("metadata->>session_id", "eq", String(intent.didit_session_id));
     if (auditLinkError) throw auditLinkError;
     await admin.schema("private").from("identity_signup_intents").update({ completed_user_id: user.id, updated_at: now }).eq("id", intent.id);
-    if (DIDIT_API_KEY && intent.didit_session_id) {
-      await fetch("https://verification.didit.me/v3/session/" + encodeURIComponent(intent.didit_session_id) + "/delete/", { method: "DELETE", headers: { "x-api-key": DIDIT_API_KEY } }).catch(() => {});
-    }
+    
     return user;
   } catch (error) {
     await admin.auth.admin.deleteUser(user.id).catch(() => {});
@@ -286,7 +290,7 @@ Deno.serve(async (req) => {
         legal_age_confirmed_at: profile.legal_age_confirmed_at || now,
         legal_policy_version: profile.legal_policy_version || "2026-09",
         birth_date: String(profile.birth_date), username: profile.username || null, display_name: profile.display_name || null,
-        didit_session_id:null,didit_status:"not_started",identity_status:"pending",id_number_hmac:null,id_number_last4:null,
+        didit_session_id:null,didit_status:"AWAITING_FRONT",identity_status:"pending",id_number_hmac:null,id_number_last4:null,
         country_code:"KE",provider_reference:null,rejection_reason:null,updated_at:now,expires_at:new Date(Date.now()+30*60*1000).toISOString(),
         completed_user_id:existingUser.id,
       };
@@ -296,7 +300,7 @@ Deno.serve(async (req) => {
       if(error) throw error;
       const {data:intent,error:intentError}=await admin.schema("private").from("identity_signup_intents").select("*").eq("registration_token_hash",registrationHash).single();
       if(intentError||!intent) throw intentError||new Error("REGISTRATION_NOT_FOUND");
-      const session=await createDiditSession(intent);
+      const session=await createIdentitySession(intent);
       return json({ok:true,registration_token:registrationToken,...session});
     }
 
@@ -330,12 +334,12 @@ Deno.serve(async (req) => {
     if (action === "create_identity_session") {
       if (!intent.email_verified_at) throw new Error("EMAIL_NOT_VERIFIED");
       if (intent.identity_status === "approved") return json({ok:true,already_approved:true});
-      const session = await createDiditSession(intent);
+      const session = await createIdentitySession(intent);
       return json({ok:true,...session});
     }
 
     if (action === "status") {
-      return json({ok:true,status:intent.identity_status,didit_status:intent.didit_status,email_verified:!!intent.email_verified_at,rejection_reason:intent.rejection_reason});
+      return json({ok:true,status:intent.identity_status,provider_status:intent.didit_status,email_verified:!!intent.email_verified_at,rejection_reason:intent.rejection_reason});
     }
 
     if (action === "finalize") {
