@@ -66,6 +66,12 @@ export async function verifyStaffWorkspacePin(pin: string) {
   return data as { success: boolean; code?: string; attempts_remaining?: number };
 }
 
+export async function getAuthenticatedUserId() {
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data.user) throw error ?? new Error('Authentication required');
+  return data.user.id;
+}
+
 export async function setStaffWorkspacePin(userId: string, pin: string) {
   const { data, error } = await supabase.rpc('testagram_set_staff_workspace_pin', { p_user_id: userId, p_pin: pin });
   if (error) throw error;
