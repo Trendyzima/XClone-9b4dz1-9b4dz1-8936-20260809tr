@@ -8,7 +8,10 @@ on:
       - 'supabase/functions/identity-signup/**'
       - 'supabase/functions/identity-verification/**'
       - 'supabase/functions/identity-engine-result/**'
+      - 'supabase/functions/identity-engine-worker/**'
       - 'supabase/migrations/**identity_engine.sql'
+      - 'supabase/migrations/**kyc_engine_*.sql'
+      - 'supabase/migrations/**kyc_*.sql'
       - '.github/workflows/deploy-identity-functions.yml'
   workflow_dispatch:
 
@@ -68,6 +71,7 @@ jobs:
           supabase functions deploy identity-signup --project-ref "${SUPABASE_PROJECT_ID}" --no-verify-jwt
           supabase functions deploy identity-verification --project-ref "${SUPABASE_PROJECT_ID}" --no-verify-jwt
           supabase functions deploy identity-engine-result --project-ref "${SUPABASE_PROJECT_ID}" --no-verify-jwt
+          supabase functions deploy identity-engine-worker --project-ref "${SUPABASE_PROJECT_ID}" --no-verify-jwt
 
       - name: Verify deployed functions exist
         shell: bash
