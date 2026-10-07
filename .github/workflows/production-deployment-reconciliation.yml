@@ -84,7 +84,7 @@ jobs:
             cat /tmp/tv-retired-providers.txt
             exit 1
           fi
-          echo "TV architecture guard passed: YouTube public delivery + Testagram TV control plane + Supabase control plane + Cloudflare TURN guest bridge."
+          echo "TV architecture guard passed: Testagram self-hosted CDN video transport + Supabase control-plane signing; no YouTube/Cloudflare video dependency."
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -591,167 +591,21 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ffrhglgkukgsuhxenena
-          SUPABASE_URL: https://ffrhglgkukgsuhxenena.supabase.co
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.TESTAGRAM_CLOUDFLARE_ACCOUNT_ID }}
-          CLOUDFLARE_API_TOKEN: ${{ secrets.TESTAGRAM_CLOUDFLARE_STREAM_API_TOKEN }}
-          CLOUDFLARE_TURN_TOKEN_ID: ${{ secrets.CLOUDFLARE_TURN_TOKEN_ID }}
-          CLOUDFLARE_TURN_API_TOKEN: ${{ secrets.CLOUDFLARE_TURN_API_TOKEN }}
-          YOUTUBE_CLIENT_ID: ${{ secrets.YOUTUBE_CLIENT_ID }}
-          YOUTUBE_CLIENT_SECRET: ${{ secrets.YOUTUBE_CLIENT_SECRET }}
-          YOUTUBE_REFRESH_TOKEN: ${{ secrets.YOUTUBE_REFRESH_TOKEN }}
-          YOUTUBE_RTMP_URL: ${{ secrets.YOUTUBE_RTMP_URL }}
-          YOUTUBE_INGESTION_URL: ${{ secrets.YOUTUBE_INGESTION_URL }}
-          YOUTUBE_BACKUP_INGESTION_URL: ${{ secrets.YOUTUBE_BACKUP_INGESTION_URL }}
-          YOUTUBE_STREAM_KEY: ${{ secrets.YOUTUBE_STREAM_KEY }}
         run: |
           set -euo pipefail
           PROJECT_REF="$SUPABASE_PROJECT_REF"
-          if [[ -z "$PROJECT_REF" ]]; then PROJECT_REF="$(printf '%s' "$SUPABASE_URL" | sed -nE 's#https://([a-z0-9]+)\.supabase\.co/?$#\1#p')"; fi
-          [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve Supabase project ref for TV control-plane deployment."; exit 1; }
-          require_secret() {
-            local name="$1" value="$2"
-            if [[ -z "$value" ]]; then echo "::error::Required TV production secret is missing from GitHub: $name"; exit 1; fi
-            printf '::add-mask::%s\n' "$value"
-          }
-          require_secret "CLOUDFLARE_ACCOUNT_ID" "$CLOUDFLARE_ACCOUNT_ID"
-          require_secret "TESTAGRAM_CLOUDFLARE_STREAM_API_TOKEN" "$CLOUDFLARE_API_TOKEN"
-          require_secret "CLOUDFLARE_TURN_TOKEN_ID" "$CLOUDFLARE_TURN_TOKEN_ID"
-          require_secret "CLOUDFLARE_TURN_API_TOKEN" "$CLOUDFLARE_TURN_API_TOKEN"
-          require_secret "YOUTUBE_CLIENT_ID" "$YOUTUBE_CLIENT_ID"
-          require_secret "YOUTUBE_CLIENT_SECRET" "$YOUTUBE_CLIENT_SECRET"
-          require_secret "YOUTUBE_REFRESH_TOKEN" "$YOUTUBE_REFRESH_TOKEN"
-          require_secret "YOUTUBE_RTMP_URL" "$YOUTUBE_RTMP_URL"
-          require_secret "YOUTUBE_INGESTION_URL" "$YOUTUBE_INGESTION_URL"
-          require_secret "YOUTUBE_BACKUP_INGESTION_URL" "$YOUTUBE_BACKUP_INGESTION_URL"
-          require_secret "YOUTUBE_STREAM_KEY" "$YOUTUBE_STREAM_KEY"
+          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required for TV control-plane deployment."; exit 1; }
+          [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Invalid Supabase project ref for TV control-plane deployment."; exit 1; }
 
-          # Verify the OAuth credentials and stream key against YouTube itself before
-          # publishing the credentials into Supabase. Secret presence alone cannot prove
-          # that the stream key belongs to the channel represented by the refresh token.
-          echo "Verifying YouTube OAuth credentials and configured stream ownership..."
-          YT_ACCESS_TOKEN="$(YOUTUBE_CLIENT_ID="$YOUTUBE_CLIENT_ID" YOUTUBE_CLIENT_SECRET="$YOUTUBE_CLIENT_SECRET" YOUTUBE_REFRESH_TOKEN="$YOUTUBE_REFRESH_TOKEN" node <<NODE
-          const tokenRes=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({client_id:process.env.YOUTUBE_CLIENT_ID,client_secret:process.env.YOUTUBE_CLIENT_SECRET,refresh_token:process.env.YOUTUBE_REFRESH_TOKEN,grant_type:"refresh_token"})});
-          const token=await tokenRes.json().catch(()=>({}));
-          if(!tokenRes.ok||!token.access_token){console.error("::error::YouTube OAuth refresh failed:",token.error_description||token.error||"unknown error");process.exit(1);}
-          process.stdout.write(token.access_token);
-          NODE
-          )"
-          printf "::add-mask::%s\n" "$YT_ACCESS_TOKEN"
-          yt_streams_json="$(curl --fail --silent --show-error --retry 3 --retry-delay 2 -H "Authorization: Bearer $YT_ACCESS_TOKEN" "https://www.googleapis.com/youtube/v3/liveStreams?part=id,snippet,cdn,status&mine=true&maxResults=50")"
-          YOUTUBE_STREAM_KEY="$YOUTUBE_STREAM_KEY" YT_STREAMS_JSON="$yt_streams_json" node <<NODE
-          const key=process.env.YOUTUBE_STREAM_KEY;
-          const payload=JSON.parse(process.env.YT_STREAMS_JSON);
-          const items=Array.isArray(payload.items)?payload.items:[];
-          const match=items.find(x=>String(x?.cdn?.ingestionInfo?.streamName||"")===key);
-          if(!match){
-            console.error("::error::YouTube OAuth is valid, but YOUTUBE_STREAM_KEY does not match any live stream owned by that OAuth channel.");
-            console.error("::error::YouTube returned "+items.length+" owned stream(s); no stream matched the configured key.");
-            console.error("::error::Owned stream diagnostics (stream keys intentionally omitted): "+JSON.stringify(items.map(x=>({id:x?.id||null,title:x?.snippet?.title||null,status:x?.status?.streamStatus||null}))));
-            process.exit(2);
-          }
-          console.log("YouTube stream ownership preflight passed:",JSON.stringify({stream_id:match.id,title:match.snippet?.title||null,status:match.status?.streamStatus||null}));
-          NODE
-          echo "YouTube OAuth/channel/stream-key relationship is valid."
-
-          # Normalize copy/paste whitespace at the GitHub Actions boundary. GitHub
-          # exposes the environment secret exactly as stored; do not let CR/LF or
-          # accidental surrounding whitespace become part of the Cloudflare request.
-          CLOUDFLARE_ACCOUNT_ID="$(printf '%s' "$CLOUDFLARE_ACCOUNT_ID" | tr -d '[:space:]')"
-          CLOUDFLARE_API_TOKEN="$(printf '%s' "$CLOUDFLARE_API_TOKEN" | tr -d '\r\n')"
-          [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]] || {
-            echo "::error::TESTAGRAM_CLOUDFLARE_ACCOUNT_ID reached the runner but is not a 32-character Cloudflare account ID."
-            exit 1
-          }
-          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || {
-            echo "::error::TESTAGRAM_CLOUDFLARE_STREAM_API_TOKEN is empty after GitHub secret injection."
-            exit 1
-          }
-          if printf '%s' "$CLOUDFLARE_API_TOKEN" | grep -q '[[:space:]]'; then
-            echo "::error::TESTAGRAM_CLOUDFLARE_STREAM_API_TOKEN contains whitespace; replace the GitHub secret with the token value only."
+          # The video plane is no longer YouTube or Cloudflare. Supabase is only the
+          # authenticated control plane that mints short-lived URLs for the self-hosted
+          # Go CDN. Keep deployment independent of external streaming credentials.
+          if ! supabase functions deploy tv-cdn-playback --use-api --project-ref "$PROJECT_REF"; then
+            echo "::error::tv-cdn-playback deployment failed."
             exit 1
           fi
 
-          echo "Validating the exact TV Cloudflare token GitHub injected into this production job..."
-          cf_token_verify_status="$(curl -sS -o /tmp/testagram-cloudflare-token-verify.json -w '%{http_code}' \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/user/tokens/verify")"
-          if [[ "$cf_token_verify_status" != "200" ]]; then
-            echo "::error::The fresh TESTAGRAM_CLOUDFLARE_STREAM_API_TOKEN is not accepted by Cloudflare (HTTP $cf_token_verify_status)."
-            cat /tmp/testagram-cloudflare-token-verify.json
-            exit 1
-          fi
-          node - <<'NODE'
-          const fs=require("node:fs");
-          const p=JSON.parse(fs.readFileSync("/tmp/testagram-cloudflare-token-verify.json","utf8"));
-          if (p?.success !== true || p?.result?.status !== "active") {
-            console.error("::error::Cloudflare TV API token is not active:", JSON.stringify({success:p?.success,status:p?.result?.status,errors:p?.errors}));
-            process.exit(1);
-          }
-          console.log("Cloudflare TV API token is active; GitHub secret injection is verified.");
-          NODE
-
-          # Do not use /accounts/{id}/tokens/verify as the TV gate. Cloudflare's
-          # account-token verification endpoint is specifically for account-owned
-          # token validation and can reject an otherwise active API token before the
-          # actual Stream permission endpoint is reached. The Stream API itself is the
-          # authoritative check for this TV token/account pair.
-          echo "Validating Cloudflare Stream access for the configured account..."
-          cf_status="$(curl -sS -o /tmp/testagram-cloudflare-stream.json -w '%{http_code}' \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs?per_page=1")"
-          if [[ "$cf_status" == "200" ]] && grep -q '"success"[[:space:]]*:[[:space:]]*true' /tmp/testagram-cloudflare-stream.json; then
-            echo "Cloudflare Stream is provisioned and accessible."
-            export TESTAGRAM_TV_CLOUDFLARE_AVAILABLE=true
-
-            echo "Validating Cloudflare Stream Write permission with a disposable Live Input..."
-            cf_write="$(curl -sS -X POST -o /tmp/testagram-cloudflare-stream-write.json -w '%{http_code}' \
-              -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              -H "Content-Type: application/json" \
-              -H "Idempotency-Key: testagram-ci-preflight-$GITHUB_RUN_ID" \
-              --data '{"enabled":false,"meta":{"name":"Testagram CI credential preflight"},"recording":{"mode":"off"}}' \
-              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs")"
-            if [[ "$cf_write" != "200" ]]; then
-              echo "::error::Cloudflare Stream Write preflight failed with HTTP $cf_write."
-              cat /tmp/testagram-cloudflare-stream-write.json
-              exit 1
-            fi
-            disposable_input="$(python3 -c 'import json; print(json.load(open("/tmp/testagram-cloudflare-stream-write.json"))["result"]["uid"])')"
-            if [[ -z "$disposable_input" ]]; then
-              echo "::error::Cloudflare Stream Write preflight returned no Live Input UID."
-              cat /tmp/testagram-cloudflare-stream-write.json
-              exit 1
-            fi
-            curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-              "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/stream/live_inputs/$disposable_input" >/tmp/testagram-cloudflare-stream-delete.json
-            echo "Cloudflare Stream Write permission verified and disposable preflight input removed."
-          else
-            if grep -q '"code"[[:space:]]*:[[:space:]]*10002' /tmp/testagram-cloudflare-stream.json && grep -qi 'stream not enabled' /tmp/testagram-cloudflare-stream.json; then
-              echo "NOTICE:Cloudflare Stream is not provisioned for this account. TV production will use the native Testagram WebRTC fallback until Stream is enabled."
-              export TESTAGRAM_TV_CLOUDFLARE_AVAILABLE=false
-            else
-              echo "::error::Cloudflare Stream credential/account access failed with HTTP $cf_status."
-              cat /tmp/testagram-cloudflare-stream.json
-              exit 1
-            fi
-          fi
-
-          supabase secrets set --project-ref "$PROJECT_REF"             "TESTAGRAM_CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID"             "TESTAGRAM_CLOUDFLARE_STREAM_API_TOKEN=$CLOUDFLARE_API_TOKEN"             "CLOUDFLARE_ACCOUNT_ID=$CLOUDFLARE_ACCOUNT_ID"             "CLOUDFLARE_STREAM_API_TOKEN=$CLOUDFLARE_API_TOKEN"             "CLOUDFLARE_API_TOKEN=$CLOUDFLARE_API_TOKEN"             "CLOUDFLARE_TURN_TOKEN_ID=$CLOUDFLARE_TURN_TOKEN_ID"             "CLOUDFLARE_TURN_API_TOKEN=$CLOUDFLARE_TURN_API_TOKEN"
-          printf '::add-mask::%s\n' "$YOUTUBE_STREAM_KEY"
-          supabase secrets set --project-ref "$PROJECT_REF" "YOUTUBE_CLIENT_ID=$YOUTUBE_CLIENT_ID"
-          supabase secrets set --project-ref "$PROJECT_REF" "YOUTUBE_CLIENT_SECRET=$YOUTUBE_CLIENT_SECRET"
-          supabase secrets set --project-ref "$PROJECT_REF" "YOUTUBE_REFRESH_TOKEN=$YOUTUBE_REFRESH_TOKEN"
-          supabase secrets set --project-ref "$PROJECT_REF" "YOUTUBE_RTMP_URL=$YOUTUBE_RTMP_URL"
-          supabase secrets set --project-ref "$PROJECT_REF" "YOUTUBE_STREAM_KEY=$YOUTUBE_STREAM_KEY"
-          echo "YouTube output credential and secure RTMPS endpoint synchronized to the Cloudflare TV control plane."
-          attempt=1; max_attempts=4
-          while true; do
-            echo "Deploying tv-media-control (attempt $attempt/$max_attempts)"
-            if supabase functions deploy tv-media-control --use-api --project-ref "$PROJECT_REF" --no-verify-jwt; then break; fi
-            if (( attempt >= max_attempts )); then echo "::error::tv-media-control deployment failed after $max_attempts attempts."; exit 1; fi
-            delay=$((attempt * 20)); echo "NOTICE:tv-media-control deployment retrying in ${delay}s."; sleep "$delay"; attempt=$((attempt+1))
-          done
-          echo "Testagram TV Cloudflare control-plane Edge Function deployed."
-      - name: Reconcile Cloudflare DNS for Worker Custom Domains
+          echo "Testagram TV control-plane Edge Function (tv-cdn-playback) deployed.";
         shell: bash
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
