@@ -63,13 +63,9 @@ async function verifySignature(raw:string,payload:any,timestampHeader:string,sig
 
 async function idHmac(id:string){
   if(!IDENTITY_SECRET) throw new Error("IDENTITY_SECRET_NOT_CONFIGURED");
-  return hmacHexWithSecret("ke-nid|" + id, IDENTITY_SECRET);
+  return "\\x" + await hmacHexWithSecret("ke-nid|" + id, IDENTITY_SECRET);
 }
-async function hmacHexWithSecret(value:string,secret:string){
-  const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
-  const sig=await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(value));
-  return "\\x"+Array.from(new Uint8Array(sig),b=>b.toString(16).padStart(2,"0")).join("");
-}
+
 function findWarnings(decision:any):string[]{
   const warnings:string[]=[];
   for(const key of ["id_verifications","liveness_checks","face_matches","ip_analyses"]){
