@@ -2,7 +2,7 @@
 -- The old names are retained only as a compatibility bridge during rollout.
 
 alter table private.identity_signup_intents
-  add column if not exists verification_session_id uuid,
+  add column if not exists verification_session_id uuid references private.identity_verification_sessions(id),
   add column if not exists verification_stage text;
 
 update private.identity_signup_intents
