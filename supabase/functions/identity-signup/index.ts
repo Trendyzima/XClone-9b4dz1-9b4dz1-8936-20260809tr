@@ -320,7 +320,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "status") {
-      return json({ok:true,status:intent.identity_status,provider_status:intent.verification_stage,email_verified:!!intent.email_verified_at,rejection_reason:intent.rejection_reason});
+      return json({ok:true,status:intent.identity_status,verification_stage:intent.verification_stage,email_verified:!!intent.email_verified_at,rejection_reason:intent.rejection_reason});
     }
 
     if (action === "finalize") {
