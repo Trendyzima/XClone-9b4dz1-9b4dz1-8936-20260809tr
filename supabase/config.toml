@@ -1,5 +1,5 @@
 [auth]
-enable_anonymous_sign_ins = true
+enable_anonymous_sign_ins = false
 
 [functions.capability-gateway]
 verify_jwt = false
