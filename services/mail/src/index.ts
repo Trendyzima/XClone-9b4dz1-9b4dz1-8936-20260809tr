@@ -21,7 +21,7 @@ const RATE_LIMIT_PER_MINUTE=Number(process.env.TESTAGRAM_MAIL_RATE_LIMIT_PER_MIN
 const requestCounts=new Map<number,number>();
 const DKIM_DOMAIN=process.env.TESTAGRAM_MAIL_DKIM_DOMAIN||"";
 const DKIM_SELECTOR=process.env.TESTAGRAM_MAIL_DKIM_SELECTOR||"";
-const DKIM_PRIVATE_KEY=(process.env.TESTAGRAM_MAIL_DKIM_PRIVATE_KEY||"").replace(/\\n/g,"\\n");
+const DKIM_PRIVATE_KEY=(process.env.TESTAGRAM_MAIL_DKIM_PRIVATE_KEY||"").replace(/\\n/g,"\n");
 
 if(!TOKEN) console.warn("TESTAGRAM_MAIL_TOKEN is not configured");
 const db=SUPABASE_URL&&SUPABASE_SECRET_KEY?createClient(SUPABASE_URL,SUPABASE_SECRET_KEY,{auth:{persistSession:false,autoRefreshToken:false}}):null;
