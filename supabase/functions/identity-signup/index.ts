@@ -231,6 +231,45 @@ Deno.serve(async (req) => {
       return json({ ok:true, registration_token:registrationToken, email, next:"email_verification" });
     }
 
+    if (action === "start_existing") {
+      const authHeader = req.headers.get("Authorization") || "";
+      const accessToken = authHeader.replace(/^Bearer\\s+/i, "").trim();
+      if (!accessToken) return json({ok:false,error:"AUTH_REQUIRED"},401);
+      const { data: authData, error: authError } = await admin.auth.getUser(accessToken);
+      if (authError || !authData.user) return json({ok:false,error:"AUTH_REQUIRED"},401);
+      const existingUser = authData.user;
+      const { data: profile, error: profileError } = await admin.from("profiles").select("birth_date,username,display_name,legal_terms_accepted_at,legal_privacy_accepted_at,legal_content_policy_accepted_at,legal_age_confirmed_at,legal_policy_version,identity_verification_status").eq("id", existingUser.id).maybeSingle();
+      if (profileError) throw profileError;
+      if (profile?.identity_verification_status === "approved") return json({ok:true,already_approved:true});
+      if (!profile?.birth_date || !isAdult(String(profile.birth_date))) return json({ok:false,error:"AGE_RESTRICTION"},403);
+      const now = new Date().toISOString();
+      const email = normalizeEmail(existingUser.email || "");
+      const registrationToken = randomToken();
+      const registrationHash = await tokenHash(registrationToken);
+      const { data: prior } = await admin.schema("private").from("identity_signup_intents").select("id").eq("completed_user_id", existingUser.id).maybeSingle();
+      const record:any = {
+        email, email_verified_at: now, email_otp_hash:null, email_otp_expires_at:null,
+        registration_token_hash: registrationHash,
+        legal_terms_accepted_at: profile.legal_terms_accepted_at || now,
+        legal_privacy_accepted_at: profile.legal_privacy_accepted_at || now,
+        legal_content_policy_accepted_at: profile.legal_content_policy_accepted_at || now,
+        legal_age_confirmed_at: profile.legal_age_confirmed_at || now,
+        legal_policy_version: profile.legal_policy_version || "2026-09",
+        birth_date: String(profile.birth_date), username: profile.username || null, display_name: profile.display_name || null,
+        didit_session_id:null,didit_status:"not_started",identity_status:"pending",id_number_hmac:null,id_number_last4:null,
+        country_code:"KE",provider_reference:null,rejection_reason:null,updated_at:now,expires_at:new Date(Date.now()+30*60*1000).toISOString(),
+        completed_user_id:existingUser.id,
+      };
+      let error:any=null;
+      if(prior?.id) ({error}=await admin.schema("private").from("identity_signup_intents").update(record).eq("id",prior.id));
+      else ({error}=await admin.schema("private").from("identity_signup_intents").insert(record));
+      if(error) throw error;
+      const {data:intent,error:intentError}=await admin.schema("private").from("identity_signup_intents").select("*").eq("registration_token_hash",registrationHash).single();
+      if(intentError||!intent) throw intentError||new Error("REGISTRATION_NOT_FOUND");
+      const session=await createDiditSession(intent);
+      return json({ok:true,registration_token:registrationToken,...session});
+    }
+
     const token = String(body.registration_token || "").trim();
     if (!token) return json({ ok:false,error:"REGISTRATION_TOKEN_REQUIRED" },400);
     const intent = await getIntent(token);
