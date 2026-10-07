@@ -4,8 +4,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
 const SERVICE_KEY = secretKeys.default || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || "";
-const TESTAGRAM_MAIL_URL = (Deno.env.get("TESTAGRAM_MAIL_URL") ?? "").replace(/\/$/, "");
-const TESTAGRAM_MAIL_TOKEN = Deno.env.get("TESTAGRAM_MAIL_TOKEN") ?? "";
+const RESEND_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
 const IDENTITY_SECRET = Deno.env.get("IDENTITY_PREAUTH_SECRET") ?? "";
 const FROM = "Testagram <noreply@testagram.site>";
 
@@ -70,7 +69,7 @@ function escapeHtml(value: unknown) {
   return String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
 }
 async function sendOtp(email: string, code: string) {
-  if (!TESTAGRAM_MAIL_URL || !TESTAGRAM_MAIL_TOKEN) throw new Error("TESTAGRAM_MAIL_NOT_CONFIGURED");
+  if (!RESEND_KEY) throw new Error("RESEND_NOT_CONFIGURED");
   const safeEmail = escapeHtml(email);
   const html = `<!doctype html><html><body style="margin:0;background:#f4f7f8;font-family:Arial,sans-serif;color:#172026">
   <div style="max-width:560px;margin:32px auto;background:#fff;border-radius:20px;padding:32px;box-shadow:0 8px 30px rgba(0,0,0,.07)">
@@ -79,26 +78,12 @@ async function sendOtp(email: string, code: string) {
   <div style="margin:26px 0;padding:20px;text-align:center;background:#f5f6f7;border-radius:14px;font-size:32px;font-weight:800;letter-spacing:8px">${escapeHtml(code)}</div>
   <p style="font-size:13px;color:#667085">This code expires in 10 minutes. Testagram will not create your account until identity verification is approved.</p>
   <p style="font-size:12px;color:#98a2b3">Sent to ${safeEmail}</p></div></body></html>`;
-  const idempotencyKey = await sha256("testagram-email-otp|" + email + "|" + code);
-  const res = await fetch(TESTAGRAM_MAIL_URL + "/emails", {
+  const res = await fetch("https://api.resend.com/emails", {
     method: "POST",
-    headers: {
-      Authorization: "Bearer " + TESTAGRAM_MAIL_TOKEN,
-      "Content-Type": "application/json",
-      "Idempotency-Key": idempotencyKey,
-    },
-    body: JSON.stringify({
-      from: FROM,
-      to: [email],
-      subject: "Confirm your Testagram email",
-      html,
-      text: `Testagram verification code: ${code}. It expires in 10 minutes.`,
-    }),
+    headers: { Authorization: "Bearer " + RESEND_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ from: FROM, to: [email], subject: "Confirm your Testagram email", html, text: `Testagram verification code: ${code}. It expires in 10 minutes.` }),
   });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => "");
-    throw new Error("TESTAGRAM_MAIL_HTTP_" + res.status + (detail ? "_" + detail.slice(0,120) : ""));
-  }
+  if (!res.ok) throw new Error("RESEND_HTTP_" + res.status);
 }
 async function getIntent(token: string, allowCompletedUser = false) {
   const hash = await tokenHash(token);
@@ -246,7 +231,7 @@ Deno.serve(async (req) => {
         legal_privacy_accepted_at: now.toISOString(), legal_content_policy_accepted_at: now.toISOString(),
         legal_age_confirmed_at: now.toISOString(), legal_policy_version: String(body.legal_policy_version || "2026-09"),
         birth_date: birthDate, username, display_name: displayName, verification_session_id: null,
-        verification_stage: "not_started", identity_status: "pending", id_number_hmac: null, id_number_last4: null, email_otp_attempts: 0, email_otp_locked_until: null, email_otp_last_sent_at: now.toISOString(),
+        verification_stage: "not_started", identity_status: "pending", id_number_hmac: null, id_number_last4: null,
         country_code: "KE", provider_reference: null, rejection_reason: null, updated_at: now.toISOString(),
         expires_at: expires, completed_user_id: null,
       };
@@ -307,37 +292,21 @@ Deno.serve(async (req) => {
     if (action === "verify_email") {
       const code = String(body.code || "").replace(/\s+/g,"");
       if (!/^\d{6}$/.test(code)) return json({ok:false,error:"INVALID_CODE"},400);
+      if (!intent.email_otp_expires_at || new Date(intent.email_otp_expires_at).getTime() < Date.now()) return json({ok:false,error:"CODE_EXPIRED"},400);
       const supplied = await otpHash(intent.email, code);
-      const {data:result,error} = await admin.schema("private").rpc("verify_identity_email_otp", {
-        p_intent_id: intent.id,
-        p_code_hash: supplied,
-      });
+      if (supplied !== intent.email_otp_hash) return json({ok:false,error:"INVALID_CODE"},400);
+      const now = new Date().toISOString();
+      const { error } = await admin.schema("private").from("identity_signup_intents").update({ email_verified_at: now, email_otp_hash: null, email_otp_expires_at: null, updated_at: now }).eq("id", intent.id);
       if (error) throw error;
-      if (result === "VERIFIED" || result === "ALREADY_VERIFIED") return json({ok:true,next:"identity_verification"});
-      if (result === "EXPIRED") return json({ok:false,error:"CODE_EXPIRED"},400);
-      if (result === "LOCKED") return json({ok:false,error:"CODE_LOCKED"},429);
-      return json({ok:false,error:"INVALID_CODE"},400);
+      return json({ok:true,next:"identity_verification"});
     }
 
     if (action === "resend_email") {
       if (intent.email_verified_at) return json({ok:true,already_verified:true});
-      if (intent.email_otp_locked_until && new Date(intent.email_otp_locked_until).getTime() > Date.now()) {
-        return json({ok:false,error:"CODE_LOCKED"},429);
-      }
-      if (intent.email_otp_last_sent_at && Date.now() - new Date(intent.email_otp_last_sent_at).getTime() < 60_000) {
-        return json({ok:false,error:"RESEND_TOO_SOON"},429);
-      }
       const code = randomOtp();
       const now = new Date();
       const codeHash = await otpHash(intent.email, code);
-      const { error } = await admin.schema("private").from("identity_signup_intents").update({
-        email_otp_hash: codeHash,
-        email_otp_expires_at: new Date(now.getTime()+10*60*1000).toISOString(),
-        email_otp_attempts: 0,
-        email_otp_locked_until: null,
-        email_otp_last_sent_at: now.toISOString(),
-        updated_at: now.toISOString()
-      }).eq("id", intent.id);
+      const { error } = await admin.schema("private").from("identity_signup_intents").update({ email_otp_hash: codeHash, email_otp_expires_at: new Date(now.getTime()+10*60*1000).toISOString(), updated_at: now.toISOString() }).eq("id", intent.id);
       if (error) throw error;
       await sendOtp(intent.email, code);
       return json({ok:true});
