@@ -29,8 +29,6 @@ async function verifySignature(body:any,timestamp:string){
   if(!WEBHOOK_SECRET) return false;
   const ts=Number(timestamp);
   if(!Number.isFinite(ts)||Math.abs(Math.floor(Date.now()/1000)-ts)>300)return false;
-  const bodyTimestamp = body.timestamp;
-  if(bodyTimestamp === undefined || String(bodyTimestamp) !== String(timestamp))return false;
   const signatureV2=body.__signature_v2 as string|undefined;
   if(!signatureV2)return false;
   const clean={...body}; delete clean.__signature_v2;
@@ -183,8 +181,10 @@ Deno.serve(async(req)=>{
       metadata:{session_id:sessionId,registration_intent_id:intent.id,status,warnings:warnings.slice(0,20),webhook_type:payload.webhook_type||null,rejection_reason:rejectionReason,id_last4:last4}
     });
 
+    // New-account sessions must survive the approval webhook until the account is
+    // actually created. Existing-account re-verifications can be deleted now.
     if(terminal && !(status==="Approved" && identityStatus==="approved")) await deleteDiditSession(sessionId);
-    if(status==="Approved" && identityStatus==="approved") await deleteDiditSession(sessionId);
+    if(status==="Approved" && identityStatus==="approved" && intent.completed_user_id) await deleteDiditSession(sessionId);
 
     return json({ok:true});
   }catch(error){
