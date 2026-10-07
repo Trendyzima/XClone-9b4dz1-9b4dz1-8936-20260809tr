@@ -43,6 +43,7 @@ jobs:
         with:
           version: 2.118.0
 
+      # identity-signup is an unauthenticated pre-auth onboarding endpoint; --no-verify-jwt is intentional.
       - name: Deploy identity signup
         shell: bash
         run: |
