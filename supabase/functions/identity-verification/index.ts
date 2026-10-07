@@ -89,7 +89,7 @@ Deno.serve(async req => {
     if (action === "upload_urls") {
       const kinds = Array.isArray(body?.kinds) ? body.kinds : ["id_front","id_back","selfie","liveness_video"];
       const allowed = new Set(["id_front","id_back","selfie","liveness_video"]);
-      const requested = [...new Set(kinds.map(String))].filter(k => allowed.has(k));
+      const requested = [...new Set(kinds.map((value: unknown) => String(value)))].filter((k: string) => allowed.has(k));
       if (!requested.length) return json({ok:false,error:"NO_VALID_EVIDENCE_KINDS"},400);
       const results:any[] = [];
       for (const kind of requested) {
@@ -103,7 +103,7 @@ Deno.serve(async req => {
           session_id:session.id,kind,object_path:path,mime_type:mime,state:"uploaded"
         });
         if (manifestError) throw manifestError;
-        results.push({kind,path,token:data?.token,url:data?.signedUrl || data?.signedURL || null});
+        results.push({kind,path,token:data?.token,url:data?.signedUrl || null});
       }
       await admin.schema("private").from("identity_verification_sessions").update({state:"capturing",updated_at:new Date().toISOString()}).eq("id",session.id);
       return json({ok:true,uploads:results});
