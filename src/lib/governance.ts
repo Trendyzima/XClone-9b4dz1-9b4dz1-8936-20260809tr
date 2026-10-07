@@ -72,6 +72,31 @@ export async function setStaffWorkspacePin(userId: string, pin: string) {
   return data;
 }
 
+export async function changeStaffWorkspacePin(currentPin: string, newPin: string) {
+  const { data, error } = await supabase.rpc('testagram_change_staff_workspace_pin', {
+    p_current_pin: currentPin,
+    p_new_pin: newPin,
+  });
+  if (error) throw error;
+  return data;
+}
+
+export async function requestStaffWorkspacePinReset() {
+  const { data, error } = await supabase.rpc('testagram_request_staff_workspace_pin_reset');
+  if (error) throw error;
+  return data as { success: boolean; request_id: string; expires_at: string };
+}
+
+export async function confirmStaffWorkspacePinReset(requestId: string, code: string, newPin: string) {
+  const { data, error } = await supabase.rpc('testagram_confirm_staff_workspace_pin_reset', {
+    p_request_id: requestId,
+    p_code: code,
+    p_new_pin: newPin,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function listJobApplications(status?: string) {
   const { data, error } = await supabase.rpc('testagram_list_job_applications', { p_status: status ?? null });
   if (error) throw error;
