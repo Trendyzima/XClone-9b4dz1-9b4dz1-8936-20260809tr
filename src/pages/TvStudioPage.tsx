@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { TestagramTvMediaSession } from '@/lib/testagramTvMedia';
-import { TestagramTvYouTubeSession } from '@/lib/testagramTvYouTube';
+import { TestagramTvBunnySession } from '@/lib/testagramTvBunny';
 import { Camera, Mic, MonitorUp, Circle, Square, Radio, Users, Download, Clapperboard, Settings2, Activity, ShieldCheck, Upload, PictureInPicture2, Layers3, BarChart3, Copy, Share2, Hand } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
@@ -39,7 +39,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
-  const roomRef = useRef<TestagramTvYouTubeSession | TestagramTvMediaSession | null>(null);
+  const roomRef = useRef<TestagramTvBunnySession | TestagramTvMediaSession | null>(null);
   const nativeViewerRoomRef = useRef<TestagramTvMediaSession | null>(null);
   const guestRoomRef = useRef<TestagramTvMediaSession | null>(null);
   const cameraStreamRef = useRef<MediaStream | null>(null);
@@ -186,7 +186,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
   const [broadcastError, setBroadcastError] = useState<string | null>(null);
   const [broadcastStage, setBroadcastStage] = useState<'idle' | 'preparing' | 'authorizing' | 'connecting' | 'verifying' | 'on-air'>('idle');
   const [broadcastDiagnostics, setBroadcastDiagnostics] = useState<Record<string, unknown> | null>(null);
-  const [youtubeStatus, setYoutubeStatus] = useState<string>("disabled");
+  const [bunnyStatus, setBunnyStatus] = useState<string>("disabled");
   const [productionSource, setProductionSource] = useState<'camera' | 'video'>('camera');
   const [activeScene, setActiveScene] = useState<Scene>('camera');
   const [previewScene, setPreviewScene] = useState<TvSceneId>('camera');
@@ -1285,7 +1285,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     setBroadcastError(null);
     setBroadcastDiagnostics(null);
     setBroadcastStage('preparing');
-    let session: TestagramTvYouTubeSession | TestagramTvMediaSession | null = null;
+    let session: TestagramTvBunnySession | TestagramTvMediaSession | null = null;
     let guestSession: TestagramTvMediaSession | null = null;
     let id: string | null = null;
     let createdBroadcast = false;
@@ -1330,7 +1330,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
           description: broadcastDescription,
           category: broadcastCategory,
           is_live: false,
-          tv_provider: 'youtube',
+          tv_provider: 'bunny',
         }).select('id,title,description,category,is_live,tv_provider').single();
         if (error || !data) throw new Error(error?.message || 'Could not create broadcast.');
         id = data.id;
@@ -1345,19 +1345,19 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       const startResponse = await fetch('/api/live', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ action: 'start', provider: 'youtube', stream_id: id }),
+        body: JSON.stringify({ action: 'start', provider: 'bunny', stream_id: id }),
       });
       const startPayload = await startResponse.json().catch(() => null);
-      const provider = 'youtube' as const;
-      const youtubeStart = startPayload?.data?.youtube;
-      const youtubeToken = typeof youtubeStart?.encoder_token === 'string' ? youtubeStart.encoder_token : '';
-      if (!startResponse.ok || !youtubeToken) {
-        throw new Error(String(startPayload?.error?.message || 'YouTube live delivery could not be started.'));
+      const provider = 'bunny' as const;
+      const bunnyStart = startPayload?.data?.bunny;
+      const bunnyToken = typeof bunnyStart?.encoder_token === 'string' ? bunnyStart.encoder_token : '';
+      if (!startResponse.ok || !bunnyToken) {
+        throw new Error(String(startPayload?.error?.message || 'Bunny live delivery could not be started.'));
       }
 
-      session = await TestagramTvYouTubeSession.connect({
+      session = await TestagramTvBunnySession.connect({
         streamId: id,
-        encoderToken: youtubeToken,
+        encoderToken: bunnyToken,
         program,
         quality,
 
@@ -1365,9 +1365,9 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
         onStatus: (next, detail) => {
           setBroadcastDiagnostics(prev => ({
             ...(prev || {}),
-            provider: 'youtube',
+            provider: 'bunny',
             encoder_status: next,
-            youtube_status: next,
+            bunny_status: next,
             detail: detail || null,
           }));
           if (next === 'reconnecting') setBroadcastStage('connecting');
@@ -1376,9 +1376,9 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
 
       roomRef.current = session;
 
-      // Testagram-native public delivery runs alongside YouTube. It is deliberately
+      // Testagram-native public delivery runs alongside Bunny. It is deliberately
       // capped to a small host-fanout ceiling; larger audiences use the CDN-backed
-      // YouTube path instead of turning one broadcaster's browser into a media CDN.
+      // Bunny path instead of turning one broadcaster's browser into a media CDN.
       try {
         const nativeSession = await TestagramTvMediaSession.connectHostExisting(id, program);
         nativeSession.setViewerCountHandler?.((count) => setViewerCount(count));
@@ -1389,7 +1389,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       }
 
       // Guest WebRTC is an optional interactive feature. It must never block
-      // the primary YouTube ON AIR path. Start it in the background after the
+      // the primary Bunny ON AIR path. Start it in the background after the
       // public delivery transport is connected.
       if (!guestRoomRef.current) {
       setGuestLifecycle('connecting');
@@ -1486,16 +1486,16 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
         const verifyPayload = await verifyResponse.json().catch(() => null);
         if (verifyResponse.ok && verifyPayload?.data) {
           lastHealth = verifyPayload.data.health || null;
-          const youtube = verifyPayload.data.health?.youtube || verifyPayload.data.youtube || {};
-          setYoutubeStatus(String(youtube.status || 'disabled'));
+          const bunny = verifyPayload.data.health?.bunny || verifyPayload.data.bunny || {};
+          setBunnyStatus(String(bunny.status || 'disabled'));
           setBroadcastDiagnostics(prev => ({
             ...(prev || {}),
-            provider: 'youtube',
+            provider: 'bunny',
             encoder_status: roomRef.current?.getStatus?.() || 'encoding',
-            youtube_status: youtube.status || 'disabled',
-            youtube_stream_status: verifyPayload.data.youtube_stream_status || youtube.stream_status || null,
-            youtube_broadcast_status: verifyPayload.data.youtube_broadcast_status || youtube.broadcast_status || null,
-            youtube_error: youtube.error || null,
+            bunny_status: bunny.status || 'disabled',
+            bunny_stream_status: verifyPayload.data.bunny_stream_status || bunny.stream_status || null,
+            bunny_broadcast_status: verifyPayload.data.bunny_broadcast_status || bunny.broadcast_status || null,
+            bunny_error: bunny.error || null,
             on_air: Boolean(verifyPayload.data.on_air),
           }));
           if (verifyPayload.data.on_air) {
@@ -1507,7 +1507,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       }
       if (!onAir) {
         throw new Error(
-          `YouTube Live has not reached ON AIR within 60s. ${lastHealth ? JSON.stringify(lastHealth) : 'No YouTube health response.'}`,
+          `Bunny Live has not reached ON AIR within 60s. ${lastHealth ? JSON.stringify(lastHealth) : 'No Bunny health response.'}`,
         );
       }
 
@@ -1519,7 +1519,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       setStatus('live');
       setElapsed(0);
       setBroadcastError(null);
-      toast.success(`Testagram TV is ON AIR · YouTube: ${youtubeStatus}`);
+      toast.success(`Testagram TV is ON AIR · Bunny: ${bunnyStatus}`);
     } catch (e: any) {
       if (guestSession) await guestSession.close().catch(() => undefined);
       if (nativeViewerRoomRef.current) { await nativeViewerRoomRef.current.close().catch(() => undefined); nativeViewerRoomRef.current = null; }
@@ -1626,7 +1626,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       let streamId = activeStreamId || stream?.id || null;
       if (!streamId) {
         if (!user) { toast.info('Sign in to invite a guest.'); return; }
-        const { data, error } = await supabase.from('live_streams').insert({ user_id: user.id, title: broadcastTitle, description: broadcastDescription, category: broadcastCategory, is_live: false, tv_provider: 'youtube' }).select('id,title,description,category,is_live,tv_provider').single();
+        const { data, error } = await supabase.from('live_streams').insert({ user_id: user.id, title: broadcastTitle, description: broadcastDescription, category: broadcastCategory, is_live: false, tv_provider: 'bunny' }).select('id,title,description,category,is_live,tv_provider').single();
         if (error || !data) throw new Error(error?.message || 'Could not prepare a TV preview session.');
         streamId = data.id; setActiveStreamId(streamId); setStream(data);
       }
@@ -1875,21 +1875,21 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
         if (cancelled || !response.ok || !payload?.data) return;
         const health = payload.data.health || {};
         const encoder = roomRef.current?.getStatus() || 'stopped';
-        const youtube = health.youtube || payload.data.youtube || {};
+        const bunny = health.bunny || payload.data.bunny || {};
         setBroadcastDiagnostics({
           provider: 'dual',
           encoder_status: encoder,
           cloudflare_status: health.cloudflare_input_status || payload.data.cloudflare_input_status || 'unknown',
-          youtube_status: youtube.status || 'disabled',
-          youtube_stream_status: payload.data.youtube_stream_status || youtube.stream_status || 'unknown',
-          youtube_broadcast_status: payload.data.youtube_broadcast_status || youtube.broadcast_status || 'unknown',
-          youtube_error: youtube.error || null,
+          bunny_status: bunny.status || 'disabled',
+          bunny_stream_status: payload.data.bunny_stream_status || bunny.stream_status || 'unknown',
+          bunny_broadcast_status: payload.data.bunny_broadcast_status || bunny.broadcast_status || 'unknown',
+          bunny_error: bunny.error || null,
           on_air: Boolean(payload.data.on_air),
         });
-        setYoutubeStatus(String(youtube.status || 'disabled'));
+        setBunnyStatus(String(bunny.status || 'disabled'));
         if (!payload.data.on_air) {
           setStudioHealth('degraded');
-          toast.error('YouTube Live delivery is not currently ON AIR.');
+          toast.error('Bunny Live delivery is not currently ON AIR.');
         }
       } catch {}
     };
@@ -1905,7 +1905,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       try {
         const { data: auth } = await supabase.auth.getSession();
         const headers = { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: 'Bearer ' + auth.session.access_token } : {}) };
-        await fetch('/api/live', { method: 'POST', headers, body: JSON.stringify({ action: 'heartbeat', stream_id: activeStreamId, connection_state: roomRef.current?.getStatus() === 'encoding' ? 'connected' : 'degraded', peer_id: 'youtube-browser-encoder' }) });
+        await fetch('/api/live', { method: 'POST', headers, body: JSON.stringify({ action: 'heartbeat', stream_id: activeStreamId, connection_state: roomRef.current?.getStatus() === 'encoding' ? 'connected' : 'degraded', peer_id: 'bunny-browser-encoder' }) });
       } catch {}
     };
     void heartbeat();
@@ -2186,25 +2186,25 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
                 {broadcastStage === 'preparing' && 'Preparing the TV program…'}
                 {broadcastStage === 'authorizing' && 'Authorizing the broadcast…'}
                 {broadcastStage === 'connecting' && 'Connecting Testagram live encoder…'}
-                {broadcastStage === 'verifying' && 'Verifying Testagram live media; YouTube is checked independently…'}
+                {broadcastStage === 'verifying' && 'Verifying Testagram live media; Bunny is checked independently…'}
                 {broadcastStage === 'on-air' && 'ON AIR'}
               </div>
               {broadcastStage === 'on-air' && (
                 <p className="mt-2 text-xs text-zinc-300">
                   <span className="font-semibold text-emerald-300">Testagram: ON AIR</span>
                   <span className="mx-1">·</span>
-                  <span className={youtubeStatus === 'broadcasting' ? 'font-semibold text-emerald-300' : 'font-semibold text-amber-300'}>YouTube: {youtubeStatus}</span>
+                  <span className={bunnyStatus === 'broadcasting' ? 'font-semibold text-emerald-300' : 'font-semibold text-amber-300'}>Bunny: {bunnyStatus}</span>
                 </p>
               )}
               <p className="mt-1 text-xs text-blue-200/80">
                 {broadcastStage === 'preparing' && 'Checking camera, microphone and production A/V tracks.'}
                 {broadcastStage === 'authorizing' && 'Creating the private broadcast session and requesting media authorization.'}
                 {broadcastStage === 'connecting' && 'Waiting for the Testagram encoder transport to become ready.'}
-                {broadcastStage === 'verifying' && 'Validating Testagram live media. YouTube remains an independent output and may be starting or reconnecting.'}
-                {broadcastStage === 'on-air' && 'Producer is transmitting one program bus. Testagram TV and YouTube use the YouTube Live delivery path.'}
+                {broadcastStage === 'verifying' && 'Validating Testagram live media. Bunny remains an independent output and may be starting or reconnecting.'}
+                {broadcastStage === 'on-air' && 'Producer is transmitting one program bus. Testagram TV and Bunny use the Bunny Live delivery path.'}
               </p>
-              {broadcastDiagnostics?.provider === 'youtube' ? (
-                <p className="mt-2 text-[10px] text-zinc-300">YouTube encoder: {String(broadcastDiagnostics.encoder_status || 'starting')} · video: {String(broadcastDiagnostics.youtube_video_id || 'preparing')}</p>
+              {broadcastDiagnostics?.provider === 'bunny' ? (
+                <p className="mt-2 text-[10px] text-zinc-300">Bunny encoder: {String(broadcastDiagnostics.encoder_status || 'starting')} · video: {String(broadcastDiagnostics.bunny_video_id || 'preparing')}</p>
               ) : broadcastDiagnostics ? (
                 <p className="mt-2 text-[10px] text-zinc-300">{broadcastDiagnostics.mediaReachedViewer ? `Viewer media: confirmed · video packets: ${String(broadcastDiagnostics.viewerVideoPackets ?? broadcastDiagnostics.videoPackets ?? 0)} · audio packets: ${String(broadcastDiagnostics.viewerAudioPackets ?? broadcastDiagnostics.audioPackets ?? 0)} · ${String(broadcastDiagnostics.viewerWidth ?? broadcastDiagnostics.width ?? 0)}×${String(broadcastDiagnostics.viewerHeight ?? broadcastDiagnostics.height ?? 0)}` : `Producer tracks: ${broadcastDiagnostics.mediaReady ? 'live' : 'checking'} · Viewer media: awaiting first inbound RTP`}</p>
               ) : null}
