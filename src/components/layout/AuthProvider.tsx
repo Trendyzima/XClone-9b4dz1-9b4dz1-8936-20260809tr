@@ -101,6 +101,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .then(async (mappedUser) => {
               if (!mounted) return;
               login(mappedUser);
+              const path = normalizedPathname();
               // Identity verification belongs to account creation and never blocks existing logins.
 // Mobile contact is a required post-sign-in profile field, not an auth
               // identifier. Keep it private in profile_contact_methods and gate the
