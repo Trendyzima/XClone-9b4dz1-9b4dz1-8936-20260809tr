@@ -29,25 +29,23 @@ async function hmacHex(value: string) {
 async function tokenHash(token: string) {
   return hmacHex("session|" + token);
 }
+async function db(action: string, payload: Record<string, unknown> = {}) {
+  const { data, error } = await admin.rpc("identity_verification_db", {
+    p_action: action,
+    p_payload: payload,
+  });
+  if (error) throw new Error(error.message || "IDENTITY_DB_ERROR");
+  return data as any;
+}
+
 async function getIntent(registrationToken: string) {
   const hash = await hmacHex("registration|" + registrationToken);
-  const { data, error } = await admin.schema("private").from("identity_signup_intents")
-    .select("*").eq("registration_token_hash", hash).maybeSingle();
-  if (error) throw error;
-  if (!data) throw new Error("REGISTRATION_NOT_FOUND");
-  if (data.expires_at && new Date(data.expires_at).getTime() < Date.now()) throw new Error("REGISTRATION_EXPIRED");
-  if (!data.email_verified_at) throw new Error("EMAIL_NOT_VERIFIED");
-  return data;
+  return await db("get_intent", { registration_token_hash: hash });
 }
+
 async function getSession(sessionToken: string) {
   const hash = await tokenHash(sessionToken);
-  const { data, error } = await admin.schema("private").from("identity_verification_sessions")
-    .select("*").eq("token_hash", hash).maybeSingle();
-  if (error) throw error;
-  if (!data) throw new Error("VERIFICATION_SESSION_NOT_FOUND");
-  if (new Date(data.expires_at).getTime() < Date.now()) throw new Error("VERIFICATION_SESSION_EXPIRED");
-  if (["approved","rejected","cancelled","expired"].includes(data.state)) throw new Error("VERIFICATION_SESSION_TERMINAL");
-  return data;
+  return await db("get_session", { token_hash: hash });
 }
 
 Deno.serve(async req => {
@@ -105,7 +103,7 @@ Deno.serve(async req => {
         if (manifestError) throw manifestError;
         results.push({kind,path,token:data?.token,url:data?.signedUrl || null});
       }
-      await admin.schema("private").from("identity_verification_sessions").update({state:"capturing",updated_at:new Date().toISOString()}).eq("id",session.id);
+      
       return json({ok:true,uploads:results});
     }
 
@@ -121,10 +119,7 @@ Deno.serve(async req => {
       if (!["id_front","id_back","selfie","liveness_video"].includes(kind) || !objectPath.startsWith(session.id + "/")) {
         return json({ok:false,error:"INVALID_EVIDENCE_REFERENCE"},400);
       }
-      const {error} = await admin.schema("private").from("identity_verification_evidence")
-        .update({state:"uploaded"})
-        .eq("session_id",session.id).eq("kind",kind).eq("object_path",objectPath);
-      if (error) throw error;
+      await db("mark_uploaded", { session_id: session.id, kind, object_path: objectPath });
       return json({ok:true});
     }
 
