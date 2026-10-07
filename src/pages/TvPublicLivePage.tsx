@@ -293,37 +293,6 @@ export default function TvPublicLivePage() {
     };
   }, [streamId, inviteToken, isGuest]);
 
-  useEffect(() => {
-    if (!bunnyPlaybackUrl || isGuest) return;
-    sendBunnyCommand(bunnyRef.current, muted ? 'mute' : 'unMute');
-  }, [bunnyPlaybackUrl, muted, isGuest]);
-
-  const share = async () => {
-    const url = window.location.origin + window.location.pathname;
-
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title,
-          text: `Watch ${title} live on Testagram TV`,
-          url,
-        });
-      } else {
-        await navigator.clipboard.writeText(url);
-        toast.success('TV link copied');
-      }
-    } catch (e: unknown) {
-      if (e instanceof DOMException && e.name === 'AbortError') return;
-
-      try {
-        await navigator.clipboard.writeText(url);
-        toast.success('TV link copied');
-      } catch {
-        toast.error('Could not copy TV link');
-      }
-    }
-  };
-
   const fullscreen = async () => {
     const bunny = bunnyRef.current;
 
@@ -384,13 +353,6 @@ export default function TvPublicLivePage() {
     setError('You left the TV guest session.');
   };
 
-  const bunnyOrigin =
-    typeof window === 'undefined' ? '' : window.location.origin;
-
-  const bunnySrc = bunnyPlaybackUrl
-    ? buildBunnyEmbedUrl(bunnyPlaybackUrl, bunnyOrigin)
-    : '';
-
   const viewerStatus = isGuest
     ? live
       ? 'CONNECTED TO STUDIO'
@@ -432,10 +394,6 @@ export default function TvPublicLivePage() {
               onClick={() => {
                 const nextMuted = !muted;
                 setMuted(nextMuted);
-                sendBunnyCommand(
-                  bunnyRef.current,
-                  nextMuted ? 'mute' : 'unMute',
-                );
               }}
               disabled={!bunnyPlaybackUrl}
               aria-label={muted ? 'Unmute live TV' : 'Mute live TV'}
