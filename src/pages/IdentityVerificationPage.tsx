@@ -30,14 +30,49 @@ export default function IdentityVerificationPage() {
       const result = await identitySignup.status();
       setStatus(result.status);
       setDiditStatus(result.didit_status || 'Not Started');
+      setMessage('');
     } catch (error: any) {
-      setMessage(error?.message || '');
+      const code = String(error?.message || '');
+      if (code !== 'REGISTRATION_TOKEN_REQUIRED') {
+        setMessage(code || 'We could not load your identity verification status.');
+      }
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => { void loadStatus(); }, [user?.id]);
+  useEffect(() => {
+    let cancelled = false;
+    const bootstrap = async () => {
+      setLoading(true);
+      setMessage('');
+      try {
+        // Existing authenticated users may arrive here from login without a
+        // browser registration token. Mint the short-lived server-side intent
+        // first; never manufacture or trust a token in the browser.
+        if (user && !identitySignup.token()) {
+          const result = await identitySignup.startExisting();
+          if (cancelled) return;
+          if (result.already_approved) {
+            setStatus('approved');
+            setDiditStatus('Approved');
+            return;
+          }
+        }
+        if (!cancelled) await loadStatus();
+      } catch (error: any) {
+        if (!cancelled) {
+          const code = String(error?.message || '');
+          setMessage(code === 'REGISTRATION_TOKEN_REQUIRED'
+            ? 'Identity verification could not be resumed. Start verification again from this page.'
+            : code || 'We could not start identity verification.');
+          setLoading(false);
+        }
+      }
+    };
+    void bootstrap();
+    return () => { cancelled = true; };
+  }, [user?.id]);
 
   useEffect(() => {
     if (!identitySignup.token()) return;
