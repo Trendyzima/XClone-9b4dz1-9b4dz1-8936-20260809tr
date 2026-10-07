@@ -50,3 +50,9 @@ verify_jwt = false
 
 [functions.notification-fcm-worker]
 verify_jwt = false
+
+[functions.identity-verification]
+verify_jwt = false
+
+[functions.identity-engine-result]
+verify_jwt = false
