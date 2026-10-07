@@ -56,7 +56,7 @@ jobs:
           set -euo pipefail
           secrets="$(supabase secrets list --project-ref "${SUPABASE_PROJECT_ID}")"
           printf '%s\n' "$secrets"
-          for name in IDENTITY_PREAUTH_SECRET IDENTITY_ENGINE_SECRET; do
+          for name in IDENTITY_PREAUTH_SECRET IDENTITY_ENGINE_SECRET TESTAGRAM_MAIL_URL TESTAGRAM_MAIL_TOKEN; do
             printf '%s\n' "$secrets" | grep -Eq "(^|[[:space:]|])$name([[:space:]|]|$)" || {
               echo "::error::$name is not configured in Supabase project secrets."
               exit 1
