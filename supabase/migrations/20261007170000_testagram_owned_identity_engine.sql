@@ -93,8 +93,6 @@ values ('identity-evidence','identity-evidence',false,10485760,array['image/jpeg
 on conflict (id) do update set public=false, file_size_limit=10485760,
   allowed_mime_types=array['image/jpeg','image/png','image/webp','video/webm','video/mp4'];
 
-revoke all on storage.objects from anon, authenticated;
-
 comment on table private.identity_verification_sessions is 'Testagram-owned verification session state. No external identity provider.';
 comment on table private.identity_verification_evidence is 'Private capture manifest; raw files live only in the private identity-evidence bucket.';
 comment on table private.identity_engine_results is 'Signed output from Testagram identity engine. Client input alone can never approve an identity.';
