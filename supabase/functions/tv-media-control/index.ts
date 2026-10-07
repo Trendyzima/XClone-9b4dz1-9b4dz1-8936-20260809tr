@@ -1,7 +1,7 @@
 import "jsr:@supabase/supabase-js@2";
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { upsertFirebaseLiveMetadata } from "../_shared/firebase-firestore.ts";
+import { upsertFirebaseLiveMetadata, getFirebaseLiveMetadata } from "../_shared/firebase-firestore.ts";
 
 const url=Deno.env.get("SUPABASE_URL")??"";
 const key=Deno.env.get("SUPABASE_PUBLISHABLE_KEY")??Deno.env.get("SUPABASE_ANON_KEY")??"";
@@ -44,7 +44,7 @@ async function bunnyEncoderConfig(id:string,t:string){
  if(error||!s||!s.is_live||s.tv_provider!=="bunny"||!s.bunny_live_stream_id)throw new Error("Bunny encoder session is not active.");
  const {data:session,error:se}=await a.from("tv_bunny_encoder_sessions").select("id,stream_id,user_id,expires_at,revoked_at").eq("stream_id",id).eq("token_hash",await hash(t)).maybeSingle();
  if(se||!session||session.revoked_at||new Date(session.expires_at).getTime()<=Date.now())throw new Error("Bunny encoder session is invalid or expired.");
- const streamKey=Deno.env.get("BUNNY_STREAM_KEY_"+s.bunny_live_stream_id)||"";
+ const meta=await getFirebaseLiveMetadata(id);\n const streamKey=String(meta?.bunny_stream_key||"");
  if(!streamKey)throw new Error("Bunny stream key is unavailable for this live session.");
  await a.from("tv_bunny_encoder_sessions").update({claimed_at:new Date().toISOString()}).eq("id",session.id);
  return {rtmp_ingestion_address:String(s.bunny_ingest_url),stream_name:streamKey};
@@ -83,7 +83,7 @@ Deno.serveDeno.serve(async req=>{
   if(se){try{await bunnyStop(y.streamId)}catch{};return json({ok:false,error:{code:"BUNNY_ENCODER_SESSION_FAILED",message:"Could not create the secure Bunny encoder session."}},500);}
   const {error:ue}=await adminClient.from("live_streams").update({is_live:true,started_at:now,ended_at:null,stream_url:y.playback,tv_provider:"bunny",tv_connection_state:"starting",tv_last_heartbeat_at:now,tv_host_peer_id:null,viewer_count:0,bunny_live_stream_id:y.streamId,bunny_playback_url:y.playback,bunny_ingest_url:y.ingest}).eq("id",id).eq("user_id",s.user_id);
   if(ue){await adminClient.from("tv_bunny_encoder_sessions").update({revoked_at:now}).eq("stream_id",id).eq("token_hash",await hash(enc));try{await bunnyStop(y.streamId)}catch{};return json({ok:false,error:{code:"TV_START_FAILED",message:"Could not start the Bunny TV broadcast."}},409)}
-  try{await upsertFirebaseLiveMetadata(id,{owner_id:s.user_id,title:s.title,description:s.description||"",category:s.category||"general",status:"starting",is_live:true,started_at:now,ended_at:null,viewer_count:0,provider:"bunny",bunny_live_stream_id:y.streamId,playback_url:y.playback,record_vod:false,dvr_enabled:false,video_persistence:"ephemeral"});}catch(e:any){await adminClient.from("live_streams").update({is_live:false,tv_connection_state:"offline",tv_last_heartbeat_at:null,bunny_live_stream_id:null,bunny_playback_url:null,bunny_ingest_url:null,stream_url:null}).eq("id",id).eq("user_id",s.user_id);await adminClient.from("tv_bunny_encoder_sessions").update({revoked_at:now}).eq("stream_id",id).eq("token_hash",await hash(enc));try{await bunnyStop(y.streamId)}catch{};return json({ok:false,error:{code:"FIREBASE_METADATA_FAILED",message:e?.message||"Firebase metadata store is unavailable."}},503)}
+  try{await upsertFirebaseLiveMetadata(id,{owner_id:s.user_id,title:s.title,description:s.description||"",category:s.category||"general",status:"starting",is_live:true,started_at:now,ended_at:null,viewer_count:0,provider:"bunny",bunny_live_stream_id:y.streamId,playback_url:y.playback,bunny_stream_key:y.streamKey,record_vod:false,dvr_enabled:false,video_persistence:"ephemeral"});}catch(e:any){await adminClient.from("live_streams").update({is_live:false,tv_connection_state:"offline",tv_last_heartbeat_at:null,bunny_live_stream_id:null,bunny_playback_url:null,bunny_ingest_url:null,stream_url:null}).eq("id",id).eq("user_id",s.user_id);await adminClient.from("tv_bunny_encoder_sessions").update({revoked_at:now}).eq("stream_id",id).eq("token_hash",await hash(enc));try{await bunnyStop(y.streamId)}catch{};return json({ok:false,error:{code:"FIREBASE_METADATA_FAILED",message:e?.message||"Firebase metadata store is unavailable."}},503)}
   return json({ok:true,data:await contract("host",{on_air:false,output_mode:"bunny-live",bunny:{enabled:true,status:"prepared",live_stream_id:y.streamId,playback_url:y.playback,encoder_token:enc,rtmp_ingestion_address:y.ingest}}),error:null});
  }
  if(action==="verify"){
