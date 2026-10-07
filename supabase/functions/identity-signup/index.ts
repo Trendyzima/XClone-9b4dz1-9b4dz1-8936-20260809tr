@@ -164,12 +164,12 @@ async function finalizeAccount(intent: any, password: string) {
     user_metadata: { username: intent.username || undefined, full_name: intent.display_name || undefined },
     app_metadata: { testagram_identity_verified: true },
   });
-  if (created.error || !created.user) {
+  if (created.error || !created.data?.user) {
     const message = created.error?.message || "ACCOUNT_CREATION_FAILED";
     if (/already registered|already exists/i.test(message)) throw new Error("EMAIL_ALREADY_REGISTERED");
     throw new Error(message);
   }
-  const user = created.user;
+  const user = created.data.user;
   try {
     const now = new Date().toISOString();
     const { error: identityError } = await admin.from("identity_verifications").insert({
