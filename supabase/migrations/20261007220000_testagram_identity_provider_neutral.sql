@@ -26,3 +26,7 @@ comment on column private.identity_signup_intents.verification_session_id is
   'Testagram-owned verification session identifier.';
 comment on column private.identity_signup_intents.verification_stage is
   'Provider-neutral Testagram identity verification stage.';
+
+-- Auth session policy: the Supabase Auth service enforces the two-hour maximum lifetime.
+-- Configure the project's Auth Sessions > Time-box user sessions to 2 hours (120m).
+-- JWT expiry remains short; refreshes cannot extend the two-hour session lifetime.
