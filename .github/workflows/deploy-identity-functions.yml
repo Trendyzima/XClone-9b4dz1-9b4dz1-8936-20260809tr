@@ -65,14 +65,15 @@ jobs:
           require_secret "DIDIT_WORKFLOW_ID" "$DIDIT_WORKFLOW_ID"
           require_secret "IDENTITY_PREAUTH_SECRET" "$IDENTITY_PREAUTH_SECRET"
           [[ "$DIDIT_WORKFLOW_ID" == "e7af7018-e357-467e-a1c0-3496029012e0" ]] || { echo "::error::DIDIT_WORKFLOW_ID does not match the approved Testagram KYC workflow."; exit 1; }
-          workflow_status="$(curl -sS -o /tmp/didit-workflow.json -w '%{http_code}' -H "x-api-key: $DIDIT_API_KEY" -H "Accept: application/json" "https://verification.didit.me/v3/workflows/$DIDIT_WORKFLOW_ID")"
-          if [[ "$workflow_status" != "200" ]]; then echo "::error::Didit workflow preflight failed with HTTP $workflow_status."; cat /tmp/didit-workflow.json; exit 1; fi
+          workflow_status="$(curl -sS -o /tmp/didit-workflows.json -w '%{http_code}' -H "x-api-key: $DIDIT_API_KEY" -H "Accept: application/json" "https://verification.didit.me/v3/workflows/")"
+          if [[ "$workflow_status" != "200" ]]; then echo "::error::Didit workflow preflight failed with HTTP $workflow_status."; cat /tmp/didit-workflows.json; exit 1; fi
           node - <<'NODE'
           const fs=require("node:fs");
-          const body=JSON.parse(fs.readFileSync("/tmp/didit-workflow.json","utf8"));
-          const id=String(body?.id||body?.workflow_id||"");
-          if(id!=="e7af7018-e357-467e-a1c0-3496029012e0") throw new Error("Didit returned an unexpected workflow id.");
-          console.log("Didit KYC workflow preflight passed:", JSON.stringify({workflow_id:id,name:body?.name||null,status:body?.status||null}));
+          const body=JSON.parse(fs.readFileSync("/tmp/didit-workflows.json","utf8"));
+          const items=Array.isArray(body)?body:(Array.isArray(body?.results)?body.results:Array.isArray(body?.workflows)?body.workflows:[]);
+          const match=items.find(x=>String(x?.id||x?.workflow_id||"")==="e7af7018-e357-467e-a1c0-3496029012e0");
+          if(!match) throw new Error("Didit approved workflow was not returned by GET /v3/workflows/.");
+          console.log("Didit KYC workflow preflight passed:", JSON.stringify({workflow_id:"e7af7018-e357-467e-a1c0-3496029012e0",name:match?.name||null,status:match?.status||null}));
           NODE
           supabase secrets set --project-ref "$SUPABASE_PROJECT_ID" \
             "DIDIT_API_KEY=$DIDIT_API_KEY" \
