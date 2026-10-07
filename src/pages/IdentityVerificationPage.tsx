@@ -30,9 +30,6 @@ export default function IdentityVerificationPage() {
       const result = await identitySignup.status();
       setStatus(result.status);
       setDiditStatus(result.didit_status || 'Not Started');
-      if (result.status === 'approved' && user) {
-        navigate('/', { replace: true });
-      }
     } catch (error: any) {
       if (user) {
         const { data } = await (await import('@/lib/supabase')).supabase.rpc('get_my_identity_verification_status');
@@ -126,7 +123,11 @@ export default function IdentityVerificationPage() {
           : 'Verification has not been approved yet. Complete every requested step first.');
         return;
       }
-      setVerificationFinished(false);
+      if (user) {
+        navigate('/', { replace: true });
+      } else {
+        setVerificationFinished(false);
+      }
     } catch (error: any) {
       setMessage(error?.message || 'We could not confirm the verification result yet.');
     } finally {
