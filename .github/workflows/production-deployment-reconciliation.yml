@@ -597,15 +597,16 @@ jobs:
           [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required for TV control-plane deployment."; exit 1; }
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Invalid Supabase project ref for TV control-plane deployment."; exit 1; }
 
-          # The video plane is no longer YouTube or Cloudflare. Supabase is only the
-          # authenticated control plane that mints short-lived URLs for the self-hosted
-          # Go CDN. Keep deployment independent of external streaming credentials.
+          # Supabase is the authenticated control plane only. Video transport is handled
+          # by Testagram's self-hosted Go CDN; no YouTube or Cloudflare streaming
+          # credentials are required for this deployment gate.
           if ! supabase functions deploy tv-cdn-playback --use-api --project-ref "$PROJECT_REF"; then
             echo "::error::tv-cdn-playback deployment failed."
             exit 1
           fi
 
-          echo "Testagram TV control-plane Edge Function (tv-cdn-playback) deployed.";
+          echo "Testagram TV control-plane Edge Function (tv-cdn-playback) deployed."
+      - name: Reconcile Cloudflare DNS for Worker Custom Domains
         shell: bash
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
