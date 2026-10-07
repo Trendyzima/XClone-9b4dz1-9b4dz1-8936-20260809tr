@@ -231,7 +231,7 @@ Deno.serve(async (req) => {
         legal_privacy_accepted_at: now.toISOString(), legal_content_policy_accepted_at: now.toISOString(),
         legal_age_confirmed_at: now.toISOString(), legal_policy_version: String(body.legal_policy_version || "2026-09"),
         birth_date: birthDate, username, display_name: displayName, verification_session_id: null,
-        verification_stage: "not_started", identity_status: "pending", id_number_hmac: null, id_number_last4: null,
+        verification_stage: "not_started", identity_status: "pending", id_number_hmac: null, id_number_last4: null, email_otp_attempts: 0, email_otp_locked_until: null, email_otp_last_sent_at: now.toISOString(),
         country_code: "KE", provider_reference: null, rejection_reason: null, updated_at: now.toISOString(),
         expires_at: expires, completed_user_id: null,
       };
@@ -292,21 +292,37 @@ Deno.serve(async (req) => {
     if (action === "verify_email") {
       const code = String(body.code || "").replace(/\s+/g,"");
       if (!/^\d{6}$/.test(code)) return json({ok:false,error:"INVALID_CODE"},400);
-      if (!intent.email_otp_expires_at || new Date(intent.email_otp_expires_at).getTime() < Date.now()) return json({ok:false,error:"CODE_EXPIRED"},400);
       const supplied = await otpHash(intent.email, code);
-      if (supplied !== intent.email_otp_hash) return json({ok:false,error:"INVALID_CODE"},400);
-      const now = new Date().toISOString();
-      const { error } = await admin.schema("private").from("identity_signup_intents").update({ email_verified_at: now, email_otp_hash: null, email_otp_expires_at: null, updated_at: now }).eq("id", intent.id);
+      const {data:result,error} = await admin.schema("private").rpc("verify_identity_email_otp", {
+        p_intent_id: intent.id,
+        p_code_hash: supplied,
+      });
       if (error) throw error;
-      return json({ok:true,next:"identity_verification"});
+      if (result === "VERIFIED" || result === "ALREADY_VERIFIED") return json({ok:true,next:"identity_verification"});
+      if (result === "EXPIRED") return json({ok:false,error:"CODE_EXPIRED"},400);
+      if (result === "LOCKED") return json({ok:false,error:"CODE_LOCKED"},429);
+      return json({ok:false,error:"INVALID_CODE"},400);
     }
 
     if (action === "resend_email") {
       if (intent.email_verified_at) return json({ok:true,already_verified:true});
+      if (intent.email_otp_locked_until && new Date(intent.email_otp_locked_until).getTime() > Date.now()) {
+        return json({ok:false,error:"CODE_LOCKED"},429);
+      }
+      if (intent.email_otp_last_sent_at && Date.now() - new Date(intent.email_otp_last_sent_at).getTime() < 60_000) {
+        return json({ok:false,error:"RESEND_TOO_SOON"},429);
+      }
       const code = randomOtp();
       const now = new Date();
       const codeHash = await otpHash(intent.email, code);
-      const { error } = await admin.schema("private").from("identity_signup_intents").update({ email_otp_hash: codeHash, email_otp_expires_at: new Date(now.getTime()+10*60*1000).toISOString(), updated_at: now.toISOString() }).eq("id", intent.id);
+      const { error } = await admin.schema("private").from("identity_signup_intents").update({
+        email_otp_hash: codeHash,
+        email_otp_expires_at: new Date(now.getTime()+10*60*1000).toISOString(),
+        email_otp_attempts: 0,
+        email_otp_locked_until: null,
+        email_otp_last_sent_at: now.toISOString(),
+        updated_at: now.toISOString()
+      }).eq("id", intent.id);
       if (error) throw error;
       await sendOtp(intent.email, code);
       return json({ok:true});
