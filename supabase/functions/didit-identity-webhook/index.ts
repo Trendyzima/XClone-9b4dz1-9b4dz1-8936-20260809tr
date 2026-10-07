@@ -25,15 +25,42 @@ function safeEqual(a:string,b:string){
   if(a.length!==b.length)return false;
   let diff=0; for(let i=0;i<a.length;i++) diff|=a.charCodeAt(i)^b.charCodeAt(i); return diff===0;
 }
-async function verifySignature(raw:string,timestamp:string,signature:string){
-  if(!WEBHOOK_SECRET || !timestamp || !signature) return false;
-  const ts=Number(timestamp);
-  if(!Number.isFinite(ts) || Math.abs(Math.floor(Date.now()/1000)-Math.trunc(ts))>300) return false;
-  let parsed:any;
-  try { parsed=JSON.parse(raw); } catch { return false; }
-  const canonical=JSON.stringify(sortKeys(parsed));
-  return safeEqual(await hmacHex(canonical),signature);
+async function hmacHexWithSecret(value:string,secret:string){
+  const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
+  const sig=await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(sig),b=>b.toString(16).padStart(2,"0")).join("");
 }
+function safeEqual(a:string,b:string){
+  if(a.length!==b.length)return false;
+  let diff=0; for(let i=0;i<a.length;i++) diff|=a.charCodeAt(i)^b.charCodeAt(i); return diff===0;
+}
+function sortKeys(value:any):any {
+  if (Array.isArray(value)) return value.map(sortKeys);
+  if (value && typeof value==="object") return Object.keys(value).sort().reduce((out,key)=>{out[key]=sortKeys(value[key]);return out;},{} as Record<string,unknown>);
+  return value;
+}
+async function verifySignature(raw:string,payload:any,timestampHeader:string,signatureV2:string,signatureLegacy:string,signatureSimple:string){
+  if(!WEBHOOK_SECRET) return false;
+  const payloadTimestamp=String(payload?.timestamp ?? "");
+  const timestamp=payloadTimestamp || timestampHeader;
+  const numericTimestamp=Number(timestamp);
+  if(!Number.isFinite(numericTimestamp) || Math.abs(Math.floor(Date.now()/1000)-Math.trunc(numericTimestamp))>300) return false;
+
+  // Didit currently sends three signatures. Accept the strongest available
+  // representation so a proxy/body re-encoding cannot cause false rejects.
+  if(signatureSimple){
+    const simpleData=`${timestamp}:${String(payload?.session_id||"")}:${String(payload?.status||"")}:${String(payload?.webhook_type||"")}`;
+    if(safeEqual(await hmacHexWithSecret(simpleData,WEBHOOK_SECRET),signatureSimple)) return true;
+  }
+  if(signatureV2){
+    const canonical=JSON.stringify(sortKeys(payload));
+    if(safeEqual(await hmacHexWithSecret(canonical,WEBHOOK_SECRET),signatureV2)) return true;
+    if(safeEqual(await hmacHexWithSecret(raw,WEBHOOK_SECRET),signatureV2)) return true;
+  }
+  if(signatureLegacy && safeEqual(await hmacHexWithSecret(raw,WEBHOOK_SECRET),signatureLegacy)) return true;
+  return false;
+}
+
 async function idHmac(id:string){
   if(!IDENTITY_SECRET) throw new Error("IDENTITY_SECRET_NOT_CONFIGURED");
   return hmacHexWithSecret("ke-nid|" + id, IDENTITY_SECRET);
@@ -92,11 +119,13 @@ Deno.serve(async(req)=>{
   if(!SERVICE_KEY||!IDENTITY_SECRET||!WEBHOOK_SECRET)return json({ok:false,error:"SERVER_NOT_CONFIGURED"},503);
   try{
     const timestamp=req.headers.get("X-Timestamp")||"";
-    const signature=req.headers.get("X-Signature-V2")||"";
+    const signatureV2=req.headers.get("X-Signature-V2")||"";
+    const signatureLegacy=req.headers.get("X-Signature")||"";
+    const signatureSimple=req.headers.get("X-Signature-Simple")||"";
     const raw=await req.text();
     let payload:any;
     try{payload=JSON.parse(raw);}catch{return json({ok:false,error:"INVALID_JSON"},400);}
-    if(!(await verifySignature(raw,timestamp,signature)))return json({ok:false,error:"INVALID_SIGNATURE"},401);
+    if(!(await verifySignature(raw,payload,timestamp,signatureV2,signatureLegacy,signatureSimple)))return json({ok:false,error:"INVALID_SIGNATURE"},401);
 
     const eventId=String(payload.event_id||"");
     const sessionId=String(payload.session_id||"");
@@ -195,7 +224,10 @@ Deno.serve(async(req)=>{
 
     // Approved sessions are retained until account finalization. This preserves the
     // required order: signed decision -> uniqueness gate -> account creation -> deletion.
-    if(terminal && status!=="Approved") await deleteDiditSession(sessionId);
+    // No Testagram account workflow needs the provider session after a terminal
+    // decision. The approval result is already reduced to status + protected
+    // fingerprint, so delete the provider session immediately after processing.
+    if(terminal) await deleteDiditSession(sessionId);
 
     return json({ok:true});
   }catch(error){
