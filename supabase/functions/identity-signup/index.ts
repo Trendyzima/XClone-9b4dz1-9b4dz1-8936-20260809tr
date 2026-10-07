@@ -9,6 +9,12 @@ const IDENTITY_SECRET = Deno.env.get("IDENTITY_PREAUTH_SECRET") ?? "";
 const FROM = "Testagram <noreply@testagram.site>";
 
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+
+async function db(action: string, payload: Record<string, unknown> = {}) {
+  const { data, error } = await admin.rpc("identity_signup_db", { p_action: action, p_payload: payload });
+  if (error) throw new Error(error.message || "IDENTITY_DB_ERROR");
+  return data as any;
+}
 const cors = {
   "Access-Control-Allow-Origin": "https://testagram.site",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -87,8 +93,7 @@ async function sendOtp(email: string, code: string) {
 }
 async function getIntent(token: string, allowCompletedUser = false) {
   const hash = await tokenHash(token);
-  const { data, error } = await admin.schema("private").from("identity_signup_intents").select("*").eq("registration_token_hash", hash).maybeSingle();
-  if (error) throw error;
+  const data = await db("get_intent", { registration_token_hash: hash });
   if (!data) throw new Error("REGISTRATION_NOT_FOUND");
   if (data.completed_user_id && !allowCompletedUser) throw new Error("REGISTRATION_COMPLETED");
   if (new Date(data.expires_at).getTime() < Date.now()) throw new Error("REGISTRATION_EXPIRED");
@@ -99,23 +104,21 @@ async function createIdentitySession(intent: any) {
   const rawToken = randomToken();
   const tokenHashValue = await hmacHex("session|" + rawToken);
   const expires = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-  const { data: session, error } = await admin.schema("private").from("identity_verification_sessions").insert({
+  const session = await db("create_session", {
     intent_id: intent.id,
     user_id: intent.completed_user_id || null,
     token_hash: tokenHashValue,
-    state: "created",
     expires_at: expires,
     started_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
-  }).select("id,state,expires_at").single();
-  if (error) throw error;
-  const { error: intentError } = await admin.schema("private").from("identity_signup_intents").update({
+  });
+  await db("update_intent", {
+    id: intent.id,
     verification_session_id: session.id,
     verification_stage: "capture",
     identity_status: "pending",
     updated_at: new Date().toISOString(),
-  }).eq("id", intent.id);
-  if (intentError) throw intentError;
+  });
   return {
     session_id: session.id,
     session_token: rawToken,
@@ -135,9 +138,7 @@ async function finalizeAccount(intent: any, password: string) {
   if (!intent.email_verified_at) throw new Error("EMAIL_NOT_VERIFIED");
   if (intent.identity_status !== "approved") throw new Error("IDENTITY_NOT_APPROVED");
   if (!intent.verification_session_id) throw new Error("VERIFICATION_SESSION_MISSING");
-  const { data: engineResult, error: engineResultError } = await admin.schema("private").from("identity_engine_results")
-    .select("decision,verified_birth_date,id_number_hmac").eq("session_id", intent.verification_session_id).maybeSingle();
-  if (engineResultError) throw engineResultError;
+  const engineResult = await db("get_engine_result", { session_id: intent.verification_session_id });
   if (!engineResult || engineResult.decision !== "approved") throw new Error("IDENTITY_ENGINE_APPROVAL_REQUIRED");
   if (!intent.id_number_hmac) throw new Error("IDENTITY_FINGERPRINT_MISSING");
   if (!intent.verified_birth_date || !isAdult(intent.verified_birth_date)) throw new Error("AGE_RESTRICTION");
@@ -193,7 +194,7 @@ async function finalizeAccount(intent: any, password: string) {
       .is("user_id", null)
       .filter("metadata->>session_id", "eq", String(intent.verification_session_id));
     if (auditLinkError) throw auditLinkError;
-    await admin.schema("private").from("identity_signup_intents").update({ completed_user_id: user.id, updated_at: now }).eq("id", intent.id);
+    await db("update_intent", { id: intent.id, completed_user_id: user.id, updated_at: now });
     
     return user;
   } catch (error) {
@@ -224,7 +225,7 @@ Deno.serve(async (req) => {
       const otpExpires = new Date(now.getTime() + 10*60*1000).toISOString();
       const registrationHash = await tokenHash(registrationToken);
       const codeHash = await otpHash(email, code);
-      const { data: existing } = await admin.schema("private").from("identity_signup_intents").select("id").ilike("email", email).order("updated_at",{ascending:false}).limit(1).maybeSingle();
+      const existing = await db("find_email", { email });
       const record = {
         email, email_otp_hash: codeHash, email_otp_expires_at: otpExpires, email_verified_at: null,
         registration_token_hash: registrationHash, legal_terms_accepted_at: now.toISOString(),
@@ -235,13 +236,11 @@ Deno.serve(async (req) => {
         country_code: "KE", provider_reference: null, rejection_reason: null, updated_at: now.toISOString(),
         expires_at: expires, completed_user_id: null,
       };
-      let error: any = null;
       if (existing?.id) {
-        ({ error } = await admin.schema("private").from("identity_signup_intents").update(record).eq("id", existing.id));
+        await db("update_intent", { id: existing.id, ...record });
       } else {
-        ({ error } = await admin.schema("private").from("identity_signup_intents").insert(record));
+        await db("insert_intent", record);
       }
-      if (error) throw error;
       await sendOtp(email, code);
       return json({ ok:true, registration_token:registrationToken, email, next:"email_verification" });
     }
@@ -261,7 +260,7 @@ Deno.serve(async (req) => {
       const email = normalizeEmail(existingUser.email || "");
       const registrationToken = randomToken();
       const registrationHash = await tokenHash(registrationToken);
-      const { data: prior } = await admin.schema("private").from("identity_signup_intents").select("id").eq("completed_user_id", existingUser.id).order("updated_at",{ascending:false}).limit(1).maybeSingle();
+      const prior = await db("find_user", { user_id: existingUser.id });
       const record:any = {
         email, email_verified_at: now, email_otp_hash:null, email_otp_expires_at:null,
         registration_token_hash: registrationHash,
@@ -275,12 +274,10 @@ Deno.serve(async (req) => {
         country_code:"KE",provider_reference:null,rejection_reason:null,updated_at:now,expires_at:new Date(Date.now()+30*60*1000).toISOString(),
         completed_user_id:existingUser.id,
       };
-      let error:any=null;
-      if(prior?.id) ({error}=await admin.schema("private").from("identity_signup_intents").update(record).eq("id",prior.id));
-      else ({error}=await admin.schema("private").from("identity_signup_intents").insert(record));
-      if(error) throw error;
-      const {data:intent,error:intentError}=await admin.schema("private").from("identity_signup_intents").select("*").eq("registration_token_hash",registrationHash).single();
-      if(intentError||!intent) throw intentError||new Error("REGISTRATION_NOT_FOUND");
+      if(prior?.id) await db("update_intent", { id: prior.id, ...record });
+      else await db("insert_intent", record);
+      const intent = await db("get_intent", { registration_token_hash: registrationHash });
+      if(!intent) throw new Error("REGISTRATION_NOT_FOUND");
       const session=await createIdentitySession(intent);
       return json({ok:true,registration_token:registrationToken,...session});
     }
@@ -296,8 +293,7 @@ Deno.serve(async (req) => {
       const supplied = await otpHash(intent.email, code);
       if (supplied !== intent.email_otp_hash) return json({ok:false,error:"INVALID_CODE"},400);
       const now = new Date().toISOString();
-      const { error } = await admin.schema("private").from("identity_signup_intents").update({ email_verified_at: now, email_otp_hash: null, email_otp_expires_at: null, updated_at: now }).eq("id", intent.id);
-      if (error) throw error;
+      await db("update_intent", { id: intent.id, email_verified_at: now, email_otp_hash: null, email_otp_expires_at: null, updated_at: now });
       return json({ok:true,next:"identity_verification"});
     }
 
@@ -306,8 +302,7 @@ Deno.serve(async (req) => {
       const code = randomOtp();
       const now = new Date();
       const codeHash = await otpHash(intent.email, code);
-      const { error } = await admin.schema("private").from("identity_signup_intents").update({ email_otp_hash: codeHash, email_otp_expires_at: new Date(now.getTime()+10*60*1000).toISOString(), updated_at: now.toISOString() }).eq("id", intent.id);
-      if (error) throw error;
+      await db("update_intent", { id: intent.id, email_otp_hash: codeHash, email_otp_expires_at: new Date(now.getTime()+10*60*1000).toISOString(), updated_at: now.toISOString() });
       await sendOtp(intent.email, code);
       return json({ok:true});
     }
