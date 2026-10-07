@@ -3,6 +3,7 @@ import Hls from 'hls.js';
 import {Volume2,VolumeX,Radio,Maximize2,RefreshCw,Play,Globe2,Gauge} from 'lucide-react';
 import type {TvChannel} from '@/services/tvChannelCatalog';
 import {Button} from '@/components/ui/button';
+import {getTestagramCdnPlaybackUrl,isTestagramCdnEnabled} from '@/services/tvCdn';
 
 type Props={channel:TvChannel;active:boolean;onVisible:(id:string,visible:boolean)=>void;onHealth?:(id:string,healthy:boolean)=>void;};
 
@@ -21,13 +22,19 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
 
  const retry=useCallback(()=>{if(!active)return;if(retryTimer.current)clearTimeout(retryTimer.current);const isHls=/\.m3u8(?:$|[?#])/i.test(channel.url);const limit=isHls?4:3;if(retryRef.current>=limit){setStarting(false);setError(true);onHealth?.(channel.id,false);return;}retryRef.current++;retryTimer.current=setTimeout(()=>active&&startRef.current?.(),900*Math.pow(2,Math.min(retryRef.current-1,3)));},[active,channel.id,channel.url,onHealth]);
 
- const start=useCallback(()=>{
+ const start=useCallback(async()=>{
   const video=ref.current;if(!video||!active)return;cleanup();setStarting(true);setError(false);setNeedsGesture(false);
   window.dispatchEvent(new CustomEvent('testagram-tv-play',{detail:channel.id}));video.playsInline=true;video.autoplay=true;video.defaultMuted=audioPreferenceRef.current;video.muted=audioPreferenceRef.current;video.volume=1;
   const play=()=>{video.muted=audioPreferenceRef.current;video.defaultMuted=audioPreferenceRef.current;video.volume=1;void video.play().then(()=>{setNeedsGesture(false);healthy();}).catch((e:any)=>{if(e?.name==='NotAllowedError'){setNeedsGesture(true);setStarting(false);return;}retry();});};
   const directUrl=channel.url;
   const looksLikeHls=/\.m3u8(?:$|[?#])/i.test(directUrl);
-  const network=networkProfile(); const playbackUrl=proxyFallbackRef.current?proxyUrl():directUrl;
+  const network=networkProfile();
+  let playbackUrl=proxyFallbackRef.current?proxyUrl():directUrl;
+  if(!proxyFallbackRef.current&&isTestagramCdnEnabled()){
+   try { playbackUrl=await getTestagramCdnPlaybackUrl(channel); }
+   catch { setStarting(false); setError(true); onHealth?.(channel.id,false); return; }
+   if(!active){ return; }
+  }
   const looksLikeFile=/\.(mp4|webm|ogg)(?:$|[?#])/i.test(directUrl);
   if(looksLikeFile){
     video.src=playbackUrl;
@@ -41,7 +48,7 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
   if(looksLikeHls&&Hls.isSupported()){const h=new Hls({enableWorker:true,lowLatencyMode:false,startFragPrefetch:false,startOnSegmentBoundary:true,liveSyncOnStallIncrease:2,initialLiveManifestSize:network.constrained?5:network.moderate?4:3,backBufferLength:network.constrained?6:12,maxBufferLength:network.constrained?75:network.moderate?60:45,maxMaxBufferLength:network.constrained?150:network.moderate?120:90,maxBufferSize:network.constrained?64*1024*1024:128*1024*1024,maxBufferHole:0.5,highBufferWatchdogPeriod:network.constrained?5:3,nudgeOffset:0.15,nudgeMaxRetry:5,liveSyncDurationCount:network.constrained?8:network.moderate?7:6,liveMaxLatencyDurationCount:network.constrained?16:network.moderate?14:12,manifestLoadingMaxRetry:6,levelLoadingMaxRetry:6,fragLoadingMaxRetry:7,fragLoadingRetryDelay:1200,fragLoadingMaxRetryTimeout:12000});hls.current=h;h.loadSource(playbackUrl);h.attachMedia(video); if(network.constrained){h.startLevel=0;h.autoLevelCapping=0;}else if(network.moderate){h.startLevel=0;h.autoLevelCapping=1;}h.on(Hls.Events.MANIFEST_PARSED,()=>{setStarting(true);try{h.startLoad(-1);}catch{}}); h.on(Hls.Events.LEVEL_SWITCHED,(_,d)=>{if(network.constrained&&d.level>0)h.nextLevel=0;});h.on(Hls.Events.FRAG_BUFFERED,()=>{const b=video.buffered;const ahead=b.length?b.end(b.length-1)-video.currentTime:0;if(ahead>=3)healthy();});h.on(Hls.Events.ERROR,(_,d)=>{if(!d.fatal)return;if(d.type===Hls.ErrorTypes.MEDIA_ERROR){try{h.recoverMediaError();return;}catch{}}if(d.type===Hls.ErrorTypes.NETWORK_ERROR){fatalNetworkRef.current++;if(!proxyFallbackRef.current&&fatalNetworkRef.current>=2){proxyFallbackRef.current=true;retryRef.current=0;fatalNetworkRef.current=0;startRef.current?.();return;}try{h.startLoad(-1);return;}catch{}}retry();});return;}
   if(looksLikeHls&&video.canPlayType('application/vnd.apple.mpegurl')){video.src=playbackUrl;video.addEventListener('canplay',healthy,{once:true});video.addEventListener('error',()=>{if(!proxyFallbackRef.current){proxyFallbackRef.current=true;retryRef.current=0;startRef.current?.();}else retry();},{once:true});void video.play().catch((e:any)=>{if(e?.name!=='NotAllowedError')retry();});return;}
   setStarting(false);setError(true);onHealth?.(channel.id,false);
- },[active,channel.id,channel.url,cleanup,healthy,retry,onHealth,proxyUrl,networkProfile]);
+ },[active,channel,channel.id,channel.url,cleanup,healthy,retry,onHealth,proxyUrl,networkProfile]);
  startRef.current=start;
 
  useEffect(()=>{retryRef.current=0;fatalNetworkRef.current=0;proxyFallbackRef.current=false;playbackUrlRef.current=channel.url;if(active){start();return cleanup;}cleanup();setError(false);setStarting(false);setNeedsGesture(false);},[active,channel.url,start,cleanup]);
