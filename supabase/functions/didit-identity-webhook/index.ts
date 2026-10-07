@@ -57,6 +57,16 @@ function normalizeId(value: unknown) {
   const id = String(value ?? "").replace(/\D/g, "");
   return /^\d{6,12}$/.test(id) ? id : "";
 }
+function normalizeDob(value: unknown){
+  const raw=String(value ?? "").trim();
+  if(/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) return raw;
+  const m=raw.match(/^(\\d{2})[\\/.-](\\d{2})[\\/.-](\\d{4})$/);
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : "";
+}
+function isKenyanNationalIdType(value: unknown){
+  const type=String(value ?? "").trim().toLowerCase();
+  return /^(id|id card|identity card|national id|national identity card)$/.test(type) || /national.*id|identity.*card|id.*card/.test(type);
+}
 function findId(decision:any){
   const items=Array.isArray(decision?.id_verifications)?decision.id_verifications:[];
   const approved=items.find((x:any)=>x?.status==="Approved") ?? items[0];
@@ -68,7 +78,7 @@ function findId(decision:any){
   return {
     id,
     last4:id.slice(-4),
-    dob:typeof approved.date_of_birth==="string"?approved.date_of_birth:null,
+    dob:normalizeDob(approved.date_of_birth),
     issuingState:typeof approved.issuing_state==="string"?approved.issuing_state:null,
     documentType:typeof approved.document_type==="string"?approved.document_type:null,
   };
