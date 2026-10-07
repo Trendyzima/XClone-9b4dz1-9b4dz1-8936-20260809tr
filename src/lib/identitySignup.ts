@@ -3,10 +3,10 @@ import { supabase, supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
 const ENDPOINT = `${supabaseUrl}/functions/v1/identity-signup`;
 const TOKEN_KEY = 'testagram-identity-registration-token';
 
-async function call<T>(body: Record<string, unknown>): Promise<T> {
+async function call<T>(body: Record<string, unknown>, accessToken?: string): Promise<T> {
   const response = await fetch(ENDPOINT, {
     method: 'POST',
-    headers: { apikey: supabasePublishableKey, 'Content-Type': 'application/json' },
+    headers: { apikey: supabasePublishableKey, 'Content-Type': 'application/json', ...(accessToken ? { Authorization: \`Bearer \${accessToken}\` } : {}) },
     body: JSON.stringify(body),
   });
   const payload = await response.json().catch(() => ({}));
@@ -60,6 +60,13 @@ export const identitySignup = {
     const token = this.token();
     if (!token) throw new Error('REGISTRATION_TOKEN_REQUIRED');
     return call<{ session_id: string; url: string }>({ action: 'create_identity_session', registration_token: token });
+  },
+  async startExisting() {
+    const { data } = await supabase.auth.getSession();
+    if (!data.session?.access_token) throw new Error('AUTH_REQUIRED');
+    const result = await call<{ registration_token?: string; url?: string; already_approved?: boolean }>({ action: 'start_existing' }, data.session.access_token);
+    if (result.registration_token) this.setToken(result.registration_token);
+    return result;
   },
   async status() {
     const token = this.token();
