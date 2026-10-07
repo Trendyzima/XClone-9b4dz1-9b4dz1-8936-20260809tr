@@ -366,6 +366,25 @@ async function handleTvStream(request: Request) {
   }
 }
 
+function applyPublicApiCache(response: Response, request: Request, url: URL) {
+  if (request.method !== 'GET' || request.headers.has('authorization') || !response.ok) return response;
+  let policy: string | null = null;
+  if (url.pathname === '/api/home-feed' || url.pathname === '/api/home-discovery') {
+    policy = 'public, max-age=15, s-maxage=15, stale-while-revalidate=60';
+  } else if (url.pathname === '/api/news') {
+    policy = 'public, max-age=30, s-maxage=30, stale-while-revalidate=120';
+  } else if (url.pathname === '/api/live' && url.searchParams.get('action') === 'viewer') {
+    policy = 'public, max-age=3, s-maxage=3, stale-while-revalidate=15';
+  }
+  if (!policy) return response;
+  const headers = new Headers(response.headers);
+  headers.set('Cache-Control', policy);
+  headers.set('CDN-Cache-Control', policy);
+  headers.set('Vary', 'Accept-Encoding');
+  headers.set('X-Testagram-Edge-Cache', 'eligible');
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 async function handleApi(request: Request, env: Env) {
   const url = new URL(request.url);
 
@@ -494,7 +513,7 @@ export default {
             });
           }
         }
-        return await handleApi(request, env);
+        const response = await handleApi(request, env);\n        return applyPublicApiCache(response, request, url);
       }
 
       const rewrite = supabaseRewrite(url.pathname);
