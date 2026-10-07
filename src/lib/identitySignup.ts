@@ -6,7 +6,7 @@ const TOKEN_KEY = 'testagram-identity-registration-token';
 async function call<T>(body: Record<string, unknown>, accessToken?: string): Promise<T> {
   const response = await fetch(ENDPOINT, {
     method: 'POST',
-    headers: { apikey: supabasePublishableKey, 'Content-Type': 'application/json', ...(accessToken ? { Authorization: \`Bearer \${accessToken}\` } : {}) },
+    headers: { apikey: supabasePublishableKey, 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
     body: JSON.stringify(body),
   });
   const payload = await response.json().catch(() => ({}));
