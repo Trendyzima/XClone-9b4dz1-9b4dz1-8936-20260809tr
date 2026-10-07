@@ -9,7 +9,7 @@ User=testagram-identity
 Group=testagram-identity
 WorkingDirectory=/opt/testagram/identity-engine
 EnvironmentFile=/etc/testagram/identity-engine.env
-ExecStart=/usr/bin/python3 -m uvicorn src.server:app --host 127.0.0.1 --port 8787 --workers 2
+ExecStart=/usr/bin/node /opt/testagram/identity-engine/dist/server.js
 Restart=always
 RestartSec=3
 NoNewPrivileges=true
@@ -20,3 +20,6 @@ ReadWritePaths=/var/lib/testagram/identity-engine
 MemoryDenyWriteExecute=true
 LockPersonality=true
 RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target
