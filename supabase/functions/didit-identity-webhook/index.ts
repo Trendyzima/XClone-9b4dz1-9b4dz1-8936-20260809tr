@@ -25,18 +25,14 @@ function safeEqual(a:string,b:string){
   if(a.length!==b.length)return false;
   let diff=0; for(let i=0;i<a.length;i++) diff|=a.charCodeAt(i)^b.charCodeAt(i); return diff===0;
 }
-async function verifySignature(body:any,timestamp:string){
-  if(!WEBHOOK_SECRET) return false;
-  const bodyTs=Number(body?.timestamp);
-  const headerTs=String(timestamp);
-  if(!Number.isFinite(bodyTs)||!Number.isFinite(Number(timestamp)))return false;
-  if(String(Math.trunc(bodyTs))!==headerTs)return false;
-  if(Math.abs(Math.floor(Date.now()/1000)-Math.trunc(bodyTs))>300)return false;
-  const signatureV2=body.__signature_v2 as string|undefined;
-  if(!signatureV2)return false;
-  const clean={...body}; delete clean.__signature_v2;
-  const canonical=JSON.stringify(sortKeys(clean));
-  return safeEqual(await hmacHex(canonical),signatureV2);
+async function verifySignature(raw:string,timestamp:string,signature:string){
+  if(!WEBHOOK_SECRET || !timestamp || !signature) return false;
+  const ts=Number(timestamp);
+  if(!Number.isFinite(ts) || Math.abs(Math.floor(Date.now()/1000)-Math.trunc(ts))>300) return false;
+  let parsed:any;
+  try { parsed=JSON.parse(raw); } catch { return false; }
+  const canonical=JSON.stringify(sortKeys(parsed));
+  return safeEqual(await hmacHex(canonical),signature);
 }
 async function idHmac(id:string){
   if(!IDENTITY_SECRET) throw new Error("IDENTITY_SECRET_NOT_CONFIGURED");
@@ -100,9 +96,7 @@ Deno.serve(async(req)=>{
     const raw=await req.text();
     let payload:any;
     try{payload=JSON.parse(raw);}catch{return json({ok:false,error:"INVALID_JSON"},400);}
-    payload.__signature_v2=signature;
-    if(!(await verifySignature(payload,timestamp)))return json({ok:false,error:"INVALID_SIGNATURE"},401);
-    delete payload.__signature_v2;
+    if(!(await verifySignature(raw,timestamp,signature)))return json({ok:false,error:"INVALID_SIGNATURE"},401);
 
     const eventId=String(payload.event_id||"");
     const sessionId=String(payload.session_id||"");
@@ -199,7 +193,9 @@ Deno.serve(async(req)=>{
       throw eventInsertError;
     }
 
-    if(terminal) await deleteDiditSession(sessionId);
+    // Approved sessions are retained until account finalization. This preserves the
+    // required order: signed decision -> uniqueness gate -> account creation -> deletion.
+    if(terminal && status!=="Approved") await deleteDiditSession(sessionId);
 
     return json({ok:true});
   }catch(error){
