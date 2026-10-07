@@ -164,7 +164,7 @@ async function finalizeAccount(intent: any, password: string) {
       reviewed_at: now,
       email_snapshot: intent.email,
     });
-    if (identityError) throw identityError;
+    if (identityError) {\n      if (identityError.code === "23505" && /id_number_hmac/i.test(identityError.message || "")) throw new Error("IDENTITY_ALREADY_REGISTERED");\n      throw identityError;\n    }
     const { error: profileError } = await admin.from("profiles").update({
       birth_date: intent.verified_birth_date,
       legal_terms_accepted_at: intent.legal_terms_accepted_at,
@@ -209,7 +209,7 @@ Deno.serve(async (req) => {
       const otpExpires = new Date(now.getTime() + 10*60*1000).toISOString();
       const registrationHash = await tokenHash(registrationToken);
       const codeHash = await otpHash(email, code);
-      const { data: existing } = await admin.schema("private").from("identity_signup_intents").select("id").eq("lower(email)", email).maybeSingle();
+      const { data: existing } = await admin.schema("private").from("identity_signup_intents").select("id").ilike("email", email).maybeSingle();
       const record = {
         email, email_otp_hash: codeHash, email_otp_expires_at: otpExpires, email_verified_at: null,
         registration_token_hash: registrationHash, legal_terms_accepted_at: now.toISOString(),
