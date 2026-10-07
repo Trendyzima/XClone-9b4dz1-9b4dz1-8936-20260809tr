@@ -26,7 +26,7 @@ export default function AdminIdentityVerificationPage() {
   const load = async () => {
     if (!user || !governance.is_owner) return;
     setLoading(true);
-    const { data, error } = await supabase.rpc('list_identity_verifications_for_owner');
+    const { data, error } = await supabase.from('identity_verification_review_queue').select('*').order('submitted_at', { ascending: false });
     if (error) { console.error(error); setRows([]); setLoading(false); return; }
     const next = (data || []) as Row[];
     setRows(next);
@@ -78,7 +78,7 @@ export default function AdminIdentityVerificationPage() {
           {pending.map(row => (
             <article key={row.id} className="rounded-3xl border bg-card p-5 shadow-sm">
               <div className="flex flex-wrap items-start justify-between gap-4">
-                <div><p className="font-black">@{row.username}</p><p className="text-sm text-muted-foreground">{row.email || 'No email'} · ID ending {row.id_number_last4}</p><p className="mt-1 text-xs text-muted-foreground flex items-center gap-1"><Clock3 className="h-3 w-3" />Submitted {new Date(row.submitted_at).toLocaleString()}</p></div>
+                <div><p className="font-black">@{row.username}</p><p className="text-sm text-muted-foreground">{row.email_snapshot || 'No email'} · ID ending {row.id_number_last4}</p><p className="mt-1 text-xs text-muted-foreground flex items-center gap-1"><Clock3 className="h-3 w-3" />Submitted {new Date(row.submitted_at).toLocaleString()}</p></div>
                 <span className="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-700">{row.status}</span>
               </div>
 
