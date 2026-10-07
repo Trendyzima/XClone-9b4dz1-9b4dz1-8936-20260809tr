@@ -91,7 +91,7 @@ Deno.serve(async req => {
     if (action === "upload_urls") {
       const kinds = Array.isArray(body?.kinds) ? body.kinds : ["id_front", "id_back", "selfie", "liveness_video"];
       const allowed = new Set(["id_front", "id_back", "selfie", "liveness_video"]);
-      const requested = Array.from(new Set(kinds.map((value: unknown) => String(value)))).filter((k: string) => allowed.has(k));
+      const requested = Array.from(new Set(kinds.map((value: unknown) => String(value)))).filter((k) => allowed.has(String(k)));
       if (!requested.length) return json({ ok: false, error: "NO_VALID_EVIDENCE_KINDS" }, 400);
 
       const results: Array<Record<string, unknown>> = [];
