@@ -85,6 +85,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .then((mappedUser) => {
               if (!mounted) return;
               login(mappedUser);
+              const identityStatus = mappedUser.identityVerificationStatus;
+              if (identityStatus && !['not_required', 'approved'].includes(identityStatus) && window.location.pathname !== '/verify-identity') {
+                window.location.replace('/verify-identity');
+                resolve();
+                return;
+              }
               setLoading(false);
               void triggerKeygenForUser(user.id);
               resolve();
