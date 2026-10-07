@@ -95,7 +95,7 @@ export default function TvPublicLivePage() {
       connectingAttempt = true;
       setConnecting(true);
       setError('');
-      setYoutubePlayerError(false);
+      setBunnyPlayerError(false);
 
       try {
         if (!isGuest) {
@@ -116,7 +116,7 @@ export default function TvPublicLivePage() {
               code === 'TV_MEDIA_NOT_READY'
             ) {
               setLive(false);
-              setYoutubeVideoId(null);
+              setBunnyPlaybackUrl(null);
               setConnecting(true);
 
               if (code === 'TV_MEDIA_NOT_READY') {
@@ -279,7 +279,7 @@ export default function TvPublicLivePage() {
       void sessionRef.current?.close();
       sessionRef.current = null;
 
-      setYoutubeVideoId(null);
+      setBunnyPlaybackUrl(null);
 
       const video = videoRef.current;
       if (video) {
