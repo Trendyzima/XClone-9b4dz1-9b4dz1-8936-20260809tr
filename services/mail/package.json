@@ -1,0 +1,10 @@
+{
+  "name":"@testagram/mail-service",
+  "private":true,
+  "version":"0.1.0",
+  "type":"module",
+  "engines":{"node":">=22"},
+  "scripts":{"build":"tsc -p tsconfig.json","start":"node dist/index.js","typecheck":"tsc -p tsconfig.json --noEmit"},
+  "dependencies":{"@supabase/supabase-js":"^2.76.1","nodemailer":"^7.0.10"},
+  "devDependencies":{"@types/node":"^22.15.0","@types/nodemailer":"^6.4.17","typescript":"^5.9.3"}
+}
