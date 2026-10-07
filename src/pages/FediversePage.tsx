@@ -351,7 +351,11 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
     const rows = posts.filter((p: any) => p.uri ?? p.url ?? p.id).map((p: any) => ({
       uri: p.uri ?? p.url ?? p.id ?? '',
       object_type: p.object_type ?? 'Note',
-      actor_uri: p.actor_uri ?? p.actor?.id ?? p.account?.uri ?? p.actor_url ?? '',
+      actor_uri: (() => {
+        const account = p.account ?? p.remote_account ?? {};
+        return account.uri ?? account.actor_uri ?? account.pleroma?.ap_id ?? account.url
+          ?? p.actor?.id ?? p.actor_url ?? p.actor_uri ?? '';
+      })(),
       url: p.url ?? p.uri ?? p.id ?? '',
       content: p.content ?? p.text ?? '',
       summary: p.spoiler_text ?? p.summary ?? null,
@@ -413,7 +417,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
     // Never put the initial empty state behind a loading spinner.
     const { data: cached, error } = await supabase
       .from('federated_objects')
-      .select('id,uri,object_type,actor_uri,url,content,summary,published_at,updated_at,sensitive,in_reply_to_uri,quote_uri,language_code,attachments,tags,like_count,announce_count,reply_count,quote_count,view_count,content_warning')
+      .select('id,uri,object_type,actor_uri,url,content,summary,published_at,updated_at,sensitive,in_reply_to_uri,quote_uri,language_code,attachments,tags,like_count,announce_count,reply_count,quote_count,view_count,content_warning,raw_object')
       .is('deleted_at', null)
       .eq('tombstone', false)
       .order('published_at', { ascending: false })
@@ -958,9 +962,12 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
 
   function RemotePostRow({ p, compact = false }: { p: any; compact?: boolean }) {
     const rawActor = p.raw_object?.attributedTo;
-    const rawActorUri = typeof rawActor === 'string' ? rawActor : rawActor?.id ?? '';
-    const actor = p.remote_account ?? p.remote_accounts ?? p.actor ?? p.account ?? {};
-    const actorUri = actor.actor_uri ?? actor.id ?? p.actor_uri ?? p.actor_url ?? rawActorUri ?? '';
+    const rawActorUri = typeof rawActor === 'string' ? rawActor : rawActor?.id ?? rawActor?.url ?? '';
+    const rawAccount = p.raw_object?.account ?? {};
+    const actor = p.remote_account ?? p.remote_accounts ?? p.actor ?? p.account ?? rawAccount ?? {};
+    const actorUri = actor.actor_uri ?? actor.uri ?? actor.id ?? actor.pleroma?.ap_id ?? actor.url
+      ?? rawAccount.uri ?? rawAccount.pleroma?.ap_id ?? rawAccount.url
+      ?? p.actor_uri ?? p.actor_url ?? rawActorUri ?? '';
     const identitySource = actorUri || p.uri || p.url || '';
     const fallbackIdentity = (() => {
       try {
@@ -971,9 +978,16 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
         return { username: ['ap', 'users', 'actors', 'person'].includes(handle) ? '' : handle, domain: parsed.hostname };
       } catch { return { username: '', domain: '' }; }
     })();
-    const username = actor.preferredUsername ?? actor.username ?? actor.acct?.split('@')[0] ?? fallbackIdentity.username ?? 'unknown';
-    const domain = actor.domain ?? fallbackIdentity.domain;
-    const avatarUrl = actor.avatar_url ?? actor.icon?.url ?? actor.avatar;
+    const username = actor.preferredUsername ?? actor.username ?? actor.acct?.split('@')[0]
+      ?? rawAccount.preferredUsername ?? rawAccount.username ?? rawAccount.acct?.split('@')[0]
+      ?? fallbackIdentity.username ?? 'unknown';
+    const domain = actor.domain ?? fallbackIdentity.domain ?? (() => {
+      try { return new URL(actorUri).hostname; } catch { return ''; }
+    })();
+    const avatarUrl = actor.avatar_url ?? actor.icon?.url ?? actor.avatar
+      ?? rawAccount.avatar_static ?? rawAccount.avatar;
+    const displayName = actor.display_name ?? actor.name
+      ?? rawAccount.display_name ?? rawAccount.name ?? username;
     const content = p.content ?? p.text ?? '';
     const created = p.published_at ?? p.created_at ?? p.published ?? '';
     const key = p.object_url ?? p.uri ?? p.url ?? p.id ?? '';
@@ -999,7 +1013,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
                 type="button"
                 onClick={() => navigate(`/fediverse/profile?actor=${encodeURIComponent(actor.url ?? actor.actor_uri ?? p.actor_url ?? '')}&handle=${encodeURIComponent('@' + username + (domain ? '@' + domain : ''))}`)}
                 className={`font-semibold text-left hover:underline ${compact ? 'text-xs' : 'text-sm'}`}
-              >{actor.display_name ?? username}</button>
+              >{displayName}</button>
               <button
                 type="button"
                 onClick={() => navigate(`/fediverse/profile?actor=${encodeURIComponent(actor.url ?? actor.actor_uri ?? p.actor_url ?? '')}&handle=${encodeURIComponent('@' + username + (domain ? '@' + domain : ''))}`)}
