@@ -29,6 +29,8 @@ async function verifySignature(body:any,timestamp:string){
   if(!WEBHOOK_SECRET) return false;
   const ts=Number(timestamp);
   if(!Number.isFinite(ts)||Math.abs(Math.floor(Date.now()/1000)-ts)>300)return false;
+  const bodyTimestamp = body.timestamp;
+  if(bodyTimestamp === undefined || String(bodyTimestamp) !== String(timestamp))return false;
   const signatureV2=body.__signature_v2 as string|undefined;
   if(!signatureV2)return false;
   const clean={...body}; delete clean.__signature_v2;
@@ -177,8 +179,8 @@ Deno.serve(async(req)=>{
 
     await admin.from("identity_verification_events").insert({
       provider_event_id:eventId,event_type:"DIDIT_"+status.toUpperCase().replace(/\\s+/g,"_"),
-      outcome:identityStatus,request_id:eventId,user_id:null,actor_id:null,
-      metadata:{session_id:sessionId,status,warnings:warnings.slice(0,20),webhook_type:payload.webhook_type||null}
+      outcome:identityStatus,request_id:eventId,user_id:intent.completed_user_id ?? null,actor_id:null,
+      metadata:{session_id:sessionId,registration_intent_id:intent.id,status,warnings:warnings.slice(0,20),webhook_type:payload.webhook_type||null,rejection_reason:rejectionReason,id_last4:last4}
     });
 
     if(terminal && !(status==="Approved" && identityStatus==="approved")) await deleteDiditSession(sessionId);
