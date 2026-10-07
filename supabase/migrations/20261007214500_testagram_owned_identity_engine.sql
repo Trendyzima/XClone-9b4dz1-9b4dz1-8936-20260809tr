@@ -104,6 +104,10 @@ grant usage on schema private to service_role;
 grant select, insert, update, delete on private.identity_verification_sessions to service_role;
 grant select, insert, update, delete on private.identity_verification_evidence to service_role;
 grant select, insert, update, delete on private.identity_engine_results to service_role;
+create policy "deny_direct_client_access" on private.identity_verification_sessions for all to anon, authenticated using (false) with check (false);
+create policy "deny_direct_client_access" on private.identity_verification_evidence for all to anon, authenticated using (false) with check (false);
+create policy "deny_direct_client_access" on private.identity_engine_results for all to anon, authenticated using (false) with check (false);
+create policy "deny_direct_client_access" on private.identity_signup_intents for all to anon, authenticated using (false) with check (false);
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('identity-evidence','identity-evidence',false,10485760,array['image/jpeg','image/png','image/webp','video/webm','video/mp4'])
