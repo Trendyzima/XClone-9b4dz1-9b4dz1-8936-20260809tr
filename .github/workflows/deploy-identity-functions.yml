@@ -1,0 +1,62 @@
+name: Deploy Identity Verification Functions
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'supabase/functions/identity-signup/**'
+      - 'supabase/functions/didit-identity-webhook/**'
+      - '.github/workflows/deploy-identity-functions.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-identity-functions
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy identity-first onboarding functions
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_ID: ffrhglgkukgsuhxenena
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Validate Supabase credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${SUPABASE_ACCESS_TOKEN}"
+          test "${SUPABASE_PROJECT_ID}" = "ffrhglgkukgsuhxenena"
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.118.0
+
+      - name: Deploy identity signup
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase functions deploy identity-signup             --project-ref "${SUPABASE_PROJECT_ID}"             --no-verify-jwt
+
+      - name: Deploy Didit webhook
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase functions deploy didit-identity-webhook             --project-ref "${SUPABASE_PROJECT_ID}"             --no-verify-jwt
+
+      - name: Verify deployed functions exist
+        shell: bash
+        run: |
+          set -euo pipefail
+          supabase functions list --project-ref "${SUPABASE_PROJECT_ID}"
