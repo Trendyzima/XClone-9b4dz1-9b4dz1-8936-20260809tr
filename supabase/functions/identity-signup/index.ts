@@ -237,7 +237,7 @@ Deno.serve(async (req) => {
 
     if (action === "start_existing") {
       const authHeader = req.headers.get("Authorization") || "";
-      const accessToken = authHeader.replace(/^Bearer\\s+/i, "").trim();
+      const accessToken = authHeader.replace(/^Bearer\s+/i, "").trim();
       if (!accessToken) return json({ok:false,error:"AUTH_REQUIRED"},401);
       const { data: authData, error: authError } = await admin.auth.getUser(accessToken);
       if (authError || !authData.user) return json({ok:false,error:"AUTH_REQUIRED"},401);
