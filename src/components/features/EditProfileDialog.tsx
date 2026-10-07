@@ -63,6 +63,7 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
   const [website, setWebsite] = useState('');
   const [location, setLocation] = useState('');
   const [birthDate, setBirthDate] = useState('');
+  const [mobilePhone, setMobilePhone] = useState('');
   const [twitterHandle, setTwitterHandle] = useState('');
   const [instagramHandle, setInstagramHandle] = useState('');
   const [linkedinUrl, setLinkedinUrl] = useState('');
@@ -84,6 +85,8 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
         setWebsite(textValue(row.website));
         setLocation(textValue(row.location));
         setBirthDate(textValue(row.birth_date));
+        const { data: contact } = await supabase.from('profile_contact_methods').select('phone_e164').eq('user_id', user.id).maybeSingle();
+        setMobilePhone(textValue(contact?.phone_e164));
         setTwitterHandle(textValue(links.twitter));
         setInstagramHandle(textValue(links.instagram));
         setLinkedinUrl(textValue(links.linkedin));
@@ -98,6 +101,7 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
         setWebsite(textValue(row.website));
         setLocation(textValue(row.location));
         setBirthDate(textValue(row.birth_date));
+        setMobilePhone('');
         setTwitterHandle(textValue(links.twitter));
         setInstagramHandle(textValue(links.instagram));
         setLinkedinUrl(textValue(links.linkedin));
@@ -193,6 +197,11 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
       if (updateError) throw updateError;
       if (!profileUpdate?.updated) throw new Error('Profile update was not confirmed by the server');
 
+      if (mobilePhone.trim()) {
+        const { error: phoneError } = await supabase.rpc('set_my_mobile_phone', { p_phone: mobilePhone.trim() });
+        if (phoneError) throw phoneError;
+      }
+
       await supabase.auth.updateUser({ data: { username: cleanUsername } });
       toast({ title: 'Success', description: 'Profile updated successfully' });
       onSuccess();
@@ -232,6 +241,11 @@ export function EditProfileDialog({ open, onOpenChange, onSuccess, profile: prof
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2"><Label htmlFor="username">Permanent handle</Label><Input id="username" value={username ? `@${username}` : ""} placeholder="@your_handle" readOnly disabled className="bg-muted" /><p className="text-xs text-muted-foreground">Your @handle is permanent and cannot be changed. It is your public profile identity.</p></div>
             <div className="space-y-2"><Label htmlFor="email">Email (read-only)</Label><Input id="email" value={user?.email || ''} disabled className="bg-muted" /></div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="mobile-phone">Mobile number</Label>
+              <Input id="mobile-phone" type="tel" inputMode="tel" autoComplete="tel" value={mobilePhone} onChange={e => setMobilePhone(e.target.value)} placeholder="+254712345678" disabled={loading} />
+              <p className="text-xs text-muted-foreground">Private contact number. It is not used for Testagram sign-in.</p>
+            </div>
             <div className="space-y-2 md:col-span-2"><Label htmlFor="bio">Bio</Label><Textarea id="bio" value={bio} onChange={e => setBio(e.target.value)} placeholder="Tell us about yourself" rows={3} maxLength={160} disabled={loading} /><p className="text-xs text-muted-foreground text-right">{bio.length}/160</p></div>
             <div className="space-y-2"><Label htmlFor="location">Location</Label><Input id="location" value={location} onChange={e => setLocation(e.target.value)} placeholder="City, Country" disabled={loading} /></div>
             <div className="space-y-2"><Label htmlFor="website">Website</Label><Input id="website" type="url" value={website} onChange={e => setWebsite(e.target.value)} placeholder="https://yourwebsite.com" disabled={loading} /></div>
