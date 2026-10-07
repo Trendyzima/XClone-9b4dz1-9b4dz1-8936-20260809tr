@@ -120,7 +120,7 @@ export default function LiveStreamPage() {
 
   useEffect(() => {
     const locator = typeof stream?.stream_url === 'string' ? stream.stream_url : '';
-    if (!stream?.is_live || !locator.includes('/cloudflarestream.com/')) return;
+    if (!stream?.is_live || stream?.tv_provider !== 'bunny' || !locator.includes('.m3u8')) return;
 
     const video = videoRef.current;
     if (!video) return;
@@ -209,7 +209,7 @@ export default function LiveStreamPage() {
 
   const fetchViewerCount = async () => {
     // Passive TV viewers do not poll Postgres for presence. The video path is
-    // Cloudflare Stream; viewer counts are intentionally treated as a snapshot
+    // Bunny Live provides the video path; viewer counts are treated as a control-plane snapshot
     // supplied by the broadcast control plane to avoid N×3s database fan-out.
     if (typeof stream?.viewer_count === 'number') setViewerCount(stream.viewer_count);
   };
