@@ -132,10 +132,6 @@ async function finalizeAccount(intent: any, password: string) {
   if (intent.birth_date !== intent.verified_birth_date) throw new Error("BIRTH_DATE_MISMATCH");
   if (password.length < 8) throw new Error("PASSWORD_TOO_SHORT");
 
-  const duplicate = await admin.from("identity_verifications").select("id,user_id").eq("id_number_hmac", "\\x" + intent.id_number_hmac).maybeSingle();
-  if (duplicate.error && !/invalid input syntax|bytea/i.test(duplicate.error.message)) throw duplicate.error;
-  if (duplicate.data) throw new Error("IDENTITY_ALREADY_REGISTERED");
-
   const created = await admin.auth.admin.createUser({
     email: intent.email,
     password,
