@@ -31,10 +31,6 @@ export default function IdentityVerificationPage() {
       setStatus(result.status);
       setDiditStatus(result.didit_status || 'Not Started');
     } catch (error: any) {
-      if (user) {
-        const { data } = await (await import('@/lib/supabase')).supabase.rpc('get_my_identity_verification_status');
-        if (data?.status === 'approved') navigate('/', { replace: true });
-      }
       setMessage(error?.message || '');
     } finally {
       setLoading(false);
