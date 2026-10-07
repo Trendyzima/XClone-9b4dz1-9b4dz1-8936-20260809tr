@@ -14,7 +14,7 @@ export default async function handler(req:Request){
   try{b=await req.json()}catch{return json({ok:false,error:{code:"INVALID_JSON",message:"JSON required."}},400)}
  }
  const action=typeof b?.action==="string"?b.action:"",id=typeof b?.stream_id==="string"?b.stream_id:"";
- if(!["start","viewer","verify","stop","create-guest","guest","guest-control-list","guest-control","heartbeat","youtube-encoder-config"].includes(action))return json({ok:false,error:{code:"ACTION_INVALID",message:"Unsupported TV action."}},400);
+ if(!["start","viewer","verify","stop","create-guest","guest","guest-control-list","guest-control","heartbeat","bunny-encoder-config"].includes(action))return json({ok:false,error:{code:"ACTION_INVALID",message:"Unsupported TV action."}},400);
  if(isGet&&action!=="viewer")return json({ok:false,error:{code:"METHOD_NOT_ALLOWED",message:"GET is only supported for public viewer lookup."}},405);
  if(!id)return json({ok:false,error:{code:"STREAM_ID_REQUIRED",message:"stream_id is required."}},400);
  const isPublicViewer=action==="viewer";
