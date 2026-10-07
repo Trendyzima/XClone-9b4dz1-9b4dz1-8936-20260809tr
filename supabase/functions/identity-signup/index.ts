@@ -137,6 +137,7 @@ async function finalizeAccount(intent: any, password: string) {
     password,
     email_confirm: true,
     user_metadata: { username: intent.username || undefined, full_name: intent.display_name || undefined },
+    app_metadata: { testagram_identity_verified: true },
   });
   if (created.error || !created.user) {
     const message = created.error?.message || "ACCOUNT_CREATION_FAILED";
