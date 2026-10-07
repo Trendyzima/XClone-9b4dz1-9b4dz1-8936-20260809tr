@@ -109,17 +109,17 @@ export async function finalizeAuthenticatedSession(user: User, options: { requir
 
 export async function mapSupabaseUserWithCanonicalProfile(user: User): Promise<AuthUser> {
   const mapped = mapSupabaseUser(user);
-  let { data: profile, error } = await supabase.from('profiles').select('id, username, avatar_url, verified_tier').eq('id', user.id).maybeSingle();
+  let { data: profile, error } = await supabase.from('profiles').select('id, username, avatar_url, verified_tier, identity_verification_status, identity_verified_at').eq('id', user.id).maybeSingle();
   if (error) throw new Error(`Canonical profile lookup failed: ${error.message}`);
   if (!profile?.username) {
     await ensureCanonicalProfile(user);
-    const repaired = await supabase.from('profiles').select('id, username, avatar_url, verified_tier').eq('id', user.id).maybeSingle();
+    const repaired = await supabase.from('profiles').select('id, username, avatar_url, verified_tier, identity_verification_status, identity_verified_at').eq('id', user.id).maybeSingle();
     profile = repaired.data;
     error = repaired.error;
     if (error) throw new Error(`Canonical profile repair lookup failed: ${error.message}`);
   }
   if (!profile?.username) return mapped;
-  return { ...mapped, username: profile.username, avatar: profile.avatar_url || mapped.avatar, verified: !!profile.verified_tier && profile.verified_tier !== 'none' };
+  return { ...mapped, username: profile.username, avatar: profile.avatar_url || mapped.avatar, verified: !!profile.verified_tier && profile.verified_tier !== 'none', identityVerificationStatus: profile.identity_verification_status ?? 'pending', identityVerifiedAt: profile.identity_verified_at ?? undefined };
 }
 
 const AUTH_REQUEST_TIMEOUT_MS = 15_000;
