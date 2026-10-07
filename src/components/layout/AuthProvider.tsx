@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { finalizeAuthenticatedSession } from '@/lib/auth';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
+import { clearTestagramSessionLifetime, enforceTestagramSessionLifetime, markAuthenticatedSessionStarted } from '@/lib/sessionPolicy';
 
 function normalizedPathname() {
   if (typeof window === 'undefined') return '/';
@@ -67,6 +68,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    const lifetimeTimer = window.setInterval(() => {
+      void enforceTestagramSessionLifetime().then((valid) => {
+        if (!valid && mounted) {
+          logout();
+          window.location.replace('/auth');
+        }
+      });
+    }, 30_000);
 
     const finalizationInFlight = new Map<string, Promise<void>>();
 
@@ -83,7 +92,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             resolve();
             return;
           }
-          void finalizeAuthenticatedSession(user, { requireFreshLegalConsent })
+          void enforceTestagramSessionLifetime().then((valid) => {
+            if (!valid) throw new Error('SESSION_EXPIRED');
+            markAuthenticatedSessionStarted();
+            return finalizeAuthenticatedSession(user, { requireFreshLegalConsent });
+          })
             .then(async (mappedUser) => {
               if (!mounted) return;
               login(mappedUser);
@@ -143,6 +156,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
         trackTestagramEvent(TestagramEvent.LOGGED_OUT, { auth_event: event });
+        clearTestagramSessionLifetime();
         logout();
         setLoading(false);
         return;
@@ -176,6 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false;
+      window.clearInterval(lifetimeTimer);
       subscription.unsubscribe();
     };
   }, [login, logout, setLoading, setAuthError, clearAuthError]);
