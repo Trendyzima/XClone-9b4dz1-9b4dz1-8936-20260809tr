@@ -97,8 +97,9 @@ export default function AuthPage() {
     login(finalized);
     setLoading(false);
     await applyPendingReferral();
-    const needsIdentityVerification = finalized.identityVerificationStatus && !['not_required', 'approved'].includes(finalized.identityVerificationStatus);
-    navigate(needsIdentityVerification ? '/verify-identity' : '/', { replace: true });
+    // Existing-account login never launches KYC. Identity verification is only
+    // entered from the explicit account-creation flow.
+    navigate('/', { replace: true });
   };
 
   const handlePasswordSignIn = async (event: FormEvent) => {
