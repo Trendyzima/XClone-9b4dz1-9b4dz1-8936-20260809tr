@@ -1376,19 +1376,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
 
       roomRef.current = session;
 
-      // Testagram-native public delivery runs alongside Bunny. It is deliberately
-      // capped to a small host-fanout ceiling; larger audiences use the CDN-backed
-      // Bunny path instead of turning one broadcaster's browser into a media CDN.
-      try {
-        const nativeSession = await TestagramTvMediaSession.connectHostExisting(id, program);
-        nativeSession.setViewerCountHandler?.((count) => setViewerCount(count));
-        nativeViewerRoomRef.current = nativeSession;
-        setBroadcastDiagnostics(prev => ({ ...(prev || {}), native_public_media: 'ready', native_viewer_limit: 20 }));
-      } catch (nativeError) {
-        setBroadcastDiagnostics(prev => ({ ...(prev || {}), native_public_media: 'degraded', native_public_media_error: nativeError instanceof Error ? nativeError.message : String(nativeError) }));
-      }
-
-      // Guest WebRTC is an optional interactive feature. It must never block
+      // Bunny is the sole public media delivery path. WebRTC remains only for interactive studio guests.\n      // Guest WebRTC is an optional interactive feature. It must never block
       // the primary Bunny ON AIR path. Start it in the background after the
       // public delivery transport is connected.
       if (!guestRoomRef.current) {
