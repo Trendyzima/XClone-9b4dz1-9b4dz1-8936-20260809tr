@@ -5,7 +5,7 @@ on:
     branches: [main]
     paths:
       - 'supabase/functions/identity-signup/**'
-      - 'supabase/functions/didit-identity-webhook/**'
+      - 'supabase/functions/idswyft-identity-webhook/**'
       - '.github/workflows/deploy-identity-functions.yml'
   workflow_dispatch:
 
@@ -45,20 +45,20 @@ jobs:
           version: 2.118.0
 
       # Runtime identity secrets live in Supabase, not GitHub Actions.
-      # GitHub never receives or copies Didit credentials.
-      - name: Verify Supabase identity secret names
+      # GitHub never receives or copies identity-provider credentials.
+      - name: Verify native identity secret names
         shell: bash
         run: |
           set -euo pipefail
           secrets="$(supabase secrets list --project-ref "${SUPABASE_PROJECT_ID}")"
           printf '%s\n' "$secrets"
-          for name in DIDIT_API_KEY DIDIT_WEBHOOK_SECRET DIDIT_WORKFLOW_ID IDENTITY_PREAUTH_SECRET; do
+          for name in IDSWYFT_BASE_URL IDSWYFT_API_KEY IDSWYFT_WEBHOOK_SECRET IDENTITY_PREAUTH_SECRET; do
             printf '%s\n' "$secrets" | grep -Eq "(^|[[:space:]|])$name([[:space:]|]|$)" || {
               echo "::error::$name is not configured in Supabase project secrets."
               exit 1
             }
           done
-          echo "Required Didit identity secret names are present in Supabase; values were not read or printed."
+          echo "Required self-hosted identity secret names are present in Supabase; values were not read or printed."
 
       - name: Deploy identity signup
         shell: bash
@@ -66,11 +66,11 @@ jobs:
           set -euo pipefail
           supabase functions deploy identity-signup             --project-ref "${SUPABASE_PROJECT_ID}"             --no-verify-jwt
 
-      - name: Deploy Didit webhook
+      - name: Deploy Idswyft webhook
         shell: bash
         run: |
           set -euo pipefail
-          supabase functions deploy didit-identity-webhook             --project-ref "${SUPABASE_PROJECT_ID}"             --no-verify-jwt
+          supabase functions deploy idswyft-identity-webhook             --project-ref "${SUPABASE_PROJECT_ID}"             --no-verify-jwt
 
       - name: Verify deployed functions exist
         shell: bash
