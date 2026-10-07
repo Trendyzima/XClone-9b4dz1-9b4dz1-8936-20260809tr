@@ -5,6 +5,12 @@ import { useAuthStore } from '@/stores/authStore';
 import { finalizeAuthenticatedSession } from '@/lib/auth';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 
+function normalizedPathname() {
+  if (typeof window === 'undefined') return '/';
+  const pathname = window.location.pathname.replace(/\/+$/, '');
+  return pathname || '/';
+}
+
 async function triggerKeygenForUser(userId: string) {
   try {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -65,10 +71,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const finalizationInFlight = new Map<string, Promise<void>>();
 
     const hydrateUser = (user: User, requireFreshLegalConsent = false) => {
-      // Never expose an authenticated app state until the canonical profile
-      // boundary has succeeded. The work is deferred out of onAuthStateChange
-      // because Supabase warns that async auth calls inside the callback can
-      // deadlock the client.
       setLoading(true);
       clearAuthError();
 
@@ -85,8 +87,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .then(async (mappedUser) => {
               if (!mounted) return;
               login(mappedUser);
-              const identityStatus = mappedUser.identityVerificationStatus;
-              if (identityStatus && !['not_required', 'approved'].includes(identityStatus) && window.location.pathname !== '/verify-identity') {
+
+              // Identity verification is a hard account gate. Normalize the path
+              // before comparing it so /verify-identity and /verify-identity/
+              // cannot trigger a full-document redirect loop.
+              const path = normalizedPathname();
+              const identityRequired =
+                mappedUser.identityVerificationStatus &&
+                !['not_required', 'approved'].includes(mappedUser.identityVerificationStatus);
+
+              if (identityRequired && path !== '/verify-identity') {
                 window.location.replace('/verify-identity');
                 resolve();
                 return;
@@ -95,7 +105,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               // Mobile contact is a required post-sign-in profile field, not an auth
               // identifier. Keep it private in profile_contact_methods and gate the
               // application until the signed-in user has supplied a valid number.
-              if (window.location.pathname !== '/profile/complete') {
+              if (path !== '/profile/complete' && path !== '/verify-identity') {
                 const { data: hasMobilePhone, error: mobilePhoneError } = await supabase.rpc('has_my_mobile_phone');
                 if (mobilePhoneError) throw mobilePhoneError;
                 if (!hasMobilePhone) {
@@ -118,8 +128,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               setAuthError(message);
               logout();
               setLoading(false);
-              // Do not leave a valid Supabase session behind when the app's
-              // canonical profile contract could not be established.
               try { await supabase.auth.signOut(); } catch { /* best effort */ }
               console.error('[Auth] Session finalization failed:', error);
               resolve();
