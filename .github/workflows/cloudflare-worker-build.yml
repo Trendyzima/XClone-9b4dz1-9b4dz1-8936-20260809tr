@@ -1,4 +1,5 @@
 name: Cloudflare Worker Build Gate
+# Production worker syntax gate
 
 on:
   push:
