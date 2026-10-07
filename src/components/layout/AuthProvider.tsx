@@ -153,6 +153,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      // Identity-first onboarding must never admit anonymous Auth sessions into
+      // the application. Even if a hosted Auth setting is misconfigured, an
+      // anonymous session is not a Testagram account and cannot bypass KYC.
+      if (session.user.is_anonymous) {
+        void supabase.auth.signOut();
+        logout();
+        setLoading(false);
+        return;
+      }
+
       if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'USER_UPDATED') {
         if (event === 'SIGNED_IN') {
           trackTestagramEvent(TestagramEvent.LOGGED_IN, { auth_event: event });
