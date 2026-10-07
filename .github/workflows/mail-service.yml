@@ -1,0 +1,48 @@
+name: Testagram Mail Service CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'services/mail/**'
+      - 'supabase/migrations/**testagram_owned_mail.sql'
+      - '.github/workflows/mail-service.yml'
+  push:
+    branches: [main, "ci/**"]
+    paths:
+      - 'services/mail/**'
+      - 'supabase/migrations/**testagram_owned_mail.sql'
+      - '.github/workflows/mail-service.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  mail-service:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: services/mail
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: services/mail/package.json
+      - run: npm install --package-lock-only
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run build
+      - name: Smoke test compiled service
+        run: |
+          TESTAGRAM_MAIL_TOKEN=ci-token           SUPABASE_URL=https://example.invalid           SUPABASE_SECRET_KEY=ci-secret           node dist/index.js >/tmp/testagram-mail.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" 2>/dev/null || true' EXIT
+          for i in {1..20}; do
+            if curl -fsS http://127.0.0.1:8080/health; then exit 0; fi
+            sleep 0.25
+          done
+          cat /tmp/testagram-mail.log
+          exit 1
