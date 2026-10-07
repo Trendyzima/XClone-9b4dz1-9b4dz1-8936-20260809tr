@@ -164,7 +164,10 @@ async function finalizeAccount(intent: any, password: string) {
       reviewed_at: now,
       email_snapshot: intent.email,
     });
-    if (identityError) {\n      if (identityError.code === "23505" && /id_number_hmac/i.test(identityError.message || "")) throw new Error("IDENTITY_ALREADY_REGISTERED");\n      throw identityError;\n    }
+    if (identityError) {
+      if (identityError.code === "23505" && /id_number_hmac/i.test(identityError.message || "")) throw new Error("IDENTITY_ALREADY_REGISTERED");
+      throw identityError;
+    }
     const { error: profileError } = await admin.from("profiles").update({
       birth_date: intent.verified_birth_date,
       legal_terms_accepted_at: intent.legal_terms_accepted_at,
