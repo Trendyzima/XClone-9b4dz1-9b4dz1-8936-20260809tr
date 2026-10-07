@@ -918,13 +918,6 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
     } catch (err: any) { toast.error('Backfill error: ' + err.message); }
   };
 
-  const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (
-    <div className="flex items-center justify-between gap-3 text-xs">
-      <span className="text-muted-foreground">{label}</span>
-      <span className="font-medium text-right truncate">{value}</span>
-    </div>
-  );
-
   // ─── Render helpers ────────────────────────────────────────────────────────
   function RemotePostMedia({ attachments, compact = false }: { attachments: any[]; compact?: boolean }) {
     const media = Array.isArray(attachments) ? attachments.filter((a: any) => a && (a.preview_url || a.url || a.remote_url)) : [];
@@ -1905,3 +1898,26 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
                 <div className="flex gap-4 mt-4 text-xs text-muted-foreground">
                   {activeRemoteProfile.followers_count != null && <span><b className="text-foreground">{formatNumber(activeRemoteProfile.followers_count)}</b> followers</span>}
                   {activeRemoteProfile.following_count != null && <span><b className="text-foreground">{formatNumber(activeRemoteProfile.following_count)}</b> following</span>}
+                  <span className="ml-auto">Federated via Testagram</span>
+                </div>
+                <button onClick={() => handleFollow(activeRemoteProfile)}
+                  className="w-full mt-5 py-2.5 rounded-full bg-[#6364FF] text-white font-semibold">
+                  {followingActorUrls.includes(activeRemoteProfile.actor_url) ? 'Following' : 'Follow'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Row({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex justify-between gap-2 text-sm">
+      <span className="text-muted-foreground shrink-0">{label}</span>
+      <span className={`text-right break-all ${mono ? 'font-mono text-xs' : ''}`}>{value}</span>
+    </div>
+  );
+}
