@@ -28,7 +28,13 @@ Deno.serve(async req=>{
   if(!SERVICE_KEY||!ENGINE_SECRET||!IDENTITY_SECRET)return json({ok:false,error:"ENGINE_NOT_CONFIGURED"},503);
   const raw=await req.text();
   const supplied=req.headers.get("X-Testagram-Engine-Signature")||"";
-  const expected=await hmacHex(ENGINE_SECRET,raw);
+  const timestampHeader=req.headers.get("X-Testagram-Engine-Timestamp")||"";
+  const nonce=req.headers.get("X-Testagram-Engine-Nonce")||"";
+  const timestamp=Number(timestampHeader);
+  if(!Number.isInteger(timestamp)||Math.abs(Date.now()-timestamp*1000)>5*60*1000) return json({ok:false,error:"ENGINE_TIMESTAMP_INVALID"},401);
+  if(!/^[a-f0-9]{32,128}$/i.test(nonce)) return json({ok:false,error:"ENGINE_NONCE_INVALID"},401);
+  const canonical=timestampHeader+"."+nonce+"."+raw;
+  const expected=await hmacHex(ENGINE_SECRET,canonical);
   if(!safeEqual(supplied,"sha256="+expected))return json({ok:false,error:"INVALID_ENGINE_SIGNATURE"},401);
   let body:any;try{body=JSON.parse(raw)}catch{return json({ok:false,error:"INVALID_JSON"},400);}
   const sessionId=String(body?.session_id||"");
@@ -47,6 +53,13 @@ Deno.serve(async req=>{
   if(sessionError)throw sessionError;if(!session)return json({ok:false,error:"SESSION_NOT_FOUND"},404);
   if(new Date(session.expires_at).getTime()<Date.now())return json({ok:false,error:"SESSION_EXPIRED"},400);
   if(!["processing","capturing","under_review"].includes(session.state))return json({ok:false,error:"SESSION_NOT_PROCESSING"},409);
+  const {data:job,error:jobError}=await admin.schema("private").from("identity_verification_jobs").select("id,state,leased_until,worker_id").eq("session_id",sessionId).maybeSingle();
+  if(jobError)throw jobError;
+  if(!job || !["leased","processing"].includes(job.state))return json({ok:false,error:"ENGINE_JOB_NOT_LEASED"},409);
+  if(job.leased_until && new Date(job.leased_until).getTime()<Date.now())return json({ok:false,error:"ENGINE_JOB_LEASE_EXPIRED"},409);
+  const {data:existingResult,error:existingResultError}=await admin.schema("private").from("identity_engine_results").select("id,decision,engine_nonce").eq("session_id",sessionId).maybeSingle();
+  if(existingResultError)throw existingResultError;
+  if(existingResult) return json({ok:false,error:"ENGINE_RESULT_ALREADY_RECORDED"},409);
   const fingerprint="\\x"+await hmacHex(IDENTITY_SECRET,"ke-nid|"+idNumber);
   const {data:duplicate}=await admin.from("identity_verifications").select("id,user_id").eq("id_number_hmac",fingerprint).maybeSingle();
   const actuallyDuplicate=!!duplicate && duplicate.user_id!==session.user_id;
@@ -65,10 +78,18 @@ Deno.serve(async req=>{
     id_number_hmac:fingerprint,id_number_last4:idNumber.slice(-4),verified_birth_date:dob,
     liveness_score:live,face_match_score:face,tamper_score:tamper,cross_document_match:crossMatch,
     age_ok:ageOk,duplicate_ok:finalDuplicateOk,decision,rejection_reason:reason,
-    engine_signature:supplied,signed_at:signedAt
+    engine_signature:supplied,signed_at:signedAt,engine_nonce:nonce,engine_timestamp:new Date(timestamp*1000).toISOString()
   },{onConflict:"session_id"});
   if(resultError)throw resultError;
   const nextState=decision==="approved"?"approved":decision==="rejected"?"rejected":"under_review";
+  await admin.schema("private").from("identity_verification_jobs").update({
+    state: decision === "manual_review" ? "succeeded" : "succeeded",
+    leased_until:null,
+    worker_id:null,
+    last_error:null,
+    completed_at:signedAt,
+    updated_at:signedAt
+  }).eq("id",job.id);
   await admin.schema("private").from("identity_verification_sessions").update({state:nextState,completed_at:decision==="manual_review"?null:signedAt,updated_at:signedAt}).eq("id",sessionId);
   await admin.schema("private").from("identity_signup_intents").update({
     verification_stage:decision,identity_status:decision==="approved"?"approved":decision==="rejected"?"rejected":"under_review",

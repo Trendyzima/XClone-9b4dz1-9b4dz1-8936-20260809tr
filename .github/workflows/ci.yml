@@ -37,3 +37,4 @@ jobs:
           deno check --no-config supabase/functions/identity-signup/index.ts
           deno check --no-config supabase/functions/identity-verification/index.ts
           deno check --no-config supabase/functions/identity-engine-result/index.ts
+          deno check --no-config supabase/functions/identity-engine-worker/index.ts

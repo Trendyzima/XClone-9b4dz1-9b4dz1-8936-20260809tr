@@ -112,7 +112,8 @@ Deno.serve(async req => {
     if (action === "status") {
       const {data:evidence} = await admin.schema("private").from("identity_verification_evidence").select("kind,state,created_at").eq("session_id",session.id).order("created_at",{ascending:true});
       const {data:result} = await admin.schema("private").from("identity_engine_results").select("model_version,decision,rejection_reason,created_at").eq("session_id",session.id).maybeSingle();
-      return json({ok:true,state:session.state,evidence:evidence||[],engine_result:result||null});
+      const {data:job} = await admin.schema("private").from("identity_verification_jobs").select("state,attempts,last_error,updated_at").eq("session_id",session.id).maybeSingle();
+      return json({ok:true,state:session.state,evidence:evidence||[],engine_job:job||null,engine_result:result||null});
     }
 
     if (action === "mark_uploaded") {
@@ -121,10 +122,21 @@ Deno.serve(async req => {
       if (!["id_front","id_back","selfie","liveness_video"].includes(kind) || !objectPath.startsWith(session.id + "/")) {
         return json({ok:false,error:"INVALID_EVIDENCE_REFERENCE"},400);
       }
-      const {error} = await admin.schema("private").from("identity_verification_evidence")
-        .update({state:"uploaded"})
-        .eq("session_id",session.id).eq("kind",kind).eq("object_path",objectPath);
+      const {data:evidence,error} = await admin.schema("private").from("identity_verification_evidence")
+        .select("id,mime_type,state").eq("session_id",session.id).eq("kind",kind).eq("object_path",objectPath).maybeSingle();
       if (error) throw error;
+      if (!evidence) return json({ok:false,error:"EVIDENCE_REFERENCE_NOT_FOUND"},404);
+      if (evidence.state !== "issued") return json({ok:false,error:"EVIDENCE_NOT_PENDING_UPLOAD"},409);
+      const {data:blob,error:downloadError} = await admin.storage.from("identity-evidence").download(objectPath);
+      if (downloadError || !blob) return json({ok:false,error:"EVIDENCE_OBJECT_MISSING"},400);
+      if (blob.size <= 0 || blob.size > 10 * 1024 * 1024) return json({ok:false,error:"EVIDENCE_SIZE_INVALID"},400);
+      const bytes = new Uint8Array(await blob.arrayBuffer());
+      const digest = await crypto.subtle.digest("SHA-256", bytes);
+      const sha256 = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, "0")).join("");
+      const {error:markError} = await admin.schema("private").from("identity_verification_evidence")
+        .update({state:"uploaded",byte_size:blob.size,sha256,processed_at:null})
+        .eq("id",evidence.id).eq("state","issued");
+      if (markError) throw markError;
       return json({ok:true});
     }
 
@@ -132,9 +144,31 @@ Deno.serve(async req => {
       const {data:evidence,error} = await admin.schema("private").from("identity_verification_evidence").select("kind,state").eq("session_id",session.id);
       if (error) throw error;
       const kinds = new Set((evidence||[]).map((e:any)=>e.kind));
-      for (const required of ["id_front","id_back","selfie","liveness_video"]) if (!kinds.has(required)) return json({ok:false,error:"MISSING_"+required.toUpperCase()},400);
-      await admin.schema("private").from("identity_verification_sessions").update({state:"processing",updated_at:new Date().toISOString()}).eq("id",session.id);
-      await admin.schema("private").from("identity_signup_intents").update({verification_stage:"processing",identity_status:"pending",updated_at:new Date().toISOString()}).eq("id",session.intent_id);
+      for (const required of ["id_front","id_back","selfie","liveness_video"]) {
+        if (!kinds.has(required)) return json({ok:false,error:"MISSING_"+required.toUpperCase()},400);
+      }
+      const {data:uploadedEvidence,error:uploadedError} = await admin.schema("private").from("identity_verification_evidence")
+        .select("kind,state,byte_size,sha256").eq("session_id",session.id);
+      if (uploadedError) throw uploadedError;
+      for (const item of uploadedEvidence || []) {
+        if (item.state !== "uploaded" || !item.byte_size || !item.sha256) {
+          return json({ok:false,error:"EVIDENCE_INTEGRITY_INCOMPLETE",kind:item.kind},400);
+        }
+      }
+      const now = new Date().toISOString();
+      const {error:jobError} = await admin.schema("private").from("identity_verification_jobs").upsert({
+        session_id: session.id,
+        state: "queued",
+        attempts: 0,
+        available_at: now,
+        leased_until: null,
+        worker_id: null,
+        last_error: null,
+        updated_at: now
+      }, {onConflict:"session_id", ignoreDuplicates:true});
+      if (jobError) throw jobError;
+      await admin.schema("private").from("identity_verification_sessions").update({state:"processing",updated_at:now}).eq("id",session.id);
+      await admin.schema("private").from("identity_signup_intents").update({verification_stage:"processing",identity_status:"pending",updated_at:now}).eq("id",session.intent_id);
       return json({ok:true,state:"processing"});
     }
 
