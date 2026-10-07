@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Clock3, FileImage, Loader2, RefreshCw, ShieldCheck, XCircle } from 'lucide-react';
+import { CheckCircle2, Clock3, Loader2, RefreshCw, ShieldCheck, XCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
@@ -8,7 +8,7 @@ import { useSEO } from '@/hooks/useSEO';
 
 type Row = {
   id: string; user_id: string; id_number_last4: string; country_code: string;
-  front_object_path: string; back_object_path: string; status: string;
+  status: string; verification_method: string; provider: string; provider_reference: string | null;
   submitted_at: string; username: string; display_name: string | null; email: string | null;
   rejection_reason: string | null;
 };
@@ -30,16 +30,7 @@ export default function AdminIdentityVerificationPage() {
     if (error) { console.error(error); setRows([]); setLoading(false); return; }
     const next = (data || []) as Row[];
     setRows(next);
-    const signed: Record<string, { front: string; back: string }> = {};
-    for (const row of next) {
-      const [front, back] = await Promise.all([
-        supabase.storage.from('identity-documents').createSignedUrl(row.front_object_path, 300),
-        supabase.storage.from('identity-documents').createSignedUrl(row.back_object_path, 300),
-      ]);
-      if (front.data?.signedUrl && back.data?.signedUrl) signed[row.id] = { front: front.data.signedUrl, back: back.data.signedUrl };
-    }
-    setUrls(signed);
-    setLoading(false);
+
   };
 
   useEffect(() => {
@@ -82,14 +73,6 @@ export default function AdminIdentityVerificationPage() {
                 <span className="rounded-full bg-amber-500/10 px-3 py-1 text-xs font-bold text-amber-700">{row.status}</span>
               </div>
 
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                {(['front','back'] as const).map(side => (
-                  <div key={side} className="overflow-hidden rounded-2xl border bg-muted/20">
-                    <p className="border-b px-3 py-2 text-xs font-black uppercase tracking-widest">{side} of ID</p>
-                    {urls[row.id]?.[side] ? <img src={urls[row.id][side]} alt={side + ' of identity document'} className="max-h-[420px] w-full object-contain bg-black/5" /> : <div className="flex h-64 items-center justify-center text-muted-foreground"><FileImage className="h-8 w-8" /></div>}
-                  </div>
-                ))}
-              </div>
 
               <div className="mt-5 flex flex-wrap gap-2">
                 <button disabled={busy === row.id} onClick={() => void decide(row,'approved')} className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-3 font-bold text-white disabled:opacity-50"><CheckCircle2 className="h-4 w-4" />Approve</button>
