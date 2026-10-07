@@ -1,7 +1,7 @@
 import { supabase } from './supabase';
 
 export const TESTAGRAM_SESSION_MAX_AGE_MS = 2 * 60 * 60 * 1000;
-const STORAGE_KEY = 'testagram-session-started-at-v1';
+const STORAGE_KEY = 'testagram-session-started-at-v2';
 
 function readStartedAt(): number | null {
   try {
@@ -23,11 +23,9 @@ export function sessionHasExpired(now = Date.now()) {
   return !!startedAt && now - startedAt >= TESTAGRAM_SESSION_MAX_AGE_MS;
 }
 
-export function markAuthenticatedSessionStarted() {
+export function markAuthenticatedSessionStarted(userId?: string) {
   const existing = readStartedAt();
-  if (!existing || Date.now() - existing >= TESTAGRAM_SESSION_MAX_AGE_MS) {
-    writeStartedAt(Date.now());
-  }
+  if (!existing || Date.now() - existing >= TESTAGRAM_SESSION_MAX_AGE_MS) writeStartedAt(Date.now());
 }
 
 export async function enforceTestagramSessionLifetime() {
