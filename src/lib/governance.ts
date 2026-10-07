@@ -60,6 +60,18 @@ export async function terminateStaff(userId: string, reason?: string) {
   return data;
 }
 
+export async function verifyStaffWorkspacePin(pin: string) {
+  const { data, error } = await supabase.rpc('testagram_verify_staff_workspace_pin', { p_pin: pin });
+  if (error) throw error;
+  return data as { success: boolean; code?: string; attempts_remaining?: number };
+}
+
+export async function setStaffWorkspacePin(userId: string, pin: string) {
+  const { data, error } = await supabase.rpc('testagram_set_staff_workspace_pin', { p_user_id: userId, p_pin: pin });
+  if (error) throw error;
+  return data;
+}
+
 export async function listJobApplications(status?: string) {
   const { data, error } = await supabase.rpc('testagram_list_job_applications', { p_status: status ?? null });
   if (error) throw error;
