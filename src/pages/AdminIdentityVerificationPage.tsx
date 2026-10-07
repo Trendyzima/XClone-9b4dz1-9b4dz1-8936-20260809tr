@@ -9,7 +9,7 @@ import { useSEO } from '@/hooks/useSEO';
 type Row = {
   id: string; user_id: string; id_number_last4: string; country_code: string;
   status: string; verification_method: string; provider: string; provider_reference: string | null;
-  submitted_at: string; username: string; display_name: string | null; email: string | null;
+  submitted_at: string; username: string; display_name: string | null; email: string | null; email_snapshot: string | null;
   rejection_reason: string | null;
 };
 
