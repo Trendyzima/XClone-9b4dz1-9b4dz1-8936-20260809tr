@@ -175,6 +175,11 @@ async function finalizeAccount(intent: any, password: string) {
       identity_verified_at: now,
     }).eq("id", user.id);
     if (profileError) throw profileError;
+    const { error: auditLinkError } = await admin.from("identity_verification_events")
+      .update({ user_id: user.id })
+      .is("user_id", null)
+      .filter("metadata->>session_id", "eq", String(intent.didit_session_id));
+    if (auditLinkError) throw auditLinkError;
     await admin.schema("private").from("identity_signup_intents").update({ completed_user_id: user.id, updated_at: now }).eq("id", intent.id);
     if (DIDIT_API_KEY && intent.didit_session_id) {
       await fetch("https://verification.didit.me/v3/session/" + encodeURIComponent(intent.didit_session_id) + "/delete/", { method: "DELETE", headers: { "x-api-key": DIDIT_API_KEY } }).catch(() => {});
