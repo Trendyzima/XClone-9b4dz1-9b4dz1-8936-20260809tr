@@ -1,5 +1,6 @@
 -- Identity verification state is server-only. The browser must never reach the private schema.
 revoke all on schema private from anon, authenticated;
+alter table private.identity_signup_intents enable row level security;
 grant usage on schema private to service_role;
 
 grant select, insert, update, delete
