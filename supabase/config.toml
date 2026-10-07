@@ -50,3 +50,11 @@ verify_jwt = false
 
 [functions.notification-fcm-worker]
 verify_jwt = false
+
+# Native self-owned identity bridge.
+[functions.identity-native-session]
+verify_jwt = true
+
+# Idswyft calls this endpoint with its own HMAC signature.
+[functions.identity-native-webhook]
+verify_jwt = false
