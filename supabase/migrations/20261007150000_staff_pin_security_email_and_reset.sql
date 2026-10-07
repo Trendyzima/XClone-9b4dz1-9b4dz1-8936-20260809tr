@@ -90,6 +90,7 @@ drop trigger if exists testagram_governance_audit_security_email on public.testa
 create trigger testagram_governance_audit_security_email
 after insert on public.testagram_governance_audit_log
 for each row execute function public.testagram_security_audit_email_trigger();
+revoke all on function public.testagram_security_audit_email_trigger() from public, anon, authenticated;
 
 create or replace function public.testagram_set_staff_workspace_pin(p_user_id uuid, p_pin text)
 returns jsonb language plpgsql security definer set search_path=public as $$
