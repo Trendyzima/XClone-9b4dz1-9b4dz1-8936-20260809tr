@@ -95,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           void enforceTestagramSessionLifetime().then((valid) => {
             if (!valid) throw new Error('SESSION_EXPIRED');
-            markAuthenticatedSessionStarted();
+            markAuthenticatedSessionStarted(user.id);
             return finalizeAuthenticatedSession(user, { requireFreshLegalConsent });
           })
             .then(async (mappedUser) => {
