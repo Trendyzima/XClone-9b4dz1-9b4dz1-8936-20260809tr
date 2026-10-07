@@ -117,7 +117,7 @@ Deno.serve(async(req)=>{
       const extracted=findId(decision);
       if(!extracted?.id||extracted.issuingState!=="KEN"||!/identity\s*card/i.test(extracted.documentType||"")){
         identityStatus="rejected"; rejectionReason="IDENTITY_DATA_MISSING_OR_UNEXPECTED_DOCUMENT";
-      }else if(!extracted.dob||extracted.dob!==intent.birth_date||!/^\d{4}-\d{2}-\d{2}$/.test(extracted.dob)){
+      }else if(!extracted.dob||extracted.dob!==intent.birth_date||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(extracted.dob)){
         identityStatus="rejected"; rejectionReason="BIRTH_DATE_MISMATCH";
       }else if(warnings.includes("POSSIBLE_DUPLICATED_FACE")||warnings.includes("FACE_IN_BLOCKLIST")){
         identityStatus="blocked"; rejectionReason=warnings.find((w)=>w==="POSSIBLE_DUPLICATED_FACE"||w==="FACE_IN_BLOCKLIST")||"DUPLICATE_FACE";
@@ -129,17 +129,7 @@ Deno.serve(async(req)=>{
         if(duplicate){
           identityStatus="blocked"; rejectionReason="IDENTITY_ALREADY_REGISTERED";
         }else{
-          const {error:updateError}=await admin.schema("private").from("identity_signup_intents").update({
-            identity_status:"approved",didit_status:status,id_number_hmac:fingerprint,id_number_last4:last4,
-            verified_birth_date:verifiedDob,provider_reference:providerReference,rejection_reason:null,updated_at:new Date().toISOString()
-          }).eq("id",intent.id);
-          if(updateError)throw updateError;
-        }
-      }
-        if(updateError){
-          if(updateError.code==="23505"){
-            identityStatus="blocked"; rejectionReason="IDENTITY_ALREADY_REGISTERED";
-          }else throw updateError;
+          identityStatus="approved";
         }
       }
     }else if(status==="In Review"){
