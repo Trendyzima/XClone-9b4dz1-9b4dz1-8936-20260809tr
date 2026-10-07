@@ -103,6 +103,27 @@ export async function confirmStaffWorkspacePinReset(requestId: string, code: str
   return data;
 }
 
+export async function verifyAdminDashboardPin(pin: string) {
+  const { data, error } = await supabase.rpc('testagram_verify_admin_dashboard_pin', { p_pin: pin });
+  if (error) throw error;
+  return data as { success: boolean; code?: string; attempts_remaining?: number; locked_until?: string };
+}
+
+export async function setAdminDashboardPin(pin: string) {
+  const { data, error } = await supabase.rpc('testagram_set_admin_dashboard_pin', { p_pin: pin });
+  if (error) throw error;
+  return data;
+}
+
+export async function changeAdminDashboardPin(currentPin: string, newPin: string) {
+  const { data, error } = await supabase.rpc('testagram_change_admin_dashboard_pin', {
+    p_current_pin: currentPin,
+    p_new_pin: newPin,
+  });
+  if (error) throw error;
+  return data;
+}
+
 export async function listJobApplications(status?: string) {
   const { data, error } = await supabase.rpc('testagram_list_job_applications', { p_status: status ?? null });
   if (error) throw error;
