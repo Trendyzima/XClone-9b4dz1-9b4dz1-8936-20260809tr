@@ -91,6 +91,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 resolve();
                 return;
               }
+
+              // Mobile contact is a required post-sign-in profile field, not an auth
+              // identifier. Keep it private in profile_contact_methods and gate the
+              // application until the signed-in user has supplied a valid number.
+              if (window.location.pathname !== '/profile/complete') {
+                const { data: hasMobilePhone, error: mobilePhoneError } = await supabase.rpc('has_my_mobile_phone');
+                if (mobilePhoneError) throw mobilePhoneError;
+                if (!hasMobilePhone) {
+                  window.location.replace('/profile/complete');
+                  resolve();
+                  return;
+                }
+              }
+
               setLoading(false);
               void triggerKeygenForUser(user.id);
               resolve();
