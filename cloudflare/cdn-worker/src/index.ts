@@ -35,6 +35,10 @@ function keyFromPath(pathname: string): string | null {
   return key;
 }
 
+function notFoundResponse(): Response {
+  return new Response('Not found', { status: 404, headers: { 'x-testagram-cdn': 'cloudflare', 'x-testagram-cdn-version': '2026-10-07-health-diagnostic' } });
+}
+
 async function healthResponse(): Promise<Response> {
   return new Response(JSON.stringify({ ok: true, service: 'testagram-cdn', edge: 'reachable' }), {
     status: 200,
@@ -75,7 +79,7 @@ export default {
     if (url.pathname === '/' || url.pathname === '/health') return request.method === 'HEAD' ? new Response(null, { status: 200 }) : healthResponse();
 
     const key = keyFromPath(url.pathname);
-    if (!key) return new Response('Not found', { status: 404 });
+    if (!key) return notFoundResponse();
 
     const cachedRoute = await redisGet(env, 'media:route:v1:' + key);
     let objectKey = key;
@@ -90,7 +94,7 @@ export default {
       range: request.headers,
       onlyIf: request.headers.has('if-none-match') ? { etagMatches: request.headers.get('if-none-match')! } : undefined,
     });
-    if (!object) return new Response('Not found', { status: 404 });
+    if (!object) return notFoundResponse();
 
     const headers = new Headers();
     object.writeHttpMetadata(headers);
