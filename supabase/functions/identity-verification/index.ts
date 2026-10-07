@@ -115,6 +115,19 @@ Deno.serve(async req => {
       return json({ok:true,state:session.state,evidence:evidence||[],engine_result:result||null});
     }
 
+    if (action === "mark_uploaded") {
+      const kind = String(body?.kind || "");
+      const objectPath = String(body?.path || "");
+      if (!["id_front","id_back","selfie","liveness_video"].includes(kind) || !objectPath.startsWith(session.id + "/")) {
+        return json({ok:false,error:"INVALID_EVIDENCE_REFERENCE"},400);
+      }
+      const {error} = await admin.schema("private").from("identity_verification_evidence")
+        .update({state:"uploaded",updated_at:new Date().toISOString()})
+        .eq("session_id",session.id).eq("kind",kind).eq("object_path",objectPath);
+      if (error) throw error;
+      return json({ok:true});
+    }
+
     if (action === "begin_processing") {
       const {data:evidence,error} = await admin.schema("private").from("identity_verification_evidence").select("kind,state").eq("session_id",session.id);
       if (error) throw error;
