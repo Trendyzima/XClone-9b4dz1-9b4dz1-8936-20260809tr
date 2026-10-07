@@ -35,4 +35,5 @@ jobs:
       - name: Typecheck identity functions
         run: |
           deno check --no-config supabase/functions/identity-signup/index.ts
-          deno check --no-config supabase/functions/didit-identity-webhook/index.ts
+          deno check --no-config supabase/functions/identity-native-session/index.ts
+          deno check --no-config supabase/functions/identity-native-webhook/index.ts
