@@ -134,6 +134,11 @@ function errorDetails(error: unknown) {
 async function finalizeAccount(intent: any, password: string) {
   if (!intent.email_verified_at) throw new Error("EMAIL_NOT_VERIFIED");
   if (intent.identity_status !== "approved") throw new Error("IDENTITY_NOT_APPROVED");
+  if (!intent.verification_session_id) throw new Error("VERIFICATION_SESSION_MISSING");
+  const { data: engineResult, error: engineResultError } = await admin.schema("private").from("identity_engine_results")
+    .select("decision,verified_birth_date,id_number_hmac").eq("session_id", intent.verification_session_id).maybeSingle();
+  if (engineResultError) throw engineResultError;
+  if (!engineResult || engineResult.decision !== "approved") throw new Error("IDENTITY_ENGINE_APPROVAL_REQUIRED");
   if (!intent.id_number_hmac) throw new Error("IDENTITY_FINGERPRINT_MISSING");
   if (!intent.verified_birth_date || !isAdult(intent.verified_birth_date)) throw new Error("AGE_RESTRICTION");
   if (intent.birth_date !== intent.verified_birth_date) throw new Error("BIRTH_DATE_MISMATCH");
@@ -163,7 +168,7 @@ async function finalizeAccount(intent: any, password: string) {
       status: "approved",
       verification_method: "self_hosted",
       provider: null,
-      provider_reference: intent.provider_reference,
+      provider_reference: null,
       submitted_at: now,
       reviewed_at: now,
       email_snapshot: intent.email,
