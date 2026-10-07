@@ -168,11 +168,8 @@ export class AuthService {
     return this.sendEmailOtp(email, false);
   }
 
-  async sendPhoneOtp(phoneInput: string) {
-    const phone = normalizeKenyaPhone(phoneInput);
-    const { error } = await withAuthTimeout(supabase.auth.signInWithOtp({ phone, options: { shouldCreateUser: true } }), 'SMS OTP request');
-    if (error) throw error;
-    return phone;
+  async sendPhoneOtp(_phoneInput: string) {
+    throw new Error('IDENTITY_VERIFICATION_REQUIRED');
   }
 
   async signInWithPassword(identifierInput: string, password: string) {
@@ -185,17 +182,8 @@ export class AuthService {
     return data.user;
   }
 
-  async signUpWithPassword(identifierInput: string, password: string, username?: string) {
-    const identifier = normalizeIdentifier(identifierInput);
-    if (password.length < 8) throw new Error('Password must be at least 8 characters');
-    const metadata = username?.trim() ? { username: username.trim() } : {};
-    const credentials = identifier.kind === 'email'
-      ? { email: identifier.value, password, options: { data: metadata, emailRedirectTo: CANONICAL_AUTH_REDIRECT_URL } }
-      : { phone: identifier.value, password, options: { data: metadata, channel: 'sms' as const } };
-    const { data, error } = await withAuthTimeout(supabase.auth.signUp(credentials), 'Account creation');
-    if (error) throw error;
-    if (!data.user) throw new Error('Account creation succeeded but no user was returned');
-    return { user: data.user, session: data.session, requiresConfirmation: !data.session, identifierKind: identifier.kind, identifier: identifier.value };
+  async signUpWithPassword(_identifierInput: string, _password: string, _username?: string) {
+    throw new Error('IDENTITY_VERIFICATION_REQUIRED');
   }
 
   async resendSignupPhone(phoneInput: string) {
