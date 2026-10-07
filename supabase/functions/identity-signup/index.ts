@@ -271,7 +271,7 @@ Deno.serve(async (req) => {
         legal_age_confirmed_at: profile.legal_age_confirmed_at || now,
         legal_policy_version: profile.legal_policy_version || "2026-09",
         birth_date: String(profile.birth_date), username: profile.username || null, display_name: profile.display_name || null,
-        verification_session_id:null,verification_stage:"AWAITING_FRONT",identity_status:"pending",id_number_hmac:null,id_number_last4:null,
+        verification_session_id:null,verification_stage:"capture",identity_status:"pending",id_number_hmac:null,id_number_last4:null,
         country_code:"KE",provider_reference:null,rejection_reason:null,updated_at:now,expires_at:new Date(Date.now()+30*60*1000).toISOString(),
         completed_user_id:existingUser.id,
       };
@@ -320,7 +320,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "status") {
-      return json({ok:true,status:intent.identity_status,provider_status:intent.verification_stage,email_verified:!!intent.email_verified_at,rejection_reason:intent.rejection_reason});
+      return json({ok:true,status:intent.identity_status,verification_stage:intent.verification_stage,email_verified:!!intent.email_verified_at,rejection_reason:intent.rejection_reason});
     }
 
     if (action === "finalize") {
