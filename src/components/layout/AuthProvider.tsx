@@ -6,6 +6,20 @@ import { finalizeAuthenticatedSession } from '@/lib/auth';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 import { clearTestagramSessionLifetime, enforceTestagramSessionLifetime, markAuthenticatedSessionStarted } from '@/lib/sessionPolicy';
 
+const TESTAGRAM_SESSION_MAX_MS = 2 * 60 * 60 * 1000;
+const SESSION_STARTED_AT_KEY = 'testagram-auth-started-at';
+
+function sessionStartedAtFromJwt(accessToken: string | undefined) {
+  if (!accessToken) return Date.now();
+  try {
+    const payload = JSON.parse(atob(accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    const issuedAt = Number(payload?.iat) * 1000;
+    return Number.isFinite(issuedAt) && issuedAt > 0 && issuedAt <= Date.now() + 60_000 ? issuedAt : Date.now();
+  } catch {
+    return Date.now();
+  }
+}
+
 function normalizedPathname() {
   if (typeof window === 'undefined') return '/';
   const pathname = window.location.pathname.replace(/\/+$/, '');
@@ -68,6 +82,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+
+    const enforceTwoHourMaximum = async () => {
+      if (!mounted) return;
+      const { data } = await supabase.auth.getSession();
+      if (!data.session) return;
+      let startedAt = Number(window.localStorage.getItem(SESSION_STARTED_AT_KEY));
+      if (!Number.isFinite(startedAt) || startedAt <= 0) {
+        startedAt = sessionStartedAtFromJwt(data.session.access_token);
+        window.localStorage.setItem(SESSION_STARTED_AT_KEY, String(startedAt));
+      }
+      if (Date.now() - startedAt >= TESTAGRAM_SESSION_MAX_MS) {
+        window.localStorage.removeItem(SESSION_STARTED_AT_KEY);
+        await supabase.auth.signOut();
+      }
+    };
     const lifetimeTimer = window.setInterval(() => {
       void enforceTestagramSessionLifetime().then((valid) => {
         if (!valid && mounted) {
@@ -153,8 +182,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       finalizationInFlight.set(user.id, task);
     };
 
+    const timer = window.setInterval(() => { void enforceTwoHourMaximum(); }, 30_000);
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === SESSION_STARTED_AT_KEY && event.newValue === null) void supabase.auth.signOut();
+    };
+    window.addEventListener('storage', onStorage);
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        window.localStorage.setItem(SESSION_STARTED_AT_KEY, String(Date.now()));
+      }
+
+      if (event === 'INITIAL_SESSION' && session && !window.localStorage.getItem(SESSION_STARTED_AT_KEY)) {
+        window.localStorage.setItem(SESSION_STARTED_AT_KEY, String(sessionStartedAtFromJwt(session.access_token)));
+      }
+
       if (event === 'SIGNED_OUT') {
+        window.localStorage.removeItem(SESSION_STARTED_AT_KEY);
         trackTestagramEvent(TestagramEvent.LOGGED_OUT, { auth_event: event });
         clearTestagramSessionLifetime();
         logout();
