@@ -56,3 +56,7 @@ verify_jwt = false
 
 [functions.identity-engine-result]
 verify_jwt = false
+
+
+[auth.sessions]
+timebox = "2h"
