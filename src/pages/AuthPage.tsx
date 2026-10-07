@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { useSEO } from '@/hooks/useSEO';
 import { useAuthStore } from '@/stores/authStore';
 import { LegalAcceptanceGate, readLegalConsent } from '@/components/auth/LegalAcceptanceGate';
+import { identitySignup } from '@/lib/identitySignup';
 
 type AuthMode = 'signin' | 'signup' | 'otp' | 'recover' | 'reset';
 
@@ -106,6 +107,24 @@ export default function AuthPage() {
     catch (error: any) { setLoading(false); toast({ title: 'Sign-in failed', description: error?.message || 'Check your details and try again.', variant: 'destructive' }); }
   };
 
+  const startIdentitySignup = async () => {
+    const consent = readLegalConsent();
+    if (!consent?.birthDate) {
+      setLegalAccepted(false);
+      throw new Error('LEGAL_ACCEPTANCE_REQUIRED');
+    }
+    await identitySignup.start({
+      email,
+      birthDate: consent.birthDate,
+      username,
+      legalPolicyVersion: consent.version,
+    });
+    setOtpPurpose('signup');
+    setOtp('');
+    setMode('otp');
+    toast({ title: 'Email verification required', description: 'We sent a 6-digit code. Your Testagram account is not created yet.' });
+  };
+
   const handlePasswordSignUp = async (event: FormEvent) => {
     event.preventDefault();
     if (password.length < 8 || password !== confirmation) {
@@ -114,25 +133,24 @@ export default function AuthPage() {
     }
     setLoading(true);
     try {
-      const result = await authService.signUpWithPassword(email, password, username);
-      if (result.session) { await finishLogin(result.user); return; }
-      setOtpPurpose('signup');
-      setOtp('');
-      setMode('otp');
-      toast({ title: 'Verification code sent', description: 'Enter the 6-digit code we sent to your email.' });
+      await startIdentitySignup();
     } catch (error: any) {
-      toast({ title: 'Could not create account', description: error?.message || 'Please try again.', variant: 'destructive' });
+      toast({ title: 'Could not start identity verification', description: error?.message || 'Please try again.', variant: 'destructive' });
     } finally { setLoading(false); }
   };
 
   const sendEmailOtp = async (event: FormEvent) => {
     event.preventDefault(); setLoading(true);
     try {
-      await authService.sendEmailOtp(email, mode === 'signup');
-      setOtpPurpose(mode === 'signup' ? 'signup' : 'signin');
-      setOtp('');
-      setMode('otp');
-      toast({ title: 'Verification code sent', description: 'Enter the 6-digit code we sent to your email.' });
+      if (mode === 'signup') {
+        await startIdentitySignup();
+      } else {
+        await authService.sendEmailOtp(email, false);
+        setOtpPurpose('signin');
+        setOtp('');
+        setMode('otp');
+        toast({ title: 'Verification code sent', description: 'Enter the 6-digit code we sent to your email.' });
+      }
     } catch (error: any) {
       toast({ title: 'Code request failed', description: error?.message || 'We could not send the verification code.', variant: 'destructive' });
     } finally { setLoading(false); }
@@ -146,7 +164,13 @@ export default function AuthPage() {
     }
     setLoading(true);
     try {
-      await finishLogin(await authService.verifyEmailOtp(email, otp, otpPurpose === 'signup' ? 'signup' : 'email'));
+      if (otpPurpose === 'signup') {
+        await identitySignup.verifyEmail(otp);
+        setLoading(false);
+        navigate('/verify-identity', { replace: true });
+        return;
+      }
+      await finishLogin(await authService.verifyEmailOtp(email, otp, 'email'));
     } catch (error: any) {
       setLoading(false);
       toast({ title: 'Verification failed', description: error?.message || 'The code is invalid or expired.', variant: 'destructive' });
@@ -156,7 +180,11 @@ export default function AuthPage() {
   const resendEmailOtp = async () => {
     setLoading(true);
     try {
-      await authService.sendEmailOtp(email, otpPurpose === 'signup');
+      if (otpPurpose === 'signup') {
+        await identitySignup.resendEmail();
+      } else {
+        await authService.sendEmailOtp(email, false);
+      }
       setOtp('');
       toast({ title: 'New code sent', description: 'Check your email for the latest 6-digit verification code.' });
     } catch (error: any) {
