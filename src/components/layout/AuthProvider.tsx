@@ -144,7 +144,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (event === 'SIGNED_OUT') {
         clearTestagramSessionLifetime();
         trackTestagramEvent(TestagramEvent.LOGGED_OUT, { auth_event: event });
-        clearTestagramSessionLifetime();
         logout();
         setLoading(false);
         return;
