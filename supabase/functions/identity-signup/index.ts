@@ -80,7 +80,7 @@ async function sendOtp(email: string, code: string) {
   <p style="font-size:13px;color:#667085">This code expires in 10 minutes. Testagram will not create your account until identity verification is approved.</p>
   <p style="font-size:12px;color:#98a2b3">Sent to ${safeEmail}</p></div></body></html>`;
   const idempotencyKey = await sha256("testagram-email-otp|" + email + "|" + code);
-  const res = await fetch(TESTAGRAM_MAIL_URL + "/v1/emails", {
+  const res = await fetch(TESTAGRAM_MAIL_URL + "/emails", {
     method: "POST",
     headers: {
       Authorization: "Bearer " + TESTAGRAM_MAIL_TOKEN,
