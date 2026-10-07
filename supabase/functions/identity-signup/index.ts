@@ -99,7 +99,11 @@ async function getIntent(token: string, allowCompletedUser = false) {
 }
 async function createDiditSession(intent: any) {
   if (!DIDIT_API_KEY || !DIDIT_WORKFLOW_ID) throw new Error("DIDIT_NOT_CONFIGURED");
-  const response = await fetch("https://verification.didit.me/v3/session/", {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
+  let response: Response;
+  try {
+    response = await fetch("https://verification.didit.me/v3/session/", {
     method: "POST",
     headers: { "x-api-key": DIDIT_API_KEY, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -112,10 +116,23 @@ async function createDiditSession(intent: any) {
       contact_details: { email: intent.email, send_notification_emails: false },
       expected_details: { date_of_birth: intent.birth_date, id_country: "KEN", expected_document_types: ["ID"] },
     }),
+    signal: controller.signal,
   });
+  } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw new Error("DIDIT_SESSION_TIMEOUT");
+    throw error instanceof Error ? error : new Error("DIDIT_SESSION_REQUEST_FAILED");
+  } finally {
+    clearTimeout(timeout);
+  }
   const body = await response.text();
-  if (!response.ok) throw new Error("DIDIT_SESSION_HTTP_" + response.status);
-  const session = JSON.parse(body);
+  if (!response.ok) {
+    let detail = "";
+    try { const parsed = JSON.parse(body); detail = String(parsed?.message || parsed?.detail || parsed?.error || ""); } catch {}
+    throw new Error("DIDIT_SESSION_HTTP_" + response.status + (detail ? "_" + detail.slice(0,120).replace(/[^A-Za-z0-9_-]/g,"_") : ""));
+  }
+  let session: any;
+  try { session = JSON.parse(body); } catch { throw new Error("DIDIT_SESSION_INVALID_RESPONSE"); }
+  if (!session?.session_id || !session?.url) throw new Error("DIDIT_SESSION_RESPONSE_MISSING_FIELDS");
   const { error } = await admin.schema("private").from("identity_signup_intents").update({
     didit_session_id: session.session_id,
     didit_status: session.status ?? "Not Started",
@@ -123,6 +140,14 @@ async function createDiditSession(intent: any) {
   }).eq("id", intent.id);
   if (error) throw error;
   return { session_id: session.session_id, url: session.url };
+}
+function errorDetails(error: unknown) {
+  if (error instanceof Error) return { message: error.message, stack: error.stack };
+  if (error && typeof error === "object") {
+    const value = error as Record<string, unknown>;
+    return { message: String(value.message ?? value.error_description ?? value.code ?? "UNKNOWN_ERROR"), code: value.code, details: value.details, hint: value.hint };
+  }
+  return { message: String(error ?? "UNKNOWN_ERROR") };
 }
 async function finalizeAccount(intent: any, password: string) {
   if (!intent.email_verified_at) throw new Error("EMAIL_NOT_VERIFIED");
@@ -320,9 +345,10 @@ Deno.serve(async (req) => {
 
     return json({ok:false,error:"UNKNOWN_ACTION"},400);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "UNKNOWN_ERROR";
-    const status = /RESTRICTION|NOT_APPROVED|NOT_VERIFIED|EXPIRED|REQUIRED|NOT_CONFIGURED/.test(message) ? 400 : 500;
-    console.error("IDENTITY_SIGNUP_FAILURE", JSON.stringify({ error: message, raw: String(error), stack: error instanceof Error ? error.stack : undefined }));
+    const details = errorDetails(error);
+    const message = details.message;
+    const status = /RESTRICTION|NOT_APPROVED|NOT_VERIFIED|EXPIRED|REQUIRED|NOT_CONFIGURED|TIMEOUT/.test(message) ? 400 : 500;
+    console.error("IDENTITY_SIGNUP_FAILURE", JSON.stringify({ error: details }));
     return json({ok:false,error:message},status);
   }
 });
