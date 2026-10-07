@@ -1,0 +1,23 @@
+[Unit]
+Description=Testagram Mail Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=testagram
+Group=testagram
+WorkingDirectory=/opt/testagram-mail
+EnvironmentFile=/etc/testagram/mail.env
+ExecStart=/usr/bin/node /opt/testagram-mail/dist/index.js
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/testagram-mail
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target
