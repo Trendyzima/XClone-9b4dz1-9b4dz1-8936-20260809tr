@@ -112,7 +112,8 @@ Deno.serve(async req => {
     if (action === "status") {
       const {data:evidence} = await admin.schema("private").from("identity_verification_evidence").select("kind,state,created_at").eq("session_id",session.id).order("created_at",{ascending:true});
       const {data:result} = await admin.schema("private").from("identity_engine_results").select("model_version,decision,rejection_reason,created_at").eq("session_id",session.id).maybeSingle();
-      return json({ok:true,state:session.state,evidence:evidence||[],engine_result:result||null});
+      const {data:job} = await admin.schema("private").from("identity_verification_jobs").select("state,attempts,last_error,updated_at").eq("session_id",session.id).maybeSingle();
+      return json({ok:true,state:session.state,evidence:evidence||[],engine_job:job||null,engine_result:result||null});
     }
 
     if (action === "mark_uploaded") {
@@ -154,8 +155,20 @@ Deno.serve(async req => {
           return json({ok:false,error:"EVIDENCE_INTEGRITY_INCOMPLETE",kind:item.kind},400);
         }
       }
-      await admin.schema("private").from("identity_verification_sessions").update({state:"processing",updated_at:new Date().toISOString()}).eq("id",session.id);
-      await admin.schema("private").from("identity_signup_intents").update({verification_stage:"processing",identity_status:"pending",updated_at:new Date().toISOString()}).eq("id",session.intent_id);
+      const now = new Date().toISOString();
+      const {error:jobError} = await admin.schema("private").from("identity_verification_jobs").upsert({
+        session_id: session.id,
+        state: "queued",
+        attempts: 0,
+        available_at: now,
+        leased_until: null,
+        worker_id: null,
+        last_error: null,
+        updated_at: now
+      }, {onConflict:"session_id", ignoreDuplicates:true});
+      if (jobError) throw jobError;
+      await admin.schema("private").from("identity_verification_sessions").update({state:"processing",updated_at:now}).eq("id",session.id);
+      await admin.schema("private").from("identity_signup_intents").update({verification_stage:"processing",identity_status:"pending",updated_at:now}).eq("id",session.intent_id);
       return json({ok:true,state:"processing"});
     }
 
