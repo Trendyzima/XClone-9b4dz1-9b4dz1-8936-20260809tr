@@ -1,28 +1,11 @@
 -- Testagram-owned identity engine foundation.
 -- No external identity provider contract is represented here.
 
-do $
-begin
-  if exists (
-    select 1 from information_schema.columns
-    where table_schema='private' and table_name='identity_signup_intents' and column_name='didit_session_id'
-  ) and not exists (
-    select 1 from information_schema.columns
-    where table_schema='private' and table_name='identity_signup_intents' and column_name='verification_session_id'
-  ) then
-    alter table private.identity_signup_intents rename column didit_session_id to verification_session_id;
-  end if;
+alter table private.identity_signup_intents
+  rename column didit_session_id to verification_session_id;
 
-  if exists (
-    select 1 from information_schema.columns
-    where table_schema='private' and table_name='identity_signup_intents' and column_name='didit_status'
-  ) and not exists (
-    select 1 from information_schema.columns
-    where table_schema='private' and table_name='identity_signup_intents' and column_name='verification_stage'
-  ) then
-    alter table private.identity_signup_intents rename column didit_status to verification_stage;
-  end if;
-end $;
+alter table private.identity_signup_intents
+  rename column didit_status to verification_stage;
 
 alter table public.identity_verifications
   drop constraint if exists identity_verifications_verification_method_check;
@@ -104,47 +87,7 @@ grant usage on schema private to service_role;
 grant select, insert, update, delete on private.identity_verification_sessions to service_role;
 grant select, insert, update, delete on private.identity_verification_evidence to service_role;
 grant select, insert, update, delete on private.identity_engine_results to service_role;
-do $testagram$
-begin
-  if not exists (
-    select 1 from pg_policies
-    where schemaname='private' and tablename='identity_verification_sessions' and policyname='deny_direct_client_access'
-  ) then
-    create policy "deny_direct_client_access" on private.identity_verification_sessions
-      for all to anon, authenticated using (false) with check (false);
-  end if;
-end $testagram$;
-
-do $testagram$
-begin
-  if not exists (
-    select 1 from pg_policies
-    where schemaname='private' and tablename='identity_verification_evidence' and policyname='deny_direct_client_access'
-  ) then
-    create policy "deny_direct_client_access" on private.identity_verification_evidence
-      for all to anon, authenticated using (false) with check (false);
-  end if;
-end $testagram$;
-
-do $testagram$
-begin
-  if not exists (
-    select 1 from pg_policies
-    where schemaname='private' and tablename='identity_engine_results' and policyname='deny_direct_client_access'
-  ) then
-    create policy "deny_direct_client_access" on private.identity_engine_results
-      for all to anon, authenticated using (false) with check (false);
-  end if;
-end $testagram$;
-
-do $testagram$
-begin
-  if not exists (
-    select 1 from pg_policies
-    where schemaname='private' and tablename='identity_signup_intents' and policyname='deny_direct_client_access'
-  ) then
-    create policy "deny_direct_client_access" on private.identity_signup_intents
-      for all to anon, authenticated using (false) with check (false);
-  end if;
-end $testagram$;
-
+create policy "deny_direct_client_access" on private.identity_verification_sessions for all to anon, authenticated using (false) with check (false);
+create policy "deny_direct_client_access" on private.identity_verification_evidence for all to anon, authenticated using (false) with check (false);
+create policy "deny_direct_client_access" on private.identity_engine_results for all to anon, authenticated using (false) with check (false);
+create policy "deny_direct_client_access" on private.identity_signup_intents for all to anon, authenticated using (false) with check (false);
