@@ -24,6 +24,7 @@ import { RouteSEO } from '@/components/seo/RouteSEO';
 const HomePage = lazy(() => import('@/pages/HomePage'));
 const FederatedOrganicDiscoveryPage = lazy(() => import('@/pages/FederatedOrganicDiscoveryPage'));
 const AuthPage = lazy(() => import('@/pages/AuthPage'));
+const IdentityVerificationPage = lazy(() => import('@/pages/IdentityVerificationPage'));
 const VideosPage = lazy(() => import('@/pages/VideosPage'));
 const FastPixShortsPage = lazy(() => import('@/pages/FastPixShortsPage'));
 const ExplorePage = lazy(() => import('@/pages/ExplorePage'));
@@ -406,7 +407,7 @@ function AppearanceBootstrap() {
 
   return null;
 }
-function AppInner(){useCreatorTierAlert();const location=useLocation();const isNewsHost=typeof window !== 'undefined' && /^(www\.)?testagram\.news$/i.test(window.location.hostname);const isPublicTvLive=location.pathname.startsWith('/tv/live/');useEffect(()=>startTestagramHeartbeat('web-v1'),[]);if(isNewsHost)return <Suspense fallback={<PageLoader/>}><NewsifyNewsPage/></Suspense>;if(isPublicTvLive)return <AuthProvider><Suspense fallback={<PageLoader/>}><Routes><Route path="/tv/live/:streamId" element={<TvPublicLivePage/>}/></Routes></Suspense><Sonner position="top-center" richColors/></AuthProvider>;return <AuthProvider><RouteSEO/><AppearanceBootstrap/><ImageLightbox/><div className="tg-shell flex min-h-screen bg-background overflow-x-hidden pb-20"><Sidebar/><main className="tg-main flex-1 border-x border-border/70 overflow-x-hidden"><Suspense fallback={<PageLoader/>}><SiteAdInjector/><LiveSpacesDiscoveryStrip/><Routes><Route path="/" element={<HomePage/>}/><Route path="/auth" element={<AuthPage/>}/><Route path="/videos" element={<VideosPage/>}/><Route path="/shorts" element={<FastPixShortsPage/>}/><Route path="/explore" element={<ExplorePage/>}/>
+function AppInner(){useCreatorTierAlert();const location=useLocation();const isNewsHost=typeof window !== 'undefined' && /^(www\.)?testagram\.news$/i.test(window.location.hostname);const isPublicTvLive=location.pathname.startsWith('/tv/live/');useEffect(()=>startTestagramHeartbeat('web-v1'),[]);if(isNewsHost)return <Suspense fallback={<PageLoader/>}><NewsifyNewsPage/></Suspense>;if(isPublicTvLive)return <AuthProvider><Suspense fallback={<PageLoader/>}><Routes><Route path="/tv/live/:streamId" element={<TvPublicLivePage/>}/></Routes></Suspense><Sonner position="top-center" richColors/></AuthProvider>;return <AuthProvider><RouteSEO/><AppearanceBootstrap/><ImageLightbox/><div className="tg-shell flex min-h-screen bg-background overflow-x-hidden pb-20"><Sidebar/><main className="tg-main flex-1 border-x border-border/70 overflow-x-hidden"><Suspense fallback={<PageLoader/>}><SiteAdInjector/><LiveSpacesDiscoveryStrip/><Routes><Route path="/" element={<HomePage/>}/><Route path="/auth" element={<AuthPage/>}/><Route path="/verify-identity" element={<IdentityVerificationPage/>}/><Route path="/videos" element={<VideosPage/>}/><Route path="/shorts" element={<FastPixShortsPage/>}/><Route path="/explore" element={<ExplorePage/>}/>
 <Route path="/discover" element={<DiscoverSuggestedPage/>}/>
 <Route path="/discover/suggested" element={<DiscoverSuggestedPage/>}/>
 <Route path="/discover/popular" element={<DiscoverPopularPage/>}/>
