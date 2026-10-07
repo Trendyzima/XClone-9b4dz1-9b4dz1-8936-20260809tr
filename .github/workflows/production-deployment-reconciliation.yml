@@ -168,18 +168,18 @@ jobs:
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Unable to resolve a valid Supabase project ref for migration reconciliation."; exit 1; }
 
           # Production migration history predates the current repository and contains
-          # intentionally generated platform versions plus legacy migrations that are
-          # not a runnable linear queue. The TV control-plane migration is the verified
-          # production baseline. From this point forward CI only applies canonical
-          # timestamped migrations newer than that baseline, by migration name.
+          # migrations applied through Supabase MCP/management APIs whose timestamps and
+          # filenames do not always match the repository copy. The verified identity-first
+          # migration is now the production baseline. From this point forward CI only
+          # applies repository migrations newer than that verified baseline, by migration name.
           SUPABASE_PROJECT_REF="$PROJECT_REF" SUPABASE_ACCESS_TOKEN="$SUPABASE_ACCESS_TOKEN" node --input-type=module <<'NODE'
           import fs from "node:fs";
           import path from "node:path";
 
           const projectRef = process.env.SUPABASE_PROJECT_REF;
           const token = process.env.SUPABASE_ACCESS_TOKEN;
-          const baselineVersion = "20260929193000";
-          const baselineName = "tv_guest_invite_rls";
+          const baselineVersion = "20261007115000";
+          const baselineName = "enforce_identity_first_auth_boundary_and_didit_event_idempotency";
           const migrationsDir = path.join(process.cwd(), "supabase", "migrations");
           if (!token) throw new Error("SUPABASE_ACCESS_TOKEN is required for migration reconciliation.");
           if (!fs.existsSync(migrationsDir)) throw new Error("supabase/migrations directory is missing.");
