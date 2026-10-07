@@ -66,7 +66,7 @@ jobs:
           echo "== Worker custom-domain attachment =="
           domains="$(curl -fsS "$API/accounts/$ACCOUNT_ID/workers/domains?hostname=cdn.testagram.site&service=testagram-cdn" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
           echo "$domains" | jq -e '.success == true and (.result | length > 0)' >/dev/null
-          echo "$domains" | jq '{success,result:[.result[]|{hostname,service,zone_name,cert_id}]}'
+          echo "$domains" | jq '{success,result:[.result[]|{hostname,service,zone_name,cert_id,status,enabled,environment,validation_data}]}'
           echo "== Public DNS + HTTPS =="
           for attempt in $(seq 1 18); do
             ips="$(getent ahosts cdn.testagram.site 2>/dev/null | awk '{print $1}' | sort -u | tr '\n' ' ' || true)"
