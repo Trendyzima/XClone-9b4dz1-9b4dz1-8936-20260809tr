@@ -88,12 +88,12 @@ async function sendOtp(email: string, code: string) {
   });
   if (!res.ok) throw new Error("RESEND_HTTP_" + res.status);
 }
-async function getIntent(token: string) {
+async function getIntent(token: string, allowCompletedUser = false) {
   const hash = await tokenHash(token);
   const { data, error } = await admin.schema("private").from("identity_signup_intents").select("*").eq("registration_token_hash", hash).maybeSingle();
   if (error) throw error;
   if (!data) throw new Error("REGISTRATION_NOT_FOUND");
-  if (data.completed_user_id) throw new Error("REGISTRATION_COMPLETED");
+  if (data.completed_user_id && !allowCompletedUser) throw new Error("REGISTRATION_COMPLETED");
   if (new Date(data.expires_at).getTime() < Date.now()) throw new Error("REGISTRATION_EXPIRED");
   return data;
 }
@@ -276,7 +276,7 @@ Deno.serve(async (req) => {
 
     const token = String(body.registration_token || "").trim();
     if (!token) return json({ ok:false,error:"REGISTRATION_TOKEN_REQUIRED" },400);
-    const intent = await getIntent(token);
+    const intent = await getIntent(token, action === "status");
 
     if (action === "verify_email") {
       const code = String(body.code || "").replace(/\s+/g,"");
