@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ROOT=/opt/testagram-mail
-install -d -o testagram -g testagram "$ROOT"
-npm ci --omit=dev
+cd "$ROOT"
+npm install --omit=dev
 npm run build
 chown -R testagram:testagram "$ROOT"
 systemctl daemon-reload
