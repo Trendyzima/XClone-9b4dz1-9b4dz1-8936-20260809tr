@@ -126,3 +126,19 @@ export async function deleteFirebaseLiveMetadata(streamId: string) {
     throw new Error(payload?.error?.message || `Firebase Firestore delete failed (${response.status}).`);
   }
 }
+
+export async function getFirebaseLiveMetadata(streamId: string): Promise<Record<string, unknown> | null> {
+  const token = await accessToken();
+  const response = await fetch(firestoreUrl("tv_live_streams", streamId), {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (response.status === 404) return null;
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) throw new Error(payload?.error?.message || `Firebase Firestore read failed (${response.status}).`);
+  const out: Record<string, unknown> = {};
+  for (const [key, wrapped] of Object.entries(payload?.fields || {})) {
+    const v = wrapped as Record<string, unknown>;
+    out[key] = v.stringValue ?? v.integerValue ?? v.doubleValue ?? v.booleanValue ?? v.timestampValue ?? v.nullValue ?? null;
+  }
+  return out;
+}
