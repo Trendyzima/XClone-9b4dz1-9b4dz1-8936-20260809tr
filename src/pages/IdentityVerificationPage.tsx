@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { DiditSdk } from '@didit-protocol/sdk-web';
 import { CheckCircle2, Clock3, ExternalLink, Loader2, ShieldCheck, XCircle, KeyRound } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
@@ -21,6 +22,8 @@ export default function IdentityVerificationPage() {
   const [confirmation, setConfirmation] = useState('');
   const [finalizing, setFinalizing] = useState(false);
   const [message, setMessage] = useState('');
+  const [verificationRunning, setVerificationRunning] = useState(false);
+  const [verificationFinished, setVerificationFinished] = useState(false);
 
   const loadStatus = async () => {
     try {
@@ -49,20 +52,85 @@ export default function IdentityVerificationPage() {
     return () => window.clearInterval(timer);
   }, [user?.id]);
 
+  useEffect(() => {
+    return () => {
+      DiditSdk.shared.onComplete = undefined;
+      DiditSdk.shared.onStateChange = undefined;
+      DiditSdk.shared.onEvent = undefined;
+      DiditSdk.shared.destroy();
+    };
+  }, []);
+
   const start = async () => {
+    if (verificationRunning) return;
     setStarting(true);
     setMessage('');
+    setVerificationFinished(false);
     try {
       const result = user ? await identitySignup.startExisting() : await identitySignup.createIdentitySession();
       if (result.already_approved) {
-        navigate('/', { replace: true });
+        await loadStatus();
         return;
       }
-      if (result.url) window.location.assign(result.url);
+      if (!result.url) throw new Error('DIDIT_SESSION_URL_MISSING');
+
+      setVerificationRunning(true);
+      DiditSdk.shared.onComplete = (completion) => {
+        setVerificationRunning(false);
+        if (completion.type === 'completed') {
+          setVerificationFinished(true);
+          void loadStatus();
+          return;
+        }
+        if (completion.type === 'cancelled') {
+          setMessage('Verification was closed before completion. Your verification is still pending.');
+          return;
+        }
+        setMessage(completion.error?.message || 'The verification flow could not be completed.');
+      };
+      DiditSdk.shared.onStateChange = (state, error) => {
+        if (state === 'error') {
+          setVerificationRunning(false);
+          setMessage(error || DiditSdk.shared.errorMessage || 'The verification flow could not be loaded.');
+        }
+      };
+      DiditSdk.shared.startVerification({
+        url: result.url,
+        configuration: {
+          showCloseButton: true,
+          showExitConfirmation: true,
+          closeModalOnComplete: true,
+          defaultDocumentCamera: 'back',
+          defaultLivenessCamera: 'front',
+          showDocumentCameraSwitchButton: true,
+          showLivenessCameraSwitchButton: true,
+        },
+      });
     } catch (error: any) {
+      setVerificationRunning(false);
       setMessage(error?.message || 'We could not start identity verification.');
     } finally {
       setStarting(false);
+    }
+  };
+
+  const continueAfterVerification = async () => {
+    setMessage('');
+    setFinalizing(true);
+    try {
+      await loadStatus();
+      const latest = await identitySignup.status();
+      if (latest.status !== 'approved') {
+        setMessage(latest.status === 'under_review' || latest.didit_status === 'In Review'
+          ? 'Verification is still under review. Testagram will not continue until Didit approves it.'
+          : 'Verification has not been approved yet. Complete every requested step first.');
+        return;
+      }
+      setVerificationFinished(false);
+    } catch (error: any) {
+      setMessage(error?.message || 'We could not confirm the verification result yet.');
+    } finally {
+      setFinalizing(false);
     }
   };
 
@@ -107,6 +175,16 @@ export default function IdentityVerificationPage() {
             <p className="mt-1 text-muted-foreground">Your Kenyan national ID is verified by Didit using the front and back document capture plus liveness/face checks. Testagram does not receive or store the document photos. We keep only the verification outcome and a protected ID uniqueness fingerprint.</p>
           </div>
 
+          {verificationFinished && !approved && !underReview && !rejected && (
+            <div className="mt-5 rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+              <p className="font-bold">Verification flow finished</p>
+              <p className="mt-1 text-sm text-muted-foreground">Didit has finished the capture flow. Testagram will only continue after you explicitly press the button below and the server confirms the verification decision.</p>
+              <button disabled={finalizing} onClick={continueAfterVerification} className="mt-4 flex h-12 w-full items-center justify-center rounded-2xl bg-primary px-4 font-black text-primary-foreground disabled:opacity-50">
+                {finalizing ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Done — check verification and continue'}
+              </button>
+            </div>
+          )}
+
           {underReview && (
             <div className="mt-5 flex gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4">
               <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
@@ -134,12 +212,12 @@ export default function IdentityVerificationPage() {
             </div>
           )}
 
-          {!approved && !underReview && (
+          {!approved && !underReview && !verificationFinished && (
             <div className="mt-6">
-              <button disabled={starting} onClick={start} className="flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 font-black text-primary-foreground disabled:opacity-50">
+              <button disabled={starting || verificationRunning} onClick={start} className="flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 font-black text-primary-foreground disabled:opacity-50">
                 {starting ? <Loader2 className="h-5 w-5 animate-spin" /> : <><ExternalLink className="h-5 w-5" />Verify with Didit</>}
               </button>
-              <p className="mt-3 text-center text-xs leading-5 text-muted-foreground">Didit will open a secure verification flow. Follow the camera instructions and capture both sides of your national ID when requested.</p>
+              <p className="mt-3 text-center text-xs leading-5 text-muted-foreground">Didit opens inside Testagram and stays open while you complete every requested step. Do not close it until you have finished the document front, document back, and liveness/face checks. Testagram will not redirect you automatically.</p>
             </div>
           )}
 
