@@ -20,15 +20,18 @@ function randomHex(bytes = 32) {
   crypto.getRandomValues(data);
   return Array.from(data, b => b.toString(16).padStart(2, "0")).join("");
 }
+
 async function hmacHex(value: string) {
   if (!IDENTITY_SECRET) throw new Error("IDENTITY_SECRET_NOT_CONFIGURED");
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(IDENTITY_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
   const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(value));
   return Array.from(new Uint8Array(sig), b => b.toString(16).padStart(2, "0")).join("");
 }
+
 async function tokenHash(token: string) {
   return hmacHex("session|" + token);
 }
+
 async function db(action: string, payload: Record<string, unknown> = {}) {
   const { data, error } = await admin.rpc("identity_verification_db", {
     p_action: action,
@@ -39,110 +42,106 @@ async function db(action: string, payload: Record<string, unknown> = {}) {
 }
 
 async function getIntent(registrationToken: string) {
-  const hash = await hmacHex("registration|" + registrationToken);
-  return await db("get_intent", { registration_token_hash: hash });
+  return db("get_intent", {
+    registration_token_hash: await hmacHex("registration|" + registrationToken),
+  });
 }
 
 async function getSession(sessionToken: string) {
-  const hash = await tokenHash(sessionToken);
-  return await db("get_session", { token_hash: hash });
+  return db("get_session", { token_hash: await tokenHash(sessionToken) });
 }
 
 Deno.serve(async req => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
-  if (req.method !== "POST") return json({ ok:false, error:"METHOD_NOT_ALLOWED" }, 405);
-  if (!SERVICE_KEY) return json({ ok:false, error:"SERVER_NOT_CONFIGURED" }, 503);
+  if (req.method !== "POST") return json({ ok: false, error: "METHOD_NOT_ALLOWED" }, 405);
+  if (!SERVICE_KEY) return json({ ok: false, error: "SERVER_NOT_CONFIGURED" }, 503);
+
   try {
     const body = await req.json();
     const action = String(body?.action || "");
 
     if (action === "create_session") {
       const registrationToken = String(body?.registration_token || "").trim();
-      if (!registrationToken) return json({ok:false,error:"REGISTRATION_TOKEN_REQUIRED"},400);
+      if (!registrationToken) return json({ ok: false, error: "REGISTRATION_TOKEN_REQUIRED" }, 400);
+
       const intent = await getIntent(registrationToken);
-      if (intent.identity_status === "approved") return json({ok:true,already_approved:true});
-      const existing = await admin.schema("private").from("identity_verification_sessions")
-        .select("id,state,expires_at").eq("intent_id", intent.id).in("state",["created","capturing","processing","under_review"]).order("created_at",{ascending:false}).limit(1).maybeSingle();
-      if (existing.data) {
-        const rawToken = randomHex(32);
-        const hash = await tokenHash(rawToken);
-        await admin.schema("private").from("identity_verification_sessions").update({token_hash:hash,updated_at:new Date().toISOString()}).eq("id",existing.data.id);
-        return json({ok:true,session_id:existing.data.id,session_token:rawToken,state:existing.data.state,expires_at:existing.data.expires_at});
-      }
+      if (intent.identity_status === "approved") return json({ ok: true, already_approved: true });
+
+      const existing = await db("find_active_session", { intent_id: intent.id });
       const rawToken = randomHex(32);
       const hash = await tokenHash(rawToken);
-      const expires = new Date(Date.now()+30*60*1000).toISOString();
-      const {data:session,error} = await admin.schema("private").from("identity_verification_sessions").insert({
-        intent_id:intent.id,user_id:intent.completed_user_id || null,token_hash:hash,state:"created",expires_at:expires,started_at:new Date().toISOString(),updated_at:new Date().toISOString()
-      }).select("id,state,expires_at").single();
-      if (error) throw error;
-      await admin.schema("private").from("identity_signup_intents").update({verification_session_id:session.id,verification_stage:"capture",identity_status:"pending",updated_at:new Date().toISOString()}).eq("id",intent.id);
-      return json({ok:true,session_id:session.id,session_token:rawToken,state:session.state,expires_at:session.expires_at});
+
+      if (existing?.id) {
+        const rotated = await db("rotate_session_token", { session_id: existing.id, token_hash: hash });
+        return json({ ok: true, session_id: rotated.id, session_token: rawToken, state: rotated.state, expires_at: rotated.expires_at });
+      }
+
+      const session = await db("create_session", {
+        intent_id: intent.id,
+        user_id: intent.completed_user_id || null,
+        token_hash: hash,
+      });
+      return json({ ok: true, session_id: session.id, session_token: rawToken, state: session.state, expires_at: session.expires_at });
     }
 
     const sessionToken = String(body?.session_token || "").trim();
-    if (!sessionToken) return json({ok:false,error:"SESSION_TOKEN_REQUIRED"},400);
+    if (!sessionToken) return json({ ok: false, error: "SESSION_TOKEN_REQUIRED" }, 400);
     const session = await getSession(sessionToken);
 
     if (action === "upload_urls") {
-      const kinds = Array.isArray(body?.kinds) ? body.kinds : ["id_front","id_back","selfie","liveness_video"];
-      const allowed = new Set(["id_front","id_back","selfie","liveness_video"]);
-      const requested = Array.from(new Set<string>(kinds.map((value: unknown) => String(value)))).filter((k) => allowed.has(k));
-      if (!requested.length) return json({ok:false,error:"NO_VALID_EVIDENCE_KINDS"},400);
-      const results:any[] = [];
+      const kinds = Array.isArray(body?.kinds) ? body.kinds : ["id_front", "id_back", "selfie", "liveness_video"];
+      const allowed = new Set(["id_front", "id_back", "selfie", "liveness_video"]);
+      const requested = Array.from(new Set(kinds.map((value: unknown) => String(value)))).filter((k: string) => allowed.has(k));
+      if (!requested.length) return json({ ok: false, error: "NO_VALID_EVIDENCE_KINDS" }, 400);
+
+      const results: Array<Record<string, unknown>> = [];
       for (const kind of requested) {
         const suffix = randomHex(10);
-        const ext = kind === "liveness_video" ? "webm" : "jpg";
-        const path = session.id + "/" + kind + "-" + suffix + "." + ext;
-        const {data,error} = await admin.storage.from("identity-evidence").createSignedUploadUrl(path,{upsert:false});
+        const isVideo = kind === "liveness_video";
+        const path = session.id + "/" + kind + "-" + suffix + (isVideo ? ".webm" : ".jpg");
+        const { data, error } = await admin.storage.from("identity-evidence").createSignedUploadUrl(path, { upsert: false });
         if (error) throw error;
-        const mime = kind === "liveness_video" ? "video/webm" : "image/jpeg";
-        const {error:manifestError} = await admin.schema("private").from("identity_verification_evidence").insert({
-          session_id:session.id,kind,object_path:path,mime_type:mime,state:"uploaded"
+        await db("add_evidence", {
+          session_id: session.id,
+          kind,
+          object_path: path,
+          mime_type: isVideo ? "video/webm" : "image/jpeg",
         });
-        if (manifestError) throw manifestError;
-        results.push({kind,path,token:data?.token,url:data?.signedUrl || null});
+        results.push({ kind, path, token: data?.token, url: data?.signedUrl || null });
       }
-      
-      return json({ok:true,uploads:results});
+      return json({ ok: true, uploads: results });
     }
 
     if (action === "status") {
-      const {data:evidence} = await admin.schema("private").from("identity_verification_evidence").select("kind,state,created_at").eq("session_id",session.id).order("created_at",{ascending:true});
-      const {data:result} = await admin.schema("private").from("identity_engine_results").select("model_version,decision,rejection_reason,created_at").eq("session_id",session.id).maybeSingle();
-      return json({ok:true,state:session.state,evidence:evidence||[],engine_result:result||null});
+      const evidence = await db("list_evidence", { session_id: session.id });
+      const result = await db("get_engine_result", { session_id: session.id });
+      return json({ ok: true, state: session.state, evidence, engine_result: result === null ? null : result });
     }
 
     if (action === "mark_uploaded") {
       const kind = String(body?.kind || "");
       const objectPath = String(body?.path || "");
-      if (!["id_front","id_back","selfie","liveness_video"].includes(kind) || !objectPath.startsWith(session.id + "/")) {
-        return json({ok:false,error:"INVALID_EVIDENCE_REFERENCE"},400);
+      if (!["id_front", "id_back", "selfie", "liveness_video"].includes(kind) || !objectPath.startsWith(session.id + "/")) {
+        return json({ ok: false, error: "INVALID_EVIDENCE_REFERENCE" }, 400);
       }
       await db("mark_uploaded", { session_id: session.id, kind, object_path: objectPath });
-      return json({ok:true});
+      return json({ ok: true });
     }
 
     if (action === "begin_processing") {
-      const {data:evidence,error} = await admin.schema("private").from("identity_verification_evidence").select("kind,state").eq("session_id",session.id);
-      if (error) throw error;
-      const kinds = new Set((evidence||[]).map((e:any)=>e.kind));
-      for (const required of ["id_front","id_back","selfie","liveness_video"]) if (!kinds.has(required)) return json({ok:false,error:"MISSING_"+required.toUpperCase()},400);
-      await admin.schema("private").from("identity_verification_sessions").update({state:"processing",updated_at:new Date().toISOString()}).eq("id",session.id);
-      await admin.schema("private").from("identity_signup_intents").update({verification_stage:"processing",identity_status:"pending",updated_at:new Date().toISOString()}).eq("id",session.intent_id);
-      return json({ok:true,state:"processing"});
+      await db("begin_processing", { session_id: session.id, intent_id: session.intent_id });
+      return json({ ok: true, state: "processing" });
     }
 
     if (action === "cancel") {
-      await admin.schema("private").from("identity_verification_sessions").update({state:"cancelled",completed_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq("id",session.id);
-      await admin.schema("private").from("identity_signup_intents").update({verification_stage:"cancelled",identity_status:"rejected",rejection_reason:"USER_CANCELLED",updated_at:new Date().toISOString()}).eq("id",session.intent_id);
-      return json({ok:true});
+      await db("cancel", { session_id: session.id, intent_id: session.intent_id });
+      return json({ ok: true });
     }
 
-    return json({ok:false,error:"UNKNOWN_ACTION"},400);
+    return json({ ok: false, error: "UNKNOWN_ACTION" }, 400);
   } catch (error) {
     const message = error instanceof Error ? error.message : "UNKNOWN_ERROR";
     console.error("TESTAGRAM_IDENTITY_SESSION_FAILURE", message);
-    return json({ok:false,error:message},500);
+    return json({ ok: false, error: message }, 500);
   }
 });
