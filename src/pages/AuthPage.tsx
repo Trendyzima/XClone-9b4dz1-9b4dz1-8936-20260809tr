@@ -96,7 +96,8 @@ export default function AuthPage() {
     login(finalized);
     setLoading(false);
     await applyPendingReferral();
-    navigate('/', { replace: true });
+    const needsIdentityVerification = finalized.identityVerificationStatus && !['not_required', 'approved'].includes(finalized.identityVerificationStatus);
+    navigate(needsIdentityVerification ? '/verify-identity' : '/', { replace: true });
   };
 
   const handlePasswordSignIn = async (event: FormEvent) => {
