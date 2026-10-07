@@ -5,8 +5,6 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
 const SERVICE_KEY = secretKeys.default || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || "";
 const RESEND_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
-const IDSWYFT_BASE_URL = (Deno.env.get("IDSWYFT_BASE_URL") ?? "").replace(/\/$/, "");
-const IDSWYFT_API_KEY = Deno.env.get("IDSWYFT_API_KEY") ?? "";
 const IDENTITY_SECRET = Deno.env.get("IDENTITY_PREAUTH_SECRET") ?? "";
 const FROM = "Testagram <noreply@testagram.site>";
 
@@ -97,56 +95,34 @@ async function getIntent(token: string, allowCompletedUser = false) {
   return data;
 }
 async function createIdentitySession(intent: any) {
-  if (!IDSWYFT_BASE_URL || !IDSWYFT_API_KEY) throw new Error("IDENTITY_PROVIDER_NOT_CONFIGURED");
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 20000);
-  try {
-    const response = await fetch(IDSWYFT_BASE_URL + "/api/v2/verify/initialize", {
-      method: "POST",
-      headers: {
-        "X-API-Key": IDSWYFT_API_KEY,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        user_id: intent.id,
-        document_type: "national_id",
-        verification_mode: "identity",
-        sandbox: false,
-      }),
-      signal: controller.signal,
-    });
-    const body = await response.text();
-    if (!response.ok) {
-      let detail = "";
-      try { const parsed = JSON.parse(body); detail = String(parsed?.message || parsed?.error || ""); } catch {}
-      throw new Error("IDENTITY_PROVIDER_HTTP_" + response.status + (detail ? "_" + detail.slice(0,120).replace(/[^A-Za-z0-9_-]/g,"_") : ""));
-    }
-    let session: any;
-    try { session = JSON.parse(body); } catch { throw new Error("IDENTITY_PROVIDER_INVALID_RESPONSE"); }
-    if (!session?.verification_id || !session?.session_token || !session?.verification_url) {
-      throw new Error("IDENTITY_PROVIDER_RESPONSE_MISSING_FIELDS");
-    }
-    const { error } = await admin.schema("private").from("identity_signup_intents").update({
-      didit_session_id: session.verification_id,
-      didit_status: session.status ?? "AWAITING_FRONT",
-      provider_reference: session.verification_id,
-      updated_at: new Date().toISOString(),
-    }).eq("id", intent.id);
-    if (error) throw error;
-    return {
-      session_id: session.verification_id,
-      session_token: session.session_token,
-      url: session.verification_url,
-      verification_id: session.verification_id,
-    };
-  } catch (error) {
-    if (error instanceof DOMException && error.name === "AbortError") throw new Error("IDENTITY_PROVIDER_TIMEOUT");
-    throw error instanceof Error ? error : new Error("IDENTITY_PROVIDER_REQUEST_FAILED");
-  } finally {
-    clearTimeout(timeout);
-  }
+  if (!IDENTITY_SECRET) throw new Error("IDENTITY_SECRET_NOT_CONFIGURED");
+  const rawToken = randomToken();
+  const tokenHashValue = await hmacHex("session|" + rawToken);
+  const expires = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  const { data: session, error } = await admin.schema("private").from("identity_verification_sessions").insert({
+    intent_id: intent.id,
+    user_id: intent.completed_user_id || null,
+    token_hash: tokenHashValue,
+    state: "created",
+    expires_at: expires,
+    started_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }).select("id,state,expires_at").single();
+  if (error) throw error;
+  const { error: intentError } = await admin.schema("private").from("identity_signup_intents").update({
+    verification_session_id: session.id,
+    verification_stage: "capture",
+    identity_status: "pending",
+    updated_at: new Date().toISOString(),
+  }).eq("id", intent.id);
+  if (intentError) throw intentError;
+  return {
+    session_id: session.id,
+    session_token: rawToken,
+    url: "https://testagram.site/verify-identity?session=" + encodeURIComponent(session.id),
+    verification_id: session.id,
+  };
 }
-
 function errorDetails(error: unknown) {
   if (error instanceof Error) return { message: error.message, stack: error.stack };
   if (error && typeof error === "object") {
@@ -158,6 +134,11 @@ function errorDetails(error: unknown) {
 async function finalizeAccount(intent: any, password: string) {
   if (!intent.email_verified_at) throw new Error("EMAIL_NOT_VERIFIED");
   if (intent.identity_status !== "approved") throw new Error("IDENTITY_NOT_APPROVED");
+  if (!intent.verification_session_id) throw new Error("VERIFICATION_SESSION_MISSING");
+  const { data: engineResult, error: engineResultError } = await admin.schema("private").from("identity_engine_results")
+    .select("decision,verified_birth_date,id_number_hmac").eq("session_id", intent.verification_session_id).maybeSingle();
+  if (engineResultError) throw engineResultError;
+  if (!engineResult || engineResult.decision !== "approved") throw new Error("IDENTITY_ENGINE_APPROVAL_REQUIRED");
   if (!intent.id_number_hmac) throw new Error("IDENTITY_FINGERPRINT_MISSING");
   if (!intent.verified_birth_date || !isAdult(intent.verified_birth_date)) throw new Error("AGE_RESTRICTION");
   if (intent.birth_date !== intent.verified_birth_date) throw new Error("BIRTH_DATE_MISMATCH");
@@ -186,8 +167,8 @@ async function finalizeAccount(intent: any, password: string) {
       country_code: "KE",
       status: "approved",
       verification_method: "self_hosted",
-      provider: "idswyft",
-      provider_reference: intent.provider_reference,
+      provider: null,
+      provider_reference: null,
       submitted_at: now,
       reviewed_at: now,
       email_snapshot: intent.email,
@@ -210,7 +191,7 @@ async function finalizeAccount(intent: any, password: string) {
     const { error: auditLinkError } = await admin.from("identity_verification_events")
       .update({ user_id: user.id })
       .is("user_id", null)
-      .filter("metadata->>session_id", "eq", String(intent.didit_session_id));
+      .filter("metadata->>session_id", "eq", String(intent.verification_session_id));
     if (auditLinkError) throw auditLinkError;
     await admin.schema("private").from("identity_signup_intents").update({ completed_user_id: user.id, updated_at: now }).eq("id", intent.id);
     
@@ -249,8 +230,8 @@ Deno.serve(async (req) => {
         registration_token_hash: registrationHash, legal_terms_accepted_at: now.toISOString(),
         legal_privacy_accepted_at: now.toISOString(), legal_content_policy_accepted_at: now.toISOString(),
         legal_age_confirmed_at: now.toISOString(), legal_policy_version: String(body.legal_policy_version || "2026-09"),
-        birth_date: birthDate, username, display_name: displayName, didit_session_id: null,
-        didit_status: "not_started", identity_status: "pending", id_number_hmac: null, id_number_last4: null,
+        birth_date: birthDate, username, display_name: displayName, verification_session_id: null,
+        verification_stage: "not_started", identity_status: "pending", id_number_hmac: null, id_number_last4: null,
         country_code: "KE", provider_reference: null, rejection_reason: null, updated_at: now.toISOString(),
         expires_at: expires, completed_user_id: null,
       };
@@ -290,7 +271,7 @@ Deno.serve(async (req) => {
         legal_age_confirmed_at: profile.legal_age_confirmed_at || now,
         legal_policy_version: profile.legal_policy_version || "2026-09",
         birth_date: String(profile.birth_date), username: profile.username || null, display_name: profile.display_name || null,
-        didit_session_id:null,didit_status:"AWAITING_FRONT",identity_status:"pending",id_number_hmac:null,id_number_last4:null,
+        verification_session_id:null,verification_stage:"AWAITING_FRONT",identity_status:"pending",id_number_hmac:null,id_number_last4:null,
         country_code:"KE",provider_reference:null,rejection_reason:null,updated_at:now,expires_at:new Date(Date.now()+30*60*1000).toISOString(),
         completed_user_id:existingUser.id,
       };
@@ -339,7 +320,7 @@ Deno.serve(async (req) => {
     }
 
     if (action === "status") {
-      return json({ok:true,status:intent.identity_status,provider_status:intent.didit_status,email_verified:!!intent.email_verified_at,rejection_reason:intent.rejection_reason});
+      return json({ok:true,status:intent.identity_status,provider_status:intent.verification_stage,email_verified:!!intent.email_verified_at,rejection_reason:intent.rejection_reason});
     }
 
     if (action === "finalize") {
