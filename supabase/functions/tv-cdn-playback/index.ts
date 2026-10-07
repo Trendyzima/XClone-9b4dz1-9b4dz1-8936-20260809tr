@@ -10,10 +10,10 @@ const cors = {
 
 const encoder = new TextEncoder();
 
-function base64Url(bytes: Uint8Array) {
+function hex(bytes: Uint8Array) {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 async function sign(secret: string, payload: string) {
@@ -24,7 +24,7 @@ async function sign(secret: string, payload: string) {
     false,
     ["sign"],
   );
-  return base64Url(new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(payload))));
+  return hex(new Uint8Array(await crypto.subtle.sign("HMAC", key, encoder.encode(payload))));
 }
 
 function publicHttps(url: URL) {
@@ -78,8 +78,15 @@ Deno.serve(async (req) => {
   try { source = new URL(sourceUrl); } catch {
     return new Response(JSON.stringify({ ok: false, error: "Invalid source_url" }), { status: 400, headers: cors });
   }
+  const allowedHosts = (Deno.env.get("TESTAGRAM_TV_ALLOWED_HOSTS") || "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
   if (!publicHttps(source)) {
     return new Response(JSON.stringify({ ok: false, error: "Source must be a public HTTPS URL" }), { status: 400, headers: cors });
+  }
+  if (allowedHosts.length > 0 && !allowedHosts.includes(source.hostname.toLowerCase())) {
+    return new Response(JSON.stringify({ ok: false, error: "Stream source is not on the Testagram allow-list" }), { status: 403, headers: cors });
   }
 
   const exp = Math.floor(Date.now() / 1000) + 600;
