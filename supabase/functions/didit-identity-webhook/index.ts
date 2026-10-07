@@ -146,6 +146,32 @@ Deno.serve(async(req)=>{
     const {error:updateError}=await admin.schema("private").from("identity_signup_intents").update(updatePayload).eq("id",intent.id);
     if(updateError)throw updateError;
 
+    if(identityStatus==="approved" && intent.completed_user_id && fingerprint){
+      try {
+        const now=new Date().toISOString();
+        const {error:identityError}=await admin.from("identity_verifications").upsert({
+          user_id:intent.completed_user_id,id_type:"ke_national_id",id_number_hmac:fingerprint,
+          id_number_last4:last4,country_code:"KE",status:"approved",verification_method:"provider",
+          provider:"didit",provider_reference:providerReference,submitted_at:now,reviewed_at:now,
+          email_snapshot:intent.email
+        },{onConflict:"user_id"});
+        if(identityError){
+          if(identityError.code==="23505") {
+            await admin.schema("private").from("identity_signup_intents").update({identity_status:"blocked",rejection_reason:"IDENTITY_ALREADY_REGISTERED",updated_at:now}).eq("id",intent.id);
+            identityStatus="blocked"; rejectionReason="IDENTITY_ALREADY_REGISTERED";
+          } else throw identityError;
+        } else {
+          const {error:profileError}=await admin.from("profiles").update({
+            birth_date:verifiedDob,identity_verification_status:"approved",identity_verified_at:now
+          }).eq("id",intent.completed_user_id);
+          if(profileError)throw profileError;
+        }
+      } catch(error) {
+        console.error("DIDIT_EXISTING_ACCOUNT_UPDATE_FAILED",JSON.stringify({error:error instanceof Error?error.message:"UNKNOWN_ERROR",user_id:intent.completed_user_id}));
+        throw error;
+      }
+    }
+
     await admin.from("identity_verification_events").insert({
       provider_event_id:eventId,event_type:"DIDIT_"+status.toUpperCase().replace(/\\s+/g,"_"),
       outcome:identityStatus,request_id:eventId,user_id:null,actor_id:null,
