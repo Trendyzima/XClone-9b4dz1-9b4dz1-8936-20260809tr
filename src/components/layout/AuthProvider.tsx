@@ -1,6 +1,108 @@
-// Identity verification is an account-creation flow, not a login gate.
-              // Existing authenticated sessions must be allowed into Testagram.
-              // Mobile contact is a required post-sign-in profile field, not an auth
+import { useEffect } from 'react';
+import { User } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/stores/authStore';
+import { finalizeAuthenticatedSession } from '@/lib/auth';
+import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
+import { clearTestagramSessionLifetime, enforceTestagramSessionLifetime, markAuthenticatedSessionStarted } from '@/lib/sessionPolicy';
+
+function normalizedPathname() {
+  if (typeof window === 'undefined') return '/';
+  const pathname = window.location.pathname.replace(/\/+$/, '');
+  return pathname || '/';
+}
+
+async function triggerKeygenForUser(userId: string) {
+  try {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (!token) return;
+    const { data: existing } = await supabase.from('activitypub_keys').select('id').eq('user_id', userId).maybeSingle();
+    if (existing) return;
+    const backendUrl = import.meta.env.VITE_SUPABASE_URL;
+    if (!backendUrl) return;
+    await fetch(`${backendUrl}/functions/v1/activitypub-keygen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ user_id: userId }),
+    });
+  } catch (err) {
+    console.warn('[ActivityPub] Keygen failed (non-fatal):', err);
+  }
+}
+
+export async function sendActivityNotification({
+  recipientUserId,
+  title,
+  body,
+  data,
+}: {
+  recipientUserId: string;
+  title: string;
+  body: string;
+  data?: any;
+}) {
+  try {
+    const notificationType = data?.type && ['like','repost','follow','reply','mention','verified'].includes(data.type) ? data.type : 'follow';
+    const { error: dbError } = await supabase.from('notifications').insert({ recipient_id: recipientUserId, kind: notificationType, actor_id: data?.fromUserId ?? null, post_id: data?.postId ?? null });
+    if (dbError) console.warn('[Notification] DB insert failed:', dbError.message);
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    if (token) {
+      const backendUrl = import.meta.env.VITE_SUPABASE_URL;
+      if (backendUrl) {
+        fetch(`${backendUrl}/functions/v1/send-push-notification`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ user_id: recipientUserId, title, body, data }),
+        }).catch(() => {});
+      }
+    }
+  } catch (error) {
+    console.warn('[Notification] Failed to send activity notification:', error);
+  }
+}
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+  const { login, logout, setLoading, setAuthError, clearAuthError } = useAuthStore();
+
+  useEffect(() => {
+    let mounted = true;
+
+    const lifetimeTimer = window.setInterval(() => {
+      void enforceTestagramSessionLifetime().then((valid) => {
+        if (!valid && mounted) {
+          logout();
+          window.location.replace('/auth');
+        }
+      });
+    }, 30_000);
+
+    const finalizationInFlight = new Map<string, Promise<void>>();
+
+    const hydrateUser = (user: User, requireFreshLegalConsent = false) => {
+      setLoading(true);
+      clearAuthError();
+
+      const existing = finalizationInFlight.get(user.id);
+      if (existing) return;
+
+      const task = new Promise<void>((resolve) => {
+        window.setTimeout(() => {
+          if (!mounted) {
+            resolve();
+            return;
+          }
+          void enforceTestagramSessionLifetime().then((valid) => {
+            if (!valid) throw new Error('SESSION_EXPIRED');
+            markAuthenticatedSessionStarted(user.id);
+            return finalizeAuthenticatedSession(user, { requireFreshLegalConsent });
+          })
+            .then(async (mappedUser) => {
+              if (!mounted) return;
+              login(mappedUser);
+              // Identity verification belongs to account creation and never blocks existing logins.
+// Mobile contact is a required post-sign-in profile field, not an auth
               // identifier. Keep it private in profile_contact_methods and gate the
               // application until the signed-in user has supplied a valid number.
               if (path !== '/profile/complete' && path !== '/verify-identity') {
