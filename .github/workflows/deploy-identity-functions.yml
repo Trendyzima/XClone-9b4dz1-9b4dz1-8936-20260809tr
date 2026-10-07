@@ -53,7 +53,7 @@ jobs:
           set -euo pipefail
           secrets="$(supabase secrets list --project-ref "${SUPABASE_PROJECT_ID}")"
           printf '%s\n' "$secrets"
-          for name in IDSWYFT_BASE_URL IDSWYFT_API_KEY IDSWYFT_WEBHOOK_SECRET IDENTITY_PREAUTH_SECRET;/ do
+          for name in IDSWYFT_BASE_URL IDSWYFT_API_KEY IDSWYFT_WEBHOOK_SECRET IDENTITY_PREAUTH_SECRET; do
             printf '%s\n' "$secrets" | grep -Eq "(^|[[:space:]|])$name([[:space:]|]|$)" || {
               echo "::error::$name is not configured in Supabase project secrets."
               exit 1
@@ -65,7 +65,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          supabase functions deploy identity-signup             --project-ref "${SUPABASE_PROJECT_ID}"             --no-verify-jwt
+          supabase functions deploy identity-signup --project-ref "${SUPABASE_PROJECT_ID}" --no-verify-jwt
 
       - name: Deploy native identity session bridge
         shell: bash
