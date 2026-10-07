@@ -122,7 +122,7 @@ Deno.serve(async req => {
         return json({ok:false,error:"INVALID_EVIDENCE_REFERENCE"},400);
       }
       const {error} = await admin.schema("private").from("identity_verification_evidence")
-        .update({state:"uploaded",updated_at:new Date().toISOString()})
+        .update({state:"uploaded"})
         .eq("session_id",session.id).eq("kind",kind).eq("object_path",objectPath);
       if (error) throw error;
       return json({ok:true});
