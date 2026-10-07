@@ -82,7 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             return;
           }
           void finalizeAuthenticatedSession(user, { requireFreshLegalConsent })
-            .then((mappedUser) => {
+            .then(async (mappedUser) => {
               if (!mounted) return;
               login(mappedUser);
               const identityStatus = mappedUser.identityVerificationStatus;
