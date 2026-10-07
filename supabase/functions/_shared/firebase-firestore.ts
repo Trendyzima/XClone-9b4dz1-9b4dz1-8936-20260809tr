@@ -2,25 +2,19 @@ const FIRESTORE_SCOPE = "https://www.googleapis.com/auth/datastore";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const FIRESTORE_BASE = "https://firestore.googleapis.com/v1";
 
-type ServiceAccount = {
-  project_id: string;
-  client_email: string;
-  private_key: string;
-};
-
+type ServiceAccount = { project_id: string; client_email: string; private_key: string; };
 let cachedToken: { value: string; expiresAt: number } | null = null;
 
 const b64url = (bytes: Uint8Array) =>
+  btoa(String.fromCharCode(...bytes))
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
-    .replace(/\\//g, "_")
     .replace(/=+$/g, "");
 
-const textB64url = (value: string) =>
-  const body = pem.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, "");
+const textB64url = (value: string) => b64url(new TextEncoder().encode(value));
 
 const pemToDer = (pem: string) => {
-  const body = pem.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\\s/g, "");
+  const body = pem.replace(/-----BEGIN PRIVATE KEY-----|-----END PRIVATE KEY-----|\s/g, "");
   const binary = atob(body);
   return Uint8Array.from(binary, c => c.charCodeAt(0));
 };
@@ -47,18 +41,10 @@ const accessToken = async () => {
     iat: now,
     exp: now + 3600,
   }));
-  const unsigned = `${header}.${claim}`;
-  const key = await crypto.subtle.importKey(
-    "pkcs8",
-    pemToDer(sa.private_key),
-    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
-    false,
-    ["sign"],
-  );
-  const signature = new Uint8Array(
-    await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(unsigned)),
-  );
-  const assertion = `${unsigned}.${b64url(signature)}`;
+  const unsigned = header + "." + claim;
+  const key = await crypto.subtle.importKey("pkcs8", pemToDer(sa.private_key), { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
+  const signature = new Uint8Array(await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(unsigned)));
+  const assertion = unsigned + "." + b64url(signature);
   const response = await fetch(TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -68,19 +54,14 @@ const accessToken = async () => {
     }),
   });
   const payload = await response.json().catch(() => null);
-  if (!response.ok || !payload?.access_token) {
-    throw new Error(payload?.error_description || payload?.error || "Firebase service-account authentication failed.");
-  }
-  cachedToken = {
-    value: String(payload.access_token),
-    expiresAt: Date.now() + Number(payload.expires_in || 3600) * 1000,
-  };
+  if (!response.ok || !payload?.access_token) throw new Error(payload?.error_description || payload?.error || "Firebase service-account authentication failed.");
+  cachedToken = { value: String(payload.access_token), expiresAt: Date.now() + Number(payload.expires_in || 3600) * 1000 };
   return cachedToken.value;
 };
 
 const firestoreUrl = (collection: string, id: string) => {
   const sa = loadServiceAccount();
-  return `${FIRESTORE_BASE}/projects/${encodeURIComponent(sa.project_id)}/databases/(default)/documents/${collection}/${encodeURIComponent(id)}`;
+  return FIRESTORE_BASE + "/projects/" + encodeURIComponent(sa.project_id) + "/databases/(default)/documents/" + collection + "/" + encodeURIComponent(id);
 };
 
 const value = (v: unknown): Record<string, unknown> => {
@@ -88,53 +69,33 @@ const value = (v: unknown): Record<string, unknown> => {
   if (typeof v === "boolean") return { booleanValue: v };
   if (typeof v === "number" && Number.isInteger(v)) return { integerValue: String(v) };
   if (typeof v === "number") return { doubleValue: v };
-  if (typeof v === "string") return { stringValue: v };
   if (v instanceof Date) return { timestampValue: v.toISOString() };
-  return { stringValue: JSON.stringify(v) };
+  return { stringValue: typeof v === "string" ? v : JSON.stringify(v) };
 };
 
-const fields = (record: Record<string, unknown>) =>
-  Object.fromEntries(Object.entries(record).map(([k, v]) => [k, value(v)]));
+const fields = (record: Record<string, unknown>) => Object.fromEntries(Object.entries(record).map(([k, v]) => [k, value(v)]));
 
-export async function upsertFirebaseLiveMetadata(
-  streamId: string,
-  metadata: Record<string, unknown>,
-) {
+export async function upsertFirebaseLiveMetadata(streamId: string, metadata: Record<string, unknown>) {
   const token = await accessToken();
   const response = await fetch(firestoreUrl("tv_live_streams", streamId), {
     method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
+    headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
     body: JSON.stringify({ fields: fields(metadata) }),
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => null);
-    throw new Error(payload?.error?.message || `Firebase Firestore write failed (${response.status}).`);
-  }
-}
-
-export async function deleteFirebaseLiveMetadata(streamId: string) {
-  const token = await accessToken();
-  const response = await fetch(firestoreUrl("tv_live_streams", streamId), {
-    method: "DELETE",
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!response.ok && response.status !== 404) {
-    const payload = await response.json().catch(() => null);
-    throw new Error(payload?.error?.message || `Firebase Firestore delete failed (${response.status}).`);
+    throw new Error(payload?.error?.message || "Firebase Firestore write failed (" + response.status + ").");
   }
 }
 
 export async function getFirebaseLiveMetadata(streamId: string): Promise<Record<string, unknown> | null> {
   const token = await accessToken();
   const response = await fetch(firestoreUrl("tv_live_streams", streamId), {
-    headers: { Authorization: `Bearer ${token}` },
+    headers: { Authorization: "Bearer " + token },
   });
   if (response.status === 404) return null;
   const payload = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(payload?.error?.message || `Firebase Firestore read failed (${response.status}).`);
+  if (!response.ok) throw new Error(payload?.error?.message || "Firebase Firestore read failed (" + response.status + ").");
   const out: Record<string, unknown> = {};
   for (const [key, wrapped] of Object.entries(payload?.fields || {})) {
     const v = wrapped as Record<string, unknown>;
