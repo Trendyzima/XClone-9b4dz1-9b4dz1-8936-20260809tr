@@ -44,45 +44,22 @@ jobs:
         with:
           version: 2.118.0
 
-      - name: Synchronize Didit identity secrets into Supabase
+      # Runtime identity secrets live in Supabase, not GitHub Actions.
+      # GitHub never receives or copies Didit credentials.
+      - name: Verify Supabase identity secret names
         shell: bash
-        env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_ID: ffrhglgkukgsuhxenena
-          DIDIT_API_KEY: ${{ secrets.DIDIT_API_KEY }}
-          DIDIT_WEBHOOK_SECRET: ${{ secrets.DIDIT_WEBHOOK_SECRET }}
-          DIDIT_WORKFLOW_ID: ${{ secrets.DIDIT_WORKFLOW_ID }}
-          IDENTITY_PREAUTH_SECRET: ${{ secrets.IDENTITY_PREAUTH_SECRET }}
         run: |
           set -euo pipefail
-          [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is missing from GitHub secrets."; exit 1; }
-          require_secret() {
-            local name="$1" value="$2"
-            [[ -n "$value" ]] || { echo "::error::$name is missing from GitHub secrets."; exit 1; }
-            printf '::add-mask::%s\n' "$value"
-          }
-          require_secret "DIDIT_API_KEY" "$DIDIT_API_KEY"
-          require_secret "DIDIT_WEBHOOK_SECRET" "$DIDIT_WEBHOOK_SECRET"
-          require_secret "DIDIT_WORKFLOW_ID" "$DIDIT_WORKFLOW_ID"
-          require_secret "IDENTITY_PREAUTH_SECRET" "$IDENTITY_PREAUTH_SECRET"
-          [[ "$DIDIT_WORKFLOW_ID" == "e7af7018-e357-467e-a1c0-3496029012e0" ]] || { echo "::error::DIDIT_WORKFLOW_ID does not match the approved Testagram KYC workflow."; exit 1; }
-          workflow_status="$(curl -sS -o /tmp/didit-workflows.json -w '%{http_code}' -H "x-api-key: $DIDIT_API_KEY" -H "Accept: application/json" "https://verification.didit.me/v3/workflows/")"
-          if [[ "$workflow_status" != "200" ]]; then echo "::error::Didit workflow preflight failed with HTTP $workflow_status."; cat /tmp/didit-workflows.json; exit 1; fi
-          node - <<'NODE'
-          const fs=require("node:fs");
-          const body=JSON.parse(fs.readFileSync("/tmp/didit-workflows.json","utf8"));
-          const items=Array.isArray(body)?body:(Array.isArray(body?.results)?body.results:Array.isArray(body?.workflows)?body.workflows:[]);
-          const match=items.find(x=>String(x?.id||x?.workflow_id||"")==="e7af7018-e357-467e-a1c0-3496029012e0");
-          if(!match) throw new Error("Didit approved workflow was not returned by GET /v3/workflows/.");
-          console.log("Didit KYC workflow preflight passed:", JSON.stringify({workflow_id:"e7af7018-e357-467e-a1c0-3496029012e0",name:match?.name||null,status:match?.status||null}));
-          NODE
-          supabase secrets set --project-ref "$SUPABASE_PROJECT_ID" \
-            "DIDIT_API_KEY=$DIDIT_API_KEY" \
-            "DIDIT_WEBHOOK_SECRET=$DIDIT_WEBHOOK_SECRET" \
-            "DIDIT_WORKFLOW_ID=$DIDIT_WORKFLOW_ID" \
-            "IDENTITY_PREAUTH_SECRET=$IDENTITY_PREAUTH_SECRET"
-          echo "Didit identity secrets synchronized to Supabase without printing values."
-      # identity-signup is an unauthenticated pre-auth onboarding endpoint; --no-verify-jwt is intentional.
+          secrets="$(supabase secrets list --project-ref "${SUPABASE_PROJECT_ID}")"
+          printf '%s\n' "$secrets"
+          for name in DIDIT_API_KEY DIDIT_WEBHOOK_SECRET DIDIT_WORKFLOW_ID IDENTITY_PREAUTH_SECRET; do
+            printf '%s\n' "$secrets" | grep -Eq "(^|[[:space:]|])$name([[:space:]|]|$)" || {
+              echo "::error::$name is not configured in Supabase project secrets."
+              exit 1
+            }
+          done
+          echo "Required Didit identity secret names are present in Supabase; values were not read or printed."
+
       - name: Deploy identity signup
         shell: bash
         run: |
