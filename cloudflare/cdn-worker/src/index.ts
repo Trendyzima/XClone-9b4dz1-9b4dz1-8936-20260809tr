@@ -105,3 +105,4 @@ export default {
     await scheduledProbe(env);
   },
 } satisfies ExportedHandler<Env>;
+// Force a fresh production deployment so the canonical /health contract is served by the current worker.
