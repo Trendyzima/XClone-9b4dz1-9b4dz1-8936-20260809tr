@@ -23,6 +23,9 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
     autoRefreshToken: true,
     detectSessionInUrl: true,
     storageKey: 'testagram-auth',
+    // Supabase refreshes short-lived access tokens automatically; the server-side session
+    // time-box below is the authoritative two-hour maximum lifetime.
+    debug: false,
   },
 });
 
