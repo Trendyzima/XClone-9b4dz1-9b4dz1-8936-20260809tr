@@ -97,8 +97,9 @@ export default function AuthPage() {
     login(finalized);
     setLoading(false);
     await applyPendingReferral();
-    const needsIdentityVerification = finalized.identityVerificationStatus && !['not_required', 'approved'].includes(finalized.identityVerificationStatus);
-    navigate(needsIdentityVerification ? '/verify-identity' : '/', { replace: true });
+    // Existing-account login never launches KYC. Identity verification is only
+    // entered from the explicit account-creation flow.
+    navigate('/', { replace: true });
   };
 
   const handlePasswordSignIn = async (event: FormEvent) => {
@@ -219,7 +220,11 @@ export default function AuthPage() {
     } finally { setLoading(false); }
   };
 
-  if (!legalAccepted) return <div className="min-h-screen bg-gradient-to-b from-background via-background to-primary/5 p-4 flex items-center justify-center"><LegalAcceptanceGate onAccepted={() => setLegalAccepted(true)} /></div>;
+  // Age/legal confirmation is an account-creation gate, not a login gate. Existing
+  // accounts must be able to sign in without seeing the page again. The durable
+  // server-side consent fields are written during account creation; localStorage is
+  // only a pre-account convenience and never the authorization source.
+  if (mode === 'signup' && !legalAccepted) return <div className="min-h-screen bg-gradient-to-b from-background via-background to-primary/5 p-4 flex items-center justify-center"><LegalAcceptanceGate onAccepted={() => setLegalAccepted(true)} /></div>;
 
   const go = (next: AuthMode) => { setLoading(false); setPassword(''); setConfirmation(''); setMode(next); };
   const title = mode === 'signin' ? 'Welcome back' : mode === 'signup' ? 'Create your account' : mode === 'otp' ? 'Enter your verification code' : mode === 'recover' ? 'Reset your password' : 'Choose a new password';

@@ -101,22 +101,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .then(async (mappedUser) => {
               if (!mounted) return;
               login(mappedUser);
-
-              // Identity verification is a hard account gate. Normalize the path
-              // before comparing it so /verify-identity and /verify-identity/
-              // cannot trigger a full-document redirect loop.
               const path = normalizedPathname();
-              const identityRequired =
-                mappedUser.identityVerificationStatus &&
-                !['not_required', 'approved'].includes(mappedUser.identityVerificationStatus);
-
-              if (identityRequired && path !== '/verify-identity') {
-                window.location.replace('/verify-identity');
-                resolve();
-                return;
-              }
-
-              // Mobile contact is a required post-sign-in profile field, not an auth
+              // Identity verification belongs to account creation and never blocks existing logins.
+// Mobile contact is a required post-sign-in profile field, not an auth
               // identifier. Keep it private in profile_contact_methods and gate the
               // application until the signed-in user has supplied a valid number.
               if (path !== '/profile/complete' && path !== '/verify-identity') {
@@ -158,7 +145,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (event === 'SIGNED_OUT') {
         clearTestagramSessionLifetime();
         trackTestagramEvent(TestagramEvent.LOGGED_OUT, { auth_event: event });
-        clearTestagramSessionLifetime();
         logout();
         setLoading(false);
         return;

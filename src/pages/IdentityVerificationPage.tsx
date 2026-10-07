@@ -53,21 +53,23 @@ export default function IdentityVerificationPage() {
 
   useEffect(() => {
     let cancelled = false;
+    // This page belongs exclusively to the account-creation flow. A signed-in
+    // user who reaches it through a stale bookmark, refresh, or old redirect
+    // must never be forced back into KYC.
+    if (user) {
+      navigate('/', { replace: true });
+      return () => { cancelled = true; };
+    }
     (async () => {
       setLoading(true);
       try {
-        if (user && !identitySignup.token()) {
-          const result = await identitySignup.startExisting();
-          if (cancelled) return;
-          if (result.already_approved) { setStatus('approved'); setStage('approved'); setLoading(false); return; }
-        }
         if (!cancelled) await loadStatus();
       } catch (error: any) {
         if (!cancelled) { setMessage(error?.message || 'We could not start identity verification.'); setLoading(false); }
       }
     })();
     return () => { cancelled = true; };
-  }, [user?.id]);
+  }, [user?.id, navigate]);
 
   useEffect(() => {
     const timer = window.setInterval(() => { if (identitySignup.token()) void loadStatus(); }, 5000);
