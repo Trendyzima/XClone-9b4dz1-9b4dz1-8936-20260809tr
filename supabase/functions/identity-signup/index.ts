@@ -1,0 +1,284 @@
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { createClient } from "npm:@supabase/supabase-js@2";
+
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const secretKeys = JSON.parse(Deno.env.get("SUPABASE_SECRET_KEYS") || "{}");
+const SERVICE_KEY = secretKeys.default || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SECRET_KEY") || "";
+const RESEND_KEY = Deno.env.get("RESEND_API_KEY") ?? "";
+const DIDIT_API_KEY = Deno.env.get("DIDIT_API_KEY") ?? "";
+const DIDIT_WORKFLOW_ID = Deno.env.get("DIDIT_WORKFLOW_ID") ?? "";
+const IDENTITY_SECRET = Deno.env.get("IDENTITY_PREAUTH_SECRET") ?? "";
+const CALLBACK_URL = "https://testagram.site/verify-identity";
+const FROM = "Testagram <noreply@testagram.site>";
+
+const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+const cors = {
+  "Access-Control-Allow-Origin": "https://testagram.site",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Content-Type": "application/json",
+};
+
+const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: cors });
+
+function normalizeEmail(value: unknown) {
+  const email = String(value ?? "").trim().toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error("INVALID_EMAIL");
+  return email;
+}
+function normalizeId(value: unknown) {
+  const id = String(value ?? "").replace(/\D/g, "");
+  if (!/^\d{6,12}$/.test(id)) throw new Error("INVALID_NATIONAL_ID");
+  return id;
+}
+function validDate(value: unknown) {
+  const date = String(value ?? "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("INVALID_BIRTH_DATE");
+  const parsed = new Date(date + "T00:00:00Z");
+  if (Number.isNaN(parsed.getTime())) throw new Error("INVALID_BIRTH_DATE");
+  return date;
+}
+function isAdult(dateString: string) {
+  const dob = new Date(dateString + "T00:00:00Z");
+  const cutoff = new Date();
+  cutoff.setUTCFullYear(cutoff.getUTCFullYear() - 18);
+  return dob <= cutoff;
+}
+function randomToken(bytes = 32) {
+  const data = new Uint8Array(bytes);
+  crypto.getRandomValues(data);
+  return Array.from(data, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+function randomOtp() {
+  return String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, "0");
+}
+async function hmacHex(value: string) {
+  if (!IDENTITY_SECRET) throw new Error("IDENTITY_SECRET_NOT_CONFIGURED");
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(IDENTITY_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(sig), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+async function sha256(value: string) {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+async function tokenHash(token: string) {
+  return sha256("testagram:identity-registration:" + token);
+}
+async function otpHash(email: string, code: string) {
+  return hmacHex("otp|" + email + "|" + code);
+}
+function escapeHtml(value: unknown) {
+  return String(value ?? "").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+}
+async function sendOtp(email: string, code: string) {
+  if (!RESEND_KEY) throw new Error("RESEND_NOT_CONFIGURED");
+  const safeEmail = escapeHtml(email);
+  const html = `<!doctype html><html><body style="margin:0;background:#f4f7f8;font-family:Arial,sans-serif;color:#172026">
+  <div style="max-width:560px;margin:32px auto;background:#fff;border-radius:20px;padding:32px;box-shadow:0 8px 30px rgba(0,0,0,.07)">
+  <div style="text-align:center"><img src="https://testagram.site/app-icon.jpg" width="64" height="64" style="border-radius:16px" alt="Testagram"><h1>Confirm your Testagram email</h1></div>
+  <p>Hello,</p><p>Use the verification code below to continue creating your Testagram account.</p>
+  <div style="margin:26px 0;padding:20px;text-align:center;background:#f5f6f7;border-radius:14px;font-size:32px;font-weight:800;letter-spacing:8px">${escapeHtml(code)}</div>
+  <p style="font-size:13px;color:#667085">This code expires in 10 minutes. Testagram will not create your account until identity verification is approved.</p>
+  <p style="font-size:12px;color:#98a2b3">Sent to ${safeEmail}</p></div></body></html>`;
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + RESEND_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({ from: FROM, to: [email], subject: "Confirm your Testagram email", html, text: `Testagram verification code: ${code}. It expires in 10 minutes.` }),
+  });
+  if (!res.ok) throw new Error("RESEND_HTTP_" + res.status);
+}
+async function getIntent(token: string) {
+  const hash = await tokenHash(token);
+  const { data, error } = await admin.schema("private").from("identity_signup_intents").select("*").eq("registration_token_hash", hash).maybeSingle();
+  if (error) throw error;
+  if (!data) throw new Error("REGISTRATION_NOT_FOUND");
+  if (data.completed_user_id) throw new Error("REGISTRATION_COMPLETED");
+  if (new Date(data.expires_at).getTime() < Date.now()) throw new Error("REGISTRATION_EXPIRED");
+  return data;
+}
+async function createDiditSession(intent: any) {
+  if (!DIDIT_API_KEY || !DIDIT_WORKFLOW_ID) throw new Error("DIDIT_NOT_CONFIGURED");
+  const response = await fetch("https://verification.didit.me/v3/session/", {
+    method: "POST",
+    headers: { "x-api-key": DIDIT_API_KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      workflow_id: DIDIT_WORKFLOW_ID,
+      vendor_data: intent.id,
+      callback: CALLBACK_URL,
+      callback_method: "both",
+      metadata: { purpose: "testagram_account_creation", registration_id: intent.id },
+      language: "en",
+      contact_details: { email: intent.email, send_notification_emails: false },
+      expected_details: { date_of_birth: intent.birth_date, id_country: "KEN", expected_document_types: ["ID"] },
+    }),
+  });
+  const body = await response.text();
+  if (!response.ok) throw new Error("DIDIT_SESSION_HTTP_" + response.status);
+  const session = JSON.parse(body);
+  const { error } = await admin.schema("private").from("identity_signup_intents").update({
+    didit_session_id: session.session_id,
+    didit_status: session.status ?? "Not Started",
+    updated_at: new Date().toISOString(),
+  }).eq("id", intent.id);
+  if (error) throw error;
+  return { session_id: session.session_id, url: session.url };
+}
+async function finalizeAccount(intent: any, password: string) {
+  if (!intent.email_verified_at) throw new Error("EMAIL_NOT_VERIFIED");
+  if (intent.identity_status !== "approved") throw new Error("IDENTITY_NOT_APPROVED");
+  if (!intent.id_number_hmac) throw new Error("IDENTITY_FINGERPRINT_MISSING");
+  if (!intent.verified_birth_date || !isAdult(intent.verified_birth_date)) throw new Error("AGE_RESTRICTION");
+  if (intent.birth_date !== intent.verified_birth_date) throw new Error("BIRTH_DATE_MISMATCH");
+  if (password.length < 8) throw new Error("PASSWORD_TOO_SHORT");
+
+  const duplicate = await admin.from("identity_verifications").select("id,user_id").eq("id_number_hmac", "\\x" + intent.id_number_hmac).maybeSingle();
+  if (duplicate.error && !/invalid input syntax|bytea/i.test(duplicate.error.message)) throw duplicate.error;
+  if (duplicate.data) throw new Error("IDENTITY_ALREADY_REGISTERED");
+
+  const created = await admin.auth.admin.createUser({
+    email: intent.email,
+    password,
+    email_confirm: true,
+    user_metadata: { username: intent.username || undefined, full_name: intent.display_name || undefined },
+  });
+  if (created.error || !created.user) {
+    const message = created.error?.message || "ACCOUNT_CREATION_FAILED";
+    if (/already registered|already exists/i.test(message)) throw new Error("EMAIL_ALREADY_REGISTERED");
+    throw new Error(message);
+  }
+  const user = created.user;
+  try {
+    const now = new Date().toISOString();
+    const { error: identityError } = await admin.from("identity_verifications").insert({
+      user_id: user.id,
+      id_type: "ke_national_id",
+      id_number_hmac: intent.id_number_hmac,
+      id_number_last4: intent.id_number_last4,
+      country_code: "KE",
+      status: "approved",
+      verification_method: "provider",
+      provider: "didit",
+      provider_reference: intent.provider_reference,
+      submitted_at: now,
+      reviewed_at: now,
+      email_snapshot: intent.email,
+    });
+    if (identityError) throw identityError;
+    const { error: profileError } = await admin.from("profiles").update({
+      birth_date: intent.verified_birth_date,
+      legal_terms_accepted_at: intent.legal_terms_accepted_at,
+      legal_privacy_accepted_at: intent.legal_privacy_accepted_at,
+      legal_content_policy_accepted_at: intent.legal_content_policy_accepted_at,
+      legal_age_confirmed_at: intent.legal_age_confirmed_at,
+      legal_policy_version: intent.legal_policy_version,
+      identity_verification_status: "approved",
+      identity_verified_at: now,
+    }).eq("id", user.id);
+    if (profileError) throw profileError;
+    await admin.schema("private").from("identity_signup_intents").update({ completed_user_id: user.id, updated_at: now }).eq("id", intent.id);
+    if (DIDIT_API_KEY && intent.didit_session_id) {
+      await fetch("https://verification.didit.me/v3/session/" + encodeURIComponent(intent.didit_session_id) + "/delete/", { method: "DELETE", headers: { "x-api-key": DIDIT_API_KEY } }).catch(() => {});
+    }
+    return user;
+  } catch (error) {
+    await admin.auth.admin.deleteUser(user.id).catch(() => {});
+    throw error;
+  }
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors });
+  if (req.method !== "POST") return json({ ok:false, error:"METHOD_NOT_ALLOWED" },405);
+  if (!SERVICE_KEY) return json({ ok:false, error:"SERVER_NOT_CONFIGURED" },503);
+  try {
+    const body = await req.json();
+    const action = String(body?.action || "");
+
+    if (action === "start") {
+      const email = normalizeEmail(body.email);
+      const birthDate = validDate(body.birth_date);
+      if (!isAdult(birthDate)) return json({ ok:false,error:"AGE_RESTRICTION" },403);
+      if (body.legal_accepted !== true) return json({ ok:false,error:"LEGAL_ACCEPTANCE_REQUIRED" },400);
+      const username = typeof body.username === "string" ? body.username.trim().slice(0,24) : null;
+      const displayName = typeof body.display_name === "string" ? body.display_name.trim().slice(0,80) : null;
+      const registrationToken = randomToken();
+      const code = randomOtp();
+      const now = new Date();
+      const expires = new Date(now.getTime() + 30*60*1000).toISOString();
+      const otpExpires = new Date(now.getTime() + 10*60*1000).toISOString();
+      const registrationHash = await tokenHash(registrationToken);
+      const codeHash = await otpHash(email, code);
+      const { data: existing } = await admin.schema("private").from("identity_signup_intents").select("id").eq("lower(email)", email).maybeSingle();
+      const record = {
+        email, email_otp_hash: codeHash, email_otp_expires_at: otpExpires, email_verified_at: null,
+        registration_token_hash: registrationHash, legal_terms_accepted_at: now.toISOString(),
+        legal_privacy_accepted_at: now.toISOString(), legal_content_policy_accepted_at: now.toISOString(),
+        legal_age_confirmed_at: now.toISOString(), legal_policy_version: String(body.legal_policy_version || "2026-09"),
+        birth_date: birthDate, username, display_name: displayName, didit_session_id: null,
+        didit_status: "not_started", identity_status: "pending", id_number_hmac: null, id_number_last4: null,
+        country_code: "KE", provider_reference: null, rejection_reason: null, updated_at: now.toISOString(),
+        expires_at: expires, completed_user_id: null,
+      };
+      let error: any = null;
+      if (existing?.id) {
+        ({ error } = await admin.schema("private").from("identity_signup_intents").update(record).eq("id", existing.id));
+      } else {
+        ({ error } = await admin.schema("private").from("identity_signup_intents").insert(record));
+      }
+      if (error) throw error;
+      await sendOtp(email, code);
+      return json({ ok:true, registration_token:registrationToken, email, next:"email_verification" });
+    }
+
+    const token = String(body.registration_token || "").trim();
+    if (!token) return json({ ok:false,error:"REGISTRATION_TOKEN_REQUIRED" },400);
+    const intent = await getIntent(token);
+
+    if (action === "verify_email") {
+      const code = String(body.code || "").replace(/\s+/g,"");
+      if (!/^\d{6}$/.test(code)) return json({ok:false,error:"INVALID_CODE"},400);
+      if (!intent.email_otp_expires_at || new Date(intent.email_otp_expires_at).getTime() < Date.now()) return json({ok:false,error:"CODE_EXPIRED"},400);
+      const supplied = await otpHash(intent.email, code);
+      if (supplied !== intent.email_otp_hash) return json({ok:false,error:"INVALID_CODE"},400);
+      const now = new Date().toISOString();
+      const { error } = await admin.schema("private").from("identity_signup_intents").update({ email_verified_at: now, email_otp_hash: null, email_otp_expires_at: null, updated_at: now }).eq("id", intent.id);
+      if (error) throw error;
+      return json({ok:true,next:"identity_verification"});
+    }
+
+    if (action === "resend_email") {
+      if (intent.email_verified_at) return json({ok:true,already_verified:true});
+      const code = randomOtp();
+      const now = new Date();
+      const codeHash = await otpHash(intent.email, code);
+      const { error } = await admin.schema("private").from("identity_signup_intents").update({ email_otp_hash: codeHash, email_otp_expires_at: new Date(now.getTime()+10*60*1000).toISOString(), updated_at: now.toISOString() }).eq("id", intent.id);
+      if (error) throw error;
+      await sendOtp(intent.email, code);
+      return json({ok:true});
+    }
+
+    if (action === "create_identity_session") {
+      if (!intent.email_verified_at) throw new Error("EMAIL_NOT_VERIFIED");
+      if (intent.identity_status === "approved") return json({ok:true,already_approved:true});
+      const session = await createDiditSession(intent);
+      return json({ok:true,...session});
+    }
+
+    if (action === "status") {
+      return json({ok:true,status:intent.identity_status,didit_status:intent.didit_status,email_verified:!!intent.email_verified_at,rejection_reason:intent.rejection_reason});
+    }
+
+    if (action === "finalize") {
+      const user = await finalizeAccount(intent, String(body.password || ""));
+      return json({ok:true,user_id:user.id,email:user.email});
+    }
+
+    return json({ok:false,error:"UNKNOWN_ACTION"},400);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "UNKNOWN_ERROR";
+    const status = /RESTRICTION|NOT_APPROVED|NOT_VERIFIED|EXPIRED|REQUIRED|NOT_CONFIGURED/.test(message) ? 400 : 500;
+    console.error("IDENTITY_SIGNUP_FAILURE", JSON.stringify({ error: message }));
+    return json({ok:false,error:message},status);
+  }
+});
