@@ -60,3 +60,6 @@ verify_jwt = false
 
 [auth.sessions]
 timebox = "2h"
+
+[functions.identity-engine-worker]
+verify_jwt = false
