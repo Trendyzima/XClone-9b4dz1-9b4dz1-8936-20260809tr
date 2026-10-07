@@ -78,7 +78,7 @@ Deno.serve(async req=>{
   await admin.from("identity_verification_events").insert({
     user_id:session.user_id||null,event_type:"TESTAGRAM_ENGINE_"+decision.toUpperCase(),outcome:decision,
     provider_event_id:"testagram-engine:"+sessionId+":"+signedAt,request_id:sessionId,
-    metadata:{engine:"testagram-native",model_version:modelVersion,ocr_confidence:ocr,liveness_score:live,face_match_score:face,tamper_score:tamper}
+    metadata:{engine:"testagram-native",session_id:sessionId,model_version:modelVersion,ocr_confidence:ocr,liveness_score:live,face_match_score:face,tamper_score:tamper}
   });
   if(decision==="approved"&&session.user_id){
     const {error}=await admin.from("identity_verifications").upsert({
