@@ -59,7 +59,7 @@ export const identitySignup = {
   async createIdentitySession() {
     const token = this.token();
     if (!token) throw new Error('REGISTRATION_TOKEN_REQUIRED');
-    return call<{ session_id: string; url: string }>({ action: 'create_identity_session', registration_token: token });
+    return call<{ session_id: string; url: string; already_approved?: boolean }>({ action: 'create_identity_session', registration_token: token });
   },
   async startExisting() {
     const { data } = await supabase.auth.getSession();
