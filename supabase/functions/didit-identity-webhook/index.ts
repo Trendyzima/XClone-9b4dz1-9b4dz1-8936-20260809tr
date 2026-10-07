@@ -10,34 +10,10 @@ const IDENTITY_SECRET = Deno.env.get("IDENTITY_PREAUTH_SECRET") ?? "";
 const admin = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession:false, autoRefreshToken:false } });
 const json=(body:unknown,status=200)=>new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json"}});
 
-function sortKeys(value:any):any {
-  if (Array.isArray(value)) return value.map(sortKeys);
-  if (value && typeof value==="object") return Object.keys(value).sort().reduce((out,key)=>{out[key]=sortKeys(value[key]);return out;},{} as Record<string,unknown>);
-  if (typeof value==="number" && !Number.isInteger(value) && value%1===0) return Math.trunc(value);
-  return value;
-}
-async function hmacHex(value:string,secret=WEBHOOK_SECRET){
-  const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
-  const sig=await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(value));
-  return Array.from(new Uint8Array(sig),b=>b.toString(16).padStart(2,"0")).join("");
-}
-function safeEqual(a:string,b:string){
-  if(a.length!==b.length)return false;
-  let diff=0; for(let i=0;i<a.length;i++) diff|=a.charCodeAt(i)^b.charCodeAt(i); return diff===0;
-}
 async function hmacHexWithSecret(value:string,secret:string){
   const key=await crypto.subtle.importKey("raw",new TextEncoder().encode(secret),{name:"HMAC",hash:"SHA-256"},false,["sign"]);
   const sig=await crypto.subtle.sign("HMAC",key,new TextEncoder().encode(value));
   return Array.from(new Uint8Array(sig),b=>b.toString(16).padStart(2,"0")).join("");
-}
-function safeEqual(a:string,b:string){
-  if(a.length!==b.length)return false;
-  let diff=0; for(let i=0;i<a.length;i++) diff|=a.charCodeAt(i)^b.charCodeAt(i); return diff===0;
-}
-function sortKeys(value:any):any {
-  if (Array.isArray(value)) return value.map(sortKeys);
-  if (value && typeof value==="object") return Object.keys(value).sort().reduce((out,key)=>{out[key]=sortKeys(value[key]);return out;},{} as Record<string,unknown>);
-  return value;
 }
 async function verifySignature(raw:string,payload:any,timestampHeader:string,signatureV2:string,signatureLegacy:string,signatureSimple:string){
   if(!WEBHOOK_SECRET) return false;
