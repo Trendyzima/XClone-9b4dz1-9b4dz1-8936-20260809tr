@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Shield, Crown, Search, UserPlus, Ban, CheckCircle2, RotateCcw, History, Loader2, Briefcase, ArrowRight } from 'lucide-react';
+import { Shield, Crown, Search, UserPlus, Ban, CheckCircle2, RotateCcw, History, Loader2, Briefcase, ArrowRight, KeyRound, MailCheck } from 'lucide-react';
 import { toast } from 'sonner';
 import { TopBar } from '@/components/layout/TopBar';
-import { useGovernance, listAdministrators, searchGovernanceUsers, listGovernanceAudit, inviteStaff, terminateStaff, updateAdministrator, listJobApplications, reviewJobApplication, GOVERNANCE_ROLES } from '@/lib/governance';
+import { useGovernance, listAdministrators, searchGovernanceUsers, listGovernanceAudit, inviteStaff, terminateStaff, updateAdministrator, listJobApplications, reviewJobApplication, GOVERNANCE_ROLES, verifyAdminDashboardPin, setAdminDashboardPin, changeAdminDashboardPin } from '@/lib/governance';
 
 export default function AdminGovernancePage() {
   const { governance, loading: governanceLoading } = useGovernance();
@@ -16,6 +16,14 @@ export default function AdminGovernancePage() {
   const [role, setRole] = useState('moderator');
   const [busy, setBusy] = useState<string | null>(null);
   const [loadingData, setLoadingData] = useState(false);
+  const [pinUnlocked, setPinUnlocked] = useState(false);
+  const [pin, setPin] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [newPinConfirm, setNewPinConfirm] = useState('');
+  const [currentPin, setCurrentPin] = useState('');
+  const [pinBusy, setPinBusy] = useState(false);
+  const [pinConfigured, setPinConfigured] = useState<boolean | null>(null);
+
 
   const load = async () => {
     setLoadingData(true);
@@ -24,6 +32,31 @@ export default function AdminGovernancePage() {
     finally { setLoadingData(false); }
   };
   useEffect(() => { if (governance.is_owner || governance.is_admin) void load(); }, [governance.is_owner, governance.is_admin]);
+  const verifyPin = async () => {
+    setPinBusy(true);
+    try {
+      const result = await verifyAdminDashboardPin(pin);
+      if (result.success) { setPinUnlocked(true); setPin(''); toast.success('Administrator dashboard unlocked'); }
+      else if (result.code === 'PIN_NOT_SET') { setPinConfigured(false); toast.error('Set your administrator PIN below before continuing.'); }
+      else toast.error(result.code === 'PIN_LOCKED' ? 'Administrator PIN temporarily locked' : 'Incorrect administrator PIN');
+    } catch (error: any) { toast.error(error?.message ?? 'Could not verify administrator PIN'); }
+    finally { setPinBusy(false); }
+  };
+  const initializePin = async () => {
+    if (newPin.length < 4 || newPin !== newPinConfirm) return toast.error('Enter matching 4–6 digit PINs');
+    setPinBusy(true);
+    try { await setAdminDashboardPin(newPin); setPinConfigured(true); setPinUnlocked(true); setNewPin(''); setNewPinConfirm(''); toast.success('Administrator PIN set. Security notification sent.'); }
+    catch (error: any) { toast.error(error?.message ?? 'Could not set PIN'); }
+    finally { setPinBusy(false); }
+  };
+  const updatePin = async () => {
+    if (newPin.length < 4 || newPin !== newPinConfirm) return toast.error('Enter matching 4–6 digit PINs');
+    setPinBusy(true);
+    try { await changeAdminDashboardPin(currentPin, newPin); setCurrentPin(''); setNewPin(''); setNewPinConfirm(''); toast.success('Administrator PIN changed. Security notification sent.'); }
+    catch (error: any) { toast.error(error?.message ?? 'Could not change PIN'); }
+    finally { setPinBusy(false); }
+  };
+
 
   const search = async (value: string) => {
     setQuery(value);
@@ -46,11 +79,17 @@ export default function AdminGovernancePage() {
   if (governanceLoading) return <div className="min-h-screen flex items-center justify-center"><Loader2 className="w-7 h-7 animate-spin text-primary" /></div>;
   if (!governance.is_admin && !governance.is_owner) return <div className="min-h-screen p-6"><TopBar title="Admin & Governance" showBack /><div className="max-w-xl mx-auto mt-12 rounded-2xl border border-border bg-card p-6 text-center"><Shield className="w-8 h-8 mx-auto text-muted-foreground" /><h1 className="font-bold text-lg mt-3">Governance is locked</h1><p className="text-sm text-muted-foreground mt-2">The Testagram system owner must appoint this account before administrative access is activated.</p></div></div>;
 
+  if (!governance.is_owner && governance.is_admin && !pinUnlocked) return <div className="min-h-screen bg-background"><TopBar title="Admin & Governance" showBack /><div className="max-w-md mx-auto p-5 mt-8 rounded-2xl border border-border bg-card"><div className="text-center"><KeyRound className="w-9 h-9 mx-auto text-primary"/><h1 className="font-black text-xl mt-3">Administrator dashboard locked</h1><p className="text-sm text-muted-foreground mt-2">This dashboard contains privileged administration services. A personal administrator PIN is required every time the dashboard is opened.</p></div>
+    <form className="mt-5 space-y-3" onSubmit={e=>{e.preventDefault();void verifyPin()}}><input aria-label="Administrator dashboard PIN" type="password" inputMode="numeric" maxLength={6} value={pin} onChange={e=>setPin(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="Administrator PIN" className="w-full h-12 rounded-xl border border-border bg-background px-4 text-center text-xl tracking-[0.5em]" disabled={pinBusy}/><button type="submit" disabled={pinBusy||pin.length<4} className="w-full h-11 rounded-xl bg-primary text-primary-foreground font-bold disabled:opacity-50">{pinBusy?'Checking…':'Unlock administration'}</button></form>
+    <div className="mt-5 pt-5 border-t border-border"><p className="text-xs font-bold">First-time PIN setup</p><p className="text-[11px] text-muted-foreground mt-1">Your PIN belongs only to your appointed administrator account. Set it before accessing administration services.</p><div className="grid grid-cols-2 gap-2 mt-3"><input aria-label="New administrator PIN" type="password" inputMode="numeric" maxLength={6} value={newPin} onChange={e=>setNewPin(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="New PIN" className="h-10 rounded-xl border border-border bg-background px-3"/><input aria-label="Confirm administrator PIN" type="password" inputMode="numeric" maxLength={6} value={newPinConfirm} onChange={e=>setNewPinConfirm(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="Confirm" className="h-10 rounded-xl border border-border bg-background px-3"/></div><button type="button" onClick={()=>void initializePin()} disabled={pinBusy||newPin.length<4||newPin!==newPinConfirm} className="w-full h-10 mt-2 rounded-xl border border-primary/30 text-primary font-bold disabled:opacity-50">Set administrator PIN</button></div>
+    <p className="text-[11px] text-muted-foreground text-center mt-4 flex items-center justify-center gap-1"><MailCheck className="w-3 h-3"/> Privileged PIN activity is audited and emailed to the system security mailbox.</p></div></div>
+
   return <div className="min-h-screen bg-background pb-20">
     <TopBar title="Admin & Governance" showBack />
     <div className="max-w-3xl mx-auto p-4 space-y-5">
       <div className="rounded-2xl border border-primary/20 bg-primary/5 p-5"><div className="flex items-center gap-3"><div className="w-12 h-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center">{governance.is_owner ? <Crown /> : <Shield />}</div><div><h1 className="font-black text-xl">{governance.is_owner ? 'Testagram System Owner' : 'Administrator Workspace'}</h1><p className="text-sm text-muted-foreground">{governance.is_owner ? 'Full governance authority' : (governance.role ?? 'Administrator') + ' · ' + (governance.status ?? 'active')}</p></div></div></div>
       {governance.is_owner && <section className="rounded-2xl border border-border bg-card p-5 space-y-4"><div><h2 className="font-bold flex items-center gap-2"><UserPlus className="w-4 h-4" /> Invite staff member</h2><p className="text-xs text-muted-foreground mt-1">Search a Testagram profile, choose a least-privilege role, then issue a staff invitation. Issuing the invitation activates role features immediately.</p></div><div className="flex gap-2"><div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" /><input value={query} onChange={e => void search(e.target.value)} placeholder="Search username or display name" className="w-full h-10 rounded-xl border border-border bg-background pl-9 pr-3 text-sm" /></div><select value={role} onChange={e => setRole(e.target.value)} className="h-10 rounded-xl border border-border bg-background px-3 text-sm">{GOVERNANCE_ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}</select><div className="rounded-xl border border-border bg-background p-3 min-w-0"><p className="text-xs font-bold">Role permissions</p><p className="text-xs text-muted-foreground mt-1">The selected governance role supplies its authorized permission set. Privileges are enforced server-side.</p></div></div>{results.length > 0 && <div className="divide-y divide-border rounded-xl border border-border overflow-hidden">{results.map(user => <button key={user.user_id} onClick={() => void appoint(user.user_id, user.username)} disabled={!!busy} className="w-full flex items-center gap-3 p-3 bg-background hover:bg-muted text-left">{user.avatar_url ? <img src={user.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover" /> : <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center font-bold">{user.username[0]?.toUpperCase()}</div>}<span className="flex-1"><b className="text-sm">@{user.username}</b><span className="block text-xs text-muted-foreground">{user.display_name ?? ''}</span></span>{busy === user.user_id ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4 text-primary" />}</button>)}</div>}</section>}
+      {governance.is_admin && !governance.is_owner && <section className="rounded-2xl border border-border bg-card p-4"><div className="flex items-center gap-2"><KeyRound className="w-4 h-4 text-primary"/><h2 className="font-bold">Administrator PIN security</h2></div><p className="text-xs text-muted-foreground mt-1">Change your personal dashboard PIN. The current PIN is required for changes.</p><div className="grid md:grid-cols-3 gap-2 mt-3"><input aria-label="Current administrator PIN" type="password" inputMode="numeric" maxLength={6} value={currentPin} onChange={e=>setCurrentPin(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="Current PIN" className="h-10 rounded-xl border border-border bg-background px-3"/><input aria-label="New administrator PIN" type="password" inputMode="numeric" maxLength={6} value={newPin} onChange={e=>setNewPin(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="New PIN" className="h-10 rounded-xl border border-border bg-background px-3"/><input aria-label="Confirm new administrator PIN" type="password" inputMode="numeric" maxLength={6} value={newPinConfirm} onChange={e=>setNewPinConfirm(e.target.value.replace(/\D/g,'').slice(0,6))} placeholder="Confirm new PIN" className="h-10 rounded-xl border border-border bg-background px-3"/></div><button type="button" onClick={()=>void updatePin()} disabled={pinBusy||currentPin.length<4||newPin.length<4||newPin!==newPinConfirm} className="mt-3 h-10 px-4 rounded-xl bg-primary text-primary-foreground font-bold disabled:opacity-50">{pinBusy?'Working…':'Change administrator PIN'}</button></section>}
       <section className="rounded-2xl border border-border bg-card overflow-hidden"><div className="p-4 border-b border-border flex items-center justify-between"><h2 className="font-bold">Administrators</h2>{loadingData && <Loader2 className="w-4 h-4 animate-spin" />}</div>{admins.length === 0 ? <p className="p-6 text-sm text-muted-foreground">No administrator appointments yet.</p> : <div className="divide-y divide-border">{admins.map(a => <div key={a.user_id} className="p-4 flex items-center gap-3"><div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center font-bold">{a.username[0]?.toUpperCase()}</div><div className="flex-1 min-w-0"><p className="font-bold text-sm">@{a.username}</p><p className="text-xs text-muted-foreground">{a.role_name} · {a.status}</p></div>{governance.is_owner && <div className="flex gap-2">{a.status === 'active' ? <button onClick={() => void change(a.user_id, a.role_name, 'suspended')} disabled={!!busy} className="p-2 rounded-lg border border-border hover:bg-muted" title="Suspend"><Ban className="w-4 h-4" /></button> : <button onClick={() => void change(a.user_id, a.role_name, 'active')} disabled={!!busy} className="p-2 rounded-lg border border-border hover:bg-muted" title="Activate"><CheckCircle2 className="w-4 h-4" /></button>}{a.status !== 'revoked' && <button onClick={() => void change(a.user_id, a.role_name, 'revoked')} disabled={!!busy} className="p-2 rounded-lg border border-destructive/30 text-destructive hover:bg-destructive/5" title="Revoke"><RotateCcw className="w-4 h-4" /></button>}</div>}</div>)}</div>}</section>
       {governance.is_owner && <section className="rounded-2xl border border-border bg-card p-4 flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-primary/10 text-primary flex items-center justify-center"><Briefcase className="w-5 h-5"/></div><div className="flex-1 min-w-0"><p className="font-bold text-sm">Staff recruitment</p><p className="text-xs text-muted-foreground mt-1">{applications.length} application{applications.length === 1 ? '' : 's'} awaiting owner review and controlled invitation.</p></div><button onClick={() => navigate('/admin/staff-recruitment')} className="inline-flex items-center gap-1.5 rounded-xl border border-border px-3 py-2 text-xs font-bold hover:bg-muted">Open <ArrowRight className="w-3.5 h-3.5"/></button></section>}
       <section className="rounded-2xl border border-border bg-card overflow-hidden"><div className="p-4 border-b border-border flex items-center gap-2"><History className="w-4 h-4" /><h2 className="font-bold">Governance Audit</h2></div><div className="divide-y divide-border">{audit.length === 0 ? <p className="p-6 text-sm text-muted-foreground">No governance events yet.</p> : audit.map(event => <div key={event.id} className="p-4"><p className="text-sm font-semibold">{event.action}</p><p className="text-xs text-muted-foreground mt-1">{event.actor_username ? '@' + event.actor_username : 'System'} → {event.target_username ? '@' + event.target_username : '—'} · {new Date(event.created_at).toLocaleString()}</p><p className="text-xs text-muted-foreground mt-1">{event.reason ?? ''}</p></div>)}</div></section>
