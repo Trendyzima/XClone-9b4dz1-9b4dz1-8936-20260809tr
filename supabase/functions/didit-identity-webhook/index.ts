@@ -27,8 +27,11 @@ function safeEqual(a:string,b:string){
 }
 async function verifySignature(body:any,timestamp:string){
   if(!WEBHOOK_SECRET) return false;
-  const ts=Number(timestamp);
-  if(!Number.isFinite(ts)||Math.abs(Math.floor(Date.now()/1000)-ts)>300)return false;
+  const bodyTs=Number(body?.timestamp);
+  const headerTs=String(timestamp);
+  if(!Number.isFinite(bodyTs)||!Number.isFinite(Number(timestamp)))return false;
+  if(String(Math.trunc(bodyTs))!==headerTs)return false;
+  if(Math.abs(Math.floor(Date.now()/1000)-Math.trunc(bodyTs))>300)return false;
   const signatureV2=body.__signature_v2 as string|undefined;
   if(!signatureV2)return false;
   const clean={...body}; delete clean.__signature_v2;
@@ -59,8 +62,8 @@ function normalizeId(value: unknown) {
 }
 function normalizeDob(value: unknown){
   const raw=String(value ?? "").trim();
-  if(/^\\d{4}-\\d{2}-\\d{2}$/.test(raw)) return raw;
-  const m=raw.match(/^(\\d{2})[\\/.-](\\d{2})[\\/.-](\\d{4})$/);
+  if(/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const m=raw.match(/^(\d{2})[\/.-](\d{2})[\/.-](\d{4})$/);
   return m ? `${m[3]}-${m[2]}-${m[1]}` : "";
 }
 function isKenyanNationalIdType(value: unknown){
@@ -113,6 +116,7 @@ Deno.serve(async(req)=>{
     if(intentError)throw intentError;
     if(!intent)return json({ok:true,ignored:true});
 
+    if(intent.identity_status==="approved") return json({ok:true,already_approved:true});
     const decision=payload.decision??{};
     const warnings=findWarnings(decision);
     const terminal=["Approved","Declined","Expired","Abandoned","Kyc Expired"].includes(status);
@@ -185,16 +189,17 @@ Deno.serve(async(req)=>{
       }
     }
 
-    await admin.from("identity_verification_events").insert({
-      provider_event_id:eventId,event_type:"DIDIT_"+status.toUpperCase().replace(/\\s+/g,"_"),
+    const {error:eventInsertError}=await admin.from("identity_verification_events").insert({
+      provider_event_id:eventId,event_type:"DIDIT_"+status.toUpperCase().replace(/\s+/g,"_"),
       outcome:identityStatus,request_id:eventId,user_id:intent.completed_user_id ?? null,actor_id:null,
       metadata:{session_id:sessionId,registration_intent_id:intent.id,status,warnings:warnings.slice(0,20),webhook_type:payload.webhook_type||null,rejection_reason:rejectionReason,id_last4:last4}
     });
+    if(eventInsertError){
+      if(eventInsertError.code==="23505") return json({ok:true,duplicate:true});
+      throw eventInsertError;
+    }
 
-    // New-account sessions must survive the approval webhook until the account is
-    // actually created. Existing-account re-verifications can be deleted now.
-    if(terminal && !(status==="Approved" && identityStatus==="approved")) await deleteDiditSession(sessionId);
-    if(status==="Approved" && identityStatus==="approved" && intent.completed_user_id) await deleteDiditSession(sessionId);
+    if(terminal) await deleteDiditSession(sessionId);
 
     return json({ok:true});
   }catch(error){
