@@ -65,6 +65,51 @@ export async function sendActivityNotification({
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const { login, logout, setLoading, setAuthError, clearAuthError } = useAuthStore();
 
+
+  const SESSION_MAX_MS = 2 * 60 * 60 * 1000;
+  const SESSION_START_PREFIX = 'testagram-session-start:';
+  let sessionExpiryTimer: number | undefined;
+
+  const clearSessionExpiryTimer = () => {
+    if (sessionExpiryTimer !== undefined) {
+      window.clearTimeout(sessionExpiryTimer);
+      sessionExpiryTimer = undefined;
+    }
+  };
+
+  const forceSessionExpiry = async () => {
+    clearSessionExpiryTimer();
+    try { await supabase.auth.signOut(); } catch { /* best effort */ }
+    logout();
+    setAuthError('SESSION_EXPIRED');
+    window.location.replace('/auth?reason=session_expired');
+  };
+
+  const scheduleSessionExpiry = (session: { user: User; access_token: string }) => {
+    clearSessionExpiryTimer();
+    let sessionId = session.user.id;
+    try {
+      const encoded = session.access_token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+      const payload = JSON.parse(atob(encoded));
+      if (typeof payload?.session_id === 'string') sessionId = payload.session_id;
+    } catch {}
+
+    let startedAt = 0;
+    try { startedAt = Number(window.localStorage.getItem(SESSION_START_PREFIX + sessionId) || '0'); } catch {}
+
+    if (!startedAt) {
+      startedAt = Date.now();
+      try { window.localStorage.setItem(SESSION_START_PREFIX + sessionId, String(startedAt)); } catch {}
+    }
+
+    const remaining = startedAt + SESSION_MAX_MS - Date.now();
+    if (remaining <= 0) {
+      void forceSessionExpiry();
+      return;
+    }
+    sessionExpiryTimer = window.setTimeout(() => void forceSessionExpiry(), remaining);
+  };
+
   useEffect(() => {
     let mounted = true;
 
@@ -142,6 +187,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
+        clearSessionExpiryTimer();
         trackTestagramEvent(TestagramEvent.LOGGED_OUT, { auth_event: event });
         logout();
         setLoading(false);
@@ -163,7 +209,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'USER_UPDATED' || event === 'TOKEN_REFRESHED') {
+        scheduleSessionExpiry(session);
         if (event === 'SIGNED_IN') {
           trackTestagramEvent(TestagramEvent.LOGGED_IN, { auth_event: event });
         }
@@ -176,6 +223,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false;
+      clearSessionExpiryTimer();
       subscription.unsubscribe();
     };
   }, [login, logout, setLoading, setAuthError, clearAuthError]);
