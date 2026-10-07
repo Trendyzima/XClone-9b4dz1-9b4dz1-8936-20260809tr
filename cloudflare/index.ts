@@ -513,7 +513,8 @@ export default {
             });
           }
         }
-        const response = await handleApi(request, env);\n        return applyPublicApiCache(response, request, url);
+        const response = await handleApi(request, env);
+        return applyPublicApiCache(response, request, url);
       }
 
       const rewrite = supabaseRewrite(url.pathname);
