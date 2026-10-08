@@ -46,13 +46,26 @@ const db = SUPABASE_URL && SERVICE_ROLE_KEY ? createClient(SUPABASE_URL, SERVICE
 function response(body: string, status: number, headers: Record<string, string> = {}) {
   return new Response(body, { status, headers: { "Cache-Control": "no-store", ...headers } });
 }
+
+function redirectLocation(key: string) {
+  return R2_PUBLIC_BASE_URL + "/" + key;
+}
 function validKey(key: string) {
   return key.length > 0 && key.length <= 512 && (key.startsWith("users/") || key.startsWith("profiles/"));
 }
 
 Deno.serve(async (req) => {
   if (req.method !== "GET" && req.method !== "HEAD") return response("Method not allowed", 405, { Allow: "GET, HEAD" });
-  const key = new URL(req.url).searchParams.get("key")?.trim() ?? "";
+  const requestUrl = new URL(req.url);
+  // Accept both the current query contract and the legacy path contract.
+  // Older media rows were written as /media-delivery/users/... while this
+  // function originally only parsed ?key=..., producing deterministic 400s.
+  const queryKey = requestUrl.searchParams.get("key")?.trim() ?? "";
+  const functionPrefix = "/functions/v1/media-delivery/";
+  const pathKey = requestUrl.pathname.startsWith(functionPrefix)
+    ? decodeURIComponent(requestUrl.pathname.slice(functionPrefix.length)).trim()
+    : "";
+  const key = queryKey || pathKey;
   if (!validKey(key)) return response("Invalid media key", 400);
   if (!R2_PUBLIC_BASE_URL || !db) return response("Media delivery is not configured", 503);
 

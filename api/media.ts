@@ -64,7 +64,7 @@ function config(): MediaConfig {
     publicBaseUrl: (() => {
       const cdn = env('TESTAGRAM_CDN_BASE_URL').replace(/\/$/, '');
       const r2Public = env('R2_PUBLIC_BASE_URL').replace(/\/$/, '');
-      return cdn && cdn !== r2Public ? cdn : MEDIA_DELIVERY_BASE_URL;
+      return cdn && cdn !== r2Public ? cdn.replace(/\/$/, '') + '/v1' : MEDIA_DELIVERY_BASE_URL;
     })(),
     mediaDeliveryBaseUrl: MEDIA_DELIVERY_BASE_URL,
   };
