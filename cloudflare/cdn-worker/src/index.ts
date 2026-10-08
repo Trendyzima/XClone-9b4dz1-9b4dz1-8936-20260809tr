@@ -27,10 +27,11 @@ async function recordProbe(env: Env, summary: Record<string, unknown>): Promise<
 }
 
 function keyFromPath(pathname: string): string | null {
-  const prefix = pathname.startsWith('/media/') ? '/media/' : '/';
+  const normalizedPath = pathname.startsWith('/v1/') ? pathname.slice(3) : pathname;
+  const prefix = normalizedPath.startsWith('/media/') ? '/media/' : '/';
   if (prefix === '/' && !/^\/(users|profiles|uploads|avatars|covers|photos|videos)\//.test(pathname)) return null;
   let key = '';
-  try { key = decodeURIComponent(pathname.slice(prefix.length)); } catch { return null; }
+  try { key = decodeURIComponent(normalizedPath.slice(prefix.length)); } catch { return null; }
   if (!key || key.length > 512 || key.includes('..') || key.startsWith('/')) return null;
   if (!/^(users|profiles|uploads|avatars|covers|photos|videos)\//.test(key)) return null;
   return key;
@@ -104,6 +105,7 @@ export default {
     headers.set('x-testagram-cdn', 'cloudflare');
     headers.set('x-testagram-cdn-version', '2026-10-08-media-alias-v1');
     headers.set('x-testagram-cache-plane', cachedRoute ? 'upstash-hit' : 'upstash-miss');
+    headers.set('x-cache', cachedRoute ? 'HIT' : 'MISS');
     return new Response(request.method === 'HEAD' ? null : object.body, { status: 200, headers });
   },
   async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
