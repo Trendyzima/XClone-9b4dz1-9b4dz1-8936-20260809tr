@@ -17,6 +17,7 @@ jobs:
       - name: Checkout XClone
         uses: actions/checkout@v4
         with:
+          submodules: recursive
           persist-credentials: false
 
       - name: Checkout first-party Go CDN
