@@ -32,6 +32,28 @@ jobs:
           test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo "::error::Missing CLOUDFLARE_API_TOKEN"; exit 1; }
           printf "::add-mask::%s\n" "$CLOUDFLARE_API_TOKEN"
 
+      - name: Remove conflicting DNS records for CDN custom domains
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          API="https://api.cloudflare.com/client/v4"
+          ACCOUNT_ID="77dbe7a859196105dc84fbb6b7094019"
+          ZONE_ID="$(curl -fsS "$API/zones?name=testagram.site&account.id=$ACCOUNT_ID&status=active" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq -r '.result[0].id // empty')"
+          test -n "$ZONE_ID" || { echo "::error::Unable to resolve testagram.site zone."; exit 1; }
+          for host in media.testagram.site cdn.testagram.site; do
+            records="$(curl -fsS "$API/zones/$ZONE_ID/dns_records?name=$host" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
+            mapfile -t record_ids < <(jq -r '.result[]? | .id' <<<"$records")
+            for record_id in "${record_ids[@]}"; do
+              [[ -n "$record_id" ]] || continue
+              echo "Removing DNS record $record_id for $host so Cloudflare Worker custom domain can own the hostname."
+              response="$(curl -fsS -X DELETE "$API/zones/$ZONE_ID/dns_records/$record_id" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
+              jq -e '.success == true' <<<"$response" >/dev/null || { echo "::error::Failed deleting DNS record $record_id for $host."; cat <<<"$response"; exit 1; }
+            done
+          done
+          echo "Conflicting DNS records removed."
+
       - name: Deploy CDN Worker
         uses: cloudflare/wrangler-action@v4.0.0
         with:
