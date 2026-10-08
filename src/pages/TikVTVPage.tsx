@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 /**
  * Production shell for the immutable TikVTV upstream build.
  * The upstream repository is mounted as a git submodule and is never edited.
+ * Keep this shell Xclone-owned; never patch vendor/TikVTV.
  */
 export default function TikVTVPage() {
   const [ready, setReady] = useState(false);
