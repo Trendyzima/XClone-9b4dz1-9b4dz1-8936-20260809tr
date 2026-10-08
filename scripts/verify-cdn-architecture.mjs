@@ -12,7 +12,6 @@ const allowed = new Set([
   'cloudflare/cdn-worker/src/index.ts',
 ]);
 const forbidden = [
-  { re: /https?:\/\/[^\s"'`]*r2\.cloudflarestorage\.com/i, name: 'public R2 URL' },
   { re: /https?:\/\/[^\s"'`]*\.r2\.dev/i, name: 'public R2 URL' },
   { re: /https?:\/\/res\.cloudinary\.com/i, name: 'public Cloudinary URL' },
   { re: /https?:\/\/[^\s"'`]*cloudinary\.com/i, name: 'public Cloudinary URL' },
