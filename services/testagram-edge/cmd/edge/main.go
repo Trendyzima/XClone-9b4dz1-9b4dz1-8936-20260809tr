@@ -9,8 +9,8 @@ import (
     "syscall"
     "time"
 
-    "github.com/Trendyzima/cdn-/internal/config"
-    "github.com/Trendyzima/cdn-/internal/edge"
+    "github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/services/testagram-edge/internal/config"
+    "github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/services/testagram-edge/internal/edge"
 )
 
 func main() {
