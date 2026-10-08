@@ -56,18 +56,19 @@ runSelfHeal();
 function patchTikVTVForTestagramAuth(vendorRoot) {
   const supabasePath = path.join(vendorRoot, 'src', 'lib', 'supabase.ts');
   const profilePath = path.join(vendorRoot, 'src', 'pages', 'Profile.tsx');
+  const xcloneSupabasePath = path.join(root, 'src', 'lib', 'supabase.ts');
+
+  const xcloneSupabase = fs.readFileSync(xcloneSupabasePath, 'utf8');
+  const urlMatch = xcloneSupabase.match(/PRIMARY_SUPABASE_URL\\s*=\\s*['"]([^'"]+)['"]/);
+  const keyMatch = xcloneSupabase.match(/PRIMARY_SUPABASE_PUBLISHABLE_KEY\\s*=\\s*['"]([^'"]+)['"]/);
+  if (!urlMatch || !keyMatch) {
+    throw new Error('[TikVTV/Testagram Auth] Could not derive Xclone primary Supabase configuration');
+  }
 
   const supabaseSource = `import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabasePublishableKey = (
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-  import.meta.env.VITE_SUPABASE_ANON_KEY
-) as string;
-
-if (!supabaseUrl || !supabasePublishableKey) {
-  throw new Error('[TikVTV/Testagram Auth] Xclone Supabase configuration is missing');
-}
+const supabaseUrl = ${JSON.stringify(urlMatch[1])};
+const supabasePublishableKey = ${JSON.stringify(keyMatch[1])};
 
 export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   auth: {
@@ -122,35 +123,30 @@ function runTikVTVBuild() {
 
   try {
     const npmBin = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    const buildEnv = { ...process.env };
-
     const install = spawnSync(npmBin, ['ci', '--no-audit', '--no-fund'], {
       cwd: vendorRoot,
       stdio: 'inherit',
       shell: false,
-      env: buildEnv,
+      env: { ...process.env },
     });
     if (install.error || install.status !== 0) {
-      process.stderr.write('[_build] ❌ TikVTV dependency installation failed.\\n');
-      process.exit(install.status || 1);
+      throw new Error('TikVTV dependency installation failed');
     }
 
     const tikBuild = spawnSync(npmBin, ['run', 'build', '--', '--base=/iptv-app/'], {
       cwd: vendorRoot,
       stdio: 'inherit',
       shell: false,
-      env: buildEnv,
+      env: { ...process.env },
     });
     if (tikBuild.error || tikBuild.status !== 0) {
-      process.stderr.write('[_build] ❌ TikVTV production build failed.\\n');
-      process.exit(tikBuild.status || 1);
+      throw new Error('TikVTV production build failed');
     }
 
     const sourceDist = path.join(vendorRoot, 'dist');
     const snapshot = path.resolve(root, '.xclone-tikvtv-dist');
     if (!fs.existsSync(path.join(sourceDist, 'index.html'))) {
-      process.stderr.write('[_build] ❌ TikVTV build did not produce dist/index.html.\\n');
-      process.exit(1);
+      throw new Error('TikVTV build did not produce dist/index.html');
     }
     fs.rmSync(snapshot, { recursive: true, force: true });
     fs.cpSync(sourceDist, snapshot, { recursive: true });
