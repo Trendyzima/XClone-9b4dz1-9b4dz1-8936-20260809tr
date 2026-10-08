@@ -11,7 +11,7 @@ const R2_ACCOUNT_ID = Deno.env.get("R2_ACCOUNT_ID") ?? "";
 const R2_ACCESS_KEY_ID = Deno.env.get("R2_ACCESS_KEY_ID") ?? "";
 const R2_SECRET_ACCESS_KEY = Deno.env.get("R2_SECRET_ACCESS_KEY") ?? "";
 const R2_BUCKET = Deno.env.get("R2_MEDIA_BUCKET") ?? "";
-const R2_PUBLIC_BASE_URL = (Deno.env.get("TESTAGRAM_CDN_BASE_URL") ?? "https://media.testagram.site/v1").replace(/\/$/, "").replace(/\/v1$/i, "") || "https://media.testagram.site";
+const R2_PUBLIC_BASE_URL = (Deno.env.get("TESTAGRAM_CDN_BASE_URL") ?? "https://media.testagram.site").replace(/\/$/, "").replace(/\/v1$/i, "") || "https://media.testagram.site";
 
 const MAX_BYTES = 20 * 1024 * 1024;
 const BLOCKED = new Set([
@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
       const uploadUrl = await getSignedUrl(r2, new PutObjectCommand({
         Bucket: R2_BUCKET, Key: storageKey, ContentType: mime, ContentLength: size,
       }), { expiresIn: 900 });
-      const mediaUrl = R2_PUBLIC_BASE_URL ? `${R2_PUBLIC_BASE_URL}/${storageKey}` : null;
+      const mediaUrl = R2_PUBLIC_BASE_URL ? `${R2_PUBLIC_BASE_URL}/v1/${storageKey}` : null;
       const { data, error } = await admin.from("media_assets").insert({
         owner_id: user.id, post_id: postId, storage_key: storageKey, bucket: R2_BUCKET,
         original_name: name, mime_type: mime, media_type: mediaType, byte_size: size,
