@@ -25,6 +25,7 @@ type Config struct {
     CacheTTL time.Duration
     MaxCacheBytes int64
     HotCacheBytes int64
+    MemoryLimitBytes int64
     SegmentTTL time.Duration
     TVPrefetchSeconds time.Duration
     TVPrefetchConcurrency int
@@ -67,6 +68,7 @@ func Load() Config {
         CacheTTL: duration("CACHE_TTL",30*time.Second),
         MaxCacheBytes: integer("MAX_CACHE_BYTES",8<<30),
         HotCacheBytes: integer("HOT_CACHE_BYTES",512<<20),
+        MemoryLimitBytes: integer("MEMORY_LIMIT_BYTES",768<<20),
         SegmentTTL: duration("SEGMENT_TTL",30*time.Second),
         TVPrefetchSeconds: duration("TV_PREFETCH_SECONDS",45*time.Second),
         TVPrefetchConcurrency: int(integer("TV_PREFETCH_CONCURRENCY",4)),
