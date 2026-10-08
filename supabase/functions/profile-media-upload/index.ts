@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
       Metadata: { ownerId: user.id, profileMedia: kind },
     }));
 
-    const deliveryUrl = DELIVERY_BASE + "/" + key.split("/").map(encodeURIComponent).join("/");
+    const deliveryUrl = DELIVERY_BASE + "/v1/" + key.split("/").map(encodeURIComponent).join("/");
     return json({
       ok: true,
       kind,
