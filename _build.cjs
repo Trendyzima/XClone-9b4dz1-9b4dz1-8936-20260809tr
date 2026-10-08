@@ -1,6 +1,6 @@
 'use strict';
 
-// CI forensic validation marker: validates the repaired build wrapper without changing runtime behavior.
+// CI forensic validation marker: repaired IPTV wrapper is CI-validated without changing runtime behavior.
 
 /**
  * _build.cjs v5 — portable, self-healing Vite build wrapper.
