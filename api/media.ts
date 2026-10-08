@@ -239,9 +239,6 @@ export default async function handler(req: any, res: any) {
         .select('id,storage_key,post_id,byte_size,mime_type,media_type,status,media_url,etag')
         .single();
       if (error) return json(res, 500, { error: 'Unable to finalize media record' });
-      const readUrl = await getSignedUrl(r2, new GetObjectCommand({
-        Bucket: media.bucket ?? cfg.r2Bucket, Key: media.storage_key,
-      }), { expiresIn: 24 * 60 * 60 + 15 * 60 });
       const playbackUrl = canonicalMediaUrl(cfg.publicBaseUrl, media.storage_key);
       if (updated.media_url !== playbackUrl) {
         await admin.from('media_assets').update({ media_url: playbackUrl }).eq('id', media.id).eq('owner_id', user.id);
