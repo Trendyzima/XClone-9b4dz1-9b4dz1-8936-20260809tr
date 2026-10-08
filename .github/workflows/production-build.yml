@@ -38,3 +38,11 @@ jobs:
           VITE_TESTAGRAM_CDN_ENABLED: "true"
           VITE_TESTAGRAM_CDN_URL: "https://media.testagram.site"
         run: npm run build
+
+      - name: Test embedded Testagram CDN
+        working-directory: services/testagram-edge
+        run: |
+          go version
+          go test ./...
+          go vet ./...
+          CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" ./cmd/edge
