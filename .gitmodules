@@ -1,0 +1,3 @@
+[submodule "vendor/TikVTV"]
+	path = vendor/TikVTV
+	url = https://github.com/criss-lab/TikVTV-9bu50p.git
