@@ -28,7 +28,7 @@ import { InlineTvSuggestion } from './InlineTvSuggestion';
 import { FediverseRichText } from './FediverseRichText';
 import { InlineRssSuggestion } from './InlineRssSuggestion';
 import { QuotedPostPreview } from './QuotedPostPreview';
-import { mediaCandidates } from '@/lib/mediaUrl';
+import { mediaCandidates, nextMediaCandidate } from '@/lib/mediaUrl';
 import { updateInterestSignal } from '@/services/recommendations';
 import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts, getFederatedReplies, getInteractionCounts, recordPostView, recordPostShare } from '@/services/postInteractionService';
 import { backendCapabilities } from '@/services/backendClient';
@@ -401,9 +401,10 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const resolvedImageUrls = mediaUrls.length
     ? mediaUrls.filter((url: string) => !/\.(mp4|webm|mov|m4v|ogv)(?:[?#].*)?$/i.test(url))
     : ((post as any).image_url ? [String((post as any).image_url)] : []);
-  const resolvedVideoUrl = (post as any).video_url
+  const rawVideoUrl = (post as any).video_url
     ? String((post as any).video_url)
     : mediaUrls.find((url: string) => /\.(mp4|webm|mov|m4v|ogv)(?:[?#].*)?$/i.test(url));
+  const resolvedVideoUrl = rawVideoUrl ? (mediaCandidates(rawVideoUrl)[0] || rawVideoUrl) : '';
   const hasVideo = Boolean((post as any).is_video || resolvedVideoUrl);
 
   const boostLabel = (post as any).is_credit_boosted
@@ -766,6 +767,16 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
                 playsInline
                 preload="metadata"
                 onPlay={handleVideoPlay}
+                onError={(event) => {
+                  const source = event.currentTarget.currentSrc || event.currentTarget.src;
+                  const next = nextMediaCandidate(rawVideoUrl || resolvedVideoUrl, source);
+                  if (next && event.currentTarget.dataset.fallback !== next) {
+                    event.currentTarget.dataset.fallback = next;
+                    event.currentTarget.src = next;
+                    event.currentTarget.load();
+                    void event.currentTarget.play().catch(() => {});
+                  }
+                }}
               >
                 <source src={resolvedVideoUrl} type="video/mp4" />
                 <source src={resolvedVideoUrl} type="video/webm" />
