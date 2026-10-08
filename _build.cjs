@@ -67,6 +67,7 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
   const trendingHookPath = path.join(vendorRoot, 'src', 'hooks', 'useTrending.ts');
   const reactionBarPath = path.join(vendorRoot, 'src', 'components', 'features', 'ReactionBar.tsx');
   const videoPlayerPath = path.join(vendorRoot, 'src', 'components', 'features', 'VideoPlayer.tsx');
+  const channelDetailPath = path.join(vendorRoot, 'src', 'pages', 'ChannelDetail.tsx');
   const xcloneSupabasePath = path.join(root, 'src', 'lib', 'supabase.ts');
 
   const xcloneSupabase = fs.readFileSync(xcloneSupabasePath, 'utf8');
@@ -115,6 +116,7 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
     [trendingHookPath, fs.readFileSync(trendingHookPath, 'utf8')],
     [reactionBarPath, fs.readFileSync(reactionBarPath, 'utf8')],
     [videoPlayerPath, fs.readFileSync(videoPlayerPath, 'utf8')],
+    [channelDetailPath, fs.readFileSync(channelDetailPath, 'utf8')],
   ]);
 
   let profile = original.get(profilePath);
@@ -169,11 +171,48 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   fs.writeFileSync(indexHtmlPath, indexHtml, 'utf8');
 
   let videoPlayer = fs.readFileSync(videoPlayerPath, 'utf8');
-  videoPlayer = videoPlayer.replace("import { Volume2, VolumeX, WifiOff, RefreshCw, PictureInPicture2, Settings2, Check } from 'lucide-react';", "import { Volume2, VolumeX, WifiOff, RefreshCw, PictureInPicture2, Settings2, Check, Maximize2, Minimize2 } from 'lucide-react';");
-  videoPlayer = videoPlayer.replace("const [showQuality, setShowQuality] = useState(false);", "const [showQuality, setShowQuality] = useState(false);\n    const [fullscreen, setFullscreen] = useState(false);");
-  videoPlayer = videoPlayer.replace("    const pipSupported = typeof document !== 'undefined' && 'pictureInPictureEnabled' in document;", "    const pipSupported = typeof document !== 'undefined' && 'pictureInPictureEnabled' in document;\n\n    const toggleFullscreen = async () => {\n      const video = videoRef.current;\n      if (!video) return;\n      try {\n        if (document.fullscreenElement) { await document.exitFullscreen(); setFullscreen(false); return; }\n        await video.requestFullscreen();\n        setFullscreen(true);\n        try { await (screen.orientation as any)?.lock?.('landscape'); } catch {}\n      } catch {}\n    };");
-  videoPlayer = videoPlayer.replace("            {/* PiP button */}\n            {pipSupported && (", "            {/* Landscape/fullscreen button */}\n            <button onClick={toggleFullscreen} aria-label={fullscreen ? 'Exit fullscreen' : 'Landscape fullscreen'} className=\"w-8 h-8 rounded-full flex items-center justify-center bg-black/50 hover:bg-black/70 backdrop-blur-sm\">\n              {fullscreen ? <Minimize2 className=\"w-4 h-4 text-white\" /> : <Maximize2 className=\"w-4 h-4 text-white\" />}\n            </button>\n\n            {/* PiP button */}\n            {pipSupported && (");
+  videoPlayer = videoPlayer
+    .replace("import { Volume2, VolumeX, WifiOff, RefreshCw, PictureInPicture2, Settings2, Check } from 'lucide-react';",
+      "import { Volume2, VolumeX, WifiOff, RefreshCw, PictureInPicture2, Settings2, Check, Maximize2, Minimize2 } from 'lucide-react';")
+    .replace("const [showQuality, setShowQuality] = useState(false);",
+      "const [showQuality, setShowQuality] = useState(false);\n    const [fullscreen, setFullscreen] = useState(false);\n    const stallRecoveryRef = useRef(0);")
+    .replace("    const pipSupported = typeof document !== 'undefined' && 'pictureInPictureEnabled' in document;",
+      "    const pipSupported = typeof document !== 'undefined' && 'pictureInPictureEnabled' in document;\n\n    const toggleFullscreen = async () => {\n      const video = videoRef.current;\n      if (!video) return;\n      try {\n        if (document.fullscreenElement) { await document.exitFullscreen(); setFullscreen(false); return; }\n        await video.requestFullscreen(); setFullscreen(true);\n        try { await (screen.orientation as any)?.lock?.('landscape'); } catch {}\n      } catch {}\n    };")
+    .replace("lowLatencyMode:         true,\n              maxBufferLength:        12,\n              maxMaxBufferLength:     24,\n              maxBufferSize:          24 * 1000 * 1000,",
+      "lowLatencyMode:         false,\n              startFragPrefetch:      true,\n              maxBufferLength:        30,\n              maxMaxBufferLength:     60,\n              maxBufferSize:          60 * 1000 * 1000,\n              backBufferLength:       30,\n              liveSyncDurationCount:  3,\n              liveMaxLatencyDurationCount: 6,\n              maxLiveSyncPlaybackRate: 1.15,\n              highBufferWatchdogPeriod: 2,")
+    .replace("manifestLoadingMaxRetry: 1,\n              levelLoadingMaxRetry:    1,\n              fragLoadingMaxRetry:     1,",
+      "manifestLoadingMaxRetry: 3,\n              manifestLoadingRetryDelay: 1000,\n              levelLoadingMaxRetry:    3,\n              levelLoadingRetryDelay: 1000,\n              fragLoadingMaxRetry:     5,\n              fragLoadingRetryDelay:   1000,")
+    .replace("hls.on(Hls.Events.MANIFEST_PARSED, (_: unknown, data: { levels: {height: number; bitrate: number}[] }) => {",
+      "hls.on(Hls.Events.MANIFEST_PARSED, (_: unknown, data: { levels: {height: number; bitrate: number}[] }) => {")
+    .replace("            hls.on(Hls.Events.ERROR, (_: unknown, d: { fatal: boolean; type: string }) => {\n              if (d.fatal) {\n                if (retryCount.current < 1) {\n                  retryCount.current++;\n                  hls.recoverMediaError();\n                } else {\n                  markError();\n                }\n              }\n            });",
+      "            hls.on(Hls.Events.ERROR, (_: unknown, d: { fatal: boolean; type: string }) => {\n              if (!d.fatal) return;\n              const now = Date.now();\n              if (now - stallRecoveryRef.current < 3000) return;\n              stallRecoveryRef.current = now;\n              if (retryCount.current < 3) { retryCount.current++; hls.startLoad(-1); hls.recoverMediaError(); }\n              else markError();\n            });")
+    .replace("            {/* PiP button */}\n            {pipSupported && (",
+      "            {/* Landscape/fullscreen button */}\n            <button onClick={e => { e.stopPropagation(); void toggleFullscreen(); }} aria-label={fullscreen ? 'Exit fullscreen' : 'Landscape fullscreen'} className="w-8 h-8 rounded-full flex items-center justify-center bg-black/50 hover:bg-black/70 backdrop-blur-sm">\n              {fullscreen ? <Minimize2 className="w-4 h-4 text-white" /> : <Maximize2 className="w-4 h-4 text-white" />}\n            </button>\n\n            {/* PiP button */}\n            {pipSupported && (");
   fs.writeFileSync(videoPlayerPath, videoPlayer, 'utf8');
+
+  let channelDetail = fs.readFileSync(channelDetailPath, 'utf8');
+  channelDetail = channelDetail
+    .replace("import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, Globe, PictureInPicture2, Loader2, Wifi } from 'lucide-react';",
+      "import { ArrowLeft, Heart, MessageCircle, Share2, Bookmark, Globe, PictureInPicture2, Loader2, Wifi, Maximize2, Minimize2 } from 'lucide-react';")
+    .replace("  const [pipActive, setPipActive] = useState(false);",
+      "  const [pipActive, setPipActive] = useState(false);\n  const [fullscreen, setFullscreen] = useState(false);\n  const stallTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);")
+    .replace("      const hls = new (Hls as new (o: object) => {",
+      "      const hls = new (Hls as new (o: object) => {")
+    .replace("      })({ enableWorker: false, maxBufferLength: 20, startLevel: -1 });",
+      "      })({\n        enableWorker: true, lowLatencyMode: false, startFragPrefetch: true,\n        maxBufferLength: 30, maxMaxBufferLength: 60, maxBufferSize: 60 * 1000 * 1000,\n        backBufferLength: 30, liveSyncDurationCount: 3, liveMaxLatencyDurationCount: 6,\n        maxLiveSyncPlaybackRate: 1.15, highBufferWatchdogPeriod: 2,\n        manifestLoadingMaxRetry: 3, manifestLoadingRetryDelay: 1000,\n        levelLoadingMaxRetry: 3, levelLoadingRetryDelay: 1000,\n        fragLoadingMaxRetry: 5, fragLoadingRetryDelay: 1000,\n      });")
+    .replace("      hls.on('hlsManifestParsed', () => { setVideoReady(true); video.play().catch(() => {}); });",
+      "      hls.on('hlsManifestParsed', () => {\n        video.play().catch(() => {});\n      });\n      hls.on('hlsFragBuffered', () => {\n        if (!videoReady) { setVideoReady(true); video.play().catch(() => {}); }\n      });\n      hls.on('hlsError', (_: unknown, d: { fatal: boolean }) => {\n        if (!d.fatal) return;\n        hls.startLoad?.(-1);\n        hls.recoverMediaError?.();\n      });")
+    .replace("      hls.on('hlsError', (_: unknown, d: { fatal: boolean }) => { if (d.fatal) setVideoError(true); });",
+      "")
+    .replace("  const handlePiP = async () => {",
+      "  const handleFullscreen = async () => {\n    const video = videoRef.current; if (!video) return;\n    try {\n      if (document.fullscreenElement) { await document.exitFullscreen(); setFullscreen(false); return; }\n      await video.requestFullscreen(); setFullscreen(true);\n      try { await (screen.orientation as any)?.lock?.('landscape'); } catch {}\n    } catch {}\n  };\n\n  const handlePiP = async () => {")
+    .replace("          playsInline\n          loop",
+      "          playsInline\n          loop\n          preload="auto"")
+    .replace("        {/* PiP button */}\n        {videoReady && 'pictureInPictureEnabled' in document && (",
+      "        {/* Landscape/fullscreen + PiP controls */}\n        {videoReady && (\n          <div className="absolute bottom-3 right-3 flex items-center gap-2">\n            <button onClick={e => { e.stopPropagation(); void handleFullscreen(); }} className="w-9 h-9 rounded-full bg-black/50 backdrop-blur hover:bg-black/70 flex items-center justify-center" aria-label={fullscreen ? 'Exit fullscreen' : 'Landscape fullscreen'}>\n              {fullscreen ? <Minimize2 className="w-4 h-4 text-white" /> : <Maximize2 className="w-4 h-4 text-white" />}\n            </button>\n        { 'pictureInPictureEnabled' in document && (")
+    .replace("          />\n        )}\n      </div>",
+      "          />\n        )}\n          </div>\n        )}\n      </div>");
+  fs.writeFileSync(channelDetailPath, channelDetail, 'utf8');
 
   return () => {
     for (const [file, contents] of original) fs.writeFileSync(file, contents, 'utf8');
