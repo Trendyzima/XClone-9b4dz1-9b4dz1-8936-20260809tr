@@ -1,5 +1,7 @@
 'use strict';
 
+// CI forensic validation: current main source after IPTV overlay repair.
+
 
 /**
  * _build.cjs v5 — portable, self-healing Vite build wrapper.
