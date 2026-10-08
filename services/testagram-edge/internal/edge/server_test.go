@@ -107,7 +107,7 @@ func TestR2MediaOrigin(t *testing.T) {
 
 func TestPublicProfileMediaRemainsDeliverableWithPlaybackSigningEnabled(t *testing.T) {
  origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-  if r.URL.Path != "/profiles/u1/avatar.webp" { t.Fatalf("unexpected profile path: %s", r.URL.Path) }
+  if r.URL.Path != "/v1/profiles/u1/avatar.webp" { t.Fatalf("unexpected profile path: %s", r.URL.Path) }
   w.Header().Set("Content-Type", "image/webp")
   _, _ = w.Write([]byte("avatar"))
  }))
