@@ -53,7 +53,7 @@ jobs:
         run: |
           set -euo pipefail
           for host in cdn.testagram.site media.testagram.site; do
-            status="$(curl -ksS --connect-timeout 5 --max-time 15 -o /tmp/body -D /tmp/headers -w '%{http_code}' "https://$host/health" || true)"
+            status="$(curl -ksS --connect-timeout 5 --max-time 15 -o /tmp/body -D /tmp/headers -w '%{http_code}' "https://$host/healthz" || true)"
             [[ "$status" == "200" ]] || { echo "::error::$host /health returned HTTP $status"; cat /tmp/body; exit 1; }
             grep -qi '^x-testagram-cdn:' /tmp/headers || { echo "::error::$host is not proving CDN execution"; cat /tmp/headers; exit 1; }
             grep -qi '^x-testagram-cdn-version:' /tmp/headers || { echo "::error::$host is missing the immutable CDN version marker"; cat /tmp/headers; exit 1; }
