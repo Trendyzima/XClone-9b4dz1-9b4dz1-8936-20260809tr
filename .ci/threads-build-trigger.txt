@@ -2,3 +2,5 @@ Threads build verification trigger — source is already repaired; CI should val
 Merged-PR verification trigger.
 
 IPTV zero-buffer rolling preload validation: 32e5cb9
+
+Final IPTV rolling-buffer validation: c8c7ead
