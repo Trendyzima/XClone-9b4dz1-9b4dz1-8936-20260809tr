@@ -68,6 +68,9 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
   const reactionBarPath = path.join(vendorRoot, 'src', 'components', 'features', 'ReactionBar.tsx');
   const videoPlayerPath = path.join(vendorRoot, 'src', 'components', 'features', 'VideoPlayer.tsx');
   const channelDetailPath = path.join(vendorRoot, 'src', 'pages', 'ChannelDetail.tsx');
+  const channelCardPath = path.join(vendorRoot, 'src', 'components', 'features', 'ChannelCard.tsx');
+  const categoryTabsPath = path.join(vendorRoot, 'src', 'components', 'features', 'CategoryTabs.tsx');
+  const indexCssPath = path.join(vendorRoot, 'src', 'index.css');
   const xcloneSupabasePath = path.join(root, 'src', 'lib', 'supabase.ts');
 
   const xcloneSupabase = fs.readFileSync(xcloneSupabasePath, 'utf8');
@@ -117,6 +120,9 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
     [reactionBarPath, fs.readFileSync(reactionBarPath, 'utf8')],
     [videoPlayerPath, fs.readFileSync(videoPlayerPath, 'utf8')],
     [channelDetailPath, fs.readFileSync(channelDetailPath, 'utf8')],
+    [channelCardPath, fs.readFileSync(channelCardPath, 'utf8')],
+    [categoryTabsPath, fs.readFileSync(categoryTabsPath, 'utf8')],
+    [indexCssPath, fs.readFileSync(indexCssPath, 'utf8')],
   ]);
 
   let profile = original.get(profilePath);
@@ -168,6 +174,40 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   fs.writeFileSync(profilePath, profile, 'utf8');
   fs.writeFileSync(headerPath, header, 'utf8');
   fs.writeFileSync(feedPath, feed, 'utf8');
+
+  // Premium Testagram IPTV vertical-feed treatment: immersive viewport, overlay navigation,
+  // stronger safe-area handling, and mobile-first interaction without changing channel data.
+  feed = feed
+    .replace('className="h-screen bg-black flex flex-col overflow-hidden"', 'className="h-[100dvh] bg-black relative overflow-hidden"')
+    .replace('<Header liveCount={liveCount} totalChannels={total} />', '<div className="absolute inset-x-0 top-0 z-40 pointer-events-none"><div className="pointer-events-auto"><Header liveCount={liveCount} totalChannels={total} /></div></div>')
+    .replace('className="flex-1 overflow-y-scroll"', 'className="absolute inset-0 overflow-y-scroll snap-y snap-mandatory overscroll-contain"')
+    .replace("style={{ scrollSnapType: 'y mandatory', overscrollBehavior: 'contain' }}", "style={{ scrollSnapType: 'y mandatory', overscrollBehaviorY: 'contain', WebkitOverflowScrolling: 'touch' }}")
+    .replace('        <CategoryTabs activeCategory={category} onCategoryChange={handleCategoryChange} />', '        <div className="absolute top-[58px] left-0 right-0 z-30 pointer-events-none"><div className="pointer-events-auto"><CategoryTabs activeCategory={category} onCategoryChange={handleCategoryChange} /></div></div>')
+    .replace('        <CategoryTabs activeCategory={category} onCategoryChange={handleCategoryChange} />', '        <div className="absolute top-[58px] left-0 right-0 z-30 pointer-events-none"><div className="pointer-events-auto"><CategoryTabs activeCategory={category} onCategoryChange={handleCategoryChange} /></div></div>')
+    .replace('          <div className="bg-black/60 backdrop-blur px-4 py-2 border-b border-white/5 flex items-center gap-2">', '          <div className="absolute top-[58px] left-0 right-0 z-30 bg-black/50 backdrop-blur px-4 py-2 border-b border-white/5 flex items-center gap-2">');
+  fs.writeFileSync(feedPath, feed, 'utf8');
+
+  let card = fs.readFileSync(channelCardPath, 'utf8')
+    .replace("className="relative w-full bg-black"", "className="relative w-full h-[100dvh] bg-black snap-start snap-always overflow-hidden"")
+    .replace("style={{ height: '100dvh', scrollSnapAlign: 'start' }}", "")
+    .replace("className="absolute bottom-0 left-0 right-0 px-4 pb-6 flex items-end justify-between gap-4"", "className="absolute bottom-0 left-0 right-0 px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] flex items-end justify-between gap-4 z-20"");
+  fs.writeFileSync(channelCardPath, card, 'utf8');
+
+  let tabs = fs.readFileSync(categoryTabsPath, 'utf8')
+    .replace('className="relative bg-black/80 backdrop-blur-sm border-b border-white/5"', 'className="relative bg-black/25 backdrop-blur-md border-b border-white/5 overflow-hidden"')
+    .replace("'min-h-[36px] min-w-[44px]'", "'min-h-[34px] min-w-[44px]'");
+  fs.writeFileSync(categoryTabsPath, tabs, 'utf8');
+
+  let css = fs.readFileSync(indexCssPath, 'utf8');
+  css += `
+/* Testagram IPTV immersive vertical-feed polish */
+.iptv-vertical-feed { height: 100dvh; width: 100%; overflow: hidden; }
+@media (orientation: landscape) and (max-height: 600px) {
+  .iptv-vertical-feed .channel-info { max-width: 58vw; }
+}
+`;
+  fs.writeFileSync(indexCssPath, css, 'utf8');
+
   fs.writeFileSync(indexHtmlPath, indexHtml, 'utf8');
 
   let videoPlayer = fs.readFileSync(videoPlayerPath, 'utf8');
