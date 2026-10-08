@@ -143,7 +143,7 @@ export default function TvChannelsPage(){
  };
 
  const submitTvReply=async()=>{
-  if(!user){nav('/login');return;}
+  if(!user){nav('/auth');return;}
   const clean=replyText.trim();
   if(!clean||replyBusy||!featured)return;
   setReplyBusy(true);
@@ -157,7 +157,7 @@ export default function TvChannelsPage(){
  };
 
  const reactToChannel=async(emoji:string)=>{
-  if(!user){nav('/login');return;}
+  if(!user){nav('/auth');return;}
   if(reactionBusy||!featured)return;
   setReactionBusy(true);
   try{
