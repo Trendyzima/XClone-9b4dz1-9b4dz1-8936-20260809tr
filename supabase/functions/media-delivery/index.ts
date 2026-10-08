@@ -38,7 +38,7 @@ async function redisSetJson(key: string, value: unknown, ttlSeconds: number) {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? Deno.env.get("SUPABASE_SECRET_KEY") ?? "";
-const R2_PUBLIC_BASE_URL = (Deno.env.get("R2_PUBLIC_BASE_URL") ?? "").replace(/\/$/, "");
+const CDN_PUBLIC_BASE_URL = (Deno.env.get("TESTAGRAM_CDN_BASE_URL") ?? "https://media.testagram.site").replace(/\/$/, "").replace(/\/v1$/i, "") || "https://media.testagram.site";
 
 type MediaRoute = { url: string; media_type: string; mime_type: string; byte_size: number };
 const db = SUPABASE_URL && SERVICE_ROLE_KEY ? createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } }) : null;
@@ -48,7 +48,7 @@ function response(body: string, status: number, headers: Record<string, string> 
 }
 
 function redirectLocation(key: string) {
-  return R2_PUBLIC_BASE_URL + "/" + key;
+  return CDN_PUBLIC_BASE_URL + "/v1/" + key.split("/").map(encodeURIComponent).join("/");
 }
 function validKey(key: string) {
   return key.length > 0 && key.length <= 512 && (key.startsWith("users/") || key.startsWith("profiles/"));
@@ -67,7 +67,7 @@ Deno.serve(async (req) => {
     : "";
   const key = queryKey || pathKey;
   if (!validKey(key)) return response("Invalid media key", 400);
-  if (!R2_PUBLIC_BASE_URL || !db) return response("Media delivery is not configured", 503);
+  if (!db) return response("Media delivery is not configured", 503);
 
   const cacheKey = "media:route:v1:" + key;
   let route = await redisGetJson<MediaRoute>(cacheKey);
@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
     const isProfile = key.startsWith("profiles/");
     if (!data && !isProfile) return response("Media not found", 404);
     route = {
-      url: R2_PUBLIC_BASE_URL + "/" + key,
+      url: redirectLocation(key),
       media_type: data?.media_type ?? "image",
       mime_type: data?.mime_type ?? "image/*",
       byte_size: Number(data?.byte_size ?? 0),
