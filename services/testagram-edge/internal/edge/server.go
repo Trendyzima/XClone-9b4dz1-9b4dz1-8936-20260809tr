@@ -230,13 +230,14 @@ func signToken(rel, secret, exp string) string {
  _, _ = mac.Write([]byte(rel + "|" + exp))
  return hex.EncodeToString(mac.Sum(nil))
 }
+// authorized permits public media without a token and validates signed tokens for private media.
 func(s *Server)authorized(rel,token string)bool{
  if token=="" { return true }
  if s.cfg.PlaybackSecret=="" { return false }
  parts:=strings.Split(token,"."); if len(parts)!=2{return false}
  exp,e:=strconv.ParseInt(parts[0],10,64); if e!=nil||exp<time.Now().Unix(){return false}
  mac:=hmac.New(sha256.New,[]byte(s.cfg.PlaybackSecret)); _,_=mac.Write([]byte(rel+"|"+parts[0]))
- expected:=hex.EncodeToString(mac.Sum(nil)); return hmac.Equal([]byte(expected),[]byte(token))
+ expected:=hex.EncodeToString(mac.Sum(nil)); return hmac.Equal([]byte(expected),[]byte(parts[1]))
 }
 func(s *Server)originBlocked(o string)bool{s.originsMu.Lock();defer s.originsMu.Unlock();return time.Now().Before(s.badUntil[o])}
 func(s *Server)blockOrigin(o string){s.originsMu.Lock();s.badUntil[o]=time.Now().Add(5*time.Second);s.originsMu.Unlock()}
