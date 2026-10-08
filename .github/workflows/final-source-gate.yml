@@ -31,6 +31,7 @@ jobs:
         with:
           fetch-depth: 1
           ref: ${{ github.sha }}
+          submodules: recursive
 
       - name: Verify checked-out revision
         shell: bash
