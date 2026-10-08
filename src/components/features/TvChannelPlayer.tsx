@@ -46,7 +46,21 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
     return;
   }
   if(looksLikeHls&&Hls.isSupported()){video.autoplay=false;const h=new Hls({enableWorker:true,lowLatencyMode:false,startFragPrefetch:true,startOnSegmentBoundary:true,liveSyncOnStallIncrease:2,initialLiveManifestSize:network.constrained?5:6,backBufferLength:15,maxBufferLength:60,maxMaxBufferLength:120,maxBufferSize:network.constrained?64*1024*1024:96*1024*1024,maxBufferHole:0.25,highBufferWatchdogPeriod:2,nudgeOffset:0.1,nudgeMaxRetry:5,liveSyncDuration:30,liveMaxLatencyDuration:75,manifestLoadingMaxRetry:6,levelLoadingMaxRetry:6,fragLoadingMaxRetry:8,fragLoadingRetryDelay:700,fragLoadingMaxRetryTimeout:10000});hls.current=h;h.loadSource(playbackUrl);h.attachMedia(video);if(network.constrained){h.startLevel=0;h.autoLevelCapping=0;}else if(network.moderate){h.startLevel=0;h.autoLevelCapping=1;}h.on(Hls.Events.MANIFEST_PARSED,()=>{setStarting(true);try{h.startLoad(-1);}catch{}});h.on(Hls.Events.LEVEL_SWITCHED,(_,d)=>{if(network.constrained&&d.level>0)h.nextLevel=0;});h.on(Hls.Events.FRAG_BUFFERED,()=>{const b=video.buffered;let ahead=0;for(let i=0;i<b.length;i++){if(b.start(i)<=video.currentTime+0.25){ahead=Math.max(ahead,b.end(i)-video.currentTime);}}if(!initialBufferReadyRef.current&&ahead>=30){initialBufferReadyRef.current=true;video.autoplay=true;void video.play().then(()=>healthy()).catch((e:any)=>{if(e?.name==='NotAllowedError'){setNeedsGesture(true);setStarting(false);}else retry();});}else if(initialBufferReadyRef.current&&ahead>=5){healthy();}});h.on(Hls.Events.ERROR,(_,d)=>{if(!d.fatal)return;if(d.type===Hls.ErrorTypes.MEDIA_ERROR){try{h.recoverMediaError();return;}catch{}}if(d.type===Hls.ErrorTypes.NETWORK_ERROR){fatalNetworkRef.current++;if(!isTestagramCdnEnabled()&&!proxyFallbackRef.current&&fatalNetworkRef.current>=2){proxyFallbackRef.current=true;retryRef.current=0;fatalNetworkRef.current=0;startRef.current?.();return;}try{h.startLoad(-1);return;}catch{}}retry();});return;}
-  if(looksLikeHls&&video.canPlayType('application/vnd.apple.mpegurl')){video.src=playbackUrl;video.addEventListener('canplay',healthy,{once:true});video.addEventListener('error',()=>{if(!isTestagramCdnEnabled()&&!proxyFallbackRef.current){proxyFallbackRef.current=true;retryRef.current=0;startRef.current?.();}else retry();},{once:true});void video.play().catch((e:any)=>{if(e?.name!=='NotAllowedError')retry();});return;}
+  if(looksLikeHls&&video.canPlayType('application/vnd.apple.mpegurl')){
+    video.autoplay=false; video.src=playbackUrl;
+    const waitForBuffer=()=>{
+      const b=video.buffered; let ahead=0;
+      for(let i=0;i<b.length;i++){if(b.start(i)<=video.currentTime+0.25){ahead=Math.max(ahead,b.end(i)-video.currentTime);}}
+      if(!initialBufferReadyRef.current&&ahead>=30){
+        initialBufferReadyRef.current=true; video.autoplay=true;
+        void video.play().then(()=>healthy()).catch((e:any)=>{if(e?.name==='NotAllowedError'){setNeedsGesture(true);setStarting(false);}else retry();});
+      } else if(initialBufferReadyRef.current&&ahead>=5) healthy();
+    };
+    video.addEventListener('progress',waitForBuffer); video.addEventListener('loadeddata',waitForBuffer); video.addEventListener('canplay',waitForBuffer);
+    video.addEventListener('timeupdate',waitForBuffer);
+    video.addEventListener('error',()=>{if(!isTestagramCdnEnabled()&&!proxyFallbackRef.current){proxyFallbackRef.current=true;retryRef.current=0;startRef.current?.();}else retry();},{once:true});
+    return;
+  }
   setStarting(false);setError(true);onHealth?.(channel.id,false);
  },[active,channel,channel.id,channel.url,cleanup,healthy,retry,onHealth,proxyUrl,networkProfile]);
  startRef.current=start;
