@@ -187,7 +187,7 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
     .replace('        <CategoryTabs activeCategory={category} onCategoryChange={handleCategoryChange} />', '        <div className="absolute top-[58px] left-0 right-0 z-30 pointer-events-none"><div className="pointer-events-auto"><CategoryTabs activeCategory={category} onCategoryChange={handleCategoryChange} /></div></div>')
     .replace('          <div className="bg-black/60 backdrop-blur px-4 py-2 border-b border-white/5 flex items-center gap-2">', '          <div className="absolute top-[58px] left-0 right-0 z-30 bg-black/50 backdrop-blur px-4 py-2 border-b border-white/5 flex items-center gap-2">');
   feed = feed
-    .replace('shouldLoad={Math.abs(index - activeIndex) <= PRELOAD_RADIUS}', 'shouldLoad={Math.floor(index / 4) === Math.floor(activeIndex / 4) || index === activeIndex + 4}')
+    .replace('shouldLoad={Math.abs(index - activeIndex) <= PRELOAD_RADIUS}', 'shouldLoad={index >= Math.floor(activeIndex / 4) * 4 && index < Math.floor(activeIndex / 4) * 4 + 4 || (activeIndex % 4 >= 2 && index >= (Math.floor(activeIndex / 4) + 1) * 4 && index < (Math.floor(activeIndex / 4) + 2) * 4)}')
     .replace('if (idx >= liveChannels.length - 5 && hasMore) loadMore();', 'if ((idx + 1) % 4 === 3 && hasMore) loadMore();');
   fs.writeFileSync(feedPath, feed, 'utf8');
 
