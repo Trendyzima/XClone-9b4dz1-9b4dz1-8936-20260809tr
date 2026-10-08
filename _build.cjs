@@ -347,7 +347,7 @@ if (result.status !== 0) {
 }
 
 process.stderr.write('\n[_build] ✅ Vite build completed successfully.\n');
-publishTikVTVBundle();
+
   let channelCard = fs.readFileSync(channelCardPath, 'utf8');
   channelCard = channelCard
     .replace("shouldLoad:     boolean;", "shouldLoad:     boolean;")
