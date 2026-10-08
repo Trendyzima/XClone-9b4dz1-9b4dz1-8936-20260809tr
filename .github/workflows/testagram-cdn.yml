@@ -4,12 +4,12 @@ on:
   push:
     branches: [main]
     paths:
-      - "services/testagram-cdn/**"
+      - "services/testagram-edge/**"
       - ".github/workflows/testagram-cdn.yml"
   pull_request:
     branches: [main]
     paths:
-      - "services/testagram-cdn/**"
+      - "services/testagram-edge/**"
       - ".github/workflows/testagram-cdn.yml"
 
 permissions:
@@ -22,13 +22,12 @@ jobs:
     timeout-minutes: 20
     defaults:
       run:
-        working-directory: services/testagram-cdn
+        working-directory: services/testagram-edge
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version-file: services/testagram-cdn/go.mod
-          cache-dependency-path: services/testagram-cdn/go.sum
+          go-version-file: services/testagram-edge/go.mod
       - name: Test
         run: go test ./...
       - name: Race test
@@ -57,6 +56,6 @@ jobs:
           IMAGE: ghcr.io/trendyzima/testagram-edge
         run: |
           set -euo pipefail
-          docker build --pull -f services/testagram-cdn/Dockerfile services/testagram-cdn             -t "$IMAGE:$GITHUB_SHA"             -t "$IMAGE:main"
+          docker build --pull -f services/testagram-edge/Dockerfile services/testagram-edge             -t "$IMAGE:$GITHUB_SHA"             -t "$IMAGE:main"
           docker push "$IMAGE:$GITHUB_SHA"
           docker push "$IMAGE:main"
