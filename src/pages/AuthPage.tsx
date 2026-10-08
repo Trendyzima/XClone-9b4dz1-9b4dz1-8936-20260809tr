@@ -14,6 +14,12 @@ import { identitySignup } from '@/lib/identitySignup';
 
 type AuthMode = 'signin' | 'signup' | 'otp' | 'recover' | 'reset';
 
+function getSafeReturnTo() {
+  if (typeof window === 'undefined') return '/';
+  const value = new URLSearchParams(window.location.search).get('returnTo')?.trim();
+  return value && value.startsWith('/iptv-app/') ? value : '/';
+}
+
 function BrandMark() {
   return (
     <div className="flex items-center gap-3">
@@ -78,7 +84,7 @@ export default function AuthPage() {
   }, []);
 
   useEffect(() => {
-    if (authUser && !['otp', 'reset'].includes(mode)) navigate('/', { replace: true });
+    if (authUser && !['otp', 'reset'].includes(mode)) navigate(getSafeReturnTo(), { replace: true });
   }, [authUser, mode, navigate]);
 
   const applyPendingReferral = async () => {
@@ -99,7 +105,7 @@ export default function AuthPage() {
     await applyPendingReferral();
     // Existing-account login never launches KYC. Identity verification is only
     // entered from the explicit account-creation flow.
-    navigate('/', { replace: true });
+    navigate(getSafeReturnTo(), { replace: true });
   };
 
   const handlePasswordSignIn = async (event: FormEvent) => {
