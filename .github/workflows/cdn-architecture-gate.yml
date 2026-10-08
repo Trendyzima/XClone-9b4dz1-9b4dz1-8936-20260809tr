@@ -1,0 +1,36 @@
+name: CDN Architecture Gate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "api/**"
+      - "cloudflare/**"
+      - "supabase/functions/**"
+      - "scripts/verify-cdn-architecture.mjs"
+      - ".github/workflows/cdn-architecture-gate.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/**"
+      - "api/**"
+      - "cloudflare/**"
+      - "supabase/functions/**"
+      - "scripts/verify-cdn-architecture.mjs"
+      - ".github/workflows/cdn-architecture-gate.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  architecture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Enforce first-party public media delivery
+        run: node scripts/verify-cdn-architecture.mjs
