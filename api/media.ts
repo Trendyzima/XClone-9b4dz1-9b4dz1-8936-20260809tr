@@ -34,6 +34,7 @@ const CANONICAL_SUPABASE_URL = 'https://ffrhglgkukgsuhxenena.supabase.co';
 const CANONICAL_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya';
 
 const MEDIA_DELIVERY_BASE_URL = 'https://media.testagram.site/v1';
+function normalizeCdnBase(value: string) { return value.replace(/\/$/, '').replace(/\/v1$/i, ''); }
 
 interface MediaConfig {
   supabaseUrl: string;
@@ -62,7 +63,7 @@ function config(): MediaConfig {
     // Testagram owns the public media URL contract. Keep R2_PUBLIC_BASE_URL as a safe
     // compatibility fallback until the custom CDN hostname is configured.
     publicBaseUrl: (() => {
-      const cdn = env('TESTAGRAM_CDN_BASE_URL').replace(/\/$/, '');
+      const cdn = normalizeCdnBase(env('TESTAGRAM_CDN_BASE_URL'));
       const r2Public = env('R2_PUBLIC_BASE_URL').replace(/\/$/, '');
       return cdn && cdn !== r2Public ? cdn.replace(/\/$/, '') + '/v1' : MEDIA_DELIVERY_BASE_URL;
     })(),
