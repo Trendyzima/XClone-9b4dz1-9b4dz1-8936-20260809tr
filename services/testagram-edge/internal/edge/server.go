@@ -230,7 +230,7 @@ func signToken(rel, secret, exp string) string {
  _, _ = mac.Write([]byte(rel + "|" + exp))
  return hex.EncodeToString(mac.Sum(nil))
 }
-func(s *Server)authorized(rel,token string)bool{
+// authorized permits public media without a token and validates signed tokens for private media.\nfunc(s *Server)authorized(rel,token string)bool{
  if token=="" { return true }
  if s.cfg.PlaybackSecret=="" { return false }
  parts:=strings.Split(token,"."); if len(parts)!=2{return false}
