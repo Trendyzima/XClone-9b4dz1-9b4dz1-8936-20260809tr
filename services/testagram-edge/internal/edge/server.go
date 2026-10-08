@@ -238,6 +238,21 @@ func(s *Server)authorized(rel,token string)bool{
  mac:=hmac.New(sha256.New,[]byte(s.cfg.PlaybackSecret)); _,_=mac.Write([]byte(rel+"|"+parts[0]))
  expected:=hex.EncodeToString(mac.Sum(nil)); return hmac.Equal([]byte(expected),[]byte(token))
 }
+func(s *Server)originBlocked(o string)bool{s.originsMu.Lock();defer s.originsMu.Unlock();return time.Now().Before(s.badUntil[o])}
+func(s *Server)blockOrigin(o string){s.originsMu.Lock();s.badUntil[o]=time.Now().Add(5*time.Second);s.originsMu.Unlock()}
+func(s *Server)clearOrigin(o string){s.originsMu.Lock();delete(s.badUntil,o);s.originsMu.Unlock()}
+
+func(s *Server)rateLimit(next http.Handler)http.Handler{return http.HandlerFunc(func(w http.ResponseWriter,r *http.Request){
+ if s.cfg.RateLimitPerMin<=0||s.cfg.RateLimitBurst<=0{next.ServeHTTP(w,r);return}
+ ip,_,e:=net.SplitHostPort(r.RemoteAddr);if e!=nil{ip=r.RemoteAddr};if s.cfg.TrustCloudflare { if cf:=strings.TrimSpace(r.Header.Get("CF-Connecting-IP")); cf!="" { ip=cf } };now:=time.Now();rate:=float64(s.cfg.RateLimitPerMin)/60
+ h:=fnv.New32a();_,_=h.Write([]byte(ip));sh:=&s.rateShards[h.Sum32()%uint32(len(s.rateShards))]
+ sh.mu.Lock()
+ if len(sh.rates)>4000{for k,b:=range sh.rates{if now.Sub(b.last)>time.Minute{delete(sh.rates,k)}}}
+ if len(sh.rates)>5000{sh.mu.Unlock();s.rejected.Add(1);http.Error(w,"rate limiter overloaded",503);return}
+ b:=sh.rates[ip];if b==nil{b=&bucket{tokens:float64(s.cfg.RateLimitBurst),last:now};sh.rates[ip]=b}
+ b.tokens+=now.Sub(b.last).Seconds()*rate;if b.tokens>float64(s.cfg.RateLimitBurst){b.tokens=float64(s.cfg.RateLimitBurst)};b.last=now;allowed:=b.tokens>=1;if allowed{b.tokens--};sh.mu.Unlock()
+ if !allowed{s.rejected.Add(1);w.Header().Set("Retry-After","1");http.Error(w,"rate limit exceeded",429);return};next.ServeHTTP(w,r)
+})}
 
 func dedupe(in []string)[]string{seen:=map[string]bool{};out:=[]string{};for _,x:=range in{if x!=""&&!seen[x]{seen[x]=true;out=append(out,x)}};return out}
 func cleanAssetPath(p string)(string,bool){
