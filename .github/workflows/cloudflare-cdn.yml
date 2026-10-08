@@ -60,7 +60,7 @@ jobs:
           test -n "$ZONE_ID" || { echo "::error::Unable to resolve testagram.site zone."; exit 1; }
 
           routes="$(curl -fsS "$API/zones/$ZONE_ID/workers/routes" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
-          mapfile -t conflicts < <(jq -r '.result[]? | select(.pattern == "cdn.testagram.site/*" or .pattern == "cdn.testagram.site" or .pattern == "media.testagram.site/*" or .pattern == "media.testagram.site") | .id' <<<"$routes")
+          mapfile -t conflicts < <(jq -r '.result[]? | select(.pattern == "cdn.testagram.site/*" or .pattern == "cdn.testagram.site") | .id' <<<"$routes")
           for route_id in "${conflicts[@]}"; do
             [[ -n "$route_id" ]] || continue
             response="$(curl -fsS -X DELETE "$API/zones/$ZONE_ID/workers/routes/$route_id" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
