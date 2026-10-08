@@ -58,8 +58,8 @@ Deno.serve(async (req) => {
   }
 
   const secret = Deno.env.get("TESTAGRAM_CDN_PLAYBACK_SECRET") || "";
-  const cdnBase = (Deno.env.get("TESTAGRAM_CDN_URL") || "https://media.testagram.site").replace(/\/$/, "");
-  if (!secret || !cdnBase) {
+  const cdnBase = "https://media.testagram.site";
+  if (!secret) {
     return new Response(JSON.stringify({ ok: false, error: "CDN playback signing is not configured" }), { status: 503, headers: cors });
   }
 
