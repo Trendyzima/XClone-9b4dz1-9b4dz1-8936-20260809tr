@@ -48,8 +48,12 @@ jobs:
             for record_id in "${record_ids[@]}"; do
               [[ -n "$record_id" ]] || continue
               echo "Removing DNS record $record_id for $host so Cloudflare Worker custom domain can own the hostname."
-              response="$(curl -fsS -X DELETE "$API/zones/$ZONE_ID/dns_records/$record_id" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
-              jq -e '.success == true' <<<"$response" >/dev/null || { echo "::error::Failed deleting DNS record $record_id for $host."; cat <<<"$response"; exit 1; }
+              delete_status="$(curl -sS -o /tmp/dns-delete.json -w '%{http_code}' -X DELETE "$API/zones/$ZONE_ID/dns_records/$record_id" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
+              if [[ "$delete_status" != "200" ]] || ! jq -e '.success == true' /tmp/dns-delete.json >/dev/null 2>&1; then
+                echo "::error::Failed deleting DNS record $record_id for $host (HTTP $delete_status)."
+                cat /tmp/dns-delete.json
+                exit 1
+              fi
             done
           done
           echo "Conflicting DNS records removed."
