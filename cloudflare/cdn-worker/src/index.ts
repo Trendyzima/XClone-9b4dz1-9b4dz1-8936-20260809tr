@@ -27,16 +27,17 @@ async function recordProbe(env: Env, summary: Record<string, unknown>): Promise<
 }
 
 function keyFromPath(pathname: string): string | null {
-  if (!pathname.startsWith('/media/')) return null;
+  const prefix = pathname.startsWith('/media/') ? '/media/' : '/';
+  if (prefix === '/' && !/^\/(users|profiles|uploads|avatars|covers|photos|videos)\//.test(pathname)) return null;
   let key = '';
-  try { key = decodeURIComponent(pathname.slice('/media/'.length)); } catch { return null; }
-  if (!key || key.length > 512) return null;
-  if (!key.startsWith('users/') && !key.startsWith('profiles/')) return null;
+  try { key = decodeURIComponent(pathname.slice(prefix.length)); } catch { return null; }
+  if (!key || key.length > 512 || key.includes('..') || key.startsWith('/')) return null;
+  if (!/^(users|profiles|uploads|avatars|covers|photos|videos)\//.test(key)) return null;
   return key;
 }
 
 function notFoundResponse(): Response {
-  return new Response('Not found', { status: 404, headers: { 'x-testagram-cdn': 'cloudflare', 'x-testagram-cdn-version': '2026-10-07-health-diagnostic' } });
+  return new Response('Not found', { status: 404, headers: { 'x-testagram-cdn': 'cloudflare', 'x-testagram-cdn-version': '2026-10-08-media-alias-v1' } });
 }
 
 async function healthResponse(): Promise<Response> {
@@ -101,7 +102,7 @@ export default {
     headers.set('etag', object.httpEtag);
     headers.set('cache-control', 'public, max-age=300, s-maxage=86400, stale-while-revalidate=604800');
     headers.set('x-testagram-cdn', 'cloudflare');
-    headers.set('x-testagram-cdn-version', '2026-10-06-health-v3');
+    headers.set('x-testagram-cdn-version', '2026-10-08-media-alias-v1');
     headers.set('x-testagram-cache-plane', cachedRoute ? 'upstash-hit' : 'upstash-miss');
     return new Response(request.method === 'HEAD' ? null : object.body, { status: 200, headers });
   },
