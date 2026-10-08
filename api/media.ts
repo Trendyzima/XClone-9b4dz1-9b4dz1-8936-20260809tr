@@ -68,11 +68,7 @@ function config(): MediaConfig {
     r2Bucket: env('R2_MEDIA_BUCKET', env('CLOUDFLARE_R2_BUCKET')),
     // Testagram owns the public media URL contract. Keep R2_PUBLIC_BASE_URL as a safe
     // compatibility fallback until the custom CDN hostname is configured.
-    publicBaseUrl: (() => {
-      const cdn = normalizeCdnBase(env('TESTAGRAM_CDN_BASE_URL'));
-      const r2Public = env('R2_PUBLIC_BASE_URL').replace(/\/$/, '');
-      return cdn && cdn !== r2Public ? cdn.replace(/\/$/, '') + '/v1' : MEDIA_DELIVERY_BASE_URL;
-    })(),
+    publicBaseUrl: normalizeCdnBase(env('TESTAGRAM_CDN_BASE_URL', MEDIA_DELIVERY_BASE_URL)),
     mediaDeliveryBaseUrl: MEDIA_DELIVERY_BASE_URL,
   };
 }
