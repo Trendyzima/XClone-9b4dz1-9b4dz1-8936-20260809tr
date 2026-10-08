@@ -1,4 +1,4 @@
-name: Cloudflare Testagram CDN
+name: Cloudflare CDN Contract Gate
 
 on:
   workflow_dispatch:
