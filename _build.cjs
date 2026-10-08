@@ -1,6 +1,7 @@
 'use strict';
 
-// CI forensic validation marker: repaired IPTV wrapper is CI-validated without changing runtime behavior.
+// CI forensic validation marker: validates the repaired IPTV build wrapper without changing runtime behavior.
+
 
 /**
  * _build.cjs v5 — portable, self-healing Vite build wrapper.
@@ -233,7 +234,6 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
     .replace("style={{ height: '100dvh', scrollSnapAlign: 'start' }}", "")
     .replace('className="absolute bottom-0 left-0 right-0 px-4 pb-6 flex items-end justify-between gap-4"', 'className="absolute bottom-0 left-0 right-0 px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] flex items-end justify-between gap-4 z-20"');
   fs.writeFileSync(channelCardPath, channelCard, 'utf8');
-  fs.writeFileSync(channelCardPath, card, 'utf8');
 
 
   return () => {
