@@ -56,6 +56,9 @@ runSelfHeal();
 function patchTikVTVForTestagramAuth(vendorRoot) {
   const supabasePath = path.join(vendorRoot, 'src', 'lib', 'supabase.ts');
   const profilePath = path.join(vendorRoot, 'src', 'pages', 'Profile.tsx');
+  const headerPath = path.join(vendorRoot, 'src', 'components', 'layout', 'Header.tsx');
+  const feedPath = path.join(vendorRoot, 'src', 'pages', 'Feed.tsx');
+  const indexHtmlPath = path.join(vendorRoot, 'index.html');
   const xcloneSupabasePath = path.join(root, 'src', 'lib', 'supabase.ts');
 
   const xcloneSupabase = fs.readFileSync(xcloneSupabasePath, 'utf8');
@@ -87,13 +90,16 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
 });
 `;
 
-  if (!fs.existsSync(supabasePath) || !fs.existsSync(profilePath)) {
-    throw new Error('[TikVTV/Testagram Auth] Expected upstream auth files are missing');
+  if (!fs.existsSync(supabasePath) || !fs.existsSync(profilePath) || !fs.existsSync(headerPath) || !fs.existsSync(feedPath) || !fs.existsSync(indexHtmlPath)) {
+    throw new Error('[TikVTV/Testagram Auth] Expected upstream auth/branding files are missing');
   }
 
   const original = new Map([
     [supabasePath, fs.readFileSync(supabasePath, 'utf8')],
     [profilePath, fs.readFileSync(profilePath, 'utf8')],
+    [headerPath, fs.readFileSync(headerPath, 'utf8')],
+    [feedPath, fs.readFileSync(feedPath, 'utf8')],
+    [indexHtmlPath, fs.readFileSync(indexHtmlPath, 'utf8')],
   ]);
 
   let profile = original.get(profilePath);
@@ -106,11 +112,39 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
 
 
   if (profile === original.get(profilePath) || /AuthModal|showAuth|setShowAuth/.test(profile)) {
-    throw new Error('[TikVTV/Testagram Auth] Failed to remove the upstream auth modal');
+    throw new Error('[TikVTV/Testagram Auth] Failed to remove the upstream profile auth modal');
+  }
+
+  let header = original.get(headerPath)
+    .replace("import AuthModal from '@/components/features/AuthModal';\n", '')
+    .replace("  const [showAuth,   setShowAuth]   = useState(false);\n", '')
+    .replace("            Tik<span className=\"text-primary\">V</span>TV", "            Testagram")
+    .replace("                <LogIn className=\"w-3.5 h-3.5\" />\n                {t('login')}", "                <LogIn className=\"w-3.5 h-3.5\" />\n                {t('login')}")
+    .replace("onClick={() => setShowAuth(true)}", "onClick={() => { window.top?.location.assign('/auth?returnTo=/iptv-app/entry.html'); }}")
+    .replace("\n      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}\n", "\n");
+
+  let feed = original.get(feedPath)
+    .replace("import AuthModal from '@/components/features/AuthModal';\n", '')
+    .replace("  const [showAuth,    setShowAuth]   = useState(false);\n", '')
+    .replace("onAuthRequired={() => setShowAuth(true)}", "onAuthRequired={() => { window.top?.location.assign('/auth?returnTo=/iptv-app/entry.html'); }}")
+    .replace("\n      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}\n", "\n");
+
+  let indexHtml = original.get(indexHtmlPath)
+    .replace(/TikVTV/g, 'Testagram')
+    .replace(/TikTok-style/g, 'Testagram-style');
+
+  if (/TikVTV|AuthModal|showAuth|setShowAuth/.test(header)) {
+    throw new Error('[TikVTV/Testagram Auth] Failed to remove TikVTV header branding or auth modal');
+  }
+  if (/AuthModal|showAuth|setShowAuth/.test(feed)) {
+    throw new Error('[TikVTV/Testagram Auth] Failed to remove TikVTV feed auth modal');
   }
 
   fs.writeFileSync(supabasePath, supabaseSource, 'utf8');
   fs.writeFileSync(profilePath, profile, 'utf8');
+  fs.writeFileSync(headerPath, header, 'utf8');
+  fs.writeFileSync(feedPath, feed, 'utf8');
+  fs.writeFileSync(indexHtmlPath, indexHtml, 'utf8');
 
   return () => {
     for (const [file, contents] of original) fs.writeFileSync(file, contents, 'utf8');
