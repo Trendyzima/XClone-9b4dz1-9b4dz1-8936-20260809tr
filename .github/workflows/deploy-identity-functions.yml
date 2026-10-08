@@ -60,17 +60,12 @@ jobs:
             echo "::error::IDENTITY_PREAUTH_SECRET is not configured in Supabase project secrets."
             exit 1
           }
-          if ! printf '%s\n' "$secrets" | grep -Eq "(^|[[:space:]|])IDENTITY_ENGINE_SECRET TESTAGRAM_MAIL_URL TESTAGRAM_MAIL_TOKEN([[:space:]|]|$)"; then
-            engine_secret="$(openssl rand -hex 32)"
-            supabase secrets set "IDENTITY_ENGINE_SECRET=$engine_secret" --project-ref "${SUPABASE_PROJECT_ID}" >/dev/null
-            unset engine_secret
-            echo "Bootstrapped missing IDENTITY_ENGINE_SECRET in Supabase; value was never printed or committed."
-          fi
-          secrets_after="$(supabase secrets list --project-ref "${SUPABASE_PROJECT_ID}")"
-          printf '%s\n' "$secrets_after" | grep -Eq "(^|[[:space:]|])IDENTITY_ENGINE_SECRET([[:space:]|]|$)" || {
-            echo "::error::IDENTITY_ENGINE_SECRET could not be verified after bootstrap."
-            exit 1
-          }
+          for name in IDENTITY_ENGINE_SECRET TESTAGRAM_MAIL_URL TESTAGRAM_MAIL_TOKEN; do
+            printf '%s\n' "$secrets" | grep -Eq "(^|[[:space:]|])$name([[:space:]|]|$)" || {
+              echo "::error::$name is not configured in Supabase project secrets."
+              exit 1
+            }
+          done
           echo "Identity engine secrets are configured. Mail-service configuration is intentionally a separate deployment gate."
 
       - name: Deploy identity functions
