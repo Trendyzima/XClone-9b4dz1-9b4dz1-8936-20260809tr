@@ -48,6 +48,7 @@ jobs:
         with:
           ref: ${{ steps.target.outputs.sha }}
           fetch-depth: 1
+          submodules: recursive
 
       - name: Prove checkout SHA
         run: |
