@@ -186,7 +186,6 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
     .replace('className="flex-1 overflow-y-scroll"', 'className="absolute inset-0 overflow-y-scroll snap-y snap-mandatory overscroll-contain"')
     .replace("style={{ scrollSnapType: 'y mandatory', overscrollBehavior: 'contain' }}", "style={{ scrollSnapType: 'y mandatory', overscrollBehaviorY: 'contain', WebkitOverflowScrolling: 'touch' }}")
     .replace('        <CategoryTabs activeCategory={category} onCategoryChange={handleCategoryChange} />', '        <div className="absolute top-[58px] left-0 right-0 z-30 pointer-events-none"><div className="pointer-events-auto"><CategoryTabs activeCategory={category} onCategoryChange={handleCategoryChange} /></div></div>')
-    .replace('        <CategoryTabs activeCategory={category} onCategoryChange={handleCategoryChange} />', '        <div className="absolute top-[58px] left-0 right-0 z-30 pointer-events-none"><div className="pointer-events-auto"><CategoryTabs activeCategory={category} onCategoryChange={handleCategoryChange} /></div></div>')
     .replace('          <div className="bg-black/60 backdrop-blur px-4 py-2 border-b border-white/5 flex items-center gap-2">', '          <div className="absolute top-[58px] left-0 right-0 z-30 bg-black/50 backdrop-blur px-4 py-2 border-b border-white/5 flex items-center gap-2">');
   feed = feed
     .replace('shouldLoad={Math.abs(index - activeIndex) <= PRELOAD_RADIUS}', 'shouldLoad={index >= Math.floor(activeIndex / 4) * 4 && index < Math.floor(activeIndex / 4) * 4 + 4 || (activeIndex % 4 >= 2 && index >= (Math.floor(activeIndex / 4) + 1) * 4 && index < (Math.floor(activeIndex / 4) + 2) * 4)}')
@@ -197,7 +196,6 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
     .replace('className="relative w-full bg-black"', 'className="relative w-full h-[100dvh] bg-black snap-start snap-always overflow-hidden"')
     .replace("style={{ height: '100dvh', scrollSnapAlign: 'start' }}", "")
     .replace('className="absolute bottom-0 left-0 right-0 px-4 pb-6 flex items-end justify-between gap-4"', 'className="absolute bottom-0 left-0 right-0 px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] flex items-end justify-between gap-4 z-20"');
-  fs.writeFileSync(channelCardPath, card, 'utf8');
 
   let tabs = fs.readFileSync(categoryTabsPath, 'utf8')
     .replace('className="relative bg-black/80 backdrop-blur-sm border-b border-white/5"', 'className="relative bg-black/25 backdrop-blur-md border-b border-white/5 overflow-hidden"')
