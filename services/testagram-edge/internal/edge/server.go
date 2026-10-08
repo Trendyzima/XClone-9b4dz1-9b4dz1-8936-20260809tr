@@ -21,9 +21,9 @@ import (
  "sync/atomic"
  "time"
 
- "github.com/Trendyzima/cdn-/internal/cache"
- "github.com/Trendyzima/cdn-/internal/redis"
- "github.com/Trendyzima/cdn-/internal/config"
+ "github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/services/testagram-edge/internal/cache"
+ "github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/services/testagram-edge/internal/redis"
+ "github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/services/testagram-edge/internal/config"
 )
 
 type Server struct {
