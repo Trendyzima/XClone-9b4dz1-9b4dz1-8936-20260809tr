@@ -1,0 +1,65 @@
+name: IPTV TikVTV Ingestion Build
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.gitmodules'
+      - 'vendor/TikVTV'
+      - 'src/App.tsx'
+      - 'src/pages/TikVTVPage.tsx'
+      - '_build.cjs'
+      - '.github/workflows/iptv-tikvtv.yml'
+  pull_request:
+    paths:
+      - '.gitmodules'
+      - 'vendor/TikVTV'
+      - 'src/App.tsx'
+      - 'src/pages/TikVTVPage.tsx'
+      - '_build.cjs'
+      - '.github/workflows/iptv-tikvtv.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: iptv-tikvtv-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build Xclone + immutable TikVTV IPTV
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout with TikVTV submodule
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 1
+
+      - name: Verify pinned TikVTV commit
+        run: |
+          set -euo pipefail
+          test -f vendor/TikVTV/package.json
+          test "$(git -C vendor/TikVTV rev-parse HEAD)" = "410391f8aaae92b3644bfde08fff50fa4a6afc08"
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install Xclone dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Build Xclone and TikVTV
+        run: npm run build
+
+      - name: Verify IPTV bundle was ingested
+        run: |
+          set -euo pipefail
+          test -s dist/iptv-app/entry.html
+          test -d dist/iptv-app/assets
+          test -n "$(find dist/iptv-app/assets -type f | head -n 1)"

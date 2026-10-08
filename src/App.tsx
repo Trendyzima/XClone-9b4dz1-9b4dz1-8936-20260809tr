@@ -103,6 +103,7 @@ const TvStudioPage = lazy(() => import('@/pages/TvStudioPage'));
 const TvGuestControlPage = lazy(() => import('@/pages/TvGuestControlPage'));
 const TvPublicLivePage = lazy(() => import('@/pages/TvPublicLivePage'));
 const TvChannelsPage = lazy(() => import('@/pages/TvChannelsPage'));
+const TikVTVPage = lazy(() => import('@/pages/TikVTVPage'));
 const RidePage = lazy(() => import('@/pages/RidePage'));
 const ChannelProfilePage = lazy(() => import('@/pages/ChannelProfilePage'));
 const SettingsPage = lazy(() => import('@/pages/SettingsPage'));
@@ -440,7 +441,7 @@ function AppInner(){useCreatorTierAlert();const location=useLocation();const isN
 <Route path="/creator-studio/analytics" element={<CreatorAnalyticsPage/>}/>
 <Route path="/creator-studio/videos" element={<CreatorVideosPage/>}/>
 <Route path="/creator-studio/earnings" element={<CreatorEarningsPage/>}/>
-<Route path="/creator-studio/revenue" element={<CreatorRevenuePage/>}/><Route path="/premium" element={<PremiumPage/>}/><Route path="/stream/:streamId" element={<LiveStreamPage/>}/><Route path="/start-stream" element={<StartStreamPage/>}/><Route path="/tv-studio" element={<TvProductionShell/>}/><Route path="/tv-studio/:streamId" element={<TvProductionShell/>}/><Route path="/tv-studio/:streamId/guests" element={<TvProductionShell/>}/><Route path="/tv/live/:streamId" element={<TvPublicLivePage/>}/><Route path="/tv" element={<TvChannelsPage/>}/><Route path="/iptv" element={<TvChannelsPage/>}/><Route path="/ride" element={<RidePage/>}/><Route path="/channel/:handle" element={<ChannelProfilePage/>}/><Route path="/tv/channels" element={<TvChannelsPage/>}/><Route path="/tv/reels" element={<TvChannelsPage/>}/><Route path="/settings" element={<SettingsPage/>}/>
+<Route path="/creator-studio/revenue" element={<CreatorRevenuePage/>}/><Route path="/premium" element={<PremiumPage/>}/><Route path="/stream/:streamId" element={<LiveStreamPage/>}/><Route path="/start-stream" element={<StartStreamPage/>}/><Route path="/tv-studio" element={<TvProductionShell/>}/><Route path="/tv-studio/:streamId" element={<TvProductionShell/>}/><Route path="/tv-studio/:streamId/guests" element={<TvProductionShell/>}/><Route path="/tv/live/:streamId" element={<TvPublicLivePage/>}/><Route path="/tv" element={<TvChannelsPage/>}/><Route path="/iptv" element={<TikVTVPage/>}/><Route path="/ride" element={<RidePage/>}/><Route path="/channel/:handle" element={<ChannelProfilePage/>}/><Route path="/tv/channels" element={<TvChannelsPage/>}/><Route path="/tv/reels" element={<TvChannelsPage/>}/><Route path="/settings" element={<SettingsPage/>}/>
 <Route path="/settings/account" element={<SettingsAccountPage/>}/>
 <Route path="/settings/appearance" element={<SettingsAppearancePage/>}/>
 <Route path="/settings/connections" element={<SettingsConnectionsPage/>}/>
