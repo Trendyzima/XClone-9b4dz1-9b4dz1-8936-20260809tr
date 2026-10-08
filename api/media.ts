@@ -34,7 +34,7 @@ const CANONICAL_SUPABASE_URL = 'https://ffrhglgkukgsuhxenena.supabase.co';
 const CANONICAL_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya';
 
 const MEDIA_DELIVERY_BASE_URL = 'https://media.testagram.site';
-const MEDIA_PUBLIC_PREFIX = '/media';
+const MEDIA_PUBLIC_PREFIX = '/v1';
 function canonicalMediaUrl(baseUrl: string, storageKey: string) {
   const base = baseUrl.replace(/\/$/, '').replace(/\/v1$/i, '') || MEDIA_DELIVERY_BASE_URL;
   const key = storageKey.split('/').map(encodeURIComponent).join('/');
@@ -66,8 +66,9 @@ function config(): MediaConfig {
     r2AccessKeyId: env('R2_ACCESS_KEY_ID'),
     r2SecretAccessKey: env('R2_SECRET_ACCESS_KEY'),
     r2Bucket: env('R2_MEDIA_BUCKET', env('CLOUDFLARE_R2_BUCKET')),
-    // Testagram owns the public media URL contract. Keep R2_PUBLIC_BASE_URL as a safe
-    // compatibility fallback until the custom CDN hostname is configured.
+    // Testagram's Go CDN owns the public media URL contract. R2 is storage only;
+    // clients must never receive a raw bucket/S3 URL. Keep media.testagram.site as
+    // the production default and allow TESTAGRAM_CDN_BASE_URL for staged edge hosts.
     publicBaseUrl: normalizeCdnBase(env('TESTAGRAM_CDN_BASE_URL', MEDIA_DELIVERY_BASE_URL)),
     mediaDeliveryBaseUrl: MEDIA_DELIVERY_BASE_URL,
   };
@@ -190,9 +191,7 @@ export default async function handler(req: any, res: any) {
           const key = String(object.Key);
           const ext = key.split('.').pop()?.toLowerCase() ?? '';
           const mime = ext === 'mp4' || ext === 'mov' || ext === 'webm' || ext === 'm4v' || ext === 'ogg' ? 'video' : 'image';
-          const url = await getSignedUrl(r2, new GetObjectCommand({
-            Bucket: cfg.r2Bucket, Key: key,
-          }), { expiresIn: 3600 });
+          const url = canonicalMediaUrl(cfg.publicBaseUrl, key);
           return {
             id: key,
             name: key.split('/').pop() ?? key,
