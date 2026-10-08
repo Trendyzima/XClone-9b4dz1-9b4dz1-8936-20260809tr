@@ -103,6 +103,13 @@ Browser
   +-- Publisher/RSS services
   +-- Fediverse integrations
   +-- Testagram Media Engine (WebRTC SFU)
+  +-- First-party Testagram CDN
+  |     +-- HLS/IPTV rolling 45s prefetch
+  |     +-- >=30s playback buffer gate
+  |     +-- RAM + disk cache
+  |     +-- Range requests and stale-if-error
+  |     +-- media.testagram.site canonical media hostname
+  |     +-- no Cloudflare media-worker dependency
   +-- Payment/monetization integrations
   +-- Analytics/observability
 ~~~
@@ -147,6 +154,8 @@ The repository configuration and deployed environment are authoritative for the 
 │   └── theme/          # Appearance/theme handling
 ├── mobile/              # Flutter mobile product layer
 ├── supabase/            # Migrations and Edge Functions
+├── services/
+│   └── testagram-cdn/   # First-party Go media/IPTV CDN
 ├── api/                 # API/serverless handlers
 ├── public/              # Static assets and public metadata
 ├── android/             # Android/Capacitor project
