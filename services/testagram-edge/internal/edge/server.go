@@ -240,7 +240,7 @@ func(s *Server)authorized(rel,token string)bool{
  exp,e:=strconv.ParseInt(parts[0],10,64); if e!=nil||exp<time.Now().Unix(){return false}
  mac:=hmac.New(sha256.New,[]byte(s.cfg.PlaybackSecret)); _,_=mac.Write([]byte(rel+"|"+parts[0]))
  expected:=hex.EncodeToString(mac.Sum(nil)); return hmac.Equal([]byte(expected),[]byte(token))
-})}
+}
 
 func dedupe(in []string)[]string{seen:=map[string]bool{};out:=[]string{};for _,x:=range in{if x!=""&&!seen[x]{seen[x]=true;out=append(out,x)}};return out}
 func cleanAssetPath(p string)(string,bool){
@@ -253,7 +253,7 @@ func cleanAssetPath(p string)(string,bool){
  rel:=strings.TrimPrefix(c,"/")
  root:=strings.SplitN(rel,"/",2)[0]
  switch root {
- case "users","profiles","uploads","avatars","covers","photos","videos","media","live":
+ case "users","profiles","uploads","avatars","covers","photos","videos","media","live","tv":
  default: return "",false
  }
  return rel,true
