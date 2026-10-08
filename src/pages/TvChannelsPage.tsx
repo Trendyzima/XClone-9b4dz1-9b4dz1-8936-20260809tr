@@ -90,19 +90,6 @@ export default function TvChannelsPage(){
   setLoading(false);
  },[]);
 
- const loadFirebaseCatalogue=useCallback(async()=>{
-  try{
-   const response=await fetch('/tv/channels.json',{headers:{Accept:'application/json'}});
-   if(!response.ok)return;
-   const payload=await response.json();
-   if(Array.isArray(payload?.channels)){
-    const catalogue=payload.channels as TvChannel[];
-    setChannels(prev=>mergeTvChannelsStable(prev,catalogue));
-    setNotice(prev=>prev||('Worldwide catalogue: '+catalogue.length.toLocaleString()+' public channels indexed.'));
-   }
-  }catch{}
- },[]);
-
  const loadTestagramLive=useCallback(async()=>{
   const {data}=await supabase.from('live_streams').select('id,user_id,title,description,category,viewer_count,started_at,user:profiles(username,avatar_url)').eq('is_live',true).order('started_at',{ascending:false}).limit(16);
   const unique=Array.from(new Map((data||[]).map((stream:any)=>[String(stream.user_id||stream.id),stream])).values()).slice(0,8);
