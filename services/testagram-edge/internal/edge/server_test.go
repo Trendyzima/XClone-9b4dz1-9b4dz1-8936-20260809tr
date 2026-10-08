@@ -105,6 +105,22 @@ func TestR2MediaOrigin(t *testing.T) {
  if !ok || len(data) != 2048 { t.Fatalf("R2 media origin failed: ok=%v bytes=%d", ok, len(data)) }
 }
 
+func TestPublicProfileMediaRemainsDeliverableWithPlaybackSigningEnabled(t *testing.T) {
+ origin := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+  if r.URL.Path != "/v1/profiles/u1/avatar.webp" { t.Fatalf("unexpected profile path: %s", r.URL.Path) }
+  w.Header().Set("Content-Type", "image/webp")
+  _, _ = w.Write([]byte("avatar"))
+ }))
+ defer origin.Close()
+ cfg := testConfig(t)
+ cfg.OriginURLs = []string{origin.URL}
+ s := New(cfg)
+ rr := httptest.NewRecorder()
+ s.Handler().ServeHTTP(rr, httptest.NewRequest("GET", "/v1/profiles/u1/avatar.webp", nil))
+ if rr.Code != http.StatusOK { t.Fatalf("public profile media status=%d body=%s", rr.Code, rr.Body.String()) }
+ if got := rr.Header().Get("Cache-Control"); strings.Contains(got, "private") { t.Fatalf("public profile media became private: %q", got) }
+}
+
 func TestPrivateMediaURLProducesAuthorizedToken(t *testing.T) {
  cfg := testConfig(t)
  cfg.PublicBaseURL = "https://media.testagram.site"

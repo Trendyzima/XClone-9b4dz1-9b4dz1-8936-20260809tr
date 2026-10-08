@@ -1,9 +1,10 @@
 FROM golang:1.23-alpine AS build
 WORKDIR /src
-COPY go.mod go.sum* ./
+COPY go.mod ./
 RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/testagram-edge ./cmd/edge
+
 FROM alpine:3.20
 RUN addgroup -S edge && adduser -S -G edge edge
 WORKDIR /app
