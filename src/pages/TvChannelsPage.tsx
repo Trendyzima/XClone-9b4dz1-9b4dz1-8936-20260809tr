@@ -76,12 +76,16 @@ export default function TvChannelsPage(){
  const [showReplies,setShowReplies]=useState(false);
 
  const loadSources=useCallback(async(ids:string[])=>{
-  const targets=TV_SOURCES.filter(s=>s.enabled!==false&&ids.includes(s.id)&&!loaded.current.has(s.id));
-  if(!targets.length)return; setLoading(true);
+  const targets=TV_SOURCES.filter(s=>s.enabled!==false&&ids.includes(s.id));
+  if(!targets.length)return;
+  setLoading(true);
   const results=await Promise.allSettled(targets.map(s=>loadTvSource(s)));
   const good=results.flatMap(r=>r.status==='fulfilled'?r.value:[]);
-  targets.forEach(s=>loaded.current.add(s.id)); setChannels(prev=>mergeTvChannelsStable(prev,good));
   const failed=results.filter(r=>r.status==='rejected').length;
+  targets.forEach(s=>loaded.current.add(s.id));
+  // Publish the catalogue atomically. The page no longer grows/reorders while
+  // sources arrive, so the channel grid is visually static after first load.
+  setChannels(mergeTvChannelsStable([],good));
   if(failed)setNotice(failed+' live source(s) could not be reached. Other public streams remain available.');
   setLoading(false);
  },[]);
@@ -107,18 +111,13 @@ export default function TvChannelsPage(){
 
 
  useEffect(()=>{
-  void loadFirebaseCatalogue(); void loadSources(getPrioritySourceIds().slice(0,6)); void loadTestagramLive();
-  const remaining=getPrioritySourceIds().slice(6);
-  let cancelled=false;
-  void (async()=>{
-   for(let i=0;i<remaining.length&&!cancelled;i+=2){
-    await loadSources(remaining.slice(i,i+2));
-    await new Promise(resolve=>setTimeout(resolve,150));
-   }
-  })();
+  // Load the channel catalogue once, in parallel, then publish it as one
+  // immutable-looking snapshot. Playback remains independently selected.
+  void loadSources(getPrioritySourceIds());
+  void loadTestagramLive();
   const ch=supabase.channel('tv-live-broadcasts').on('postgres_changes',{event:'*',schema:'public',table:'live_streams'},loadTestagramLive).subscribe();
-  return()=>{cancelled=true;void supabase.removeChannel(ch);};
- },[loadFirebaseCatalogue,loadSources,loadTestagramLive]);
+  return()=>{void supabase.removeChannel(ch);};
+ },[loadSources,loadTestagramLive]);
 
 
  const filtered=useMemo(()=>{
@@ -188,8 +187,7 @@ export default function TvChannelsPage(){
   setActive(current=>current===id?(filtered.find(c=>c.id!==id&&!dead.has(c.id))?.id||''):current);
  };
 
- const refresh=()=>{loaded.current.clear();setDead(new Set());setActive('');setChannels([]);setNotice('');void loadSources(getPrioritySourceIds().slice(0,6));};
- const loadMore=async()=>{const ordered=TV_SOURCES.filter(s=>s.enabled!==false).sort((a,b)=>b.priority-a.priority); const next=ordered.find(s=>!loaded.current.has(s.id)); if(next) await loadSources([next.id]);};
+ const refresh=()=>{loaded.current.clear();setDead(new Set());setActive('');setChannels([]);setNotice('');void loadSources(getPrioritySourceIds());};
  const categories=useMemo(()=>[
   ['Kenya',filtered.filter(c=>c.country==='KE')],
   ['News',filtered.filter(c=>/news/i.test((c.group||'')+' '+c.name))],
@@ -260,7 +258,7 @@ export default function TvChannelsPage(){
    </section>
 
    {!loading&&!filtered.length&&<div className='rounded-2xl border py-20 text-center text-muted-foreground'><Globe2 className='mx-auto mb-3 h-10 w-10'/><p className='font-semibold'>No channels matched</p><p className='mt-1 text-sm'>Try another country, category or search.</p></div>}
-   <div className='mt-8 text-center'><Button variant='outline' onClick={()=>void loadMore()} disabled={loading||TV_SOURCES.filter(s=>s.enabled!==false).every(s=>loaded.current.has(s.id))}><ChevronRight className='mr-2'/>Load more live sources</Button><p className='mt-2 text-[11px] text-muted-foreground'>Channel metadata stays stable; reactions, hashtags and mentions connect this channel to the wider Testagram discovery system. Video playback remains strictly one channel at a time.</p></div>
+   <div className='mt-8 text-center'><p className='mt-2 text-[11px] text-muted-foreground'>Channel metadata stays stable; reactions, hashtags and mentions connect this channel to the wider Testagram discovery system. Video playback remains strictly one channel at a time.</p></div>
    {loading&&<div className='py-8 text-center text-sm text-muted-foreground'><RefreshCw className='mx-auto mb-2 h-5 w-5 animate-spin'/>Discovering live channels…</div>}
    <footer className='mt-10 border-t pt-5 text-center text-[11px] leading-5 text-muted-foreground'>Testagram does not host or copy broadcast video files. Channel availability depends on the public stream source and its rights/availability.</footer>
   </main>
