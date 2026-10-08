@@ -59,16 +59,21 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
   const xcloneSupabasePath = path.join(root, 'src', 'lib', 'supabase.ts');
 
   const xcloneSupabase = fs.readFileSync(xcloneSupabasePath, 'utf8');
-  const urlMatch = xcloneSupabase.match(new RegExp("PRIMARY_SUPABASE_URL\\\\s*=\\\\s*['\\\"]([^'\\\"]+)['\\\"]"));
-  const keyMatch = xcloneSupabase.match(new RegExp("PRIMARY_SUPABASE_PUBLISHABLE_KEY\\\\s*=\\\\s*['\\\"]([^'\\\"]+)['\\\"]"));
-  if (!urlMatch || !keyMatch) {
+  const readXcloneConstant = (name) => {
+    const line = xcloneSupabase.split('\n').find((value) => value.includes(`const ${name}`));
+    const match = line?.match(/['"]([^'"]+)['"]/);
+    return match?.[1];
+  };
+  const supabaseUrl = readXcloneConstant('PRIMARY_SUPABASE_URL');
+  const supabasePublishableKey = readXcloneConstant('PRIMARY_SUPABASE_PUBLISHABLE_KEY');
+  if (!supabaseUrl || !supabasePublishableKey) {
     throw new Error('[TikVTV/Testagram Auth] Could not derive Xclone primary Supabase configuration');
   }
 
   const supabaseSource = `import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = ${JSON.stringify(urlMatch[1])};
-const supabasePublishableKey = ${JSON.stringify(keyMatch[1])};
+const supabaseUrl = ${JSON.stringify(supabaseUrl)};
+const supabasePublishableKey = ${JSON.stringify(supabasePublishableKey)};
 
 export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   auth: {
@@ -93,10 +98,12 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
 
   let profile = original.get(profilePath);
   profile = profile
-    .replace("import AuthModal from '@/components/features/AuthModal';\\n", '')
-    .replace("  const [showAuth,   setShowAuth]   = useState(false);\\n", '')
+    .replace("import AuthModal from '@/components/features/AuthModal';", '')
+    .replace("  const [showAuth,   setShowAuth]   = useState(false);", '')
     .replace("        onClick={() => setShowAuth(true)}", "        onClick={() => { window.top?.location.assign('/auth?returnTo=/iptv-app/entry.html'); }}")
-    .replace("      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}\\n", '');
+    .replace("      {showAuth && <AuthModal onClose={() => setShowAuth(false)} />}", '');
+
+
 
   if (profile === original.get(profilePath) || /AuthModal|showAuth|setShowAuth/.test(profile)) {
     throw new Error('[TikVTV/Testagram Auth] Failed to remove the upstream auth modal');
