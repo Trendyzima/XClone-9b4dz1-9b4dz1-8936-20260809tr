@@ -52,6 +52,72 @@ function runSelfHeal() {
 
 runSelfHeal();
 
+
+function runTikVTVBuild() {
+  const vendorRoot = path.resolve(root, 'vendor', 'TikVTV');
+  const packageJson = path.join(vendorRoot, 'package.json');
+  if (!fs.existsSync(packageJson)) {
+    process.stderr.write('[_build] ❌ TikVTV submodule is missing. Checkout with submodules enabled.\n');
+    process.exit(1);
+  }
+
+  process.stderr.write('\n[_build] Building pinned TikVTV IPTV upstream...\n');
+  const npmBin = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const install = spawnSync(npmBin, ['ci', '--no-audit', '--no-fund'], {
+    cwd: vendorRoot,
+    stdio: 'inherit',
+    shell: false,
+    env: { ...process.env },
+  });
+  if (install.error || install.status !== 0) {
+    process.stderr.write('[_build] ❌ TikVTV dependency installation failed.\n');
+    process.exit(install.status || 1);
+  }
+
+  const tikBuild = spawnSync(npmBin, ['run', 'build', '--', '--base=/iptv-app/'], {
+    cwd: vendorRoot,
+    stdio: 'inherit',
+    shell: false,
+    env: { ...process.env },
+  });
+  if (tikBuild.error || tikBuild.status !== 0) {
+    process.stderr.write('[_build] ❌ TikVTV production build failed.\n');
+    process.exit(tikBuild.status || 1);
+  }
+
+  const sourceDist = path.join(vendorRoot, 'dist');
+  const snapshot = path.resolve(root, '.xclone-tikvtv-dist');
+  if (!fs.existsSync(path.join(sourceDist, 'index.html'))) {
+    process.stderr.write('[_build] ❌ TikVTV build did not produce dist/index.html.\n');
+    process.exit(1);
+  }
+  fs.rmSync(snapshot, { recursive: true, force: true });
+  fs.cpSync(sourceDist, snapshot, { recursive: true });
+  process.stderr.write('[_build] ✅ TikVTV upstream bundle captured.\n');
+}
+
+function publishTikVTVBundle() {
+  const snapshot = path.resolve(root, '.xclone-tikvtv-dist');
+  const target = path.resolve(root, 'dist', 'iptv-app');
+  const sourceIndex = path.join(snapshot, 'index.html');
+  if (!fs.existsSync(sourceIndex)) {
+    process.stderr.write('[_build] ❌ Captured TikVTV bundle is missing.\n');
+    process.exit(1);
+  }
+
+  fs.rmSync(target, { recursive: true, force: true });
+  fs.cpSync(snapshot, target, { recursive: true });
+
+  const index = fs.readFileSync(path.join(target, 'index.html'), 'utf8');
+  const bootstrap = '<script>try{history.replaceState(null,"","/")}catch(e){}</script>\n';
+  const entry = index.replace('</head>', bootstrap + '</head>');
+  fs.writeFileSync(path.join(target, 'entry.html'), entry, 'utf8');
+  fs.rmSync(snapshot, { recursive: true, force: true });
+  process.stderr.write('[_build] ✅ TikVTV IPTV bundle published at dist/iptv-app.\n');
+}
+
+runTikVTVBuild();
+
 if (!fs.existsSync(preloadPath)) {
   process.stderr.write(`[_build] ❌ Missing required repository preload: ${preloadPath}\n`);
   process.exit(1);
@@ -101,3 +167,5 @@ if (result.status !== 0) {
 }
 
 process.stderr.write('\n[_build] ✅ Vite build completed successfully.\n');
+publishTikVTVBundle();
+
