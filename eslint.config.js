@@ -19,6 +19,7 @@ export default [
       "node_modules/**",
       ".vercel/**",
       "coverage/**",
+      "vendor/TikVTV/**",
       "**/*.ts",
       "**/*.tsx",
     ],
