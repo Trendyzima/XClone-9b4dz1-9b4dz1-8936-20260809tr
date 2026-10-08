@@ -224,6 +224,130 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   for (const [oldText, newText] of channelDetailReplacements) channelDetail = channelDetail.replace(oldText, newText);
   fs.writeFileSync(channelDetailPath, channelDetail, 'utf8');
 
+  return () => {
+    for (const [file, contents] of original) fs.writeFileSync(file, contents, 'utf8');
+    fs.rmSync(socialServicePath, { force: true });
+  };
+}
+
+function runTikVTVBuild() {
+  const vendorRoot = path.resolve(root, 'vendor', 'TikVTV');
+  const packageJson = path.join(vendorRoot, 'package.json');
+  if (!fs.existsSync(packageJson)) {
+    process.stderr.write('[_build] ❌ TikVTV submodule is missing. Checkout with submodules enabled.\\n');
+    process.exit(1);
+  }
+
+  process.stderr.write('\\n[_build] Building pinned TikVTV upstream with Testagram authentication overlay...\\n');
+  const restoreAuthOverlay = patchTikVTVForTestagramAuth(vendorRoot);
+
+  try {
+    const npmBin = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    const install = spawnSync(npmBin, ['ci', '--no-audit', '--no-fund'], {
+      cwd: vendorRoot,
+      stdio: 'inherit',
+      shell: false,
+      env: { ...process.env },
+    });
+    if (install.error || install.status !== 0) {
+      throw new Error('TikVTV dependency installation failed');
+    }
+
+    const tikBuild = spawnSync(npmBin, ['run', 'build', '--', '--base=/iptv-app/'], {
+      cwd: vendorRoot,
+      stdio: 'inherit',
+      shell: false,
+      env: { ...process.env },
+    });
+    if (tikBuild.error || tikBuild.status !== 0) {
+      throw new Error('TikVTV production build failed');
+    }
+
+    const sourceDist = path.join(vendorRoot, 'dist');
+    const snapshot = path.resolve(root, '.xclone-tikvtv-dist');
+    if (!fs.existsSync(path.join(sourceDist, 'index.html'))) {
+      throw new Error('TikVTV build did not produce dist/index.html');
+    }
+    fs.rmSync(snapshot, { recursive: true, force: true });
+    fs.cpSync(sourceDist, snapshot, { recursive: true });
+    process.stderr.write('[_build] ✅ TikVTV/Testagram-auth bundle captured.\\n');
+  } finally {
+    restoreAuthOverlay();
+  }
+}
+
+function publishTikVTVBundle() {
+  const snapshot = path.resolve(root, '.xclone-tikvtv-dist');
+  const target = path.resolve(root, 'dist', 'iptv-app');
+  const sourceIndex = path.join(snapshot, 'index.html');
+  if (!fs.existsSync(sourceIndex)) {
+    process.stderr.write('[_build] ❌ Captured TikVTV bundle is missing.\n');
+    process.exit(1);
+  }
+
+  fs.rmSync(target, { recursive: true, force: true });
+  fs.cpSync(snapshot, target, { recursive: true });
+
+  const index = fs.readFileSync(path.join(target, 'index.html'), 'utf8');
+  const bootstrap = '<script>try{history.replaceState(null,"","/")}catch(e){}</script>\n';
+  const entry = index.replace('</head>', bootstrap + '</head>');
+  fs.writeFileSync(path.join(target, 'entry.html'), entry, 'utf8');
+  fs.rmSync(snapshot, { recursive: true, force: true });
+  process.stderr.write('[_build] ✅ TikVTV IPTV bundle published at dist/iptv-app.\n');
+}
+
+runTikVTVBuild();
+
+if (!fs.existsSync(preloadPath)) {
+  process.stderr.write(`[_build] ❌ Missing required repository preload: ${preloadPath}\n`);
+  process.exit(1);
+}
+
+const nodeOptions = [
+  '--require', preloadPath,
+  '--max_old_space_size=8192',
+  cleanNodeOptions(process.env.NODE_OPTIONS),
+].filter(Boolean).join(' ');
+
+const viteArgs = ['vite', 'build', ...process.argv.slice(2)];
+
+process.stderr.write('\n[_build] ========================================\n');
+process.stderr.write('[_build] Starting self-healing Vite build\n');
+process.stderr.write('[_build] Node: ' + process.version + '\n');
+process.stderr.write('[_build] Platform: ' + process.platform + '\n');
+process.stderr.write('[_build] Preload: ' + preloadPath + '\n');
+process.stderr.write('[_build] Vite args: ' + viteArgs.slice(1).join(' ') + '\n');
+process.stderr.write('[_build] ========================================\n\n');
+
+const result = spawnSync(
+  process.platform === 'win32' ? 'npx.cmd' : 'npx',
+  viteArgs,
+  {
+    stdio: 'inherit',
+    shell: false,
+    env: {
+      ...process.env,
+      NODE_OPTIONS: nodeOptions,
+      VITE_BUILD_SOURCEMAP: 'false',
+    },
+  },
+);
+
+if (result.error) {
+  process.stderr.write(`\n[_build] ❌ Could not start Vite: ${result.error.message}\n`);
+  process.exit(1);
+}
+if (result.signal) {
+  process.stderr.write(`\n[_build] ❌ Vite killed by signal: ${result.signal}\n`);
+  process.exit(1);
+}
+if (result.status !== 0) {
+  process.stderr.write(`\n[_build] ❌ Vite build failed (exit ${result.status})\n`);
+  process.exit(result.status || 1);
+}
+
+process.stderr.write('\n[_build] ✅ Vite build completed successfully.\n');
+publishTikVTVBundle();
   let channelCard = fs.readFileSync(channelCardPath, 'utf8');
   channelCard = channelCard
     .replace("shouldLoad:     boolean;", "shouldLoad:     boolean;")
@@ -386,3 +510,4 @@ if (result.status !== 0) {
 
 process.stderr.write('\n[_build] ✅ Vite build completed successfully.\n');
 publishTikVTVBundle();
+
