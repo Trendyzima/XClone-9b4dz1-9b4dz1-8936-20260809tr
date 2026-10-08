@@ -2,7 +2,7 @@ const CANONICAL_HOSTS = ['media.testagram.site', 'cdn.testagram.site'] as const;
 
 function normalizePath(pathname: string) {
   if (pathname.startsWith('/media/')) return '/v1/' + pathname.slice('/media/'.length);
-  if (pathname.startsWith('/users/') || pathname.startsWith('/profiles/')) return '/v1' + pathname;
+  if (pathname.startsWith('/users/') || pathname.startsWith('/profiles/') || pathname.startsWith('/uploads/') || pathname.startsWith('/avatars/') || pathname.startsWith('/covers/') || pathname.startsWith('/photos/') || pathname.startsWith('/videos/')) return '/v1' + pathname;
   return pathname;
 }
 
