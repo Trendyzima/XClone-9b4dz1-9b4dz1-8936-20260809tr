@@ -65,7 +65,7 @@ Deno.serve(async req=>{
     const key=`communities/${entityId}/${kind}.${ext(mime)}`;
     const bytes=new Uint8Array(await file.arrayBuffer());
     await r2.send(new PutObjectCommand({Bucket:BUCKET,Key:key,Body:bytes,ContentType:mime,ContentLength:bytes.byteLength,CacheControl:"public, max-age=31536000, immutable",Metadata:{ownerId:user.id,entityId,entity:"community",kind}}));
-    const url=`${PUBLIC_BASE}/${key}`;
+    const url=`${PUBLIC_BASE}/v1/${key}`;
     const patch=kind==="icon"?{icon_url:url,updated_at:new Date().toISOString()}:{banner_url:url,updated_at:new Date().toISOString()};
     const {error:updateError}=await admin.from("communities").update(patch).eq("id",entityId);
     if(updateError)return json({error:"Community media was uploaded but could not be saved"},500);
