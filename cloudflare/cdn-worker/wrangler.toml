@@ -26,5 +26,5 @@ head_sampling_rate = 0.25
 enabled = true
 head_sampling_rate = 0.05
 [[routes]]
-pattern = "media.testagram.site"
-custom_domain = true
+pattern = "media.testagram.site/*"
+zone_name = "testagram.site"
