@@ -25,7 +25,7 @@ jobs:
         with:
           repository: Trendyzima/cdn-
           ref: main
-          path: /tmp/testagram-cdn
+          path: testagram-cdn-source
           fetch-depth: 1
           persist-credentials: false
 
@@ -35,7 +35,7 @@ jobs:
           set -euo pipefail
           rm -rf services/testagram-cdn
           mkdir -p services/testagram-cdn
-          rsync -a --exclude='.git/' /tmp/testagram-cdn/ services/testagram-cdn/
+          rsync -a --exclude='.git/' testagram-cdn-source/ services/testagram-cdn/
           rm -rf services/testagram-cdn/.github/workflows
           find services/testagram-cdn -type f -print | sort > /tmp/cdn-files.txt
           test -s /tmp/cdn-files.txt
