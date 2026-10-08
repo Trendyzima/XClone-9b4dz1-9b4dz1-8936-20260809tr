@@ -1,4 +1,5 @@
 name: IPTV TikVTV Ingestion Build
+# Deterministic post-merge build gate for the pinned upstream.
 
 on:
   push:
