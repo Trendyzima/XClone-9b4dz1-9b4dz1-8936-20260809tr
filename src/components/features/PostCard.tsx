@@ -28,6 +28,7 @@ import { InlineTvSuggestion } from './InlineTvSuggestion';
 import { FediverseRichText } from './FediverseRichText';
 import { InlineRssSuggestion } from './InlineRssSuggestion';
 import { QuotedPostPreview } from './QuotedPostPreview';
+import { mediaCandidates } from '@/lib/mediaUrl';
 import { updateInterestSignal } from '@/services/recommendations';
 import { togglePostLike, togglePostRepost, createFederatedReply, getFederatedInteractionState, getFederatedInteractionCounts, getFederatedReplies, getInteractionCounts, recordPostView, recordPostShare } from '@/services/postInteractionService';
 import { backendCapabilities } from '@/services/backendClient';
@@ -783,7 +784,24 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
             }`}>
               {resolvedImageUrls.map((url: string, index: number) => (
                 <div key={index} className={`relative overflow-hidden ${resolvedImageUrls.length === 3 && index === 0 ? 'col-span-2' : ''}`}>
-                  <img src={url} alt={`Post media ${index + 1}`} className="w-full h-full object-cover max-h-96" />
+                  <img
+                  src={mediaCandidates(url)[0] || url}
+                  alt={`Post media ${index + 1}`}
+                  className="w-full h-full object-cover max-h-96"
+                  loading={index === 0 ? 'eager' : 'lazy'}
+                  decoding="async"
+                  fetchPriority={index === 0 ? 'high' : 'auto'}
+                  onError={(event) => {
+                    const candidates = mediaCandidates(url);
+                    const current = event.currentTarget.currentSrc || event.currentTarget.src;
+                    const index = candidates.indexOf(current);
+                    const next = candidates[index >= 0 ? index + 1 : 1];
+                    if (next && event.currentTarget.dataset.fallback !== next) {
+                      event.currentTarget.dataset.fallback = next;
+                      event.currentTarget.src = next;
+                    }
+                  }}
+                />
                 </div>
               ))}
             </div>
