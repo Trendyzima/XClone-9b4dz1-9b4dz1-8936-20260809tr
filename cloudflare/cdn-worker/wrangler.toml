@@ -25,3 +25,6 @@ head_sampling_rate = 0.25
 [observability.traces]
 enabled = true
 head_sampling_rate = 0.05
+[[routes]]
+pattern = "media.testagram.site"
+custom_domain = true
