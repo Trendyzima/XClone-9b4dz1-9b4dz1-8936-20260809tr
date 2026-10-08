@@ -191,10 +191,11 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
     .replace('if (idx >= liveChannels.length - 5 && hasMore) loadMore();', 'if ((idx + 1) % 4 === 3 && hasMore) loadMore();');
   fs.writeFileSync(feedPath, feed, 'utf8');
 
-  let card = fs.readFileSync(channelCardPath, 'utf8')
+  const card = fs.readFileSync(channelCardPath, 'utf8')
     .replace('className="relative w-full bg-black"', 'className="relative w-full h-[100dvh] bg-black snap-start snap-always overflow-hidden"')
     .replace("style={{ height: '100dvh', scrollSnapAlign: 'start' }}", "")
     .replace('className="absolute bottom-0 left-0 right-0 px-4 pb-6 flex items-end justify-between gap-4"', 'className="absolute bottom-0 left-0 right-0 px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] flex items-end justify-between gap-4 z-20"');
+  fs.writeFileSync(channelCardPath, card, 'utf8');
 
   let tabs = fs.readFileSync(categoryTabsPath, 'utf8')
     .replace('className="relative bg-black/80 backdrop-blur-sm border-b border-white/5"', 'className="relative bg-black/25 backdrop-blur-md border-b border-white/5 overflow-hidden"')
