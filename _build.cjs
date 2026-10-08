@@ -237,18 +237,6 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   fs.writeFileSync(channelCardPath, channelCard, 'utf8');
   fs.writeFileSync(channelCardPath, card, 'utf8');
 
-  let css = fs.readFileSync(indexCssPath, 'utf8');
-  css += `
-/* Testagram IPTV immersive vertical-feed polish */
-.iptv-vertical-feed { height: 100dvh; width: 100%; overflow: hidden; }
-@media (orientation: landscape) and (max-height: 600px) {
-  .iptv-vertical-feed .channel-info { max-width: 58vw; }
-}
-`;
-  fs.writeFileSync(indexCssPath, css, 'utf8');
-
-  fs.writeFileSync(indexHtmlPath, indexHtml, 'utf8');
-
 
   return () => {
     for (const [file, contents] of original) fs.writeFileSync(file, contents, 'utf8');
