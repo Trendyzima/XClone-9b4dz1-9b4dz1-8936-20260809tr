@@ -60,7 +60,7 @@ jobs:
             echo "::error::IDENTITY_PREAUTH_SECRET is not configured in Supabase project secrets."
             exit 1
           }
-          if ! printf '%s\n' "$secrets" | grep -Eq "(^|[[:space:]|])IDENTITY_ENGINE_SECRET([[:space:]|]|$)"; then
+          if ! printf '%s\n' "$secrets" | grep -Eq "(^|[[:space:]|])IDENTITY_ENGINE_SECRET TESTAGRAM_MAIL_URL TESTAGRAM_MAIL_TOKEN([[:space:]|]|$)"; then
             engine_secret="$(openssl rand -hex 32)"
             supabase secrets set "IDENTITY_ENGINE_SECRET=$engine_secret" --project-ref "${SUPABASE_PROJECT_ID}" >/dev/null
             unset engine_secret
