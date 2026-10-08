@@ -33,7 +33,13 @@ function extension(name: string, mime: string) {
 const CANONICAL_SUPABASE_URL = 'https://ffrhglgkukgsuhxenena.supabase.co';
 const CANONICAL_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya';
 
-const MEDIA_DELIVERY_BASE_URL = 'https://media.testagram.site/v1';
+const MEDIA_DELIVERY_BASE_URL = 'https://media.testagram.site';
+const MEDIA_PUBLIC_PREFIX = '/media';
+function canonicalMediaUrl(baseUrl: string, storageKey: string) {
+  const base = baseUrl.replace(/\/$/, '').replace(/\/v1$/i, '') || MEDIA_DELIVERY_BASE_URL;
+  const key = storageKey.split('/').map(encodeURIComponent).join('/');
+  return `${base}${MEDIA_PUBLIC_PREFIX}/${key}`;
+}
 function normalizeCdnBase(value: string) { return value.replace(/\/$/, '').replace(/\/v1$/i, ''); }
 
 interface MediaConfig {
@@ -62,11 +68,7 @@ function config(): MediaConfig {
     r2Bucket: env('R2_MEDIA_BUCKET', env('CLOUDFLARE_R2_BUCKET')),
     // Testagram owns the public media URL contract. Keep R2_PUBLIC_BASE_URL as a safe
     // compatibility fallback until the custom CDN hostname is configured.
-    publicBaseUrl: (() => {
-      const cdn = normalizeCdnBase(env('TESTAGRAM_CDN_BASE_URL'));
-      const r2Public = env('R2_PUBLIC_BASE_URL').replace(/\/$/, '');
-      return cdn && cdn !== r2Public ? cdn.replace(/\/$/, '') + '/v1' : MEDIA_DELIVERY_BASE_URL;
-    })(),
+    publicBaseUrl: normalizeCdnBase(env('TESTAGRAM_CDN_BASE_URL', MEDIA_DELIVERY_BASE_URL)),
     mediaDeliveryBaseUrl: MEDIA_DELIVERY_BASE_URL,
   };
 }
@@ -160,7 +162,7 @@ export default async function handler(req: any, res: any) {
         Bucket: cfg.r2Bucket, Key: storageKey, ContentType: mime,
         CacheControl: 'public, max-age=31536000, immutable',
       }), { expiresIn: 900 });
-      const mediaUrl = cfg.publicBaseUrl ? cfg.publicBaseUrl + '/' + storageKey : null;
+      const mediaUrl = canonicalMediaUrl(cfg.publicBaseUrl, storageKey);
 
       const { data, error } = await admin.from('media_assets').insert({
         owner_id: user.id, post_id: postId, thread_id: threadId, storage_key: storageKey, bucket: cfg.r2Bucket,
@@ -240,13 +242,13 @@ export default async function handler(req: any, res: any) {
       const readUrl = await getSignedUrl(r2, new GetObjectCommand({
         Bucket: media.bucket ?? cfg.r2Bucket, Key: media.storage_key,
       }), { expiresIn: 24 * 60 * 60 + 15 * 60 });
-      const playbackUrl = updated.media_url ?? media.media_url ?? readUrl;
-      if (!updated.media_url && !media.media_url) {
+      const playbackUrl = canonicalMediaUrl(cfg.publicBaseUrl, media.storage_key);
+      if (updated.media_url !== playbackUrl) {
         await admin.from('media_assets').update({ media_url: playbackUrl }).eq('id', media.id).eq('owner_id', user.id);
       }
       return json(res, 200, {
         ...updated, object_key: updated.storage_key, size_bytes: updated.byte_size,
-        public_url: playbackUrl, expires_in: updated.media_url ? null : 24 * 60 * 60 + 15 * 60,
+        public_url: playbackUrl, expires_in: null,
       });
     }
 
@@ -278,7 +280,7 @@ export default async function handler(req: any, res: any) {
         const join = await admin.from('post_media').insert({
           post_id: postId,
           owner_id: user.id,
-          media_url: updated.media_url,
+          media_url: canonicalMediaUrl(cfg.publicBaseUrl, updated.storage_key),
           media_type: updated.media_type,
           mime_type: updated.mime_type,
           byte_size: updated.byte_size,
@@ -289,7 +291,7 @@ export default async function handler(req: any, res: any) {
       }
 
       return json(res, 200, {
-        ...updated, object_key: updated.storage_key, public_url: updated.media_url, size_bytes: updated.byte_size,
+        ...updated, object_key: updated.storage_key, public_url: canonicalMediaUrl(cfg.publicBaseUrl, updated.storage_key), size_bytes: updated.byte_size,
       });
     }
 
