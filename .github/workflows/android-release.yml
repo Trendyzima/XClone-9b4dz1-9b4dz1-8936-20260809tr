@@ -43,6 +43,8 @@ jobs:
     steps:
       - name: Checkout release commit
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: Set up Java
         uses: actions/setup-java@v4
