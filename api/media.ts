@@ -33,7 +33,7 @@ function extension(name: string, mime: string) {
 const CANONICAL_SUPABASE_URL = 'https://ffrhglgkukgsuhxenena.supabase.co';
 const CANONICAL_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya';
 
-const MEDIA_DELIVERY_BASE_URL = `${CANONICAL_SUPABASE_URL}/functions/v1/media-delivery`;
+const MEDIA_DELIVERY_BASE_URL = 'https://media.testagram.site/v1';
 
 interface MediaConfig {
   supabaseUrl: string;
