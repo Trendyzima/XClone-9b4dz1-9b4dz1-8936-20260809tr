@@ -34,4 +34,7 @@ jobs:
         run: npm run typecheck
 
       - name: Production build
+        env:
+          VITE_TESTAGRAM_CDN_ENABLED: "true"
+          VITE_TESTAGRAM_CDN_URL: "https://media.testagram.site"
         run: npm run build
