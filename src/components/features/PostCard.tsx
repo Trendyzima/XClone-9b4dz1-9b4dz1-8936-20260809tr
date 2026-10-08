@@ -792,8 +792,10 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
                   decoding="async"
                   fetchPriority={index === 0 ? 'high' : 'auto'}
                   onError={(event) => {
+                    const candidates = mediaCandidates(url);
                     const current = event.currentTarget.currentSrc || event.currentTarget.src;
-                    const next = mediaCandidates(url).find((candidate) => candidate !== current);
+                    const index = candidates.indexOf(current);
+                    const next = candidates[index >= 0 ? index + 1 : 1];
                     if (next && event.currentTarget.dataset.fallback !== next) {
                       event.currentTarget.dataset.fallback = next;
                       event.currentTarget.src = next;
