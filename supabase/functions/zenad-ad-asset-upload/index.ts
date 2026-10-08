@@ -9,7 +9,7 @@ const ACCOUNT = Deno.env.get("CLOUDFLARE_ACCOUNT_ID") ?? Deno.env.get("R2_ACCOUN
 const ACCESS = Deno.env.get("CLOUDFLARE_R2_ACCESS_KEY_ID") ?? Deno.env.get("R2_ACCESS_KEY_ID") ?? "";
 const SECRET = Deno.env.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY") ?? Deno.env.get("R2_SECRET_ACCESS_KEY") ?? "";
 const BUCKET = Deno.env.get("CLOUDFLARE_R2_BUCKET") ?? Deno.env.get("R2_MEDIA_BUCKET") ?? "";
-const PUBLIC_BASE = (Deno.env.get("TESTAGRAM_CDN_BASE_URL") ?? "https://media.testagram.site/v1").replace(/\/$/, "").replace(/\/v1$/i, "") || "https://media.testagram.site";
+const PUBLIC_BASE = (Deno.env.get("TESTAGRAM_CDN_BASE_URL") ?? "https://media.testagram.site").replace(/\/$/, "").replace(/\/v1$/i, "") || "https://media.testagram.site";
 const MAX = 10 * 1024 * 1024;
 const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/avif"]);
 const cors = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, apikey, content-type", "Access-Control-Allow-Methods": "POST,OPTIONS" };
@@ -50,7 +50,7 @@ Deno.serve(async req => {
     await r2.send(new PutObjectCommand({ Bucket: BUCKET, Key: key, Body: new Uint8Array(await file.arrayBuffer()), ContentType: file.type.toLowerCase(), ContentLength: file.size, Metadata: { ownerId: user.id, campaignId } }));
     const head = await r2.send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
     if (Number(head.ContentLength ?? 0) !== file.size) return json({ error: "Cloudflare upload verification failed" }, 502);
-    const deliveryUrl = `${PUBLIC_BASE}/${key}`;
+    const deliveryUrl = `${PUBLIC_BASE}/v1/${key}`;
     const { data: creative } = await admin.from("testagram_ad_creatives").select("id").eq("campaign_id", campaignId).eq("enabled", true).order("created_at", { ascending: true }).limit(1).maybeSingle();
     if (!creative) return json({ error: "Campaign creative not found" }, 404);
     const { error } = await admin.from("testagram_ad_creatives").update({ asset_url: deliveryUrl }).eq("id", creative.id).eq("campaign_id", campaignId);
