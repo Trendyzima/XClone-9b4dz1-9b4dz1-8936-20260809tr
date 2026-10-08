@@ -10,11 +10,7 @@ const ACCOUNT_ID = Deno.env.get("CLOUDFLARE_ACCOUNT_ID") ?? Deno.env.get("R2_ACC
 const ACCESS_KEY = Deno.env.get("CLOUDFLARE_R2_ACCESS_KEY_ID") ?? Deno.env.get("R2_ACCESS_KEY_ID") ?? "";
 const SECRET_KEY = Deno.env.get("CLOUDFLARE_R2_SECRET_ACCESS_KEY") ?? Deno.env.get("R2_SECRET_ACCESS_KEY") ?? "";
 const BUCKET = Deno.env.get("CLOUDFLARE_R2_BUCKET") ?? Deno.env.get("R2_MEDIA_BUCKET") ?? "";
-const R2_PUBLIC_BASE = (Deno.env.get("R2_PUBLIC_BASE_URL") ?? "").replace(/\/$/, "");
-const CDN_BASE = (Deno.env.get("TESTAGRAM_CDN_BASE_URL") ?? "").replace(/\/$/, "");
-const DELIVERY_BASE = CDN_BASE && CDN_BASE !== R2_PUBLIC_BASE
-  ? CDN_BASE
-  : SUPABASE_URL + "/functions/v1/media-delivery";
+const DELIVERY_BASE = (Deno.env.get("TESTAGRAM_CDN_BASE_URL") ?? "https://media.testagram.site/v1").replace(/\/$/, "").replace(/\/v1$/i, "") || "https://media.testagram.site";
 
 const MAX_AVATAR = 2 * 1024 * 1024;
 const MAX_COVER = 5 * 1024 * 1024;
