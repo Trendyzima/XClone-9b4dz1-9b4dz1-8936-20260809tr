@@ -60,3 +60,7 @@ verify_jwt = false
 # Local/self-hosted Auth parity: Testagram sessions are time-boxed to 2 hours.
 [auth.sessions]
 timebox = "2h"
+
+
+[functions.tv-cdn-playback]
+verify_jwt = false

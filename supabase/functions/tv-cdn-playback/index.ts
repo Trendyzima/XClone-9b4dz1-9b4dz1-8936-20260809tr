@@ -42,19 +42,23 @@ Deno.serve(async (req) => {
     return new Response(JSON.stringify({ ok: false, error: "POST required" }), { status: 405, headers: cors });
   }
 
+  // IPTV is a public viewing surface. Do not require an interactive login just
+  // to obtain a short-lived CDN playback token. The signing secret remains
+  // server-side; only the signed playback URL is returned.
   const auth = req.headers.get("Authorization") || "";
-  if (!auth.startsWith("Bearer ")) {
-    return new Response(JSON.stringify({ ok: false, error: "Authentication required" }), { status: 401, headers: cors });
-  }
-
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_ANON_KEY")!,
-    { global: { headers: { Authorization: auth } } },
-  );
-  const { data: { user }, error: userError } = await supabase.auth.getUser();
-  if (userError || !user) {
-    return new Response(JSON.stringify({ ok: false, error: "Authentication required" }), { status: 401, headers: cors });
+  let userId: string | null = null;
+  if (auth.startsWith("Bearer ")) {
+    try {
+      const supabase = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_ANON_KEY")!,
+        { global: { headers: { Authorization: auth } } },
+      );
+      const { data: { user } } = await supabase.auth.getUser();
+      userId = user?.id || null;
+    } catch {
+      userId = null;
+    }
   }
 
   const secret = Deno.env.get("TESTAGRAM_CDN_PLAYBACK_SECRET") || "";
@@ -102,7 +106,7 @@ Deno.serve(async (req) => {
     data: {
       playback_url: playback.toString(),
       expires_at: new Date(exp * 1000).toISOString(),
-      user_id: user.id,
+      user_id: userId,
     },
     error: null,
   }), { status: 200, headers: cors });
