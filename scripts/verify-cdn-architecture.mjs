@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const root = process.cwd();
-const roots = ['src','api','cloudflare','supabase/functions'];
+const roots = ['src','api','cloudflare','supabase/functions','.github/workflows'];
 const extensions = new Set(['.ts','.tsx','.js','.jsx','.mjs','.cjs']);
 const allowed = new Set([
   'supabase/functions/media-delivery/index.ts',
@@ -12,6 +12,8 @@ const allowed = new Set([
   'cloudflare/cdn-worker/src/index.ts',
 ]);
 const forbidden = [
+  { re: /media\.testagram\.site\/\*/i, name: 'Cloudflare media hostname route' },
+  { re: /pattern\s*=\s*["']media\.testagram\.site/i, name: 'Cloudflare media hostname route' },
   { re: /https?:\/\/[^\s"'`]*\.r2\.dev/i, name: 'public R2 URL' },
   { re: /https?:\/\/res\.cloudinary\.com/i, name: 'public Cloudinary URL' },
   { re: /https?:\/\/[^\s"'`]*cloudinary\.com/i, name: 'public Cloudinary URL' },
@@ -34,4 +36,4 @@ function walk(dir) {
 }
 for(const d of roots) walk(path.join(root,d));
 if(findings.length){ console.error('PUBLIC MEDIA BYPASS DETECTED'); findings.forEach(x=>console.error(' - '+x)); process.exit(1); }
-console.log('CDN architecture gate passed: no hard-coded public storage or legacy media-delivery URLs found.');
+console.log('CDN architecture gate passed: media.testagram.site is reserved for the first-party Go CDN; no Cloudflare media route or public storage bypass found.');
