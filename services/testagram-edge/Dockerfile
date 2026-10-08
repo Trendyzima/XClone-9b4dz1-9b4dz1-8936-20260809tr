@@ -1,6 +1,6 @@
 FROM golang:1.23-alpine AS build
 WORKDIR /src
-COPY services/testagram-edge/go.mod services/testagram-edge/go.sum* ./services/testagram-edge/
+COPY services/testagram-edge/go.mod ./services/testagram-edge/
 WORKDIR /src/services/testagram-edge
 RUN go mod download
 COPY services/testagram-edge/ .
