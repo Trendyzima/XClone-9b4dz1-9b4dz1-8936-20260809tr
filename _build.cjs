@@ -178,7 +178,7 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   // Premium Testagram IPTV vertical-feed treatment: immersive viewport, overlay navigation,
   // stronger safe-area handling, and mobile-first interaction without changing channel data.
   feed = feed
-    .replace('const PRELOAD_RADIUS = 2;', 'const PRELOAD_RADIUS = 1;')
+    .replace('const PRELOAD_RADIUS = 4;', 'const PRELOAD_RADIUS = 1;')
     .replace('className="h-screen bg-black flex flex-col overflow-hidden"', 'className="h-[100dvh] bg-black relative overflow-hidden"')
     .replace('<Header liveCount={liveCount} totalChannels={total} />', '<div className="absolute inset-x-0 top-0 z-40 pointer-events-none"><div className="pointer-events-auto"><Header liveCount={liveCount} totalChannels={total} /></div></div>')
     .replace('className="flex-1 overflow-y-scroll"', 'className="absolute inset-0 overflow-y-scroll snap-y snap-mandatory overscroll-contain"')
