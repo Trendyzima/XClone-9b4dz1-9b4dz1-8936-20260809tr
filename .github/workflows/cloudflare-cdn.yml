@@ -50,6 +50,7 @@ jobs:
         run: |
           set -euo pipefail
           grep -Fq 'cdn.testagram.site' cloudflare/cdn-worker/wrangler.toml
+          grep -Fq 'media.testagram.site' cloudflare/cdn-worker/wrangler.toml
           grep -Fq 'MEDIA_BUCKET' cloudflare/cdn-worker/src/index.ts
           grep -Fq 'UPSTASH_REDIS_REST_URL' cloudflare/cdn-worker/src/index.ts
           grep -Fq 'x-testagram-cdn' cloudflare/cdn-worker/src/index.ts
@@ -90,6 +91,11 @@ jobs:
             fi
           done
           echo "CDN custom-domain route reconciliation passed."
+          echo "== Media custom-domain attachment ==";
+          media_domains="$(curl -fsS "$API/accounts/$ACCOUNT_ID/workers/domains?hostname=media.testagram.site&service=testagram-cdn" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
+          echo "$media_domains" | jq -e '.success == true and (.result | length > 0)' >/dev/null
+          echo "$media_domains" | jq '{success,result:[.result[]|{hostname,service,zone_name,status,enabled,environment}]}'
+
 
           echo "== Public DNS + HTTPS =="
           for attempt in $(seq 1 18); do
