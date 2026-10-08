@@ -70,7 +70,70 @@ jobs:
           echo "$domains" | jq -e '.success == true and (.result | length > 0)' >/dev/null
           echo "$domains" | jq '{success,result:[.result[]|{hostname,service,zone_name,cert_id,status,enabled,environment}]}'
 
-          echo "== Remove conflicting Worker routes for CDN custom domain =="
+          echo "== Remove conflicting Worker routes for CDN/media custom domains =="
+          ZONE_ID="$(curl -fsS "$API/zones?name=testagram.site&account.id=$ACCOUNT_ID&status=active" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq -r '.result[0].id // empty')"
+          test -n "$ZONE_ID" || { echo "::error::Unable to resolve testagram.site zone id."; exit 1; }
+          routes_json="$(curl -fsS "$API/zones/$ZONE_ID/workers/routes" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
+          mapfile -t media_routes < <(
+            jq -r '.result[]? | select(.pattern == "cdn.testagram.site/*" or .pattern == "cdn.testagram.site" or .pattern == "media.testagram.site/*" or .pattern == "media.testagram.site") | [.id,.pattern,(.script // "(disabled route)")] | @tsv' <<<"$routes_json"
+          )
+          for route in "${media_routes[@]}"; do
+            [[ -n "$route" ]] || continue
+            IFS=
+          ZONE_ID="$(curl -fsS "$API/zones?name=testagram.site&account.id=$ACCOUNT_ID&status=active" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq -r '.result[0].id // empty')"
+          test -n "$ZONE_ID" || { echo "::error::Unable to resolve testagram.site zone id."; exit 1; }
+
+          routes_json="$(curl -fsS "$API/zones/$ZONE_ID/workers/routes" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
+          mapfile -t cdn_routes < <(
+            jq -r '.result[]? | select(.pattern == "cdn.testagram.site/*" or .pattern == "cdn.testagram.site") | [.id,.pattern,(.script // "(disabled route)")] | @tsv' <<<"$routes_json"
+          )
+
+          for route in "${cdn_routes[@]}"; do
+            [[ -n "$route" ]] || continue
+            IFS=$'\t' read -r route_id pattern script <<<"$route"
+            echo "Removing conflicting CDN route $route_id ($pattern -> $script)..."
+            delete_status="$(curl -sS -o /tmp/cloudflare-cdn-route-delete.json -w '%{http_code}' -X DELETE "$API/zones/$ZONE_ID/workers/routes/$route_id" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
+            if [[ "$delete_status" != "200" ]] || ! jq -e '.success == true' /tmp/cloudflare-cdn-route-delete.json >/dev/null 2>&1; then
+              echo "::error::Failed to remove conflicting CDN route $route_id (HTTP $delete_status)."
+              cat /tmp/cloudflare-cdn-route-delete.json
+              exit 1
+            fi
+          done
+          echo "CDN custom-domain route reconciliation passed."
+          echo "== Media custom-domain attachment ==";
+          media_domains="$(curl -fsS "$API/accounts/$ACCOUNT_ID/workers/domains?hostname=media.testagram.site&service=testagram-cdn" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
+          echo "$media_domains" | jq -e '.success == true and (.result | length > 0)' >/dev/null
+          echo "$media_domains" | jq '{success,result:[.result[]|{hostname,service,zone_name,status,enabled,environment}]}'
+
+
+          echo "== Public DNS + HTTPS =="
+          for attempt in $(seq 1 18); do
+            ips="$(getent ahosts cdn.testagram.site 2>/dev/null | awk '{print $1}' | sort -u | tr '\n' ' ' || true)"
+            if [[ -n "$ips" ]]; then
+              echo "Resolved IPs: $ips"
+              status="$(curl -ksS --connect-timeout 5 --max-time 15 -o /tmp/cdn-body -D /tmp/cdn-headers -w '%{http_code}' https://cdn.testagram.site/ 2>/dev/null || true)"
+              echo "HTTPS status: $status"
+              grep -i '^x-testagram-cdn:' /tmp/cdn-headers || true
+              if [[ "$status" != "000" ]]; then
+                echo "Cloudflare CDN hostname is publicly reachable."
+                exit 0
+              fi
+            fi
+            echo "Attempt $attempt: DNS/HTTPS not ready yet; waiting 10s."
+            sleep 10
+          done
+          echo "::error::Cloudflare custom domain is attached, but cdn.testagram.site is not publicly reachable from GitHub Actions yet."
+          exit 1
+\t' read -r route_id pattern script <<<"$route"
+            echo "Removing conflicting route $route_id ($pattern -> $script)..."
+            delete_status="$(curl -sS -o /tmp/cloudflare-cdn-route-delete.json -w '%{http_code}' -X DELETE "$API/zones/$ZONE_ID/workers/routes/$route_id" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
+            if [[ "$delete_status" != "200" ]] || ! jq -e '.success == true' /tmp/cloudflare-cdn-route-delete.json >/dev/null 2>&1; then
+              echo "::error::Failed to remove conflicting route $route_id (HTTP $delete_status)."
+              cat /tmp/cloudflare-cdn-route-delete.json
+              exit 1
+            fi
+          done
+          echo "CDN/media custom-domain route reconciliation passed."
           ZONE_ID="$(curl -fsS "$API/zones?name=testagram.site&account.id=$ACCOUNT_ID&status=active" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq -r '.result[0].id // empty')"
           test -n "$ZONE_ID" || { echo "::error::Unable to resolve testagram.site zone id."; exit 1; }
 
