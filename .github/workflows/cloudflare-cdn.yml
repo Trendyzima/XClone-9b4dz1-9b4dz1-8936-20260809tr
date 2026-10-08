@@ -32,32 +32,6 @@ jobs:
           test -n "${CLOUDFLARE_API_TOKEN:-}" || { echo "::error::Missing CLOUDFLARE_API_TOKEN"; exit 1; }
           printf "::add-mask::%s\n" "$CLOUDFLARE_API_TOKEN"
 
-      - name: Remove conflicting DNS records for CDN custom domains
-        shell: bash
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-        run: |
-          set -euo pipefail
-          API="https://api.cloudflare.com/client/v4"
-          ACCOUNT_ID="77dbe7a859196105dc84fbb6b7094019"
-          ZONE_ID="$(curl -fsS "$API/zones?name=testagram.site&account.id=$ACCOUNT_ID&status=active" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" | jq -r '.result[0].id // empty')"
-          test -n "$ZONE_ID" || { echo "::error::Unable to resolve testagram.site zone."; exit 1; }
-          for host in media.testagram.site cdn.testagram.site; do
-            records="$(curl -fsS "$API/zones/$ZONE_ID/dns_records?name=$host" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
-            mapfile -t record_ids < <(jq -r '.result[]? | .id' <<<"$records")
-            for record_id in "${record_ids[@]}"; do
-              [[ -n "$record_id" ]] || continue
-              echo "Removing DNS record $record_id for $host so Cloudflare Worker custom domain can own the hostname."
-              delete_status="$(curl -sS -o /tmp/dns-delete.json -w '%{http_code}' -X DELETE "$API/zones/$ZONE_ID/dns_records/$record_id" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
-              if [[ "$delete_status" != "200" ]] || ! jq -e '.success == true' /tmp/dns-delete.json >/dev/null 2>&1; then
-                echo "::error::Failed deleting DNS record $record_id for $host (HTTP $delete_status)."
-                cat /tmp/dns-delete.json
-                exit 1
-              fi
-            done
-          done
-          echo "Conflicting DNS records removed."
-
       - name: Deploy CDN Worker
         uses: cloudflare/wrangler-action@v4.0.0
         with:
@@ -69,7 +43,7 @@ jobs:
         run: |
           set -euo pipefail
           grep -Fq 'cdn.testagram.site' cloudflare/cdn-worker/wrangler.toml
-          grep -Fq 'media.testagram.site' cloudflare/cdn-worker/wrangler.toml
+          grep -Fq 'media.testagram.site/*' cloudflare/cdn-worker/wrangler.toml
           grep -Fq 'MEDIA_BUCKET' cloudflare/cdn-worker/src/index.ts
           grep -Fq 'UPSTASH_REDIS_REST_URL' cloudflare/cdn-worker/src/index.ts
           grep -Fq "x-testagram-cdn" cloudflare/cdn-worker/src/index.ts
@@ -93,14 +67,17 @@ jobs:
             jq -e '.success == true' <<<"$response" >/dev/null
           done
 
-          for host in cdn.testagram.site media.testagram.site; do
-            response="$(curl -fsS "$API/accounts/$ACCOUNT_ID/workers/domains?hostname=$host&service=testagram-cdn" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
-            jq -e '.success == true and (.result | length > 0)' <<<"$response" >/dev/null || {
-              echo "::error::$host is not attached to testagram-cdn."
-              exit 1
-            }
-          done
-          echo "Cloudflare custom-domain reconciliation passed."
+          response="$(curl -fsS "$API/accounts/$ACCOUNT_ID/workers/domains?hostname=cdn.testagram.site&service=testagram-cdn" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
+          jq -e '.success == true and (.result | length > 0)' <<<"$response" >/dev/null || {
+            echo "::error::cdn.testagram.site is not attached to testagram-cdn."
+            exit 1
+          }
+          routes="$(curl -fsS "$API/zones/$ZONE_ID/workers/routes" -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN")"
+          jq -e '.success == true and any(.result[]?; .pattern == "media.testagram.site/*" and .script == "testagram-cdn")' <<<"$routes" >/dev/null || {
+            echo "::error::media.testagram.site/* is not routed to testagram-cdn."
+            exit 1
+          }
+          echo "Cloudflare CDN custom-domain and media-route reconciliation passed."
 
       - name: Verify public CDN endpoints
         shell: bash
