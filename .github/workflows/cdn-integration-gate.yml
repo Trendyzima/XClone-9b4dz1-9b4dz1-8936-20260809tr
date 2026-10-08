@@ -1,0 +1,67 @@
+name: Testagram CDN Integration Gate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  xclone-cdn-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout XClone
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout first-party Go CDN
+        uses: actions/checkout@v4
+        with:
+          repository: Trendyzima/cdn-
+          ref: main
+          path: testagram-cdn
+          persist-credentials: false
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: testagram-cdn/go.mod
+          cache-dependency-path: testagram-cdn/go.sum
+
+      - name: Verify canonical CDN contract
+        working-directory: testagram-cdn
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -R 'media.testagram.site' internal README.md >/dev/null
+          grep -R '2026-10-08-go-edge-iptv-v1' internal >/dev/null
+          grep -R 'TV_PREFETCH_SECONDS' internal README.md >/dev/null
+          grep -R 'TV_PREFETCH_TIMEOUT' internal README.md >/dev/null
+
+      - name: Run CDN correctness suite
+        working-directory: testagram-cdn
+        run: go test ./...
+
+      - name: Verify XClone points at the first-party CDN
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -R 'https://media.testagram.site' src supabase .github >/dev/null
+          grep -R 'tv-cdn-playback' src supabase >/dev/null
+
+      - name: Verify production CDN is explicitly enabled
+        shell: bash
+        run: |
+          set -euo pipefail
+          grep -R 'VITE_TESTAGRAM_CDN_ENABLED: "true"' .github/workflows >/dev/null
+          grep -R 'VITE_TESTAGRAM_CDN_URL: "https://media.testagram.site"' .github/workflows >/dev/null
+
+      - name: Build XClone
+        run: |
+          npm ci
+          npm run build
