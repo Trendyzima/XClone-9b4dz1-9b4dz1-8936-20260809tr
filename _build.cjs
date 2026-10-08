@@ -53,47 +53,111 @@ function runSelfHeal() {
 runSelfHeal();
 
 
+function patchTikVTVForTestagramAuth(vendorRoot) {
+  const supabasePath = path.join(vendorRoot, 'src', 'lib', 'supabase.ts');
+  const profilePath = path.join(vendorRoot, 'src', 'pages', 'Profile.tsx');
+
+  const supabaseSource = `import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
+const supabasePublishableKey = (
+  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  import.meta.env.VITE_SUPABASE_ANON_KEY
+) as string;
+
+if (!supabaseUrl || !supabasePublishableKey) {
+  throw new Error('[TikVTV/Testagram Auth] Xclone Supabase configuration is missing');
+}
+
+export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: true,
+    flowType: 'pkce',
+    storageKey: 'testagram-auth',
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
+  },
+});
+`;
+
+  if (!fs.existsSync(supabasePath) || !fs.existsSync(profilePath)) {
+    throw new Error('[TikVTV/Testagram Auth] Expected upstream auth files are missing');
+  }
+
+  const original = new Map([
+    [supabasePath, fs.readFileSync(supabasePath, 'utf8')],
+    [profilePath, fs.readFileSync(profilePath, 'utf8')],
+  ]);
+
+  let profile = original.get(profilePath);
+  profile = profile
+    .replace(/import AuthModal from ['"]@\\/components\\/features\\/AuthModal['"];\\n?/, '')
+    .replace(/  const \\[showAuth,\\s+setShowAuth\\] = useState\\(false\\);\\n/, '')
+    .replace(/onClick=\\{\\(\\) => setShowAuth\\(true\\)\\}/, "onClick={() => { window.top?.location.assign('/auth?returnTo=/iptv-app/entry.html'); }}")
+    .replace(/\\n      \\{showAuth && <AuthModal onClose=\\{\\(\\) => setShowAuth\\(false\\)\\} \/>\\}/, '');
+
+  if (profile === original.get(profilePath) || /AuthModal|showAuth|setShowAuth/.test(profile)) {
+    throw new Error('[TikVTV/Testagram Auth] Failed to remove the upstream auth modal');
+  }
+
+  fs.writeFileSync(supabasePath, supabaseSource, 'utf8');
+  fs.writeFileSync(profilePath, profile, 'utf8');
+
+  return () => {
+    for (const [file, contents] of original) fs.writeFileSync(file, contents, 'utf8');
+  };
+}
+
 function runTikVTVBuild() {
   const vendorRoot = path.resolve(root, 'vendor', 'TikVTV');
   const packageJson = path.join(vendorRoot, 'package.json');
   if (!fs.existsSync(packageJson)) {
-    process.stderr.write('[_build] ❌ TikVTV submodule is missing. Checkout with submodules enabled.\n');
+    process.stderr.write('[_build] ❌ TikVTV submodule is missing. Checkout with submodules enabled.\\n');
     process.exit(1);
   }
 
-  process.stderr.write('\n[_build] Building pinned TikVTV IPTV upstream...\n');
-  const npmBin = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-  const install = spawnSync(npmBin, ['ci', '--no-audit', '--no-fund'], {
-    cwd: vendorRoot,
-    stdio: 'inherit',
-    shell: false,
-    env: { ...process.env },
-  });
-  if (install.error || install.status !== 0) {
-    process.stderr.write('[_build] ❌ TikVTV dependency installation failed.\n');
-    process.exit(install.status || 1);
-  }
+  process.stderr.write('\\n[_build] Building pinned TikVTV upstream with Testagram authentication overlay...\\n');
+  const restoreAuthOverlay = patchTikVTVForTestagramAuth(vendorRoot);
 
-  const tikBuild = spawnSync(npmBin, ['run', 'build', '--', '--base=/iptv-app/'], {
-    cwd: vendorRoot,
-    stdio: 'inherit',
-    shell: false,
-    env: { ...process.env },
-  });
-  if (tikBuild.error || tikBuild.status !== 0) {
-    process.stderr.write('[_build] ❌ TikVTV production build failed.\n');
-    process.exit(tikBuild.status || 1);
-  }
+  try {
+    const npmBin = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    const buildEnv = { ...process.env };
 
-  const sourceDist = path.join(vendorRoot, 'dist');
-  const snapshot = path.resolve(root, '.xclone-tikvtv-dist');
-  if (!fs.existsSync(path.join(sourceDist, 'index.html'))) {
-    process.stderr.write('[_build] ❌ TikVTV build did not produce dist/index.html.\n');
-    process.exit(1);
+    const install = spawnSync(npmBin, ['ci', '--no-audit', '--no-fund'], {
+      cwd: vendorRoot,
+      stdio: 'inherit',
+      shell: false,
+      env: buildEnv,
+    });
+    if (install.error || install.status !== 0) {
+      process.stderr.write('[_build] ❌ TikVTV dependency installation failed.\\n');
+      process.exit(install.status || 1);
+    }
+
+    const tikBuild = spawnSync(npmBin, ['run', 'build', '--', '--base=/iptv-app/'], {
+      cwd: vendorRoot,
+      stdio: 'inherit',
+      shell: false,
+      env: buildEnv,
+    });
+    if (tikBuild.error || tikBuild.status !== 0) {
+      process.stderr.write('[_build] ❌ TikVTV production build failed.\\n');
+      process.exit(tikBuild.status || 1);
+    }
+
+    const sourceDist = path.join(vendorRoot, 'dist');
+    const snapshot = path.resolve(root, '.xclone-tikvtv-dist');
+    if (!fs.existsSync(path.join(sourceDist, 'index.html'))) {
+      process.stderr.write('[_build] ❌ TikVTV build did not produce dist/index.html.\\n');
+      process.exit(1);
+    }
+    fs.rmSync(snapshot, { recursive: true, force: true });
+    fs.cpSync(sourceDist, snapshot, { recursive: true });
+    process.stderr.write('[_build] ✅ TikVTV/Testagram-auth bundle captured.\\n');
+  } finally {
+    restoreAuthOverlay();
   }
-  fs.rmSync(snapshot, { recursive: true, force: true });
-  fs.cpSync(sourceDist, snapshot, { recursive: true });
-  process.stderr.write('[_build] ✅ TikVTV upstream bundle captured.\n');
 }
 
 function publishTikVTVBundle() {
