@@ -172,7 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (event === 'USER_UPDATED') {
           trackTestagramEvent(TestagramEvent.PROFILE_UPDATED, { source: 'auth_user_updated' });
         }
-        hydrateUser(session.user, event === 'SIGNED_IN');
+        // AuthPage already performs the legal/account finalization during sign-in.\n        // Re-running it here with requireFreshLegalConsent would reject the newly\n        // authenticated session after the local consent record has been consumed.\n        hydrateUser(session.user, false);
       }
     });
 
