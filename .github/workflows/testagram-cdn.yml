@@ -1,0 +1,62 @@
+name: Testagram First-Party CDN
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/testagram-cdn/**"
+      - ".github/workflows/testagram-cdn.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "services/testagram-cdn/**"
+      - ".github/workflows/testagram-cdn.yml"
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: services/testagram-cdn
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/testagram-cdn/go.mod
+          cache-dependency-path: services/testagram-cdn/go.sum
+      - name: Test
+        run: go test ./...
+      - name: Race test
+        run: go test -race ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Build
+        run: go build ./cmd/...
+
+  container:
+    needs: verify
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and publish
+        env:
+          IMAGE: ghcr.io/trendyzima/testagram-edge
+        run: |
+          set -euo pipefail
+          docker build --pull -f services/testagram-cdn/Dockerfile services/testagram-cdn             -t "$IMAGE:$GITHUB_SHA"             -t "$IMAGE:main"
+          docker push "$IMAGE:$GITHUB_SHA"
+          docker push "$IMAGE:main"
