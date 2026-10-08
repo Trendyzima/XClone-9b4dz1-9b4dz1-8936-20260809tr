@@ -220,7 +220,7 @@ export default function AuthPage() {
       const user = await authService.updatePassword(password);
       login(await finalizeAuthenticatedSession(user));
       window.history.replaceState({}, document.title, '/auth');
-      navigate('/', { replace: true });
+      navigate(getSafeReturnTo(), { replace: true });
     } catch (error: any) {
       toast({ title: 'Password update failed', description: error?.message || 'Your reset link may have expired. Request a new one.', variant: 'destructive' });
     } finally { setLoading(false); }
