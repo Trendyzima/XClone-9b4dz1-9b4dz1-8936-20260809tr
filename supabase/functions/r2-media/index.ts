@@ -88,7 +88,7 @@ Deno.serve(async (req) => {
       const uploadUrl = await getSignedUrl(r2, new PutObjectCommand({
         Bucket: R2_BUCKET, Key: storageKey, ContentType: mime, ContentLength: size,
       }), { expiresIn: 900 });
-      const mediaUrl = R2_PUBLIC_BASE_URL ? `${R2_PUBLIC_BASE_URL}/${storageKey}` : null;
+      const mediaUrl = R2_PUBLIC_BASE_URL ? `${R2_PUBLIC_BASE_URL}/v1/${storageKey}` : null;
       const { data, error } = await admin.from("media_assets").insert({
         owner_id: user.id, post_id: postId, storage_key: storageKey, bucket: R2_BUCKET,
         original_name: name, mime_type: mime, media_type: mediaType, byte_size: size,
