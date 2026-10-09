@@ -75,3 +75,39 @@ the channel remains congested after a short backpressure wait. Transient WebRTC
 `disconnected` states are not immediately torn down because they can recover;
 `failed` and `closed` connections are still cleaned up. This improves resource
 safety but does not remove the external signaling connection ceiling.
+
+
+## Two-million-viewer capacity target (not yet validated)
+
+The engineering target can be raised to **2,000,000 concurrent viewers**, but changing
+a constant or cohort count does not create capacity. At this audience size, the
+system must explicitly measure and budget:
+
+- **Signaling connections:** with the current client-side Supabase Realtime topology,
+  opted-in active browsers still need live signaling connections. At 2 million active
+  viewers and 100% peer-sharing opt-in, the rough floor is 2 million concurrent
+  signaling connections if each viewer uses one room/channel. This is not a claim
+  that Supabase supports that count.
+- **Origin bandwidth:** total unassisted media bandwidth is approximately viewer
+  count multiplied by average media bitrate. Only measured peer offload can reduce
+  the expected origin share; never assume an offload percentage in production.
+- **Peer mesh health:** measure join/leave churn, offer/answer and ICE success,
+  peer hit rate, bytes served/received, upload fairness, integrity rejects, and
+  stalls by geography and network class.
+- **Regional resilience:** test cross-region latency, NAT/firewall failure, peers
+  with limited upload, popular-channel hotspots, signaling reconnect storms, and
+  origin-only fallback during a peer-network outage.
+- **Privacy and consent:** peer sharing remains opt-in. Data-saver/cellular users
+  must not be forced into upload; signed or authenticated media must not be shared.
+
+A pure browser mesh is not a guarantee of global CDN availability. Browser peers
+are intermittent, can be behind restrictive NAT, and have asymmetric upload. Keep
+origin playback available and capacity-plan for a large peer-offline population.
+The free-only constraint may be incompatible with two million simultaneous users
+if existing signaling or origin infrastructure has insufficient verified capacity.
+Do not advertise the target as achieved until a staged load test and production
+telemetry prove it.
+
+The pure helper `src/services/virtualCdnCapacity.ts` calculates a transparent
+planning estimate for signaling connection count and origin bandwidth from explicit
+inputs. Its peer-offload input must come from measured telemetry, not a guess.
