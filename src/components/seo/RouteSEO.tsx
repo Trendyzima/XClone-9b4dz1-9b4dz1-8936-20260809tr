@@ -37,6 +37,7 @@ const PUBLIC_ROUTES: Array<[RegExp, string, string]> = [
   [/^\/terms\/?$/, 'Terms of Service', 'Read the Testagram terms of service.'],
   [/^\/search\/?$/, 'Search', 'Search public Testagram profiles, posts, communities and topics.'],
   [/^\/ai\/?$/, 'AI', 'Explore AI features on Testagram.'],
+  [/^\/iptv\/?$/, 'IPTV Player', 'Watch publicly available streams using the Testagram IPTV player.'],
 ];
 
 const PRIVATE = [
@@ -55,7 +56,7 @@ function routeMeta(pathname: string): [string, string, boolean] {
   const match = PUBLIC_ROUTES.find(([pattern]) => pattern.test(pathname));
   if (match) return [match[1], match[2], false];
   if (/^\/(?:login|signup)/.test(pathname)) return ['Testagram', 'Sign in or create a Testagram account.', true];
-  return ['Testagram', 'Testagram is a social platform for short videos, communities, live conversations, creators and global conversations.', false];
+  return ['Testagram', 'This Testagram page is not intended for search indexing.', true];
 }
 
 export function RouteSEO() {
