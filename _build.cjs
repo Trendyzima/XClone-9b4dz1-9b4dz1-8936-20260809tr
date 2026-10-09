@@ -54,6 +54,24 @@ function runSeoValidation() {
   }
 }
 
+function runSeoPrerender() {
+  const scriptPath = path.resolve(root, 'scripts', 'prerender-seo.mjs');
+  if (!fs.existsSync(scriptPath)) {
+    process.stderr.write(`[_build] ❌ Missing SEO prerender plugin: ${scriptPath}\\n`);
+    process.exit(1);
+  }
+  const result = spawnSync(process.execPath, [scriptPath], {
+    cwd: root,
+    stdio: 'inherit',
+    shell: false,
+    env: { ...process.env },
+  });
+  if (result.error || result.status !== 0) {
+    process.stderr.write(`[_build] ❌ SEO prerender failed: ${result.error?.message || 'exit ' + result.status}\\n`);
+    process.exit(result.status || 1);
+  }
+}
+
 function runSelfHeal() {
   if (!fs.existsSync(selfHealPath)) {
     process.stderr.write(`[_build] ❌ Missing self-healing guard: ${selfHealPath}\n`);
@@ -559,4 +577,5 @@ if (result.status !== 0) {
 }
 
 process.stderr.write('\n[_build] ✅ Vite build completed successfully.\n');
+runSeoPrerender();
 publishTikVTVBundle();
