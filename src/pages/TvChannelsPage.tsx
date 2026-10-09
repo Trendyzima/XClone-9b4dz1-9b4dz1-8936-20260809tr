@@ -66,7 +66,7 @@ export default function TvChannelsPage(){
  const [channels,setChannels]=useState<TvChannel[]>([]); const [testagramLive,setTestagramLive]=useState<any[]>([]);
  const [active,setActive]=useState(''); const [loading,setLoading]=useState(true);
  const [filter,setFilter]=useState(''); const [query,setQuery]=useState(''); const [notice,setNotice]=useState('');
- const [dead,setDead]=useState<Set<string>>(new Set()); const loaded=useRef(new Set<string>()); const sourceLoadGeneration=useRef(0); const sourceFailures=useRef(0);
+ const [dead,setDead]=useState<Set<string>>(new Set()); const loaded=useRef(new Set<string>()); const sourceLoadGeneration=useRef(0); const sourceFailures=useRef(0); const sourceChannelCount=useRef(0);
  const {user}=useAuth();
  const [tvReactionCounts,setTvReactionCounts]=useState<{emoji:string;count:number}[]>([]);
  const [myTvReaction,setMyTvReaction]=useState<string|null>(null);
@@ -98,6 +98,7 @@ export default function TvChannelsPage(){
  const loadSources=useCallback(async(ids:string[])=>{
   const generation=++sourceLoadGeneration.current;
   sourceFailures.current=0;
+  sourceChannelCount.current=0;
   setLoading(true);
   setNotice('');
   const targets=TV_SOURCES.filter(s=>s.enabled!==false&&ids.includes(s.id));
@@ -126,7 +127,7 @@ export default function TvChannelsPage(){
    const good=results.flatMap(result=>result.status==='fulfilled'?result.value:[]);
    sourceFailures.current+=results.filter(result=>result.status==='rejected').length;
    batch.forEach(source=>loaded.current.add(source.id));
-   if(good.length)setChannels(previous=>mergeTvChannelsStable(previous,good));
+   if(good.length){sourceChannelCount.current+=good.length;setChannels(previous=>mergeTvChannelsStable(previous,good));}
    if(sourceFailures.current>0)setNotice(sourceFailures.current+' live source(s) could not be reached. Available channels remain usable.');
    else if(good.length)setNotice('');
    return good.length;
@@ -147,8 +148,8 @@ export default function TvChannelsPage(){
     if(generation!==sourceLoadGeneration.current)return;
    }
 
-   if(sourceFailures.current===0&&loaded.current.size===0){
-    setNotice('Live channel sources are temporarily unavailable. Please try refreshing.');
+   if(sourceChannelCount.current===0&&sourceFailures.current===0){
+    setNotice('No public channels were returned by the available sources. Please try refreshing later.');
    }else if(sourceFailures.current===0){
     setNotice('');
    }
