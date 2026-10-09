@@ -6,10 +6,10 @@ const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 const checks = [
   ['Root sitemap is a static, host-portable asset rather than a Cloudflare Worker dependency', () => read('public/sitemap.xml').includes('<sitemapindex') && !read('cloudflare/index.ts').includes("url.pathname === '/sitemap.xml'")],
   ['Sitemap handlers have a publishable-key fallback and do not require service-role secrets', () => ['index', 'users', 'community', 'posts', 'threads'].every((name) => {
-  ['Sitemap query failures return valid crawlable XML and expose degraded status', () => read('api/sitemap-fallback.ts').includes("'X-Sitemap-Data-Status': 'degraded'") && ['index', 'users', 'community', 'posts', 'threads'].every((name) => read('api/sitemap-' + name + '.ts').includes('degradedSitemap'))],
     const source = read('api/sitemap-' + name + '.ts');
     return source.includes('SUPABASE_PUBLISHABLE_KEY') && source.includes('sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya') && source.includes('const supabaseApiKey =');
   })],
+  ['Sitemap query failures return valid crawlable XML and expose degraded status', () => read('api/sitemap-fallback.ts').includes("'X-Sitemap-Data-Status': 'degraded'") && ['index', 'users', 'community', 'posts', 'threads'].every((name) => read('api/sitemap-' + name + '.ts').includes('degradedSitemap'))],
   ['All sitemap handlers are statically bundled and dispatched before dynamic imports', () => {
     const worker = read('cloudflare/index.ts');
     return [
