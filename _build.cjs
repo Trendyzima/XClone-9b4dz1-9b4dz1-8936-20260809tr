@@ -299,6 +299,7 @@ button:focus-visible, [role="button"]:focus-visible, a:focus-visible {
     animation-duration: 0.01ms !important; transition-duration: 0.01ms !important;
   }
 }
+`;
   fs.writeFileSync(indexCssPath, css, 'utf8');
 
   fs.writeFileSync(indexHtmlPath, indexHtml, 'utf8');
