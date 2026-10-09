@@ -30,7 +30,6 @@ const MAX_SEGMENT_BYTES = 1_500_000;
 const CHUNK_BYTES = 16 * 1024;
 const PEER_REQUEST_TIMEOUT_MS = 1_000;
 const SIGNALING_WAIT_MS = 200;
-const ROOM_IDLE_MS = 30_000;
 const MAX_ROOMS = 4;
 // Random cohorts cap signaling fan-out. At one million viewers, 16,384 cohorts
 // average about 61 members each; low traffic naturally yields fewer peer hits.
