@@ -176,8 +176,6 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   fs.writeFileSync(reactionBarPath, fs.readFileSync(reactionBarPath, 'utf8').replace("import { supabase } from '@/lib/supabase';", "import { iptvSocial } from '@/lib/testagramSocial';").replace("const { error } = await supabase.from('reports').insert({\n      channel_id: channel.id,\n      user_id: user?.id || null,\n      reason,\n    });\n    setReporting(false);", "let error: unknown = null;\n    try { await iptvSocial('report', { channelId: channel.id, reason }); } catch (e) { error = e; }\n    setReporting(false);"), 'utf8');
   fs.writeFileSync(profilePath, profile, 'utf8');
   fs.writeFileSync(headerPath, header, 'utf8');
-  fs.writeFileSync(feedPath, feed, 'utf8');
-
   // Premium Testagram IPTV vertical-feed treatment: immersive viewport, overlay navigation,
   // stronger safe-area handling, and mobile-first interaction without changing channel data.
   feed = feed
@@ -240,8 +238,8 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
     .replace('className="relative w-full bg-black"', 'className="relative w-full h-[100dvh] bg-black snap-start snap-always overflow-hidden"')
     .replace("style={{ height: '100dvh', scrollSnapAlign: 'start' }}", "")
     .replace('className="absolute bottom-0 left-0 right-0 px-4 pb-6 flex items-end justify-between gap-4"', 'className="absolute bottom-0 left-0 right-0 px-4 pb-[calc(env(safe-area-inset-bottom)+20px)] flex items-end justify-between gap-4 z-20"');
+  fs.writeFileSync(feedPath, feed, 'utf8');
   fs.writeFileSync(channelCardPath, channelCard, 'utf8');
-
 
   return () => {
     for (const [file, contents] of original) fs.writeFileSync(file, contents, 'utf8');
