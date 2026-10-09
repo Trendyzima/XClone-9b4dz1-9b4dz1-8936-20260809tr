@@ -51,7 +51,7 @@ jobs:
                 }
                 return;
               }
-              const body = ['The independent production observability probe failed.','', 'Run: ' + context.serverUrl + '/' + owner + '/' + repo + '/actions/runs/' + context.runId, 'Detected: ' + new Date().toISOString(), '', 'Inspect /api/health, /api/ready, cdn.testagram.site/healthz, the first-party CDN deployment logs, DNS and reverse-proxy routing.'].join('\n');
+              const body = ['The independent production observability probe failed.','', 'Run: ' + context.serverUrl + '/' + owner + '/' + repo + '/actions/runs/' + context.runId, 'Detected: ' + new Date().toISOString(), '', 'Inspect /api/health, /api/ready, media.testagram.site/healthz, first-party CDN deployment logs, DNS and reverse-proxy routing. The probe rejects the legacy R2/Cloudflare edge.'].join('\n');
               if (existing) {
                 await github.rest.issues.createComment({ owner, repo, issue_number: existing.number, body: 'Probe still failing at ' + new Date().toISOString() + '.\n\n' + body });
               } else {
