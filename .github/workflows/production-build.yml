@@ -36,9 +36,8 @@ jobs:
         run: npm run typecheck
 
       - name: Production build
-        env:
-          VITE_TESTAGRAM_CDN_ENABLED: "true"
-          VITE_TESTAGRAM_CDN_URL: "https://media.testagram.site"
+        # TV playback must not require an unavailable optional CDN at startup.
+        # The app's default is origin-first; opt into the CDN only after deployment health is verified.
         run: npm run build
 
       - name: Test embedded Testagram CDN
