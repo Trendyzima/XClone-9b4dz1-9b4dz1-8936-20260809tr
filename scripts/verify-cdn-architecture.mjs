@@ -36,4 +36,4 @@ function walk(dir) {
 }
 for(const d of roots) walk(path.join(root,d));
 if(findings.length){ console.error('PUBLIC MEDIA BYPASS DETECTED'); findings.forEach(x=>console.error(' - '+x)); process.exit(1); }
-console.log('CDN architecture gate passed: media.testagram.site is reserved for the first-party Go CDN; no Cloudflare media route or public storage bypass found.');
+console.log('Media architecture gate passed: IPTV is origin-first; no mandatory hosted CDN or public storage bypass is configured.');
