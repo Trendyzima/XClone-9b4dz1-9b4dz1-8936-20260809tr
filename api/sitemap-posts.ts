@@ -10,9 +10,11 @@ function esc(value: string): string {
 
 export default async function handler(request: Request) {
   const supabaseUrl = process.env.SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co';
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
-  if (!serviceRoleKey) return new Response('Sitemap temporarily unavailable',{status:503,headers:{'Content-Type':'text/plain; charset=utf-8'}});
-  const db=createClient(supabaseUrl,serviceRoleKey,{auth:{persistSession:false,autoRefreshToken:false}});
+  // Prefer a privileged key only when explicitly provisioned. The publishable key is public
+  // by design and lets public-only sitemap queries work without asking for service secrets.
+  const supabaseApiKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya';
+  if (!supabaseApiKey) return new Response('Sitemap temporarily unavailable',{status:503,headers:{'Content-Type':'text/plain; charset=utf-8'}});
+  const db=createClient(supabaseUrl,supabaseApiKey,{auth:{persistSession:false,autoRefreshToken:false}});
   const url=new URL(request.url);
   const rawPart=url.searchParams.get('part');
   const hasExplicitPart=rawPart!==null;
