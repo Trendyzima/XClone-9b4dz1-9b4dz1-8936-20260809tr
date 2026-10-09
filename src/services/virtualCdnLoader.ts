@@ -29,11 +29,20 @@ function isSensitiveUrl(url: URL) {
   return false;
 }
 
+function hasSensitiveHeaders(context: any) {
+  try {
+    const headers = new Headers(context?.headers || {});
+    return headers.has('authorization') || headers.has('cookie') || headers.has('proxy-authorization');
+  } catch {
+    return true;
+  }
+}
+
 function isMediaFragment(context: any, url: URL) {
   if (context?.type === 'manifest' || context?.type === 'level' || context?.type === 'audioTrack' || context?.type === 'subtitleTrack' || context?.type === 'key') return false;
   if (context?.responseType && context.responseType !== 'arraybuffer') return false;
   if (context?.rangeStart != null || context?.rangeEnd != null) return false;
-  if (isSensitiveUrl(url)) return false;
+  if (isSensitiveUrl(url) || hasSensitiveHeaders(context)) return false;
   return context?.type === 'fragment' || /\.(?:ts|m4s|m4a|mp4|aac|ac3|mp3|ogg)(?:$|[?#])/i.test(url.href);
 }
 
@@ -108,8 +117,10 @@ async function saveCached(url: string, result: SegmentResult) {
   }
 }
 
-async function fetchDirect(url: string, headers: HeadersInit | undefined, signal?: AbortSignal): Promise<SegmentResult> {
-  const response = await fetch(url, { method: 'GET', headers, credentials: 'same-origin', signal });
+async function fetchDirect(url: string, headers: HeadersInit | undefined, signal?: AbortSignal, rangeStart?: number, rangeEnd?: number): Promise<SegmentResult> {
+  const requestHeaders = new Headers(headers || {});
+  if (rangeStart != null && rangeEnd != null) requestHeaders.set('Range', `bytes=${rangeStart}-${rangeEnd - 1}`);
+  const response = await fetch(url, { method: 'GET', headers: requestHeaders, credentials: 'same-origin', signal });
   if (!response.ok) throw Object.assign(new Error(`HTTP ${response.status} ${response.statusText}`), { status: response.status });
   const bytes = await response.arrayBuffer();
   return { url: response.url || url, bytes, contentType: response.headers.get('content-type') || 'application/octet-stream' };
@@ -180,7 +191,7 @@ export default class VirtualCdnLoader {
         if (cacheable && !result) result = await fetchFragment(url, context?.headers);
         if (!cacheable) {
           this.controller = new AbortController();
-          result = await fetchDirect(url, context?.headers, this.controller.signal);
+          result = await fetchDirect(url, context?.headers, this.controller.signal, context?.rangeStart, context?.rangeEnd);
         }
         if (this.aborted || !result) return;
 
