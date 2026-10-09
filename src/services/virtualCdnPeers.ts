@@ -42,7 +42,7 @@ function peerSharingEnabled() {
   catch { return false; }
 }
 
-function uploadAllowed() {
+function peerTransportAllowed() {
   if (!peerSharingEnabled()) return false;
   try {
     if (localStorage.getItem('testagram-tv-data-saver') === 'on') return false;
@@ -52,6 +52,8 @@ function uploadAllowed() {
   } catch { return false; }
   return true;
 }
+
+function uploadAllowed() { return peerTransportAllowed(); }
 
 function randomId() {
   try { return crypto.randomUUID(); } catch { return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`; }
@@ -388,7 +390,7 @@ class StreamPeerRoom {
 const rooms = new Map<string, StreamPeerRoom>();
 
 export async function fetchVirtualPeerSegment(streamUrl: string, segmentUrl: string, cache: PeerCache) {
-  if (typeof window === 'undefined' || typeof RTCPeerConnection === 'undefined' || !peerSharingEnabled()) return null;
+  if (typeof window === 'undefined' || typeof RTCPeerConnection === 'undefined' || !peerTransportAllowed()) return null;
   if (!publicStreamUrl(streamUrl) || !publicStreamUrl(segmentUrl)) return null;
   try {
     const name = await roomId(streamUrl);
