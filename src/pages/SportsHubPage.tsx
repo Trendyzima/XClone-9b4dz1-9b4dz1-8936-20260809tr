@@ -69,7 +69,24 @@ function matchStatus(match: Match): string {
   return display(first(match, ['status', 'state', 'matchStatus', 'time', 'minute', 'date'])) || 'Fixture';
 }
 function isLive(status: string): boolean {
-  return /live|in.?play|half.?time|1st half|2nd half|quarter|set [1-5]|innings/i.test(status);
+  return /live|in.?play|half.?time|\bht\b|1st half|2nd half|\b[12]h\b|quarter|\bq[1-4]\b|set [1-5]|innings/i.test(status);
+}
+function isFinishedMatch(match: Match): boolean {
+  return /^(ft|aet|pen|finished|full.?time|completed|ended|final|after extra time|after penalties)$/i.test(matchStatus(match).trim());
+}
+function matchTimestamp(match: Match): number | null {
+  const value = first(match, ['startTime', 'start_time', 'kickoff', 'kickoffTime', 'matchDate', 'dateTime', 'datetime', 'date', 'timestamp']);
+  const raw = display(value);
+  if (!raw) return null;
+  const parsed = Date.parse(raw);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+function isUpcomingMatch(match: Match): boolean {
+  const status = matchStatus(match).trim();
+  if (isLive(status) || isFinishedMatch(match)) return false;
+  if (/scheduled|fixture|upcoming|not started|kick.?off|\btbd\b|^ns$|pre.?match|time to start/i.test(status)) return true;
+  const timestamp = matchTimestamp(match);
+  return timestamp !== null && timestamp > Date.now();
 }
 function age(value: string) {
   const time = new Date(value).getTime();
@@ -87,6 +104,7 @@ function storySport(story: SportsStory): string {
 
 export default function SportsHubPage() {
   const [sport, setSport] = useState('football');
+  const [matchFilter, setMatchFilter] = useState<'all' | 'upcoming' | 'results'>('all');
   const [matches, setMatches] = useState<Match[]>([]);
   const [stories, setStories] = useState<SportsStory[]>([]);
   const [scoresLoading, setScoresLoading] = useState(true);
@@ -121,7 +139,6 @@ export default function SportsHubPage() {
     } catch (error) {
       if (controller.signal.aborted) return;
       setScoresError(error instanceof Error ? error.message : 'Scores are temporarily unavailable');
-      setMatches([]);
     } finally {
       if (!controller.signal.aborted) {
         setScoresLoading(false);
@@ -173,6 +190,10 @@ export default function SportsHubPage() {
   }, [loadScores, loadStories]);
 
   const liveMatches = matches.filter(match => isLive(matchStatus(match)));
+  const upcomingMatches = matches.filter(isUpcomingMatch).sort((a, b) => (matchTimestamp(a) ?? Number.MAX_SAFE_INTEGER) - (matchTimestamp(b) ?? Number.MAX_SAFE_INTEGER));
+  const finishedMatches = matches.filter(isFinishedMatch).sort((a, b) => (matchTimestamp(b) ?? 0) - (matchTimestamp(a) ?? 0));
+  const otherMatches = matches.filter(match => !isLive(matchStatus(match)) && !isUpcomingMatch(match) && !isFinishedMatch(match));
+  const displayedMatches = matchFilter === 'upcoming' ? upcomingMatches : matchFilter === 'results' ? finishedMatches : [...upcomingMatches, ...otherMatches, ...finishedMatches];
   const normalizedStoryQuery = storyQuery.trim().toLocaleLowerCase();
   const filteredStories = stories.filter(story => {
     if (storyFilter === 'kenya' && story.country_code !== 'KE') return false;
@@ -224,7 +245,11 @@ export default function SportsHubPage() {
             <span className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:inline-flex"><RefreshCw className="h-3.5 w-3.5" /> Auto-refresh · 60 sec</span>
           </div>
 
-          {liveMatches.length > 0 && (
+          <div className="mb-4 flex flex-wrap items-center gap-2" aria-label="Filter matches">
+            {([{ value: 'all', label: 'All matches', count: matches.length }, { value: 'upcoming', label: 'Upcoming', count: upcomingMatches.length }, { value: 'results', label: 'Results', count: finishedMatches.length }] as const).map(option => <button key={option.value} type="button" aria-pressed={matchFilter === option.value} onClick={() => setMatchFilter(option.value)} className={'inline-flex min-h-9 items-center gap-2 rounded-full px-3.5 text-xs font-bold transition ' + (matchFilter === option.value ? 'bg-primary text-primary-foreground' : 'border bg-card text-muted-foreground hover:bg-accent')}>{option.label}<span className={'rounded-full px-1.5 py-0.5 text-[10px] ' + (matchFilter === option.value ? 'bg-primary-foreground/15' : 'bg-muted')}>{option.count}</span></button>)}
+          </div>
+
+          {liveMatches.length > 0 && matchFilter !== 'results' && (
             <div className="mb-4 rounded-2xl border border-red-500/20 bg-red-500/[0.04] p-3 sm:p-4">
               <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wider text-red-500"><span className="h-2 w-2 animate-pulse rounded-full bg-red-500" /> Live now <span className="rounded-full bg-red-500/10 px-2 py-0.5">{liveMatches.length}</span></div>
               <div className="grid gap-3 md:grid-cols-2">
@@ -234,11 +259,16 @@ export default function SportsHubPage() {
           )}
 
           {scoresLoading && matches.length === 0 ? <div className="grid gap-3 sm:grid-cols-2"><div className="h-28 animate-pulse rounded-2xl bg-muted" /><div className="h-28 animate-pulse rounded-2xl bg-muted" /></div>
-            : scoresError ? <div className="rounded-2xl border border-amber-500/25 bg-amber-500/[0.04] p-5" role="alert">
+            : scoresError && matches.length === 0 ? <div className="rounded-2xl border border-amber-500/25 bg-amber-500/[0.04] p-5" role="alert">
               <div className="flex items-start gap-3"><CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" /><div className="min-w-0 flex-1"><p className="font-bold">Scores couldn’t load just now</p><p className="mt-1 break-words text-sm text-muted-foreground">{scoresError}</p><p className="mt-2 text-xs text-muted-foreground">Your headlines remain available. Try again in a moment.</p><button type="button" className="mt-3 inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold hover:bg-accent" onClick={() => void loadScores(true)}><RefreshCw className="h-4 w-4" /> Try scores again</button></div></div>
             </div>
             : matches.length === 0 ? <div className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground"><div className="flex items-center gap-3"><CalendarDays className="h-5 w-5 shrink-0 text-primary" /><p>No score entries are available for {sport} right now. Try another sport or refresh shortly.</p></div></div>
-            : <div className="grid gap-3 sm:grid-cols-2">{matches.filter(match => !isLive(matchStatus(match))).slice(0, 8).map((match, index) => <MatchCard key={display(first(match, ['id', 'matchId', 'slug'])) || matchTeam(match, 'home') + index} match={match} sport={sport} />)}</div>}
+            : <>
+              {scoresError && <div className="mb-3 rounded-xl border border-amber-500/25 bg-amber-500/[0.04] px-4 py-3 text-xs text-muted-foreground" role="status">Couldn’t refresh scores. Showing the last loaded results; try again shortly.</div>}
+              <p className="mb-3 text-xs font-bold uppercase tracking-wider text-muted-foreground">{matchFilter === 'upcoming' ? 'Upcoming fixtures · earliest first' : matchFilter === 'results' ? 'Recent results · newest first' : 'Upcoming fixtures first, then recent results'}</p>
+              {displayedMatches.length === 0 ? <div className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground"><div className="flex items-start gap-3"><CalendarDays className="mt-0.5 h-5 w-5 shrink-0 text-primary" /><div><p className="font-semibold">{matchFilter === 'upcoming' ? 'No upcoming fixtures found for this sport.' : 'No completed results found for this sport.'}</p><button type="button" onClick={() => setMatchFilter(matchFilter === 'upcoming' ? 'results' : 'all')} className="mt-2 font-bold text-primary hover:underline">{matchFilter === 'upcoming' ? 'View recent results' : 'View all matches'}</button></div></div></div>
+                : <div className="grid gap-3 sm:grid-cols-2">{displayedMatches.slice(0, 8).map((match, index) => <MatchCard key={display(first(match, ['id', 'matchId', 'slug'])) || matchTeam(match, 'home') + index} match={match} sport={sport} />)}</div>}
+            </>}
           <p className="mt-3 text-xs text-muted-foreground">Scores and fixtures <a href="https://sportscore.com/" target="_blank" rel="noopener noreferrer" className="font-semibold underline decoration-primary/50 underline-offset-2 hover:text-primary">Powered by SportScore <ExternalLink className="inline h-3 w-3" /></a>.</p>
         </section>
 
