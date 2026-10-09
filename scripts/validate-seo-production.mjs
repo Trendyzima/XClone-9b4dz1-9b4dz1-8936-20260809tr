@@ -36,6 +36,10 @@ const checks = [
   ['Sitemap index lists chunk URLs directly', () => read('api/sitemap-index.ts').includes('?part=${part}')],
   ['Sitemap endpoints validate numeric chunk parameters', () => ['users', 'community', 'posts', 'threads'].every((name) => read(`api/sitemap-${name}.ts`).includes('/^\\d+$/'))],
   ['Explicit sitemap chunks return URL sets, not nested sitemap indexes', () => ['users', 'community', 'posts', 'threads'].every((name) => read(`api/sitemap-${name}.ts`).includes('!hasExplicitPart'))],
+  ['SEO optimizer handles extensionless routes with missing or incorrect content type', () => {
+    const worker = read('cloudflare/index.ts');
+    return worker.includes('const looksLikeHtml =') && worker.includes("headers.set('X-SEO-Optimizer', 'applied')") && worker.includes("headers.set('X-SEO-Canonical', seo.canonical)");
+  }],
   ['SEO optimizer emits noindex for private and unknown routes', () => read('cloudflare/index.ts').includes('Unknown client-side routes') && read('cloudflare/index.ts').includes("headers.set('X-Robots-Tag', 'noindex, nofollow')")],
   ['JSON-LD output escapes script-closing characters', () => read('cloudflare/index.ts').includes("replace(/</g, '\\\\u003c')")],
   ['Robots file exposes exactly one sitemap index and permits noindex routes to be crawled', () => {
