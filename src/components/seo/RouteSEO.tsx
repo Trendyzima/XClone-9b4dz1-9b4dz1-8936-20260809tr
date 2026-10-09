@@ -70,6 +70,7 @@ export function RouteSEO() {
     url: canonical,
     noindex,
     type: /^\/post\//.test(pathname) || /^\/thread\//.test(pathname) || /^\/news\//.test(pathname) ? 'article' : 'website',
+    fallbackOnly: true,
   });
 
   void search;
