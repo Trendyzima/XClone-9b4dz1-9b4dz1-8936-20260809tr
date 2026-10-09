@@ -15,7 +15,7 @@ set category = excluded.category,
     language_code = excluded.language_code,
     enabled = true,
     refresh_minutes = 60,
-    next_fetch_at = least(public.testagram_rss_sources.next_fetch_at, now() - interval '1 day'),
+    next_fetch_at = least(testagram_rss_sources.next_fetch_at, now() - interval '1 day'),
     updated_at = now();
 
 -- Imported sports headlines have a maximum three-hour lifetime; general RSS
