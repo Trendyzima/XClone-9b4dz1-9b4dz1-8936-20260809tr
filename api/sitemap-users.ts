@@ -15,7 +15,13 @@ export default async function handler(request: Request) {
   }
 
   const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
-  const requestedPart = Math.max(0, Math.floor(Number(new URL(request.url).searchParams.get('part') || '0')));
+  const requestUrl = new URL(request.url);
+  const rawPart = requestUrl.searchParams.get('part');
+  const hasExplicitPart = rawPart !== null;
+  const requestedPart = rawPart === null ? 0 : Number(rawPart);
+  if (rawPart !== null && (!/^\\d+$/.test(rawPart) || !Number.isSafeInteger(requestedPart))) {
+    return new Response('Invalid sitemap part', { status: 400, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
+  }
 
   const { count, error: countError } = await db
     .from('profiles')
@@ -32,7 +38,7 @@ export default async function handler(request: Request) {
   const total = Number(count ?? 0);
   const partCount = Math.max(1, Math.ceil(total / 50000));
 
-  if (requestedPart === 0 && partCount > 1) {
+  if (!hasExplicitPart && partCount > 1) {
     const indexEntries = Array.from({ length: partCount }, (_, part) =>
       `  <sitemap>\n    <loc>https://testagram.site/api/sitemap-users?part=${part}</loc>\n  </sitemap>`
     ).join('\n');
