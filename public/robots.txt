@@ -24,42 +24,8 @@ Allow: /thread/
 Allow: /trending/
 Allow: /challenge/
 
-# ── Private / auth-required routes (noindex) ─────────────────────────────────
-Disallow: /auth
-Disallow: /messages
-Disallow: /notifications
-Disallow: /wallet
-Disallow: /settings
-Disallow: /bookmarks
-Disallow: /history
-Disallow: /scheduled
-Disallow: /payouts
-Disallow: /creator-studio
-Disallow: /monetization
-Disallow: /analytics
-Disallow: /verify
-Disallow: /wishlist
-Disallow: /referral
-Disallow: /daily-rewards
-Disallow: /rewards
-Disallow: /platform-inbox
-Disallow: /interests
-Disallow: /notification-preferences
-Disallow: /lists
-Disallow: /my-ads
-Disallow: /create-ad
-Disallow: /start-stream
-Disallow: /ad-analytics
-Disallow: /revenue-analytics
-Disallow: /ad-performance
-Disallow: /post-analytics
-Disallow: /boost-analytics/
-Disallow: /seo-audit
-
-# ── Admin routes ──────────────────────────────────────────────────────────────
-Disallow: /admin/
-Disallow: /fraud-detection
-Disallow: /ai-bot-setup
+# Private/auth/admin app-shell routes are crawlable so search engines can observe
+# the server-rendered noindex directive. These routes expose no private data in HTML.
 
 # ── AI training/data-collection crawlers remain blocked ────────────────────────
 # Search retrieval crawlers are not blocked here and inherit the default group
