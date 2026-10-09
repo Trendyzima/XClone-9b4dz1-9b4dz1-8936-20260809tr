@@ -560,3 +560,23 @@ if (result.status !== 0) {
 
 process.stderr.write('\n[_build] ✅ Vite build completed successfully.\n');
 publishTikVTVBundle();
+
+function runStaticSeoPrerender() {
+  const script = path.resolve(root, 'scripts', 'prerender-seo-routes.mjs');
+  const result = spawnSync(process.execPath, [script], {
+    cwd: root,
+    stdio: 'inherit',
+    shell: false,
+    env: { ...process.env },
+  });
+  if (result.error) {
+    process.stderr.write(`[_build] ❌ SEO route prerender could not start: ${result.error.message}\\n`);
+    process.exit(1);
+  }
+  if (result.status !== 0) {
+    process.stderr.write(`[_build] ❌ SEO route prerender failed (exit ${result.status})\\n`);
+    process.exit(result.status || 1);
+  }
+}
+
+runStaticSeoPrerender();

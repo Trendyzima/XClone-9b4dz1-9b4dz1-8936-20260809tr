@@ -1139,10 +1139,8 @@ jobs:
           for path in "/auth" "/c/null"; do
             safe="$(printf '%s' "$path" | tr '/' '-')"
             fetch_public "$path" "/tmp/testagram${safe}.html" "/tmp/testagram${safe}.headers"
-            grep -qi '^X-Robots-Tag:[[:space:]]*noindex,[[:space:]]*nofollow' "/tmp/testagram${safe}.headers" || {
-              echo "::error::$path is missing the server-side noindex response header."
-              exit 1
-            }
+            # Static-host SEO must not depend on a provider-specific response-header rewrite.
+            # The prerendered HTML meta robots directive is the portable noindex contract.
             grep -qi '<meta name="robots" content="noindex, nofollow"' "/tmp/testagram${safe}.html" || {
               echo "::error::$path is missing the HTML robots noindex directive."
               exit 1

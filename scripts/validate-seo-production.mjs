@@ -46,6 +46,11 @@ const checks = [
     const sitemap = read('public/sitemap-static.xml');
     return !sitemap.includes('<lastmod>') && sitemap.includes('https://testagram.site/news</loc>');
   }],
+  ['Static SEO prerender covers public TV routes and noindex private/invalid routes', () => {
+    const prerender = read('scripts/prerender-seo-routes.mjs');
+    const build = read('_build.cjs');
+    return ['/tv', '/tv/channels', '/tv/reels', '/auth', '/c/null'].every((route) => prerender.includes("path: '" + route + "'")) && build.includes("scripts', 'prerender-seo-routes.mjs") && build.includes('runStaticSeoPrerender();');
+  }],
   ['TV route has a crash boundary and page-specific SEO', () => ['/tv', '/tv/channels', '/tv/reels'].every((route) => read('src/App.tsx').includes('path="' + route + '" element={<TvPageErrorBoundary><TvChannelsPage/></TvPageErrorBoundary>}')) && read('src/pages/TvChannelsPage.tsx').includes('useSEO({')],
   ['TV data loading always leaves the loading state', () => read('src/pages/TvChannelsPage.tsx').includes('setLoading(false);') && read('src/pages/TvChannelsPage.tsx').includes('Live channels could not be loaded. Please try refreshing.')],
   ['TV catalogue loading is bounded and batched', () => read('src/pages/TvChannelsPage.tsx').includes('targets.slice(0,6)') && read('src/pages/TvChannelsPage.tsx').includes('targets.slice(offset,offset+4)') && read('src/pages/TvChannelsPage.tsx').includes('sourceLoadGeneration')],
