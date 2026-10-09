@@ -61,6 +61,25 @@ const checks = [
     return ['/tv', '/tv/channels', '/tv/reels', '/auth', '/c/null'].every((route) => prerender.includes("path: '" + route + "'")) && build.includes("scripts', 'prerender-seo-routes.mjs") && build.includes('runStaticSeoPrerender();');
   }],
   ['TV route has a crash boundary and page-specific SEO', () => ['/tv', '/tv/channels', '/tv/reels'].every((route) => read('src/App.tsx').includes('path="' + route + '" element={<TvPageErrorBoundary><TvChannelsPage/></TvPageErrorBoundary>}')) && read('src/pages/TvChannelsPage.tsx').includes('useSEO({')],
+  ['Public TV and IPTV routes are explicitly discoverable from sitemap and robots', () => {
+    const sitemap = read('public/sitemap-static.xml');
+    const robots = read('public/robots.txt');
+    return ['/tv', '/tv/channels', '/tv/reels', '/iptv'].every((route) => sitemap.includes('https://testagram.site' + route + '</loc>')) &&
+      ['Allow: /tv', 'Allow: /iptv'].every((rule) => robots.includes(rule));
+  }],
+  ['TV playback falls back to direct source when CDN authorization or delivery fails', () => {
+    const player = read('src/components/features/TvChannelPlayer.tsx');
+    return player.includes('CDN playback authorization failed; trying source directly') &&
+      player.includes('const fallbackPlayback=()=>') &&
+      player.includes('if(fallbackPlayback())return;') &&
+      player.includes('cdnFallbackRef.current=false');
+  }],
+  ['TV playback starts after an adaptive short buffer and caps memory use', () => {
+    const player = read('src/components/features/TvChannelPlayer.tsx');
+    return player.includes('const initialBufferTarget=network.constrained?4:network.moderate?6:8') &&
+      player.includes('maxBufferLength:network.constrained?18:network.moderate?24:30') &&
+      player.includes('maxBufferSize:network.constrained?24*1024*1024:network.moderate?32*1024*1024:48*1024*1024');
+  }],
   ['TV data loading always leaves the loading state', () => read('src/pages/TvChannelsPage.tsx').includes('setLoading(false);') && read('src/pages/TvChannelsPage.tsx').includes('Live channels could not be loaded. Please try refreshing.')],
   ['TV catalogue loading is bounded and batched', () => read('src/pages/TvChannelsPage.tsx').includes('targets.slice(0,6)') && read('src/pages/TvChannelsPage.tsx').includes('targets.slice(offset,offset+4)') && read('src/pages/TvChannelsPage.tsx').includes('sourceLoadGeneration')],
   ['TV player health and visibility callbacks are stable', () => read('src/pages/TvChannelsPage.tsx').includes('const health=useCallback') && read('src/pages/TvChannelsPage.tsx').includes('onVisible={onPlayerVisible}')],
