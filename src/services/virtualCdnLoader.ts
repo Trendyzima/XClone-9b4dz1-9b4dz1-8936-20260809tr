@@ -210,6 +210,7 @@ export default class VirtualCdnLoader {
         if (cacheable) {
           result = await readCached(url);
           recordVirtualCdnMetric(result ? 'cacheHit' : 'cacheMiss');
+          if (result) recordVirtualCdnMetric('cacheBytes', result.bytes.byteLength);
         }
         if (this.aborted) return;
         if (cacheable && !result) result = await fetchFragment(url, context?.headers, String(context?.frag?.baseurl || context?.frag?.level?.url || ''));
