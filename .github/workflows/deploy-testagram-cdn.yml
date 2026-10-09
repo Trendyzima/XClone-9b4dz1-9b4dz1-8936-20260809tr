@@ -39,7 +39,7 @@ jobs:
   deploy:
     needs: verify
     # A runner installed on Testagram's own Linux host replaces recurring SSH/GHCR secrets.
-    runs-on: [self-hosted, linux, x64, testagram-cdn]
+    runs-on: [self-hosted, linux, x64]
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v5
