@@ -1,3 +1,4 @@
+import { degradedSitemapIndex } from './sitemap-fallback';
 import { createClient } from '@supabase/supabase-js';
 
 export const config = { runtime: 'edge' };
@@ -50,7 +51,7 @@ export default async function handler(request: Request): Promise<Response> {
     const failed = [profiles, communities, posts, threads].some(result => result.error);
     if (failed) {
       console.error('[sitemap-index] count query failed', [profiles.error, communities.error, posts.error, threads.error].filter(Boolean));
-      return new Response('Sitemap temporarily unavailable', { status: 502, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
+      return degradedSitemapIndex(request);
     }
 
     const sources: SitemapSource[] = [
@@ -72,6 +73,6 @@ export default async function handler(request: Request): Promise<Response> {
     return xmlResponse(body, request);
   } catch (error) {
     console.error('[sitemap-index] unexpected failure', error);
-    return new Response('Sitemap temporarily unavailable', { status: 502, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
+    return degradedSitemapIndex(request);
   }
 }
