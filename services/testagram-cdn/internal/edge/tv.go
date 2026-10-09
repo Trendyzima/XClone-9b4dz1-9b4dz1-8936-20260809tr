@@ -158,7 +158,14 @@ func (s *Server) prefetchTVSegments(scope string, playlistURL *url.URL, data []b
 	limit := s.cfg.TVPrefetchConcurrency
 	if limit < 1 { limit = 1 }
 	if limit > 4 { limit = 4 }
-	warmupCtx, cancel := context.WithTimeout(context.Background(), s.cfg.TVPrefetchTimeout)
+	timeout := s.cfg.TVPrefetchTimeout
+	// Config structs are also constructed directly by tests and embedding
+	// services. A zero duration cancels the warm-up context immediately, which
+	// silently disables prefetch and causes every IPTV prewarm to report zero.
+	if timeout <= 0 {
+		timeout = 12 * time.Second
+	}
+	warmupCtx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
 	jobs := make(chan struct { target *url.URL; key, name string; duration time.Duration })
