@@ -68,7 +68,9 @@ success/failure, integrity failures, transfer timeouts, and playback stalls.
 Events deliberately omit stream URLs, peer IDs, IP addresses, credentials, and
 account identifiers. A host integration can forward aggregate counts to an
 approved telemetry backend; the current implementation does not upload metrics
-automatically, so these counters alone are not centralized production monitoring.
+automatically, so these counters alone are not centralized production monitoring. The
+client-local `clientOffloadByteShare` includes browser-cache and peer-delivered bytes;
+it is diagnostic only and must not be treated as a fleet-wide offload measurement.
 
 Peer transfer now rejects oversized binary frames and stops enqueueing data when
 the channel remains congested after a short backpressure wait. Transient WebRTC
@@ -110,4 +112,7 @@ telemetry prove it.
 
 The pure helper `src/services/virtualCdnCapacity.ts` calculates a transparent
 planning estimate for signaling connection count and origin bandwidth from explicit
-inputs. Its peer-offload input must come from measured telemetry, not a guess.
+inputs. Its peer-offload input must come from measured telemetry, not a guess. The
+integration workflow runs executable Node tests for baseline 2M math, explicit
+measured-offload math, zero viewers, and non-finite input handling. These are model
+unit tests, not a network/load test and not proof of live provider capacity.
