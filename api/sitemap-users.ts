@@ -19,7 +19,7 @@ export default async function handler(request: Request) {
   const rawPart = requestUrl.searchParams.get('part');
   const hasExplicitPart = rawPart !== null;
   const requestedPart = rawPart === null ? 0 : Number(rawPart);
-  if (rawPart !== null && (!/^\\d+$/.test(rawPart) || !Number.isSafeInteger(requestedPart))) {
+  if (rawPart !== null && (!/^\d+$/.test(rawPart) || !Number.isSafeInteger(requestedPart))) {
     return new Response('Invalid sitemap part', { status: 400, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
   }
 
