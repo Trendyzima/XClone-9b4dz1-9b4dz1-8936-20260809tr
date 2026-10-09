@@ -5,6 +5,11 @@ const root = process.cwd();
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 const checks = [
   ['Cloudflare serves the dynamic root sitemap', () => read('cloudflare/index.ts').includes("url.pathname === '/sitemap.xml'") && read('cloudflare/index.ts').includes("'/api/sitemap-index': '../api/sitemap-index'")],
+  ['Cloudflare runs the dynamic root sitemap through the Worker before static assets', () => JSON.parse(read('wrangler.jsonc')).assets.run_worker_first.includes('/sitemap.xml')],
+  ['Static sitemap fallback references valid first chunks for every dynamic sitemap', () => {
+    const sitemap = read('public/sitemap.xml');
+    return ['users', 'community', 'posts', 'threads'].every((name) => sitemap.includes(`https://testagram.site/api/sitemap-${name}?part=0</loc>`));
+  }],
   ['Cloudflare registers every dynamic sitemap endpoint', () => ['users', 'community', 'posts', 'threads'].every((name) => read('cloudflare/index.ts').includes(`'/api/sitemap-${name}'`))],
   ['Sitemap index includes static, profiles, communities, posts and threads', () => {
     const index = read('api/sitemap-index.ts');
