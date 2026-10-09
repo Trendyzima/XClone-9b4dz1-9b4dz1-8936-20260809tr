@@ -23,6 +23,7 @@ const checks = [
       'return sitemapHandler(request);',
     ].every((fragment) => worker.includes(fragment));
   }],
+  ['Build runs the provider-neutral SEO prerender plugin after Vite output', () => read('_build.cjs').includes('runSeoPrerender();') && read('_build.cjs').includes('prerender-seo.mjs') && read('scripts/prerender-seo.mjs').includes("'/tv'") && read('scripts/prerender-seo.mjs').includes("'/auth'")],
   ['Root sitemap bypasses Worker-first routing so static hosts can serve it directly', () => !JSON.parse(read('wrangler.jsonc')).assets.run_worker_first.includes('/sitemap.xml') && !read('cloudflare/index.ts').includes("url.pathname === '/sitemap.xml'")],
   ['Static sitemap fallback references valid first chunks for every dynamic sitemap', () => {
     const sitemap = read('public/sitemap.xml');
