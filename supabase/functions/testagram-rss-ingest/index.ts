@@ -52,6 +52,33 @@ async function fetchArticleImage(pageUrl:string):Promise<string|null>{
  }catch{return null}
  return null;
 }
+
+// Backfill older feed rows on conditional (304) responses too. Without this,
+// stories ingested before image enrichment—or whose publisher added OG metadata
+// later—would remain permanently image-less because the feed never changed.
+async function backfillMissingImages(sourceId:string, limit=3):Promise<number>{
+ const {data,error}=await db.from("testagram_rss_items")
+  .select("id,canonical_url")
+  .eq("source_id",sourceId)
+  .is("image_url",null)
+  .gt("expires_at",new Date().toISOString())
+  .order("published_at",{ascending:false})
+  .limit(Math.max(0,Math.min(6,limit)));
+ if(error)throw error;
+ const candidates=(data||[]).filter((row:any)=>trustedPublisher(String(row.canonical_url||"")));
+ let updated=0;
+ for(let i=0;i<candidates.length;i+=3){
+  const batch=candidates.slice(i,i+3);
+  const resolved=await Promise.all(batch.map(async(row:any)=>({id:row.id,image:await fetchArticleImage(row.canonical_url)})));
+  for(const item of resolved){
+   if(!item.image)continue;
+   const {error:updateError}=await db.from("testagram_rss_items").update({image_url:item.image}).eq("id",item.id).is("image_url",null);
+   if(updateError)console.error("[testagram-rss-ingest] image backfill update failed",{id:item.id,error:updateError.message});
+   else updated++;
+  }
+ }
+ return updated;
+}
 const canonical=(item:any)=>clean(item.link?.["#text"]??item.link?.["@href"]??item.link??item.guid?.["#text"]??item.guid);
 const title=(item:any)=>clean(item.title)||"Untitled";
 const excerpt=(item:any)=>clean(item.description??item.summary??item.content?.["encoded"]??item.content).replace(/<[^>]+>/g," ").replace(/\s+/g," ").slice(0,700);
@@ -64,6 +91,9 @@ async function fetchSource(source:any){
  const res=await fetch(source.feed_url,{headers,redirect:"follow"});
  const fetchedAt=new Date().toISOString();
  if(res.status===304){
+   // A fresh feed does not mean its cached story images are complete. Resolve a
+   // small bounded batch of missing thumbnails without refetching the feed.
+   try{await backfillMissingImages(source.id,3)}catch(error){console.error("[testagram-rss-ingest] image backfill failed",{source:source.source_name,error:error instanceof Error?error.message:String(error)})}
    await db.from("testagram_rss_sources").update({last_fetched_at:fetchedAt,last_success_at:fetchedAt,last_error:null,consecutive_failures:0,next_fetch_at:new Date(Date.now()+source.refresh_minutes*60*1000).toISOString(),updated_at:fetchedAt}).eq("id",source.id);
    return 0;
  }
