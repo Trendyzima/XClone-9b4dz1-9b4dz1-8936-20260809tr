@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import type { TvChannel } from '@/services/tvChannelCatalog';
 
-const enabled = String(import.meta.env.VITE_TESTAGRAM_CDN_ENABLED || 'true').toLowerCase() === 'true';
+const enabled = String(import.meta.env.VITE_TESTAGRAM_CDN_ENABLED || 'false').toLowerCase() === 'true';
 const cdnBase = String(import.meta.env.VITE_TESTAGRAM_CDN_URL || 'https://media.testagram.site').replace(/\/$/, '').replace(/\/v1$/i, '');
 const tokenCache = new Map<string, { url: string; expiresAt: number }>();
 
