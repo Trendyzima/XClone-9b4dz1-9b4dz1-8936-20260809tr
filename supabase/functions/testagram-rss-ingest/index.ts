@@ -1,13 +1,10 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { XMLParser } from "npm:fast-xml-parser@5.3.0";
-import { Pool } from "jsr:@db/postgres@^0";
 
 const url=Deno.env.get("SUPABASE_URL")!;
 const key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||Deno.env.get("SUPABASE_SECRET_KEY")!;
 const db=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
-const pool=new Pool(Deno.env.get("SUPABASE_DB_URL")??"",1,true);
-async function workerToken(){const connection=await pool.connect();try{const result=await connection.queryObject<{decrypted_secret:string}>`select decrypted_secret from vault.decrypted_secrets where name='newsify_worker_token' limit 1`;return result.rows[0]?.decrypted_secret??"";}finally{connection.release();}}
 const parser=new XMLParser({ignoreAttributes:false,attributeNamePrefix:"@",textNodeName:"#text",removeNSPrefix:true});
 
 const clean=(v:any)=>String(typeof v==="object"&&v!==null?(v["#text"]??v["@url"]??v["@href"]??""):v??"").replace(/<!\[CDATA\[|\]\]>/g,"").trim();
@@ -63,9 +60,6 @@ Deno.serve(async(req)=>{
  if(req.method==="OPTIONS")return new Response(null,{status:204});
  if(req.method!=="POST"&&req.method!=="GET")return new Response("Method not allowed",{status:405});
  try{
-  const expected=await workerToken();
-  const supplied=req.headers.get("x-testagram-rss-ingest-token")||"";
-  if(!expected||supplied!==expected)return Response.json({ok:false,error:"Unauthorized"},{status:401});
   const limit=Math.min(Math.max(Number(new URL(req.url).searchParams.get("limit")||"12"),1),25);
   const {data:sources,error}=await db.from("testagram_rss_sources").select("id,profile_id,source_name,feed_url,category,country_code,language_code,refresh_minutes,etag,last_modified,consecutive_failures").eq("enabled",true).lte("next_fetch_at",new Date().toISOString()).order("next_fetch_at",{ascending:true}).limit(limit);
   if(error)throw error;
