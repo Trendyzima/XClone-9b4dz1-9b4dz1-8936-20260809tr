@@ -43,6 +43,9 @@ jobs:
           grep -F "recordVirtualCdnMetric('playbackStall')" src/components/features/TvChannelPlayer.tsx
           grep -F 'data.byteLength > CHUNK_BYTES' src/services/virtualCdnPeers.ts
           grep -F 'export function getVirtualCdnMetrics()' src/services/virtualCdnMetrics.ts
+          grep -F 'export function estimateVirtualCdnCapacity' src/services/virtualCdnCapacity.ts
+          grep -F 'estimatedSignalingConnections: optedInViewers * channels' src/services/virtualCdnCapacity.ts
+          grep -F 'estimatedOriginGbps: estimatedOriginMbps / 1000' src/services/virtualCdnCapacity.ts
           grep -F "['failed', 'closed'].includes(pc.connectionState)" src/services/virtualCdnPeers.ts
           grep -F "localStorage.getItem('testagram-tv-peer-sharing') === 'on'" src/services/virtualCdnPeers.ts
           grep -F "if (url.username || url.password || sensitiveUrl(value)) return false;" src/services/virtualCdnPeers.ts
