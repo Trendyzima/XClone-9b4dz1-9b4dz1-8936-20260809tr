@@ -40,6 +40,8 @@ jobs:
           grep -F 'const SIGNALING_COHORTS = 65_536' src/services/virtualCdnPeers.ts
           grep -F "recordVirtualCdnMetric('peerHit')" src/services/virtualCdnPeers.ts
           grep -F "recordVirtualCdnMetric('originBytes', bytes.byteLength)" src/services/virtualCdnLoader.ts
+          grep -F "recordVirtualCdnMetric('cacheBytes', result.bytes.byteLength)" src/services/virtualCdnLoader.ts
+          grep -F 'clientOffloadByteShare' src/services/virtualCdnMetrics.ts
           grep -F "recordVirtualCdnMetric('playbackStall')" src/components/features/TvChannelPlayer.tsx
           grep -F 'data.byteLength > CHUNK_BYTES' src/services/virtualCdnPeers.ts
           grep -F 'export function getVirtualCdnMetrics()' src/services/virtualCdnMetrics.ts
@@ -66,6 +68,8 @@ jobs:
             echo 'A self-hosted CDN deployment must not be required.' >&2
             exit 1
           fi
+      - name: Test virtual CDN capacity math
+        run: node --experimental-strip-types --test scripts/virtual-cdn-capacity.test.mjs
       - name: Test legacy Go code without deployment
         working-directory: services/testagram-cdn
         run: go test ./...
