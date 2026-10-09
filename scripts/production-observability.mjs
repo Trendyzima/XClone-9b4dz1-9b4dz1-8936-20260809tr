@@ -5,7 +5,7 @@ const timeoutMs = Number(process.env.OBSERVABILITY_TIMEOUT_MS || 10000);
 const checks = [
   { name: "production-liveness", url: base + "/api/health", expected: 200 },
   { name: "production-readiness", url: base + "/api/ready", expected: 200 },
-  { name: "cdn-edge-health", url: cdn + "/health", expected: 200 },
+  { name: "cdn-edge-health", url: cdn + "/healthz", expected: 200 },
 ];
 
 async function probe(check) {
