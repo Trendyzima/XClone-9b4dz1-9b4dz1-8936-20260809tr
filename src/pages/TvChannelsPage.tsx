@@ -66,7 +66,7 @@ export default function TvChannelsPage(){
  const [channels,setChannels]=useState<TvChannel[]>([]); const [testagramLive,setTestagramLive]=useState<any[]>([]);
  const [active,setActive]=useState(''); const [loading,setLoading]=useState(true);
  const [filter,setFilter]=useState(''); const [query,setQuery]=useState(''); const [notice,setNotice]=useState('');
- const [dead,setDead]=useState<Set<string>>(new Set()); const loaded=useRef(new Set<string>()); const sourceLoadGeneration=useRef(0); const sourceFailures=useRef(0); const sourceChannelCount=useRef(0);
+ const [dead,setDead]=useState<Set<string>>(new Set()); const sourceLoadGeneration=useRef(0); const sourceFailures=useRef(0); const sourceChannelCount=useRef(0);
  const {user}=useAuth();
  const [tvReactionCounts,setTvReactionCounts]=useState<{emoji:string;count:number}[]>([]);
  const [myTvReaction,setMyTvReaction]=useState<string|null>(null);
@@ -126,7 +126,6 @@ export default function TvChannelsPage(){
    if(generation!==sourceLoadGeneration.current)return;
    const good=results.flatMap(result=>result.status==='fulfilled'?result.value:[]);
    sourceFailures.current+=results.filter(result=>result.status==='rejected').length;
-   batch.forEach(source=>loaded.current.add(source.id));
    if(good.length){sourceChannelCount.current+=good.length;setChannels(previous=>mergeTvChannelsStable(previous,good));}
    if(sourceFailures.current>0)setNotice(sourceFailures.current+' live source(s) could not be reached. Available channels remain usable.');
    else if(good.length)setNotice('');
@@ -253,7 +252,7 @@ export default function TvChannelsPage(){
   setActive(current=>current===id?(filteredRef.current.find(c=>c.id!==id&&!deadRef.current.has(c.id))?.id||''):current);
  },[]);
 
- const refresh=()=>{loaded.current.clear();setDead(new Set());setActive('');setChannels([]);setNotice('');void loadSources(getPrioritySourceIds());};
+ const refresh=()=>{setDead(new Set());setActive('');setChannels([]);setNotice('');void loadSources(getPrioritySourceIds());};
  const categories=useMemo(()=>[
   ['Kenya',filtered.filter(c=>c.country==='KE')],
   ['News',filtered.filter(c=>/news/i.test((c.group||'')+' '+c.name))],
