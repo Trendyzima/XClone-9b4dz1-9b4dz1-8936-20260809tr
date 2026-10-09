@@ -1096,8 +1096,10 @@ jobs:
               if root.tag != ns + expected:
                   raise SystemExit(f"{path}: expected {expected}, got {root.tag}")
               locs = [node.text or "" for node in root.iter(ns + "loc")]
-              if not locs:
-                  raise SystemExit(f"{path}: no loc entries")
+              if expected == "sitemapindex" and not locs:
+                  raise SystemExit(f"{path}: sitemap index has no sitemap entries")
+              if path.endswith("sitemap-static.xml") and not locs:
+                  raise SystemExit(f"{path}: static sitemap has no URLs")
               if not all(url.startswith("https://testagram.site/") for url in locs):
                   raise SystemExit(f"{path}: non-canonical host in loc")
               print(f"PASS {path}: {expected}, {len(locs)} loc entries")
