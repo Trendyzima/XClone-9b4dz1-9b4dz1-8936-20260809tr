@@ -9,6 +9,7 @@ import {useAuth} from '@/hooks/useAuth';
 import {getMyTvReaction,getTvReactionCounts,setTvReaction,TV_REACTIONS} from '@/services/tvChannelInteractionService';
 import {TV_SOURCES,loadTvSource,type TvChannel,getPrioritySourceIds} from '@/services/tvChannelCatalog';
 import {createTvReply,getTvReplies,type TvReply} from '@/services/tvChannelReplyService';
+import {useSEO} from '@/hooks/useSEO';
 
 const filters=[['For you',''],['Kenya','KE'],['Africa','AF'],['International','INT'],['News','news'],['Sports','sport'],['Music','music'],['Kids','kid']];
 function matchesFilter(channel:TvChannel,filter:string){
@@ -74,26 +75,62 @@ export default function TvChannelsPage(){
  const [replyText,setReplyText]=useState('');
  const [replyBusy,setReplyBusy]=useState(false);
  const [showReplies,setShowReplies]=useState(false);
+ const tvSeoData=useMemo(()=>({
+  '@context':'https://schema.org',
+  '@type':'CollectionPage',
+  name:reelsMode?'TV Reels & Live Channel Clips on Testagram':'Live TV Channels & Public Streams on Testagram',
+  description:reelsMode?'Discover live channel playback and TV content on Testagram.':'Browse public live TV channels by region and category, plus community broadcasts on Testagram.',
+  url:'https://testagram.site'+pathname,
+  isPartOf:{'@type':'WebSite',name:'Testagram',url:'https://testagram.site/'},
+  breadcrumb:{'@type':'BreadcrumbList',itemListElement:[
+   {'@type':'ListItem',position:1,name:'Home',item:'https://testagram.site/'},
+   {'@type':'ListItem',position:2,name:'Live TV',item:'https://testagram.site/tv'},
+   ...(reelsMode?[{'@type':'ListItem',position:3,name:'TV Reels',item:'https://testagram.site/tv/reels'}]:[])
+  ]}
+ }),[pathname,reelsMode]);
+ useSEO({
+  title:reelsMode?'TV Reels & Live Channel Clips':'Live TV Channels & Public Streams',
+  description:reelsMode?'Discover live channel playback and TV content on Testagram.':'Browse public live TV channels by region and category, plus community broadcasts on Testagram.',
+  url:pathname,
+  structuredData:tvSeoData,
+ });
 
  const loadSources=useCallback(async(ids:string[])=>{
-  const targets=TV_SOURCES.filter(s=>s.enabled!==false&&ids.includes(s.id));
-  if(!targets.length)return;
   setLoading(true);
-  const results=await Promise.allSettled(targets.map(s=>loadTvSource(s)));
-  const good=results.flatMap(r=>r.status==='fulfilled'?r.value:[]);
-  const failed=results.filter(r=>r.status==='rejected').length;
-  targets.forEach(s=>loaded.current.add(s.id));
-  // Publish the catalogue atomically. The page no longer grows/reorders while
-  // sources arrive, so the channel grid is visually static after first load.
-  setChannels(mergeTvChannelsStable([],good));
-  if(failed)setNotice(failed+' live source(s) could not be reached. Other public streams remain available.');
-  setLoading(false);
+  try{
+   const targets=TV_SOURCES.filter(s=>s.enabled!==false&&ids.includes(s.id));
+   if(!targets.length){
+    setChannels([]);
+    setNotice('No live channel sources are available right now. Please try refreshing.');
+    return;
+   }
+   const results=await Promise.allSettled(targets.map(s=>loadTvSource(s)));
+   const good=results.flatMap(r=>r.status==='fulfilled'?r.value:[]);
+   const failed=results.filter(r=>r.status==='rejected').length;
+   targets.forEach(s=>loaded.current.add(s.id));
+   // Publish one stable catalogue snapshot after all selected sources settle.
+   setChannels(mergeTvChannelsStable([],good));
+   if(good.length===0)setNotice('Live channel sources are temporarily unavailable. Please try again shortly.');
+   else if(failed)setNotice(failed+' live source(s) could not be reached. Other public streams remain available.');
+   else setNotice('');
+  }catch(error){
+   console.error('[testagram-tv] channel catalogue failed',error);
+   setChannels([]);
+   setNotice('Live channels could not be loaded. Please try refreshing.');
+  }finally{
+   setLoading(false);
+  }
  },[]);
-
  const loadTestagramLive=useCallback(async()=>{
-  const {data}=await supabase.from('live_streams').select('id,user_id,title,description,category,viewer_count,started_at,user:profiles(username,avatar_url)').eq('is_live',true).order('started_at',{ascending:false}).limit(16);
-  const unique=Array.from(new Map((data||[]).map((stream:any)=>[String(stream.user_id||stream.id),stream])).values()).slice(0,8);
-  setTestagramLive(unique);
+  try{
+   const {data,error}=await supabase.from('live_streams').select('id,user_id,title,description,category,viewer_count,started_at,user:profiles(username,avatar_url)').eq('is_live',true).order('started_at',{ascending:false}).limit(16);
+   if(error)throw error;
+   const unique=Array.from(new Map((data||[]).map((stream:any)=>[String(stream.user_id||stream.id),stream])).values()).slice(0,8);
+   setTestagramLive(unique);
+  }catch(error){
+   console.warn('[testagram-tv] live broadcasts are temporarily unavailable',error);
+   setTestagramLive([]);
+  }
  },[]);
 
 
@@ -123,7 +160,7 @@ export default function TvChannelsPage(){
   let cancelled=false;
   if(!featured)return;
   setTvReplies([]);
-  void getTvReplies(featured.id).then(items=>{if(!cancelled)setTvReplies(items);});
+  void getTvReplies(featured.id).then(items=>{if(!cancelled)setTvReplies(items);}).catch(error=>{if(!cancelled)console.warn('[testagram-tv] replies unavailable',error);});
   return()=>{cancelled=true;};
  },[featured?.id]);
 
@@ -134,7 +171,7 @@ export default function TvChannelsPage(){
    const [counts,mine]=await Promise.all([getTvReactionCounts(featured.id),getMyTvReaction(featured.id,user?.id)]);
    if(!cancelled){setTvReactionCounts(counts);setMyTvReaction(mine);}
   };
-  void loadReactions();
+  void loadReactions().catch(error=>{if(!cancelled)console.warn('[testagram-tv] reactions unavailable',error);});
   return()=>{cancelled=true;};
  },[featured?.id,user?.id]);
 
