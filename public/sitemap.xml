@@ -1,27 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-  <!-- Static pages — updated with every deploy -->
-  <sitemap>
-    <loc>https://testagram.site/sitemap-static.xml</loc>
-  </sitemap>
-
-  <!-- Dynamic public post pages -->
-  <sitemap>
-    <loc>https://testagram.site/api/sitemap-posts</loc>
-  </sitemap>
-
-  <!-- Dynamic public thread pages -->
-  <sitemap>
-    <loc>https://testagram.site/api/sitemap-threads</loc>
-  </sitemap>
-
-  <!-- Dynamic community pages — refreshed every hour -->
-  <sitemap>
-    <loc>https://testagram.site/api/sitemap-community</loc>
-  </sitemap>
-
-  <!-- Dynamic user profile pages — served live by sitemap-users edge function -->
-  <sitemap>
-    <loc>https://testagram.site/api/sitemap-users</loc>
-  </sitemap>
+  <sitemap><loc>https://testagram.site/sitemap-static.xml</loc></sitemap>
+  <sitemap><loc>https://testagram.site/api/sitemap-users?part=0</loc></sitemap>
+  <sitemap><loc>https://testagram.site/api/sitemap-community?part=0</loc></sitemap>
+  <sitemap><loc>https://testagram.site/api/sitemap-posts?part=0</loc></sitemap>
+  <sitemap><loc>https://testagram.site/api/sitemap-threads?part=0</loc></sitemap>
 </sitemapindex>
