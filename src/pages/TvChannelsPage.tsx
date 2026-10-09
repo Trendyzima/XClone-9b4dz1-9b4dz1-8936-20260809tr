@@ -66,7 +66,7 @@ export default function TvChannelsPage(){
  const [channels,setChannels]=useState<TvChannel[]>([]); const [testagramLive,setTestagramLive]=useState<any[]>([]);
  const [active,setActive]=useState(''); const [loading,setLoading]=useState(true);
  const [filter,setFilter]=useState(''); const [query,setQuery]=useState(''); const [notice,setNotice]=useState('');
- const [dead,setDead]=useState<Set<string>>(new Set()); const loaded=useRef(new Set<string>());
+ const [dead,setDead]=useState<Set<string>>(new Set()); const loaded=useRef(new Set<string>()); const sourceLoadGeneration=useRef(0); const sourceFailures=useRef(0);
  const {user}=useAuth();
  const [tvReactionCounts,setTvReactionCounts]=useState<{emoji:string;count:number}[]>([]);
  const [myTvReaction,setMyTvReaction]=useState<string|null>(null);
@@ -96,28 +96,66 @@ export default function TvChannelsPage(){
  });
 
  const loadSources=useCallback(async(ids:string[])=>{
+  const generation=++sourceLoadGeneration.current;
+  sourceFailures.current=0;
   setLoading(true);
-  try{
-   const targets=TV_SOURCES.filter(s=>s.enabled!==false&&ids.includes(s.id));
-   if(!targets.length){
-    setChannels([]);
-    setNotice('No live channel sources are available right now. Please try refreshing.');
-    return;
-   }
-   const results=await Promise.allSettled(targets.map(s=>loadTvSource(s)));
-   const good=results.flatMap(r=>r.status==='fulfilled'?r.value:[]);
-   const failed=results.filter(r=>r.status==='rejected').length;
-   targets.forEach(s=>loaded.current.add(s.id));
-   // Publish one stable catalogue snapshot after all selected sources settle.
-   setChannels(mergeTvChannelsStable([],good));
-   if(good.length===0)setNotice('Live channel sources are temporarily unavailable. Please try again shortly.');
-   else if(failed)setNotice(failed+' live source(s) could not be reached. Other public streams remain available.');
-   else setNotice('');
-  }catch(error){
-   console.error('[testagram-tv] channel catalogue failed',error);
+  setNotice('');
+  const targets=TV_SOURCES.filter(s=>s.enabled!==false&&ids.includes(s.id));
+  if(!targets.length){
    setChannels([]);
+   setNotice('No live channel sources are configured. Please try again later.');
+   setLoading(false);
+   return;
+  }
+
+  const loadBatch=async(batch:typeof targets,timeoutMs:number)=>{
+   const results=await Promise.allSettled(batch.map(source=>{
+    const controller=new AbortController();
+    let timeout:ReturnType<typeof setTimeout>|undefined;
+    const timeoutPromise=new Promise<TvChannel[]>((_,reject)=>{
+     timeout=setTimeout(()=>{
+      controller.abort();
+      reject(new Error(source.label+' timed out'));
+     },timeoutMs);
+    });
+    return Promise.race([loadTvSource(source,controller.signal),timeoutPromise]).finally(()=>{
+     if(timeout)clearTimeout(timeout);
+    });
+   }));
+   if(generation!==sourceLoadGeneration.current)return;
+   const good=results.flatMap(result=>result.status==='fulfilled'?result.value:[]);
+   sourceFailures.current+=results.filter(result=>result.status==='rejected').length;
+   batch.forEach(source=>loaded.current.add(source.id));
+   if(good.length)setChannels(previous=>mergeTvChannelsStable(previous,good));
+   if(sourceFailures.current>0)setNotice(sourceFailures.current+' live source(s) could not be reached. Available channels remain usable.');
+   else if(good.length)setNotice('');
+   return good.length;
+  };
+
+  try{
+   // Keep first paint bounded: only six highest-priority sources are awaited.
+   // Remaining sources load in small background batches instead of fanning out
+   // dozens of database and external playlist requests during page startup.
+   await loadBatch(targets.slice(0,6),7000);
+   if(generation!==sourceLoadGeneration.current)return;
+   setLoading(false);
+
+   for(let offset=6;offset<targets.length;offset+=4){
+    await new Promise(resolve=>setTimeout(resolve,1200));
+    if(generation!==sourceLoadGeneration.current)return;
+    await loadBatch(targets.slice(offset,offset+4),9000);
+    if(generation!==sourceLoadGeneration.current)return;
+   }
+
+   if(sourceFailures.current===0&&loaded.current.size===0){
+    setNotice('Live channel sources are temporarily unavailable. Please try refreshing.');
+   }else if(sourceFailures.current===0){
+    setNotice('');
+   }
+  }catch(error){
+   if(generation!==sourceLoadGeneration.current)return;
+   console.error('[testagram-tv] channel catalogue failed',error);
    setNotice('Live channels could not be loaded. Please try refreshing.');
-  }finally{
    setLoading(false);
   }
  },[]);
@@ -140,7 +178,7 @@ export default function TvChannelsPage(){
   void loadSources(getPrioritySourceIds());
   void loadTestagramLive();
   const ch=supabase.channel('tv-live-broadcasts').on('postgres_changes',{event:'*',schema:'public',table:'live_streams'},loadTestagramLive).subscribe();
-  return()=>{void supabase.removeChannel(ch);};
+  return()=>{sourceLoadGeneration.current+=1;void supabase.removeChannel(ch);};
  },[loadSources,loadTestagramLive]);
 
 
