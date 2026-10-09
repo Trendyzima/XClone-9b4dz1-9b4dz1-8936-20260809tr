@@ -116,3 +116,20 @@ inputs. Its peer-offload input must come from measured telemetry, not a guess. T
 integration workflow runs executable Node tests for baseline 2M math, explicit
 measured-offload math, zero viewers, and non-finite input handling. These are model
 unit tests, not a network/load test and not proof of live provider capacity.
+
+
+## Staged load and fallback verification
+
+Run `node scripts/virtual-cdn-staged-load.mjs` from the repository root. The
+loopback-only harness stages 100, 500, and 1,000 simulated viewers, in both
+peer-available and forced-peer/signaling-outage modes. It records request rate,
+origin bytes and request count, peak in-flight origin requests, worker concurrency,
+RSS before/after, failures, and whether all media requests recover through origin
+fallback. The origin is a local mock server bound only to `127.0.0.1`; the test
+does not contact production endpoints or Supabase.
+
+This simulation validates the harness's bounded-work and fallback assumptions. It
+does not instantiate the production browser WebRTC mesh, does not exercise actual
+Supabase Realtime connection limits, and does not prove production origin capacity.
+The configured origin capacity and peer hit rate are test inputs, not measurements.
+A separate approved, isolated environment is required for real service load tests.
