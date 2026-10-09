@@ -25,30 +25,12 @@ comment on table public.testagram_rss_items is
 
 do $$
 begin
-  if exists (select 1 from cron.job where jobname = 'testagram-sports-rss-ingest') then
-    perform cron.unschedule('testagram-sports-rss-ingest');
+  -- Reuse the existing RSS retention job instead of creating a duplicate.
+  if exists (select 1 from cron.job where jobname = 'testagram-rss-retention') then
+    perform cron.unschedule('testagram-rss-retention');
   end if;
   perform cron.schedule(
-    'testagram-sports-rss-ingest',
-    '*/15 * * * *',
-    $job$
-      select net.http_post(
-        url := (select decrypted_secret from vault.decrypted_secrets where name = 'federation_project_url')
-          || '/functions/v1/testagram-rss-ingest?limit=25',
-        headers := jsonb_build_object(
-          'Content-Type', 'application/json',
-          'x-testagram-rss-ingest-token', (select decrypted_secret from vault.decrypted_secrets where name = 'newsify_worker_token')
-        ),
-        body := jsonb_build_object('source', 'pg_cron', 'at', now()),
-        timeout_milliseconds := 120000
-      );
-    $job$
-  );
-  if exists (select 1 from cron.job where jobname = 'testagram-sports-content-retention') then
-    perform cron.unschedule('testagram-sports-content-retention');
-  end if;
-  perform cron.schedule(
-    'testagram-sports-content-retention',
+    'testagram-rss-retention',
     '0 */3 * * *',
     $retention$select public.cleanup_testagram_rss_items();$retention$
   );
