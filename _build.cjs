@@ -157,7 +157,25 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
 
   let indexHtml = original.get(indexHtmlPath)
     .replace(/TikVTV/g, 'Testagram')
-    .replace(/TikTok-style/g, 'Testagram-style');
+    .replace(/TikTok-style/g, 'Testagram-style')
+    // Mirror XClone's saved next-themes preference before the IPTV UI paints.
+    .replace('</head>', `<script>
+      (() => {
+        const applyTheme = () => {
+          let preference = 'system';
+          try { preference = localStorage.getItem('theme') || 'system'; } catch {}
+          const dark = preference === 'dark' ||
+            (preference === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          document.documentElement.classList.toggle('dark', dark);
+          document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+        };
+        applyTheme();
+        try {
+          window.addEventListener('storage', event => { if (event.key === 'theme') applyTheme(); });
+          window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+        } catch {}
+      })();
+    </script>\\n</head>`);
 
   if (/TikVTV|AuthModal|showAuth|setShowAuth/.test(header)) {
     throw new Error('[TikVTV/Testagram Auth] Failed to remove TikVTV header branding or auth modal');
@@ -204,33 +222,75 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
 
   let css = fs.readFileSync(indexCssPath, 'utf8');
   css += `
-/* XClone-aligned IPTV theme: reuse the app's dark surfaces and green primary accent. */
+/* XClone design-system bridge: use the same semantic tokens as src/index.css. */
 :root {
-  --iptv-primary: hsl(142 76% 36%);
-  --iptv-primary-strong: hsl(142 76% 30%);
-  --iptv-surface: hsl(0 0% 5%);
-  --iptv-surface-raised: hsl(0 0% 9%);
-  --iptv-border: hsl(0 0% 18%);
+  --background: 0 0% 100%;
+  --foreground: 0 0% 5%;
+  --card: 0 0% 100%;
+  --card-foreground: 0 0% 5%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 5%;
+  --primary: 142 76% 32%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 95%;
+  --secondary-foreground: 0 0% 9%;
+  --muted: 0 0% 95%;
+  --muted-foreground: 0 0% 42%;
+  --accent: 142 76% 32%;
+  --accent-foreground: 0 0% 100%;
+  --border: 0 0% 88%;
+  --input: 0 0% 88%;
+  --ring: 142 76% 32%;
+  --iptv-primary: hsl(var(--primary));
+  --iptv-surface: hsl(var(--background));
+  --iptv-surface-raised: hsl(var(--card));
+  --iptv-border: hsl(var(--border));
 }
-html, body, #root { background: var(--iptv-surface); color: hsl(0 0% 98%); }
+html.dark, .dark {
+  --background: 0 0% 0%;
+  --foreground: 0 0% 98%;
+  --card: 0 0% 7%;
+  --card-foreground: 0 0% 98%;
+  --popover: 0 0% 7%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 142 76% 36%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 0 0% 14%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 0 0% 14%;
+  --muted-foreground: 0 0% 65%;
+  --accent: 142 76% 36%;
+  --accent-foreground: 0 0% 100%;
+  --border: 0 0% 15%;
+  --input: 0 0% 15%;
+  --ring: 142 76% 36%;
+  --iptv-primary: hsl(var(--primary));
+  --iptv-surface: hsl(var(--background));
+  --iptv-surface-raised: hsl(var(--card));
+  --iptv-border: hsl(var(--border));
+}
+html, body, #root { background: hsl(var(--background)); color: hsl(var(--foreground)); color-scheme: light; }
+html.dark { color-scheme: dark; }
 button, [role="button"] { -webkit-tap-highlight-color: transparent; }
 button:focus-visible, [role="button"]:focus-visible, a:focus-visible {
-  outline: 2px solid var(--iptv-primary); outline-offset: 2px;
+  outline: 2px solid hsl(var(--ring)); outline-offset: 2px;
 }
-.iptv-vertical-feed { height: 100dvh; width: 100%; overflow: hidden; background: var(--iptv-surface); }
+.iptv-vertical-feed { height: 100dvh; width: 100%; overflow: hidden; background: hsl(var(--background)); color: hsl(var(--foreground)); }
 .iptv-vertical-feed button[class*="bg-"], .iptv-vertical-feed [role="button"][class*="bg-"] {
   transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
 }
 .iptv-vertical-feed [aria-pressed="true"], .iptv-vertical-feed [data-active="true"] {
-  border-color: var(--iptv-primary);
+  border-color: hsl(var(--primary));
 }
 .iptv-vertical-feed .text-primary, .iptv-vertical-feed .text-green-500,
-.iptv-vertical-feed .text-green-400 { color: var(--iptv-primary) !important; }
+.iptv-vertical-feed .text-green-400 { color: hsl(var(--primary)) !important; }
 .iptv-vertical-feed .bg-primary, .iptv-vertical-feed .bg-green-500,
-.iptv-vertical-feed .bg-green-600 { background-color: var(--iptv-primary) !important; }
+.iptv-vertical-feed .bg-green-600 { background-color: hsl(var(--primary)) !important; }
 .iptv-vertical-feed .border-primary, .iptv-vertical-feed .border-green-500 {
-  border-color: var(--iptv-primary) !important;
+  border-color: hsl(var(--primary)) !important;
 }
+.iptv-vertical-feed .bg-black\/90, .iptv-vertical-feed .bg-black\/95 { background-color: hsl(var(--background) / .94) !important; }
+.iptv-vertical-feed .border-white\/10, .iptv-vertical-feed .border-white\/15 { border-color: hsl(var(--border) / .9) !important; }
 @media (orientation: landscape) and (max-height: 600px) {
   .iptv-vertical-feed .channel-info { max-width: 58vw; }
 }
@@ -239,7 +299,6 @@ button:focus-visible, [role="button"]:focus-visible, a:focus-visible {
     animation-duration: 0.01ms !important; transition-duration: 0.01ms !important;
   }
 }
-`;
   fs.writeFileSync(indexCssPath, css, 'utf8');
 
   fs.writeFileSync(indexHtmlPath, indexHtml, 'utf8');
