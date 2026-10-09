@@ -41,3 +41,44 @@ jobs:
           deno check --no-config supabase/functions/identity-engine-result/index.ts
           deno check --no-config supabase/functions/identity-engine-worker/index.ts
           deno check --no-config supabase/functions/media-delivery/index.ts
+
+  android-tv:
+    name: Build and verify XClone TV APK
+    # Avoid doing the same expensive TV build on both feature-branch push and PR events.
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+      - name: Configure Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+      - name: Build TV debug APK
+        working-directory: android-tv
+        run: chmod +x ../android/gradlew && ../android/gradlew --no-daemon --console=plain --stacktrace --info --build-cache assembleDebug
+      - name: Verify TV package and Leanback launcher
+        working-directory: android-tv
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="app/build/outputs/apk/debug/app-debug.apk"
+          test -s "$APK"
+          AAPT="$(find "${ANDROID_HOME}/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          test -x "$AAPT"
+          "$AAPT" dump badging "$APK" | tee /tmp/xclone-tv-badging.txt
+          grep -q "package: name='com.xclone.app.tv.debug'" /tmp/xclone-tv-badging.txt
+          "$AAPT" dump xmltree "$APK" AndroidManifest.xml | tee /tmp/xclone-tv-manifest.txt
+          grep -q "android.intent.category.LEANBACK_LAUNCHER" /tmp/xclone-tv-manifest.txt
+          grep -q "android.hardware.touchscreen" /tmp/xclone-tv-manifest.txt
+          sha256sum "$APK"
+          ls -lh "$APK"
+      - name: Upload XClone TV debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: xclone-tv-debug-apk-${{ github.sha }}
+          path: android-tv/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 30

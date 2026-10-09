@@ -1,0 +1,31 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'com.xclone.tv'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'com.xclone.app.tv'
+        minSdk 24
+        targetSdk 36
+        versionCode 1
+        versionName '1.0.0'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
+    }
+
+    buildTypes {
+        debug {
+            applicationIdSuffix '.debug'
+            versionNameSuffix '-debug'
+        }
+        release {
+            minifyEnabled false
+        }
+    }
+}
