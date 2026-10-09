@@ -36,7 +36,7 @@ jobs:
 
       - name: Build TV debug APK
         working-directory: android-tv
-        run: ../android/gradlew --no-daemon clean assembleDebug
+        run: chmod +x ../android/gradlew && ../android/gradlew --no-daemon clean assembleDebug
 
       - name: Verify TV APK and manifest metadata
         working-directory: android-tv
