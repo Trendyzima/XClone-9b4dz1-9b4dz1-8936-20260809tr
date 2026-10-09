@@ -2,6 +2,15 @@ plugins {
     id 'com.android.application'
 }
 
+// Resolve Gradle properties before entering Android DSL closures, whose delegate
+// can shadow script/project properties during configuration.
+def tvVersionCodeValue = (providers.gradleProperty('tvVersionCode').orNull ?: '1').toInteger()
+def tvVersionNameValue = providers.gradleProperty('tvVersionName').orNull ?: '1.0.0'
+def tvReleaseStorePath = providers.gradleProperty('XCLONE_TV_STORE_FILE').orNull
+def tvReleaseStorePassword = providers.gradleProperty('XCLONE_TV_STORE_PASSWORD').orNull
+def tvReleaseKeyAlias = providers.gradleProperty('XCLONE_TV_KEY_ALIAS').orNull
+def tvReleaseKeyPassword = providers.gradleProperty('XCLONE_TV_KEY_PASSWORD').orNull
+
 android {
     namespace 'com.xclone.tv'
     compileSdk 36
@@ -10,13 +19,25 @@ android {
         applicationId 'com.xclone.app.tv'
         minSdk 24
         targetSdk 36
-        versionCode 1
-        versionName '1.0.0'
+        versionCode tvVersionCodeValue
+        versionName tvVersionNameValue
     }
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_21
         targetCompatibility JavaVersion.VERSION_21
+    }
+
+    signingConfigs {
+        release {
+            // Injected only by the protected release workflow; never commit signing material.
+            if (tvReleaseStorePath) {
+                storeFile file(tvReleaseStorePath)
+                storePassword tvReleaseStorePassword
+                keyAlias tvReleaseKeyAlias
+                keyPassword tvReleaseKeyPassword
+            }
+        }
     }
 
     buildTypes {
@@ -25,6 +46,7 @@ android {
             versionNameSuffix '-debug'
         }
         release {
+            signingConfig signingConfigs.release
             minifyEnabled false
         }
     }

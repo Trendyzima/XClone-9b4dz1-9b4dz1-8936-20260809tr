@@ -22,6 +22,22 @@ import android.net.http.SslError;
 /** Standalone Android TV shell. Intentionally does not modify or reuse the mobile Activity. */
 public final class TvActivity extends Activity {
     private static final String APP_URL = "https://testagram.site/?tg_shell=android-tv-20261009";
+    private static final String TV_FOCUS_SCRIPT =
+            "(function(){"
+            + "document.documentElement.setAttribute('data-xclone-tv','true');"
+            + "var css=':focus,:focus-visible{outline:3px solid #35d07f!important;outline-offset:4px!important}'"
+            + "+'button,a,input,textarea,select,[role=button],[tabindex]:not([tabindex=\"-1\"]){-webkit-tap-highlight-color:transparent;scroll-margin:12vh}'"
+            + "+'button:focus,input:focus,textarea:focus,select:focus,[role=button]:focus{box-shadow:0 0 0 2px rgba(53,208,127,.28)!important}';"
+            + "function install(d){try{if(!d||!d.head||d.getElementById('xclone-tv-focus-style'))return;"
+            + "var s=d.createElement('style');s.id='xclone-tv-focus-style';s.textContent=css;d.head.appendChild(s);"
+            + "if(!d.__xcloneTvFocusScroll){d.__xcloneTvFocusScroll=true;d.addEventListener('focusin',function(e){"
+            + "var el=e.target;if(!el||!el.getBoundingClientRect)return;var r=el.getBoundingClientRect();"
+            + "if(r.top<0||r.bottom>d.documentElement.clientHeight||r.left<0||r.right>d.documentElement.clientWidth)"
+            + "el.scrollIntoView({block:'nearest',inline:'nearest',behavior:'auto'});},true);}"
+            + "Array.prototype.forEach.call(d.querySelectorAll('iframe'),function(f){"
+            + "f.addEventListener('load',function(){try{install(f.contentDocument);}catch(ignore){}});"
+            + "try{install(f.contentDocument);}catch(ignore){}});}catch(ignore){}}"
+            + "install(document);})();";
     private WebView webView;
 
     @Override
@@ -84,15 +100,8 @@ public final class TvActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
-                // Make keyboard focus visible for remote-control navigation. This only
-                // adds a focus indicator; it does not change application data or playback.
-                view.evaluateJavascript(
-                        "(function(){if(document.getElementById('xclone-tv-focus-style'))return;"
-                        + "var s=document.createElement('style');s.id='xclone-tv-focus-style';"
-                        + "s.textContent=':focus-visible{outline:3px solid #35d07f!important;"
-                        + "outline-offset:4px!important}button,a,[role=button],[tabindex]:not([tabindex=\"-1\"]){"
-                        + "-webkit-tap-highlight-color:transparent}';"
-                        + "document.head&&document.head.appendChild(s);})();", null);
+                // TV-only focus and scroll affordances; no catalogue or playback behavior changes.
+                view.evaluateJavascript(TV_FOCUS_SCRIPT, null);
             }
         });
 
