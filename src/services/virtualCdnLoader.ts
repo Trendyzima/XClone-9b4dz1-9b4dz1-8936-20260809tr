@@ -10,12 +10,15 @@
  *
  * It has no server, CDN account, API key, or paid bandwidth dependency.
  */
+import { fetchVirtualPeerSegment } from '@/services/virtualCdnPeers';
+
 const CACHE_NAME = 'testagram-virtual-cdn-v1';
 const LIVE_SEGMENT_TTL_MS = 20_000;
 const MAX_CACHED_SEGMENTS = 180;
+const PEER_MIN_SEGMENT_BYTES = 8 * 1024;
 const NETWORK_TIMEOUT_MS = 20_000;
 
-type SegmentResult = { url: string; bytes: ArrayBuffer; contentType: string };
+type SegmentResult = { url: string; bytes: ArrayBuffer; contentType: string; originVerified: boolean };
 type CacheStats = { start: number; first: number; end: number; loaded: number; total: number; retry: number; chunkCount: number; bwEstimate: number };
 
 const inFlight = new Map<string, Promise<SegmentResult>>();
@@ -64,7 +67,7 @@ function cacheKey(url: string) {
   return new Request(url, { method: 'GET', credentials: 'omit' });
 }
 
-async function readCached(url: string): Promise<SegmentResult | null> {
+async function readCached(url: string, requireOrigin = false): Promise<SegmentResult | null> {
   const cache = await openCache();
   if (!cache) return null;
   try {
@@ -76,7 +79,9 @@ async function readCached(url: string): Promise<SegmentResult | null> {
       await cache.delete(cacheKey(url));
       return null;
     }
-    return { url, bytes: await response.arrayBuffer(), contentType: response.headers.get('content-type') || 'application/octet-stream' };
+    const originVerified = response.headers.get('x-testagram-vcdn-source') === 'origin';
+    if (requireOrigin && !originVerified) return null;
+    return { url, bytes: await response.arrayBuffer(), contentType: response.headers.get('content-type') || 'application/octet-stream', originVerified };
   } catch {
     return null;
   }
@@ -95,11 +100,13 @@ async function trimCache(cache: Cache) {
   }
 }
 
-async function saveCached(url: string, result: SegmentResult) {
+async function saveCached(url: string, result: SegmentResult, source: 'origin' | 'peer' = 'origin') {
   const cache = await openCache();
   if (!cache) return;
   try {
-    const parsed = new URL(url);
+    const key = cacheKey(url);
+    const existing = await cache.match(key);
+    if (source === 'peer' && existing?.headers.get('x-testagram-vcdn-source') === 'origin') return;
     // Treat streams as live unless a future catalog contract explicitly marks VOD.
     const effectiveTtl = LIVE_SEGMENT_TTL_MS;
     const response = new Response(result.bytes.slice(0), {
@@ -108,9 +115,10 @@ async function saveCached(url: string, result: SegmentResult) {
         'content-type': result.contentType || 'application/octet-stream',
         'x-testagram-vcdn-cached-at': String(Date.now()),
         'x-testagram-vcdn-ttl-ms': String(effectiveTtl),
+        'x-testagram-vcdn-source': source,
       },
     });
-    await cache.put(cacheKey(url), response);
+    await cache.put(key, response);
     await trimCache(cache);
   } catch {
     // Quota/CORS/cache failures are a cache miss, never a playback failure.
@@ -123,22 +131,32 @@ async function fetchDirect(url: string, headers: HeadersInit | undefined, signal
   const response = await fetch(url, { method: 'GET', headers: requestHeaders, credentials: 'same-origin', signal });
   if (!response.ok) throw Object.assign(new Error(`HTTP ${response.status} ${response.statusText}`), { status: response.status });
   const bytes = await response.arrayBuffer();
-  return { url: response.url || url, bytes, contentType: response.headers.get('content-type') || 'application/octet-stream' };
+  return { url: response.url || url, bytes, contentType: response.headers.get('content-type') || 'application/octet-stream', originVerified: true };
 }
 
-async function fetchFragment(url: string, headers: HeadersInit | undefined): Promise<SegmentResult> {
+async function fetchFragment(url: string, headers: HeadersInit | undefined, streamUrl: string): Promise<SegmentResult> {
   const existing = inFlight.get(url);
   if (existing) return existing;
   const request = (async () => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), NETWORK_TIMEOUT_MS);
     try {
+      // Try a peer quorum first. Two independent origin-sourced peers must agree
+      // on SHA-256; otherwise the original stream remains authoritative.
+      if (streamUrl && typeof crypto !== 'undefined' && crypto.subtle && url.length < 2048) {
+        const peer = await fetchVirtualPeerSegment(streamUrl, url, (cachedUrl, requireOrigin = false) => readCached(cachedUrl, requireOrigin));
+        if (peer && peer.bytes.byteLength >= PEER_MIN_SEGMENT_BYTES) {
+          const result: SegmentResult = { ...peer, originVerified: false };
+          await saveCached(url, result, 'peer');
+          return result;
+        }
+      }
       const response = await fetch(url, { method: 'GET', headers, credentials: 'same-origin', signal: controller.signal });
       if (!response.ok) throw Object.assign(new Error(`HTTP ${response.status} ${response.statusText}`), { status: response.status });
       if (response.type === 'opaque') throw new Error('Opaque media response cannot be cached');
       const bytes = await response.arrayBuffer();
-      const result = { url: response.url || url, bytes, contentType: response.headers.get('content-type') || 'application/octet-stream' };
-      await saveCached(url, result);
+      const result: SegmentResult = { url: response.url || url, bytes, contentType: response.headers.get('content-type') || 'application/octet-stream', originVerified: true };
+      await saveCached(url, result, 'origin');
       return result;
     } finally {
       clearTimeout(timer);
@@ -188,7 +206,7 @@ export default class VirtualCdnLoader {
         let result: SegmentResult | null = null;
         if (cacheable) result = await readCached(url);
         if (this.aborted) return;
-        if (cacheable && !result) result = await fetchFragment(url, context?.headers);
+        if (cacheable && !result) result = await fetchFragment(url, context?.headers, String(context?.frag?.baseurl || context?.frag?.level?.url || ''));
         if (!cacheable) {
           this.controller = new AbortController();
           result = await fetchDirect(url, context?.headers, this.controller.signal, context?.rangeStart, context?.rangeEnd);

@@ -1,9 +1,10 @@
 import {useCallback,useEffect,useRef,useState} from 'react';
 import Hls from 'hls.js';
-import {Volume2,VolumeX,Radio,Maximize2,RefreshCw,Play,Globe2,Gauge} from 'lucide-react';
+import {Volume2,VolumeX,Radio,Maximize2,RefreshCw,Play,Globe2,Gauge,Share2} from 'lucide-react';
 import type {TvChannel} from '@/services/tvChannelCatalog';
 import {Button} from '@/components/ui/button';
 import VirtualCdnLoader from '@/services/virtualCdnLoader';
+import {closeVirtualPeerRooms} from '@/services/virtualCdnPeers';
 
 type Props={channel:TvChannel;active:boolean;onVisible:(id:string,visible:boolean)=>void;onHealth?:(id:string,healthy:boolean)=>void;};
 
@@ -11,7 +12,7 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
  const ref=useRef<HTMLVideoElement>(null); const wrap=useRef<HTMLDivElement>(null); const hls=useRef<Hls|null>(null);
  const retryRef=useRef(0); const retryTimer=useRef<ReturnType<typeof setTimeout>|null>(null); const stallTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null); const startRef=useRef<(()=>void)|null>(null); const proxyFallbackRef=useRef(false); const fatalNetworkRef=useRef(0); const bandwidthTimerRef=useRef<ReturnType<typeof setInterval>|null>(null);
  const playbackUrlRef=useRef(channel.url); const initialBufferReadyRef=useRef(false);
- const [dataSaver,setDataSaver]=useState(()=>{try{return localStorage.getItem('testagram-tv-data-saver')==='on';}catch{return false;}}); const [muted,setMuted]=useState(()=>{try{return localStorage.getItem('testagram-tv-audio')!=='on';}catch{return true;}}); const audioPreferenceRef=useRef(muted); const [error,setError]=useState(false); const [starting,setStarting]=useState(false); const [needsGesture,setNeedsGesture]=useState(false);
+ const [dataSaver,setDataSaver]=useState(()=>{try{return localStorage.getItem('testagram-tv-data-saver')==='on';}catch{return false;}}); const [peerSharing,setPeerSharing]=useState(()=>{try{return localStorage.getItem('testagram-tv-peer-sharing')==='on';}catch{return false;}}); const [muted,setMuted]=useState(()=>{try{return localStorage.getItem('testagram-tv-audio')!=='on';}catch{return true;}}); const audioPreferenceRef=useRef(muted); const [error,setError]=useState(false); const [starting,setStarting]=useState(false); const [needsGesture,setNeedsGesture]=useState(false);
  const networkProfile=useCallback(()=>{const n=(navigator as any).connection;const type=String(n?.effectiveType||'').toLowerCase();const save=Boolean(n?.saveData)||dataSaver;const constrained=save||type==='slow-2g'||type==='2g';const moderate=type==='3g';return {save,constrained,moderate};},[dataSaver]);
  const proxyUrl=useCallback(()=>window.location.origin+'/tv-stream?url='+encodeURIComponent(channel.url),[channel.url]);
 
@@ -92,7 +93,7 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
   </div>
   <div className='p-3'>
    <div className='flex items-start justify-between gap-3'><div className='min-w-0'><h2 className='font-bold line-clamp-2'>{channel.name}</h2><div className='mt-1 flex items-center gap-2 text-xs text-muted-foreground'><Globe2 className='h-3.5 w-3.5'/><span>{channel.country||'International'}</span>{channel.group&&<><span>•</span><span className='truncate'>{channel.group}</span></>}</div></div><div className='flex shrink-0 gap-1'><Button size='icon' variant='outline' onClick={toggle} aria-label={muted?'Unmute channel':'Mute channel'} title={muted?'Enable channel sound':'Mute channel'}>{muted?<VolumeX/>:<Volume2/>}</Button><Button size='icon' variant='outline' onClick={fullscreen} aria-label='Fullscreen'><Maximize2/></Button></div></div>
-   <div className='mt-2 flex items-center justify-between gap-2'><div className='text-[11px] text-muted-foreground truncate'>Source: {channel.source}</div><Button size='sm' variant={dataSaver?'default':'outline'} className='h-7 shrink-0 px-2 text-[11px]' onClick={()=>{const next=!dataSaver;setDataSaver(next);try{localStorage.setItem('testagram-tv-data-saver',next?'on':'off');}catch{};retryRef.current=0;if(active)startRef.current?.();}} title={dataSaver?'Data saver is on':'Use data saver on slow connections'}><Gauge className='mr-1 h-3.5 w-3.5'/>{dataSaver?'Data saver':'Save data'}</Button></div>
+   <div className='mt-2 flex flex-wrap items-center justify-between gap-2'><div className='min-w-0 text-[11px] text-muted-foreground truncate'>Source: {channel.source}</div><div className='flex shrink-0 gap-1'><Button size='sm' variant={dataSaver?'default':'outline'} className='h-7 shrink-0 px-2 text-[11px]' onClick={()=>{const next=!dataSaver;setDataSaver(next);try{localStorage.setItem('testagram-tv-data-saver',next?'on':'off');}catch{};if(next)closeVirtualPeerRooms();retryRef.current=0;if(active)startRef.current?.();}} title={dataSaver?'Data saver is on':'Use data saver on slow connections'}><Gauge className='mr-1 h-3.5 w-3.5'/>{dataSaver?'Data saver':'Save data'}</Button><Button size='sm' variant={peerSharing?'default':'outline'} className='h-7 shrink-0 px-2 text-[11px]' onClick={()=>{const next=!peerSharing;setPeerSharing(next);try{localStorage.setItem('testagram-tv-peer-sharing',next?'on':'off');}catch{};if(!next)closeVirtualPeerRooms();}} title={peerSharing?'Peer sharing enabled: eligible public segments may be shared using upload data':'Enable opt-in peer-assisted playback for eligible public streams'} aria-pressed={peerSharing}><Share2 className='mr-1 h-3.5 w-3.5'/>{peerSharing?'Peers on':'Peer share'}</Button></div></div>
   </div>
  </article>;
 }
