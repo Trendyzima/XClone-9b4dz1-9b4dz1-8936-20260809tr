@@ -17,7 +17,7 @@ export default async function handler(request: Request) {
   const rawPart=url.searchParams.get('part');
   const hasExplicitPart=rawPart!==null;
   const part=rawPart===null?0:Number(rawPart);
-  if(rawPart!==null&&(!/^\\d+$/.test(rawPart)||!Number.isSafeInteger(part)))return new Response('Invalid sitemap part',{status:400,headers:{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store'}});
+  if(rawPart!==null&&(!/^\d+$/.test(rawPart)||!Number.isSafeInteger(part)))return new Response('Invalid sitemap part',{status:400,headers:{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store'}});
   const pageSize=50000;
   const {count,error:countError}=await db.from('posts').select('id',{count:'exact',head:true}).is('deleted_at',null).or('visibility.eq.public,visibility.is.null');
   if(countError)return new Response('Sitemap temporarily unavailable',{status:502});
