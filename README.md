@@ -1,375 +1,250 @@
-# Testagram
+# XClone — Social Media App for Android, iOS Web, and Android TV
 
-A production-oriented social platform for short-form video, conversations, communities, live audio/video, creator tools, commerce, payments, federated discovery, publisher feeds, and support.
+**XClone** is a social platform for short-form videos, posts and threads, live video and audio, communities, messaging, creator tools, discovery, commerce, and digital payments. The product's current public web experience is hosted at **[testagram.site](https://testagram.site/)**.
 
-> **Status:** Active development and production hardening
+Find the right XClone experience for your device below: download the Android APK, use the web app on iPhone/iPad, or try the separate Android TV app.
 
-## 📱 Testagram Android APK
+[**Open XClone on the web**](https://testagram.site/) · [**Download the latest Android APK**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest) · [**Browse all releases**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases) · [**Android TV build status**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions)
 
-Downloadable Android builds are listed below by version. Each entry links directly to its APK.
+> **Release status:** Android APK/AAB assets are published through GitHub Releases. The separate Android TV project has a successful debug-build CI path; a stable, signed public TV release and real-device validation remain release gates. See the platform table before installing.
 
-### APK versions
+## Download XClone for your device
 
-| Version | Status | Created | APK | Details |
-|---|---|---|---|---|
-| **Latest release** | 🔄 Auto-updating | — | [⬇️ Download latest APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest/download/app-release.apk) | [Latest release page](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest) |
-| **v0.1.0** | Archived release | 2026-10-03 08:24 UTC | [⬇️ Download APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/download/release/v0.1.0/app-release.apk) | [Release page](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/tag/release/v0.1.0) |
-| **Build archive** | 📦 CI artifact | — | [Actions runs](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions) | Use the latest successful Android release run |
+| Platform | What you can use | Download / launch | Availability |
+|---|---|---|---|
+| **Android phones and tablets** | Android app package (APK); Android App Bundle (AAB) is provided for distribution workflows | [Latest Android release and APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest) | APK available from GitHub Releases |
+| **Android TV and Google TV** | Separate TV app package ID `com.xclone.app.tv`, with Leanback launcher and remote/D-pad support | [TV build workflow and artifacts](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/workflows/ci.yml) · [TV project instructions](android-tv/README.md) | Debug APK builds in CI; signed public release and physical-TV validation pending |
+| **iPhone and iPad (iOS/iPadOS)** | Use the responsive XClone web app in Safari; you can use Safari's Add to Home Screen feature where available | [Open XClone in Safari](https://testagram.site/) | Web experience; this repository does not currently provide a native iOS IPA or App Store listing |
+| **Desktop and other browsers** | Responsive web app | [Open XClone](https://testagram.site/) | Web |
+| **Desktop native client** | Tauri desktop project | [Desktop setup](desktop/README.md) | Development/build instructions in repository |
 
-### Checksums
+### Android APK download
 
-- **Latest release:** See the SHA-256 shown on the current GitHub release asset.
-- The repository mirror `downloads/Testagram.apk` is no longer presented as the canonical download.
+1. Open the [latest XClone/Testagram Android release](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest).
+2. Download **`app-release.apk`** to an Android device.
+3. Review the release notes and Android's installation prompts before installing.
+4. Sign in to access account features that require authentication.
 
-> **Publishing rule:** Every successfully signed and verified APK should be added here as a versioned release entry. Failed builds are not presented as downloadable versions.
+**Important signing note:** the current Android release workflow generates temporary CI signing material. Until a stable Android signing identity is configured and verified across releases, an APK update may not install over an APK signed with a different certificate. Back up or sync important account data and read the release notes before replacing an existing installation. Do not treat CI-generated signing as proof of a final, stable production release.
 
-## What is Testagram?
+### Android TV and Google TV
 
-Testagram is a responsive social ecosystem built around user publishing and discovery. It brings together social posts and threads, short-form video, communities, live experiences, creator tools, monetization, wallet/payment flows, commerce, Fediverse discovery, publisher/RSS content, and an in-product Help Center.
+The TV client is a separate Android project and package, designed to open the existing XClone web experience from a TV launcher. The current CI workflow builds and verifies a debug APK. Downloadable workflow artifacts may require a GitHub sign-in and are intended for testing, not general public distribution.
 
-The repository is a React + TypeScript application using Vite, Tailwind CSS, Supabase, serverless integrations, and route-level lazy loading. Production changes are validated through automated quality and deployment workflows.
+- [Build and verification workflow](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/workflows/ci.yml)
+- [TV app build instructions](android-tv/README.md)
+- [TV signed-release workflow source](.github/workflows/xclone-tv-release.yml)
 
-## Product capabilities
+Remote navigation, authentication, Back behavior, and IPTV/video playback still need validation on real Android TV or Google TV hardware before the TV app can be described as a fully validated consumer release.
 
-### Social publishing
-- Posts, threads, replies, quote posts, reposts, likes, bookmarks, polls, hashtags, mentions, and post history.
-- Multi-image posts and video publishing.
-- Dedicated profile surfaces for posts, threads, replies, media, videos, likes, followers, and following.
-- Lists, history, notifications, direct messages, search, and discovery.
-- Responsive mobile navigation and desktop sidebars.
+## What can you do with XClone?
 
-### Video, live, audio & TV
-- Short-form video viewing.
-- Live streaming and live-stream discovery.
-- Live Audio Spaces.
-- TV Studio, TV channels, and channel profile experiences.
-- Dedicated live/recording viewing surfaces where supported.
+XClone brings social networking, short videos, live experiences, communities, creator tools, discovery, and commerce into one connected product. Feature availability may depend on account permissions, configuration, integrations, and rollout status.
 
-### Communities
-- Community discovery and community pages.
-- Community posts, members, chat, events, and shop experiences.
-- Trending topics and hashtag discovery.
+### Social posts, threads, and profiles
+- Publish text posts, threads, replies, quote posts, reposts, and multi-image or video posts.
+- Like, bookmark, follow, mention users, use hashtags, and participate in polls.
+- Explore post history and profile sections for posts, replies, media, videos, likes, followers, and following.
+- Use lists, notifications, search, and discovery tools to find people and conversations.
 
-### Fediverse
-- Federated discovery, profiles, feeds, identities, inbox, relay, analytics, and Mastodon-oriented surfaces.
-- Organic federated content can participate in the home discovery experience.
-- Federated content remains attributable to its originating service.
+### Short videos, live video, audio, and IPTV/TV
+- Watch short-form videos and browse video discovery surfaces.
+- Discover live streams and supported live/recorded viewing experiences.
+- Join or host Live Audio Spaces where enabled.
+- Explore TV channels, TV Studio and related channel/profile experiences.
+- Use the web-based TV channel and media-player surfaces; actual IPTV playback depends on the stream source, device, network, and service availability.
+- The separate Android TV shell provides a TV launcher entry point and remote/D-pad navigation support.
 
-### Publisher and RSS feeds
-- Publisher/RSS ingestion and article discovery.
-- Publisher stories are blended into the native home feed rather than forced into a separate top-of-page news rail.
-- Publisher cards can display publisher identity, favicon, category, imagery, excerpt, timestamp, and article context.
-- RSS requests use short-lived frontend caching to reduce repeated network traffic.
-- Transient external/live media is not automatically converted into permanent backend video storage.
+**Playback transparency:** IPTV channel availability, start-up time, and buffering depend on live endpoints and network conditions. The repository's CI build passing does not guarantee every channel plays on every device.
 
-### Creator tools
-- Creator Studio and creator overview.
-- Creator analytics, videos, earnings, and revenue surfaces.
-- Post and story analytics.
-- Creator leaderboards and related discovery surfaces.
-- Monetization and advertising tools.
+### Communities and conversations
+- Discover communities and community pages.
+- Participate in community posts, member experiences, chat, events, and shop surfaces where enabled.
+- Follow trending topics and hashtags.
+- Use direct messages and notification surfaces.
 
-### Payments, wallet & commerce
-- Wallet dashboard and transaction history.
-- Send/receive money, M-Pesa-related flows, referrals, savings, scheduled transfers, reminders, security, and currency conversion.
-- Premium subscriptions and verification workflows.
-- Payout and revenue surfaces.
-- Product tagging, marketplace, shopping mall, seller storefronts, orders, wishlists, and community shops.
+### Search, trends, publishers, and federated discovery
+- Discover accounts, posts, hashtags, and trending conversations.
+- Browse publisher/RSS stories and article discovery surfaces.
+- Explore supported Fediverse/Mastodon-oriented identities, profiles, feeds, inbox, relay, and analytics surfaces.
+- Keep external publisher and federated content attributable to its original source.
 
-### Safety, trust & support
-- Reporting, blocking, appeals, verification, fraud/admin tooling, and moderation surfaces.
-- Content policy, community guidelines, privacy policy, and terms.
-- Active session and account-security surfaces.
-- Help Center with searchable articles, article feedback, support requests, authenticated ticket history, video-guide placeholders, and AI-assisted support.
+### Creator Studio and monetization
+- Access Creator Studio and creator overview surfaces.
+- Review creator analytics, video performance, earnings and revenue information where enabled.
+- Use post/story analytics and creator discovery/leaderboard surfaces.
+- Explore supported monetization, advertising, promotions and creator tools.
 
-## Architecture
+### Wallet, payments, and commerce
+- Use wallet and transaction-history surfaces.
+- Explore supported send/receive, M-Pesa-related flows, referrals, savings goals, scheduled transfers, reminders and currency conversion.
+- Access premium subscription and verification workflows.
+- Browse marketplace, product tagging, seller storefronts, orders, wishlists, shopping mall and community shop experiences where enabled.
 
-~~~text
-Browser
-  |
-  +-- React 18 + TypeScript
-  +-- React Router
-  +-- Tailwind CSS + Radix/shadcn-style UI
-  +-- TanStack Query / application state
-  +-- Lazy-loaded route surfaces
-  |
-  +-- Supabase
-  |     +-- PostgreSQL
-  |     +-- Auth
-  |     +-- Storage
-  |     +-- Realtime
-  |     +-- Edge Functions
-  |
-  +-- Publisher/RSS services
-  +-- Fediverse integrations
-  +-- Testagram Media Engine (WebRTC SFU)
-  +-- First-party Testagram CDN
-  |     +-- HLS/IPTV rolling 45s prefetch
-  |     +-- >=30s playback buffer gate
-  |     +-- RAM + disk cache
-  |     +-- Range requests and stale-if-error
-  |     +-- media.testagram.site canonical media hostname
-  |     +-- no Cloudflare media-worker dependency
-  +-- Payment/monetization integrations
-  +-- Analytics/observability
-~~~
+Payment features can require provider configuration, verification, eligibility, and supported regions. Listing a payment surface in this README does not guarantee every payment provider or transaction type is available to every account.
 
-The repository configuration and deployed environment are authoritative for the exact production topology.
+### Safety, privacy, and support
+- Access reporting, blocking, appeals, verification, moderation and account-security surfaces.
+- Review community guidelines, content policies, privacy information and terms.
+- Use the Help Center for searchable help content, feedback, support requests, ticket history for authenticated users, and AI-assisted support where configured.
+
+## Platform details
+
+### Android app
+The existing Android project lives in `android/`. The production WebView shell uses the mobile application ID `com.xclone.app`.
+
+- [Android release workflow](.github/workflows/android-release.yml)
+- [All GitHub releases](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases)
+- [Latest APK download](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest)
+
+### Android TV app
+The TV project lives in `android-tv/` and uses `com.xclone.app.tv`, separate from the mobile package. It reuses the existing web experience rather than duplicating IPTV catalogue, stream-selection, buffering, or playback services.
+
+- [TV README](android-tv/README.md)
+- [TV release workflow](.github/workflows/xclone-tv-release.yml)
+- [GitHub Actions runs](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions)
+
+### iPhone and iPad
+Open [testagram.site](https://testagram.site/) in Safari. The site includes web-app metadata and an Apple touch icon, but this repository does **not** currently contain a native iOS application project or an IPA download. This README therefore does not claim an App Store release.
+
+## Product architecture
+
+```text
+Web browser / Android WebView / Android TV WebView
+                    |
+             React + TypeScript
+                    |
+      Routes, social UI, media and feature surfaces
+                    |
+       Supabase Auth / PostgreSQL / Storage
+             / Realtime / Edge Functions
+                    |
+     Media and IPTV delivery / live experiences
+        / publisher and Fediverse integrations
+          / payment and monetization services
+```
+
+The repository contains a React + TypeScript application using Vite, Tailwind CSS, route-level lazy loading and Supabase. It also contains a separate Android TV project, the existing Android project, a Flutter mobile foundation, a Tauri desktop client, and first-party media/backend services.
+
+The checked-in repository and deployed configuration are authoritative for the exact production service topology. Some feature screens integrate with external providers and may require separate service configuration.
 
 ## Technology stack
 
 | Area | Technology |
 |---|---|
-| UI | React 18 + TypeScript |
+| Web UI | React 18, TypeScript, React Router |
 | Build | Vite |
-| Styling | Tailwind CSS |
-| UI primitives | Radix UI / shadcn-style components |
-| Routing | React Router |
-| Backend | Supabase |
-| Database | PostgreSQL |
+| Styling and components | Tailwind CSS, Radix UI, shadcn-style components |
+| Data and state | TanStack Query, Redux Toolkit/Zustand where used |
+| Backend and database | Supabase, PostgreSQL |
 | Authentication | Supabase Auth |
-| Realtime | Supabase Realtime |
-| Storage | Supabase Storage |
-| Serverless | Supabase Edge Functions / API routes |
-| Live media | Testagram Media Engine + WebRTC |
-| Data fetching | TanStack Query |
-| Charts | Recharts / Chart.js |
+| Realtime and storage | Supabase Realtime and Storage |
+| Edge/serverless | Supabase Edge Functions and API handlers |
+| Video | HLS.js and application media-player surfaces |
+| Live media | WebRTC / Testagram Media Engine integrations |
+| Android | Existing Android/Capacitor project |
+| Android TV | Separate Android application project |
+| Mobile migration foundation | Flutter under `mobile/` |
+| Desktop | Tauri |
+| Analytics and charts | PostHog integration, Recharts, Chart.js |
 | Maps | Leaflet / React Leaflet |
-| Animation | Framer Motion |
-| Forms | React Hook Form + resolver integrations |
-| Analytics | PostHog integration |
-| Deployment | Vercel-oriented production pipeline |
-| Native shell | Capacitor configuration and Android project |
+| Deployment | Vercel-oriented production pipeline and GitHub Actions |
 
 ## Repository layout
 
-~~~text
+```text
 .
-├── src/                 # React application
-│   ├── components/     # Shared UI, layout, and feature components
-│   ├── hooks/          # Reusable React hooks
-│   ├── lib/            # Clients and utilities
-│   ├── pages/          # Route-level product surfaces
-│   ├── services/       # Application services
-│   └── theme/          # Appearance/theme handling
-├── mobile/              # Flutter mobile product layer
-├── supabase/            # Migrations and Edge Functions
-├── services/
-│   └── testagram-cdn/   # First-party Go media/IPTV CDN
-├── api/                 # API/serverless handlers
-├── public/              # Static assets and public metadata
-├── android/             # Android/Capacitor project
-├── docs/                # Documentation
-├── ops/                 # Operational tooling
-├── repair/              # Recovery/repair tooling
-├── scripts/             # Build and maintenance scripts
-├── .github/workflows/   # CI and production workflows
-├── _build.cjs           # Production build wrapper
-├── vercel.json           # Vercel configuration
-├── vite.config.cjs      # Vite configuration
-├── tailwind.config.js   # Tailwind configuration
-├── tsconfig.json        # TypeScript configuration
-└── package.json         # Dependencies and scripts
-~~~
+├── src/                  # React application, components, hooks and pages
+├── android/              # Existing Android app; keep separate from TV package
+├── android-tv/           # Separate Android TV app and build instructions
+├── mobile/               # Flutter mobile migration foundation
+├── desktop/              # Tauri desktop client
+├── supabase/             # Database migrations and Edge Functions
+├── services/              # First-party backend and media services
+├── api/                   # API/serverless handlers
+├── public/                # Static assets, manifests and public metadata
+├── docs/                  # Architecture and operations documentation
+├── ops/                   # Operational tooling
+├── scripts/               # Build and maintenance scripts
+└── .github/workflows/     # CI, Android release and TV release workflows
+```
 
-## Getting started
+## Run the web application locally
 
 ### Prerequisites
+Use a current Node.js LTS version and npm compatible with the repository lockfile.
 
-Use a current Node.js LTS release and npm compatible with the repository lockfile.
-
-Install dependencies:
-
-~~~bash
+```bash
 npm ci
-~~~
-
-Start development:
-
-~~~bash
 npm run dev
-~~~
+```
 
-Run TypeScript validation:
+### Validate and build
 
-~~~bash
+```bash
 npm run typecheck
-~~~
-
-Run lint:
-
-~~~bash
 npm run lint
-~~~
-
-Build for production:
-
-~~~bash
 npm run build
-~~~
-
-Preview the production build:
-
-~~~bash
 npm run preview
-~~~
+```
 
 ## Environment configuration
 
-The browser-facing example configuration is provided in .env.example.
+See `.env.example` for the browser-facing example configuration. Typical client settings include:
 
-Typical client configuration:
-
-~~~env
+```env
 VITE_SUPABASE_URL=
 VITE_SUPABASE_PUBLISHABLE_KEY=
 VITE_POSTHOG_KEY=
 VITE_POSTHOG_HOST=https://us.i.posthog.com
-~~~
+```
 
-A legacy VITE_SUPABASE_ANON_KEY variable may be supported during migration where documented by the application.
+Never place Supabase service-role keys, payment secrets, private API credentials, or other privileged values in client-side Vite variables. Privileged operations belong on trusted server infrastructure.
 
-**Never put service-role keys, payment secrets, private API credentials, or other privileged secrets into Vite client-side variables.**
+## Performance, reliability, and security principles
 
-## Backend and data
+- Lazy-load route-level pages and request secondary datasets only when needed.
+- Use pagination for long feeds and caching for suitable short-lived external data.
+- Treat live streams differently from uploaded media; transient live content should not automatically become permanent storage.
+- Provide clear loading, empty, success and error states; never disguise a backend failure as success.
+- Enforce authorization server-side and with appropriate database row-level security.
+- Treat RSS, federated, uploaded and user-generated content as untrusted input.
+- Keep privileged credentials server-side and protect payment, moderation, administration and account operations with authorization.
+- Validate the exact commit through CI and check deployment status separately from build status.
 
-Supabase provides the primary backend services:
+## CI and release validation
 
-- PostgreSQL database
-- Authentication
-- Row Level Security
-- Storage
-- Realtime subscriptions
-- Edge Functions
+A successful workflow confirms only the checks actually executed by that workflow. It does not independently prove that every production route, IPTV channel, payment provider, or device combination works.
 
-Database changes should use migrations and be reviewed for authorization, ownership, indexes, performance, backward compatibility, and data retention.
+- [GitHub Actions workflows](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions)
+- [Published releases](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases)
+- [Android TV project](android-tv/README.md)
 
-Privileged operations belong on trusted server-side infrastructure.
+Before promoting a build to general users, verify the signing identity across versions, install and upgrade behavior, login/session persistence, Back navigation, video playback, IPTV playback, and the target device class.
 
-## Production engineering standards
+## SEO and discoverability
 
-### Performance
-- Lazy load route-level pages.
-- Load secondary datasets only when they are needed.
-- Use cursor-based pagination for long feeds.
-- Cache short-lived external feed requests.
-- Optimize images and media delivery.
-- Avoid permanently storing transient live-stream media unless recording is explicitly required.
+This README intentionally describes the product in natural language so users and search engines can understand the supported platform paths and feature areas. Relevant search topics include:
 
-### Reliability
-- Treat optional integrations as independently failure-prone.
-- Provide explicit loading, empty, success, and error states.
-- Do not turn backend failures into success-looking UI.
-- Retry safe transient operations.
-- Verify the exact commit SHA throughout CI and deployment.
-- Treat CI success and production deployment success as separate checks.
+- XClone social media app and Android APK
+- XClone short videos, reels-style video feed, posts and communities
+- XClone Android TV and Google TV app
+- Social networking, live video, live audio and IPTV/TV channel experiences
+- Creator Studio, creator analytics and monetization
+- Social messaging, trending topics and federated discovery
+- Wallet, M-Pesa-related flows, marketplace and community shops
+- XClone web app for iPhone, iPad, Android and desktop browsers
 
-### Security
-- Enforce authorization server-side and with RLS.
-- Validate untrusted input at trust boundaries.
-- Keep privileged credentials server-side.
-- Treat RSS, Fediverse, uploaded, and user-generated content as untrusted.
-- Safely handle external URLs and media.
-- Protect payment, moderation, administration, and account operations with appropriate authorization.
+These phrases describe product areas; they are not a promise that every integration is enabled for every user or that a native iOS app is published. Avoid keyword stuffing and keep the README aligned with real release availability.
 
-### UX and accessibility
-- Mobile-first responsive design.
-- Keyboard/focus support and accessible labels.
-- Consistent touch targets and interactive states.
-- Clear destructive-action confirmation.
-- Useful loading, empty, and error states.
-- Internal product navigation stays inside Testagram wherever possible.
+## Support and policies
 
-## Quality gates and deployment
-
-Local validation:
-
-~~~bash
-npm run typecheck
-npm run lint
-npm run build
-~~~
-
-Production readiness requires more than a local build. Verify:
-
-1. The intended commit SHA is being tested.
-2. Typecheck passes.
-3. Lint passes.
-4. The production build passes.
-5. Relevant contract/quality workflows pass.
-6. Deployment reconciliation completes.
-7. The deployed application corresponds to the intended revision.
-8. A browser smoke test covers affected critical routes.
-9. Runtime console and chunk-loading errors are absent on affected flows.
-
-GitHub Actions in this repository provide automated quality and operational gates. Deployment status should always be checked against the exact revision being released.
-
-## Data and content boundaries
-
-Testagram may display content from several sources: Testagram users, communities, federated services, and external publishers.
-
-These sources have different ownership and trust boundaries. External publisher and federated material should remain clearly attributable to its origin and must not be represented as original Testagram-authored content.
-
-Live media has a different lifecycle from uploaded media: a broadcaster can provide content while online, while transient live content should not automatically become permanent backend storage.
-
-## Help and support
-
-The in-product Help Center is available at:
-
-/help
-
-It provides:
-- Searchable help articles
-- Article feedback
-- Video-guide entry points
-- Support request submission
-- Authenticated support-ticket history
-- AI-assisted support
-- Links to privacy, terms, and community-policy resources
-
-## Development workflow
-
-1. Reproduce the issue or define the intended behavior.
-2. Inspect the relevant route, component, service, database contract, and workflow.
-3. Fix the underlying cause rather than masking symptoms.
-4. Check for stale imports, dead UI, duplicate logic, broken navigation, and inconsistent states.
-5. Run typecheck, lint, and production build.
-6. Inspect CI against the exact commit SHA.
-7. Verify deployment status and revision lineage.
-8. Browser-test the affected user journey.
-9. Document meaningful architectural or operational changes.
-
-## Product direction
-
-Current engineering priorities include:
-
-- Incremental and fast feed loading.
-- Reliable RSS/publisher and Fediverse ingestion.
-- Efficient live audio/video experiences.
-- Creator and monetization workflows.
-- Wallet, payment, and commerce reliability.
-- Strong privacy, safety, moderation, and support tooling.
-- Production-grade CI/CD and deployment verification.
-- Reducing unnecessary backend storage and external-service cost.
-- Maintaining a coherent UX as the product surface expands.
-
-## Contributing
-
-Before submitting changes:
-
-- Keep TypeScript clean and avoid unnecessary any types.
-- Reuse shared components and hooks.
-- Follow established Tailwind and UI conventions.
-- Keep route components lazy-loadable where appropriate.
-- Add loading, error, and empty states.
-- Never introduce client-side secrets.
-- Test affected flows on mobile and desktop.
-- Check the exact Git commit and deployment generated by the change.
+Open the [XClone web app](https://testagram.site/) to access the in-product Help Center and available policy pages. Repository-level documentation is in `docs/`.
 
 ## License
 
-No open-source license is currently declared in this repository. Unless a license is explicitly added, do not assume the source is freely redistributable or reusable.
+No open-source license is currently declared in this repository. Do not assume the code is freely redistributable or reusable unless a license is explicitly added.
 
 ---
 
-**Testagram — social publishing, communities, live experiences, creator tools, discovery, commerce, and support in one ecosystem.**
+**XClone** — social publishing, short videos, live experiences, communities, creator tools, and connected experiences across the web, Android, and Android TV.
