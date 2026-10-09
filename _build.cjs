@@ -74,6 +74,8 @@ function patchTikVTVForTestagramAuth(vendorRoot) {
   const channelCardPath = path.join(vendorRoot, 'src', 'components', 'features', 'ChannelCard.tsx');
   const categoryTabsPath = path.join(vendorRoot, 'src', 'components', 'features', 'CategoryTabs.tsx');
   const indexCssPath = path.join(vendorRoot, 'src', 'index.css');
+  const iptvApiPath = path.join(vendorRoot, 'src', 'lib', 'iptvApi.ts');
+  const channelsHookPath = path.join(vendorRoot, 'src', 'hooks', 'useChannels.ts');
   const xcloneSupabasePath = path.join(root, 'src', 'lib', 'supabase.ts');
 
   const xcloneSupabase = fs.readFileSync(xcloneSupabasePath, 'utf8');
@@ -126,6 +128,8 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
     [channelCardPath, fs.readFileSync(channelCardPath, 'utf8')],
     [categoryTabsPath, fs.readFileSync(categoryTabsPath, 'utf8')],
     [indexCssPath, fs.readFileSync(indexCssPath, 'utf8')],
+    [iptvApiPath, fs.readFileSync(iptvApiPath, 'utf8')],
+    [channelsHookPath, fs.readFileSync(channelsHookPath, 'utf8')],
   ]);
 
   let profile = original.get(profilePath);
@@ -304,8 +308,104 @@ button:focus-visible, [role="button"]:focus-visible, a:focus-visible {
 
   fs.writeFileSync(indexHtmlPath, indexHtml, 'utf8');
 
+  // Keep the feed responsive: return primary channels first, then merge the long-tail M3U catalog in the background.
+  let iptvApi = original.get(iptvApiPath);
+  const fetchStart = iptvApi.indexOf('export async function fetchAllChannels(): Promise<IPTVChannel[]> {');
+  const fetchEnd = iptvApi.indexOf('\nexport function getChannelPage', fetchStart);
+  if (fetchStart < 0 || fetchEnd < 0) throw new Error('[IPTV performance] fetchAllChannels boundaries changed upstream');
+  const fastFetchAllChannels = `export async function fetchAllChannels(): Promise<IPTVChannel[]> {
+  if (memCache && memCache.length > 0) return memCache;
+
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw) {
+      const data: CacheData = JSON.parse(raw);
+      if (Date.now() - data.timestamp < CACHE_TTL && data.channels.length > 100) {
+        console.log('[IPTV] Cache hit:', data.channels.length, 'channels');
+        memCache = data.channels;
+        return memCache;
+      }
+    }
+  } catch {}
+
+  if (channelFetchPromise) return channelFetchPromise;
+  channelFetchPromise = (async () => {
+    const [chanRes, streamRes] = await Promise.all([
+      fetch(CHANNELS_API, { signal: AbortSignal.timeout(12000) }),
+      fetch(STREAMS_API, { signal: AbortSignal.timeout(12000) }),
+    ]);
+    if (!chanRes.ok || !streamRes.ok) throw new Error('Primary IPTV API error');
+    const rawChannels: RawChannel[] = await chanRes.json();
+    const rawStreams: RawStream[] = await streamRes.json();
+    const streamMap = new Map<string, string>();
+    for (const item of rawStreams) {
+      if (item.channel && item.url && !streamMap.has(item.channel)) streamMap.set(item.channel, item.url);
+    }
+    const primary: IPTVChannel[] = rawChannels
+      .filter(ch => !ch.is_nsfw && ch.name && streamMap.has(ch.id))
+      .map(ch => ({
+        id: ch.id, name: ch.name, logo: ch.logo || genLogoUrl(ch.name),
+        country: ch.country || 'INT', countryCode: ch.country || 'INT',
+        languages: ch.languages || [], categories: ch.categories?.length ? ch.categories : ['general'],
+        streamUrl: streamMap.get(ch.id)!, alt_names: ch.alt_names || [],
+        website: ch.website, network: ch.network,
+      }));
+    memCache = shuffle(primary);
+    console.log(`[IPTV] Fast start: ${memCache.length} primary channels; extra playlists loading in background`);
+
+    // Never block first paint/playback on dozens of third-party playlist hosts.
+    void fetchExtraSources().then(extraChannels => {
+      const current = memCache || [];
+      const ids = new Set(current.map(ch => ch.id));
+      const urls = new Set(current.map(ch => ch.streamUrl));
+      const extra = extraChannels.filter(ch => !ids.has(ch.id) && !urls.has(ch.streamUrl) && ch.streamUrl && ch.name && ch.name.length > 1);
+      if (extra.length) {
+        memCache = [...current, ...extra];
+        console.log(`[IPTV] Background catalog merged: +${extra.length} channels`);
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify({ channels: memCache, timestamp: Date.now() })); } catch {}
+        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('iptv:channels-updated', { detail: memCache }));
+      } else {
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify({ channels: current, timestamp: Date.now() })); } catch {}
+      }
+    }).catch(error => console.warn('[IPTV] Background playlist enrichment failed:', error));
+
+    return memCache;
+  })().catch(error => {
+    console.error('[IPTV] Primary fetch failed, using fallback:', error);
+    memCache = getFallbackChannels();
+    return memCache;
+  }).finally(() => { channelFetchPromise = null; });
+  return channelFetchPromise;
+}`;
+  if (!iptvApi.includes('let channelFetchPromise: Promise<IPTVChannel[]> | null = null;')) {
+    iptvApi = iptvApi.replace('let memCache: IPTVChannel[] | null = null;', 'let memCache: IPTVChannel[] | null = null;\nlet channelFetchPromise: Promise<IPTVChannel[]> | null = null;');
+  }
+  iptvApi = iptvApi.slice(0, fetchStart) + fastFetchAllChannels + iptvApi.slice(fetchEnd);
+  fs.writeFileSync(iptvApiPath, iptvApi, 'utf8');
+
+  // Reflect background playlist enrichment without resetting the user's current feed position.
+  let channelsHook = original.get(channelsHookPath);
+  const hookCleanup = "    return () => { mounted = false; };";
+  const hookEnhancedCleanup = `    const onChannelsUpdated = (event: Event) => {
+      const all = (event as CustomEvent<IPTVChannel[]>).detail;
+      if (!mounted || !Array.isArray(all)) return;
+      allChannelsRef.current = all;
+      const refreshed = Array.from({ length: Math.max(1, pageRef.current) }, (_, i) =>
+        getChannelPage(all, category, i + 1, countryCode).items
+      ).flat();
+      setChannels(refreshed);
+      const page = getChannelPage(all, category, pageRef.current, countryCode);
+      setHasMore(page.hasMore);
+      setTotal(page.total);
+    };
+    window.addEventListener('iptv:channels-updated', onChannelsUpdated);
+    return () => { mounted = false; window.removeEventListener('iptv:channels-updated', onChannelsUpdated); };`;
+  if (!channelsHook.includes(hookCleanup)) throw new Error('[IPTV performance] useChannels cleanup anchor changed upstream');
+  channelsHook = channelsHook.replace(hookCleanup, hookEnhancedCleanup);
+  fs.writeFileSync(channelsHookPath, channelsHook, 'utf8');
+
   let videoPlayer = fs.readFileSync(videoPlayerPath, 'utf8');
-  const videoPlayerReplacements = [["import { Volume2, VolumeX, WifiOff, RefreshCw, PictureInPicture2, Settings2, Check } from 'lucide-react';","import { Volume2, VolumeX, WifiOff, RefreshCw, PictureInPicture2, Settings2, Check, Maximize2, Minimize2 } from 'lucide-react';"],["const [showQuality, setShowQuality] = useState(false);","const [showQuality, setShowQuality] = useState(false);\n    const [fullscreen, setFullscreen] = useState(false);\n    const stallRecoveryRef = useRef(0);"],["    const pipSupported = typeof document !== 'undefined' && 'pictureInPictureEnabled' in document;","    const pipSupported = typeof document !== 'undefined' && 'pictureInPictureEnabled' in document;\n\n    const toggleFullscreen = async () => {\n      const video = videoRef.current; if (!video) return;\n      try { if (document.fullscreenElement) { await document.exitFullscreen(); setFullscreen(false); return; } await video.requestFullscreen(); setFullscreen(true); try { await (screen.orientation as any)?.lock?.('landscape'); } catch {} } catch {}\n    };"],["lowLatencyMode:         true,\n              maxBufferLength:        12,\n              maxMaxBufferLength:     24,\n              maxBufferSize:          24 * 1000 * 1000,","lowLatencyMode:         false,\n              startFragPrefetch:      true,\n              initialLiveManifestSize: 4,\n              maxBufferLength:        60,\n              maxMaxBufferLength:     120,\n              maxBufferSize:          96 * 1000 * 1000,\n              backBufferLength:       30,\n              frontBufferFlushThreshold: 120,\n              maxBufferHole:          0.5,\n              liveSyncDurationCount:  5,\n              liveMaxLatencyDurationCount: 10,\n              liveSyncOnStallIncrease: 1,\n              maxLiveSyncPlaybackRate: 1.15,\n              highBufferWatchdogPeriod: 2,\n              abrBandWidthFactor: 0.7,\n              abrBandWidthUpFactor: 0.5,\n              capLevelToPlayerSize: true,"],["manifestLoadingMaxRetry: 1,\n              levelLoadingMaxRetry:    1,\n              fragLoadingMaxRetry:     1,","manifestLoadingMaxRetry: 3,\n              manifestLoadingRetryDelay: 1000,\n              levelLoadingMaxRetry: 3,\n              levelLoadingRetryDelay: 1000,\n              fragLoadingMaxRetry: 6,\n              fragLoadingRetryDelay: 800,"],["            hls.on(Hls.Events.ERROR, (_: unknown, d: { fatal: boolean; type: string }) => {\n              if (d.fatal) {\n                if (retryCount.current < 1) {\n                  retryCount.current++;\n                  hls.recoverMediaError();\n                } else {\n                  markError();\n                }\n              }\n            });","            hls.on(Hls.Events.ERROR, (_: unknown, d: { fatal: boolean; type: string }) => {\n              if (!d.fatal) return;\n              const now = Date.now();\n              if (now - stallRecoveryRef.current < 3000) return;\n              stallRecoveryRef.current = now;\n              if (retryCount.current < 3) { retryCount.current++; hls.startLoad(-1); hls.recoverMediaError(); } else markError();\n            });"],["            {/* PiP button */}\n            {pipSupported && (","            {/* Landscape/fullscreen button */}\n            <button onClick={e => { e.stopPropagation(); void toggleFullscreen(); }} aria-label={fullscreen ? 'Exit fullscreen' : 'Landscape fullscreen'} className=\"w-8 h-8 rounded-full flex items-center justify-center bg-black/50 hover:bg-black/70 backdrop-blur-sm\">\n              {fullscreen ? <Minimize2 className=\"w-4 h-4 text-white\" /> : <Maximize2 className=\"w-4 h-4 text-white\" />}\n            </button>\n\n            {/* PiP button */}\n            {pipSupported && ("],["    }, [src, shouldLoad, onError, onReady]); // Added missing dependencies to `useEffect`","    }, [src, shouldLoad, onError, onReady]);"],["              lowLatencyMode:           true,\n              maxBufferLength:        12,\n              maxMaxBufferLength:     24,\n              maxBufferSize:          24 * 1000 * 1000,","              lowLatencyMode:           false,\n              startFragPrefetch:          true,\n              initialLiveManifestSize:    4,\n              maxBufferLength:            60,\n              maxMaxBufferLength:         120,\n              maxBufferSize:              96 * 1000 * 1000,\n              backBufferLength:           30,\n              frontBufferFlushThreshold: 120,\n              liveSyncDurationCount:      5,\n              liveMaxLatencyDurationCount: 10,\n              maxLiveSyncPlaybackRate:    1.15,\n              highBufferWatchdogPeriod:   2,\n              abrBandWidthFactor:         0.7,\n              abrBandWidthUpFactor:        0.5,\n              capLevelToPlayerSize:       true,"],["              manifestLoadingMaxRetry: 1,\n              levelLoadingMaxRetry:    1,\n              fragLoadingMaxRetry:     1,","manifestLoadingMaxRetry: 3,\n              manifestLoadingRetryDelay: 1000,\n              levelLoadingMaxRetry: 3,\n              levelLoadingRetryDelay: 1000,\n              fragLoadingMaxRetry: 6,\n              fragLoadingRetryDelay: 800,"],["            hls.on(Hls.Events.ERROR, (_: unknown, d: { fatal: boolean; type: string }) => {\n              if (d.fatal) {\n                if (retryCount.current < 1) {\n                  retryCount.current++;\n                  hls.recoverMediaError();\n                } else {\n                  markError();\n                }\n              }\n            });","            hls.on(Hls.Events.ERROR, (_: unknown, d: { fatal: boolean; type: string }) => {\n              if (!d.fatal) return;\n              if (retryCount.current < 3) {\n                retryCount.current++;\n                hls.startLoad(-1);\n                hls.recoverMediaError();\n              } else {\n                markError();\n              }\n            });\n\n            hls.on(Hls.Events.FRAG_BUFFERED, () => {\n              if (!readyRef.current) markReady();\n            });"],["        onClick={() => { setMuted(m => !m); setShowQuality(false); }}","        onClick={() => { setMuted(m => !m); setShowQuality(false); }}\n        onWaiting={() => { if (!error) { setBuffering(true); window.setTimeout(() => { if (!videoRef.current?.paused) setBuffering(false); }, 900); } }}\n        onStalled={() => { if (!error) setBuffering(true); }}\n        onPlaying={() => setBuffering(false)}"],["          maxBufferLength:        30,\n          maxMaxBufferLength:     60,","          maxBufferLength:        30,\n          maxMaxBufferLength:     45,\n          maxBufferSize:          24 * 1000 * 1000,\n          backBufferLength:       6,"]];
+  const videoPlayerReplacements = [["import { Volume2, VolumeX, WifiOff, RefreshCw, PictureInPicture2, Settings2, Check } from 'lucide-react';","import { Volume2, VolumeX, WifiOff, RefreshCw, PictureInPicture2, Settings2, Check, Maximize2, Minimize2 } from 'lucide-react';"],["const [showQuality, setShowQuality] = useState(false);","const [showQuality, setShowQuality] = useState(false);\n    const [fullscreen, setFullscreen] = useState(false);\n    const stallRecoveryRef = useRef(0);"],["    const pipSupported = typeof document !== 'undefined' && 'pictureInPictureEnabled' in document;","    const pipSupported = typeof document !== 'undefined' && 'pictureInPictureEnabled' in document;\n\n    const toggleFullscreen = async () => {\n      const video = videoRef.current; if (!video) return;\n      try { if (document.fullscreenElement) { await document.exitFullscreen(); setFullscreen(false); return; } await video.requestFullscreen(); setFullscreen(true); try { await (screen.orientation as any)?.lock?.('landscape'); } catch {} } catch {}\n    };"],["lowLatencyMode:         true,\n              maxBufferLength:        12,\n              maxMaxBufferLength:     24,\n              maxBufferSize:          24 * 1000 * 1000,","lowLatencyMode:         false,\n              startFragPrefetch:      true,\n              initialLiveManifestSize: 4,\n              maxBufferLength:        isActive ? 24 : 5,\n              maxMaxBufferLength:     isActive ? 30 : 8,\n              maxBufferSize:          isActive ? 32 * 1000 * 1000 : 8 * 1000 * 1000,\n              backBufferLength:       isActive ? 12 : 0,\n              frontBufferFlushThreshold: 120,\n              maxBufferHole:          0.5,\n              liveSyncDurationCount:  5,\n              liveMaxLatencyDurationCount: 10,\n              liveSyncOnStallIncrease: 1,\n              maxLiveSyncPlaybackRate: 1.15,\n              highBufferWatchdogPeriod: 2,\n              abrBandWidthFactor: 0.7,\n              abrBandWidthUpFactor: 0.5,\n              capLevelToPlayerSize: true,"],["manifestLoadingMaxRetry: 1,\n              levelLoadingMaxRetry:    1,\n              fragLoadingMaxRetry:     1,","manifestLoadingMaxRetry: 3,\n              manifestLoadingRetryDelay: 1000,\n              levelLoadingMaxRetry: 3,\n              levelLoadingRetryDelay: 1000,\n              fragLoadingMaxRetry: 6,\n              fragLoadingRetryDelay: 800,"],["            hls.on(Hls.Events.ERROR, (_: unknown, d: { fatal: boolean; type: string }) => {\n              if (d.fatal) {\n                if (retryCount.current < 1) {\n                  retryCount.current++;\n                  hls.recoverMediaError();\n                } else {\n                  markError();\n                }\n              }\n            });","            hls.on(Hls.Events.ERROR, (_: unknown, d: { fatal: boolean; type: string }) => {\n              if (!d.fatal) return;\n              const now = Date.now();\n              if (now - stallRecoveryRef.current < 3000) return;\n              stallRecoveryRef.current = now;\n              if (retryCount.current < 3) { retryCount.current++; hls.startLoad(-1); hls.recoverMediaError(); } else markError();\n            });"],["            {/* PiP button */}\n            {pipSupported && (","            {/* Landscape/fullscreen button */}\n            <button onClick={e => { e.stopPropagation(); void toggleFullscreen(); }} aria-label={fullscreen ? 'Exit fullscreen' : 'Landscape fullscreen'} className=\"w-8 h-8 rounded-full flex items-center justify-center bg-black/50 hover:bg-black/70 backdrop-blur-sm\">\n              {fullscreen ? <Minimize2 className=\"w-4 h-4 text-white\" /> : <Maximize2 className=\"w-4 h-4 text-white\" />}\n            </button>\n\n            {/* PiP button */}\n            {pipSupported && ("],["    }, [src, shouldLoad, isActive, onError, onReady]);","    }, [src, shouldLoad, onError, onReady]);"],["              lowLatencyMode:           true,\n              maxBufferLength:        12,\n              maxMaxBufferLength:     24,\n              maxBufferSize:          24 * 1000 * 1000,","              lowLatencyMode:           false,\n              startFragPrefetch:          true,\n              initialLiveManifestSize:    4,\n              maxBufferLength:            isActive ? 24 : 5,\n              maxMaxBufferLength:         isActive ? 30 : 8,\n              maxBufferSize:              isActive ? 32 * 1000 * 1000 : 8 * 1000 * 1000,\n              backBufferLength:           isActive ? 12 : 0,\n              frontBufferFlushThreshold: 120,\n              liveSyncDurationCount:      5,\n              liveMaxLatencyDurationCount: 10,\n              maxLiveSyncPlaybackRate:    1.15,\n              highBufferWatchdogPeriod:   2,\n              abrBandWidthFactor:         0.7,\n              abrBandWidthUpFactor:        0.5,\n              capLevelToPlayerSize:       true,"],["              manifestLoadingMaxRetry: 1,\n              levelLoadingMaxRetry:    1,\n              fragLoadingMaxRetry:     1,","manifestLoadingMaxRetry: 3,\n              manifestLoadingRetryDelay: 1000,\n              levelLoadingMaxRetry: 3,\n              levelLoadingRetryDelay: 1000,\n              fragLoadingMaxRetry: 6,\n              fragLoadingRetryDelay: 800,"],["            hls.on(Hls.Events.ERROR, (_: unknown, d: { fatal: boolean; type: string }) => {\n              if (d.fatal) {\n                if (retryCount.current < 1) {\n                  retryCount.current++;\n                  hls.recoverMediaError();\n                } else {\n                  markError();\n                }\n              }\n            });","            hls.on(Hls.Events.ERROR, (_: unknown, d: { fatal: boolean; type: string }) => {\n              if (!d.fatal) return;\n              if (retryCount.current < 3) {\n                retryCount.current++;\n                hls.startLoad(-1);\n                hls.recoverMediaError();\n              } else {\n                markError();\n              }\n            });\n\n            hls.on(Hls.Events.FRAG_BUFFERED, () => {\n              if (!readyRef.current) markReady();\n            });"],["        onClick={() => { setMuted(m => !m); setShowQuality(false); }}","        onClick={() => { setMuted(m => !m); setShowQuality(false); }}\n        onWaiting={() => { if (!error) { setBuffering(true); window.setTimeout(() => { if (!videoRef.current?.paused) setBuffering(false); }, 900); } }}\n        onStalled={() => { if (!error) setBuffering(true); }}\n        onPlaying={() => setBuffering(false)}"],["          maxBufferLength:        30,\n          maxMaxBufferLength:     60,","          maxBufferLength:        30,\n          maxMaxBufferLength:     45,\n          maxBufferSize:          24 * 1000 * 1000,\n          backBufferLength:       6,"]];
   for (const [oldText, newText] of videoPlayerReplacements) videoPlayer = videoPlayer.replace(oldText, newText);
   videoPlayer = videoPlayer
     .replace("              setQualities(lvls);\n              markReady();", "              setQualities(lvls);")
