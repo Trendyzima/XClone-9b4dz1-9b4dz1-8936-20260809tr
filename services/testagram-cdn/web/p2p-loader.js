@@ -1,32 +1,41 @@
 /**
  * Testagram virtual CDN capability descriptor.
  *
- * Media delivery is origin-first. The active browser HLS loader caches eligible
- * public segments in the browser Cache API and coalesces concurrent requests.
- * This file deliberately does not claim cross-device P2P: there is no hosted
- * signaling service, peer mesh, or always-on edge server in the zero-cost mode.
+ * The browser HLS loader uses origin-first playback with a local Cache API and
+ * an optional WebRTC data-channel peer mesh. Supabase Realtime carries only
+ * signaling messages; media bytes travel peer-to-peer. Peer exchange is bounded
+ * and fails closed to the original source.
+ *
+ * This descriptor describes the client implementation; it does not claim a
+ * globally deployed CDN or guarantee capacity beyond available viewer peers,
+ * browser/network support, and the existing Supabase Realtime plan limits.
  */
 export function virtualCdnConfig(streamId) {
   return {
     streamId,
     enabled: true,
-    transport: "origin-first-browser-cache",
+    transport: "origin-first-browser-cache-webrtc",
+    signaling: "existing-supabase-realtime",
     fallback: "original-source",
     cacheScope: "same-origin-browser-profile",
     liveSegmentTtlMs: 20000,
     maxCachedSegments: 180,
-    crossDevicePeers: false,
+    crossDevicePeers: true,
+    maxPeerConnections: 3,
+    maxConcurrentUploadsPerPeer: 1,
+    maxPeerSegmentBytes: 1500000,
+    matchingPeerQuorum: 2,
+    signalingCohorts: 16384,
     requiresHostedEdge: false,
   };
 }
 
-// Preserve the old export name for downstream scripts without implying P2P exists.
 export function p2pConfig(streamId) {
   return {
     ...virtualCdnConfig(streamId),
-    enabled: false,
-    transport: "no-peer-transport",
-    maxUploadPeers: 0,
-    maxDownloadPeers: 0,
+    streamId,
+    enabled: true,
+    maxUploadPeers: 1,
+    maxDownloadPeers: 2,
   };
 }
