@@ -245,7 +245,7 @@ export default function SportsHubPage() {
             : storiesError && stories.length === 0 ? <div className="rounded-2xl border p-5" role="alert"><p className="font-bold">Sports headlines are temporarily unavailable</p><p className="mt-1 text-sm text-muted-foreground">{storiesError}</p><button type="button" className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline" onClick={() => void loadStories()}><RefreshCw className="h-4 w-4" /> Try headlines again</button></div>
             : stories.length === 0 ? <div className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground">No recent sports headlines are available yet. The publisher feed will appear here as new stories are ingested.</div>
             : <>
-              {featuredStories.length > 0 && <div className="mb-4 grid gap-4 md:grid-cols-2">
+              {featuredStories.length > 0 && <div className="mb-4 grid gap-4">
                 {featuredStories.map((story, index) => <StoryCard key={story.id} story={story} featured={index === 0} expanded={expandedStoryId === story.id} imageFailed={failedImages.includes(story.id)} onToggle={() => setExpandedStoryId(current => current === story.id ? null : story.id)} onImageError={() => setFailedImages(current => current.includes(story.id) ? current : [...current, story.id])} />)}
               </div>}
               {remainingStories.length > 0 && <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
