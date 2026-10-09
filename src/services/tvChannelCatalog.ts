@@ -31,6 +31,10 @@ export const TV_SOURCES: TvSource[] = [
 {id:'portugal-free-tv',label:'Portugal · Portuguese-language free TV',url:'https://raw.githubusercontent.com/cesarsferreira/m3u/main/tv.m3u',country:'PT',priority:112,enabled:true,policy:'public-free'},
 {id:'indonesia-community',label:'Indonesia · community public TV playlist',url:'https://raw.githubusercontent.com/riotryulianto/iptv-playlists/main/playlist.m3u',country:'ID',priority:111,enabled:true,policy:'community-unverified'},
 {id:'xumo-community',label:'Xumo · community-generated channel playlist',url:'https://raw.githubusercontent.com/BuddyChewChew/xumo-playlist-generator/main/playlists/xumo_playlist.m3u',country:'INT',priority:110,enabled:true,policy:'community-unverified'},
+{id:'south-africa-community',label:'South Africa · community public TV playlist',url:'https://raw.githubusercontent.com/KrugerAdrian/IPTV-South-Africa/main/South-Africa.m3u',country:'ZA',priority:109,enabled:true,policy:'community-unverified'},
+{id:'plex-fast-global',label:'Plex · global FAST channel playlist',url:'https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plex_all.m3u',country:'INT',priority:108,enabled:true,policy:'community-unverified'},
+{id:'samsung-tv-plus-global',label:'Samsung TV Plus · global FAST channel playlist',url:'https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/samsungtvplus_all.m3u',country:'INT',priority:107,enabled:true,policy:'community-unverified'},
+{id:'roku-fast-global',label:'Roku Channel · global FAST channel playlist',url:'https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/roku_all.m3u',country:'INT',priority:106,enabled:true,policy:'community-unverified'},
 ];
 function attr(line:string,key:string){ return line.match(new RegExp(key+'="([^"]*)"'))?.[1]?.trim() || undefined; }
 const clean=(v?:string)=>v?.replace(/\s+/g,' ').trim()||undefined;
