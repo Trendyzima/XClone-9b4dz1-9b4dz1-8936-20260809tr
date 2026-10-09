@@ -49,8 +49,8 @@ export function OrganicSportsStories({ surface, query = '', limit = 3, compact =
       const payload = await response.json();
       if (!response.ok) throw new Error(payload?.error || 'Sports stories unavailable');
       if (active) setStories(Array.isArray(payload?.items) ? payload.items as SportsStory[] : []);
-    }).catch(error => {
-      if (active && error?.name !== 'AbortError') setStories([]);
+    }).catch((error: unknown) => {
+      if (active && (error as { name?: string })?.name !== 'AbortError') setStories([]);
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; controller.abort(); };
   }, [surface, query, limit, relevant]);
