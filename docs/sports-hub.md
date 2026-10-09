@@ -10,14 +10,14 @@ The Sports Hub is available at `/sports` and is linked from the primary sidebar.
 
 ## Refresh and retention
 
-- The RSS worker is scheduled every 15 minutes and requires the existing Vault secret `newsify_worker_token`; no new API key is introduced.
+- The existing RSS worker continues on its already-configured 15-minute schedule using the existing Supabase publishable-key configuration; no new API key is introduced.
 - Imported items in category `sports` expire after three hours.
-- `testagram-sports-content-retention` runs every three hours and calls `cleanup_testagram_rss_items()`.
+- The existing `testagram-rss-retention` job is scheduled every three hours and calls `cleanup_testagram_rss_items()`.
 - The cleanup routine only deletes imported RSS cache rows that have expired or are beyond the existing RSS retention window. It does not delete user-authored posts, comments, or saved content.
 - Score requests are proxied with short-lived HTTP caching and a bounded upstream timeout; the browser never needs a provider credential.
 
 ## Deployment notes
 
-Apply the migration `20261009110000_sports_hub_ingestion_retention.sql`, deploy the updated `testagram-rss-ingest` Edge Function and deploy the updated Supabase function config. Verify both scheduled jobs in `cron.job`, then inspect the worker's source status fields (`last_success_at`, `last_error`, `next_fetch_at`) and test `/api/sports?kind=matches&sport=football`.
+Apply the migration `20261009110000_sports_hub_ingestion_retention.sql` and deploy the updated `testagram-rss-ingest` Edge Function. Verify the existing ingestion and retention jobs in `cron.job`, then inspect source status fields (`last_success_at`, `last_error`, `next_fetch_at`) and test `/api/sports?kind=matches&sport=football`.
 
 SportScore attribution and upstream terms must remain respected. The free tier has provider-defined request limits and may change.
