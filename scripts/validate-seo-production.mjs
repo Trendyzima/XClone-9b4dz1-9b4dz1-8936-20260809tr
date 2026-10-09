@@ -40,6 +40,10 @@ const checks = [
     const worker = read('cloudflare/index.ts');
     return worker.includes('const looksLikeHtml =') && worker.includes("headers.set('X-SEO-Optimizer', 'applied')") && worker.includes("headers.set('X-SEO-Canonical', seo.canonical)");
   }],
+  ['SEO-managed public and private HTML routes are dispatched through Worker-first routing', () => {
+    const routes = JSON.parse(read('wrangler.jsonc')).assets.run_worker_first;
+    return ['/', '/tv', '/tv/*', '/auth', '/auth/*', '/c/*', '/profile/*', '/post/*', '/admin', '/admin/*'].every((route) => routes.includes(route));
+  }],
   ['SEO optimizer emits noindex for private and unknown routes', () => read('cloudflare/index.ts').includes('Unknown client-side routes') && read('cloudflare/index.ts').includes("headers.set('X-Robots-Tag', 'noindex, nofollow')")],
   ['JSON-LD output escapes script-closing characters', () => read('cloudflare/index.ts').includes("replace(/</g, '\\\\u003c')")],
   ['Robots file exposes exactly one sitemap index and permits noindex routes to be crawled', () => {
