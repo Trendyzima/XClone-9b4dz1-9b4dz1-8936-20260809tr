@@ -204,10 +204,40 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
 
   let css = fs.readFileSync(indexCssPath, 'utf8');
   css += `
-/* Testagram IPTV immersive vertical-feed polish */
-.iptv-vertical-feed { height: 100dvh; width: 100%; overflow: hidden; }
+/* XClone-aligned IPTV theme: reuse the app's dark surfaces and green primary accent. */
+:root {
+  --iptv-primary: hsl(142 76% 36%);
+  --iptv-primary-strong: hsl(142 76% 30%);
+  --iptv-surface: hsl(0 0% 5%);
+  --iptv-surface-raised: hsl(0 0% 9%);
+  --iptv-border: hsl(0 0% 18%);
+}
+html, body, #root { background: var(--iptv-surface); color: hsl(0 0% 98%); }
+button, [role="button"] { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, [role="button"]:focus-visible, a:focus-visible {
+  outline: 2px solid var(--iptv-primary); outline-offset: 2px;
+}
+.iptv-vertical-feed { height: 100dvh; width: 100%; overflow: hidden; background: var(--iptv-surface); }
+.iptv-vertical-feed button[class*="bg-"], .iptv-vertical-feed [role="button"][class*="bg-"] {
+  transition: background-color 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+.iptv-vertical-feed [aria-pressed="true"], .iptv-vertical-feed [data-active="true"] {
+  border-color: var(--iptv-primary);
+}
+.iptv-vertical-feed .text-primary, .iptv-vertical-feed .text-green-500,
+.iptv-vertical-feed .text-green-400 { color: var(--iptv-primary) !important; }
+.iptv-vertical-feed .bg-primary, .iptv-vertical-feed .bg-green-500,
+.iptv-vertical-feed .bg-green-600 { background-color: var(--iptv-primary) !important; }
+.iptv-vertical-feed .border-primary, .iptv-vertical-feed .border-green-500 {
+  border-color: var(--iptv-primary) !important;
+}
 @media (orientation: landscape) and (max-height: 600px) {
   .iptv-vertical-feed .channel-info { max-width: 58vw; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .iptv-vertical-feed *, .iptv-vertical-feed *::before, .iptv-vertical-feed *::after {
+    animation-duration: 0.01ms !important; transition-duration: 0.01ms !important;
+  }
 }
 `;
   fs.writeFileSync(indexCssPath, css, 'utf8');
