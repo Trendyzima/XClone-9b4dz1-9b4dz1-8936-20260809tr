@@ -199,6 +199,21 @@ export default function TvChannelsPage(){
  const featured=filtered.find(c=>c.id===active)||filtered[0];
 
  useEffect(()=>{
+  const index=filtered.findIndex(channel=>channel.id===active);
+  if(index<0)return;
+  const connection=(navigator as any).connection;
+  if(connection?.saveData||['slow-2g','2g'].includes(String(connection?.effectiveType||'')))return;
+  const batchStart=Math.floor(index/4)*4;
+  const position=index-batchStart;
+  const candidates=position>=2?filtered.slice(batchStart+4,batchStart+8):filtered.slice(batchStart,batchStart+4).filter(channel=>channel.id!==active);
+  if(!candidates.length)return;
+  let cancelled=false;
+  const timer=setTimeout(()=>{if(!cancelled)void warmTvChannelBatch(candidates);},position>=2?150:500);
+  return()=>{cancelled=true;clearTimeout(timer);};
+ },[active,filtered]);
+
+
+ useEffect(()=>{
   let cancelled=false;
   if(!featured)return;
   setTvReplies([]);
