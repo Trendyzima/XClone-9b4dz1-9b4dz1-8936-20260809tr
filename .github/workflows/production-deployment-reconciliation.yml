@@ -1129,13 +1129,9 @@ jobs:
           PY
 
           fetch_public "/tv" /tmp/testagram-tv.html /tmp/testagram-tv.headers
-          grep -qi '^X-SEO-Optimizer:[[:space:]]*applied' /tmp/testagram-tv.headers || {
-            echo "::error::SEO optimizer did not report that it processed /tv. Response headers:"
-            cat /tmp/testagram-tv.headers
-            echo "HTML title/canonical diagnostics:"
-            grep -oiE '<title[^>]*>[^<]*</title>|<link[^>]*canonical[^>]*>' /tmp/testagram-tv.html | head -10 || true
-            exit 1
-          }
+          # Route-specific SEO is emitted at build time as portable static HTML.
+          # Do not require a Worker-only diagnostic header when the asset already contains
+          # the correct title and canonical metadata.
           grep -qi '<title>[^<]*TV[^<]*Testagram</title>' /tmp/testagram-tv.html || {
             echo "::error::/tv is missing the expected page-specific title."
             grep -oi '<title[^>]*>[^<]*</title>' /tmp/testagram-tv.html | head -5 || true
