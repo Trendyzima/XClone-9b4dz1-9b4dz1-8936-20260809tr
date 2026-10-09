@@ -38,6 +38,7 @@ export const TV_SOURCES: TvSource[] = [
 {id:'italy-openiptv-community',label:'Italy · curated public and regional TV playlist',url:'https://raw.githubusercontent.com/xN1ckuz/OpenIPTVItaly/main/OpenIPTVItaly_No_EPG.m3u',country:'IT',priority:105,enabled:true,policy:'community-unverified'},
 {id:'alplox-public-official-global',label:'Alplox · official public streams · multi-country',url:'https://raw.githubusercontent.com/Alplox/json-teles/main/channels.m3u',country:'INT',priority:104,enabled:true,policy:'public-free'},
 {id:'south-africa-freevisionplay',label:'FreeVision Play · South African public channels',url:'https://raw.githubusercontent.com/telanus/m3u/main/freevisionplay.m3u',country:'ZA',priority:103,enabled:true,policy:'public-free'},
+{id:'m3upt-portuguese-global',label:'M3UPT · Portuguese public TV and international channels',url:'https://raw.githubusercontent.com/lituatui/m3upt/main/M3U/M3UPT.m3u',country:'INT',priority:102,enabled:true,policy:'community-unverified'},
 ];
 function attr(line:string,key:string){ return line.match(new RegExp(key+'="([^"]*)"'))?.[1]?.trim() || undefined; }
 const clean=(v?:string)=>v?.replace(/\s+/g,' ').trim()||undefined;
