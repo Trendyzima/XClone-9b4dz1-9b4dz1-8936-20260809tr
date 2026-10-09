@@ -38,6 +38,12 @@ jobs:
           grep -F 'const MAX_SEGMENT_BYTES = 1_500_000' src/services/virtualCdnPeers.ts
           grep -F 'const PEER_REQUEST_TIMEOUT_MS = 1_000' src/services/virtualCdnPeers.ts
           grep -F 'const SIGNALING_COHORTS = 65_536' src/services/virtualCdnPeers.ts
+          grep -F "recordVirtualCdnMetric('peerHit')" src/services/virtualCdnPeers.ts
+          grep -F "recordVirtualCdnMetric('originBytes', bytes.byteLength)" src/services/virtualCdnLoader.ts
+          grep -F "recordVirtualCdnMetric('playbackStall')" src/components/features/TvChannelPlayer.tsx
+          grep -F 'data.byteLength > CHUNK_BYTES' src/services/virtualCdnPeers.ts
+          grep -F 'export function getVirtualCdnMetrics()' src/services/virtualCdnMetrics.ts
+          grep -F "['failed', 'closed'].includes(pc.connectionState)" src/services/virtualCdnPeers.ts
           grep -F "localStorage.getItem('testagram-tv-peer-sharing') === 'on'" src/services/virtualCdnPeers.ts
           grep -F "if (url.username || url.password || sensitiveUrl(value)) return false;" src/services/virtualCdnPeers.ts
           grep -F "import {closeVirtualPeerRooms} from '@/services/virtualCdnPeers';" src/components/features/TvChannelPlayer.tsx
