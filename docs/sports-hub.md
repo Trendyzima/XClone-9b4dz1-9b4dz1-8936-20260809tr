@@ -5,7 +5,7 @@ The Sports Hub is available at `/sports` and is linked from the primary sidebar.
 ## Data sources
 
 - **Scores and fixtures:** the public, read-only `testagram-sports` Supabase Edge Function proxies SportScore's widget API. This avoids relying on a host-specific `/api/*` runtime route; the browser sends the existing publishable key, never a provider secret. The page displays the required "Powered by SportScore" attribution link.
-- **Sports headlines and images:** the existing Testagram RSS ingestion tables and feed endpoint. The initial sources are BBC Sport (GB) and The Standard Sports (KE). Ingestion extracts RSS/Atom media, enclosures and embedded images, then resolves Open Graph/Twitter image metadata for a small bounded batch of image-less stories from those trusted publisher domains. Article metadata requests have a short timeout, a 256 KiB response cap and checked redirects. Only publisher headlines/excerpts and canonical source links are shown; articles remain on their publishers' sites. Missing/broken thumbnails render a branded local fallback rather than an empty hole.
+- **Sports headlines and images:** the existing Testagram RSS ingestion tables and feed endpoint. The initial sources are BBC Sport (GB) and The Standard Sports (KE). Ingestion extracts RSS/Atom media, enclosures and embedded images, then resolves Open Graph/Twitter image metadata for a small bounded batch of image-less stories from those trusted publisher domains. On HTTP 304 (unchanged feed), it also backfills up to three still-cached image-less stories per source so older rows do not remain image-less forever. Article metadata requests have a short timeout, a 256 KiB response cap and checked redirects; publisher domains are checked at each redirect. Only publisher headlines/excerpts and canonical source links are shown; articles remain on their publishers' sites. Missing/broken thumbnails render a branded local fallback rather than an empty hole.
 - **Provider adapters:** OpenScore is an architectural reference. FotMob-powered and other football API repos are not activated as live upstreams because public reachability does not by itself grant permission to scrape or redistribute data.
 
 ## Refresh and retention
@@ -25,6 +25,6 @@ SportScore attribution and upstream terms must remain respected. The free tier h
 
 ## Sports Hub presentation
 
-- The page uses a high-contrast sports masthead, sport selector, live-score grouping, featured editorial story and responsive headline cards.
+- The page uses a high-contrast sports masthead, sport selector, live-score grouping, featured editorial story and responsive headline cards. Headline discovery includes local search plus Kenya/international filters; score data refreshes every 60 seconds and headlines are rechecked every 15 minutes while the page is open. Featured imagery is prioritized and other story images lazy-load.
 - Headline taps expand a local preview; the original publisher is an optional external action.
 - Scores and headlines fail independently, and score requests are cancelled when the selected sport changes. Score data is refreshed every 60 seconds; RSS content remains on the existing ingestion and cache schedule.

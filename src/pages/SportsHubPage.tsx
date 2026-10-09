@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, ArrowUpRight, CalendarDays, CheckCircle2, ChevronDown, CircleAlert, Clock3, ExternalLink, ImageOff, Newspaper, RefreshCw, Trophy } from 'lucide-react';
+import { Activity, ArrowUpRight, CalendarDays, CheckCircle2, ChevronDown, CircleAlert, Clock3, ExternalLink, ImageOff, Newspaper, RefreshCw, Search, Trophy } from 'lucide-react';
 import { supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
 
 type Match = Record<string, unknown>;
@@ -95,6 +95,8 @@ export default function SportsHubPage() {
   const [scoresError, setScoresError] = useState('');
   const [storiesError, setStoriesError] = useState('');
   const [expandedStoryId, setExpandedStoryId] = useState<string | null>(null);
+  const [storyQuery, setStoryQuery] = useState('');
+  const [storyFilter, setStoryFilter] = useState<'all' | 'kenya' | 'world'>('all');
   const [failedImages, setFailedImages] = useState<string[]>([]);
   const scoresController = useRef<AbortController | null>(null);
   const storiesController = useRef<AbortController | null>(null);
@@ -166,12 +168,21 @@ export default function SportsHubPage() {
   useEffect(() => {
     document.title = 'Testagram Sports — Live scores, fixtures & headlines';
     const timer = window.setInterval(() => { void loadScores(true); }, 60_000);
-    return () => window.clearInterval(timer);
-  }, [loadScores]);
+    const headlinesTimer = window.setInterval(() => { void loadStories(); }, 15 * 60_000);
+    return () => { window.clearInterval(timer); window.clearInterval(headlinesTimer); };
+  }, [loadScores, loadStories]);
 
   const liveMatches = matches.filter(match => isLive(matchStatus(match)));
-  const featuredStories = stories.slice(0, 1);
-  const remainingStories = stories.slice(1);
+  const normalizedStoryQuery = storyQuery.trim().toLocaleLowerCase();
+  const filteredStories = stories.filter(story => {
+    if (storyFilter === 'kenya' && story.country_code !== 'KE') return false;
+    if (storyFilter === 'world' && story.country_code === 'KE') return false;
+    if (!normalizedStoryQuery) return true;
+    const publisher = story.testagram_rss_source_profiles?.display_name || '';
+    return `${story.title} ${story.excerpt || ''} ${publisher}`.toLocaleLowerCase().includes(normalizedStoryQuery);
+  });
+  const featuredStories = filteredStories.slice(0, 1);
+  const remainingStories = filteredStories.slice(1);
 
   return (
     <main className="min-h-screen bg-background text-foreground">
@@ -241,9 +252,18 @@ export default function SportsHubPage() {
             <span className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold text-muted-foreground"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> Publisher-attributed</span>
           </div>
 
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <label className="relative block w-full sm:max-w-sm">
+              <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input value={storyQuery} onChange={event => setStoryQuery(event.target.value)} type="search" placeholder="Search headlines, teams or publishers" aria-label="Search sports headlines" className="min-h-11 w-full rounded-xl border bg-card py-2 pl-9 pr-3 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20" />
+            </label>
+            <div className="flex items-center gap-2 overflow-x-auto pb-1" aria-label="Filter sports headlines">
+              {([{ value: 'all', label: 'All stories' }, { value: 'kenya', label: 'Kenya' }, { value: 'world', label: 'International' }] as const).map(option => <button key={option.value} type="button" aria-pressed={storyFilter === option.value} onClick={() => setStoryFilter(option.value)} className={'min-h-9 shrink-0 rounded-full px-3 text-xs font-bold transition ' + (storyFilter === option.value ? 'bg-primary text-primary-foreground' : 'border bg-card text-muted-foreground hover:bg-accent')}>{option.label}</button>)}
+            </div>
+          </div>
           {storiesLoading && stories.length === 0 ? <div className="grid gap-4 sm:grid-cols-2"><div className="h-72 animate-pulse rounded-2xl bg-muted" /><div className="h-72 animate-pulse rounded-2xl bg-muted" /></div>
             : storiesError && stories.length === 0 ? <div className="rounded-2xl border p-5" role="alert"><p className="font-bold">Sports headlines are temporarily unavailable</p><p className="mt-1 text-sm text-muted-foreground">{storiesError}</p><button type="button" className="mt-3 inline-flex items-center gap-2 text-sm font-bold text-primary hover:underline" onClick={() => void loadStories()}><RefreshCw className="h-4 w-4" /> Try headlines again</button></div>
-            : stories.length === 0 ? <div className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground">No recent sports headlines are available yet. The publisher feed will appear here as new stories are ingested.</div>
+            : filteredStories.length === 0 ? <div className="rounded-2xl border bg-card p-6 text-sm text-muted-foreground">{stories.length === 0 ? 'No recent sports headlines are available yet. The publisher feed will appear here as new stories are ingested.' : 'No headlines match these filters. Try another search or choose All stories.'}</div>
             : <>
               {featuredStories.length > 0 && <div className="mb-4 grid gap-4">
                 {featuredStories.map((story, index) => <StoryCard key={story.id} story={story} featured={index === 0} expanded={expandedStoryId === story.id} imageFailed={failedImages.includes(story.id)} onToggle={() => setExpandedStoryId(current => current === story.id ? null : story.id)} onImageError={() => setFailedImages(current => current.includes(story.id) ? current : [...current, story.id])} />)}
@@ -289,7 +309,7 @@ function StoryCard({ story, featured = false, expanded, imageFailed, onToggle, o
   const showImage = Boolean(imageUrl && !imageFailed);
   return <article className={'group overflow-hidden rounded-2xl border bg-card transition duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-black/5 ' + (featured ? 'md:grid md:grid-cols-[0.95fr_1.05fr]' : '')}>
     <div className={'relative isolate overflow-hidden bg-slate-900 ' + (featured ? 'aspect-[16/10] md:aspect-auto md:min-h-[260px]' : 'aspect-[16/9]')}>
-      {showImage ? <img src={imageUrl} alt="" loading={featured ? 'eager' : 'lazy'} decoding="async" onError={onImageError} className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+      {showImage ? <img src={imageUrl} alt={story.title} loading={featured ? 'eager' : 'lazy'} fetchPriority={featured ? 'high' : 'auto'} decoding="async" onError={onImageError} className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
         : <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(16,185,129,0.55),transparent_48%),linear-gradient(135deg,#0f172a,#1e293b_55%,#064e3b)]"><div className="absolute -right-8 -top-12 h-44 w-44 rounded-full border border-white/10" /><div className="absolute -right-1 -top-5 h-32 w-32 rounded-full border border-white/10" /><div className="absolute bottom-4 left-5 flex items-center gap-2 text-white/80"><ImageOff className="h-4 w-4" /><span className="text-[10px] font-black uppercase tracking-[0.2em]">{storySport(story)} · Matchday</span></div><Trophy className="absolute right-7 top-1/2 h-12 w-12 -translate-y-1/2 text-white/20" /></div>}
       <div className="absolute left-3 top-3 rounded-full border border-white/15 bg-black/55 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur-sm">{story.country_code === 'KE' ? 'KENYA SPORTS' : 'SPORTS NEWS'}</div>
     </div>
