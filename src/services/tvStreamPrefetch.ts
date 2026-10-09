@@ -23,8 +23,24 @@ async function manifest(url: URL, signal: AbortSignal) {
     headers: { Accept: 'application/vnd.apple.mpegurl, text/plain;q=0.9, */*;q=0.5' },
   });
   if (!response.ok) throw new Error('HTTP ' + response.status);
-  const text = await response.text();
-  if (text.length > 512 * 1024 || !/^\\s*#EXTM3U\\b/.test(text)) throw new Error('Invalid or oversized HLS manifest');
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('Empty HLS manifest');
+  const decoder = new TextDecoder();
+  let text = '';
+  try {
+    while (text.length <= 512 * 1024) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      text += decoder.decode(value, { stream: true });
+      if (text.length > 512 * 1024) {
+        await reader.cancel();
+        throw new Error('HLS manifest too large');
+      }
+    }
+  } finally {
+    try { reader.releaseLock(); } catch {}
+  }
+  if (!/^\\s*#EXTM3U\\b/.test(text)) throw new Error('Invalid HLS manifest');
   return text;
 }
 
