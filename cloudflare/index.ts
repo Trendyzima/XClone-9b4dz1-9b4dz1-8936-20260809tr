@@ -1,6 +1,10 @@
 import { DEPLOYED_COMMIT_SHA } from './deployment-meta';
 import homeFeed from '../api/home-feed';
 import sitemapIndex from '../api/sitemap-index';
+import sitemapUsers from '../api/sitemap-users';
+import sitemapCommunity from '../api/sitemap-community';
+import sitemapPosts from '../api/sitemap-posts';
+import sitemapThreads from '../api/sitemap-threads';
 
 const SUPABASE_ORIGIN = 'https://ffrhglgkukgsuhxenena.supabase.co';
 
@@ -22,6 +26,14 @@ const EDGE_ROUTES: Record<string, string> = {
   '/api/sitemap-posts': '../api/sitemap-posts',
   '/api/sitemap-threads': '../api/sitemap-threads',
   '/api/sitemap-community': '../api/sitemap-community',
+};
+
+const STATIC_SITEMAP_ROUTES: Record<string, (request: Request) => Promise<Response>> = {
+  '/api/sitemap-index': sitemapIndex,
+  '/api/sitemap-users': sitemapUsers,
+  '/api/sitemap-community': sitemapCommunity,
+  '/api/sitemap-posts': sitemapPosts,
+  '/api/sitemap-threads': sitemapThreads,
 };
 
 const NODE_ROUTES: Record<string, string> = {
@@ -207,11 +219,12 @@ async function invokeEdge(pathname: string, request: Request, env: Env) {
     return homeFeed(request);
   }
 
-  // Keep the root sitemap statically bundled: dynamic imports can compile cleanly
-  // yet fail at the deployed Worker runtime, turning /sitemap.xml into HTTP 500.
-  if (pathname === '/api/sitemap-index') {
+  // Keep sitemap handlers statically bundled: runtime variable imports can compile
+  // successfully yet fail in the deployed Worker isolate with a generic HTTP 500.
+  const sitemapHandler = STATIC_SITEMAP_ROUTES[pathname];
+  if (sitemapHandler) {
     setRuntimeEnv(env, (env as any).TESTAGRAM_COMMIT_SHA);
-    return sitemapIndex(request);
+    return sitemapHandler(request);
   }
 
   const modulePath = EDGE_ROUTES[pathname];
