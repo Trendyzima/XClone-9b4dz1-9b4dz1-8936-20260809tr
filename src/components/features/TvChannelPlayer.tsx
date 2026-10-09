@@ -3,13 +3,13 @@ import Hls from 'hls.js';
 import {Volume2,VolumeX,Radio,Maximize2,RefreshCw,Play,Globe2,Gauge} from 'lucide-react';
 import type {TvChannel} from '@/services/tvChannelCatalog';
 import {Button} from '@/components/ui/button';
-import {getTestagramCdnPlaybackUrl,isTestagramCdnEnabled} from '@/services/tvCdn';
+import VirtualCdnLoader from '@/services/virtualCdnLoader';
 
 type Props={channel:TvChannel;active:boolean;onVisible:(id:string,visible:boolean)=>void;onHealth?:(id:string,healthy:boolean)=>void;};
 
 export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
  const ref=useRef<HTMLVideoElement>(null); const wrap=useRef<HTMLDivElement>(null); const hls=useRef<Hls|null>(null);
- const retryRef=useRef(0); const cdnFallbackRef=useRef(false); const retryTimer=useRef<ReturnType<typeof setTimeout>|null>(null); const stallTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null); const startRef=useRef<(()=>void)|null>(null); const proxyFallbackRef=useRef(false); const fatalNetworkRef=useRef(0); const bandwidthTimerRef=useRef<ReturnType<typeof setInterval>|null>(null);
+ const retryRef=useRef(0); const retryTimer=useRef<ReturnType<typeof setTimeout>|null>(null); const stallTimerRef=useRef<ReturnType<typeof setTimeout>|null>(null); const startRef=useRef<(()=>void)|null>(null); const proxyFallbackRef=useRef(false); const fatalNetworkRef=useRef(0); const bandwidthTimerRef=useRef<ReturnType<typeof setInterval>|null>(null);
  const playbackUrlRef=useRef(channel.url); const initialBufferReadyRef=useRef(false);
  const [dataSaver,setDataSaver]=useState(()=>{try{return localStorage.getItem('testagram-tv-data-saver')==='on';}catch{return false;}}); const [muted,setMuted]=useState(()=>{try{return localStorage.getItem('testagram-tv-audio')!=='on';}catch{return true;}}); const audioPreferenceRef=useRef(muted); const [error,setError]=useState(false); const [starting,setStarting]=useState(false); const [needsGesture,setNeedsGesture]=useState(false);
  const networkProfile=useCallback(()=>{const n=(navigator as any).connection;const type=String(n?.effectiveType||'').toLowerCase();const save=Boolean(n?.saveData)||dataSaver;const constrained=save||type==='slow-2g'||type==='2g';const moderate=type==='3g';return {save,constrained,moderate};},[dataSaver]);
@@ -29,21 +29,10 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
   const directUrl=channel.url;
   const looksLikeHls=/\.m3u8(?:$|[?#])/i.test(directUrl);
   const network=networkProfile();
-  // Public streams must keep working when the first-party CDN control plane is unavailable.
-  let playbackUrl=proxyFallbackRef.current?proxyUrl():directUrl;
-  if(isTestagramCdnEnabled()&&!cdnFallbackRef.current){
-   try { playbackUrl=await getTestagramCdnPlaybackUrl(channel); }
-   catch (error) {
-    cdnFallbackRef.current=true;
-    playbackUrl=directUrl;
-    console.warn('[testagram-tv] CDN playback authorization failed; trying source directly', error);
-   }
-   if(!active){ return; }
-  } else if(cdnFallbackRef.current&&!proxyFallbackRef.current) {
-   playbackUrl=directUrl;
-  }
+  // Origin-first playback: the virtual CDN loader only caches eligible HLS fragments locally.
+  // It never changes the source URL or requires a hosted CDN service.
+  const playbackUrl=proxyFallbackRef.current?proxyUrl():directUrl;
   const fallbackPlayback=()=>{
-   if(isTestagramCdnEnabled()&&!cdnFallbackRef.current){cdnFallbackRef.current=true;retryRef.current=0;startRef.current?.();return true;}
    if(!proxyFallbackRef.current){proxyFallbackRef.current=true;retryRef.current=0;startRef.current?.();return true;}
    retry();return false;
   };
@@ -58,7 +47,7 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
     void video.play().catch((e:any)=>{if(e?.name!=='NotAllowedError')retry();else{setNeedsGesture(true);setStarting(false);}});
     return;
   }
-  if(looksLikeHls&&Hls.isSupported()){video.autoplay=false;const h=new Hls({enableWorker:true,lowLatencyMode:false,startFragPrefetch:true,startOnSegmentBoundary:true,liveSyncOnStallIncrease:2,initialLiveManifestSize:network.constrained?5:6,backBufferLength:network.constrained?5:10,maxBufferLength:network.constrained?18:network.moderate?24:30,maxMaxBufferLength:network.constrained?30:network.moderate?40:45,maxBufferSize:network.constrained?24*1024*1024:network.moderate?32*1024*1024:48*1024*1024,maxBufferHole:0.25,highBufferWatchdogPeriod:2,nudgeOffset:0.1,nudgeMaxRetry:5,liveSyncDuration:30,liveMaxLatencyDuration:75,manifestLoadingMaxRetry:6,levelLoadingMaxRetry:6,fragLoadingMaxRetry:8,fragLoadingRetryDelay:700,fragLoadingMaxRetryTimeout:10000});hls.current=h;h.loadSource(playbackUrl);h.attachMedia(video);if(network.constrained){h.startLevel=0;h.autoLevelCapping=0;}else if(network.moderate){h.startLevel=0;h.autoLevelCapping=1;}h.on(Hls.Events.MANIFEST_PARSED,()=>{setStarting(true);try{h.startLoad(-1);}catch{}});h.on(Hls.Events.LEVEL_SWITCHED,(_,d)=>{if(network.constrained&&d.level>0)h.nextLevel=0;});h.on(Hls.Events.FRAG_BUFFERED,()=>{const b=video.buffered;let ahead=0;for(let i=0;i<b.length;i++){if(b.start(i)<=video.currentTime+0.25){ahead=Math.max(ahead,b.end(i)-video.currentTime);}}if(!initialBufferReadyRef.current&&ahead>=initialBufferTarget){initialBufferReadyRef.current=true;video.autoplay=true;void video.play().then(()=>healthy()).catch((e:any)=>{if(e?.name==='NotAllowedError'){setNeedsGesture(true);setStarting(false);}else retry();});}else if(initialBufferReadyRef.current&&ahead>=5){healthy();}});h.on(Hls.Events.ERROR,(_,d)=>{if(!d.fatal)return;if(d.type===Hls.ErrorTypes.MEDIA_ERROR){try{h.recoverMediaError();return;}catch{}}if(d.type===Hls.ErrorTypes.NETWORK_ERROR){fatalNetworkRef.current++;if(fatalNetworkRef.current>=2){fatalNetworkRef.current=0;if(fallbackPlayback())return;}try{h.startLoad(-1);return;}catch{}}retry();});return;}
+  if(looksLikeHls&&Hls.isSupported()){video.autoplay=false;const h=new Hls({loader:VirtualCdnLoader as any,enableWorker:true,lowLatencyMode:false,startFragPrefetch:true,startOnSegmentBoundary:true,liveSyncOnStallIncrease:2,initialLiveManifestSize:network.constrained?5:6,backBufferLength:network.constrained?5:10,maxBufferLength:network.constrained?18:network.moderate?24:30,maxMaxBufferLength:network.constrained?30:network.moderate?40:45,maxBufferSize:network.constrained?24*1024*1024:network.moderate?32*1024*1024:48*1024*1024,maxBufferHole:0.25,highBufferWatchdogPeriod:2,nudgeOffset:0.1,nudgeMaxRetry:5,liveSyncDuration:30,liveMaxLatencyDuration:75,manifestLoadingMaxRetry:6,levelLoadingMaxRetry:6,fragLoadingMaxRetry:8,fragLoadingRetryDelay:700,fragLoadingMaxRetryTimeout:10000});hls.current=h;h.loadSource(playbackUrl);h.attachMedia(video);if(network.constrained){h.startLevel=0;h.autoLevelCapping=0;}else if(network.moderate){h.startLevel=0;h.autoLevelCapping=1;}h.on(Hls.Events.MANIFEST_PARSED,()=>{setStarting(true);try{h.startLoad(-1);}catch{}});h.on(Hls.Events.LEVEL_SWITCHED,(_,d)=>{if(network.constrained&&d.level>0)h.nextLevel=0;});h.on(Hls.Events.FRAG_BUFFERED,()=>{const b=video.buffered;let ahead=0;for(let i=0;i<b.length;i++){if(b.start(i)<=video.currentTime+0.25){ahead=Math.max(ahead,b.end(i)-video.currentTime);}}if(!initialBufferReadyRef.current&&ahead>=initialBufferTarget){initialBufferReadyRef.current=true;video.autoplay=true;void video.play().then(()=>healthy()).catch((e:any)=>{if(e?.name==='NotAllowedError'){setNeedsGesture(true);setStarting(false);}else retry();});}else if(initialBufferReadyRef.current&&ahead>=5){healthy();}});h.on(Hls.Events.ERROR,(_,d)=>{if(!d.fatal)return;if(d.type===Hls.ErrorTypes.MEDIA_ERROR){try{h.recoverMediaError();return;}catch{}}if(d.type===Hls.ErrorTypes.NETWORK_ERROR){fatalNetworkRef.current++;if(fatalNetworkRef.current>=2){fatalNetworkRef.current=0;if(fallbackPlayback())return;}try{h.startLoad(-1);return;}catch{}}retry();});return;}
   if(looksLikeHls&&video.canPlayType('application/vnd.apple.mpegurl')){
     video.autoplay=false; video.src=playbackUrl;
     const waitForBuffer=()=>{
@@ -78,7 +67,7 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
  },[active,channel,channel.id,channel.url,cleanup,healthy,retry,onHealth,proxyUrl,networkProfile]);
  startRef.current=start;
 
- useEffect(()=>{retryRef.current=0;fatalNetworkRef.current=0;proxyFallbackRef.current=false;cdnFallbackRef.current=false;playbackUrlRef.current=channel.url;if(active){start();return cleanup;}cleanup();setError(false);setStarting(false);setNeedsGesture(false);},[active,channel.url,start,cleanup]);
+ useEffect(()=>{retryRef.current=0;fatalNetworkRef.current=0;proxyFallbackRef.current=false;playbackUrlRef.current=channel.url;if(active){start();return cleanup;}cleanup();setError(false);setStarting(false);setNeedsGesture(false);},[active,channel.url,start,cleanup]);
 
  useEffect(()=>{const onOnline=()=>{retryRef.current=0;fatalNetworkRef.current=0;if(active){const h=hls.current;try{h?.startLoad(-1);}catch{};void ref.current?.play().catch(()=>{});}};const onOffline=()=>setStarting(true);window.addEventListener('online',onOnline);window.addEventListener('offline',onOffline);return()=>{window.removeEventListener('online',onOnline);window.removeEventListener('offline',onOffline);};},[active]);
  useEffect(()=>{const n=(navigator as any).connection;if(!n?.addEventListener)return;const changed=()=>{if(active){retryRef.current=0;fatalNetworkRef.current=0;}};n.addEventListener('change',changed);return()=>n.removeEventListener('change',changed);},[active,dataSaver]);
