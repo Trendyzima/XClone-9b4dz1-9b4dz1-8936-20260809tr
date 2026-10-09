@@ -14,7 +14,7 @@ The active IPTV delivery path is **origin-first**. XClone requests each channel'
 
 Eligible public HLS fragments can be exchanged across viewer devices over WebRTC data channels. The existing Supabase Realtime client is used only for signaling; video bytes do not pass through Supabase. The implementation currently:
 
-- Randomly shards viewers into 16,384 signaling cohorts per stream to reduce broadcast fan-out at larger audience sizes.
+- Randomly shards viewers into 65,536 signaling cohorts per stream to reduce broadcast fan-out at larger audience sizes.
 - Peer sharing is opt-in because direct WebRTC connections can reveal network/IP metadata to connected peers and consume upload data; the UI explains this before/while enabling it.
 - Limits each browser to three peer connections, one active upload per peer, and segments of at most 1.5 MB.
 - Waits for two distinct peers that have each fetched the segment directly from the source; both transferred payloads must match SHA-256 before peer bytes are used.
@@ -47,3 +47,12 @@ go build ./cmd/...
 ```
 
 The Go checks validate retained code only; they do not deploy or claim a running CDN.
+
+
+## Capacity planning for very large audiences
+
+The client uses 65,536 randomized signaling cohorts to keep presence lists smaller and jitters peer connection creation to reduce join storms. These are **client-side fan-out controls, not a million-viewer capacity guarantee**.
+
+At 1,000,000 concurrently watching browsers, the current topology still needs approximately 1,000,000 live Supabase Realtime client connections (typically one active signaling channel per active stream room per browser), plus WebRTC peer connections. Cohorting does not reduce the number of connected clients. A free/shared Realtime project cannot be assumed to admit or sustain that load, and the browser mesh cannot help users until signaling introduces them to peers.
+
+Before advertising or enabling a million-viewer event, load-test the actual Supabase project and real devices, and record concurrent connections, join/leave churn, signaling messages/sec, WebRTC establishment success, peer-cache hit rate, origin bytes/sec, and playback stalls. If the existing project cannot support the required signaling connection count, the constraints "no additional hosting/service" and "one million simultaneous viewers" conflict: a horizontally scalable signaling tier or a provider plan with verified capacity is required. This repository deliberately does not fake that missing capacity or silently route media through a paid edge.
