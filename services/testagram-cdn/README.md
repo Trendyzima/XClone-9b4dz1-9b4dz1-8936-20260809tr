@@ -56,3 +56,22 @@ The client uses 65,536 randomized signaling cohorts to keep presence lists small
 At 1,000,000 concurrently watching browsers, the current topology still needs approximately 1,000,000 live Supabase Realtime client connections (typically one active signaling channel per active stream room per browser), plus WebRTC peer connections. Cohorting does not reduce the number of connected clients. A free/shared Realtime project cannot be assumed to admit or sustain that load, and the browser mesh cannot help users until signaling introduces them to peers.
 
 Before advertising or enabling a million-viewer event, load-test the actual Supabase project and real devices, and record concurrent connections, join/leave churn, signaling messages/sec, WebRTC establishment success, peer-cache hit rate, origin bytes/sec, and playback stalls. If the existing project cannot support the required signaling connection count, the constraints "no additional hosting/service" and "one million simultaneous viewers" conflict: a horizontally scalable signaling tier or a provider plan with verified capacity is required. This repository deliberately does not fake that missing capacity or silently route media through a paid edge.
+
+
+## Runtime capacity telemetry
+
+The browser now exposes aggregate, in-memory counters through
+`getVirtualCdnMetrics()` in `src/services/virtualCdnMetrics.ts` and dispatches
+`testagram-vcdn-metric` events. The counters include cache hits/misses, origin
+fetches and bytes, peer requests/hits/bytes, signaling failures, connection
+success/failure, integrity failures, transfer timeouts, and playback stalls.
+Events deliberately omit stream URLs, peer IDs, IP addresses, credentials, and
+account identifiers. A host integration can forward aggregate counts to an
+approved telemetry backend; the current implementation does not upload metrics
+automatically, so these counters alone are not centralized production monitoring.
+
+Peer transfer now rejects oversized binary frames and stops enqueueing data when
+the channel remains congested after a short backpressure wait. Transient WebRTC
+`disconnected` states are not immediately torn down because they can recover;
+`failed` and `closed` connections are still cleaned up. This improves resource
+safety but does not remove the external signaling connection ceiling.
