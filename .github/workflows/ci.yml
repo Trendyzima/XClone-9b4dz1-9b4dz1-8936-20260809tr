@@ -44,6 +44,8 @@ jobs:
 
   android-tv:
     name: Build and verify XClone TV APK
+    # Avoid doing the same expensive TV build on both feature-branch push and PR events.
+    if: github.event_name != 'push' || github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -52,9 +54,11 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+      - name: Configure Gradle cache
+        uses: gradle/actions/setup-gradle@v4
       - name: Build TV debug APK
         working-directory: android-tv
-        run: chmod +x ../android/gradlew && ../android/gradlew --no-daemon clean assembleDebug
+        run: chmod +x ../android/gradlew && ../android/gradlew --no-daemon --console=plain --stacktrace --info --build-cache assembleDebug
       - name: Verify TV package and Leanback launcher
         working-directory: android-tv
         shell: bash
