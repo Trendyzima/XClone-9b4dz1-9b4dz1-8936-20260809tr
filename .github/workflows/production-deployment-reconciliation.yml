@@ -1032,6 +1032,102 @@ jobs:
           NODE
 
 
+      - name: Verify production SEO and sitemap contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP_ORIGIN="https://testagram.site"
+
+          fetch_public() {
+            local path="$1" body="$2" headers="$3" status
+            status="$(curl --silent --show-error --location --connect-timeout 10 --max-time 30 \
+              -D "$headers" -o "$body" -w '%{http_code}' "$APP_ORIGIN$path")"
+            [[ "$status" == "200" ]] || {
+              echo "::error::Production SEO endpoint $path returned HTTP $status."
+              head -c 1500 "$body" 2>/dev/null || true
+              exit 1
+            }
+          }
+
+          fetch_public "/robots.txt" /tmp/testagram-robots.txt /tmp/testagram-robots.headers
+          [[ "$(grep -c '^Sitemap:' /tmp/testagram-robots.txt)" == "1" ]] || {
+            echo "::error::robots.txt must advertise exactly one canonical sitemap index."
+            cat /tmp/testagram-robots.txt
+            exit 1
+          }
+          grep -Fq 'Sitemap: https://testagram.site/sitemap.xml' /tmp/testagram-robots.txt
+          ! grep -Eqi '^Disallow:[[:space:]]*/(auth|admin)(/|$)' /tmp/testagram-robots.txt || {
+            echo "::error::robots.txt blocks crawlers from observing server-side noindex directives."
+            exit 1
+          }
+
+          fetch_public "/sitemap.xml" /tmp/testagram-sitemap.xml /tmp/testagram-sitemap.headers
+          grep -qi '^content-type:[[:space:]]*application/xml' /tmp/testagram-sitemap.headers
+          grep -Fq '<sitemapindex' /tmp/testagram-sitemap.xml
+          for endpoint in sitemap-users sitemap-community sitemap-posts sitemap-threads; do
+            grep -Fq "https://testagram.site/api/$endpoint?part=0" /tmp/testagram-sitemap.xml || {
+              echo "::error::Top-level sitemap is missing the first chunk for $endpoint."
+              exit 1
+            }
+          done
+
+          fetch_public "/sitemap-static.xml" /tmp/testagram-sitemap-static.xml /tmp/testagram-sitemap-static.headers
+          fetch_public "/api/sitemap-users?part=0" /tmp/testagram-sitemap-users.xml /tmp/testagram-sitemap-users.headers
+          fetch_public "/api/sitemap-community?part=0" /tmp/testagram-sitemap-community.xml /tmp/testagram-sitemap-community.headers
+          fetch_public "/api/sitemap-posts?part=0" /tmp/testagram-sitemap-posts.xml /tmp/testagram-sitemap-posts.headers
+          fetch_public "/api/sitemap-threads?part=0" /tmp/testagram-sitemap-threads.xml /tmp/testagram-sitemap-threads.headers
+          for headers in /tmp/testagram-sitemap-static.headers /tmp/testagram-sitemap-users.headers /tmp/testagram-sitemap-community.headers /tmp/testagram-sitemap-posts.headers /tmp/testagram-sitemap-threads.headers; do
+            grep -qi '^content-type:[[:space:]]*application/xml' "$headers"
+          done
+
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          files = [
+              ("/tmp/testagram-sitemap.xml", "sitemapindex"),
+              ("/tmp/testagram-sitemap-static.xml", "urlset"),
+              ("/tmp/testagram-sitemap-users.xml", "urlset"),
+              ("/tmp/testagram-sitemap-community.xml", "urlset"),
+              ("/tmp/testagram-sitemap-posts.xml", "urlset"),
+              ("/tmp/testagram-sitemap-threads.xml", "urlset"),
+          ]
+          ns = "{http://www.sitemaps.org/schemas/sitemap/0.9}"
+          for path, expected in files:
+              root = ET.parse(path).getroot()
+              if root.tag != ns + expected:
+                  raise SystemExit(f"{path}: expected {expected}, got {root.tag}")
+              locs = [node.text or "" for node in root.iter(ns + "loc")]
+              if expected == "sitemapindex" and not locs:
+                  raise SystemExit(f"{path}: sitemap index has no sitemap entries")
+              if path.endswith("sitemap-static.xml") and not locs:
+                  raise SystemExit(f"{path}: static sitemap has no URLs")
+              if not all(url.startswith("https://testagram.site/") for url in locs):
+                  raise SystemExit(f"{path}: non-canonical host in loc")
+              print(f"PASS {path}: {expected}, {len(locs)} loc entries")
+          PY
+
+          fetch_public "/tv" /tmp/testagram-tv.html /tmp/testagram-tv.headers
+          grep -qi '<title>.*TV.*Testagram</title>' /tmp/testagram-tv.html
+          grep -Fq 'href="https://testagram.site/tv"' /tmp/testagram-tv.html
+          if grep -qi '^X-Robots-Tag:[[:space:]]*noindex' /tmp/testagram-tv.headers; then
+            echo "::error::Public /tv route is incorrectly marked noindex."
+            exit 1
+          fi
+
+          for path in "/auth" "/c/null"; do
+            safe="$(printf '%s' "$path" | tr '/' '-')"
+            fetch_public "$path" "/tmp/testagram${safe}.html" "/tmp/testagram${safe}.headers"
+            grep -qi '^X-Robots-Tag:[[:space:]]*noindex,[[:space:]]*nofollow' "/tmp/testagram${safe}.headers" || {
+              echo "::error::$path is missing the server-side noindex response header."
+              exit 1
+            }
+            grep -qi '<meta name="robots" content="noindex, nofollow"' "/tmp/testagram${safe}.html" || {
+              echo "::error::$path is missing the HTML robots noindex directive."
+              exit 1
+            }
+          done
+
+          echo "Production SEO/sitemap HTTP, XML, canonical and noindex contracts passed."
+
       - name: Verify Android App Links contract
         shell: bash
         run: |

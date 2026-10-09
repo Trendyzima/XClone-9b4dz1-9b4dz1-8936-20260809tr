@@ -11,6 +11,16 @@ on:
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/tv-meetup-quality-gate.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/components/features/TvMeetupPanel.tsx"
+      - "src/pages/TvPublicLivePage.tsx"
+      - "src/pages/TvStudioPage.tsx"
+      - "supabase/migrations/*tv_meetup*.sql"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/tv-meetup-quality-gate.yml"
   workflow_dispatch:
 
 concurrency:
@@ -27,6 +37,8 @@ jobs:
     steps:
       - name: Checkout exact source
         uses: actions/checkout@v5
+        with:
+          submodules: recursive
 
       - name: Verify checkout
         shell: bash
