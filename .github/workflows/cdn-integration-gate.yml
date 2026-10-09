@@ -47,12 +47,17 @@ jobs:
           grep -R 'https://media.testagram.site' src supabase .github >/dev/null
           grep -R 'tv-cdn-playback' src supabase >/dev/null
 
-      - name: Verify production CDN is explicitly enabled
+      - name: Verify IPTV playback is origin-first and CDN optional
         shell: bash
         run: |
           set -euo pipefail
-          grep -R 'VITE_TESTAGRAM_CDN_ENABLED: "true"' .github/workflows >/dev/null
-          grep -R 'VITE_TESTAGRAM_CDN_URL: "https://media.testagram.site"' .github/workflows >/dev/null
+          grep -F "VITE_TESTAGRAM_CDN_ENABLED || 'false'" src/services/tvCdn.ts >/dev/null
+          grep -F 'let playbackUrl=proxyFallbackRef.current?proxyUrl():directUrl;' src/components/features/TvChannelPlayer.tsx >/dev/null
+          grep -F 'enabled: false' services/testagram-cdn/web/p2p-loader.js >/dev/null
+          if grep -F 'VITE_TESTAGRAM_CDN_ENABLED: "true"' .github/workflows/production-build.yml >/dev/null; then
+            echo 'Production build must not force TV playback through the optional CDN.' >&2
+            exit 1
+          fi
 
       - name: Build XClone
         run: |
