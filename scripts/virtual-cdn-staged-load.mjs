@@ -128,6 +128,7 @@ async function runStage(viewers, peerAvailable) {
     delivered: outcomes.filter((x) => x?.ok).length,
     failures,
     peerHits,
+    originFallbackRequests: fallbackRequests,
     originRequests: origin.state.requests,
     originBytes: origin.state.bytes,
     totalDeliveredBytes: deliveredBytes,
