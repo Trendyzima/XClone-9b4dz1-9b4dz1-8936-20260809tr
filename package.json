@@ -13,7 +13,8 @@
     "tauri": "cd desktop/src-tauri && cargo tauri",
     "tauri:dev": "npm run tauri -- dev",
     "tauri:build": "npm run tauri -- build",
-    "typecheck:api": "tsc --noEmit --target ES2020 --module ESNext --moduleResolution node --skipLibCheck api/media.ts"
+    "typecheck:api": "tsc --noEmit --target ES2020 --module ESNext --moduleResolution node --skipLibCheck api/media.ts",
+    "validate:seo": "node scripts/validate-seo-production.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.922.0",

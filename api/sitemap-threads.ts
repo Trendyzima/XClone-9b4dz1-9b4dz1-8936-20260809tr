@@ -14,12 +14,15 @@ export default async function handler(request: Request) {
   if (!SERVICE_ROLE_KEY) return new Response('Sitemap temporarily unavailable',{status:503,headers:{'Content-Type':'text/plain; charset=utf-8'}});
   const db=createClient(SUPABASE_URL,SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
   const url=new URL(request.url);
-  const part=Math.max(0,Math.floor(Number(url.searchParams.get('part')||'0')));
+  const rawPart=url.searchParams.get('part');
+  const hasExplicitPart=rawPart!==null;
+  const part=rawPart===null?0:Number(rawPart);
+  if(rawPart!==null&&(!/^\d+$/.test(rawPart)||!Number.isSafeInteger(part)))return new Response('Invalid sitemap part',{status:400,headers:{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store'}});
   const pageSize=50000;
   const {count,error:countError}=await db.from('threads').select('id',{count:'exact',head:true}).is('deleted_at',null).or('visibility.eq.public,visibility.is.null');
   if(countError)return new Response('Sitemap temporarily unavailable',{status:502});
   const total=Number(count||0), parts=Math.max(1,Math.ceil(total/pageSize));
-  if(part===0&&parts>1){
+  if(!hasExplicitPart&&parts>1){
     const body=`<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${Array.from({length:parts},(_,i)=>`<sitemap><loc>${BASE}/api/sitemap-threads?part=${i}</loc></sitemap>`).join('')}</sitemapindex>`;
     return new Response(body,{headers:{'Content-Type':'application/xml; charset=utf-8','Cache-Control':'public, s-maxage=3600, stale-while-revalidate=21600'}});
   }

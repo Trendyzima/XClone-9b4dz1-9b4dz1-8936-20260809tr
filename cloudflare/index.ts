@@ -16,6 +16,11 @@ const EDGE_ROUTES: Record<string, string> = {
   '/api/home-discovery': '../api/home-discovery',
   '/api/home-feed': '../api/home-feed',
   '/api/live': '../api/live',
+  '/api/sitemap-index': '../api/sitemap-index',
+  '/api/sitemap-users': '../api/sitemap-users',
+  '/api/sitemap-posts': '../api/sitemap-posts',
+  '/api/sitemap-threads': '../api/sitemap-threads',
+  '/api/sitemap-community': '../api/sitemap-community',
 };
 
 const NODE_ROUTES: Record<string, string> = {
@@ -56,60 +61,121 @@ function escapeHtml(value: string) {
   return value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char] || char));
 }
 
-function seoForPath(pathname: string) {
+type SeoRoute = { title: string; description: string; canonical: string; type: string; noindex?: boolean };
+
+function seoForPath(pathname: string): SeoRoute {
   const path = pathname.replace(/\/+$/, '') || '/';
   const base = 'https://testagram.site';
-  const rules: Array<[RegExp, string, string, string]> = [
+  const canonical = base + path;
+  const noindex = (): SeoRoute => ({
+    title: 'Testagram',
+    description: 'This Testagram page is not intended for search indexing.',
+    canonical,
+    type: 'website',
+    noindex: true,
+  });
+
+  // The browser app shell contains no private user data. Let crawlers fetch it
+  // so the noindex directive below can be observed instead of relying on robots.txt.
+  const privatePath = /^\/(?:auth|login|signup|messages|notifications|wallet|settings|bookmarks|history|scheduled|payouts|creator-studio|monetization|analytics|verify|verify-identity|referral|rewards|platform-inbox|interests|notification-preferences|lists|my-ads|create-ad|start-stream|ad-analytics|ad-performance|post-analytics|boost-analytics|boost-create|admin|fraud-detection|seo-audit|staff|regulator|team-chat|appeals|orders|sessions|blocked|daily-rewards|wishlist|call|tv-studio|profile\/complete)(?:\/|$)/i;
+  if (privatePath.test(path)) return noindex();
+
+  const rules: Array<[RegExp, string | null, string | null, string]> = [
     [/^\/$/, 'Testagram — Social Media, Short Videos & Global Conversations', 'Discover short videos, communities, live conversations, trending topics and creators on Testagram.', 'website'],
     [/^\/explore$/, 'Explore — Trending Content & Creators | Testagram', 'Explore trending posts, creators, communities and conversations on Testagram.', 'website'],
-    [/^\/videos$/, 'Short Videos & Reels | Testagram', 'Watch short videos, reels and creator content from around the world on Testagram.', 'website'],
+    [/^\/videos?$/, 'Short Videos & Reels | Testagram', 'Watch short videos, reels and creator content from around the world on Testagram.', 'website'],
+    [/^\/shorts$/, 'Short Videos | Testagram', 'Discover short videos and creators on Testagram.', 'website'],
     [/^\/threads$/, 'Threads & Conversations | Testagram', 'Read and join public conversations and threads on Testagram.', 'website'],
     [/^\/communities$/, 'Communities | Testagram', 'Discover public communities and conversations on Testagram.', 'website'],
-    [/^\/spaces$/, 'Live Spaces | Testagram', 'Discover live audio conversations and public spaces on Testagram.', 'website'],
-    [/^\/discover$/, 'Discover | Testagram', 'Discover people, topics, communities and public content on Testagram.', 'website'],
-    [/^\/fediverse$/, 'Fediverse | Testagram', 'Explore public federated conversations and communities through Testagram.', 'website'],
+    [/^\/spaces(?:\/.*)?$/, 'Live Spaces | Testagram', 'Discover live audio conversations and public spaces on Testagram.', 'website'],
+    [/^\/discover(?:\/.*)?$/, 'Discover | Testagram', 'Discover people, topics, communities and public content on Testagram.', 'website'],
+    [/^\/fediverse(?:\/.*)?$/, 'Fediverse | Testagram', 'Explore public federated conversations and communities through Testagram.', 'website'],
     [/^\/help$/, 'Help & Support | Testagram', 'Find Testagram help, account, community and platform guidance.', 'website'],
-    [/^\/hashtag\/(.+)$/, null as any, null as any, 'website'],
-    [/^\/trending\/(.+)$/, null as any, null as any, 'website'],
-    [/^\/c\/(.+)$/, null as any, null as any, 'website'],
-    [/^\/profile\/(.+)$/, null as any, null as any, 'profile'],
-    [/^\/thread\/(.+)$/, null as any, null as any, 'article'],
-    [/^\/post\/(.+)$/, null as any, null as any, 'article'],
+    [/^\/tv$/, 'Live TV Channels & Public Streams | Testagram', 'Explore public live TV channels and community broadcasts on Testagram.', 'website'],
+    [/^\/tv\/channels$/, 'Live TV Channels & Public Streams | Testagram', 'Browse public live TV channels by region and category on Testagram.', 'website'],
+    [/^\/tv\/reels$/, 'TV Reels & Live Channel Clips | Testagram', 'Discover live channel playback and TV content on Testagram.', 'website'],
+    [/^\/tv\/live\/(.+)$/, null, null, 'video'],
+    [/^\/iptv$/, 'IPTV Player | Testagram', 'Open the Testagram IPTV player for publicly available streams.', 'website'],
+    [/^\/news$/, 'News & Publisher Stories | Testagram', 'Discover news and publisher stories surfaced on Testagram.', 'website'],
+    [/^\/leaderboard(?:\/.*)?$/, 'Creator Leaderboards | Testagram', 'Discover public creator and community leaderboards on Testagram.', 'website'],
+    [/^\/hashtags$/, 'Popular Hashtags | Testagram', 'Discover hashtags and public conversations on Testagram.', 'website'],
+    [/^\/products$/, 'Products & Creator Commerce | Testagram', 'Discover products and creator commerce on Testagram.', 'website'],
+    [/^\/marketplace$/, 'Marketplace | Testagram', 'Browse the Testagram marketplace.', 'website'],
+    [/^\/shop$/, 'Shop | Testagram', 'Browse products available on Testagram.', 'website'],
+    [/^\/series$/, 'Creator Series | Testagram', 'Discover public creator series on Testagram.', 'website'],
+    [/^\/premium$/, 'Testagram Premium | Social Features & Creator Tools', 'Explore Testagram Premium features and creator tools.', 'website'],
+    [/^\/ai$/, 'AI Features | Testagram', 'Explore AI-powered features and tools on Testagram.', 'website'],
+    [/^\/policy$/, 'Content Policy | Testagram', 'Read the Testagram content policy.', 'website'],
+    [/^\/privacy$/, 'Privacy Policy | Testagram', 'Read the Testagram privacy policy.', 'website'],
+    [/^\/terms$/, 'Terms of Service | Testagram', 'Read the Testagram terms of service.', 'website'],
+    [/^\/search$/, 'Search Public Content | Testagram', 'Search public Testagram profiles, posts, communities and topics.', 'website'],
+    [/^\/hashtag\/(.+)$/, null, null, 'website'],
+    [/^\/trending\/(.+)$/, null, null, 'website'],
+    [/^\/challenge\/(.+)$/, null, null, 'website'],
+    [/^\/c\/(.+)$/, null, null, 'website'],
+    [/^\/profile\/(.+)$/, null, null, 'profile'],
+    [/^\/thread\/(.+)$/, null, null, 'article'],
+    [/^\/post\/(.+)$/, null, null, 'article'],
+    [/^\/stream\/(.+)$/, null, null, 'video'],
+    [/^\/channel\/(.+)$/, null, null, 'website'],
+    [/^\/news\/(.+)$/, null, null, 'article'],
+    [/^\/p\/(.+)$/, null, null, 'website'],
+    [/^\/seller\/(.+)$/, null, null, 'profile'],
   ];
+
   for (const [pattern, rawTitle, rawDescription, type] of rules) {
     const match = path.match(pattern);
     if (!match) continue;
-    if (rawTitle) return { title: rawTitle, description: rawDescription, canonical: base + path, type };
-    const value = decodeURIComponent(match[1]).replace(/[-_]+/g, ' ').trim();
-    const label = value.replace(/\b\w/g, (m) => m.toUpperCase());
-    if (pattern.source.includes('hashtag')) return { title: '#' + label + ' — Trending Posts | Testagram', description: 'Browse public posts and conversations tagged #' + label + ' on Testagram.', canonical: base + path, type };
-    if (pattern.source.includes('trending')) return { title: 'Trending ' + label + ' — Testagram', description: 'See what is trending in ' + label + ' on Testagram.', canonical: base + path, type };
-    if (pattern.source.includes('c\/')) return { title: label + ' Community | Testagram', description: 'Join the public ' + label + ' community and discover conversations on Testagram.', canonical: base + path, type };
-    if (pattern.source.includes('profile')) return { title: '@' + value + ' on Testagram', description: 'View the public Testagram profile for @' + value + '.', canonical: base + path, type };
-    return { title: label + ' | Testagram', description: 'Read this public conversation on Testagram.', canonical: base + path, type };
-  }
-  return null;
-}
+    if (rawTitle && rawDescription) return { title: rawTitle, description: rawDescription, canonical, type };
 
+    let value: string;
+    try {
+      value = decodeURIComponent(match[1]).replace(/[-_]+/g, ' ').trim();
+    } catch {
+      return noindex();
+    }
+    if (!value || /^(?:null|undefined)$/i.test(value)) return noindex();
+    const label = value.replace(/\b\w/g, (letter) => letter.toUpperCase());
+    if (path.startsWith('/hashtag/')) return { title: '#' + label + ' — Public Posts | Testagram', description: 'Browse public posts and conversations tagged #' + label + ' on Testagram.', canonical, type };
+    if (path.startsWith('/trending/')) return { title: 'Trending ' + label + ' | Testagram', description: 'Explore public conversations and content trending around ' + label + ' on Testagram.', canonical, type };
+    if (path.startsWith('/challenge/')) return { title: label + ' Challenge | Testagram', description: 'Explore this public Testagram challenge and its community.', canonical, type };
+    if (path.startsWith('/c/')) return { title: label + ' Community | Testagram', description: 'Explore the public ' + label + ' community and its conversations on Testagram.', canonical, type };
+    if (path.startsWith('/profile/')) return { title: '@' + value + ' on Testagram', description: 'View the public Testagram profile for @' + value + '.', canonical, type };
+    if (path.startsWith('/post/')) return { title: 'Public Post | Testagram', description: 'View this public Testagram post and join the conversation.', canonical, type };
+    if (path.startsWith('/thread/')) return { title: label + ' | Testagram', description: 'Read this public conversation on Testagram.', canonical, type };
+    if (path.startsWith('/tv/live/')) return { title: 'Live Broadcast | Testagram', description: 'Watch this public Testagram live broadcast.', canonical, type };
+    if (path.startsWith('/stream/')) return { title: 'Live Stream | Testagram', description: 'Watch this public Testagram live stream.', canonical, type };
+    if (path.startsWith('/channel/')) return { title: label + ' TV Channel | Testagram', description: 'Explore this public TV channel on Testagram.', canonical, type };
+    if (path.startsWith('/news/')) return { title: label + ' | Testagram News', description: 'Read this news story and related public discussion on Testagram.', canonical, type };
+    if (path.startsWith('/p/')) return { title: label + ' Product | Testagram', description: 'View this public product listing on Testagram.', canonical, type };
+    return { title: label + ' | Testagram', description: 'View this public Testagram page.', canonical, type };
+  }
+
+  // Unknown client-side routes and malformed slugs should not become indexed
+  // soft-404s simply because the SPA host serves index.html with HTTP 200.
+  return noindex();
+}
 async function optimizePublicHtml(response: Response, pathname: string) {
   const seo = seoForPath(pathname);
-  if (!seo || response.status !== 200 || !response.headers.get('content-type')?.includes('text/html')) return response;
+  if (response.status !== 200 || !response.headers.get('content-type')?.includes('text/html')) return response;
   const html = await response.text();
   const title = escapeHtml(seo.title);
   const description = escapeHtml(seo.description);
   const canonical = escapeHtml(seo.canonical);
+  const robots = seo.noindex ? 'noindex, nofollow' : 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1';
   const schema = JSON.stringify({
     '@context': 'https://schema.org',
-    '@type': seo.type === 'article' ? 'Article' : seo.type === 'profile' ? 'ProfilePage' : 'WebPage',
+    '@type': seo.type === 'article' ? 'Article' : seo.type === 'profile' ? 'ProfilePage' : seo.type === 'video' ? 'WebPage' : seo.type === 'collection' ? 'CollectionPage' : 'WebPage',
     name: seo.title,
     description: seo.description,
     url: seo.canonical,
     isPartOf: { '@type': 'WebSite', name: 'Testagram', url: 'https://testagram.site/' }
-  }).replace(/</g, '\u003c');
+  }).replace(/</g, '\\u003c');
   const body = html
     .replace(/<title>[\s\S]*?<\/title>/i, '<title>' + title + '</title>')
     .replace(/<meta name="description" content="[^"]*"\s*\/?>/i, '<meta name="description" content="' + description + '" />')
-    .replace(/<meta name="robots" content="[^"]*"\s*\/?>/i, '<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />')
+    .replace(/<meta name="robots" content="[^"]*"\s*\/?>/i, '<meta name="robots" content="' + robots + '" />')
+    .replace(/<meta name="googlebot" content="[^"]*"\s*\/?>/i, '<meta name="googlebot" content="' + robots + '" />')
     .replace(/<link rel="canonical" href="[^"]*"\s*\/?>/i, '<link rel="canonical" href="' + canonical + '" />')
     .replace(/<meta property="og:url" content="[^"]*"\s*\/?>/i, '<meta property="og:url" content="' + canonical + '" />')
     .replace(/<meta property="og:title" content="[^"]*"\s*\/?>/i, '<meta property="og:title" content="' + title + '" />')
@@ -118,9 +184,11 @@ async function optimizePublicHtml(response: Response, pathname: string) {
     .replace(/<meta name="twitter:title" content="[^"]*"\s*\/?>/i, '<meta name="twitter:title" content="' + title + '" />')
     .replace(/<meta name="twitter:description" content="[^"]*"\s*\/?>/i, '<meta name="twitter:description" content="' + description + '" />')
     .replace('</head>', '<script type="application/ld+json">' + schema + '</script></head>');
-  return new Response(body, { status: response.status, headers: new Headers(response.headers) });
+  const headers = new Headers(response.headers);
+  if (seo.noindex) headers.set('X-Robots-Tag', 'noindex, nofollow');
+  else headers.delete('X-Robots-Tag');
+  return new Response(body, { status: response.status, statusText: response.statusText, headers });
 }
-
 function commonHeaders(headers = new Headers()) {
   headers.set('X-Content-Type-Options', 'nosniff');
   headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -497,10 +565,19 @@ export default {
     }
 
     try {
+      if (url.pathname === '/sitemap.xml') {
+        const sitemap = await invokeEdge('/api/sitemap-index', request, env);
+        if (sitemap) {
+          const headers = commonHeaders(new Headers(sitemap.headers));
+          headers.set('Content-Type', 'application/xml; charset=utf-8');
+          headers.set('Cache-Control', 'public, max-age=3600, s-maxage=3600, stale-while-revalidate=21600');
+          return new Response(sitemap.body, { status: sitemap.status, statusText: sitemap.statusText, headers });
+        }
+      }
       if (url.pathname === '/tv-stream') return await handleTvStream(request);
       if (url.pathname.startsWith('/api/')) {
         const limiter = (env as any).RATE_LIMITER;
-        if (limiter?.limit && url.pathname !== '/api/health' && url.pathname !== '/api/ready') {
+        if (limiter?.limit && url.pathname !== '/api/health' && url.pathname !== '/api/ready' && !url.pathname.startsWith('/api/sitemap-')) {
           const { success } = await limiter.limit({ key: await rateLimitKey(request) });
           if (!success) {
             return new Response(JSON.stringify({ ok: false, error: 'Too many requests; please retry shortly.' }), {
