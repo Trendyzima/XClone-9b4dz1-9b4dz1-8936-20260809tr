@@ -23,7 +23,7 @@ const checks = [
     const sitemap = read('public/sitemap-static.xml');
     return !sitemap.includes('<lastmod>') && sitemap.includes('https://testagram.site/news</loc>');
   }],
-  ['TV route has a crash boundary and page-specific SEO', () => ['/tv','/tv/channels','/tv/reels'].every((route) => read('src/App.tsx').includes(\`path=\"\${route}\" element={<TvPageErrorBoundary><TvChannelsPage/></TvPageErrorBoundary>}\`)) && read('src/pages/TvChannelsPage.tsx').includes('useSEO({')],
+  ['TV route has a crash boundary and page-specific SEO', () => ['/tv', '/tv/channels', '/tv/reels'].every((route) => read('src/App.tsx').includes('path="' + route + '" element={<TvPageErrorBoundary><TvChannelsPage/></TvPageErrorBoundary>}')) && read('src/pages/TvChannelsPage.tsx').includes('useSEO({')],
   ['TV data loading always leaves the loading state', () => read('src/pages/TvChannelsPage.tsx').includes('finally{\n   setLoading(false);') || read('src/pages/TvChannelsPage.tsx').includes('finally{\n   setLoading(false);\n  }')],
 ];
 
