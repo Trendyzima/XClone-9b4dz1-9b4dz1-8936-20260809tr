@@ -80,13 +80,16 @@ func (s *Server) fetchTVCoalesced(key string, target *url.URL, scope, rel string
   s.inflight.Add(1); s.upstream.Add(1)
   f.data,f.contentType,f.err = s.fetchTVSource(target)
   if f.err == nil && isHLSContent(target,f.contentType,f.data) {
+    // Prefetch from the origin playlist before rewriting its segment URIs.
+    // Parsing rewritten /v1/tv URLs as origin URLs breaks prefetch and can
+    // turn a healthy upstream playlist into zero warmed segments.
+    s.prefetchTVSegments(scope,target,f.data)
     f.data = s.rewriteTVPlaylist(scope,target,f.data)
     f.contentType = "application/vnd.apple.mpegurl; charset=utf-8"
   }
   if f.err == nil {
     ttl := ttlForTV(s.cfg,rel)
     if _,e := s.cache.Put(key,f.data,ttl,s.cfg.StaleIfError); e != nil { f.err=e }
-    if f.err == nil && isHLSContent(target,f.contentType,f.data) { s.prefetchTVSegments(scope,target,f.data) }
   }
   s.inflight.Add(^uint64(0))
   s.mu.Lock(); close(f.done); delete(s.tvFetching,key); s.mu.Unlock()
