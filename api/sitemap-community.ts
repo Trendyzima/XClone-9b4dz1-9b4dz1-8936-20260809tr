@@ -2,19 +2,19 @@ import { createClient } from '@supabase/supabase-js';
 
 export const config = { runtime: 'edge' };
 
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co';
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
 
 function xmlEscape(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&apos;');
 }
 
 export default async function handler(request: Request) {
-  if (!SERVICE_ROLE_KEY) {
+  const supabaseUrl = process.env.SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co';
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
+  if (!serviceRoleKey) {
     return new Response('Sitemap temporarily unavailable', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }
 
-  const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+  const db = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
   const requestUrl = new URL(request.url);
   const rawPart = requestUrl.searchParams.get('part');
   const hasExplicitPart = rawPart !== null;
