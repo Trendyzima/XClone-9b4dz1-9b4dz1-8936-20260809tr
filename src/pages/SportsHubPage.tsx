@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Activity, ArrowUpRight, CalendarDays, CheckCircle2, ChevronDown, CircleAlert, Clock3, ExternalLink, Flame, ImageOff, Loader2, Newspaper, RefreshCw, Trophy, Tv } from 'lucide-react';
+import { Activity, ArrowUpRight, CalendarDays, CheckCircle2, ChevronDown, CircleAlert, Clock3, ExternalLink, ImageOff, Newspaper, RefreshCw, Trophy } from 'lucide-react';
 import { supabasePublishableKey, supabaseUrl } from '@/lib/supabase';
 
 type Match = Record<string, unknown>;
@@ -104,7 +104,7 @@ export default function SportsHubPage() {
     const controller = new AbortController();
     scoresController.current = controller;
     if (manual) setRefreshing(true);
-    else setScoresLoading(true);
+    else { setScoresLoading(true); setRefreshing(false); }
     setScoresError('');
     try {
       const params = new URLSearchParams({ kind: 'matches', sport, limit: '30' });
@@ -170,8 +170,8 @@ export default function SportsHubPage() {
   }, [loadScores]);
 
   const liveMatches = matches.filter(match => isLive(matchStatus(match)));
-  const featuredStories = stories.slice(0, 2);
-  const remainingStories = stories.slice(2);
+  const featuredStories = stories.slice(0, 1);
+  const remainingStories = stories.slice(1);
 
   return (
     <main className="min-h-screen bg-background text-foreground">
