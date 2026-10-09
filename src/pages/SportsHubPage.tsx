@@ -170,7 +170,7 @@ export default function SportsHubPage() {
     const timer = window.setInterval(() => { void loadScores(true); }, 60_000);
     const headlinesTimer = window.setInterval(() => { void loadStories(); }, 15 * 60_000);
     return () => { window.clearInterval(timer); window.clearInterval(headlinesTimer); };
-  }, [loadScores]);
+  }, [loadScores, loadStories]);
 
   const liveMatches = matches.filter(match => isLive(matchStatus(match)));
   const normalizedStoryQuery = storyQuery.trim().toLocaleLowerCase();
