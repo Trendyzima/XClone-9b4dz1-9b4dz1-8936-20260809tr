@@ -289,8 +289,8 @@ button:focus-visible, [role="button"]:focus-visible, a:focus-visible {
 .iptv-vertical-feed .border-primary, .iptv-vertical-feed .border-green-500 {
   border-color: hsl(var(--primary)) !important;
 }
-.iptv-vertical-feed .bg-black\/90, .iptv-vertical-feed .bg-black\/95 { background-color: hsl(var(--background) / .94) !important; }
-.iptv-vertical-feed .border-white\/10, .iptv-vertical-feed .border-white\/15 { border-color: hsl(var(--border) / .9) !important; }
+.iptv-vertical-feed .bg-black\\/90, .iptv-vertical-feed .bg-black\/95 { background-color: hsl(var(--background) / .94) !important; }
+.iptv-vertical-feed .border-white\\/10, .iptv-vertical-feed .border-white\\/15 { border-color: hsl(var(--border) / .9) !important; }
 @media (orientation: landscape) and (max-height: 600px) {
   .iptv-vertical-feed .channel-info { max-width: 58vw; }
 }
