@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/merge-first-party-cdn.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/merge-first-party-cdn.yml"
   workflow_dispatch:
 
 permissions:
