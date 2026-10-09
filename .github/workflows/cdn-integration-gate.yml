@@ -31,7 +31,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          grep -R 'media.testagram.site' internal docs XCLONE_INTEGRATION.md >/dev/null
+          grep -R 'media.testagram.site' internal docs README.md >/dev/null
           grep -R '2026-10-08-go-edge-iptv-v1' internal >/dev/null
           grep -R 'TV_PREFETCH_SECONDS' internal README.md >/dev/null
           grep -R 'TV_PREFETCH_TIMEOUT' internal README.md >/dev/null
