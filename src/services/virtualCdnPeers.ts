@@ -33,7 +33,7 @@ const SIGNALING_WAIT_MS = 200;
 const MAX_ROOMS = 4;
 // Random cohorts cap signaling fan-out. At one million viewers, 16,384 cohorts
 // average about 61 members each; low traffic naturally yields fewer peer hits.
-const SIGNALING_COHORTS = 16_384;
+const SIGNALING_COHORTS = 65_536;
 const STUN_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
 
 function peerSharingEnabled() {
@@ -125,6 +125,7 @@ class StreamPeerRoom {
   closed = false;
   lastUsed = Date.now();
   subscribePromise: Promise<void>;
+  syncTimer: ReturnType<typeof setTimeout> | null = null;
   cache: PeerCache;
 
   constructor(readonly roomName: string, cache: PeerCache) {
@@ -142,7 +143,7 @@ class StreamPeerRoom {
         if (!payload || payload.to !== this.id || payload.from === this.id) return;
         void this.onSignal(payload);
       })
-      .on('presence', { event: 'sync' }, () => { void this.syncPeers(); });
+      .on('presence', { event: 'sync' }, () => { this.schedulePeerSync(); });
     await new Promise<void>((resolve) => {
       let settled = false;
       const timer = setTimeout(() => {
@@ -155,7 +156,7 @@ class StreamPeerRoom {
           this.ready = true;
           try { await channel.track({ peerId: this.id, protocol: 1, joinedAt: Date.now() }); } catch {}
           if (!settled) { settled = true; clearTimeout(timer); resolve(); }
-          void this.syncPeers();
+          this.schedulePeerSync();
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           if (!settled) { settled = true; clearTimeout(timer); resolve(); }
         }
@@ -170,6 +171,16 @@ class StreamPeerRoom {
     } catch {
       // Signaling is best-effort; the caller falls back to the origin.
     }
+  }
+
+  private schedulePeerSync() {
+    if (this.closed || this.syncTimer) return;
+    // Spread offer creation across a cohort to avoid synchronized connection bursts.
+    const jitterMs = 100 + Math.floor(Math.random() * 700);
+    this.syncTimer = setTimeout(() => {
+      this.syncTimer = null;
+      void this.syncPeers();
+    }, jitterMs);
   }
 
   private async syncPeers() {
@@ -387,6 +398,8 @@ class StreamPeerRoom {
 
   close() {
     this.closed = true;
+    if (this.syncTimer) clearTimeout(this.syncTimer);
+    this.syncTimer = null;
     for (const peerId of [...this.peers.keys()]) this.dropPeer(peerId);
     for (const requestId of [...this.pending.keys()]) this.finish(requestId, null);
     try { if (this.channel) void supabase.removeChannel(this.channel); } catch {}
