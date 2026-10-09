@@ -190,6 +190,9 @@ export default function TvChannelsPage(){
   });
   return result;
  },[channels,dead,filter,query]);
+ const filteredRef=useRef(filtered); filteredRef.current=filtered;
+ const deadRef=useRef(dead); deadRef.current=dead;
+ const onPlayerVisible=useCallback(()=>{},[]);
 
  useEffect(()=>{if(!active&&filtered[0])setActive(filtered[0].id);},[active,filtered]);
  const featured=filtered.find(c=>c.id===active)||filtered[0];
@@ -243,11 +246,11 @@ export default function TvChannelsPage(){
   finally{setReactionBusy(false);}
  };
 
- const health=(id:string,healthy:boolean)=>{
+ const health=useCallback((id:string,healthy:boolean)=>{
   if(healthy){setDead(prev=>{if(!prev.has(id))return prev;const n=new Set(prev);n.delete(id);return n;});return;}
   setDead(prev=>{const n=new Set(prev);n.add(id);return n;});
-  setActive(current=>current===id?(filtered.find(c=>c.id!==id&&!dead.has(c.id))?.id||''):current);
- };
+  setActive(current=>current===id?(filteredRef.current.find(c=>c.id!==id&&!deadRef.current.has(c.id))?.id||''):current);
+ },[]);
 
  const refresh=()=>{loaded.current.clear();setDead(new Set());setActive('');setChannels([]);setNotice('');void loadSources(getPrioritySourceIds());};
  const categories=useMemo(()=>[
@@ -258,7 +261,7 @@ export default function TvChannelsPage(){
   ['International',filtered.filter(c=>c.country!=='KE')]
  ].filter(([,items])=>(items as TvChannel[]).length>0) as [string,TvChannel[]][],[filtered]);
 
- if(reelsMode)return <div className='min-h-screen bg-background'><main className='mx-auto max-w-3xl px-2 py-3'>{featured?<TvChannelPlayer channel={featured} active onVisible={()=>{}} onHealth={health}/>:<div className='py-20 text-center text-muted-foreground'>No live channels available.</div>}</main></div>;
+ if(reelsMode)return <div className='min-h-screen bg-background'><main className='mx-auto max-w-3xl px-2 py-3'>{featured?<TvChannelPlayer channel={featured} active onVisible={onPlayerVisible} onHealth={health}/>:<div className='py-20 text-center text-muted-foreground'>No live channels available.</div>}</main></div>;
 
  return <div className='min-h-screen bg-background'>
   <header className='sticky top-0 z-40 border-b border-border/70 bg-background/90 backdrop-blur-xl'>
@@ -280,7 +283,7 @@ export default function TvChannelsPage(){
 
    {featured&&<section className='mb-8 overflow-hidden rounded-3xl border bg-card shadow-sm'>
     <div className='grid lg:grid-cols-[1.7fr_1fr]'>
-     <div className='relative min-h-[260px] bg-black lg:min-h-[390px]'><TvChannelPlayer channel={featured} active onVisible={()=>{}} onHealth={health}/></div>
+     <div className='relative min-h-[260px] bg-black lg:min-h-[390px]'><TvChannelPlayer channel={featured} active onVisible={onPlayerVisible} onHealth={health}/></div>
      <div className='flex flex-col justify-center bg-gradient-to-br from-primary/10 via-background to-background p-6 sm:p-8'>
       <div className='mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary'><Wifi className='h-4 w-4'/> Now streaming</div>
       <h2 className='text-2xl font-black tracking-tight sm:text-3xl'>{featured.name}</h2>
