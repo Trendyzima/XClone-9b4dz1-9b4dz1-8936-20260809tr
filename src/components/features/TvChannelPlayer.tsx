@@ -15,7 +15,7 @@ export function TvChannelPlayer({channel,active,onVisible,onHealth}:Props){
  const networkProfile=useCallback(()=>{const n=(navigator as any).connection;const type=String(n?.effectiveType||'').toLowerCase();const save=Boolean(n?.saveData)||dataSaver;const constrained=save||type==='slow-2g'||type==='2g';const moderate=type==='3g';return {save,constrained,moderate};},[dataSaver]);
  const proxyUrl=useCallback(()=>window.location.origin+'/tv-stream?url='+encodeURIComponent(channel.url),[channel.url]);
 
- useEffect(()=>{const el=wrap.current;if(!el)return;const io=new IntersectionObserver(([e])=>onVisible(channel.id,e.isIntersecting&&e.intersectionRatio>=.58),{threshold:[0,.25,.58,.85]});io.observe(el);return()=>io.disconnect();},[channel.id,onVisible]);
+ useEffect(()=>{const el=wrap.current;if(!el)return;if(typeof IntersectionObserver==='undefined'){onVisible(channel.id,true);return;}const io=new IntersectionObserver(([e])=>onVisible(channel.id,e.isIntersecting&&e.intersectionRatio>=.58),{threshold:[0,.25,.58,.85]});io.observe(el);return()=>io.disconnect();},[channel.id,onVisible]);
 
  const cleanup=useCallback(()=>{if(retryTimer.current)clearTimeout(retryTimer.current);retryTimer.current=null;if(stallTimerRef.current)clearTimeout(stallTimerRef.current);stallTimerRef.current=null;hls.current?.destroy();hls.current=null;const v=ref.current;if(v){v.pause();v.removeAttribute('src');v.load();}},[]);
  const healthy=useCallback(()=>{setStarting(false);setError(false);setNeedsGesture(false);retryRef.current=0;onHealth?.(channel.id,true);},[channel.id,onHealth]);
