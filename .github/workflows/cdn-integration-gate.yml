@@ -33,15 +33,15 @@ jobs:
           grep -F "const CACHE_NAME = 'testagram-virtual-cdn-v1'" src/services/virtualCdnLoader.ts
           grep -F 'const LIVE_SEGMENT_TTL_MS = 20_000' src/services/virtualCdnLoader.ts
           grep -F 'const MAX_CACHED_SEGMENTS = 180' src/services/virtualCdnLoader.ts
-          grep -F 'import { fetchVirtualPeerSegment } from \'@/services/virtualCdnPeers\'' src/services/virtualCdnLoader.ts
+          grep -F "import { fetchVirtualPeerSegment } from '@/services/virtualCdnPeers'" src/services/virtualCdnLoader.ts
           grep -F 'const MAX_PEERS = 3' src/services/virtualCdnPeers.ts
           grep -F 'const MAX_SEGMENT_BYTES = 1_500_000' src/services/virtualCdnPeers.ts
           grep -F 'const PEER_REQUEST_TIMEOUT_MS = 1_000' src/services/virtualCdnPeers.ts
           grep -F 'const SIGNALING_COHORTS = 16_384' src/services/virtualCdnPeers.ts
-          grep -F 'const candidates = [...this.channels.entries()].filter(([peerId, dc]) => dc.readyState === \'open\' && !this.requestingPeers.has(peerId)).slice(0, MAX_PEERS);' src/services/virtualCdnPeers.ts
+          grep -F "const candidates = [...this.channels.entries()].filter(([peerId, dc]) => dc.readyState === 'open' && !this.requestingPeers.has(peerId)).slice(0, MAX_PEERS);" src/services/virtualCdnPeers.ts
           grep -F 'if (!cached || !cached.originVerified || cached.bytes.byteLength < 1 || cached.bytes.byteLength > MAX_SEGMENT_BYTES)' src/services/virtualCdnPeers.ts
           grep -F 'const [firstHash, secondHash] = await Promise.all([digest(responses[0].bytes), digest(responses[1].bytes)]);' src/services/virtualCdnPeers.ts
-          grep -F 'const response = await fetch(url, { method: \'GET\', headers, credentials: \'same-origin\', signal: controller.signal });' src/services/virtualCdnLoader.ts
+          grep -F "const response = await fetch(url, { method: 'GET', headers, credentials: 'same-origin', signal: controller.signal });" src/services/virtualCdnLoader.ts
           grep -F "import VirtualCdnLoader from '@/services/virtualCdnLoader'" src/components/features/TvChannelPlayer.tsx
           grep -F 'loader:VirtualCdnLoader as any' src/components/features/TvChannelPlayer.tsx
           grep -F 'const playbackUrl=proxyFallbackRef.current?proxyUrl():directUrl;' src/components/features/TvChannelPlayer.tsx
