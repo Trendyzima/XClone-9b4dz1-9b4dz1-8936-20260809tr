@@ -38,6 +38,10 @@ jobs:
           grep -F 'const MAX_SEGMENT_BYTES = 1_500_000' src/services/virtualCdnPeers.ts
           grep -F 'const PEER_REQUEST_TIMEOUT_MS = 1_000' src/services/virtualCdnPeers.ts
           grep -F 'const SIGNALING_COHORTS = 16_384' src/services/virtualCdnPeers.ts
+          grep -F "localStorage.getItem('testagram-tv-peer-sharing') === 'on'" src/services/virtualCdnPeers.ts
+          grep -F "if (url.username || url.password || sensitiveUrl(value)) return false;" src/services/virtualCdnPeers.ts
+          grep -F "import {closeVirtualPeerRooms} from '@/services/virtualCdnPeers';" src/components/features/TvChannelPlayer.tsx
+          grep -F "Peer share" src/components/features/TvChannelPlayer.tsx
           grep -F "const candidates = [...this.channels.entries()].filter(([peerId, dc]) => dc.readyState === 'open' && !this.requestingPeers.has(peerId)).slice(0, MAX_PEERS);" src/services/virtualCdnPeers.ts
           grep -F 'if (!cached || !cached.originVerified || cached.bytes.byteLength < 1 || cached.bytes.byteLength > MAX_SEGMENT_BYTES)' src/services/virtualCdnPeers.ts
           grep -F 'const [firstHash, secondHash] = await Promise.all([digest(responses[0].bytes), digest(responses[1].bytes)]);' src/services/virtualCdnPeers.ts
