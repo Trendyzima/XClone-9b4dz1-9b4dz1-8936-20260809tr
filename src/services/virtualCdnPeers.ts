@@ -215,11 +215,11 @@ class StreamPeerRoom {
       } else if (message?.type === 'start') {
         const pending = this.pending.get(message.requestId);
         if (!pending) return;
-        if (!Number.isSafeInteger(message.size) || message.size < 1 || message.size > MAX_SEGMENT_BYTES || typeof message.sha256 !== 'string') {
+        if (message.url !== pending.meta?.url || !Number.isSafeInteger(message.size) || message.size < 1 || message.size > MAX_SEGMENT_BYTES || !/^[a-f0-9]{64}$/.test(message.sha256)) {
           this.finish(message.requestId, null);
           return;
         }
-        pending.meta = message;
+        pending.meta = { ...message, peerId: pending.meta.peerId, expectedUrl: pending.meta.url };
         pending.chunks = [];
         pending.received = 0;
       } else if (message?.type === 'end') {
@@ -230,7 +230,7 @@ class StreamPeerRoom {
         for (const chunk of pending.chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
         const buffer = bytes.buffer;
         const hash = await digest(buffer);
-        if (pending.received !== pending.meta.size || hash !== pending.meta.sha256) {
+        if (pending.received !== pending.meta.size || hash !== pending.meta.sha256 || pending.meta.url !== pending.meta.expectedUrl) {
           this.finish(message.requestId, null);
           return;
         }
@@ -242,7 +242,7 @@ class StreamPeerRoom {
     }
     if (!(data instanceof ArrayBuffer)) return;
     // The only outstanding transfer on a peer channel owns incoming binary frames.
-    const pending = [...this.pending.values()].find((entry) => entry.meta && entry.received < entry.meta.size);
+    const pending = [...this.pending.values()].find((entry) => entry.meta?.peerId === peerId && entry.meta?.size && entry.received < entry.meta.size);
     if (!pending) return;
     if (pending.received + data.byteLength > pending.meta.size) {
       this.finish(pending.requestId, null);
@@ -310,7 +310,7 @@ class StreamPeerRoom {
     const requestFrom = (peerId: string, dc: RTCDataChannel) => new Promise<PeerSegment | null>((resolve) => {
       const requestId = randomId();
       const timer = setTimeout(() => this.finish(requestId, null), PEER_REQUEST_TIMEOUT_MS);
-      this.pending.set(requestId, { requestId, resolve, timer, meta: { peerId }, chunks: [], received: 0 });
+      this.pending.set(requestId, { requestId, resolve, timer, meta: { peerId, url }, chunks: [], received: 0 });
       try { dc.send(JSON.stringify({ type: 'get', requestId, url, room: this.roomName })); }
       catch { this.finish(requestId, null); }
     });
