@@ -5,6 +5,10 @@ const root = process.cwd();
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 const checks = [
   ['Cloudflare serves the dynamic root sitemap', () => read('cloudflare/index.ts').includes("url.pathname === '/sitemap.xml'") && read('cloudflare/index.ts').includes("'/api/sitemap-index': '../api/sitemap-index'")],
+  ['Sitemap handlers have a publishable-key fallback and do not require service-role secrets', () => ['index', 'users', 'community', 'posts', 'threads'].every((name) => {
+    const source = read('api/sitemap-' + name + '.ts');
+    return source.includes('SUPABASE_PUBLISHABLE_KEY') && source.includes('sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya') && source.includes('const supabaseApiKey =');
+  })],
   ['All sitemap handlers are statically bundled and dispatched before dynamic imports', () => {
     const worker = read('cloudflare/index.ts');
     return [
