@@ -165,7 +165,7 @@ async function optimizePublicHtml(response: Response, pathname: string) {
   const robots = seo.noindex ? 'noindex, nofollow' : 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1';
   const schema = JSON.stringify({
     '@context': 'https://schema.org',
-    '@type': seo.type === 'article' ? 'Article' : seo.type === 'profile' ? 'ProfilePage' : seo.type === 'video' ? 'VideoObject' : seo.type === 'collection' ? 'CollectionPage' : 'WebPage',
+    '@type': seo.type === 'article' ? 'Article' : seo.type === 'profile' ? 'ProfilePage' : seo.type === 'video' ? 'WebPage' : seo.type === 'collection' ? 'CollectionPage' : 'WebPage',
     name: seo.title,
     description: seo.description,
     url: seo.canonical,
