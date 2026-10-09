@@ -93,7 +93,7 @@ async function fetchSource(source:any){
  for(let i=0;i<missingImages.length;i+=3){
   const batch=missingImages.slice(i,i+3);
   const resolved=await Promise.all(batch.map(async row=>({url:row.canonical_url,image:await fetchArticleImage(row.canonical_url)})));
-  const byUrl=new Map(resolved.filter(item=>item.image).map(item=>[item.url,item.image]));
+  const byUrl=new Map<string,string>();for(const item of resolved){if(item.image)byUrl.set(item.url,item.image)}
   for(const row of rows){const image=byUrl.get(row.canonical_url);if(image&&!row.image_url)row.image_url=image}
  }
  if(rows.length)await db.from("testagram_rss_items").upsert(rows,{onConflict:"source_id,canonical_url",ignoreDuplicates:false});
