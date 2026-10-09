@@ -37,6 +37,7 @@ const SOURCES: Record<string, Source> = {
 "plex-fast-global": { id:"plex-fast-global", label:"Plex · global FAST channel playlist", url:"https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plex_all.m3u", country:"INT", priority:108, format:"m3u" },
 "samsung-tv-plus-global": { id:"samsung-tv-plus-global", label:"Samsung TV Plus · global FAST channel playlist", url:"https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/samsungtvplus_all.m3u", country:"INT", priority:107, format:"m3u" },
 "roku-fast-global": { id:"roku-fast-global", label:"Roku Channel · global FAST channel playlist", url:"https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/roku_all.m3u", country:"INT", priority:106, format:"m3u" },
+  "italy-openiptv-community": { id:"italy-openiptv-community", label:"Italy · curated public and regional TV playlist", url:"https://raw.githubusercontent.com/xN1ckuz/OpenIPTVItaly/main/OpenIPTVItaly_No_EPG.m3u", country:"IT", priority:105, format:"m3u" },
 };
 
 const cors = {
