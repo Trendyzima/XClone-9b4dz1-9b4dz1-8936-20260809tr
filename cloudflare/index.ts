@@ -586,15 +586,6 @@ export default {
     }
 
     try {
-      if (url.pathname === '/sitemap.xml') {
-        const sitemap = await invokeEdge('/api/sitemap-index', request, env);
-        if (sitemap) {
-          const headers = commonHeaders(new Headers(sitemap.headers));
-          headers.set('Content-Type', 'application/xml; charset=utf-8');
-          headers.set('Cache-Control', 'public, max-age=3600, s-maxage=3600, stale-while-revalidate=21600');
-          return new Response(sitemap.body, { status: sitemap.status, statusText: sitemap.statusText, headers });
-        }
-      }
       if (url.pathname === '/tv-stream') return await handleTvStream(request);
       if (url.pathname.startsWith('/api/')) {
         const limiter = (env as any).RATE_LIMITER;

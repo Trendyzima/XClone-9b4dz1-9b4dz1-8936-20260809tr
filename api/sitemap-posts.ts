@@ -1,3 +1,4 @@
+import { degradedSitemapUrlset } from './sitemap-fallback';
 import { createClient } from '@supabase/supabase-js';
 
 export const config = { runtime: 'edge' };
@@ -22,7 +23,7 @@ export default async function handler(request: Request) {
   if(rawPart!==null&&(!/^\d+$/.test(rawPart)||!Number.isSafeInteger(part)))return new Response('Invalid sitemap part',{status:400,headers:{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store'}});
   const pageSize=50000;
   const {count,error:countError}=await db.from('posts').select('id',{count:'exact',head:true}).is('deleted_at',null).or('visibility.eq.public,visibility.is.null');
-  if(countError)return new Response('Sitemap temporarily unavailable',{status:502});
+  if(countError){console.error('[sitemap-posts] count',countError);return degradedSitemapUrlset(request,'sitemap-posts');}
   const total=Number(count||0), parts=Math.max(1,Math.ceil(total/pageSize));
   if(!hasExplicitPart&&parts>1){
     const body=`<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${Array.from({length:parts},(_,i)=>`<sitemap><loc>${BASE}/api/sitemap-posts?part=${i}</loc></sitemap>`).join('')}</sitemapindex>`;
@@ -31,7 +32,7 @@ export default async function handler(request: Request) {
   if(part>=parts)return new Response('Sitemap part not found',{status:404});
   const from=part*pageSize,to=Math.min(from+pageSize-1,Math.max(0,total-1));
   const {data,error}=await db.from('posts').select('id,updated_at,created_at').is('deleted_at',null).or('visibility.eq.public,visibility.is.null').order('created_at',{ascending:false}).order('id',{ascending:false}).range(from,to);
-  if(error)return new Response('Sitemap temporarily unavailable',{status:502});
+  if(error){console.error('[sitemap-posts] query',error);return degradedSitemapUrlset(request,'sitemap-posts');}
   const urls=(data||[]).map(row=>`<url><loc>${BASE}/post/${encodeURIComponent(String(row.id))}</loc>${row.updated_at||row.created_at?`<lastmod>${esc(String(row.updated_at||row.created_at))}</lastmod>`:''}<changefreq>daily</changefreq><priority>0.6</priority></url>`).join('');
   return new Response(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${urls}</urlset>`,{headers:{'Content-Type':'application/xml; charset=utf-8','Cache-Control':'public, s-maxage=3600, stale-while-revalidate=21600'}});
 }

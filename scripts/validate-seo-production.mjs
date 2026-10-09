@@ -4,11 +4,12 @@ import path from 'node:path';
 const root = process.cwd();
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 const checks = [
-  ['Cloudflare serves the dynamic root sitemap', () => read('cloudflare/index.ts').includes("url.pathname === '/sitemap.xml'") && read('cloudflare/index.ts').includes("'/api/sitemap-index': '../api/sitemap-index'")],
+  ['Root sitemap is a static, host-portable asset rather than a Cloudflare Worker dependency', () => read('public/sitemap.xml').includes('<sitemapindex') && !read('cloudflare/index.ts').includes("url.pathname === '/sitemap.xml'")],
   ['Sitemap handlers have a publishable-key fallback and do not require service-role secrets', () => ['index', 'users', 'community', 'posts', 'threads'].every((name) => {
     const source = read('api/sitemap-' + name + '.ts');
     return source.includes('SUPABASE_PUBLISHABLE_KEY') && source.includes('sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya') && source.includes('const supabaseApiKey =');
   })],
+  ['Sitemap query failures return valid crawlable XML and expose degraded status', () => read('api/sitemap-fallback.ts').includes("'X-Sitemap-Data-Status': 'degraded'") && ['index', 'users', 'community', 'posts', 'threads'].every((name) => read('api/sitemap-' + name + '.ts').includes('degradedSitemap'))],
   ['All sitemap handlers are statically bundled and dispatched before dynamic imports', () => {
     const worker = read('cloudflare/index.ts');
     return [
@@ -22,7 +23,7 @@ const checks = [
       'return sitemapHandler(request);',
     ].every((fragment) => worker.includes(fragment));
   }],
-  ['Cloudflare runs the dynamic root sitemap through the Worker before static assets', () => JSON.parse(read('wrangler.jsonc')).assets.run_worker_first.includes('/sitemap.xml')],
+  ['Root sitemap bypasses Worker-first routing so static hosts can serve it directly', () => !JSON.parse(read('wrangler.jsonc')).assets.run_worker_first.includes('/sitemap.xml') && !read('cloudflare/index.ts').includes("url.pathname === '/sitemap.xml'")],
   ['Static sitemap fallback references valid first chunks for every dynamic sitemap', () => {
     const sitemap = read('public/sitemap.xml');
     return ['users', 'community', 'posts', 'threads'].every((name) => sitemap.includes(`https://testagram.site/api/sitemap-${name}?part=0</loc>`));

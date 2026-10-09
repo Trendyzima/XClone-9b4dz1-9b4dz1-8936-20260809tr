@@ -1,3 +1,4 @@
+import { degradedSitemapUrlset } from './sitemap-fallback';
 import { createClient } from '@supabase/supabase-js';
 
 export const config = { runtime: 'edge' };
@@ -33,7 +34,7 @@ export default async function handler(request: Request) {
 
   if (countError) {
     console.error('[sitemap-community] count', countError);
-    return new Response('Sitemap temporarily unavailable', { status: 502, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    return degradedSitemapUrlset(request, 'sitemap-community');
   }
 
   const total = Number(count ?? 0);
@@ -64,7 +65,7 @@ export default async function handler(request: Request) {
 
   if (error) {
     console.error('[sitemap-community]', error);
-    return new Response('Sitemap temporarily unavailable', { status: 502, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    return degradedSitemapUrlset(request, 'sitemap-community');
   }
 
   const urls = (data ?? []).filter((row) => typeof row.slug === 'string' && row.slug.trim() !== '' && !/^(?:null|undefined)$/i.test(row.slug.trim())).map((row) => {
