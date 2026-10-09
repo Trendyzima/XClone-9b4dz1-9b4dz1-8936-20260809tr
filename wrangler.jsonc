@@ -18,7 +18,8 @@
       "/nodeinfo/*",
       "/users/*",
       "/inbox",
-      "/oauth/*"
+      "/oauth/*",
+      "/sitemap.xml"
     ]
   },
   "routes": [
