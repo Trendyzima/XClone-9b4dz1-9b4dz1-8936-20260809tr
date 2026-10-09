@@ -11,6 +11,7 @@
  * It has no server, CDN account, API key, or paid bandwidth dependency.
  */
 import { fetchVirtualPeerSegment } from '@/services/virtualCdnPeers';
+import { recordVirtualCdnMetric } from '@/services/virtualCdnMetrics';
 
 const CACHE_NAME = 'testagram-virtual-cdn-v1';
 const LIVE_SEGMENT_TTL_MS = 20_000;
@@ -151,10 +152,12 @@ async function fetchFragment(url: string, headers: HeadersInit | undefined, stre
           return result;
         }
       }
+      recordVirtualCdnMetric('originFetch');
       const response = await fetch(url, { method: 'GET', headers, credentials: 'same-origin', signal: controller.signal });
       if (!response.ok) throw Object.assign(new Error(`HTTP ${response.status} ${response.statusText}`), { status: response.status });
       if (response.type === 'opaque') throw new Error('Opaque media response cannot be cached');
       const bytes = await response.arrayBuffer();
+      recordVirtualCdnMetric('originBytes', bytes.byteLength);
       const result: SegmentResult = { url: response.url || url, bytes, contentType: response.headers.get('content-type') || 'application/octet-stream', originVerified: true };
       await saveCached(url, result, 'origin');
       return result;
@@ -204,7 +207,10 @@ export default class VirtualCdnLoader {
     void (async () => {
       try {
         let result: SegmentResult | null = null;
-        if (cacheable) result = await readCached(url);
+        if (cacheable) {
+          result = await readCached(url);
+          recordVirtualCdnMetric(result ? 'cacheHit' : 'cacheMiss');
+        }
         if (this.aborted) return;
         if (cacheable && !result) result = await fetchFragment(url, context?.headers, String(context?.frag?.baseurl || context?.frag?.level?.url || ''));
         if (!cacheable) {
