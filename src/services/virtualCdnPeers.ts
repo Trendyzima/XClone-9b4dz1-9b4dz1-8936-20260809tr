@@ -357,6 +357,7 @@ class StreamPeerRoom {
         if (dc.bufferedAmount > 512 * 1024) {
           const drained = await new Promise<boolean>((resolve) => {
             let settled = false;
+            let timeout: ReturnType<typeof setTimeout>;
             const finish = (ok: boolean) => {
               if (settled) return;
               settled = true;
@@ -364,7 +365,7 @@ class StreamPeerRoom {
               dc.onbufferedamountlow = null;
               resolve(ok);
             };
-            const timeout = setTimeout(() => finish(false), 200);
+            timeout = setTimeout(() => finish(false), 200);
             dc.onbufferedamountlow = () => finish(true);
           });
           if (!drained || dc.bufferedAmount > 512 * 1024) { reject(); return; }
