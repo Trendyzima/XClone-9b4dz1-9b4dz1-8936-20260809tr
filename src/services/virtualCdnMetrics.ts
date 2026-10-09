@@ -6,13 +6,13 @@
  * the custom event to export aggregate telemetry to its own approved backend.
  */
 export type VirtualCdnMetric =
-  | 'cacheHit' | 'cacheMiss' | 'originFetch' | 'originBytes'
+  | 'cacheHit' | 'cacheMiss' | 'cacheBytes' | 'originFetch' | 'originBytes'
   | 'peerRequest' | 'peerHit' | 'peerMiss' | 'peerBytesReceived' | 'peerBytesServed'
   | 'signalingFailure' | 'connectionSuccess' | 'connectionFailure'
   | 'integrityFailure' | 'transferTimeout' | 'playbackStall';
 
 const counters: Record<VirtualCdnMetric, number> = {
-  cacheHit: 0, cacheMiss: 0, originFetch: 0, originBytes: 0,
+  cacheHit: 0, cacheMiss: 0, cacheBytes: 0, originFetch: 0, originBytes: 0,
   peerRequest: 0, peerHit: 0, peerMiss: 0, peerBytesReceived: 0, peerBytesServed: 0,
   signalingFailure: 0, connectionSuccess: 0, connectionFailure: 0,
   integrityFailure: 0, transferTimeout: 0, playbackStall: 0,
@@ -33,10 +33,13 @@ export function recordVirtualCdnMetric(name: VirtualCdnMetric, amount = 1) {
 }
 
 export function getVirtualCdnMetrics() {
-  const totalMediaBytes = counters.originBytes + counters.peerBytesReceived;
+  const totalMediaBytes = counters.originBytes + counters.cacheBytes + counters.peerBytesReceived;
+  const offloadedBytes = counters.cacheBytes + counters.peerBytesReceived;
   return {
     ...counters,
+    // Client-local diagnostic ratio; this is not a fleet-wide production metric.
     peerByteShare: totalMediaBytes > 0 ? counters.peerBytesReceived / totalMediaBytes : 0,
+    clientOffloadByteShare: totalMediaBytes > 0 ? offloadedBytes / totalMediaBytes : 0,
   };
 }
 
