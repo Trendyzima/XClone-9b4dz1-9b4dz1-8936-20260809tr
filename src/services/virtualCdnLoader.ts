@@ -10,6 +10,8 @@
  *
  * It has no server, CDN account, API key, or paid bandwidth dependency.
  */
+import { fetchVirtualPeerSegment } from '@/services/virtualCdnPeers';
+
 const CACHE_NAME = 'testagram-virtual-cdn-v1';
 const LIVE_SEGMENT_TTL_MS = 20_000;
 const MAX_CACHED_SEGMENTS = 180;
@@ -20,8 +22,6 @@ type SegmentResult = { url: string; bytes: ArrayBuffer; contentType: string; ori
 type CacheStats = { start: number; first: number; end: number; loaded: number; total: number; retry: number; chunkCount: number; bwEstimate: number };
 
 const inFlight = new Map<string, Promise<SegmentResult>>();
-
-import { fetchVirtualPeerSegment } from '@/services/virtualCdnPeers';
 
 function now() { return typeof performance !== 'undefined' ? performance.now() : Date.now(); }
 
@@ -131,7 +131,7 @@ async function fetchDirect(url: string, headers: HeadersInit | undefined, signal
   const response = await fetch(url, { method: 'GET', headers: requestHeaders, credentials: 'same-origin', signal });
   if (!response.ok) throw Object.assign(new Error(`HTTP ${response.status} ${response.statusText}`), { status: response.status });
   const bytes = await response.arrayBuffer();
-  return { url: response.url || url, bytes, contentType: response.headers.get('content-type') || 'application/octet-stream', originVerified: false };
+  return { url: response.url || url, bytes, contentType: response.headers.get('content-type') || 'application/octet-stream', originVerified: true };
 }
 
 async function fetchFragment(url: string, headers: HeadersInit | undefined, streamUrl: string): Promise<SegmentResult> {
