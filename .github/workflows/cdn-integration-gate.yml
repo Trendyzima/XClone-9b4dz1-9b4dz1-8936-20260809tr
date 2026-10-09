@@ -20,32 +20,24 @@ jobs:
           submodules: recursive
           persist-credentials: false
 
-      - name: Checkout first-party Go CDN
-        uses: actions/checkout@v4
-        with:
-          repository: Trendyzima/cdn-
-          ref: main
-          path: testagram-cdn
-          persist-credentials: false
-
       - name: Setup Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: testagram-cdn/go.mod
-          cache-dependency-path: testagram-cdn/go.sum
+          go-version-file: services/testagram-cdn/go.mod
+          cache-dependency-path: services/testagram-cdn/go.sum
 
       - name: Verify canonical CDN contract
-        working-directory: testagram-cdn
+        working-directory: services/testagram-cdn
         shell: bash
         run: |
           set -euo pipefail
-          grep -R 'media.testagram.site' internal README.md >/dev/null
+          grep -R 'media.testagram.site' internal docs XCLONE_INTEGRATION.md >/dev/null
           grep -R '2026-10-08-go-edge-iptv-v1' internal >/dev/null
           grep -R 'TV_PREFETCH_SECONDS' internal README.md >/dev/null
           grep -R 'TV_PREFETCH_TIMEOUT' internal README.md >/dev/null
 
       - name: Run CDN correctness suite
-        working-directory: testagram-cdn
+        working-directory: services/testagram-cdn
         run: go test ./...
 
       - name: Verify XClone points at the first-party CDN
