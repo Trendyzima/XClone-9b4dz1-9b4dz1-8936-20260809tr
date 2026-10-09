@@ -1,19 +1,22 @@
-name: Deploy Testagram First-Party CDN
+name: Virtual CDN Verification (no hosted edge deployment)
 
 on:
   push:
     branches: [main]
     paths:
       - "services/testagram-cdn/**"
+      - "src/services/virtualCdnLoader.ts"
+      - ".github/workflows/deploy-testagram-cdn.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "services/testagram-cdn/**"
+      - "src/services/virtualCdnLoader.ts"
       - ".github/workflows/deploy-testagram-cdn.yml"
   workflow_dispatch:
 
 permissions:
   contents: read
-
-concurrency:
-  group: testagram-cdn-host-deployment
-  cancel-in-progress: false
 
 jobs:
   verify:
@@ -27,63 +30,20 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: services/testagram-cdn/go.mod
-      - name: Test
+      - name: Test legacy Go edge code (not deployed)
         run: go test ./...
       - name: Race test
         run: go test -race ./...
       - name: Vet
         run: go vet ./...
-      - name: Build
+      - name: Build legacy Go edge code
         run: go build ./cmd/...
-
-  deploy:
-    needs: verify
-    # A runner installed on Testagram's own Linux host replaces recurring SSH/GHCR secrets.
-    runs-on: [self-hosted, linux, x64]
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v5
-      - name: Validate host-owned runtime configuration
+      - name: Verify no hosted edge deployment is configured
+        working-directory: .
         shell: bash
         run: |
           set -euo pipefail
-          test -f /etc/testagram-edge.env || {
-            echo "::error::Testagram host runtime configuration /etc/testagram-edge.env is missing; deployment will not invent or print secrets."
+          if grep -q 'runs-on: \[self-hosted' .github/workflows/deploy-testagram-cdn.yml; then
+            echo "Self-hosted CDN deployment must stay disabled for the zero-cost virtual CDN." >&2
             exit 1
-          }
-          command -v docker >/dev/null
-          docker info >/dev/null
-      - name: Build and start candidate CDN container
-        shell: bash
-        run: |
-          set -euo pipefail
-          docker build --pull -f services/testagram-cdn/Dockerfile services/testagram-cdn -t testagram-cdn:"${GITHUB_SHA}"
-          # Validate the candidate on a separate local port because the current
-          # production process already owns :8080. Never launch two host-network
-          # containers on the same listen address.
-          docker rm -f testagram-edge-next 2>/dev/null || true
-          docker run -d --name testagram-edge-next --network host --env-file /etc/testagram-edge.env -e LISTEN_ADDR=:18080 -v /var/lib/testagram-edge/cache:/app/cache testagram-cdn:"${GITHUB_SHA}"
-          for attempt in $(seq 1 30); do
-            if curl --fail --silent --show-error --max-time 2 http://127.0.0.1:18080/healthz >/tmp/testagram-cdn-health.json; then
-              grep -q '"service":"testagram-cdn"' /tmp/testagram-cdn-health.json
-              break
-            fi
-            if [ "$attempt" -eq 30 ]; then
-              docker logs testagram-edge-next || true
-              docker rm -f testagram-edge-next || true
-              echo "::error::New CDN process did not become healthy on localhost:18080."
-              exit 1
-            fi
-            sleep 2
-          done
-          # Promote only after the candidate passes health checks.
-          docker rm -f testagram-edge 2>/dev/null || true
-          docker rm -f testagram-edge-next
-          docker run -d --name testagram-edge --restart unless-stopped --network host --env-file /etc/testagram-edge.env -v /var/lib/testagram-edge/cache:/app/cache testagram-cdn:"${GITHUB_SHA}"
-      - name: Verify public media hostname is served by the first-party CDN
-        shell: bash
-        run: |
-          set -euo pipefail
-          curl --fail --silent --show-error --max-time 20 -D /tmp/testagram-cdn-headers -o /tmp/testagram-cdn-body https://media.testagram.site/healthz
-          grep -Eiq '^x-testagram-cdn:[[:space:]]*testagram-edge[[:space:]]*$' /tmp/testagram-cdn-headers
-          grep -q '"service":"testagram-cdn"' /tmp/testagram-cdn-body
+          fi

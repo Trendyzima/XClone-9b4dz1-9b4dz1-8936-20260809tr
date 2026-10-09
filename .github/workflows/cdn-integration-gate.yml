@@ -1,4 +1,4 @@
-name: Testagram CDN Integration Gate
+name: Testagram Virtual CDN Integration Gate
 
 on:
   push:
@@ -10,55 +10,42 @@ permissions:
   contents: read
 
 jobs:
-  xclone-cdn-contract:
+  virtual-cdn-contract:
     runs-on: ubuntu-24.04
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
-      - name: Checkout XClone
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
-          submodules: recursive
           persist-credentials: false
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-go@v5
         with:
           go-version-file: services/testagram-cdn/go.mod
           cache-dependency-path: services/testagram-cdn/go.sum
-
-      - name: Verify canonical CDN contract
-        working-directory: services/testagram-cdn
+      - name: Verify browser virtual CDN contract
         shell: bash
         run: |
           set -euo pipefail
-          grep -R 'media.testagram.site' internal docs >/dev/null
-          grep -R '2026-10-08-go-edge-iptv-v1' internal >/dev/null
-          grep -R 'TV_PREFETCH_SECONDS' internal >/dev/null
-          grep -R 'TV_PREFETCH_TIMEOUT' internal >/dev/null
-
-      - name: Run CDN correctness suite
-        working-directory: services/testagram-cdn
-        run: go test ./...
-
-      - name: Verify XClone points at the first-party CDN
-        shell: bash
-        run: |
-          set -euo pipefail
-          grep -R 'https://media.testagram.site' src supabase .github >/dev/null
-          grep -R 'tv-cdn-playback' src supabase >/dev/null
-
-      - name: Verify IPTV playback is origin-first and CDN optional
-        shell: bash
-        run: |
-          set -euo pipefail
-          grep -F "VITE_TESTAGRAM_CDN_ENABLED || 'false'" src/services/tvCdn.ts >/dev/null
-          grep -F 'let playbackUrl=proxyFallbackRef.current?proxyUrl():directUrl;' src/components/features/TvChannelPlayer.tsx >/dev/null
-          grep -F 'enabled: false' services/testagram-cdn/web/p2p-loader.js >/dev/null
-          if grep -F 'VITE_TESTAGRAM_CDN_ENABLED: "true"' .github/workflows/production-build.yml >/dev/null; then
-            echo 'Production build must not force TV playback through the optional CDN.' >&2
+          grep -F "const CACHE_NAME = 'testagram-virtual-cdn-v1'" src/services/virtualCdnLoader.ts
+          grep -F 'const LIVE_SEGMENT_TTL_MS = 20_000' src/services/virtualCdnLoader.ts
+          grep -F 'const MAX_CACHED_SEGMENTS = 180' src/services/virtualCdnLoader.ts
+          grep -F "import VirtualCdnLoader from '@/services/virtualCdnLoader'" src/components/features/TvChannelPlayer.tsx
+          grep -F 'loader:VirtualCdnLoader as any' src/components/features/TvChannelPlayer.tsx
+          grep -F 'const playbackUrl=proxyFallbackRef.current?proxyUrl():directUrl;' src/components/features/TvChannelPlayer.tsx
+          if grep -F 'tv-cdn-playback' src/components/features/TvChannelPlayer.tsx; then
+            echo 'TV playback must not call a hosted CDN authorization function.' >&2
             exit 1
           fi
-
+          if grep -F 'runs-on: [self-hosted' .github/workflows/deploy-testagram-cdn.yml; then
+            echo 'A self-hosted CDN deployment must not be required.' >&2
+            exit 1
+          fi
+      - name: Test legacy Go code without deployment
+        working-directory: services/testagram-cdn
+        run: go test ./...
       - name: Build XClone
         run: |
           npm ci

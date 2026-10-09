@@ -1,12 +1,31 @@
-// This is intentionally a capability descriptor, not a P2P transport implementation.
-// HTTP origin playback remains authoritative until a real peer-assisted HLS loader is
-// integrated with signaling, segment validation, peer limits, and tested fallback.
-export function p2pConfig(streamId) {
+/**
+ * Testagram virtual CDN capability descriptor.
+ *
+ * Media delivery is origin-first. The active browser HLS loader caches eligible
+ * public segments in the browser Cache API and coalesces concurrent requests.
+ * This file deliberately does not claim cross-device P2P: there is no hosted
+ * signaling service, peer mesh, or always-on edge server in the zero-cost mode.
+ */
+export function virtualCdnConfig(streamId) {
   return {
     streamId,
+    enabled: true,
+    transport: "origin-first-browser-cache",
+    fallback: "original-source",
+    cacheScope: "same-origin-browser-profile",
+    liveSegmentTtlMs: 20000,
+    maxCachedSegments: 180,
+    crossDevicePeers: false,
+    requiresHostedEdge: false,
+  };
+}
+
+// Preserve the old export name for downstream scripts without implying P2P exists.
+export function p2pConfig(streamId) {
+  return {
+    ...virtualCdnConfig(streamId),
     enabled: false,
-    transport: "http-origin-first",
-    fallback: "http",
+    transport: "no-peer-transport",
     maxUploadPeers: 0,
     maxDownloadPeers: 0,
   };
