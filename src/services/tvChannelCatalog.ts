@@ -35,6 +35,7 @@ export const TV_SOURCES: TvSource[] = [
 {id:'plex-fast-global',label:'Plex · global FAST channel playlist',url:'https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plex_all.m3u',country:'INT',priority:108,enabled:true,policy:'community-unverified'},
 {id:'samsung-tv-plus-global',label:'Samsung TV Plus · global FAST channel playlist',url:'https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/samsungtvplus_all.m3u',country:'INT',priority:107,enabled:true,policy:'community-unverified'},
 {id:'roku-fast-global',label:'Roku Channel · global FAST channel playlist',url:'https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/roku_all.m3u',country:'INT',priority:106,enabled:true,policy:'community-unverified'},
+{id:'italy-openiptv-community',label:'Italy · curated public and regional TV playlist',url:'https://raw.githubusercontent.com/xN1ckuz/OpenIPTVItaly/main/OpenIPTVItaly_No_EPG.m3u',country:'IT',priority:105,enabled:true,policy:'community-unverified'},
 ];
 function attr(line:string,key:string){ return line.match(new RegExp(key+'="([^"]*)"'))?.[1]?.trim() || undefined; }
 const clean=(v?:string)=>v?.replace(/\s+/g,' ').trim()||undefined;
