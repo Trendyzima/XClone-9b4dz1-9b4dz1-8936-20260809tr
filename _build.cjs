@@ -308,82 +308,62 @@ button:focus-visible, [role="button"]:focus-visible, a:focus-visible {
 
   fs.writeFileSync(indexHtmlPath, indexHtml, 'utf8');
 
-  // Keep the feed responsive: return primary channels first, then merge the long-tail M3U catalog in the background.
+  // Keep first paint independent of slow third-party M3U providers.
   let iptvApi = original.get(iptvApiPath);
-  const fetchStart = iptvApi.indexOf('async function fetchM3U(url: string, tag: string): Promise<IPTVChannel[]> {');
-  const fetchEnd = iptvApi.indexOf('\nexport function getChannelPage', fetchStart);
-  if (fetchStart < 0 || fetchEnd < 0) throw new Error('[IPTV performance] fetchAllChannels boundaries changed upstream');
-  const fastFetchAllChannels = `async function fetchM3U(url: string, tag: string): Promise<IPTVChannel[]> {\n  try {\n    const res = await fetch(url, { signal: AbortSignal.timeout(12000) });\n    if (!res.ok) return [];\n    const text = await res.text();\n    if (!text.includes('#EXTINF')) return [];\n    return parseM3U(text, tag);\n  } catch (error) { console.warn('[IPTV] Playlist failed:', tag, error); return []; }\n}\n\nasync function fetchExtraSources(): Promise<IPTVChannel[]> {\n  const all: IPTVChannel[] = [];\n  // Background enrichment only; this no longer gates first feed paint.\n  for (let i = 0; i < EXTRA_SOURCES.length; i += 8) {\n    const batch = EXTRA_SOURCES.slice(i, i + 8);\n    const results = await Promise.all(batch.map(([tag, url]) => fetchM3U(url, tag)));\n    for (const r of results) all.push(...r);\n  }\n  return all;\n}\n\nexport async function fetchAllChannels(): Promise<IPTVChannel[]> {
-  if (memCache && memCache.length > 0) return memCache;
-
-  try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    if (raw) {
-      const data: CacheData = JSON.parse(raw);
-      if (Date.now() - data.timestamp < CACHE_TTL && data.channels.length > 100) {
-        console.log('[IPTV] Cache hit:', data.channels.length, 'channels');
-        memCache = data.channels;
-        return memCache;
-      }
-    }
-  } catch {}
-
-  if (channelFetchPromise) return channelFetchPromise;
-  channelFetchPromise = (async () => {
-    const [chanRes, streamRes] = await Promise.all([
+  const originalPrimaryFetch = `const [chanRes, streamRes, extraChannels] = await Promise.all([
+      fetch(CHANNELS_API),
+      fetch(STREAMS_API),
+      fetchExtraSources(),
+    ]);`;
+  const fastPrimaryFetch = `const [chanRes, streamRes] = await Promise.all([
       fetch(CHANNELS_API, { signal: AbortSignal.timeout(12000) }),
       fetch(STREAMS_API, { signal: AbortSignal.timeout(12000) }),
     ]);
-    if (!chanRes.ok || !streamRes.ok) throw new Error('Primary IPTV API error');
-    const rawChannels: RawChannel[] = await chanRes.json();
-    const rawStreams: RawStream[] = await streamRes.json();
-    const streamMap = new Map<string, string>();
-    for (const item of rawStreams) {
-      if (item.channel && item.url && !streamMap.has(item.channel)) streamMap.set(item.channel, item.url);
-    }
-    const primary: IPTVChannel[] = rawChannels
-      .filter(ch => !ch.is_nsfw && ch.name && streamMap.has(ch.id))
-      .map(ch => ({
-        id: ch.id, name: ch.name, logo: ch.logo || genLogoUrl(ch.name),
-        country: ch.country || 'INT', countryCode: ch.country || 'INT',
-        languages: ch.languages || [], categories: ch.categories?.length ? ch.categories : ['general'],
-        streamUrl: streamMap.get(ch.id)!, alt_names: ch.alt_names || [],
-        website: ch.website, network: ch.network,
-      }));
-    memCache = shuffle(primary);
-    console.log('[IPTV] Fast start: ' + memCache.length + ' primary channels; extra playlists loading in background');
+    const extraChannels: IPTVChannel[] = [];`;
+  if (!iptvApi.includes(originalPrimaryFetch)) throw new Error('[IPTV performance] primary fetch anchor changed upstream');
+  iptvApi = iptvApi.replace(originalPrimaryFetch, fastPrimaryFetch);
 
-    // Never block first paint/playback on dozens of third-party playlist hosts.
-    void fetchExtraSources().then(extraChannels => {
-      const current = memCache || [];
-      const ids = new Set(current.map(ch => ch.id));
-      const urls = new Set(current.map(ch => ch.streamUrl));
-      const extra = extraChannels.filter(ch => !ids.has(ch.id) && !urls.has(ch.streamUrl) && ch.streamUrl && ch.name && ch.name.length > 1);
-      if (extra.length) {
-        memCache = [...current, ...extra];
-        console.log('[IPTV] Background catalog merged: +' + extra.length + ' channels');
-        try { localStorage.setItem(CACHE_KEY, JSON.stringify({ channels: memCache, timestamp: Date.now() })); } catch {}
-        if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('iptv:channels-updated', { detail: memCache }));
-      } else {
-        try { localStorage.setItem(CACHE_KEY, JSON.stringify({ channels: current, timestamp: Date.now() })); } catch {}
-      }
-    }).catch(error => console.warn('[IPTV] Background playlist enrichment failed:', error));
+  const helperEnd = `  return all;
+}
 
-    return memCache;
-  })().catch(error => {
-    console.error('[IPTV] Primary fetch failed, using fallback:', error);
-    memCache = getFallbackChannels();
-    return memCache;
-  }).finally(() => { channelFetchPromise = null; });
-  return channelFetchPromise;
-}`;
-  if (!iptvApi.includes('let channelFetchPromise: Promise<IPTVChannel[]> | null = null;')) {
-    iptvApi = iptvApi.replace('let memCache: IPTVChannel[] | null = null;', 'let memCache: IPTVChannel[] | null = null;\nlet channelFetchPromise: Promise<IPTVChannel[]> | null = null;');
-  }
-  iptvApi = iptvApi.slice(0, fetchStart) + fastFetchAllChannels + iptvApi.slice(fetchEnd);
+export async function fetchAllChannels(): Promise<IPTVChannel[]> {`;
+  const helperEnhanced = `  return all;
+}
+
+function mergeExtraChannels(extraChannels: IPTVChannel[]) {
+  const current = memCache || [];
+  const ids = new Set(current.map(ch => ch.id));
+  const urls = new Set(current.map(ch => ch.streamUrl));
+  const extra = extraChannels.filter(ch => !ids.has(ch.id) && !urls.has(ch.streamUrl) && ch.streamUrl && ch.name && ch.name.length > 1);
+  if (!extra.length) return;
+  memCache = [...current, ...extra];
+  console.log('[IPTV] Background catalog merged: +' + extra.length + ' channels');
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify({ channels: memCache, timestamp: Date.now() })); } catch {}
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('iptv:channels-updated', { detail: memCache }));
+}
+
+export async function fetchAllChannels(): Promise<IPTVChannel[]> {`;
+  if (!iptvApi.includes(helperEnd)) throw new Error('[IPTV performance] M3U helper boundary changed upstream');
+  iptvApi = iptvApi.replace(helperEnd, helperEnhanced);
+
+  const cachedReturn = `        memCache = data.channels;
+        return memCache;`;
+  const cachedFastReturn = `        memCache = data.channels;
+        void fetchExtraSources().then(mergeExtraChannels).catch(error => console.warn('[IPTV] Background playlist enrichment failed:', error));
+        return memCache;`;
+  if (!iptvApi.includes(cachedReturn)) throw new Error('[IPTV performance] cache-hit anchor changed upstream');
+  iptvApi = iptvApi.replace(cachedReturn, cachedFastReturn);
+
+  const primaryReturn = `    memCache = all;
+    return memCache;`;
+  const primaryFastReturn = `    memCache = all;
+    void fetchExtraSources().then(mergeExtraChannels).catch(error => console.warn('[IPTV] Background playlist enrichment failed:', error));
+    return memCache;`;
+  if (!iptvApi.includes(primaryReturn)) throw new Error('[IPTV performance] primary return anchor changed upstream');
+  iptvApi = iptvApi.replace(primaryReturn, primaryFastReturn);
   fs.writeFileSync(iptvApiPath, iptvApi, 'utf8');
 
-  // Reflect background playlist enrichment without resetting the user's current feed position.
+  // Refresh visible channels when the background catalog is ready without resetting feed position.
   let channelsHook = original.get(channelsHookPath);
   const hookCleanup = "    return () => { mounted = false; };";
   const hookEnhancedCleanup = `    const onChannelsUpdated = (event: Event) => {
