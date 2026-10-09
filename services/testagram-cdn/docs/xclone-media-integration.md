@@ -1,38 +1,30 @@
-# XClone media integration and 500k scaling
+# Testagram TV playback and optional CDN integration
 
-## Canonical data path
+## Default playback path: origin-first
 
-1. XClone uploads the object directly to the Cloudflare R2 `testagram-media` bucket using its presigned S3 URL.
-2. XClone stores only the stable object key (`users/<user-id>/<uuid>.<ext>`) and the CDN URL in `media_assets`/`post_media`.
-3. The CDN's `GET /v1/media/url?path=<object-key>` contract returns the canonical public URL.
-4. Public media requests use `/v1/<object-key>` and are served by this Go CDN.
-5. The Go CDN reads the object from the configured R2 public/custom-domain origin, caches it locally, coalesces concurrent misses, and serves stale data during short origin failures.
+Testagram IPTV playback must remain usable even when the standalone Go CDN has no host or is temporarily unavailable.
 
-Cloudflare remains the public DNS/WAF/cache boundary. If the R2 bucket is exposed through a Cloudflare custom domain, set `R2_PUBLIC_BASE_URL` to that bucket domain and keep `PUBLIC_BASE_URL=https://media.testagram.site`. Cloudflare documents that R2 custom domains provide cached public access and that Smart Tiered Cache can reduce repeated R2 origin fetches. See the Cloudflare R2 public bucket and cache documentation.
+1. The player starts with the public channel's original HLS or media URL.
+2. The player uses HLS.js where required, adapts quality to constrained networks, buffers ahead before starting, and retries recoverable network/media errors.
+3. If direct playback fails, the player can try Testagram's same-origin `/tv-stream` proxy where that route is deployed and the upstream permits it.
+4. The first-party Go CDN is optional and disabled by default. Enable it only after the public endpoint, TLS, HLS playlist rewriting, segment delivery, and health checks have been verified against a real deployment.
 
-## Host routing
+Direct playback still depends on the upstream stream being online and allowing browser playback (including CORS where applicable). No player can guarantee zero buffering on every network or for a broken/overloaded upstream. Measure startup time, rebuffer ratio, fatal errors, bitrate switches, and source health rather than claiming zero stalls without data.
 
-`media.testagram.site/*` must terminate at the deployed Go CDN service (directly or through a Cloudflare Worker/route proxy). Do not leave the old R2-only Worker as the authoritative `/v1/*` origin, because that bypasses this repository's cache plane.
+## No mandatory Cloudflare or R2 dependency for IPTV
 
-`cdn.testagram.site` may remain the control/health hostname. The application-facing URL contract is `media.testagram.site/v1/...`.
+The default public IPTV path does not require Cloudflare, R2 credentials, or a separately hosted Go CDN. Public playlist/catalog metadata may be refreshed from its published origin and media is fetched from the selected stream origin. Do not add private provider keys to client code or expose credentials in playlist URLs.
 
-## 500k target
+The Go CDN code remains an optional first-party cache service. Its local cache and request coalescing provide value only when a reachable instance is deployed and the player is explicitly configured to use it. This repository does not claim that the CDN is deployed merely because its source code exists.
 
-The repository now includes an opt-in 500,000 logical-viewer fan-out test. It proves request coalescing and cache fan-out for a single hot object; it is not a claim that one VM can transmit 500,000 real Internet streams.
+## Peer-assisted delivery status
 
-Real 500k delivery requires Cloudflare/global edge caching plus multiple CDN nodes, adequate aggregate egress, origin shielding and measured SLOs. A 2 Mbps average bitrate at 500,000 viewers is approximately 1 Tbps of aggregate viewer egress, so capacity must be distributed across the edge network.
+`web/p2p-loader.js` is currently a capability descriptor, not a peer-to-peer media transport, and is deliberately disabled. Do not advertise P2P offload until a real HLS/WebRTC loader is integrated with signaling, peer admission limits, segment integrity checks, upload/download budgets, privacy controls, and HTTP fallback. Peer-assisted delivery must remain an optional optimization; HTTP origin playback must continue to work when there are no peers or WebRTC is blocked.
 
-Promote capacity in stages: 1k -> 5k -> 10k -> 25k -> 50k -> 100k -> 250k -> 500k. Record p50/p95/p99 latency, error rate, cache hit ratio, origin requests, egress, CPU, memory, open connections and rebuffer rate at every stage.
+## Capacity and validation
 
-## Required production configuration
+A code-level fan-out test does not prove production bandwidth for millions of viewers. Before making capacity claims, run staged load tests and record p50/p95/p99 startup and segment latency, HTTP error rate, cache hit ratio, origin request rate, egress, concurrent connections, memory, CPU, and player rebuffer ratio. Scaling requires measured delivery capacity; GitHub Actions is a build/test system, not a media host.
 
-- `PUBLIC_BASE_URL=https://media.testagram.site`
-- `MEDIA_URL_PREFIX=/v1`
-- `R2_PUBLIC_BASE_URL=<private-or-custom R2 delivery origin reachable by the CDN>`
-- `ORIGIN_URLS=<one or more authenticated application/origin fallbacks>`
-- `SHIELD_URLS=<shield CDN nodes>`
-- `EDGE_URLS=<regional CDN nodes>`
-- `TRUST_CLOUDFLARE=1` only when the service is reachable exclusively through trusted Cloudflare proxying
-- `RATE_LIMIT_PER_MIN` and `RATE_LIMIT_BURST` sized for the deployed node and protected at the Cloudflare layer
+## Optional CDN production contract
 
-Do not put R2 access keys in XClone client code or in media URLs.
+If the Go CDN is deployed later, validate the real public hostname and service before setting `VITE_TESTAGRAM_CDN_ENABLED=true`. Check health, TLS, playlist rewrite, segment range requests, cache behavior, CORS, and recovery from upstream errors. Keep playback origin-first until those checks pass.
