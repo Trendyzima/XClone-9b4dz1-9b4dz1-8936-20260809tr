@@ -4,6 +4,8 @@ User-agent: *
 Allow: /$
 Allow: /explore
 Allow: /videos
+Allow: /tv
+Allow: /iptv
 Allow: /threads
 Allow: /communities
 Allow: /spaces
