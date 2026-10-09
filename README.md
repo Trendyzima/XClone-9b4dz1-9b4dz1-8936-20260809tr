@@ -8,35 +8,46 @@ Find the right XClone experience for your device below: download the Android APK
 
 > **Release status:** Android APK/AAB assets are published through GitHub Releases. The separate Android TV project has a successful debug-build CI path; a stable, signed public TV release and real-device validation remain release gates. See the platform table before installing.
 
-## Download XClone for your device
+## Get XClone for your device
 
-| Platform | What you can use | Download / launch | Availability |
-|---|---|---|---|
-| **Android phones and tablets** | Android app package (APK); Android App Bundle (AAB) is provided for distribution workflows | [Latest Android release and APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest) | APK available from GitHub Releases |
-| **Android TV and Google TV** | Separate TV app package ID `com.xclone.app.tv`, with Leanback launcher and remote/D-pad support | [TV build workflow and artifacts](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/workflows/ci.yml) · [TV project instructions](android-tv/README.md) | Debug APK builds in CI; signed public release and physical-TV validation pending |
-| **iPhone and iPad (iOS/iPadOS)** | Use the responsive XClone web app in Safari; you can use Safari's Add to Home Screen feature where available | [Open XClone in Safari](https://testagram.site/) | Web experience; this repository does not currently provide a native iOS IPA or App Store listing |
-| **Desktop and other browsers** | Responsive web app | [Open XClone](https://testagram.site/) | Web |
-| **Desktop native client** | Tauri desktop project | [Desktop setup](desktop/README.md) | Development/build instructions in repository |
+Choose the download that matches your device. **Android phone/tablet builds are published as release assets. Android TV is still in testing. iPhone and iPad users can use the web app; there is no native iOS download in this repository.**
 
-### Android APK download
+| Platform | Best way to get XClone | Availability |
+|---|---|---|
+| **Android phone or tablet** | **[Download the latest APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest/download/app-release.apk)** · [View release notes and all assets](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest) · [AAB for distribution](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest/download/app-release.aab) | APK and AAB are attached to published Android releases |
+| **Android TV / Google TV** | [Inspect TV build runs](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/workflows/ci.yml) · [TV setup guide](android-tv/README.md) | CI debug APK for testing; signed public TV release and real-device validation are not complete |
+| **iPhone / iPad** | **[Open XClone in Safari](https://testagram.site/)** | Responsive web app; no native iOS IPA or App Store listing is published from this repository |
+| **Desktop / other browsers** | [Open XClone](https://testagram.site/) | Web app |
+| **Native desktop client** | [Desktop setup and development](desktop/README.md) | Project source and development instructions |
 
-1. Open the [latest XClone/Testagram Android release](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest).
-2. Download **`app-release.apk`** to an Android device.
-3. Review the release notes and Android's installation prompts before installing.
-4. Sign in to access account features that require authentication.
+### Android: download and install
 
-**Important signing note:** the current Android release workflow generates temporary CI signing material. Until a stable Android signing identity is configured and verified across releases, an APK update may not install over an APK signed with a different certificate. Back up or sync important account data and read the release notes before replacing an existing installation. Do not treat CI-generated signing as proof of a final, stable production release.
+1. Tap **[Download the latest XClone APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest/download/app-release.apk)** on your Android phone or tablet.
+2. When the download completes, open the APK and follow Android's installation prompts. If Android asks, allow installation from the browser or file manager you used to download it.
+3. Open XClone and sign in to use account features that require authentication.
+4. For the version number, release notes, and alternative assets, use the [latest release page](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest).
 
-### Android TV and Google TV
+**Before upgrading:** the current Android release workflow uses temporary CI signing material. Builds signed with different certificates may not install as in-place updates over each other. Do not uninstall an existing app unless you understand the impact on locally stored data; check the release notes and confirm your account data is available before replacing an installation. A published APK is not, by itself, evidence of a stable signing identity or Play Store approval.
 
-The TV client is a separate Android project and package, designed to open the existing XClone web experience from a TV launcher. The current CI workflow builds and verifies a debug APK. Downloadable workflow artifacts may require a GitHub sign-in and are intended for testing, not general public distribution.
+### Android TV and Google TV: testing build
 
-- [Build and verification workflow](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/workflows/ci.yml)
-- [TV app build instructions](android-tv/README.md)
-- [TV signed-release workflow source](.github/workflows/xclone-tv-release.yml)
+XClone TV is a separate Android app (**com.xclone.app.tv**) that opens the existing web experience and provides a TV launcher entry point with remote/D-pad navigation support. It is **not yet advertised as a production-ready TV release**.
 
-Remote navigation, authentication, Back behavior, and IPTV/video playback still need validation on real Android TV or Google TV hardware before the TV app can be described as a fully validated consumer release.
+- [View CI builds and available artifacts](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/workflows/ci.yml) — artifacts are temporary, may require GitHub sign-in, and are intended for testers.
+- [Read the TV build instructions](android-tv/README.md).
+- [Review the TV signed-release workflow](.github/workflows/xclone-tv-release.yml).
 
+The automated TV APK build passed in [Testagram CI run #37918010514](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/runs/37918010514). That confirms the build and its verification steps, **not** physical-device compatibility. Remote focus order, login/session persistence, Back behavior, video playback, and IPTV playback still require testing on actual Android TV or Google TV hardware before a public TV release can be called fully validated.
+
+### iPhone and iPad: use XClone on the web
+
+Open **[testagram.site](https://testagram.site/)** in Safari and sign in. If you want an icon on your Home Screen, use Safari's **Share → Add to Home Screen** option when available on your device.
+
+This is the responsive web experience—not a native iOS app. This repository currently has no published IPA, native iOS project release, or App Store listing.
+
+### Desktop
+
+Use [XClone in your browser](https://testagram.site/) for the web experience. Developers interested in the native desktop project can follow the [Tauri desktop instructions](desktop/README.md).
 ## What can you do with XClone?
 
 XClone brings social networking, short videos, live experiences, communities, creator tools, discovery, and commerce into one connected product. Feature availability may depend on account permissions, configuration, integrations, and rollout status.
@@ -212,16 +223,24 @@ Never place Supabase service-role keys, payment secrets, private API credentials
 - Keep privileged credentials server-side and protect payment, moderation, administration and account operations with authorization.
 - Validate the exact commit through CI and check deployment status separately from build status.
 
-## CI and release validation
+## Build and release verification
 
-A successful workflow confirms only the checks actually executed by that workflow. It does not independently prove that every production route, IPTV channel, payment provider, or device combination works.
+**Current result:** the automated checks for the README/platform update completed successfully on 9 October 2026. This is a code/build result, not a claim that every feature or device has been manually tested.
 
-- [GitHub Actions workflows](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions)
-- [Published releases](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases)
-- [Android TV project](android-tv/README.md)
+| Check | Result | Evidence |
+|---|---|---|
+| Web build and checks | Passed | [Testagram CI](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/runs/37918010514) |
+| Android TV debug APK build and verification | Passed in CI | [TV build job in Testagram CI](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/runs/37918010514) |
+| Edge-function checks | Passed | [Testagram CI](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/runs/37918010514) |
+| Production build gate | Passed | [Production Build Gate](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/runs/37918010280) |
+| Frontend production quality gate | Passed | [Frontend Production Quality Gate](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/runs/37918010395) |
+| CDN integration gate | Passed | [CDN Integration Gate](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/runs/37918010304) |
+| TV hardware, sign-in and IPTV playback | **Not yet verified on physical TV hardware** | Requires device testing |
+| Stable Android TV release signing | **Pending** | Configure and protect the long-lived signing identity before publishing a signed TV release |
 
-Before promoting a build to general users, verify the signing identity across versions, install and upgrade behavior, login/session persistence, Back navigation, video playback, IPTV playback, and the target device class.
+For the live status of future commits, check [all GitHub Actions runs](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions). A green workflow only proves the checks that workflow actually ran; it does not guarantee that every production route, IPTV stream, payment integration, or device combination works.
 
+Before calling a release production-ready, validate the signing certificate and upgrade path, fresh install, login/session persistence, Back navigation, video playback, IPTV playback, and target device compatibility. Android TV remote and playback checks require a real Android TV or Google TV device.
 ## SEO and discoverability
 
 This README intentionally describes the product in natural language so users and search engines can understand the supported platform paths and feature areas. Relevant search topics include:
