@@ -18,6 +18,13 @@ set category = excluded.category,
     next_fetch_at = least(testagram_rss_sources.next_fetch_at, now() - interval '1 day'),
     updated_at = now();
 
+-- Bring already-ingested sports rows under the same three-hour TTL immediately.
+update public.testagram_rss_items
+set expires_at = least(expires_at, fetched_at + interval '3 hours')
+where category = 'sports';
+delete from public.testagram_rss_items
+where category = 'sports' and expires_at <= now();
+
 -- Imported sports headlines have a maximum three-hour lifetime; general RSS
 -- content keeps the existing six-hour TTL assigned by the ingestion worker.
 comment on table public.testagram_rss_items is
