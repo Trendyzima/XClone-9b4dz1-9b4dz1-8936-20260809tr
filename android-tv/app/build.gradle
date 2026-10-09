@@ -10,8 +10,8 @@ android {
         applicationId 'com.xclone.app.tv'
         minSdk 24
         targetSdk 36
-        versionCode (providers.gradleProperty('tvVersionCode').orNull ?: '1').toInteger()
-        versionName providers.gradleProperty('tvVersionName').orNull ?: '1.0.0'
+        versionCode (project.providers.gradleProperty('tvVersionCode').orNull ?: '1').toInteger()
+        versionName project.providers.gradleProperty('tvVersionName').orNull ?: '1.0.0'
     }
 
     compileOptions {
@@ -22,12 +22,12 @@ android {
     signingConfigs {
         release {
             // Injected only by the protected release workflow; never commit signing material.
-            def storePath = providers.gradleProperty('XCLONE_TV_STORE_FILE').orNull
+            def storePath = project.providers.gradleProperty('XCLONE_TV_STORE_FILE').orNull
             if (storePath) {
                 storeFile file(storePath)
-                storePassword providers.gradleProperty('XCLONE_TV_STORE_PASSWORD').get()
-                keyAlias providers.gradleProperty('XCLONE_TV_KEY_ALIAS').get()
-                keyPassword providers.gradleProperty('XCLONE_TV_KEY_PASSWORD').get()
+                storePassword project.providers.gradleProperty('XCLONE_TV_STORE_PASSWORD').get()
+                keyAlias project.providers.gradleProperty('XCLONE_TV_KEY_ALIAS').get()
+                keyPassword project.providers.gradleProperty('XCLONE_TV_KEY_PASSWORD').get()
             }
         }
     }
