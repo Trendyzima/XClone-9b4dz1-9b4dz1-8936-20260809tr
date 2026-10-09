@@ -17,6 +17,7 @@ import { FederatedHashtagDiscovery } from '@/components/features/FederatedOrgani
 import { loadPublisherFeed, PublisherFeedCard, type FeedItem } from '@/components/features/PublisherFeedStream';
 import { TvPostStream } from '@/components/features/TvPostStream';
 import { NewsifyTrendingRail } from '@/components/features/NewsifyTrendingRail';
+import { OrganicSportsStories } from '@/components/features/OrganicSportsStories';
 
 const LiveSpacesDiscoveryStrip = lazy(() => import('@/components/features/LiveSpacesDiscoveryStrip').then(m => ({ default: m.LiveSpacesDiscoveryStrip })));
 const SyndicatedNewsRail = lazy(() => import('@/components/features/SyndicatedNewsRail').then(m => ({ default: m.SyndicatedNewsRail })));
@@ -499,6 +500,7 @@ export default function HomeHubPage(){
     </div>
     <FederatedHashtagDiscovery surface="home" />
     <NewsifyTrendingRail />
+    {(tab==='all'||tab==='explore'||tab==='media')&&<OrganicSportsStories surface="home" limit={4} compact />}
     <ComposePost onSuccess={()=>load(tab)}/>
     {!loading&&newCount>0&&<button onClick={()=>{window.scrollTo({top:0,behavior:'smooth'});setNewCount(0)}} className="w-full py-2 bg-primary/5 text-xs font-semibold text-primary">{newCount} new post{newCount===1?'':'s'} · Tap to view</button>}
     {!loading&&<button onClick={refresh} disabled={refreshing} className="w-full py-2 border-b border-border text-xs text-muted-foreground flex items-center justify-center gap-2"><RefreshCw className={'w-3 h-3 '+(refreshing?'animate-spin':'')}/>{refreshing?'Refreshing…':'Refresh feed'}</button>}

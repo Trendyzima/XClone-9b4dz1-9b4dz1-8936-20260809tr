@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { useSEO } from '@/hooks/useSEO';
 import * as federation from '@/api/federation';
 import { TopBar } from '@/components/layout/TopBar';
+import { OrganicSportsStories } from '@/components/features/OrganicSportsStories';
 
 interface SuggestedUser {
   id: string;
@@ -240,6 +241,7 @@ export default function DiscoverPage({ section, standalone = false }: { section?
       </div>
 
       <DiscoverAdBanner />
+      <OrganicSportsStories surface="discover" limit={4} />
 
       <div className="divide-y divide-border">
         {loading ? (
