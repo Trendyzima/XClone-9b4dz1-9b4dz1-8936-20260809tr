@@ -97,7 +97,6 @@ Disallow: /
 # ── Sitemaps ─────────────────────────────────────────────────────────────────
 Sitemap: https://testagram.site/sitemap.xml
 
-# Search crawlers are explicitly allowed to discover all public content.
-# Private/admin routes remain blocked above; public profile/post/community URLs are indexable.
+# Standard search crawlers inherit the default group's public allow rules and private/admin exclusions.
 
 Crawl-delay: 1
