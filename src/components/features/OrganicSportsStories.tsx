@@ -76,6 +76,7 @@ export function OrganicSportsStories({ surface, query = '', limit = 3, compact =
   const [matches, setMatches] = useState<ScoreMatch[]>([]);
   const [scoresLoading, setScoresLoading] = useState(true);
   const [loading, setLoading] = useState(true);
+  const [expandedStoryId, setExpandedStoryId] = useState<string | null>(null);
   const relevant = surface !== 'search' || (query.trim().length > 0 && SPORTS_QUERY.test(query));
 
   useEffect(() => {
@@ -171,12 +172,18 @@ export function OrganicSportsStories({ surface, query = '', limit = 3, compact =
         <div className={compact ? 'flex gap-3 overflow-x-auto px-4 pb-2' : 'grid gap-3 px-4 sm:grid-cols-2'}>
           {stories.slice(0, limit).map(story => (
             <article key={story.id} className={compact ? 'w-[min(82vw,320px)] shrink-0 overflow-hidden rounded-xl border bg-card' : 'overflow-hidden rounded-xl border bg-card'}>
-              {story.image_url && <a href={story.canonical_url} target="_blank" rel="noreferrer" aria-label={'Read ' + story.title}><img src={story.image_url} alt="" loading="lazy" decoding="async" className={compact ? 'h-28 w-full object-cover' : 'h-36 w-full object-cover'} /></a>}
+              {story.image_url && <img src={story.image_url} alt="" loading="lazy" decoding="async" className={compact ? 'h-28 w-full object-cover' : 'h-36 w-full object-cover'} />}
               <div className="p-3">
                 <div className="mb-1 flex items-center gap-1.5 text-[11px] text-muted-foreground"><Newspaper className="h-3 w-3 shrink-0" /><span className="truncate">{story.testagram_rss_source_profiles?.display_name || 'Sports publisher'}</span>{story.published_at && <><span>·</span><span className="shrink-0">{age(story.published_at)}</span></>}</div>
-                <h3 className="line-clamp-2 text-sm font-bold leading-snug">{story.title}</h3>
-                {!compact && story.excerpt && <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-muted-foreground">{story.excerpt}</p>}
-                <a href={story.canonical_url} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">Read at source <ExternalLink className="h-3 w-3" /></a>
+                <button type="button" aria-expanded={expandedStoryId === story.id} onClick={() => setExpandedStoryId(current => current === story.id ? null : story.id)} className="block w-full text-left text-sm font-bold leading-snug hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-sm">{story.title}</button>
+                {expandedStoryId === story.id && (
+                  <div className="mt-2 rounded-lg bg-muted/50 p-3">
+                    <p className="text-xs leading-5 text-muted-foreground">{story.excerpt || 'This headline is provided by the publisher. Open the original report below for the complete article.'}</p>
+                    <a href={story.canonical_url} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-primary hover:underline">Open original article <ExternalLink className="h-3 w-3" /></a>
+                  </div>
+                )}
+                {expandedStoryId !== story.id && <button type="button" onClick={() => setExpandedStoryId(story.id)} className="mt-2 block text-xs font-semibold text-primary hover:underline">View story here</button>}
+                <a href={story.canonical_url} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-primary hover:underline">Original source link <ExternalLink className="h-3 w-3" /></a>
               </div>
             </article>
           ))}
