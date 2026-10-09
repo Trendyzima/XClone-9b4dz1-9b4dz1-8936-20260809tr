@@ -33,6 +33,10 @@ const SOURCES: Record<string, Source> = {
   "portugal-free-tv": { id:"portugal-free-tv", label:"Portugal · Portuguese-language free TV", url:"https://raw.githubusercontent.com/cesarsferreira/m3u/main/tv.m3u", country:"PT", priority:112, format:"m3u" },
   "indonesia-community": { id:"indonesia-community", label:"Indonesia · community public TV playlist", url:"https://raw.githubusercontent.com/riotryulianto/iptv-playlists/main/playlist.m3u", country:"ID", priority:111, format:"m3u" },
   "xumo-community": { id:"xumo-community", label:"Xumo · community-generated channel playlist", url:"https://raw.githubusercontent.com/BuddyChewChew/xumo-playlist-generator/main/playlists/xumo_playlist.m3u", country:"INT", priority:110, format:"m3u" },
+"south-africa-community": { id:"south-africa-community", label:"South Africa · community public TV playlist", url:"https://raw.githubusercontent.com/KrugerAdrian/IPTV-South-Africa/main/South-Africa.m3u", country:"ZA", priority:109, format:"m3u" },
+"plex-fast-global": { id:"plex-fast-global", label:"Plex · global FAST channel playlist", url:"https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plex_all.m3u", country:"INT", priority:108, format:"m3u" },
+"samsung-tv-plus-global": { id:"samsung-tv-plus-global", label:"Samsung TV Plus · global FAST channel playlist", url:"https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/samsungtvplus_all.m3u", country:"INT", priority:107, format:"m3u" },
+"roku-fast-global": { id:"roku-fast-global", label:"Roku Channel · global FAST channel playlist", url:"https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/roku_all.m3u", country:"INT", priority:106, format:"m3u" },
 };
 
 const cors = {
