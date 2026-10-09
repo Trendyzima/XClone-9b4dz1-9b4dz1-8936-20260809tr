@@ -25,6 +25,8 @@ const checks = [
   }],
   ['TV route has a crash boundary and page-specific SEO', () => ['/tv', '/tv/channels', '/tv/reels'].every((route) => read('src/App.tsx').includes('path="' + route + '" element={<TvPageErrorBoundary><TvChannelsPage/></TvPageErrorBoundary>}')) && read('src/pages/TvChannelsPage.tsx').includes('useSEO({')],
   ['TV data loading always leaves the loading state', () => read('src/pages/TvChannelsPage.tsx').includes('finally{\n   setLoading(false);') || read('src/pages/TvChannelsPage.tsx').includes('finally{\n   setLoading(false);\n  }')],
+  ['TV catalogue loading is bounded and batched', () => read('src/pages/TvChannelsPage.tsx').includes('targets.slice(0,6)') && read('src/pages/TvChannelsPage.tsx').includes('targets.slice(offset,offset+4)') && read('src/pages/TvChannelsPage.tsx').includes('sourceLoadGeneration')],
+  ['TV player health and visibility callbacks are stable', () => read('src/pages/TvChannelsPage.tsx').includes('const health=useCallback') && read('src/pages/TvChannelsPage.tsx').includes('onVisible={onPlayerVisible}')],
 ];
 
 let failed = 0;
