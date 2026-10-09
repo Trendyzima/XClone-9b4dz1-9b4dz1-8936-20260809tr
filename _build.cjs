@@ -351,7 +351,7 @@ button:focus-visible, [role="button"]:focus-visible, a:focus-visible {
         website: ch.website, network: ch.network,
       }));
     memCache = shuffle(primary);
-    console.log(`[IPTV] Fast start: ${memCache.length} primary channels; extra playlists loading in background`);
+    console.log('[IPTV] Fast start: ' + memCache.length + ' primary channels; extra playlists loading in background');
 
     // Never block first paint/playback on dozens of third-party playlist hosts.
     void fetchExtraSources().then(extraChannels => {
@@ -361,7 +361,7 @@ button:focus-visible, [role="button"]:focus-visible, a:focus-visible {
       const extra = extraChannels.filter(ch => !ids.has(ch.id) && !urls.has(ch.streamUrl) && ch.streamUrl && ch.name && ch.name.length > 1);
       if (extra.length) {
         memCache = [...current, ...extra];
-        console.log(`[IPTV] Background catalog merged: +${extra.length} channels`);
+        console.log('[IPTV] Background catalog merged: +' + extra.length + ' channels');
         try { localStorage.setItem(CACHE_KEY, JSON.stringify({ channels: memCache, timestamp: Date.now() })); } catch {}
         if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent('iptv:channels-updated', { detail: memCache }));
       } else {
