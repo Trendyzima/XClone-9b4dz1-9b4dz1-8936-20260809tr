@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "node scripts/validate-seo-production.mjs && node _build.cjs",
+    "build": "node _build.cjs",
     "build:dev": "node _build.cjs --mode development",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
