@@ -1,0 +1,142 @@
+name: XClone TV Signed Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: TV release version (for example 1.0.0)
+        required: true
+        default: "1.0.0"
+        type: string
+      version_code:
+        description: Monotonically increasing Android version code
+        required: true
+        default: "1"
+        type: string
+  push:
+    tags:
+      - "tv-v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: xclone-tv-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  signed-release:
+    name: Build and verify signed XClone TV APK and AAB
+    if: github.event_name == 'push' || github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ORG_GRADLE_PROJECT_XCLONE_TV_STORE_PASSWORD: ${{ secrets.XCLONE_TV_STORE_PASSWORD }}
+      ORG_GRADLE_PROJECT_XCLONE_TV_KEY_ALIAS: ${{ secrets.XCLONE_TV_KEY_ALIAS }}
+      ORG_GRADLE_PROJECT_XCLONE_TV_KEY_PASSWORD: ${{ secrets.XCLONE_TV_KEY_PASSWORD }}
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@v4
+
+      - name: Require stable signing identity
+        shell: bash
+        env:
+          TV_KEYSTORE_BASE64: ${{ secrets.XCLONE_TV_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "${TV_KEYSTORE_BASE64}" ]] || missing+=(XCLONE_TV_KEYSTORE_BASE64)
+          [[ -n "${ORG_GRADLE_PROJECT_XCLONE_TV_STORE_PASSWORD}" ]] || missing+=(XCLONE_TV_STORE_PASSWORD)
+          [[ -n "${ORG_GRADLE_PROJECT_XCLONE_TV_KEY_ALIAS}" ]] || missing+=(XCLONE_TV_KEY_ALIAS)
+          [[ -n "${ORG_GRADLE_PROJECT_XCLONE_TV_KEY_PASSWORD}" ]] || missing+=(XCLONE_TV_KEY_PASSWORD)
+          if (( ${#missing[@]} > 0 )); then
+            printf 'Release blocked: configure these GitHub Actions secrets: %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
+          install -m 600 /dev/null "$RUNNER_TEMP/xclone-tv-release.jks"
+          printf '%s' "$TV_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/xclone-tv-release.jks"
+          test -s "$RUNNER_TEMP/xclone-tv-release.jks"
+          echo "ORG_GRADLE_PROJECT_XCLONE_TV_STORE_FILE=$RUNNER_TEMP/xclone-tv-release.jks" >> "$GITHUB_ENV"
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Configure Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        env:
+          INPUT_VERSION_NAME: ${{ inputs.version_name }}
+          INPUT_VERSION_CODE: ${{ inputs.version_code }}
+          EVENT_NAME: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          RUN_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          if [[ "$EVENT_NAME" == "push" ]]; then
+            version_name="${REF_NAME#tv-v}"
+            version_code="$RUN_NUMBER"
+          else
+            version_name="$INPUT_VERSION_NAME"
+            version_code="$INPUT_VERSION_CODE"
+          fi
+          [[ "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || { echo "Invalid version_name" >&2; exit 1; }
+          [[ "$version_code" =~ ^[1-9][0-9]*$ ]] || { echo "version_code must be a positive integer" >&2; exit 1; }
+          echo "name=$version_name" >> "$GITHUB_OUTPUT"
+          echo "code=$version_code" >> "$GITHUB_OUTPUT"
+
+      - name: Build signed release APK and App Bundle
+        working-directory: android-tv
+        env:
+          VERSION_NAME: ${{ steps.version.outputs.name }}
+          VERSION_CODE: ${{ steps.version.outputs.code }}
+        run: |
+          chmod +x ../android/gradlew
+          ../android/gradlew --no-daemon --console=plain --stacktrace --build-cache \
+            -PtvVersionName="$VERSION_NAME" -PtvVersionCode="$VERSION_CODE" \
+            assembleRelease bundleRelease
+
+      - name: Verify package identity and signing certificates
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="android-tv/app/build/outputs/apk/release/app-release.apk"
+          AAB="android-tv/app/build/outputs/bundle/release/app-release.aab"
+          test -s "$APK"
+          test -s "$AAB"
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -n 1)"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$AAPT"
+          test -x "$APKSIGNER"
+          "$AAPT" dump badging "$APK" | tee "$RUNNER_TEMP/xclone-tv-release-badging.txt"
+          grep -q "package: name='com.xclone.app.tv'" "$RUNNER_TEMP/xclone-tv-release-badging.txt"
+          "$APKSIGNER" verify --verbose --print-certs "$APK" | tee "$RUNNER_TEMP/xclone-tv-signature.txt"
+          grep -q "Signer #1 certificate SHA-256 digest" "$RUNNER_TEMP/xclone-tv-signature.txt"
+          jarsigner -verify "$AAB"
+          sha256sum "$APK" "$AAB"
+          ls -lh "$APK" "$AAB"
+
+      - name: Upload signed release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xclone-tv-release-${{ steps.version.outputs.name }}-${{ github.sha }}
+          path: |
+            android-tv/app/build/outputs/apk/release/app-release.apk
+            android-tv/app/build/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish GitHub Release for version tags
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/tv-v')
+        uses: softprops/action-gh-release@v2
+        with:
+          name: XClone TV v${{ steps.version.outputs.name }}
+          generate_release_notes: true
+          files: |
+            android-tv/app/build/outputs/apk/release/app-release.apk
+            android-tv/app/build/outputs/bundle/release/app-release.aab
