@@ -1,0 +1,85 @@
+name: Deploy Testagram First-Party CDN
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "services/testagram-cdn/**"
+      - ".github/workflows/deploy-testagram-cdn.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: testagram-cdn-host-deployment
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: services/testagram-cdn
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: services/testagram-cdn/go.mod
+      - name: Test
+        run: go test ./...
+      - name: Race test
+        run: go test -race ./...
+      - name: Vet
+        run: go vet ./...
+      - name: Build
+        run: go build ./cmd/...
+
+  deploy:
+    needs: verify
+    # A runner installed on Testagram's own Linux host replaces recurring SSH/GHCR secrets.
+    runs-on: [self-hosted, linux, x64, testagram-cdn]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Validate host-owned runtime configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f /etc/testagram-edge.env || {
+            echo "::error::Testagram host runtime configuration /etc/testagram-edge.env is missing; deployment will not invent or print secrets."
+            exit 1
+          }
+          command -v docker >/dev/null
+          docker info >/dev/null
+      - name: Build and start candidate CDN container
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --pull -f services/testagram-cdn/Dockerfile services/testagram-cdn -t testagram-cdn:${GITHUB_SHA}
+          docker rm -f testagram-edge-next 2>/dev/null || true
+          docker run -d --name testagram-edge-next --network host --env-file /etc/testagram-edge.env -v /var/lib/testagram-edge/cache:/app/cache testagram-cdn:${GITHUB_SHA}
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error --max-time 2 http://127.0.0.1:8080/healthz >/tmp/testagram-cdn-health.json; then
+              grep -q '"service":"testagram-cdn"' /tmp/testagram-cdn-health.json
+              break
+            fi
+            if [ "$attempt" -eq 30 ]; then
+              docker logs testagram-edge-next || true
+              docker rm -f testagram-edge-next || true
+              echo "::error::New CDN process did not become healthy on localhost:8080."
+              exit 1
+            fi
+            sleep 2
+          done
+          docker rm -f testagram-edge 2>/dev/null || true
+          docker rename testagram-edge-next testagram-edge
+          docker update --restart unless-stopped testagram-edge
+      - name: Verify public media hostname is served by the first-party CDN
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 20 -D /tmp/testagram-cdn-headers -o /tmp/testagram-cdn-body https://media.testagram.site/healthz
+          grep -Eiq '^x-testagram-cdn:[[:space:]]*testagram-edge[[:space:]]*$' /tmp/testagram-cdn-headers
+          grep -q '"service":"testagram-cdn"' /tmp/testagram-cdn-body
