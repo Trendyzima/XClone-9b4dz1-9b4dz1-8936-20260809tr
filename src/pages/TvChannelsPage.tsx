@@ -10,6 +10,7 @@ import {getMyTvReaction,getTvReactionCounts,setTvReaction,TV_REACTIONS} from '@/
 import {TV_SOURCES,loadTvSource,type TvChannel,getPrioritySourceIds} from '@/services/tvChannelCatalog';
 import {createTvReply,getTvReplies,type TvReply} from '@/services/tvChannelReplyService';
 import {useSEO} from '@/hooks/useSEO';
+import {warmTvChannelBatch} from '@/services/tvStreamPrefetch';
 
 const filters=[['For you',''],['Kenya','KE'],['Africa','AF'],['International','INT'],['News','news'],['Sports','sport'],['Music','music'],['Kids','kid']];
 function matchesFilter(channel:TvChannel,filter:string){
