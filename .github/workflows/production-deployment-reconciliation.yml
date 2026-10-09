@@ -1133,7 +1133,7 @@ jobs:
             echo "::error::SEO optimizer did not report that it processed /tv. Response headers:"
             cat /tmp/testagram-tv.headers
             echo "HTML title/canonical diagnostics:"
-            grep -oiE '<title[^>]*>[^<]*</title>|<link[^>]*rel=["'"'"']canonical["'"'"'][^>]*>' /tmp/testagram-tv.html | head -10 || true
+            grep -oiE '<title[^>]*>[^<]*</title>|<link[^>]*canonical[^>]*>' /tmp/testagram-tv.html | head -10 || true
             exit 1
           }
           grep -qi '<title>[^<]*TV[^<]*Testagram</title>' /tmp/testagram-tv.html || {
