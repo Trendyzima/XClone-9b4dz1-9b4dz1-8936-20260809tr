@@ -1129,8 +1129,23 @@ jobs:
           PY
 
           fetch_public "/tv" /tmp/testagram-tv.html /tmp/testagram-tv.headers
-          grep -qi '<title>.*TV.*Testagram</title>' /tmp/testagram-tv.html
-          grep -Fq 'href="https://testagram.site/tv"' /tmp/testagram-tv.html
+          grep -qi '^X-SEO-Optimizer:[[:space:]]*applied' /tmp/testagram-tv.headers || {
+            echo "::error::SEO optimizer did not report that it processed /tv. Response headers:"
+            cat /tmp/testagram-tv.headers
+            echo "HTML title/canonical diagnostics:"
+            grep -oiE '<title[^>]*>[^<]*</title>|<link[^>]*rel=["'"'"']canonical["'"'"'][^>]*>' /tmp/testagram-tv.html | head -10 || true
+            exit 1
+          }
+          grep -qi '<title>[^<]*TV[^<]*Testagram</title>' /tmp/testagram-tv.html || {
+            echo "::error::/tv is missing the expected page-specific title."
+            grep -oi '<title[^>]*>[^<]*</title>' /tmp/testagram-tv.html | head -5 || true
+            exit 1
+          }
+          grep -Fq 'href="https://testagram.site/tv"' /tmp/testagram-tv.html || {
+            echo "::error::/tv is missing its canonical URL."
+            grep -oiE '<link[^>]*canonical[^>]*>' /tmp/testagram-tv.html | head -5 || true
+            exit 1
+          }
           if grep -qi '^X-Robots-Tag:[[:space:]]*noindex' /tmp/testagram-tv.headers; then
             echo "::error::Public /tv route is incorrectly marked noindex."
             exit 1
