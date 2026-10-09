@@ -5,7 +5,19 @@ const root = process.cwd();
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 const checks = [
   ['Cloudflare serves the dynamic root sitemap', () => read('cloudflare/index.ts').includes("url.pathname === '/sitemap.xml'") && read('cloudflare/index.ts').includes("'/api/sitemap-index': '../api/sitemap-index'")],
-  ['Sitemap index is statically bundled to avoid Worker runtime dynamic-import failures', () => read('cloudflare/index.ts').includes("import sitemapIndex from '../api/sitemap-index';") && read('cloudflare/index.ts').includes("if (pathname === '/api/sitemap-index')") && read('cloudflare/index.ts').includes('return sitemapIndex(request);')],
+  ['All sitemap handlers are statically bundled and dispatched before dynamic imports', () => {
+    const worker = read('cloudflare/index.ts');
+    return [
+      "import sitemapIndex from '../api/sitemap-index';",
+      "import sitemapUsers from '../api/sitemap-users';",
+      "import sitemapCommunity from '../api/sitemap-community';",
+      "import sitemapPosts from '../api/sitemap-posts';",
+      "import sitemapThreads from '../api/sitemap-threads';",
+      "const STATIC_SITEMAP_ROUTES",
+      "const sitemapHandler = STATIC_SITEMAP_ROUTES[pathname];",
+      'return sitemapHandler(request);',
+    ].every((fragment) => worker.includes(fragment));
+  }],
   ['Cloudflare runs the dynamic root sitemap through the Worker before static assets', () => JSON.parse(read('wrangler.jsonc')).assets.run_worker_first.includes('/sitemap.xml')],
   ['Static sitemap fallback references valid first chunks for every dynamic sitemap', () => {
     const sitemap = read('public/sitemap.xml');
