@@ -28,7 +28,8 @@ type Transfer = { requestId: string; resolve: (value: PeerSegment | null) => voi
 const MAX_PEERS = 3;
 const MAX_SEGMENT_BYTES = 1_500_000;
 const CHUNK_BYTES = 16 * 1024;
-const PEER_REQUEST_TIMEOUT_MS = 1_800;
+const PEER_REQUEST_TIMEOUT_MS = 1_000;
+const SIGNALING_WAIT_MS = 200;
 const ROOM_IDLE_MS = 30_000;
 const MAX_ROOMS = 4;
 const STUN_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
@@ -73,6 +74,8 @@ class StreamPeerRoom {
   readonly peers = new Map<string, RTCPeerConnection>();
   readonly channels = new Map<string, RTCDataChannel>();
   readonly pending = new Map<string, Transfer>();
+  readonly uploading = new Set<string>();
+  readonly lastServedAt = new Map<string, number>();
   readonly candidateQueues = new Map<string, RTCIceCandidateInit[]>();
   channel: ReturnType<typeof supabase.channel> | null = null;
   ready = false;
@@ -255,31 +258,38 @@ class StreamPeerRoom {
   private async serve(peerId: string, message: any) {
     const dc = this.channels.get(peerId);
     if (!dc || dc.readyState !== 'open') return;
-    const url = String(message.url);
-    if (!publicStreamUrl(url) || message.room !== this.roomName || !Number.isSafeInteger(message.requestId.length) || message.requestId.length > 80) {
-      try { dc.send(JSON.stringify({ type: 'miss', requestId: message.requestId })); } catch {}
+    const requestId = typeof message.requestId === 'string' ? message.requestId : '';
+    const url = String(message.url || '');
+    const reject = () => { try { dc.send(JSON.stringify({ type: 'miss', requestId })); } catch {} };
+    if (!requestId || requestId.length > 80 || !publicStreamUrl(url) || message.room !== this.roomName ||
+        this.uploading.has(peerId) || Date.now() - (this.lastServedAt.get(peerId) || 0) < 350) {
+      reject();
       return;
     }
-    const cached = await this.cache(url, true);
-    if (!cached || !cached.originVerified || cached.bytes.byteLength < 1 || cached.bytes.byteLength > MAX_SEGMENT_BYTES) {
-      try { dc.send(JSON.stringify({ type: 'miss', requestId: message.requestId })); } catch {}
-      return;
-    }
+    this.uploading.add(peerId);
+    this.lastServedAt.set(peerId, Date.now());
     try {
+      const cached = await this.cache(url, true);
+      if (!cached || !cached.originVerified || cached.bytes.byteLength < 1 || cached.bytes.byteLength > MAX_SEGMENT_BYTES) {
+        reject();
+        return;
+      }
       const sha256 = await digest(cached.bytes);
-      dc.send(JSON.stringify({ type: 'start', requestId: message.requestId, url, size: cached.bytes.byteLength, contentType: cached.contentType, sha256 }));
+      dc.send(JSON.stringify({ type: 'start', requestId, url, size: cached.bytes.byteLength, contentType: cached.contentType, sha256 }));
       const bytes = new Uint8Array(cached.bytes);
       for (let offset = 0; offset < bytes.length; offset += CHUNK_BYTES) {
         if (dc.readyState !== 'open') return;
         dc.send(bytes.slice(offset, Math.min(offset + CHUNK_BYTES, bytes.length)));
-        if (dc.bufferedAmount > 1024 * 1024) await new Promise<void>((resolve) => {
-          const timeout = setTimeout(resolve, 250);
+        if (dc.bufferedAmount > 512 * 1024) await new Promise<void>((resolve) => {
+          const timeout = setTimeout(resolve, 200);
           dc.onbufferedamountlow = () => { clearTimeout(timeout); dc.onbufferedamountlow = null; resolve(); };
         });
       }
-      dc.send(JSON.stringify({ type: 'end', requestId: message.requestId }));
+      dc.send(JSON.stringify({ type: 'end', requestId }));
     } catch {
-      try { dc.send(JSON.stringify({ type: 'miss', requestId: message.requestId })); } catch {}
+      reject();
+    } finally {
+      this.uploading.delete(peerId);
     }
   }
 
@@ -297,6 +307,8 @@ class StreamPeerRoom {
     this.peers.delete(peerId);
     this.channels.delete(peerId);
     this.candidateQueues.delete(peerId);
+    this.uploading.delete(peerId);
+    this.lastServedAt.delete(peerId);
     for (const [requestId, pending] of this.pending) {
       if (pending.meta?.peerId === peerId) this.finish(requestId, null);
     }
@@ -349,7 +361,8 @@ export async function fetchVirtualPeerSegment(streamUrl: string, segmentUrl: str
       rooms.set(name, room);
     }
     room.lastUsed = Date.now();
-    await room.subscribePromise;
+    await Promise.race([room.subscribePromise, new Promise<void>((resolve) => setTimeout(resolve, SIGNALING_WAIT_MS))]);
+    if (!room.ready) return null;
     return await room.fetchQuorum(segmentUrl);
   } catch {
     return null;
