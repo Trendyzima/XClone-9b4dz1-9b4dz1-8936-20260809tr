@@ -67,12 +67,17 @@ const checks = [
     return ['/tv', '/tv/channels', '/tv/reels', '/iptv'].every((route) => sitemap.includes('https://testagram.site' + route + '</loc>')) &&
       ['Allow: /tv', 'Allow: /iptv'].every((rule) => robots.includes(rule));
   }],
-  ['TV playback falls back to direct source when CDN authorization or delivery fails', () => {
+  ['TV playback is origin-first and uses only the zero-cost browser virtual cache', () => {
     const player = read('src/components/features/TvChannelPlayer.tsx');
-    return player.includes('CDN playback authorization failed; trying source directly') &&
+    const loader = read('src/services/virtualCdnLoader.ts');
+    return player.includes('const playbackUrl=proxyFallbackRef.current?proxyUrl():directUrl;') &&
+      player.includes('loader:VirtualCdnLoader as any') &&
       player.includes('const fallbackPlayback=()=>') &&
       player.includes('if(fallbackPlayback())return;') &&
-      player.includes('cdnFallbackRef.current=false');
+      !player.includes('getTestagramCdnPlaybackUrl') &&
+      !player.includes('tv-cdn-playback') &&
+      loader.includes("const CACHE_NAME = 'testagram-virtual-cdn-v1'") &&
+      loader.includes('const LIVE_SEGMENT_TTL_MS = 20_000');
   }],
   ['TV playback starts after an adaptive short buffer and caps memory use', () => {
     const player = read('src/components/features/TvChannelPlayer.tsx');
