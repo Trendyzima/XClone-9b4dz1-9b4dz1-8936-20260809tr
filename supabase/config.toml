@@ -64,3 +64,7 @@ timebox = "2h"
 
 [functions.tv-cdn-playback]
 verify_jwt = false
+
+# Public, read-only SportScore proxy used by the Sports Hub.
+[functions.testagram-sports]
+verify_jwt = false
