@@ -43,17 +43,16 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
       return json(res, 502, { ok: false, error: 'SPORTS_PROVIDER_UNAVAILABLE', attribution: ATTRIBUTION });
     }
     const data: unknown = await upstream.json();
-    res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
     res.setHeader('X-Testagram-Sports-Provider', 'SportScore');
-    return json(res, 200, { ok: true, sport, kind, attribution: ATTRIBUTION, data });
+    return json(res, 200, { ok: true, sport, kind, attribution: ATTRIBUTION, data }, 'public, max-age=30, stale-while-revalidate=60');
   } catch (error) {
     console.error('[sports] request failed', error);
     return json(res, 502, { ok: false, error: 'SPORTS_PROVIDER_UNAVAILABLE', attribution: ATTRIBUTION });
   }
 }
 
-function json(res: ServerResponse, status: number, payload: unknown) {
+function json(res: ServerResponse, status: number, payload: unknown, cacheControl = 'no-store') {
   res.statusCode = status;
-  res.setHeader('Cache-Control', 'no-store');
+  res.setHeader('Cache-Control', cacheControl);
   res.end(JSON.stringify(payload));
 }
