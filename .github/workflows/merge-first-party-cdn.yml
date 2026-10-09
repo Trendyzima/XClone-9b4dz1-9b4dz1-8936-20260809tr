@@ -1,4 +1,4 @@
-name: Merge First-Party CDN Into XClone
+name: Guard Against Reintroducing Hosted CDN
 
 on:
   push:
@@ -8,73 +8,20 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  merge-cdn:
+  guard:
     runs-on: ubuntu-24.04
-    timeout-minutes: 15
+    timeout-minutes: 5
     steps:
-      - name: Checkout XClone
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Checkout first-party CDN
-        uses: actions/checkout@v4
-        with:
-          repository: Trendyzima/cdn-
-          ref: main
-          path: testagram-cdn-source
-          fetch-depth: 1
-          persist-credentials: false
-
-      - name: Merge CDN source tree into XClone
+      - uses: actions/checkout@v4
+      - name: Verify the external Go CDN cannot be synced into production
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf services/testagram-cdn
-          mkdir -p services/testagram-cdn
-          rsync -a --exclude='.git/' testagram-cdn-source/ services/testagram-cdn/
-          rm -rf services/testagram-cdn/.github/workflows
-          find services/testagram-cdn -type f -print | sort > /tmp/cdn-files.txt
-          test -s /tmp/cdn-files.txt
-          test -f services/testagram-cdn/go.mod
-          test -f services/testagram-cdn/Dockerfile
-          test -d services/testagram-cdn/internal
-          test -d services/testagram-cdn/cmd
-
-      - name: Add unified build contract
-        shell: bash
-        run: |
-          set -euo pipefail
-          cat > services/testagram-cdn/XCLONE_INTEGRATION.md <<'EOF'
-          # XClone First-Party CDN
-
-          This Go CDN is part of the XClone repository. The former standalone cdn-
-          repository is the source project; this tree is the canonical integrated copy.
-
-          Canonical media hostname: media.testagram.site
-
-          XClone playback authorization is provided by:
-          supabase/functions/tv-cdn-playback
-
-          The frontend consumes the canonical playback URL through:
-          src/services/tvCdn.ts
-
-          Do not add Cloudflare media routing or manual CDN deployment/test secrets.
-          EOF
-
-      - name: Commit integrated CDN
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add services/testagram-cdn
-          if git diff --cached --quiet; then
-            echo "CDN tree already synchronized"
-            exit 0
+          if grep -Eq 'repository: Trendyzima/cdn-|git push origin HEAD:main|rm -rf services/testagram-cdn' .github/workflows/merge-first-party-cdn.yml; then
+            echo "::error::Automatic external CDN synchronization is forbidden in virtual-CDN mode."
+            exit 1
           fi
-          git commit -m "feat: integrate first-party Go CDN into XClone"
-          git push origin HEAD:main
+          grep -Fq 'src/services/virtualCdnLoader.ts' .github/workflows/merge-first-party-cdn.yml
