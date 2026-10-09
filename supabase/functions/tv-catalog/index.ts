@@ -37,6 +37,10 @@ const SOURCES: Record<string, Source> = {
 "plex-fast-global": { id:"plex-fast-global", label:"Plex · global FAST channel playlist", url:"https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plex_all.m3u", country:"INT", priority:108, format:"m3u" },
 "samsung-tv-plus-global": { id:"samsung-tv-plus-global", label:"Samsung TV Plus · global FAST channel playlist", url:"https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/samsungtvplus_all.m3u", country:"INT", priority:107, format:"m3u" },
 "roku-fast-global": { id:"roku-fast-global", label:"Roku Channel · global FAST channel playlist", url:"https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/roku_all.m3u", country:"INT", priority:106, format:"m3u" },
+  "italy-openiptv-community": { id:"italy-openiptv-community", label:"Italy · curated public and regional TV playlist", url:"https://raw.githubusercontent.com/xN1ckuz/OpenIPTVItaly/main/OpenIPTVItaly_No_EPG.m3u", country:"IT", priority:105, format:"m3u" },
+  "alplox-public-official-global": { id:"alplox-public-official-global", label:"Alplox · official public streams · multi-country", url:"https://raw.githubusercontent.com/Alplox/json-teles/main/channels.m3u", country:"INT", priority:104, format:"m3u" },
+  "south-africa-freevisionplay": { id:"south-africa-freevisionplay", label:"FreeVision Play · South African public channels", url:"https://raw.githubusercontent.com/telanus/m3u/main/freevisionplay.m3u", country:"ZA", priority:103, format:"m3u" },
+  "m3upt-portuguese-global": { id:"m3upt-portuguese-global", label:"M3UPT · Portuguese public TV and international channels", url:"https://raw.githubusercontent.com/lituatui/m3upt/main/M3U/M3UPT.m3u", country:"INT", priority:102, format:"m3u" },
 };
 
 const cors = {
