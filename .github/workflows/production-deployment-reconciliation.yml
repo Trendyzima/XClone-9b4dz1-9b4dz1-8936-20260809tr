@@ -808,6 +808,29 @@ jobs:
           printf '%s' "$EMAIL_SERVICE_TOKEN" | npx wrangler secret put EMAIL_SERVICE_TOKEN --name testagram-web
           echo "Resend runtime secrets synchronized to testagram-web without printing values."
 
+      - name: Synchronize sitemap database credential to Cloudflare Worker
+        shell: bash
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -euo pipefail
+          # Sitemap handlers query only public/discoverable records, but the current
+          # implementation requires a privileged server-side key. Never expose it to
+          # the client bundle or print it in logs.
+          key="${SUPABASE_SERVICE_ROLE_KEY:-${SUPABASE_SECRET_KEY:-}}"
+          if [[ -z "$key" ]]; then
+            echo "::error::Sitemap database credential is missing. Add SUPABASE_SERVICE_ROLE_KEY (preferred) or SUPABASE_SECRET_KEY to the GitHub production environment secrets."
+            exit 1
+          fi
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is required to synchronize the sitemap runtime credential."; exit 1; }
+          [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::CLOUDFLARE_ACCOUNT_ID is missing or invalid."; exit 1; }
+          printf '%s' "$key" | npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --name testagram-web
+          unset key SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY
+          echo "Sitemap database credential synchronized to Worker testagram-web without printing its value."
+
       - name: Deploy Cloudflare Worker and Custom Domains
         shell: bash
         env:
