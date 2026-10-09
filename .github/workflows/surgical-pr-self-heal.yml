@@ -35,11 +35,14 @@ jobs:
           HEAD_REPOSITORY: ${{ github.event.workflow_run.head_repository.full_name }}
           REPOSITORY: ${{ github.repository }}
           RUN_ID: ${{ github.event.workflow_run.id }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          # shellcheck disable=SC2129
           set -euo pipefail
           test "$HEAD_REPOSITORY" = "$REPOSITORY"
-          test "$(git ls-remote "https://github.com/$REPOSITORY.git" "$HEAD_SHA" | awk '{print $1}')" = "$HEAD_SHA"
+          [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]
+          # ls-remote matches advertised refs, not arbitrary immutable commit SHAs.
+          resolved_sha="$(gh api "repos/$REPOSITORY/commits/$HEAD_SHA" --jq '.sha')"
+          test "$resolved_sha" = "$HEAD_SHA"
           {
             echo "HEAD_SHA=$HEAD_SHA"
             echo "HEAD_BRANCH=$HEAD_BRANCH"
