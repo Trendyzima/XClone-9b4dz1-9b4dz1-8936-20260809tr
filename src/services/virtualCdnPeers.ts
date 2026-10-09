@@ -73,9 +73,9 @@ function publicStreamUrl(value: string) {
     const url = new URL(value);
     const host = url.hostname.toLowerCase();
     if (url.username || url.password || sensitiveUrl(value)) return false;
-    if (/^(localhost|.*\\.(local|internal|lan|home|test))$/i.test(host)) return false;
-    if (host.startsWith('[') && /^(\\[::1\\]|\\[fe[89ab][0-9a-f]:|\\[f[cd][0-9a-f]{2}:|\\[ff[0-9a-f]{2}:)/i.test(host)) return false;
-    const ip = host.match(/^(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})$/);
+    if (/^(localhost|.*\.(local|internal|lan|home|test))$/i.test(host)) return false;
+    if (host.startsWith('[') && /^(\[::1\]|\[fe[89ab][0-9a-f]:|\[f[cd][0-9a-f]{2}:|\[ff[0-9a-f]{2}:)/i.test(host)) return false;
+    const ip = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
     if (ip) {
       const [a, b, c, d] = ip.slice(1).map(Number);
       if ([a, b, c, d].some((part) => part > 255) || a === 0 || a === 10 || a === 127 || a >= 224 ||
