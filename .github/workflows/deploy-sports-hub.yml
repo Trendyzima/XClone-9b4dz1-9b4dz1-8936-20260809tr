@@ -1,0 +1,62 @@
+name: Deploy Testagram Sports Hub
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "supabase/functions/testagram-sports/**"
+      - "supabase/functions/testagram-rss-ingest/**"
+      - "supabase/config.toml"
+      - ".github/workflows/deploy-sports-hub.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-testagram-sports-hub
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy sports scores and image ingestion
+    runs-on: ubuntu-latest
+    environment: production
+    timeout-minutes: 15
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      SUPABASE_PROJECT_ID: ffrhglgkukgsuhxenena
+    steps:
+      - name: Checkout exact main revision
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 1
+
+      - name: Validate deployment configuration
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "${SUPABASE_ACCESS_TOKEN}" || { echo "::error::SUPABASE_ACCESS_TOKEN is not configured in the production GitHub environment."; exit 1; }
+          test "${SUPABASE_PROJECT_ID}" = "ffrhglgkukgsuhxenena"
+          echo "Deploy target: ${SUPABASE_PROJECT_ID}"
+
+      - name: Install Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: 2.118.0
+
+      - name: Deploy public read-only sports proxy
+        run: supabase functions deploy testagram-sports --use-api --project-ref "${SUPABASE_PROJECT_ID}" --no-verify-jwt
+
+      - name: Deploy RSS ingestion with existing JWT verification
+        run: supabase functions deploy testagram-rss-ingest --use-api --project-ref "${SUPABASE_PROJECT_ID}"
+
+      - name: Verify deployed functions are registered
+        shell: bash
+        run: |
+          set -euo pipefail
+          functions="$(supabase functions list --project-ref "${SUPABASE_PROJECT_ID}")"
+          printf '%s\n' "$functions"
+          printf '%s\n' "$functions" | grep -q "testagram-sports"
+          printf '%s\n' "$functions" | grep -q "testagram-rss-ingest"
