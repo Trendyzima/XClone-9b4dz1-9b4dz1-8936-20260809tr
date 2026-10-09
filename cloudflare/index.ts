@@ -168,10 +168,29 @@ function seoForPath(pathname: string): SeoRoute {
   // soft-404s simply because the SPA host serves index.html with HTTP 200.
   return noindex();
 }
+function upsertHtmlTag(html: string, pattern: RegExp, replacement: string): string {
+  if (pattern.test(html)) return html.replace(pattern, replacement);
+  return html.replace(/<\/head>/i, replacement + '</head>');
+}
+
 async function optimizePublicHtml(response: Response, pathname: string) {
   const seo = seoForPath(pathname);
-  if (response.status !== 200 || !response.headers.get('content-type')?.includes('text/html')) return response;
+  if (response.status !== 200) return response;
+
+  const contentType = response.headers.get('content-type') || '';
+  // Assets and documents with extensions should keep their original bytes. For
+  // extensionless SPA routes, inspect the body too: some asset origins omit or
+  // mislabel Content-Type, which must not silently disable server-side SEO.
+  if (!/text\/html/i.test(contentType) && /\.[a-z0-9]{1,8}$/i.test(pathname)) return response;
+
   const html = await response.text();
+  const looksLikeHtml = /<!doctype\s+html|<html\b|<head\b/i.test(html.slice(0, 4096));
+  if (!/text\/html/i.test(contentType) && !looksLikeHtml) {
+    const headers = new Headers(response.headers);
+    headers.set('X-SEO-Optimizer', 'skipped-non-html');
+    return new Response(html, { status: response.status, statusText: response.statusText, headers });
+  }
+
   const title = escapeHtml(seo.title);
   const description = escapeHtml(seo.description);
   const canonical = escapeHtml(seo.canonical);
@@ -184,20 +203,25 @@ async function optimizePublicHtml(response: Response, pathname: string) {
     url: seo.canonical,
     isPartOf: { '@type': 'WebSite', name: 'Testagram', url: 'https://testagram.site/' }
   }).replace(/</g, '\\u003c');
-  const body = html
-    .replace(/<title>[\s\S]*?<\/title>/i, '<title>' + title + '</title>')
-    .replace(/<meta name="description" content="[^"]*"\s*\/?>/i, '<meta name="description" content="' + description + '" />')
-    .replace(/<meta name="robots" content="[^"]*"\s*\/?>/i, '<meta name="robots" content="' + robots + '" />')
-    .replace(/<meta name="googlebot" content="[^"]*"\s*\/?>/i, '<meta name="googlebot" content="' + robots + '" />')
-    .replace(/<link rel="canonical" href="[^"]*"\s*\/?>/i, '<link rel="canonical" href="' + canonical + '" />')
-    .replace(/<meta property="og:url" content="[^"]*"\s*\/?>/i, '<meta property="og:url" content="' + canonical + '" />')
-    .replace(/<meta property="og:title" content="[^"]*"\s*\/?>/i, '<meta property="og:title" content="' + title + '" />')
-    .replace(/<meta property="og:description" content="[^"]*"\s*\/?>/i, '<meta property="og:description" content="' + description + '" />')
-    .replace(/<meta name="twitter:url" content="[^"]*"\s*\/?>/i, '<meta name="twitter:url" content="' + canonical + '" />')
-    .replace(/<meta name="twitter:title" content="[^"]*"\s*\/?>/i, '<meta name="twitter:title" content="' + title + '" />')
-    .replace(/<meta name="twitter:description" content="[^"]*"\s*\/?>/i, '<meta name="twitter:description" content="' + description + '" />')
-    .replace('</head>', '<script type="application/ld+json">' + schema + '</script></head>');
+
+  let body = html;
+  body = upsertHtmlTag(body, /<title\b[^>]*>[\s\S]*?<\/title>/i, '<title>' + title + '</title>');
+  body = upsertHtmlTag(body, /<meta\b(?=[^>]*\bname\s*=\s*["']description["'])[^>]*\/?>/i, '<meta name="description" content="' + description + '" />');
+  body = upsertHtmlTag(body, /<meta\b(?=[^>]*\bname\s*=\s*["']robots["'])[^>]*\/?>/i, '<meta name="robots" content="' + robots + '" />');
+  body = upsertHtmlTag(body, /<meta\b(?=[^>]*\bname\s*=\s*["']googlebot["'])[^>]*\/?>/i, '<meta name="googlebot" content="' + robots + '" />');
+  body = upsertHtmlTag(body, /<link\b(?=[^>]*\brel\s*=\s*["']canonical["'])(?=[^>]*\bhref\s*=\s*["'][^"']*["'])[^>]*\/?>/i, '<link rel="canonical" href="' + canonical + '" />');
+  body = upsertHtmlTag(body, /<meta\b(?=[^>]*\bproperty\s*=\s*["']og:url["'])[^>]*\/?>/i, '<meta property="og:url" content="' + canonical + '" />');
+  body = upsertHtmlTag(body, /<meta\b(?=[^>]*\bproperty\s*=\s*["']og:title["'])[^>]*\/?>/i, '<meta property="og:title" content="' + title + '" />');
+  body = upsertHtmlTag(body, /<meta\b(?=[^>]*\bproperty\s*=\s*["']og:description["'])[^>]*\/?>/i, '<meta property="og:description" content="' + description + '" />');
+  body = upsertHtmlTag(body, /<meta\b(?=[^>]*\bname\s*=\s*["']twitter:url["'])[^>]*\/?>/i, '<meta name="twitter:url" content="' + canonical + '" />');
+  body = upsertHtmlTag(body, /<meta\b(?=[^>]*\bname\s*=\s*["']twitter:title["'])[^>]*\/?>/i, '<meta name="twitter:title" content="' + title + '" />');
+  body = upsertHtmlTag(body, /<meta\b(?=[^>]*\bname\s*=\s*["']twitter:description["'])[^>]*\/?>/i, '<meta name="twitter:description" content="' + description + '" />');
+  body = body.replace(/<\/head>/i, '<script type="application/ld+json">' + schema + '</script></head>');
+
   const headers = new Headers(response.headers);
+  headers.set('Content-Type', 'text/html; charset=utf-8');
+  headers.set('X-SEO-Optimizer', 'applied');
+  headers.set('X-SEO-Canonical', seo.canonical);
   if (seo.noindex) headers.set('X-Robots-Tag', 'noindex, nofollow');
   else headers.delete('X-Robots-Tag');
   return new Response(body, { status: response.status, statusText: response.statusText, headers });
