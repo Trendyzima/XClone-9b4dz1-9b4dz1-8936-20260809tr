@@ -58,24 +58,28 @@ jobs:
         run: |
           set -euo pipefail
           docker build --pull -f services/testagram-cdn/Dockerfile services/testagram-cdn -t testagram-cdn:${GITHUB_SHA}
+          # Validate the candidate on a separate local port because the current
+          # production process already owns :8080. Never launch two host-network
+          # containers on the same listen address.
           docker rm -f testagram-edge-next 2>/dev/null || true
-          docker run -d --name testagram-edge-next --network host --env-file /etc/testagram-edge.env -v /var/lib/testagram-edge/cache:/app/cache testagram-cdn:${GITHUB_SHA}
+          docker run -d --name testagram-edge-next --network host --env-file /etc/testagram-edge.env -e LISTEN_ADDR=:18080 -v /var/lib/testagram-edge/cache:/app/cache testagram-cdn:${GITHUB_SHA}
           for attempt in $(seq 1 30); do
-            if curl --fail --silent --show-error --max-time 2 http://127.0.0.1:8080/healthz >/tmp/testagram-cdn-health.json; then
+            if curl --fail --silent --show-error --max-time 2 http://127.0.0.1:18080/healthz >/tmp/testagram-cdn-health.json; then
               grep -q '"service":"testagram-cdn"' /tmp/testagram-cdn-health.json
               break
             fi
             if [ "$attempt" -eq 30 ]; then
               docker logs testagram-edge-next || true
               docker rm -f testagram-edge-next || true
-              echo "::error::New CDN process did not become healthy on localhost:8080."
+              echo "::error::New CDN process did not become healthy on localhost:18080."
               exit 1
             fi
             sleep 2
           done
+          # Promote only after the candidate passes health checks.
           docker rm -f testagram-edge 2>/dev/null || true
-          docker rename testagram-edge-next testagram-edge
-          docker update --restart unless-stopped testagram-edge
+          docker rm -f testagram-edge-next
+          docker run -d --name testagram-edge --restart unless-stopped --network host --env-file /etc/testagram-edge.env -v /var/lib/testagram-edge/cache:/app/cache testagram-cdn:${GITHUB_SHA}
       - name: Verify public media hostname is served by the first-party CDN
         shell: bash
         run: |
