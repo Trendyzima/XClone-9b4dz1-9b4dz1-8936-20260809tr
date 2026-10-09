@@ -16,6 +16,8 @@ export interface SEOProps {
   /** Noindex this page (auth pages, private routes, etc.) */
   noindex?: boolean;
   keywords?: string;
+  /** Apply route defaults only when the page itself has not supplied SEO metadata. */
+  fallbackOnly?: boolean;
 }
 
 const BASE_URL = 'https://testagram.site';
@@ -63,8 +65,16 @@ function addJsonLd(data: object): HTMLScriptElement {
   document.head.appendChild(script);
   return script;
 }
-export function useSEO({ title, description, image, url, type = 'website', structuredData, noindex = false, keywords }: SEOProps) {
+export function useSEO({ title, description, image, url, type = 'website', structuredData, noindex = false, keywords, fallbackOnly = false }: SEOProps) {
   useEffect(() => {
+    // Page-level metadata wins over route-level defaults regardless of effect order.
+    if (fallbackOnly && document.querySelector('meta[name="testagram-page-seo"]')) return;
+    const pageMarker = fallbackOnly ? null : document.createElement('meta');
+    if (pageMarker) {
+      pageMarker.name = 'testagram-page-seo';
+      pageMarker.content = 'true';
+      document.head.appendChild(pageMarker);
+    }
     const prevTitle = document.title;
     const metaStates: Array<{ el: HTMLMetaElement; previous: string | null; created: boolean }> = [];
     const linkStates: Array<{ el: HTMLLinkElement; previous: string | null; created: boolean }> = [];
@@ -87,11 +97,12 @@ export function useSEO({ title, description, image, url, type = 'website', struc
     const ldScripts: HTMLScriptElement[] = [];
     if (structuredData) { const items = Array.isArray(structuredData) ? structuredData : [structuredData]; items.forEach(item => ldScripts.push(addJsonLd(item))); }
     return () => {
+      pageMarker?.remove();
       document.title = prevTitle;
       metaStates.forEach(({ el, previous, created }) => { if (created) el.remove(); else if (previous === null) el.removeAttribute('content'); else el.setAttribute('content', previous); });
       linkStates.forEach(({ el, previous, created }) => { if (created) el.remove(); else if (previous === null) el.removeAttribute('href'); else el.setAttribute('href', previous); });
       ldScripts.forEach(script => script.remove());
-    };  }, [title, description, image, url, type, noindex, keywords, structuredData]);
+    };  }, [title, description, image, url, type, noindex, keywords, structuredData, fallbackOnly]);
 }
 
 export function buildProfileLD(profile: {

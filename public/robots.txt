@@ -61,11 +61,13 @@ Disallow: /admin/
 Disallow: /fraud-detection
 Disallow: /ai-bot-setup
 
-# ── AI Crawlers — content reserved for monetization ──────────────────────────
+# ── AI training/data-collection crawlers remain blocked ────────────────────────
+# Search retrieval crawlers are not blocked here and inherit the default group
+# above, including its private/admin route exclusions.
 User-agent: GPTBot
 Disallow: /
 
-User-agent: ChatGPT-User
+User-agent: Google-Extended
 Disallow: /
 
 User-agent: Claude-Web
@@ -74,13 +76,7 @@ Disallow: /
 User-agent: anthropic-ai
 Disallow: /
 
-User-agent: Google-Extended
-Disallow: /
-
 User-agent: CCBot
-Disallow: /
-
-User-agent: PerplexityBot
 Disallow: /
 
 User-agent: Bytespider
@@ -98,28 +94,9 @@ Disallow: /
 User-agent: Applebot-Extended
 Disallow: /
 
-# ── Search engine bots (fully allowed) ───────────────────────────────────────
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Slurp
-Allow: /
-
-User-agent: DuckDuckBot
-Allow: /
-
 # ── Sitemaps ─────────────────────────────────────────────────────────────────
 Sitemap: https://testagram.site/sitemap.xml
-Sitemap: https://testagram.site/sitemap-static.xml
-Sitemap: https://testagram.site/api/sitemap-users
-Sitemap: https://testagram.site/api/sitemap-posts
-Sitemap: https://testagram.site/api/sitemap-threads
-Sitemap: https://testagram.site/api/sitemap-community
 
-# Search crawlers are explicitly allowed to discover all public content.
-# Private/admin routes remain blocked above; public profile/post/community URLs are indexable.
+# Standard search crawlers inherit the default group's public allow rules and private/admin exclusions.
 
 Crawl-delay: 1
