@@ -33,8 +33,8 @@ jobs:
           set -euo pipefail
           grep -R 'media.testagram.site' internal docs >/dev/null
           grep -R '2026-10-08-go-edge-iptv-v1' internal >/dev/null
-          grep -R 'TV_PREFETCH_SECONDS' internal README.md >/dev/null
-          grep -R 'TV_PREFETCH_TIMEOUT' internal README.md >/dev/null
+          grep -R 'TV_PREFETCH_SECONDS' internal >/dev/null
+          grep -R 'TV_PREFETCH_TIMEOUT' internal >/dev/null
 
       - name: Run CDN correctness suite
         working-directory: services/testagram-cdn
