@@ -32,6 +32,9 @@ const PEER_REQUEST_TIMEOUT_MS = 1_000;
 const SIGNALING_WAIT_MS = 200;
 const ROOM_IDLE_MS = 30_000;
 const MAX_ROOMS = 4;
+// Random cohorts cap signaling fan-out. At one million viewers, 16,384 cohorts
+// average about 61 members each; low traffic naturally yields fewer peer hits.
+const SIGNALING_COHORTS = 16_384;
 const STUN_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
 
 function randomId() {
@@ -61,12 +64,23 @@ async function digest(bytes: ArrayBuffer) {
   return Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
+const streamRoomIds = new Map<string, string>();
+
 async function roomId(streamUrl: string) {
   const url = new URL(streamUrl);
   // Remove fragment only; sensitive query strings are rejected before this point.
   url.hash = '';
-  const hash = await digest(new TextEncoder().encode(url.href).buffer);
-  return `vcdn-${hash.slice(0, 32)}`;
+  const canonical = url.href;
+  const existing = streamRoomIds.get(canonical);
+  if (existing) return existing;
+  const hash = await digest(new TextEncoder().encode(canonical).buffer);
+  const cohortBytes = new Uint16Array(1);
+  try { crypto.getRandomValues(cohortBytes); } catch { cohortBytes[0] = Math.floor(Math.random() * 65_536); }
+  const cohort = cohortBytes[0] % SIGNALING_COHORTS;
+  const name = `vcdn-${hash.slice(0, 16)}-${cohort.toString(16).padStart(4, '0')}`;
+  if (streamRoomIds.size >= MAX_ROOMS * 2) streamRoomIds.delete(streamRoomIds.keys().next().value as string);
+  streamRoomIds.set(canonical, name);
+  return name;
 }
 
 class StreamPeerRoom {
@@ -133,6 +147,12 @@ class StreamPeerRoom {
     if (this.closed || !this.channel || !this.ready) return;
     const state = this.channel.presenceState() as Record<string, Array<{ peerId?: string; protocol?: number }>>;
     const ids = [...new Set(Object.values(state).flat().map((p) => p.peerId).filter((id): id is string => !!id && id !== this.id))];
+    // Randomized peer selection prevents every viewer from connecting to the
+    // same first three presence entries and creating upload hotspots.
+    for (let i = ids.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [ids[i], ids[j]] = [ids[j], ids[i]];
+    }
     for (const peerId of ids) {
       if (this.peers.size >= MAX_PEERS) break;
       if (this.peers.has(peerId)) continue;
@@ -372,6 +392,7 @@ export async function fetchVirtualPeerSegment(streamUrl: string, segmentUrl: str
 export function closeVirtualPeerRooms() {
   for (const room of rooms.values()) room.close();
   rooms.clear();
+  streamRoomIds.clear();
 }
 
 if (typeof window !== 'undefined') {
