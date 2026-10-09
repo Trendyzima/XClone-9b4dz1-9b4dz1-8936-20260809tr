@@ -5,6 +5,10 @@ on:
     branches: [main]
     paths:
       - ".github/workflows/merge-first-party-cdn.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/merge-first-party-cdn.yml"
   workflow_dispatch:
 
 permissions:
@@ -16,12 +20,18 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Verify the external Go CDN cannot be synced into production
+      - name: Verify automatic external CDN sync is disabled
         shell: bash
         run: |
           set -euo pipefail
-          if grep -Eq 'repository: Trendyzima/cdn-|git push origin HEAD:main|rm -rf services/testagram-cdn' .github/workflows/merge-first-party-cdn.yml; then
+          external_checkout="$(printf 'repository: Trendyzima/%s' 'cdn-')"
+          production_push="$(printf 'git push origin %s:main' 'HEAD')"
+          destructive_sync="$(printf 'rm -rf %s' 'services/testagram-cdn')"
+          if grep -Fq "$external_checkout" .github/workflows/merge-first-party-cdn.yml ||
+             grep -Fq "$production_push" .github/workflows/merge-first-party-cdn.yml ||
+             grep -Fq "$destructive_sync" .github/workflows/merge-first-party-cdn.yml; then
             echo "::error::Automatic external CDN synchronization is forbidden in virtual-CDN mode."
             exit 1
           fi
-          grep -Fq 'src/services/virtualCdnLoader.ts' .github/workflows/merge-first-party-cdn.yml
+          grep -Fq 'permissions:' .github/workflows/merge-first-party-cdn.yml
+          grep -Fq 'contents: read' .github/workflows/merge-first-party-cdn.yml

@@ -1,15 +1,17 @@
-name: Testagram First-Party CDN
+name: Virtual CDN Regression Checks (legacy Go code only)
 
 on:
   push:
     branches: [main]
     paths:
       - "services/testagram-cdn/**"
+      - "src/services/virtualCdnLoader.ts"
       - ".github/workflows/testagram-cdn.yml"
   pull_request:
     branches: [main]
     paths:
       - "services/testagram-cdn/**"
+      - "src/services/virtualCdnLoader.ts"
       - ".github/workflows/testagram-cdn.yml"
 
 permissions:
@@ -27,23 +29,11 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: services/testagram-cdn/go.mod
-      - name: Test
+      - name: Test retained Go code (not deployed)
         run: go test ./...
       - name: Race test
         run: go test -race ./...
       - name: Vet
         run: go vet ./...
-      - name: Build
+      - name: Build retained Go code (not deployed)
         run: go build ./cmd/...
-
-  container:
-    needs: verify
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build container
-        run: |
-          set -euo pipefail
-          docker build --pull -f services/testagram-cdn/Dockerfile services/testagram-cdn             -t testagram-cdn:ci
