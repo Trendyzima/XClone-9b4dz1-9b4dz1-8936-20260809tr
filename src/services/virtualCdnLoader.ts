@@ -12,7 +12,6 @@
  */
 const CACHE_NAME = 'testagram-virtual-cdn-v1';
 const LIVE_SEGMENT_TTL_MS = 20_000;
-const STATIC_SEGMENT_TTL_MS = 10 * 60_000;
 const MAX_CACHED_SEGMENTS = 180;
 const NETWORK_TIMEOUT_MS = 20_000;
 
@@ -92,9 +91,8 @@ async function saveCached(url: string, result: SegmentResult) {
   if (!cache) return;
   try {
     const parsed = new URL(url);
-    const ttl = /\.(?:m3u8|mpd)(?:$|[?#])/i.test(parsed.href) ? 0 : STATIC_SEGMENT_TTL_MS;
-    // Live IPTV is the common case; use a short lifetime to avoid stale segments.
-    const effectiveTtl = ttl || LIVE_SEGMENT_TTL_MS;
+    // Treat streams as live unless a future catalog contract explicitly marks VOD.
+    const effectiveTtl = LIVE_SEGMENT_TTL_MS;
     const response = new Response(result.bytes.slice(0), {
       status: 200,
       headers: {
@@ -108,6 +106,13 @@ async function saveCached(url: string, result: SegmentResult) {
   } catch {
     // Quota/CORS/cache failures are a cache miss, never a playback failure.
   }
+}
+
+async function fetchDirect(url: string, headers: HeadersInit | undefined, signal?: AbortSignal): Promise<SegmentResult> {
+  const response = await fetch(url, { method: 'GET', headers, credentials: 'same-origin', signal });
+  if (!response.ok) throw Object.assign(new Error(`HTTP ${response.status} ${response.statusText}`), { status: response.status });
+  const bytes = await response.arrayBuffer();
+  return { url: response.url || url, bytes, contentType: response.headers.get('content-type') || 'application/octet-stream' };
 }
 
 async function fetchFragment(url: string, headers: HeadersInit | undefined): Promise<SegmentResult> {
@@ -142,6 +147,7 @@ export default class VirtualCdnLoader {
   stats: CacheStats | null = null;
   aborted = false;
   timeout: ReturnType<typeof setTimeout> | null = null;
+  controller: AbortController | null = null;
 
   load(context: any, config: any, callbacks: any) {
     this.context = context;
@@ -162,6 +168,7 @@ export default class VirtualCdnLoader {
     this.timeout = setTimeout(() => {
       if (this.aborted) return;
       this.aborted = true;
+      this.controller?.abort();
       callbacks.onTimeout?.(stats(started, 0), context, null);
     }, timeoutMs);
 
@@ -171,6 +178,10 @@ export default class VirtualCdnLoader {
         if (cacheable) result = await readCached(url);
         if (this.aborted) return;
         if (cacheable && !result) result = await fetchFragment(url, context?.headers);
+        if (!cacheable) {
+          this.controller = new AbortController();
+          result = await fetchDirect(url, context?.headers, this.controller.signal);
+        }
         if (this.aborted || !result) return;
 
         const elapsedStats = stats(started, result.bytes.byteLength);
@@ -194,6 +205,7 @@ export default class VirtualCdnLoader {
 
   abort() {
     this.aborted = true;
+    this.controller?.abort();
     if (this.timeout) clearTimeout(this.timeout);
     this.timeout = null;
   }
