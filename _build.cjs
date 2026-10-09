@@ -30,6 +30,30 @@ function cleanNodeOptions(v) {
     .trim();
 }
 
+function runSeoValidation() {
+  const validatorPath = path.resolve(root, 'scripts', 'validate-seo-production.mjs');
+  if (!fs.existsSync(validatorPath)) {
+    process.stderr.write(`[_build] ❌ Missing SEO production validator: ${validatorPath}\\n`);
+    process.exit(1);
+  }
+
+  const result = spawnSync(process.execPath, [validatorPath], {
+    cwd: root,
+    stdio: 'inherit',
+    shell: false,
+    env: { ...process.env },
+  });
+
+  if (result.error) {
+    process.stderr.write(`[_build] ❌ SEO production validation could not start: ${result.error.message}\\n`);
+    process.exit(1);
+  }
+  if (result.status !== 0) {
+    process.stderr.write(`[_build] ❌ SEO production validation failed (exit ${result.status})\\n`);
+    process.exit(result.status || 1);
+  }
+}
+
 function runSelfHeal() {
   if (!fs.existsSync(selfHealPath)) {
     process.stderr.write(`[_build] ❌ Missing self-healing guard: ${selfHealPath}\n`);
@@ -53,6 +77,7 @@ function runSelfHeal() {
   }
 }
 
+runSeoValidation();
 runSelfHeal();
 
 
