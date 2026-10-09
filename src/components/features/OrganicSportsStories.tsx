@@ -41,18 +41,20 @@ export function OrganicSportsStories({ surface, query = '', limit = 3, compact =
     const params = new URLSearchParams({ limit: String(Math.min(8, Math.max(1, limit))), category: 'sports' });
     if (surface === 'search' && query.trim()) params.set('q', query.trim().slice(0, 100));
     setLoading(true);
-    fetch(supabaseUrl + '/functions/v1/testagram-rss-feed?' + params.toString(), {
-      headers: { Accept: 'application/json' },
-      credentials: 'omit',
-      signal: controller.signal,
-    }).then(async response => {
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload?.error || 'Sports stories unavailable');
-      if (active) setStories(Array.isArray(payload?.items) ? payload.items as SportsStory[] : []);
-    }).catch((error: unknown) => {
-      if (active && (error as { name?: string })?.name !== 'AbortError') setStories([]);
-    }).finally(() => { if (active) setLoading(false); });
-    return () => { active = false; controller.abort(); };
+    const timer = window.setTimeout(() => {
+      fetch(supabaseUrl + '/functions/v1/testagram-rss-feed?' + params.toString(), {
+        headers: { Accept: 'application/json' },
+        credentials: 'omit',
+        signal: controller.signal,
+      }).then(async response => {
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload?.error || 'Sports stories unavailable');
+        if (active) setStories(Array.isArray(payload?.items) ? payload.items as SportsStory[] : []);
+      }).catch((error: unknown) => {
+        if (active && (error as { name?: string })?.name !== 'AbortError') setStories([]);
+      }).finally(() => { if (active) setLoading(false); });
+    }, surface === 'search' ? 250 : 0);
+    return () => { active = false; window.clearTimeout(timer); controller.abort(); };
   }, [surface, query, limit, relevant]);
 
   if (!relevant || (!loading && stories.length === 0)) return null;
