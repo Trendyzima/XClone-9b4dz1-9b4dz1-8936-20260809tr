@@ -4,8 +4,6 @@ export const config = { runtime: 'edge' };
 
 const BASE = 'https://testagram.site';
 const PAGE_SIZE = 50_000;
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co';
-const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
 
 type SitemapSource = { path: string; count: number };
 
@@ -25,15 +23,17 @@ function xmlResponse(body: string, request: Request, status = 200): Response {
 }
 
 export default async function handler(request: Request): Promise<Response> {
+  const supabaseUrl = process.env.SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co';
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SECRET_KEY || '';
   if (request.method !== 'GET' && request.method !== 'HEAD') {
     return new Response('Method not allowed', { status: 405, headers: { Allow: 'GET, HEAD', 'Cache-Control': 'no-store' } });
   }
-  if (!SERVICE_ROLE_KEY) {
+  if (!serviceRoleKey) {
     return new Response('Sitemap temporarily unavailable', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' } });
   }
 
   try {
-    const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+    const db = createClient(supabaseUrl, serviceRoleKey, { auth: { persistSession: false, autoRefreshToken: false } });
     const [profiles, communities, posts, threads] = await Promise.all([
       db.from('profiles').select('id', { count: 'exact', head: true })
         .eq('discoverable_by_username', true).eq('account_status', 'active').eq('visibility', 'public'),
