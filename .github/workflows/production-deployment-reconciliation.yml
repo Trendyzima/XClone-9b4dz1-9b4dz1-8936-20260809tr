@@ -1131,8 +1131,11 @@ jobs:
           fetch_public "/tv" /tmp/testagram-tv.html /tmp/testagram-tv.headers
           grep -qi '<title>.*TV.*Testagram</title>' /tmp/testagram-tv.html
           grep -Fq 'href="https://testagram.site/tv"' /tmp/testagram-tv.html
-          # Static SEO documents must carry the robots directive in delivered HTML;
-          # do not require a provider-specific HTTP header for static hosting.
+          for path in "/auth" "/c/null"; do
+            safe="$(printf '%s' "$path" | tr '/' '-')"
+            fetch_public "$path" "/tmp/testagram${safe}.html" "/tmp/testagram${safe}.headers"
+            # Static SEO documents carry the robots directive in delivered HTML;
+            # don't require a provider-specific HTTP header for static hosting.
             grep -qi '<meta name="robots" content="noindex, nofollow"' "/tmp/testagram${safe}.html" || {
               echo "::error::$path is missing the HTML robots noindex directive."
               exit 1
