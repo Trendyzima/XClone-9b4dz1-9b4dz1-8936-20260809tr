@@ -49,7 +49,7 @@ async function fetchSource(source:any){
    const link=canonical(item); if(!/^https?:\/\//i.test(link))continue;
    const pub=published(item);
    const pubDate=new Date(pub); if(pubDate.getTime()<Date.now()-12*60*60*1000)continue;
-   rows.push({source_id:source.id,profile_id:source.profile_id,guid:clean(item.guid?.["#text"]??item.guid) || link,canonical_url:link,title:title(item),excerpt:excerpt(item)||null,author:clean(item.author?.name??item.author??item.dc?.creator)||null,image_url:pickImage(item),category:source.category,country_code:source.country_code,language_code:source.language_code,published_at:pub,fetched_at:fetchedAt,expires_at:new Date(Date.now()+6*60*60*1000).toISOString(),metadata:{source_name:source.source_name}});
+   rows.push({source_id:source.id,profile_id:source.profile_id,guid:clean(item.guid?.["#text"]??item.guid) || link,canonical_url:link,title:title(item),excerpt:excerpt(item)||null,author:clean(item.author?.name??item.author??item.dc?.creator)||null,image_url:pickImage(item),category:source.category,country_code:source.country_code,language_code:source.language_code,published_at:pub,fetched_at:fetchedAt,expires_at:new Date(Date.now()+(source.category==="sports"?3:6)*60*60*1000).toISOString(),metadata:{source_name:source.source_name}});
  }
  if(rows.length)await db.from("testagram_rss_items").upsert(rows,{onConflict:"source_id,canonical_url",ignoreDuplicates:false});
  await db.from("testagram_rss_sources").update({etag:nextEtag,last_modified:nextLastModified,last_fetched_at:fetchedAt,last_success_at:fetchedAt,last_error:null,consecutive_failures:0,next_fetch_at:new Date(Date.now()+source.refresh_minutes*60*1000).toISOString(),updated_at:fetchedAt}).eq("id",source.id);
