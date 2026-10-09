@@ -29,6 +29,10 @@ const SOURCES: Record<string, Source> = {
   "dhanytv-indonesia": { id:"dhanytv-indonesia", label:"dhanytv · Indonesia public channels", url:"https://raw.githubusercontent.com/dhasap/dhanytv/main/dhanytv-ott.m3u", country:"ID", priority:116, format:"m3u" },
   "blitz-latam": { id:"blitz-latam", label:"Blitz IPTV Player · public channel snapshot", url:"https://raw.githubusercontent.com/blitzandres/iptv-player/main/channels.json", country:"INT", priority:115, format:"json" },
   "freecast-global": { id:"freecast-global", label:"FreeCastHub · Global public broadcasters", url:"https://raw.githubusercontent.com/freecasthub/public-iptv/main/playlist.m3u", country:"INT", priority:114, format:"m3u" },
+  "india-active-community": { id:"india-active-community", label:"India · community active-stream playlist", url:"https://raw.githubusercontent.com/gnaidu05/iptv/main/playlists/india-active.m3u", country:"IN", priority:113, format:"m3u" },
+  "portugal-free-tv": { id:"portugal-free-tv", label:"Portugal · Portuguese-language free TV", url:"https://raw.githubusercontent.com/cesarsferreira/m3u/main/tv.m3u", country:"PT", priority:112, format:"m3u" },
+  "indonesia-community": { id:"indonesia-community", label:"Indonesia · community public TV playlist", url:"https://raw.githubusercontent.com/riotryulianto/iptv-playlists/main/playlist.m3u", country:"ID", priority:111, format:"m3u" },
+  "xumo-community": { id:"xumo-community", label:"Xumo · community-generated channel playlist", url:"https://raw.githubusercontent.com/BuddyChewChew/xumo-playlist-generator/main/playlists/xumo_playlist.m3u", country:"INT", priority:110, format:"m3u" },
 };
 
 const cors = {
