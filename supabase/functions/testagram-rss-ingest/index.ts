@@ -1,10 +1,13 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { XMLParser } from "npm:fast-xml-parser@5.3.0";
+import { Pool } from "jsr:@db/postgres@^0";
 
 const url=Deno.env.get("SUPABASE_URL")!;
 const key=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||Deno.env.get("SUPABASE_SECRET_KEY")!;
 const db=createClient(url,key,{auth:{persistSession:false,autoRefreshToken:false}});
+const pool=new Pool(Deno.env.get("SUPABASE_DB_URL")??"",1,true);
+async function workerToken(){const connection=await pool.connect();try{const result=await connection.queryObject<{decrypted_secret:string}>`select decrypted_secret from vault.decrypted_secrets where name='newsify_worker_token' limit 1`;return result.rows[0]?.decrypted_secret??"";}finally{connection.release();}}
 const parser=new XMLParser({ignoreAttributes:false,attributeNamePrefix:"@",textNodeName:"#text",removeNSPrefix:true});
 
 const clean=(v:any)=>String(typeof v==="object"&&v!==null?(v["#text"]??v["@url"]??v["@href"]??""):v??"").replace(/<!\[CDATA\[|\]\]>/g,"").trim();
@@ -49,7 +52,7 @@ async function fetchSource(source:any){
    const link=canonical(item); if(!/^https?:\/\//i.test(link))continue;
    const pub=published(item);
    const pubDate=new Date(pub); if(pubDate.getTime()<Date.now()-12*60*60*1000)continue;
-   rows.push({source_id:source.id,profile_id:source.profile_id,guid:clean(item.guid?.["#text"]??item.guid) || link,canonical_url:link,title:title(item),excerpt:excerpt(item)||null,author:clean(item.author?.name??item.author??item.dc?.creator)||null,image_url:pickImage(item),category:source.category,country_code:source.country_code,language_code:source.language_code,published_at:pub,fetched_at:fetchedAt,expires_at:new Date(Date.now()+6*60*60*1000).toISOString(),metadata:{source_name:source.source_name}});
+   rows.push({source_id:source.id,profile_id:source.profile_id,guid:clean(item.guid?.["#text"]??item.guid) || link,canonical_url:link,title:title(item),excerpt:excerpt(item)||null,author:clean(item.author?.name??item.author??item.dc?.creator)||null,image_url:pickImage(item),category:source.category,country_code:source.country_code,language_code:source.language_code,published_at:pub,fetched_at:fetchedAt,expires_at:new Date(Date.now()+(source.category==="sports"?3:6)*60*60*1000).toISOString(),metadata:{source_name:source.source_name}});
  }
  if(rows.length)await db.from("testagram_rss_items").upsert(rows,{onConflict:"source_id,canonical_url",ignoreDuplicates:false});
  await db.from("testagram_rss_sources").update({etag:nextEtag,last_modified:nextLastModified,last_fetched_at:fetchedAt,last_success_at:fetchedAt,last_error:null,consecutive_failures:0,next_fetch_at:new Date(Date.now()+source.refresh_minutes*60*1000).toISOString(),updated_at:fetchedAt}).eq("id",source.id);
@@ -60,6 +63,9 @@ Deno.serve(async(req)=>{
  if(req.method==="OPTIONS")return new Response(null,{status:204});
  if(req.method!=="POST"&&req.method!=="GET")return new Response("Method not allowed",{status:405});
  try{
+  const expected=await workerToken();
+  const supplied=req.headers.get("x-testagram-rss-ingest-token")||"";
+  if(!expected||supplied!==expected)return Response.json({ok:false,error:"Unauthorized"},{status:401});
   const limit=Math.min(Math.max(Number(new URL(req.url).searchParams.get("limit")||"12"),1),25);
   const {data:sources,error}=await db.from("testagram_rss_sources").select("id,profile_id,source_name,feed_url,category,country_code,language_code,refresh_minutes,etag,last_modified,consecutive_failures").eq("enabled",true).lte("next_fetch_at",new Date().toISOString()).order("next_fetch_at",{ascending:true}).limit(limit);
   if(error)throw error;
