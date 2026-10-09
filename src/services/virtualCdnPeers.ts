@@ -13,6 +13,7 @@
  * peer-derived bytes are never promoted into the peer-serving cache.
  */
 import { supabase } from '@/lib/supabase';
+import { recordVirtualCdnMetric } from '@/services/virtualCdnMetrics';
 
 export type PeerSegment = {
   url: string;
@@ -31,8 +32,8 @@ const CHUNK_BYTES = 16 * 1024;
 const PEER_REQUEST_TIMEOUT_MS = 1_000;
 const SIGNALING_WAIT_MS = 200;
 const MAX_ROOMS = 4;
-// Random cohorts cap signaling fan-out. At one million viewers, 16,384 cohorts
-// average about 61 members each; low traffic naturally yields fewer peer hits.
+// Random cohorts cap per-room fan-out. At one million viewers, 65,536 cohorts
+// average about 15 members each; this does not reduce total signaling connections.
 const SIGNALING_COHORTS = 65_536;
 const STUN_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
 
@@ -169,6 +170,7 @@ class StreamPeerRoom {
     try {
       await this.channel.send({ type: 'broadcast', event: 'signal', payload: { ...payload, from: this.id } });
     } catch {
+      recordVirtualCdnMetric('signalingFailure');
       // Signaling is best-effort; the caller falls back to the origin.
     }
   }
@@ -215,7 +217,11 @@ class StreamPeerRoom {
     };
     pc.ondatachannel = (event) => this.attachDataChannel(peerId, event.channel);
     pc.onconnectionstatechange = () => {
-      if (pc && ['failed', 'closed', 'disconnected'].includes(pc.connectionState)) this.dropPeer(peerId);
+      if (pc?.connectionState === 'connected') recordVirtualCdnMetric('connectionSuccess');
+      if (pc && ['failed', 'closed'].includes(pc.connectionState)) {
+        if (pc.connectionState === 'failed') recordVirtualCdnMetric('connectionFailure');
+        this.dropPeer(peerId);
+      }
     };
     pc.oniceconnectionstatechange = () => {
       if (pc && ['failed', 'closed'].includes(pc.iceConnectionState)) this.dropPeer(peerId);
@@ -294,6 +300,7 @@ class StreamPeerRoom {
         const buffer = bytes.buffer;
         const hash = await digest(buffer);
         if (pending.received !== pending.meta.size || hash !== pending.meta.sha256 || pending.meta.url !== pending.meta.expectedUrl) {
+          recordVirtualCdnMetric('integrityFailure');
           this.finish(message.requestId, null);
           return;
         }
@@ -304,6 +311,13 @@ class StreamPeerRoom {
       return;
     }
     if (!(data instanceof ArrayBuffer)) return;
+    // Match our sender's frame bound before retaining any received payload.
+    if (data.byteLength < 1 || data.byteLength > CHUNK_BYTES) {
+      recordVirtualCdnMetric('integrityFailure');
+      const pending = [...this.pending.values()].find((entry) => entry.meta?.peerId === peerId);
+      if (pending) this.finish(pending.requestId, null);
+      return;
+    }
     // The only outstanding transfer on a peer channel owns incoming binary frames.
     const pending = [...this.pending.values()].find((entry) => entry.meta?.peerId === peerId && entry.meta?.size && entry.received < entry.meta.size);
     if (!pending) return;
@@ -340,12 +354,24 @@ class StreamPeerRoom {
       for (let offset = 0; offset < bytes.length; offset += CHUNK_BYTES) {
         if (dc.readyState !== 'open') return;
         dc.send(bytes.slice(offset, Math.min(offset + CHUNK_BYTES, bytes.length)));
-        if (dc.bufferedAmount > 512 * 1024) await new Promise<void>((resolve) => {
-          const timeout = setTimeout(resolve, 200);
-          dc.onbufferedamountlow = () => { clearTimeout(timeout); dc.onbufferedamountlow = null; resolve(); };
-        });
+        if (dc.bufferedAmount > 512 * 1024) {
+          const drained = await new Promise<boolean>((resolve) => {
+            let settled = false;
+            const finish = (ok: boolean) => {
+              if (settled) return;
+              settled = true;
+              clearTimeout(timeout);
+              dc.onbufferedamountlow = null;
+              resolve(ok);
+            };
+            const timeout = setTimeout(() => finish(false), 200);
+            dc.onbufferedamountlow = () => finish(true);
+          });
+          if (!drained || dc.bufferedAmount > 512 * 1024) { reject(); return; }
+        }
       }
       dc.send(JSON.stringify({ type: 'end', requestId }));
+      recordVirtualCdnMetric('peerBytesServed', bytes.byteLength);
     } catch {
       reject();
     } finally {
@@ -378,21 +404,29 @@ class StreamPeerRoom {
   async fetchQuorum(url: string): Promise<PeerSegment | null> {
     this.lastUsed = Date.now();
     if (this.closed || !this.ready || !publicStreamUrl(url)) return null;
+    recordVirtualCdnMetric('peerRequest');
     const candidates = [...this.channels.entries()].filter(([peerId, dc]) => dc.readyState === 'open' && !this.requestingPeers.has(peerId)).slice(0, MAX_PEERS);
-    if (candidates.length < 2) return null;
+    if (candidates.length < 2) { recordVirtualCdnMetric('peerMiss'); return null; }
     const requestFrom = (peerId: string, dc: RTCDataChannel) => new Promise<PeerSegment | null>((resolve) => {
       this.requestingPeers.add(peerId);
       const requestId = randomId();
-      const timer = setTimeout(() => this.finish(requestId, null), PEER_REQUEST_TIMEOUT_MS);
+      const timer = setTimeout(() => {
+        recordVirtualCdnMetric('transferTimeout');
+        this.finish(requestId, null);
+      }, PEER_REQUEST_TIMEOUT_MS);
       this.pending.set(requestId, { requestId, resolve: (result) => { this.requestingPeers.delete(peerId); resolve(result); }, timer, meta: { peerId, url }, chunks: [], received: 0 });
       try { dc.send(JSON.stringify({ type: 'get', requestId, url, room: this.roomName })); }
       catch { this.finish(requestId, null); }
     });
     const responses = await Promise.all(candidates.slice(0, 2).map(([peerId, dc]) => requestFrom(peerId, dc)));
-    if (!responses[0] || !responses[1]) return null;
-    if (responses[0].bytes.byteLength !== responses[1].bytes.byteLength) return null;
+    if (!responses[0] || !responses[1]) { recordVirtualCdnMetric('peerMiss'); return null; }
+    if (responses[0].bytes.byteLength !== responses[1].bytes.byteLength) {
+      recordVirtualCdnMetric('integrityFailure'); recordVirtualCdnMetric('peerMiss'); return null;
+    }
     const [firstHash, secondHash] = await Promise.all([digest(responses[0].bytes), digest(responses[1].bytes)]);
-    if (firstHash !== secondHash) return null;
+    if (firstHash !== secondHash) { recordVirtualCdnMetric('integrityFailure'); recordVirtualCdnMetric('peerMiss'); return null; }
+    recordVirtualCdnMetric('peerHit');
+    recordVirtualCdnMetric('peerBytesReceived', responses[0].bytes.byteLength);
     return { ...responses[0], originVerified: false };
   }
 
