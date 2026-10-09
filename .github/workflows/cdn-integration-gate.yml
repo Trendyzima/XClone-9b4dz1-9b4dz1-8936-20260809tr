@@ -70,6 +70,8 @@ jobs:
           fi
       - name: Test virtual CDN capacity math
         run: node --experimental-strip-types --test scripts/virtual-cdn-capacity.test.mjs
+      - name: Run loopback staged load and peer-outage fallback simulation
+        run: node scripts/virtual-cdn-staged-load.mjs
       - name: Test legacy Go code without deployment
         working-directory: services/testagram-cdn
         run: go test ./...
