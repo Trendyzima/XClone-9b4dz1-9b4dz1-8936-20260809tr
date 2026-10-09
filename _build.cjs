@@ -310,10 +310,10 @@ button:focus-visible, [role="button"]:focus-visible, a:focus-visible {
 
   // Keep the feed responsive: return primary channels first, then merge the long-tail M3U catalog in the background.
   let iptvApi = original.get(iptvApiPath);
-  const fetchStart = iptvApi.indexOf('async function fetchExtraSources(): Promise<IPTVChannel[]> {');
+  const fetchStart = iptvApi.indexOf('async function fetchM3U(url: string, tag: string): Promise<IPTVChannel[]> {');
   const fetchEnd = iptvApi.indexOf('\nexport function getChannelPage', fetchStart);
   if (fetchStart < 0 || fetchEnd < 0) throw new Error('[IPTV performance] fetchAllChannels boundaries changed upstream');
-  const fastFetchAllChannels = `async function fetchExtraSources(): Promise<IPTVChannel[]> {\n  const all: IPTVChannel[] = [];\n  // Background enrichment only; this no longer gates first feed paint.\n  for (let i = 0; i < EXTRA_SOURCES.length; i += 8) {\n    const batch = EXTRA_SOURCES.slice(i, i + 8);\n    const results = await Promise.all(batch.map(([tag, url]) => fetchM3U(url, tag)));\n    for (const r of results) all.push(...r);\n  }\n  return all;\n}\n\nexport async function fetchAllChannels(): Promise<IPTVChannel[]> {
+  const fastFetchAllChannels = `async function fetchM3U(url: string, tag: string): Promise<IPTVChannel[]> {\n  try {\n    const res = await fetch(url, { signal: AbortSignal.timeout(12000) });\n    if (!res.ok) return [];\n    const text = await res.text();\n    if (!text.includes('#EXTINF')) return [];\n    return parseM3U(text, tag);\n  } catch (error) { console.warn('[IPTV] Playlist failed:', tag, error); return []; }\n}\n\nasync function fetchExtraSources(): Promise<IPTVChannel[]> {\n  const all: IPTVChannel[] = [];\n  // Background enrichment only; this no longer gates first feed paint.\n  for (let i = 0; i < EXTRA_SOURCES.length; i += 8) {\n    const batch = EXTRA_SOURCES.slice(i, i + 8);\n    const results = await Promise.all(batch.map(([tag, url]) => fetchM3U(url, tag)));\n    for (const r of results) all.push(...r);\n  }\n  return all;\n}\n\nexport async function fetchAllChannels(): Promise<IPTVChannel[]> {
   if (memCache && memCache.length > 0) return memCache;
 
   try {
