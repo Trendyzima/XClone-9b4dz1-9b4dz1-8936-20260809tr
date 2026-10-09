@@ -85,7 +85,7 @@ export function OrganicSportsStories({ surface, query = '', limit = 3, compact =
     const params = new URLSearchParams({ limit: String(Math.min(8, Math.max(1, limit))), category: 'sports' });
     if (surface === 'search' && query.trim()) {
       const specificTerms = query.trim().toLowerCase()
-        .split(/\\s+/)
+        .split(/\s+/)
         .filter(term => !/^(the|and|in|on|for|sports?|football|soccer|cricket|rugby|basketball|nba|tennis|scores?|fixtures?|transfers?|results?|league|epl|afcon|athletics|olympics|news|latest|live)$/i.test(term))
         .join(' ')
         .slice(0, 100);
