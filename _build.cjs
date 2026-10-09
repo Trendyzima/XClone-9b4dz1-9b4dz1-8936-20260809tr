@@ -33,7 +33,7 @@ function cleanNodeOptions(v) {
 function runSeoValidation() {
   const validatorPath = path.resolve(root, 'scripts', 'validate-seo-production.mjs');
   if (!fs.existsSync(validatorPath)) {
-    process.stderr.write(`[_build] ❌ Missing SEO production validator: ${validatorPath}\\n`);
+    process.stderr.write(`[_build] ❌ Missing SEO production validator: ${validatorPath}\n`);
     process.exit(1);
   }
 
@@ -45,11 +45,11 @@ function runSeoValidation() {
   });
 
   if (result.error) {
-    process.stderr.write(`[_build] ❌ SEO production validation could not start: ${result.error.message}\\n`);
+    process.stderr.write(`[_build] ❌ SEO production validation could not start: ${result.error.message}\n`);
     process.exit(1);
   }
   if (result.status !== 0) {
-    process.stderr.write(`[_build] ❌ SEO production validation failed (exit ${result.status})\\n`);
+    process.stderr.write(`[_build] ❌ SEO production validation failed (exit ${result.status})\n`);
     process.exit(result.status || 1);
   }
 }
