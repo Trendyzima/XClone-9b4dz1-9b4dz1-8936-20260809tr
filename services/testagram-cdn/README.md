@@ -15,6 +15,7 @@ The active IPTV delivery path is **origin-first**. XClone requests each channel'
 Eligible public HLS fragments can be exchanged across viewer devices over WebRTC data channels. The existing Supabase Realtime client is used only for signaling; video bytes do not pass through Supabase. The implementation currently:
 
 - Randomly shards viewers into 16,384 signaling cohorts per stream to reduce broadcast fan-out at larger audience sizes.
+- Peer sharing is opt-in because direct WebRTC connections can reveal network/IP metadata to connected peers and consume upload data; the UI explains this before/while enabling it.
 - Limits each browser to three peer connections, one active upload per peer, and segments of at most 1.5 MB.
 - Waits for two distinct peers that have each fetched the segment directly from the source; both transferred payloads must match SHA-256 before peer bytes are used.
 - Serves only source-fetched cache entries onward. Peer-derived cache entries are never re-shared, preventing one bad peer from propagating its payload through the mesh.
