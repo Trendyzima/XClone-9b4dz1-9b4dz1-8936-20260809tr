@@ -1,5 +1,6 @@
 import { DEPLOYED_COMMIT_SHA } from './deployment-meta';
 import homeFeed from '../api/home-feed';
+import sitemapIndex from '../api/sitemap-index';
 
 const SUPABASE_ORIGIN = 'https://ffrhglgkukgsuhxenena.supabase.co';
 
@@ -204,6 +205,13 @@ async function invokeEdge(pathname: string, request: Request, env: Env) {
   if (pathname === '/api/home-feed') {
     setRuntimeEnv(env, (env as any).TESTAGRAM_COMMIT_SHA);
     return homeFeed(request);
+  }
+
+  // Keep the root sitemap statically bundled: dynamic imports can compile cleanly
+  // yet fail at the deployed Worker runtime, turning /sitemap.xml into HTTP 500.
+  if (pathname === '/api/sitemap-index') {
+    setRuntimeEnv(env, (env as any).TESTAGRAM_COMMIT_SHA);
+    return sitemapIndex(request);
   }
 
   const modulePath = EDGE_ROUTES[pathname];
