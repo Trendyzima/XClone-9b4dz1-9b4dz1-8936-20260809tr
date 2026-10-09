@@ -37,6 +37,22 @@ const MAX_ROOMS = 4;
 const SIGNALING_COHORTS = 16_384;
 const STUN_SERVERS: RTCIceServer[] = [{ urls: 'stun:stun.l.google.com:19302' }];
 
+function peerSharingEnabled() {
+  try { return typeof localStorage !== 'undefined' && localStorage.getItem('testagram-tv-peer-sharing') === 'on'; }
+  catch { return false; }
+}
+
+function uploadAllowed() {
+  if (!peerSharingEnabled()) return false;
+  try {
+    if (localStorage.getItem('testagram-tv-data-saver') === 'on') return false;
+    const connection = (navigator as any).connection;
+    if (connection?.saveData || ['slow-2g', '2g'].includes(String(connection?.effectiveType || '').toLowerCase())) return false;
+    if (String(connection?.type || '').toLowerCase() === 'cellular') return false;
+  } catch { return false; }
+  return true;
+}
+
 function randomId() {
   try { return crypto.randomUUID(); } catch { return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`; }
 }
@@ -285,7 +301,7 @@ class StreamPeerRoom {
     const url = String(message.url || '');
     const reject = () => { try { dc.send(JSON.stringify({ type: 'miss', requestId })); } catch {} };
     if (!requestId || requestId.length > 80 || !publicStreamUrl(url) || message.room !== this.roomName ||
-        this.uploading.has(peerId) || Date.now() - (this.lastServedAt.get(peerId) || 0) < 350) {
+        !uploadAllowed() || this.uploading.size >= 1 || Date.now() - (this.lastServedAt.get(peerId) || 0) < 800) {
       reject();
       return;
     }
@@ -372,7 +388,7 @@ class StreamPeerRoom {
 const rooms = new Map<string, StreamPeerRoom>();
 
 export async function fetchVirtualPeerSegment(streamUrl: string, segmentUrl: string, cache: PeerCache) {
-  if (typeof window === 'undefined' || typeof RTCPeerConnection === 'undefined') return null;
+  if (typeof window === 'undefined' || typeof RTCPeerConnection === 'undefined' || !peerSharingEnabled()) return null;
   if (!publicStreamUrl(streamUrl) || !publicStreamUrl(segmentUrl)) return null;
   try {
     const name = await roomId(streamUrl);
