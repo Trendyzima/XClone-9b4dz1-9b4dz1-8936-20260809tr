@@ -136,7 +136,14 @@ func TestTVSelfContainedIPTV(t *testing.T) {
 	body := rr.Body.String()
 	if !strings.Contains(body, "#EXTM3U") || !strings.Contains(body, "#EXTINF:6.0") { t.Fatalf("invalid rewritten HLS playlist: %s", body) }
 	if !strings.Contains(body, "/v1/tv/channel-e2e/") { t.Fatalf("playlist was not rewritten to canonical CDN paths: %s", body) }
-	if got := s.tvPrefetchSuccesses.Load(); got < 1 { t.Fatalf("expected prefetch success, got %d", got) }
+	// Prefetch is intentionally asynchronous so playlist startup is not blocked.
+	// Wait for the background warmup with a bounded deadline instead of asserting
+	// counters immediately (which made CI nondeterministically report zero).
+	deadline := time.Now().Add(3 * time.Second)
+	for s.tvPrefetchSuccesses.Load() < 1 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := s.tvPrefetchSuccesses.Load(); got < 1 { t.Fatalf("expected background prefetch success within 3s, got %d failures=%d", got, s.tvPrefetchFailures.Load()) }
 	if got := s.tvPrefetchWarmedSeconds.Load(); got < 30 { t.Fatalf("expected >=30 warmed seconds, got %d", got) }
 
 	lines := strings.Split(body, "\n")
