@@ -27,6 +27,14 @@ export const TV_SOURCES: TvSource[] = [
 {id:'dhanytv-indonesia',label:'dhanytv · Indonesia public channels',url:'https://raw.githubusercontent.com/dhasap/dhanytv/main/dhanytv-ott.m3u',country:'ID',priority:116,enabled:true,policy:'public-free'},
 {id:'blitz-latam',label:'Blitz IPTV Player · public channel snapshot',url:'https://raw.githubusercontent.com/blitzandres/iptv-player/main/channels.json',country:'INT',priority:115,enabled:true,policy:'community-unverified'},
 {id:'freecast-global',label:'FreeCastHub · Global public broadcasters',url:'https://raw.githubusercontent.com/freecasthub/public-iptv/main/playlist.m3u',country:'INT',priority:114,enabled:true,policy:'public-free'},
+{id:'india-active-community',label:'India · community active-stream playlist',url:'https://raw.githubusercontent.com/gnaidu05/iptv/main/playlists/india-active.m3u',country:'IN',priority:113,enabled:true,policy:'community-unverified'},
+{id:'portugal-free-tv',label:'Portugal · Portuguese-language free TV',url:'https://raw.githubusercontent.com/cesarsferreira/m3u/main/tv.m3u',country:'PT',priority:112,enabled:true,policy:'public-free'},
+{id:'indonesia-community',label:'Indonesia · community public TV playlist',url:'https://raw.githubusercontent.com/riotryulianto/iptv-playlists/main/playlist.m3u',country:'ID',priority:111,enabled:true,policy:'community-unverified'},
+{id:'xumo-community',label:'Xumo · community-generated channel playlist',url:'https://raw.githubusercontent.com/BuddyChewChew/xumo-playlist-generator/main/playlists/xumo_playlist.m3u',country:'INT',priority:110,enabled:true,policy:'community-unverified'},
+{id:'south-africa-community',label:'South Africa · community public TV playlist',url:'https://raw.githubusercontent.com/KrugerAdrian/IPTV-South-Africa/main/South-Africa.m3u',country:'ZA',priority:109,enabled:true,policy:'community-unverified'},
+{id:'plex-fast-global',label:'Plex · global FAST channel playlist',url:'https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/plex_all.m3u',country:'INT',priority:108,enabled:true,policy:'community-unverified'},
+{id:'samsung-tv-plus-global',label:'Samsung TV Plus · global FAST channel playlist',url:'https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/samsungtvplus_all.m3u',country:'INT',priority:107,enabled:true,policy:'community-unverified'},
+{id:'roku-fast-global',label:'Roku Channel · global FAST channel playlist',url:'https://raw.githubusercontent.com/BuddyChewChew/app-m3u-generator/main/playlists/roku_all.m3u',country:'INT',priority:106,enabled:true,policy:'community-unverified'},
 ];
 function attr(line:string,key:string){ return line.match(new RegExp(key+'="([^"]*)"'))?.[1]?.trim() || undefined; }
 const clean=(v?:string)=>v?.replace(/\s+/g,' ').trim()||undefined;
