@@ -61,9 +61,9 @@ Disallow: /admin/
 Disallow: /fraud-detection
 Disallow: /ai-bot-setup
 
-# ── AI training crawlers: remain blocked ──────────────────────────────────────
-# These rules limit training/data-collection crawlers; they do not block ordinary
-# search engines from indexing public pages.
+# ── AI training/data-collection crawlers remain blocked ────────────────────────
+# Search retrieval crawlers are not blocked here and inherit the default group
+# above, including its private/admin route exclusions.
 User-agent: GPTBot
 Disallow: /
 
@@ -93,34 +93,6 @@ Disallow: /
 
 User-agent: Applebot-Extended
 Disallow: /
-
-# ── AI-powered search discovery: allow public-page retrieval ───────────────────
-# Keep private routes blocked by the default group above; these crawlers can
-# fetch public pages so Testagram can be discovered in AI-powered search.
-User-agent: OAI-SearchBot
-Allow: /
-
-User-agent: ChatGPT-User
-Allow: /
-
-User-agent: Claude-SearchBot
-Allow: /
-
-User-agent: PerplexityBot
-Allow: /
-
-# ── Search engine bots (fully allowed) ────────────────────────────────────────
-User-agent: Googlebot
-Allow: /
-
-User-agent: Bingbot
-Allow: /
-
-User-agent: Slurp
-Allow: /
-
-User-agent: DuckDuckBot
-Allow: /
 
 # ── Sitemaps ─────────────────────────────────────────────────────────────────
 Sitemap: https://testagram.site/sitemap.xml
