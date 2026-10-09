@@ -61,7 +61,7 @@ export default async function handler(request: Request) {
     return new Response('Sitemap temporarily unavailable', { status: 502, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
   }
 
-  const urls = (data ?? []).filter((row) => row.username).map((row) => {
+  const urls = (data ?? []).filter((row) => typeof row.username === 'string' && row.username.trim() !== '' && !/^(?:null|undefined)$/i.test(row.username.trim())).map((row) => {
     const slug = encodeURIComponent(String(row.username));
     const lastmod = row.updated_at ? `\n    <lastmod>${xmlEscape(String(row.updated_at))}</lastmod>` : '';
     return `  <url>\n    <loc>https://testagram.site/profile/${slug}</loc>${lastmod}\n    <changefreq>weekly</changefreq>\n    <priority>0.7</priority>\n  </url>`;
