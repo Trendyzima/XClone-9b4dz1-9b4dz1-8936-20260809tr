@@ -1,0 +1,45 @@
+name: Sports Hub Validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/pages/SportsHubPage.tsx"
+      - "supabase/functions/testagram-sports/**"
+      - "supabase/functions/testagram-rss-ingest/**"
+      - "supabase/config.toml"
+      - "docs/sports-hub.md"
+      - ".github/workflows/sports-hub-validation.yml"
+  push:
+    branches: [main]
+    paths:
+      - "src/pages/SportsHubPage.tsx"
+      - "supabase/functions/testagram-sports/**"
+      - "supabase/functions/testagram-rss-ingest/**"
+      - "supabase/config.toml"
+      - "docs/sports-hub.md"
+      - ".github/workflows/sports-hub-validation.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sports-hub-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Typecheck Sports Hub Edge Functions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+      - name: Prove checkout revision
+        run: git rev-parse HEAD
+      - name: Typecheck scores proxy and RSS image ingestion
+        run: |
+          deno check --node-modules-dir=none supabase/functions/testagram-sports/index.ts
+          deno check --node-modules-dir=none supabase/functions/testagram-rss-ingest/index.ts

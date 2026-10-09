@@ -10,12 +10,48 @@ const parser=new XMLParser({ignoreAttributes:false,attributeNamePrefix:"@",textN
 const clean=(v:any)=>String(typeof v==="object"&&v!==null?(v["#text"]??v["@url"]??v["@href"]??""):v??"").replace(/<!\[CDATA\[|\]\]>/g,"").trim();
 const arr=(v:any)=>Array.isArray(v)?v:(v?[v]:[]);
 const pickImage=(item:any)=>{
-  const media=arr(item.media?.content??item.content?.["media:content"]??item["media:content"]);
-  for(const x of media){const u=clean(x?.["@url"]??x?.url);if(u)return u}
-  const thumb=arr(item.media?.thumbnail??item["media:thumbnail"]);for(const x of thumb){const u=clean(x?.["@url"]??x?.url);if(u)return u}
-  const enc=arr(item.enclosure);for(const x of enc){const u=clean(x?.["@url"]??x?.url);if(u&&/image\//i.test(clean(x?.["@type"])))return u}
-  const html=clean(item.description??item.summary);const m=html.match(/<img[^>]+src=["']([^"']+)/i);return m?.[1]||null;
+ const media=arr(item.media?.content??item.media?.group?.content??item["media:content"]??item.content?.["media:content"]);
+ for(const x of media){const u=clean(x?.["@url"]??x?.url);if(u&&/^https?:\/\//i.test(u))return u}
+ const thumb=arr(item.media?.thumbnail??item["media:thumbnail"]);for(const x of thumb){const u=clean(x?.["@url"]??x?.url);if(u&&/^https?:\/\//i.test(u))return u}
+ const enc=arr(item.enclosure??item.link);for(const x of enc){const u=clean(x?.["@url"]??x?.["@href"]??x?.url??x?.href);const type=clean(x?.["@type"]??x?.["@rel"]);if(u&&/^https?:\/\//i.test(u)&&(/image\//i.test(type)||String(x?.["@rel"]||"").toLowerCase()==="enclosure"))return u}
+ const bodies=[item.description,item.summary,item.content?.encoded,item.content?.["#text"],item["content:encoded"]].map(clean).filter(Boolean);
+ for(const html of bodies){const m=html.match(/<img\b[^>]*(?:src|data-src)=["']([^"']+)/i);if(m?.[1]){const u=m[1].replace(/&amp;/g,"&");if(/^https?:\/\//i.test(u))return u}}
+ return null;
 };
+const trustedPublisher=(value:string)=>{
+ try{const u=new URL(value);if(u.protocol!=="https:"&&u.protocol!=="http:")return false;const h=u.hostname.toLowerCase();return ["bbc.co.uk","bbc.com","standardmedia.co.ke"].some(base=>h===base||h.endsWith("."+base))&&!u.username&&!u.password}catch{return false}
+};
+const metaImage=(html:string,pageUrl:string)=>{
+ const tags=html.match(/<meta\b[^>]*>/gi)||[];
+ for(const tag of tags){
+  if(!/(?:property|name)\s*=\s*["'](?:og:image(?::url)?|twitter:image(?::src)?)["']/i.test(tag))continue;
+  const match=tag.match(/\bcontent\s*=\s*["']([^"']+)["']/i);if(!match?.[1])continue;
+  const raw=match[1].replace(/&amp;/g,"&").replace(/&#038;/g,"&").replace(/&quot;/g,'"');
+  try{const image=new URL(raw,pageUrl);if((image.protocol==="https:"||image.protocol==="http:")&&!image.username&&!image.password&&image.href.length<=2048)return image.href}catch{}
+ }
+ return null;
+};
+async function fetchArticleImage(pageUrl:string):Promise<string|null>{
+ if(!trustedPublisher(pageUrl))return null;
+ let current=new URL(pageUrl);
+ try{
+  for(let hop=0;hop<3;hop++){
+   if(!trustedPublisher(current.href))return null;
+   const res=await fetch(current.href,{headers:{"User-Agent":"Testagram RSS Image Resolver/1.0 (+https://testagram.site)","Accept":"text/html,application/xhtml+xml;q=0.9"},redirect:"manual",signal:AbortSignal.timeout(2500)});
+   if(res.status>=300&&res.status<400){
+    const location=res.headers.get("location");if(!location)return null;
+    current=new URL(location,current);continue;
+   }
+   if(!res.ok||!/^text\/html\b/i.test(res.headers.get("content-type")||""))return null;
+   const reader=res.body?.getReader();if(!reader)return null;
+   const chunks:Uint8Array[]=[];let total=0;
+   while(total<262144){const part=await reader.read();if(part.done)break;total+=part.value.byteLength;if(total>262144){await reader.cancel();return null}chunks.push(part.value)}
+   const bytes=new Uint8Array(total);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength}
+   return metaImage(new TextDecoder().decode(bytes),current.href);
+  }
+ }catch{return null}
+ return null;
+}
 const canonical=(item:any)=>clean(item.link?.["#text"]??item.link?.["@href"]??item.link??item.guid?.["#text"]??item.guid);
 const title=(item:any)=>clean(item.title)||"Untitled";
 const excerpt=(item:any)=>clean(item.description??item.summary??item.content?.["encoded"]??item.content).replace(/<[^>]+>/g," ").replace(/\s+/g," ").slice(0,700);
@@ -50,6 +86,15 @@ async function fetchSource(source:any){
    const pub=published(item);
    const pubDate=new Date(pub); if(pubDate.getTime()<Date.now()-12*60*60*1000)continue;
    rows.push({source_id:source.id,profile_id:source.profile_id,guid:clean(item.guid?.["#text"]??item.guid) || link,canonical_url:link,title:title(item),excerpt:excerpt(item)||null,author:clean(item.author?.name??item.author??item.dc?.creator)||null,image_url:pickImage(item),category:source.category,country_code:source.country_code,language_code:source.language_code,published_at:pub,fetched_at:fetchedAt,expires_at:new Date(Date.now()+(source.category==="sports"?3:6)*60*60*1000).toISOString(),metadata:{source_name:source.source_name}});
+ }
+ // Feeds often omit media tags. Enrich a small, bounded batch from publisher
+ // Open Graph metadata so the UI has real editorial images without scraping every story.
+ const missingImages=rows.filter(row=>!row.image_url&&trustedPublisher(row.canonical_url)).slice(0,6);
+ for(let i=0;i<missingImages.length;i+=3){
+  const batch=missingImages.slice(i,i+3);
+  const resolved=await Promise.all(batch.map(async row=>({url:row.canonical_url,image:await fetchArticleImage(row.canonical_url)})));
+  const byUrl=new Map<string,string>();for(const item of resolved){if(item.image)byUrl.set(item.url,item.image)}
+  for(const row of rows){const image=byUrl.get(row.canonical_url);if(image&&!row.image_url)row.image_url=image}
  }
  if(rows.length)await db.from("testagram_rss_items").upsert(rows,{onConflict:"source_id,canonical_url",ignoreDuplicates:false});
  await db.from("testagram_rss_sources").update({etag:nextEtag,last_modified:nextLastModified,last_fetched_at:fetchedAt,last_success_at:fetchedAt,last_error:null,consecutive_failures:0,next_fetch_at:new Date(Date.now()+source.refresh_minutes*60*1000).toISOString(),updated_at:fetchedAt}).eq("id",source.id);
