@@ -3,7 +3,7 @@
 
 insert into public.testagram_rss_sources
   (profile_id, source_name, feed_url, category, country_code, language_code, enabled, refresh_minutes, next_fetch_at)
-select p.id, p.display_name, v.feed_url, 'sports', v.country_code, 'en', true, 60, now()
+select p.id, p.display_name, v.feed_url, 'sports', v.country_code, 'en', true, 60, now() - interval '1 day'
 from (values
   ('bbcsport', 'https://feeds.bbci.co.uk/sport/rss.xml', 'GB'),
   ('standardsports', 'https://www.standardmedia.co.ke/rss/sports.php', 'KE')
@@ -15,7 +15,7 @@ set category = excluded.category,
     language_code = excluded.language_code,
     enabled = true,
     refresh_minutes = 60,
-    next_fetch_at = least(public.testagram_rss_sources.next_fetch_at, now()),
+    next_fetch_at = least(public.testagram_rss_sources.next_fetch_at, now() - interval '1 day'),
     updated_at = now();
 
 -- Imported sports headlines have a maximum three-hour lifetime; general RSS
