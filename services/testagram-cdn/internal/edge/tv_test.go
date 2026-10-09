@@ -126,7 +126,7 @@ func TestTVSelfContainedIPTV(t *testing.T) {
 		return http.DefaultTransport.RoundTrip(clone)
 	})
 
-	src := "https://origin.test/live/index.m3u8"
+	src := "https://origin.example/live/index.m3u8"
 	exp := time.Now().Add(10 * time.Minute).Unix()
 	token := s.signTVToken("channel-e2e", src, exp)
 	req := httptest.NewRequest(http.MethodGet, "/v1/tv/channel-e2e/index.m3u8?src="+url.QueryEscape(src)+"&token="+url.QueryEscape(token), nil)
