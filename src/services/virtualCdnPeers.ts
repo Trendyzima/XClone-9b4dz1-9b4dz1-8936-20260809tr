@@ -73,7 +73,9 @@ async function roomId(streamUrl: string) {
   const canonical = url.href;
   const existing = streamRoomIds.get(canonical);
   if (existing) return existing;
-  const hash = await digest(new TextEncoder().encode(canonical).buffer);
+  const encoded = new TextEncoder().encode(canonical);
+  const encodedBuffer = encoded.buffer.slice(encoded.byteOffset, encoded.byteOffset + encoded.byteLength) as ArrayBuffer;
+  const hash = await digest(encodedBuffer);
   const cohortBytes = new Uint16Array(1);
   try { crypto.getRandomValues(cohortBytes); } catch { cohortBytes[0] = Math.floor(Math.random() * 65_536); }
   const cohort = cohortBytes[0] % SIGNALING_COHORTS;
@@ -88,6 +90,7 @@ class StreamPeerRoom {
   readonly peers = new Map<string, RTCPeerConnection>();
   readonly channels = new Map<string, RTCDataChannel>();
   readonly pending = new Map<string, Transfer>();
+  readonly requestingPeers = new Set<string>();
   readonly uploading = new Set<string>();
   readonly lastServedAt = new Map<string, number>();
   readonly candidateQueues = new Map<string, RTCIceCandidateInit[]>();
@@ -328,6 +331,7 @@ class StreamPeerRoom {
     this.channels.delete(peerId);
     this.candidateQueues.delete(peerId);
     this.uploading.delete(peerId);
+    this.requestingPeers.delete(peerId);
     this.lastServedAt.delete(peerId);
     for (const [requestId, pending] of this.pending) {
       if (pending.meta?.peerId === peerId) this.finish(requestId, null);
@@ -337,12 +341,13 @@ class StreamPeerRoom {
   async fetchQuorum(url: string): Promise<PeerSegment | null> {
     this.lastUsed = Date.now();
     if (this.closed || !this.ready || !publicStreamUrl(url)) return null;
-    const candidates = [...this.channels.entries()].filter(([, dc]) => dc.readyState === 'open').slice(0, MAX_PEERS);
+    const candidates = [...this.channels.entries()].filter(([peerId, dc]) => dc.readyState === 'open' && !this.requestingPeers.has(peerId)).slice(0, MAX_PEERS);
     if (candidates.length < 2) return null;
     const requestFrom = (peerId: string, dc: RTCDataChannel) => new Promise<PeerSegment | null>((resolve) => {
+      this.requestingPeers.add(peerId);
       const requestId = randomId();
       const timer = setTimeout(() => this.finish(requestId, null), PEER_REQUEST_TIMEOUT_MS);
-      this.pending.set(requestId, { requestId, resolve, timer, meta: { peerId, url }, chunks: [], received: 0 });
+      this.pending.set(requestId, { requestId, resolve: (result) => { this.requestingPeers.delete(peerId); resolve(result); }, timer, meta: { peerId, url }, chunks: [], received: 0 });
       try { dc.send(JSON.stringify({ type: 'get', requestId, url, room: this.roomName })); }
       catch { this.finish(requestId, null); }
     });
