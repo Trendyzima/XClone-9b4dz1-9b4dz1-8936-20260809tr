@@ -28,16 +28,6 @@ const REACTIONS: { key: ReactionKey; label: string; Icon: typeof Heart }[] = [
 ];
 
 const CACHE_TTL = 60_000;
-const MAX_RSS_AGE_MS = 12 * 60 * 60 * 1000;
-
-function keepFresh(items: FeedItem[]): FeedItem[] {
-  const now = Date.now();
-  return items.filter(item => {
-    const published = new Date(item.published_at).getTime();
-    const age = now - published;
-    return Number.isFinite(published) && age >= -5 * 60_000 && age < MAX_RSS_AGE_MS;
-  });
-}
 const RSS_FRESHNESS_MS = 12 * 60 * 60 * 1000;
 function freshRssItems(items: FeedItem[]) { const cutoff = Date.now() - RSS_FRESHNESS_MS; return items.filter(item => { const published = new Date(item.published_at).getTime(); return Number.isFinite(published) && published >= cutoff && published <= Date.now() + 5 * 60 * 1000; }); }
 const SESSION_KEY = 'testagram_rss_temporary_reactions_v1';
