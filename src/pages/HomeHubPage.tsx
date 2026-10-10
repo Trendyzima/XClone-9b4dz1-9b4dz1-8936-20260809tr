@@ -410,7 +410,7 @@ export default function HomeHubPage(){
         setItems(freshCached);
         cacheCursorRef.current=cached.cursor;nextCursorRef.current=cached.cursor;
         if(isHomeFeedCacheUsable(cached)){
-          setHasMore(Boolean(cached.cursor)||freshCached.length>6);
+          setHasMore(Boolean(cached.cursor));
         } else {
           setHasMore(freshCached.length>6);
         }
