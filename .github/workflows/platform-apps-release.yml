@@ -58,7 +58,7 @@ jobs:
       - name: Install Tauri CLI
         run: cargo install tauri-cli --version "^2" --locked
       - name: Generate platform icons
-        run: npm run tauri -- icon ../../public/app-icon.jpg --output icons
+        run: npm run tauri -- icon ../../public/tsocial-logo.png --output icons
       - name: Build installers
         run: npm run tauri -- build --bundles ${{ matrix.bundles }}
       - name: Collect release files
