@@ -28,9 +28,10 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
     autoRefreshToken: true,
     detectSessionInUrl: true,
     storageKey: 'testagram-auth',
-    // Supabase refreshes short-lived access tokens automatically. The application
-    // and hosted Auth session time-box must both be configured for 24 hours; the
-    // repository setting lives in supabase/config.toml and must be applied remotely.
+    // Supabase refreshes short-lived access tokens automatically and persists the
+    // refreshable session across reloads. The app enforces its 24-hour maximum in
+    // sessionPolicy.ts. supabase/config.toml mirrors this for local/self-hosted Auth;
+    // hosted server-side session time-boxing is plan-gated and is not assumed here.
     debug: false,
   },
 });
