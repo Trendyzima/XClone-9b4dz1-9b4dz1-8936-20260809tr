@@ -23,8 +23,10 @@ on:
 permissions:
   contents: write
 
+# Key by commit so a slow macOS runner from an older PR revision cannot
+# block validation of the latest fix behind the same pull-request merge ref.
 concurrency:
-  group: xclone-desktop-release-${{ github.ref }}
+  group: xclone-desktop-release-${{ github.event.pull_request.head.sha || github.sha }}
   cancel-in-progress: false
 
 jobs:
