@@ -260,8 +260,15 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
     });
   };
 
-  if (typeof win.IntersectionObserver !== 'undefined') {
-    cardObserver = new win.IntersectionObserver((entries) => {
+  const observerWindow = win as unknown as {
+    IntersectionObserver?: typeof IntersectionObserver;
+    MutationObserver?: typeof MutationObserver;
+  };
+  const IntersectionObserverCtor = observerWindow.IntersectionObserver;
+  const MutationObserverCtor = observerWindow.MutationObserver;
+
+  if (IntersectionObserverCtor) {
+    cardObserver = new IntersectionObserverCtor((entries) => {
       entries.forEach((entry) => {
         const card = entry.target as HTMLElement;
         if (entry.isIntersecting && entry.intersectionRatio >= 0.75) {
@@ -281,7 +288,7 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
       });
     }, { threshold: [0, 0.25, 0.75] });
     scan();
-    mutationObserver = new win.MutationObserver(scan);
+    if (MutationObserverCtor) mutationObserver = new MutationObserverCtor(scan);
     if (doc.body) mutationObserver.observe(doc.body, { childList: true, subtree: true });
   }
 
