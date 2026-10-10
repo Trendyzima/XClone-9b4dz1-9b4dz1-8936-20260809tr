@@ -41,11 +41,13 @@ const AD_DOCUMENTS: Record<AdUnit, { width: number; height: number; html: string
 
 function AdFrame({ unit }: { unit: AdUnit }) {
   const frameRef = useRef<HTMLIFrameElement | null>(null);
+  const probeRef = useRef<HTMLDivElement | null>(null);
   const [nearViewport, setNearViewport] = useState(false);
+  const [adStatus, setAdStatus] = useState<'pending' | 'filled' | 'empty'>('pending');
   const ad = AD_DOCUMENTS[unit];
 
   useEffect(() => {
-    const node = frameRef.current;
+    const node = probeRef.current;
     if (!node || nearViewport) return;
     if (!('IntersectionObserver' in window)) {
       setNearViewport(true);
@@ -61,13 +63,28 @@ function AdFrame({ unit }: { unit: AdUnit }) {
     return () => observer.disconnect();
   }, [nearViewport]);
 
-  const srcDoc = useMemo(() => `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;width:${ad.width}px;height:${ad.height}px;overflow:hidden;background:transparent}body{display:flex;align-items:flex-start;justify-content:flex-start}</style></head><body>${ad.html}</body></html>`, [ad]);
+  // Ad creatives execute in a sandboxed srcDoc. The in-frame monitor reports only
+  // whether a visible creative element was created; empty slots are removed.
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== frameRef.current?.contentWindow) return;
+      if (!event.data || event.data.type !== 'testagram-ad-slot') return;
+      if (event.data.status === 'filled') setAdStatus('filled');
+      if (event.data.status === 'empty') setAdStatus('empty');
+    };
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, []);
+
+  const srcDoc = useMemo(() => `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;width:${ad.width}px;height:${ad.height}px;overflow:hidden;background:transparent}body{display:flex;align-items:flex-start;justify-content:flex-start}</style></head><body>${ad.html}<script>(function(){var done=false,start=Date.now();function hasCreative(){var nodes=Array.prototype.slice.call(document.querySelectorAll('iframe,img,video,canvas,object,embed'));return nodes.some(function(el){var r=el.getBoundingClientRect();if(r.width<30||r.height<20)return false;if(el.tagName==='IMG')return el.complete&&el.naturalWidth>0;if(el.tagName==='VIDEO')return el.readyState>=1||!!el.poster;if(el.tagName==='CANVAS')return el.width>0&&el.height>0;return true;});}function report(status){if(done)return;done=true;parent.postMessage({type:'testagram-ad-slot',status:status},'*');}var timer=setInterval(function(){if(hasCreative()){clearInterval(timer);report('filled');}else if(Date.now()-start>12000){clearInterval(timer);report('empty');}},300);})();<\/script></body></html>`, [ad]);
+
+  if (adStatus === 'empty') return null;
+  const filled = adStatus === 'filled';
   return (
-    <section className="external-ad-shell mx-auto my-3 max-w-full" aria-label="Sponsored advertisement" data-external-ad-unit={unit}>
-      <div className="mb-1 flex items-center justify-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-        <span aria-hidden="true">ⓘ</span><span>Sponsored</span>
-      </div>
-      <div className="mx-auto max-w-full overflow-x-auto overflow-y-hidden" style={{ width: ad.width, height: ad.height }}>
+    <section className={`external-ad-shell mx-auto max-w-full ${filled ? 'my-3' : 'relative h-px w-full overflow-hidden'}`} aria-label="Sponsored advertisement" data-external-ad-unit={unit}>
+      <div ref={probeRef} aria-hidden="true" className={filled ? 'hidden' : 'absolute inset-0 h-px w-full'} />
+      {filled && <div className="mb-1 flex items-center justify-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"><span aria-hidden="true">ⓘ</span><span>Sponsored</span></div>}
+      <div className={filled ? 'mx-auto max-w-full overflow-x-auto overflow-y-hidden' : 'pointer-events-none absolute left-0 top-0 -z-10 overflow-hidden opacity-0'} style={{ width: ad.width, height: ad.height }}>
         <iframe
           ref={frameRef}
           title="Sponsored advertisement"
