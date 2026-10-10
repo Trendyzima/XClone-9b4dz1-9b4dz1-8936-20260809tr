@@ -327,7 +327,7 @@ export default function HomeHubPage(){
 
   const persistBuffer=useCallback(async()=>{
     try{
-      await writeHomeFeedCache({key:'home',items:feedBufferRef.current,cursor:cacheCursorRef.current,updatedAt:Date.now(),scrollY:window.scrollY,anchorId:items[0]?.data?.id??null});
+      await writeHomeFeedCache({key:'home',items:feedBufferRef.current,cursor:cacheCursorRef.current,updatedAt:Date.now(),scrollY:window.scrollY,anchorId:feedBufferRef.current[0]?.data?.id??null});
     }catch(error){
       // Storage quota/private browsing must not break scrolling or pagination.
       console.warn('[home-hub] feed cache write skipped',error);
@@ -373,7 +373,7 @@ export default function HomeHubPage(){
         // publisher cards are layered into the visible list separately.
         setNewCount(fresh.length);
         if(fresh.length&&window.scrollY<500){
-          setItems(prev=>[...fresh,...prev].slice(0,240));
+          setItems(prev=>[...fresh.filter(item=>!prev.some(existing=>String(existing.data?.id??existing.data?.uri??'')===String(item.data?.id??item.data?.uri??''))),...prev]);
         }
       }else{
         const composed = composeForYouContent(next);
@@ -406,8 +406,8 @@ export default function HomeHubPage(){
         // they are older than 24h while a refresh is in flight.
         const freshCached=cached.items;
         feedBufferRef.current=freshCached;
-        feedBufferOffsetRef.current=Math.min(6,cached.items.length);
-        setItems(freshCached.slice(0,6));
+        feedBufferOffsetRef.current=freshCached.length;
+        setItems(freshCached);
         cacheCursorRef.current=cached.cursor;nextCursorRef.current=cached.cursor;
         if(isHomeFeedCacheUsable(cached)){
           setHasMore(Boolean(cached.cursor)||freshCached.length>6);
