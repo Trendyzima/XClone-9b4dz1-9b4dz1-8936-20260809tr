@@ -43,7 +43,6 @@ function readVideoSoundPreference(): boolean {
 
 export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPreload }: VideoPlayerProps) {
   const videoRef       = useRef<HTMLVideoElement>(null);
-  const viewCounterRef = useRef(0); // per-page view counter — replaces module-level _counter
   const progressRef    = useRef<HTMLDivElement>(null);
   const lastTapRef     = useRef<{ time: number; x: number; y: number } | null>(null);
   const heartTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -158,7 +157,6 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
       const soundOn = readVideoSoundPreference();
       setIsMuted(!soundOn);
       trackView();
-      viewCounterRef.current++;
       // External VAST pre-rolls interrupt organic reels and compete with the
       // dedicated in-feed sponsored-video cards. Keep playback continuous here.
       video.muted = !soundOn;
