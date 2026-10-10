@@ -12,6 +12,8 @@ const REACTION_KEY='testagram_rss_temporary_reactions_v1';
 const HIDE=/^(\/auth|\/admin|\/settings|\/wallet|\/messages|\/notifications|\/help|\/premium|\/create-ad|\/my-ads|\/ad-|\/rewards|\/verify|\/privacy|\/terms|\/policy|\/regulator|\/sessions|\/blocked|\/appeals|\/payouts|\/revenue|\/analytics)/;
 const RSS_FRESHNESS_MS=12*60*60*1000;
 function freshItems(items:Item[]){const cutoff=Date.now()-RSS_FRESHNESS_MS;return items.filter(item=>{const t=new Date(item.published_at).getTime();return Number.isFinite(t)&&t>=cutoff&&t<=Date.now()+5*60*1000;});}
+const MAX_RSS_AGE_MS=12*60*60*1000;
+function keepFresh(items:Item[]):Item[]{const now=Date.now();return items.filter(item=>{const published=new Date(item.published_at).getTime();const age=now-published;return Number.isFinite(published)&&age>=-5*60_000&&age<MAX_RSS_AGE_MS})}
 let rssCache:{at:number;items:Item[]}={at:0,items:[]};
 let rssPending:Promise<Item[]>|null=null;
 function readTemporaryReactions():Record<string,ReactionKey>{try{const raw=sessionStorage.getItem(REACTION_KEY);const parsed=raw?JSON.parse(raw):{};return parsed&&typeof parsed==='object'?parsed:{}}catch{return {}}}
@@ -19,7 +21,7 @@ function writeTemporaryReactions(value:Record<string,ReactionKey>){try{sessionSt
 async function loadRail(){
  if(rssCache.items.length&&Date.now()-rssCache.at<60000)return freshItems(rssCache.items);
  if(rssPending)return rssPending;
- rssPending=fetch(supabaseUrl+'/functions/v1/testagram-rss-feed?limit=6',{headers:{Accept:'application/json'},credentials:'omit'})
+ rssPending=fetch(supabaseUrl+'/functions/v1/testagram-rss-feed?limit=6',{headers:{Accept:'application/json'},credentials:'omit',cache:'no-store'})
   .then(async response=>{if(!response.ok)throw new Error('RSS rail HTTP '+response.status);const data=await response.json();const items=freshItems(Array.isArray(data?.items)?data.items.slice(0,6):[]);rssCache={at:Date.now(),items};return items;})
   .catch(()=>freshItems(rssCache.items))
   .finally(()=>{rssPending=null;});
