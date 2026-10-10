@@ -118,7 +118,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               // identifier. Keep it private in profile_contact_methods and gate the
               // application until the signed-in user has supplied a valid number.
               if (path !== '/profile/complete' && path !== '/verify-identity') {
-                const { data: hasMobilePhone, error: mobilePhoneError } = await withBootstrapTimeout(supabase.rpc('has_my_mobile_phone'), 'Mobile contact validation');
+                const mobilePhoneResult = await withBootstrapTimeout(supabase.rpc('has_my_mobile_phone') as unknown as Promise<{ data: boolean | null; error: { message: string } | null }>, 'Mobile contact validation');
+                const { data: hasMobilePhone, error: mobilePhoneError } = mobilePhoneResult;
                 if (mobilePhoneError) throw mobilePhoneError;
                 if (!hasMobilePhone) {
                   window.location.replace('/profile/complete');
