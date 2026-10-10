@@ -11,7 +11,7 @@ function getUnit(pathname: string): AdUnit {
 const AD_DOCUMENTS: Record<AdUnit, { width: number; height: number; html: string }> = {
   'exoclick-display': {
     width: 300, height: 250,
-    html: '<ins class="eas6a97888e37" data-zoneid="6052126"></ins><script async type="application/javascript" src="https://a.magsrv.com/ad-provider.js"></script><script>(window.AdProvider=window.AdProvider||[]).push({"serve":{}});</script>',
+    html: '<script async type="application/javascript" src="https://a.magsrv.com/ad-provider.js"></script><ins class="eas6a97888e37" data-zoneid="6052126"></ins><script>(window.AdProvider=window.AdProvider||[]).push({"serve":{}});</script>',
   },
   'network-300': {
     width: 300, height: 250,

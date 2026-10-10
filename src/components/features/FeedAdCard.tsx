@@ -1,6 +1,14 @@
-import { TestagramAdSlot } from './TestagramAdSlot';
+import { ExternalAdEngine } from './ExternalAdEngine';
 
-/** Native Testagram sponsored inventory used wherever the feed inserts an ad card. */
+/**
+ * Feed-native fallback for social feed inventory.
+ * The external provider owns the creative; this component only provides the
+ * in-feed placement and the visible Sponsored disclosure.
+ */
 export function FeedAdCard() {
-  return <TestagramAdSlot placement="HOME_FEED" context={{ page_path: '/', surface: 'feed_inline' }} className="mx-3 my-3" />;
+  return (
+    <div className="mx-3 my-3 overflow-hidden rounded-2xl border border-border bg-card" data-social-feed-ad="exoclick-display">
+      <ExternalAdEngine surface="feed" />
+    </div>
+  );
 }
