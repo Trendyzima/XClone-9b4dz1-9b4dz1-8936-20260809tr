@@ -11,7 +11,7 @@ export function useInfiniteScroll(
   loadMore: () => Promise<boolean>,
   options: UseInfiniteScrollOptions = {}
 ) {
-  const { threshold = 0.8, rootMargin = '700px 0px', hasMore: externalHasMore } = options;
+  const { threshold = 0, rootMargin = '700px 0px', hasMore: externalHasMore } = options;
   const [loading, setLoading] = useState(false);
   const [localHasMore, setLocalHasMore] = useState(true);
   const observerRef = useRef<IntersectionObserver | null>(null);
