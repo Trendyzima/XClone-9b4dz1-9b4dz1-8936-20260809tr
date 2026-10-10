@@ -324,12 +324,14 @@ export default async function handler(request: RequestLike) {
       // healthy public feed into an empty response. Retry the post query without
       // the nested profile relationship, then hydrate profiles separately.
       console.error('[home-feed] posts joined query', postsResult.error);
-      const fallbackPosts = await admin.from('posts')
+      let fallbackPostsQuery = admin.from('posts')
         .select('*')
         .is('community_id', null)
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(sourceLimit);
+      if (cursor.post) fallbackPostsQuery = fallbackPostsQuery.lt('created_at', cursor.post);
+      const fallbackPosts = await fallbackPostsQuery;
       if (!fallbackPosts.error) {
         const authorIds = [...new Set((fallbackPosts.data || [])
           .map((p: any) => String(p.author_id || p.user_id || ''))
