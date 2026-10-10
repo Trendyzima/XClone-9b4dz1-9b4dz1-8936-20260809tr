@@ -23,7 +23,7 @@ function notify(s: PremiumStatus, userId: string | null) {
 
 export function usePremium(): PremiumStatus & { refresh: () => Promise<void> } {
   const { user } = useAuth();
-  const [status, setStatus] = useState<PremiumStatus>(cachedStatus ?? { isActive: false, plan: null, expiresAt: null, loading: true });
+  const [status, setStatus] = useState<PremiumStatus>(() => cachedStatus && cachedUserId === (user?.id ?? null) ? cachedStatus : { isActive: false, plan: null, expiresAt: null, loading: true });
 
   const refresh = useCallback(async () => {
     const requestedUserId = user?.id ?? null;
