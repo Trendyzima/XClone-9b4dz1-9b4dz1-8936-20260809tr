@@ -49,6 +49,8 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
   const swipeStartRef  = useRef<{ y: number; time: number } | null>(null);
   const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shellRef = useRef<HTMLDivElement>(null);
+  const activeRef = useRef(isActive);
+  activeRef.current = isActive;
 
   const { user }                = useAuth();
   const { isActive: isPremium } = usePremium();
@@ -189,7 +191,7 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
   const handleAdComplete = useCallback(() => {
     setShowPrerollAd(false);
     const video = videoRef.current;
-    if (video) video.play().then(() => setIsPlaying(true)).catch(() => {});
+    if (video && activeRef.current) video.play().then(() => setIsPlaying(true)).catch(() => {});
   }, []);
 
   /* ── Time update → progress + mid-roll trigger ───────────────────────── */
