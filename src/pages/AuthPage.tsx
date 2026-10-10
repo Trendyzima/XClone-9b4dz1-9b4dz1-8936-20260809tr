@@ -305,9 +305,10 @@ export default function AuthPage() {
     setLoading(true);
     try {
       const user = await authService.updatePassword(password);
+      const finalized = await finalizeAuthenticatedSession(user);
       try { window.sessionStorage.removeItem('testagram-password-recovery'); } catch {}
       setRecoveryReady(false);
-      login(await finalizeAuthenticatedSession(user));
+      login(finalized);
       window.history.replaceState({}, document.title, '/auth');
       navigate(getSafeReturnTo(), { replace: true });
     } catch (error: any) {
