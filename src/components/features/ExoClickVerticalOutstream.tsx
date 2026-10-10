@@ -17,7 +17,6 @@ export function ExoClickVerticalOutstream({ style }: { style?: CSSProperties }) 
   return () => observer.disconnect();
  }, [near]);
  return <section className="absolute inset-x-0 h-[100dvh] snap-start overflow-hidden bg-black" style={style} aria-label="Sponsored vertical video">
-  <span className="absolute left-3 top-3 z-10 rounded bg-black/80 px-2.5 py-1.5 text-xs font-bold text-white">Sponsored</span>
   <iframe ref={host} title="Sponsored vertical video advertisement" loading="lazy" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms" referrerPolicy="strict-origin-when-cross-origin" srcDoc={near ? AD_HTML : '<!doctype html><html><body style="margin:0;background:#000"></body></html>'} className="h-full w-full border-0" />
  </section>;
 }
