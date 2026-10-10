@@ -13,6 +13,16 @@ function normalizedPathname() {
   return pathname || '/';
 }
 
+function withBootstrapTimeout<T>(operation: PromiseLike<T> | Promise<T>, label: string, timeoutMs = 7_000): Promise<T> {
+  let timeoutId: number | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error(`${label} timed out`)), timeoutMs);
+  });
+  return Promise.race([Promise.resolve(operation), timeout]).finally(() => {
+    if (timeoutId !== undefined) window.clearTimeout(timeoutId);
+  });
+}
+
 async function triggerKeygenForUser(userId: string) {
   try {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -71,7 +81,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let mounted = true;
 
     const lifetimeTimer = window.setInterval(() => {
-      void enforceTestagramSessionLifetime().then((valid) => {
+      void withBootstrapTimeout(enforceTestagramSessionLifetime(), 'Session validation').then((valid) => {
         if (!valid && mounted) {
           logout();
           window.location.replace('/auth');
@@ -108,7 +118,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               // identifier. Keep it private in profile_contact_methods and gate the
               // application until the signed-in user has supplied a valid number.
               if (path !== '/profile/complete' && path !== '/verify-identity') {
-                const { data: hasMobilePhone, error: mobilePhoneError } = await supabase.rpc('has_my_mobile_phone');
+                const { data: hasMobilePhone, error: mobilePhoneError } = await withBootstrapTimeout(supabase.rpc('has_my_mobile_phone'), 'Mobile contact validation');
                 if (mobilePhoneError) throw mobilePhoneError;
                 if (!hasMobilePhone) {
                   window.location.replace('/profile/complete');
@@ -144,7 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 logout();
                 setLoading(false);
                 try { await supabase.auth.signOut(); } catch { /* best effort */ }
-              } else if (retryAttempt < 2) {
+              } else if (retryAttempt < 1) {
                 // Retry transient profile/RPC/network failures while keeping the
                 // existing Supabase session intact. A refresh must not revoke a
                 // valid session just because a dependent query failed once.

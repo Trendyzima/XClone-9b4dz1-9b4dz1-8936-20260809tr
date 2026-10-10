@@ -67,7 +67,7 @@ function readLegalConsent(): { birthDate: string; version: string; acceptedAt: s
   }
 }
 
-export async function finalizeAuthenticatedSession(user: User, options: { requireFreshLegalConsent?: boolean } = {}): Promise<AuthUser> {
+async function finalizeAuthenticatedSessionInternal(user: User, options: { requireFreshLegalConsent?: boolean } = {}): Promise<AuthUser> {
   const consent = readLegalConsent();
   const { data: legalProfile, error: legalReadError } = await supabase
     .from('profiles')
@@ -122,13 +122,20 @@ export async function mapSupabaseUserWithCanonicalProfile(user: User): Promise<A
   return { ...mapped, username: profile.username, avatar: profile.avatar_url || mapped.avatar, verified: !!profile.verified_tier && profile.verified_tier !== 'none', identityVerificationStatus: profile.identity_verification_status ?? 'pending', identityVerifiedAt: profile.identity_verified_at ?? undefined };
 }
 
-const AUTH_REQUEST_TIMEOUT_MS = 15_000;
+const AUTH_REQUEST_TIMEOUT_MS = 12_000;
 const CANONICAL_AUTH_REDIRECT_URL = 'https://testagram.site/auth';
 
-async function withAuthTimeout<T>(operation: Promise<T>, label: string): Promise<T> {
+export async function finalizeAuthenticatedSession(user: User, options: { requireFreshLegalConsent?: boolean } = {}): Promise<AuthUser> {
+  // Password auth can succeed while profile/legal provisioning stalls. Bound the
+  // entire post-auth transaction so the login UI always receives success or an
+  // actionable timeout instead of spinning forever.
+  return withAuthTimeout(finalizeAuthenticatedSessionInternal(user, options), 'Account setup');
+}
+
+async function withAuthTimeout<T>(operation: PromiseLike<T> | Promise<T>, label: string): Promise<T> {
   let timeoutId: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, reject) => { timeoutId = setTimeout(() => reject(new Error(`${label} timed out. Check your connection and try again.`)), AUTH_REQUEST_TIMEOUT_MS); });
-  try { return await Promise.race([operation, timeout]); } finally { if (timeoutId) clearTimeout(timeoutId); }
+  try { return await Promise.race([Promise.resolve(operation), timeout]); } finally { if (timeoutId) clearTimeout(timeoutId); }
 }
 
 export class AuthService {
