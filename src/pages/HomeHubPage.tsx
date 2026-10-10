@@ -465,9 +465,10 @@ export default function HomeHubPage(){
         const offset=feedBufferOffsetRef.current;
         if(offset<feedBufferRef.current.length){
           const page=feedBufferRef.current.slice(offset,offset+6);
-          if(!page.length){setHasMore(false);return false;}
+          if(!page.length){setHasMore(Boolean(nextCursorRef.current));return Boolean(nextCursorRef.current);}
           feedBufferOffsetRef.current=offset+page.length;
           setItems(prev=>appendUniqueFeedItems(prev,page));
+          setHasMore(Boolean(nextCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
           return true;
         }
         if(nextCursorRef.current){
@@ -486,7 +487,7 @@ export default function HomeHubPage(){
             if(!page.length){setHasMore(Boolean(nextCursorRef.current));return Boolean(nextCursorRef.current);}
             feedBufferOffsetRef.current=beforeLength+page.length;
             setItems(prev=>appendUniqueFeedItems(prev,page));
-            setHasMore(Boolean(nextCursorRef.current));
+            setHasMore(Boolean(nextCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
             await persistBuffer();
             return true;
           }
