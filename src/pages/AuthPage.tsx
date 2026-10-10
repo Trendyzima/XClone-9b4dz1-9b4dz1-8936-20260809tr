@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { authService, finalizeAuthenticatedSession } from '@/lib/auth';
-import { supabase } from '@/lib/supabase';
+import { initialAuthCallbackSearch, supabase } from '@/lib/supabase';
 import { useSEO } from '@/hooks/useSEO';
 import { useAuthStore } from '@/stores/authStore';
 import { LegalAcceptanceGate, readLegalConsent } from '@/components/auth/LegalAcceptanceGate';
@@ -78,7 +78,8 @@ export default function AuthPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const isResetRoute = params.get('reset') === '1';
-    const hasPkceCode = params.has('code');
+    const initialCallbackParams = new URLSearchParams(initialAuthCallbackSearch);
+    const hasPkceCode = params.has('code') || (isResetRoute && initialCallbackParams.has('code'));
     if (isResetRoute) {
       setMode('reset');
       setRecoveryChecking(true);
@@ -90,7 +91,10 @@ export default function AuthPage() {
     // PKCE recovery links are exchanged by Supabase's URL detector. Only the
     // recovery event is allowed to unlock the password-reset form.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY' && session?.user) {
+      const recoveryCallbackEvent =
+        event === 'PASSWORD_RECOVERY' ||
+        (isResetRoute && hasPkceCode && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION'));
+      if (recoveryCallbackEvent && session?.user) {
         setMode('reset');
         setRecoveryReady(true);
         setRecoveryChecking(false);
