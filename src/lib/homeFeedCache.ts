@@ -1,6 +1,5 @@
 const DB_NAME='testagram-feed-cache-v2';
 const STORE='home-feed';
-const MAX_ITEMS=80;
 const MAX_CACHE_AGE_MS=7*24*60*60*1000;
 const FEDERATED_MAX_AGE_MS=24*60*60*1000;
 import { warmOfflineFeedItems } from '@/lib/offlineMediaCache';
@@ -35,7 +34,7 @@ export async function readHomeFeedCache(key='home'):Promise<CachedFeed|null>{
 export async function writeHomeFeedCache(value:CachedFeed,key='home'){
   if(typeof indexedDB==='undefined')return;
   const db=await openFeedDb();
-  const items=filterFreshHomeFeedItems(value.items.filter(Boolean)).slice(0,MAX_ITEMS);
+  const items=filterFreshHomeFeedItems(value.items.filter(Boolean));
   return new Promise<void>((resolve,reject)=>{
     const tx=db.transaction(STORE,'readwrite');
     tx.objectStore(STORE).put({...value,key,items});
@@ -46,7 +45,7 @@ export async function writeHomeFeedCache(value:CachedFeed,key='home'){
 
 export function isHomeFeedCacheUsable(cache:CachedFeed|null,now=Date.now()){return Boolean(cache?.items?.length && Number.isFinite(cache.updatedAt) && now-cache.updatedAt<=MAX_CACHE_AGE_MS);}
 
-export function mergeHomeFeedItems(existing:any[],incoming:any[],max=MAX_ITEMS){
+export function mergeHomeFeedItems(existing:any[],incoming:any[],max=Number.MAX_SAFE_INTEGER){
   const seen=new Set<string>();
   const out:any[]=[];
   for(const item of filterFreshHomeFeedItems([...incoming,...existing])){
@@ -57,5 +56,18 @@ export function mergeHomeFeedItems(existing:any[],incoming:any[],max=MAX_ITEMS){
 }
 
 export function saveHomeScroll(y:number,anchorId:string|null){
-  void readHomeFeedCache().then(c=>c&&writeHomeFeedCache({...c,scrollY:y,anchorId})).catch(()=>{});
+  if(typeof indexedDB==='undefined')return;
+  // Update only scroll metadata; don't rewrite and re-warm every cached post on
+  // each scroll event (the feed records can be large on long sessions).
+  void openFeedDb().then(db=>new Promise<void>((resolve,reject)=>{
+    const tx=db.transaction(STORE,'readwrite');
+    const store=tx.objectStore(STORE);
+    const request=store.get('home');
+    request.onsuccess=()=>{
+      if(request.result)store.put({...request.result,scrollY:y,anchorId});
+    };
+    request.onerror=()=>reject(request.error);
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>reject(tx.error);
+  })).catch(()=>{});
 }

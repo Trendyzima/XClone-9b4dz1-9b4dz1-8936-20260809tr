@@ -267,7 +267,11 @@ export default async function handler(request: RequestLike) {
         .limit(sourceLimit)
       : null;
 
-    if (cursor.post) { postsQuery.lt('created_at', cursor.post); followingPostsQuery?.lt('created_at', cursor.post); }
+    if (cursor.post) {
+      postsQuery.lt('created_at', cursor.post);
+      followingPostsQuery?.lt('created_at', cursor.post);
+      communityPostsQuery?.lt('created_at', cursor.post);
+    }
     if (cursor.thread) { threadsQuery.lt('created_at', cursor.thread); followingThreadsQuery?.lt('created_at', cursor.thread); }
 
     const includeFederated = url.searchParams.get('includeFederated') !== '0';
@@ -320,12 +324,14 @@ export default async function handler(request: RequestLike) {
       // healthy public feed into an empty response. Retry the post query without
       // the nested profile relationship, then hydrate profiles separately.
       console.error('[home-feed] posts joined query', postsResult.error);
-      const fallbackPosts = await admin.from('posts')
+      let fallbackPostsQuery = admin.from('posts')
         .select('*')
         .is('community_id', null)
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
         .limit(sourceLimit);
+      if (cursor.post) fallbackPostsQuery = fallbackPostsQuery.lt('created_at', cursor.post);
+      const fallbackPosts = await fallbackPostsQuery;
       if (!fallbackPosts.error) {
         const authorIds = [...new Set((fallbackPosts.data || [])
           .map((p: any) => String(p.author_id || p.user_id || ''))
@@ -361,6 +367,9 @@ export default async function handler(request: RequestLike) {
         .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
         .in('id', recommendedIds).is('community_id', null).is('deleted_at', null).limit(sourceLimit)
       : { data: [], error: null };
+    if (cursor.post && recommendedResult.data) {
+      (recommendedResult as any).data = recommendedResult.data.filter((post: any) => String(post.created_at || '') < cursor.post!);
+    }
     const feedPostIds = [...(postsResult.data || []), ...(followingPostsResult.data || []), ...(recommendedResult.data || []), ...(communityPostsResult.data || []), ...((followedHashtagPostsResult.data || []).map((r: any) => ({ id: r.post_id })))]
       .map((p: any) => String(p.id || ''))
       .filter(Boolean);
@@ -427,12 +436,16 @@ export default async function handler(request: RequestLike) {
 
     const followingHashtagPostIds = [...new Set((followedHashtagPostsResult.data || [])
       .map((r: any) => String(r.post_id || '')).filter(Boolean))];
-    const followedHashtagPosts = followingHashtagPostIds.length
-      ? (await admin.from('posts')
+    let followedHashtagQuery = followingHashtagPostIds.length
+      ? admin.from('posts')
           .select('*, user_profiles:profiles!posts_author_id_fkey(id,username,display_name,avatar_url,bio,verified_tier,follower_count,following_count,protected_account,cover_url,website,location,social_links,created_at)')
           .in('id', followingHashtagPostIds.slice(0, sourceLimit * 2))
           .is('community_id', null).is('deleted_at', null)
-          .order('created_at', { ascending: false }).limit(sourceLimit)).data || []
+          .order('created_at', { ascending: false }).limit(sourceLimit)
+      : null;
+    if (cursor.post) followedHashtagQuery = followedHashtagQuery?.lt('created_at', cursor.post) ?? null;
+    const followedHashtagPosts = followedHashtagQuery
+      ? (await followedHashtagQuery).data || []
       : [];
     const followedHashtagItems = followedHashtagPosts.map((p: any) => ({
       type: 'post', source: 'following-hashtag-local', affinityScore: 34,
@@ -525,10 +538,34 @@ export default async function handler(request: RequestLike) {
     const discoveryFederatedCandidateCount = fedCandidateCount - followedFederatedCandidateCount;
     const renderedFederatedCount = items.filter((item: any) => item.type === 'fedpost').length;
     const federationLatencyMs = Number(fedResult?._meta?.latencyMs ?? (includeFederated ? Date.now() - federationStarted : 0));
-    const lastPost = postsResult.data?.at(-1)?.created_at;
-    const lastThread = threadsResult.data?.at(-1)?.created_at;
+    // Advance each local cursor to the oldest row across every source that
+    // participates in that lane. Using only the generic posts query's oldest
+    // row can skip or repeat followed, hashtag, community, and recommendation
+    // posts because those sources have independent candidate sets.
+    const oldestTimestamp = (rows: any[]) => rows
+      .map((row) => String(row?.created_at || ''))
+      .filter((value) => value && Number.isFinite(Date.parse(value)))
+      .sort((a, b) => Date.parse(a) - Date.parse(b))[0] ?? null;
+    const lastPost = oldestTimestamp([
+      ...(postsResult.data || []),
+      ...(followingPostsResult.data || []),
+      ...(recommendedResult.data || []),
+      ...(communityPostsResult.data || []),
+      ...followedHashtagPosts,
+    ]);
+    const lastThread = oldestTimestamp([
+      ...(threadsResult.data || []),
+      ...(followingThreadsResult.data || []),
+    ]);
     const nextFed = fedResult?.pagination?.nextCursor ?? null;
-    const hasLocalMore = (postsResult.data || []).length >= sourceLimit || (threadsResult.data || []).length >= sourceLimit;
+    const hasLocalMore =
+      (postsResult.data || []).length >= sourceLimit ||
+      (followingPostsResult.data || []).length >= sourceLimit ||
+      (recommendedResult.data || []).length >= sourceLimit ||
+      (communityPostsResult.data || []).length >= sourceLimit ||
+      followedHashtagPosts.length >= sourceLimit ||
+      (threadsResult.data || []).length >= sourceLimit ||
+      (followingThreadsResult.data || []).length >= sourceLimit;
     const hasMore = hasLocalMore || Boolean(fedResult?.pagination?.hasMore);
 
     const nextCursor = hasMore && (lastPost || lastThread || nextFed)
