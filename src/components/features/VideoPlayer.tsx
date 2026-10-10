@@ -13,7 +13,6 @@ import { useToast } from '@/hooks/use-toast';
 import { VideoMonetizationAd } from './VideoMonetizationAd';
 import { usePremium } from '@/hooks/usePremium';
 import { UniversalVideoPlayer } from './UniversalVideoPlayer';
-import { ExoClickVastPreRoll } from './ExoClickVastPreRoll';
 
 interface VideoPlayerProps {
   post: Post;
@@ -44,7 +43,6 @@ function readVideoSoundPreference(): boolean {
 
 export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPreload }: VideoPlayerProps) {
   const videoRef       = useRef<HTMLVideoElement>(null);
-  const viewCounterRef = useRef(0); // per-page view counter — replaces module-level _counter
   const progressRef    = useRef<HTMLDivElement>(null);
   const lastTapRef     = useRef<{ time: number; x: number; y: number } | null>(null);
   const heartTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -69,9 +67,7 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
   const [repliesCount, setRepliesCount]         = useState(post.replies_count ?? 0);
 
   // Ads
-  const [showPrerollAd, setShowPrerollAd]       = useState(false);
   const [showMidrollAd, setShowMidrollAd]       = useState(false);
-  const [adDoneForThisPost, setAdDoneForThisPost] = useState(false);
   const [midrollDone, setMidrollDone]           = useState(false);
 
   // Progress bar
@@ -161,20 +157,10 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
       const soundOn = readVideoSoundPreference();
       setIsMuted(!soundOn);
       trackView();
-      viewCounterRef.current++;
-      const shouldShowAd = !isPremium && !adDoneForThisPost &&
-        (post.is_monetized || viewCounterRef.current % 3 === 0);
-      if (shouldShowAd) {
-        // Pause the selected reel before requesting the external VAST pre-roll.
-        // If the provider has no fill, the ad component fails open after its timeout.
-        video.pause();
-        setIsPlaying(false);
-        setShowPrerollAd(true);
-        setAdDoneForThisPost(true);
-      } else {
-        video.muted = !soundOn;
-        video.play().then(() => setIsPlaying(true)).catch(() => {});
-      }
+      // External VAST pre-rolls interrupt organic reels and compete with the
+      // dedicated in-feed sponsored-video cards. Keep playback continuous here.
+      video.muted = !soundOn;
+      video.play().then(() => setIsPlaying(true)).catch(() => {});
     } else {
       // Pause when scrolling away, but keep the user's sound preference for the next reel.
       video.pause();
@@ -187,7 +173,6 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
 
   /* ── Ad complete ─────────────────────────────────────────────────────── */
   const handleAdComplete = useCallback(() => {
-    setShowPrerollAd(false);
     setShowMidrollAd(false);
     const video = videoRef.current;
     if (video) video.play().then(() => setIsPlaying(true)).catch(() => {});
@@ -626,7 +611,6 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
       style={{ touchAction: 'pan-y', WebkitTapHighlightColor: 'transparent' }}
     >
       {/* Pre-roll ad */}
-      {showPrerollAd && <ExoClickVastPreRoll onComplete={handleAdComplete} />}
 
       {/* Mid-roll ad */}
       {showMidrollAd && (
@@ -700,7 +684,7 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
       </button>
 
       {/* ── Seek / progress bar ───────────────────────────────────────────── */}
-      {!showPrerollAd && !showMidrollAd && (
+      {!showMidrollAd && (
         <div
           ref={progressRef}
           className="absolute left-0 right-0 z-30 cursor-pointer"
@@ -791,7 +775,7 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
         </div>
 
         {/* Center: play icon when paused */}
-        {!isPlaying && !showPrerollAd && (
+        {!isPlaying && (
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             <div className="w-16 h-16 bg-black/50 rounded-full flex items-center justify-center">
               <Play className="w-8 h-8 text-white ml-1" fill="currentColor" />
