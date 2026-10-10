@@ -1,8 +1,9 @@
 /* Production hook-order verification checkpoint. */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { PostCard } from '@/components/features/PostCard';
+import { ExoClickInlineAd } from '@/components/features/ExoClickInlineAd';
 import { VerifiedTick } from '@/components/ui/VerifiedTick';
 import { Loader2, Play, RefreshCw } from 'lucide-react';
 import { listProfileLikes } from '@/features/likes/likesService';
@@ -61,7 +62,7 @@ export default function ProfileSectionPage({section: sectionProp}: {section?: Se
     </header>
     {error&&<div className="p-3 border-b border-border flex items-center justify-between gap-3"><span className="text-sm text-destructive">{error}</span><button onClick={()=>setRetryKey(x=>x+1)} className="shrink-0 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold"><RefreshCw className="w-3.5 h-3.5"/>Retry</button></div>}
     {!items.length?<div className="p-12 text-center text-muted-foreground">No {labels[section].toLowerCase()} yet.</div>:
-      section==='posts'||section==='likes'?<div>{items.map(p=><PostCard key={p.id} post={p} onUpdate={()=>{}}/>)}</div>:
+      section==='posts'||section==='likes'?<div>{items.map((p,i)=><Fragment key={p.id}><PostCard post={p} onUpdate={()=>{}}/>{i===4&&<ExoClickInlineAd surface="profile"/>}</Fragment>)}</div>:
       section==='media'?<div className="grid grid-cols-2 md:grid-cols-3 gap-2 p-2">{items.map(p=>{const u=p.video_url||p.image_url||p.media_urls?.[0];return <button key={p.id} onClick={()=>navigate('/post/'+p.id)} className="aspect-square rounded-lg overflow-hidden bg-muted"><img src={u} alt="" className="w-full h-full object-cover"/></button>})}</div>:
       section==='videos'?<div className="grid grid-cols-2 gap-2 p-3">{items.map(p=><button key={p.id} onClick={()=>navigate('/videos?id='+p.id)} className="relative aspect-[9/16] rounded-xl overflow-hidden bg-black"><video src={p.video_url+'#t=0.5'} muted preload="metadata" className="w-full h-full object-cover"/><Play className="absolute bottom-2 left-2 w-5 h-5 text-white fill-white"/></button>)}</div>:
       section==='threads'?<div className="divide-y divide-border">{items.map(t=><button key={t.id} onClick={()=>navigate('/thread/'+t.id)} className="w-full text-left p-4"><p className="font-bold">{t.title}</p><p className="text-sm text-muted-foreground mt-1 line-clamp-3">{t.body}</p></button>)}</div>:

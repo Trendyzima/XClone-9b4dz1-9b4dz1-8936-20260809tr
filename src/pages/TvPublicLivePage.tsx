@@ -21,6 +21,9 @@ import { supabase } from '@/lib/supabase';
 import { TestagramTvMediaSession } from '@/lib/testagramTvMedia';
 import { toast } from 'sonner';
 import { TvMeetupPanel } from '@/components/features/TvMeetupPanel';
+import { ExternalAdEngine } from '@/components/features/ExternalAdEngine';
+import { TestagramAdSlot } from '@/components/features/TestagramAdSlot';
+import { usePremium } from '@/hooks/usePremium';
 
 const YOUTUBE_EMBED_BASE = 'https://www.youtube.com/embed/';
 
@@ -47,6 +50,7 @@ export default function TvPublicLivePage() {
   const { streamId } = useParams();
   const [searchParams] = useSearchParams();
   const inviteToken = searchParams.get('guest');
+  const { isActive: isPremium } = usePremium();
   const isGuest = Boolean(inviteToken);
   const videoRef = useRef<HTMLVideoElement>(null);
   const nativeVideoRef = useRef<HTMLVideoElement>(null);
@@ -546,6 +550,13 @@ export default function TvPublicLivePage() {
         </div>
 
         {!isGuest && live && streamId ? <div className="w-full max-w-6xl"><TvMeetupPanel streamId={streamId} /></div> : null}
+
+        {!isGuest && !isPremium && live ? (
+          <section className="grid w-full max-w-6xl grid-cols-1 items-start gap-3 md:grid-cols-[minmax(0,1fr)_320px]" aria-label="Sponsored placements">
+            <TestagramAdSlot placement="VIDEO_FEED" context={{ page_path: `/tv/live/${streamId ?? ''}`, surface: 'live_tv_below_player' }} compact />
+            <ExternalAdEngine surface="overlay" />
+          </section>
+        ) : null}
 
         <div className="w-full max-w-6xl min-h-10 flex items-center justify-center text-center">
           {nativeError && !nativeLive && youtubeVideoId && !isGuest && (
