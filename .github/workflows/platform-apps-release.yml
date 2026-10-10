@@ -10,6 +10,14 @@ on:
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/platform-apps-release.yml"
+  pull_request:
+    paths:
+      - "desktop/**"
+      - "src/**"
+      - "public/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/platform-apps-release.yml"
   workflow_dispatch:
 
 permissions:
@@ -79,6 +87,7 @@ jobs:
 
   publish:
     name: Publish desktop OS installers
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     steps:
