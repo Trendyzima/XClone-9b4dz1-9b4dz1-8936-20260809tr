@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { authService, finalizeAuthenticatedSession } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
-import { clearPasswordRecoverySession, getPasswordRecoveryUserId, markPasswordRecoverySession } from '@/lib/passwordRecovery';
+import { clearPasswordRecoverySession, getPasswordRecoveryUserId, hasPasswordRecoveryMarker, markPasswordRecoverySession } from '@/lib/passwordRecovery';
 import { useSEO } from '@/hooks/useSEO';
 import { useAuthStore } from '@/stores/authStore';
 import { LegalAcceptanceGate, readLegalConsent } from '@/components/auth/LegalAcceptanceGate';
@@ -327,7 +327,7 @@ export default function AuthPage() {
     if (mode === 'reset' && next !== 'reset') {
       // Leaving the reset screen cancels its temporary session and removes the
       // reset marker from the URL so refresh cannot reopen a stale reset flow.
-      const hasRecoveryMarker = getPasswordRecoveryUserId() !== null;
+      const hasRecoveryMarker = hasPasswordRecoveryMarker();
       clearPasswordRecoverySession();
       if (recoveryReady || hasRecoveryMarker) {
         // A redeemed recovery link creates a temporary session. Leaving the
