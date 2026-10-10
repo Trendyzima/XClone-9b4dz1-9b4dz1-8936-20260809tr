@@ -1,5 +1,13 @@
 # XClone TV for Android TV
 
+## Download for testing
+
+- **[Published XClone TV test APK releases](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=tv-test)** — open the newest `XClone TV Test APK` prerelease and download `xclone-tv-debug.apk`.
+- [Public test APK build and publishing workflow](../.github/workflows/xclone-tv-debug-release.yml).
+- [Signed production TV release workflow](../.github/workflows/xclone-tv-release.yml) — requires the repository's protected TV signing secrets; do not confuse this with the debug test APK.
+
+The test APK is a sideloadable debug build, not a production-signed release. Confirm the release notes and test on your target TV before relying on it.
+
 This is a separate Android application project. It does not change the existing mobile app under `android/`, its application ID (`com.xclone.app`), launcher activity, or release workflow.
 
 - TV application ID: `com.xclone.app.tv`

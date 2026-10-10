@@ -2,23 +2,24 @@
 
 **XClone** is a social platform for short-form videos, posts and threads, live video and audio, communities, messaging, creator tools, discovery, commerce, and digital payments. The product's current public web experience is hosted at **[testagram.site](https://testagram.site/)**.
 
-Find the right XClone experience for your device below: download the Android APK, use the web app on iPhone/iPad, or try the separate Android TV app.
+Choose the build for your device. Android phone builds are published now; Android TV and Windows/macOS/Linux desktop installers are generated as **preview/testing releases** by dedicated platform workflows. iPhone/iPad currently use the web app—there is no native iOS app or IPA in this repository yet.
 
-[**Open XClone on the web**](https://testagram.site/) · [**Download the latest Android APK**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest) · [**Browse all releases**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases) · [**Android TV build status**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions)
+[**Open XClone on the web**](https://testagram.site/) · [**Download Android phone APK**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest/download/app-release.apk) · [**Android TV test APK releases**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=tv-test) · [**Desktop OS releases**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=desktop) · [**All releases**](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases)
 
-> **Release status:** Android APK/AAB assets are published through GitHub Releases. The separate Android TV project has a successful debug-build CI path; a stable, signed public TV release and real-device validation remain release gates. See the platform table before installing.
+> **Release status:** Android phone APK/AAB assets are already published. Android TV debug APK and Windows/macOS/Linux installer builds are intended to be published as preview releases by the new workflows. Preview builds are not equivalent to stable signed production releases; TV hardware and OS-specific installation still need validation.
 
 ## Get XClone for your device
 
-Choose the download that matches your device. **Android phone/tablet builds are published as release assets. Android TV is still in testing. iPhone and iPad users can use the web app; there is no native iOS download in this repository.**
-
-| Platform | Best way to get XClone | Availability |
+| Platform | Download / access | Availability |
 |---|---|---|
-| **Android phone or tablet** | **[Download the latest APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest/download/app-release.apk)** · [View release notes and all assets](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest) · [AAB for distribution](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest/download/app-release.aab) | APK and AAB are attached to published Android releases |
-| **Android TV / Google TV** | [Inspect TV build runs](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/workflows/ci.yml) · [TV setup guide](android-tv/README.md) | CI debug APK for testing; signed public TV release and real-device validation are not complete |
-| **iPhone / iPad** | **[Open XClone in Safari](https://testagram.site/)** | Responsive web app; no native iOS IPA or App Store listing is published from this repository |
-| **Desktop / other browsers** | [Open XClone](https://testagram.site/) | Web app |
-| **Native desktop client** | [Desktop setup and development](desktop/README.md) | Project source and development instructions |
+| **Android phone or tablet** | **[Download latest APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest/download/app-release.apk)** · [Release notes](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest) · [AAB for store distribution](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases/latest/download/app-release.aab) | Published release assets |
+| **Android TV / Google TV** | **[Find the latest TV test APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=tv-test)** · [TV setup guide](android-tv/README.md) · [TV release workflow](.github/workflows/xclone-tv-debug-release.yml) | Debug-signed test APK; not the stable signed production TV release |
+| **Windows** | **[Find Windows installers (.msi/.exe)](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=desktop)** | Preview installer when the desktop workflow succeeds |
+| **macOS** | **[Find macOS disk images (.dmg)](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=desktop)** | Preview installer when published; CPU/OS compatibility depends on the asset |
+| **Linux** | **[Find Linux packages (.deb/.AppImage)](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=desktop)** | Preview installer when the desktop workflow succeeds |
+| **iPhone / iPad** | **[Open XClone in Safari](https://testagram.site/)** | Web app only; no native iOS project, signed IPA, or App Store listing is published in this repository |
+| **Desktop browser / any OS** | [Open XClone](https://testagram.site/) | Web app |
+| **Desktop client source** | [Desktop setup and development](desktop/README.md) | Tauri desktop project; published installers are preview builds |
 
 ### Android: download and install
 
@@ -33,9 +34,11 @@ Choose the download that matches your device. **Android phone/tablet builds are 
 
 XClone TV is a separate Android app (**com.xclone.app.tv**) that opens the existing web experience and provides a TV launcher entry point with remote/D-pad navigation support. It is **not yet advertised as a production-ready TV release**.
 
-- [View CI builds and available artifacts](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/workflows/ci.yml) — artifacts are temporary, may require GitHub sign-in, and are intended for testers.
+- **[Download a published TV testing APK](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=tv-test)** — open the newest `XClone TV Test APK` prerelease and download `xclone-tv-debug.apk`.
 - [Read the TV build instructions](android-tv/README.md).
-- [Review the TV signed-release workflow](.github/workflows/xclone-tv-release.yml).
+- [Public TV test APK workflow](.github/workflows/xclone-tv-debug-release.yml) · [Signed TV release workflow](.github/workflows/xclone-tv-release.yml).
+
+The public test APK is a debug-signed build intended for sideloading and evaluation. It is separate from the mobile APK and is not the stable, signed TV release. CI verifies the TV package ID and Leanback launcher entry; physical-device navigation and playback still need testing.
 
 The automated TV APK build passed in [Testagram CI run #37918010514](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions/runs/37918010514). That confirms the build and its verification steps, **not** physical-device compatibility. Remote focus order, login/session persistence, Back behavior, video playback, and IPTV playback still require testing on actual Android TV or Google TV hardware before a public TV release can be called fully validated.
 
@@ -47,7 +50,7 @@ This is the responsive web experience—not a native iOS app. This repository cu
 
 ### Desktop
 
-Use [XClone in your browser](https://testagram.site/) for the web experience. Developers interested in the native desktop project can follow the [Tauri desktop instructions](desktop/README.md).
+Use [XClone in your browser](https://testagram.site/) for the web experience. For desktop installers, open the [desktop OS preview releases](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=desktop). The workflow builds Windows MSI/EXE, macOS DMG and Linux DEB/AppImage packages; only formats actually attached to the newest release are available. These are preview builds and may trigger OS security warnings because they are not yet distributed through a signed commercial installer channel. Developers can follow the [Tauri desktop instructions](desktop/README.md) or inspect the [desktop release workflow](.github/workflows/platform-apps-release.yml).
 ## What can you do with XClone?
 
 XClone brings social networking, short videos, live experiences, communities, creator tools, discovery, and commerce into one connected product. Feature availability may depend on account permissions, configuration, integrations, and rollout status.
@@ -112,7 +115,9 @@ The existing Android project lives in `android/`. The production WebView shell u
 The TV project lives in `android-tv/` and uses `com.xclone.app.tv`, separate from the mobile package. It reuses the existing web experience rather than duplicating IPTV catalogue, stream-selection, buffering, or playback services.
 
 - [TV README](android-tv/README.md)
-- [TV release workflow](.github/workflows/xclone-tv-release.yml)
+- [Public TV test APK releases](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/releases?q=tv-test)
+- [Public TV test APK workflow](.github/workflows/xclone-tv-debug-release.yml)
+- [Signed TV release workflow](.github/workflows/xclone-tv-release.yml)
 - [GitHub Actions runs](https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr/actions)
 
 ### iPhone and iPad

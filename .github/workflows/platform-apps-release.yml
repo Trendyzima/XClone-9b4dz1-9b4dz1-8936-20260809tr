@@ -1,0 +1,114 @@
+name: XClone Desktop OS Releases
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "desktop/**"
+      - "src/**"
+      - "public/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/platform-apps-release.yml"
+  pull_request:
+    paths:
+      - "desktop/**"
+      - "src/**"
+      - "public/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/platform-apps-release.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+# Key by commit so a slow macOS runner from an older PR revision cannot
+# block validation of the latest fix behind the same pull-request merge ref.
+concurrency:
+  group: xclone-desktop-release-${{ github.event.pull_request.head.sha || github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build desktop installers (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            artifact: xclone-desktop-linux
+            bundles: deb,appimage
+          - os: windows-latest
+            artifact: xclone-desktop-windows
+            bundles: msi,nsis
+          - os: macos-latest
+            artifact: xclone-desktop-macos
+            bundles: dmg
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+      - name: Install Linux Tauri dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf file
+      - run: npm ci
+      - name: Install Tauri CLI
+        run: cargo install tauri-cli --version "^2" --locked
+      - name: Generate platform icons
+        run: npm run tauri -- icon ../../public/tsocial-logo.png --output icons
+      - name: Build installers
+        run: npm run tauri -- build --bundles ${{ matrix.bundles }}
+      - name: Collect release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          find desktop/src-tauri/target/release/bundle -type f \( -name '*.deb' -o -name '*.AppImage' -o -name '*.msi' -o -name '*.exe' -o -name '*.dmg' \) -print -exec cp '{}' release-assets/ \;
+          test "$(find release-assets -maxdepth 1 -type f | wc -l)" -gt 0
+          sha256sum release-assets/*
+          ls -lh release-assets
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Publish desktop OS installers
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: xclone-desktop-*
+          path: release-assets
+          merge-multiple: false
+      - name: Publish desktop release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: desktop-v0.1.${{ github.run_number }}
+          name: XClone Desktop v0.1.${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          make_latest: false
+          generate_release_notes: false
+          body: |
+            Desktop installer builds generated from the XClone/Testagram Tauri client.
+
+            Included platforms are determined by the attached assets: Windows (MSI/EXE), macOS (DMG), and Linux (DEB/AppImage). These are preview builds; OS-specific installation and hardware validation remain necessary.
+          files: release-assets/**/*

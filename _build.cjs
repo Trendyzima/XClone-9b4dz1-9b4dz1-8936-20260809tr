@@ -81,6 +81,13 @@ runSeoValidation();
 runSelfHeal();
 
 
+// Normalize checked-out text before exact source patches. Windows runners may
+// materialize LF repository files as CRLF; matching multiline literals against
+// those files otherwise silently fails and leaves upstream auth UI in place.
+function readNormalizedUtf8(filePath) {
+  return fs.readFileSync(filePath, 'utf8').replace(/\r\n?/g, '\n');
+}
+
 function patchTikVTVForTestagramAuth(vendorRoot) {
   const supabasePath = path.join(vendorRoot, 'src', 'lib', 'supabase.ts');
   const profilePath = path.join(vendorRoot, 'src', 'pages', 'Profile.tsx');
@@ -139,24 +146,24 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   }
 
   const original = new Map([
-    [supabasePath, fs.readFileSync(supabasePath, 'utf8')],
-    [profilePath, fs.readFileSync(profilePath, 'utf8')],
-    [headerPath, fs.readFileSync(headerPath, 'utf8')],
-    [feedPath, fs.readFileSync(feedPath, 'utf8')],
-    [indexHtmlPath, fs.readFileSync(indexHtmlPath, 'utf8')],
-    [reactionHookPath, fs.readFileSync(reactionHookPath, 'utf8')],
-    [commentsHookPath, fs.readFileSync(commentsHookPath, 'utf8')],
-    [favoritesHookPath, fs.readFileSync(favoritesHookPath, 'utf8')],
-    [watchHistoryHookPath, fs.readFileSync(watchHistoryHookPath, 'utf8')],
-    [trendingHookPath, fs.readFileSync(trendingHookPath, 'utf8')],
-    [reactionBarPath, fs.readFileSync(reactionBarPath, 'utf8')],
-    [videoPlayerPath, fs.readFileSync(videoPlayerPath, 'utf8')],
-    [channelDetailPath, fs.readFileSync(channelDetailPath, 'utf8')],
-    [channelCardPath, fs.readFileSync(channelCardPath, 'utf8')],
-    [categoryTabsPath, fs.readFileSync(categoryTabsPath, 'utf8')],
-    [indexCssPath, fs.readFileSync(indexCssPath, 'utf8')],
-    [iptvApiPath, fs.readFileSync(iptvApiPath, 'utf8')],
-    [channelsHookPath, fs.readFileSync(channelsHookPath, 'utf8')],
+    [supabasePath, readNormalizedUtf8(supabasePath)],
+    [profilePath, readNormalizedUtf8(profilePath)],
+    [headerPath, readNormalizedUtf8(headerPath)],
+    [feedPath, readNormalizedUtf8(feedPath)],
+    [indexHtmlPath, readNormalizedUtf8(indexHtmlPath)],
+    [reactionHookPath, readNormalizedUtf8(reactionHookPath)],
+    [commentsHookPath, readNormalizedUtf8(commentsHookPath)],
+    [favoritesHookPath, readNormalizedUtf8(favoritesHookPath)],
+    [watchHistoryHookPath, readNormalizedUtf8(watchHistoryHookPath)],
+    [trendingHookPath, readNormalizedUtf8(trendingHookPath)],
+    [reactionBarPath, readNormalizedUtf8(reactionBarPath)],
+    [videoPlayerPath, readNormalizedUtf8(videoPlayerPath)],
+    [channelDetailPath, readNormalizedUtf8(channelDetailPath)],
+    [channelCardPath, readNormalizedUtf8(channelCardPath)],
+    [categoryTabsPath, readNormalizedUtf8(categoryTabsPath)],
+    [indexCssPath, readNormalizedUtf8(indexCssPath)],
+    [iptvApiPath, readNormalizedUtf8(iptvApiPath)],
+    [channelsHookPath, readNormalizedUtf8(channelsHookPath)],
   ]);
 
   let profile = original.get(profilePath);
@@ -462,24 +469,28 @@ function runTikVTVBuild() {
   const restoreAuthOverlay = patchTikVTVForTestagramAuth(vendorRoot);
 
   try {
+    // Windows exposes npm as npm.cmd, which Node cannot launch directly with
+    // shell:false. Use the platform shell only on Windows; keep direct spawning
+    // on POSIX. Without this, spawnSync returns ENOENT before vendor npm emits
+    // any output, and the build reports a misleading dependency-install error.
     const npmBin = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    const install = spawnSync(npmBin, ['ci', '--no-audit', '--no-fund'], {
+    const npmOptions = {
       cwd: vendorRoot,
       stdio: 'inherit',
-      shell: false,
+      shell: process.platform === 'win32',
       env: { ...process.env },
-    });
+    };
+    const install = spawnSync(npmBin, ['ci', '--no-audit', '--no-fund'], npmOptions);
     if (install.error || install.status !== 0) {
+      if (install.error) process.stderr.write(`[_build] TikVTV npm ci could not start: ${install.error.message}\\n`);
+      else process.stderr.write(`[_build] TikVTV npm ci exited with status ${install.status} (signal: ${install.signal || 'none'})\\n`);
       throw new Error('TikVTV dependency installation failed');
     }
 
-    const tikBuild = spawnSync(npmBin, ['run', 'build', '--', '--base=/iptv-app/'], {
-      cwd: vendorRoot,
-      stdio: 'inherit',
-      shell: false,
-      env: { ...process.env },
-    });
+    const tikBuild = spawnSync(npmBin, ['run', 'build', '--', '--base=/iptv-app/'], npmOptions);
     if (tikBuild.error || tikBuild.status !== 0) {
+      if (tikBuild.error) process.stderr.write(`[_build] TikVTV build could not start: ${tikBuild.error.message}\\n`);
+      else process.stderr.write(`[_build] TikVTV build exited with status ${tikBuild.status} (signal: ${tikBuild.signal || 'none'})\\n`);
       throw new Error('TikVTV production build failed');
     }
 
@@ -544,7 +555,9 @@ const result = spawnSync(
   viteArgs,
   {
     stdio: 'inherit',
-    shell: false,
+    // Windows .cmd shims (npx.cmd) must be launched through a shell. Direct
+    // spawn with shell:false fails with EINVAL after the vendor bundle succeeds.
+    shell: process.platform === 'win32',
     env: {
       ...process.env,
       NODE_OPTIONS: nodeOptions,
