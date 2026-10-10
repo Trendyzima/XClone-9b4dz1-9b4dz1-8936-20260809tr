@@ -144,7 +144,7 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
       finishers.delete(card);
       contentVideo.muted = previousMuted;
       // Resume only if the channel was playing when the ad took over.
-      if (!disposed && wasPlaying && contentVideo.isConnected) contentVideo.play().catch(() => {});
+      if (!disposed && activeCards.has(card) && wasPlaying && contentVideo.isConnected) contentVideo.play().catch(() => {});
     };
     finishers.set(card, finish);
 
