@@ -5,15 +5,37 @@ const VERIFICATION_ENDPOINT = `${supabaseUrl}/functions/v1/identity-verification
 const TOKEN_KEY = 'testagram-identity-registration-token';
 const SESSION_KEY = 'testagram-identity-session-token';
 
+const REQUEST_TIMEOUT_MS = 15_000;
+
 async function call<T>(endpoint: string, body: Record<string, unknown>, accessToken?: string): Promise<T> {
-  const response = await fetch(endpoint, {
-    method: 'POST',
-    headers: { apikey: supabasePublishableKey, 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
-    body: JSON.stringify(body),
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok || payload?.ok === false) throw new Error(String(payload?.error || 'Identity onboarding request failed'));
-  return payload as T;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { apikey: supabasePublishableKey, 'Content-Type': 'application/json', ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}) },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload?.ok === false) {
+      const rawError = String(payload?.error || '');
+      // Edge Functions can return upstream/database error text. Only expose
+      // stable machine-readable codes to the browser; never render internals.
+      const code = /^[A-Z][A-Z0-9_]{1,79}$/.test(rawError) ? rawError : '';
+      if (code) throw new Error(code);
+      if (response.status === 429) throw new Error('RATE_LIMITED');
+      if (response.status >= 500) throw new Error('IDENTITY_SERVICE_UNAVAILABLE');
+      throw new Error('IDENTITY_REQUEST_FAILED');
+    }
+    return payload as T;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') throw new Error('IDENTITY_REQUEST_TIMEOUT');
+    if (error instanceof Error && error.message) throw error;
+    throw new Error('IDENTITY_NETWORK_ERROR');
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
 }
 
 export type IdentitySignupStatus = {
