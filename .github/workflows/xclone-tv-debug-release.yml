@@ -6,6 +6,10 @@ on:
     paths:
       - "android-tv/**"
       - ".github/workflows/xclone-tv-debug-release.yml"
+  pull_request:
+    paths:
+      - "android-tv/**"
+      - ".github/workflows/xclone-tv-debug-release.yml"
   workflow_dispatch:
 
 permissions:
@@ -54,6 +58,7 @@ jobs:
 
   publish:
     name: Publish public TV testing download
+    if: github.event_name != 'pull_request'
     needs: build
     runs-on: ubuntu-latest
     steps:
