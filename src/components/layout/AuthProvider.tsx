@@ -160,9 +160,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // completion of a normal sign-in. Keep its Supabase session available to
       // updateUser({ password }), but do not hydrate the app store, start the
       // logged-in lifetime, or trigger application redirects until reset succeeds.
+      const authCallbackParams = new URLSearchParams(window.location.search);
       const isPasswordResetRoute =
         normalizedPathname() === '/auth' &&
-        new URLSearchParams(window.location.search).get('reset') === '1';
+        (authCallbackParams.get('reset') === '1' || authCallbackParams.get('type') === 'recovery');
       let recoveryUserId: string | null = null;
       try { recoveryUserId = window.sessionStorage.getItem('testagram-password-recovery'); } catch {}
       const isRecoverySession = recoveryUserId === session.user.id;
