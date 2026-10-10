@@ -7,6 +7,11 @@ on:
     paths:
       - 'scripts/production-observability.mjs'
       - '.github/workflows/production-observability.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/production-observability.mjs'
+      - '.github/workflows/production-observability.yml'
   schedule:
     - cron: "17,47 * * * *"
 
