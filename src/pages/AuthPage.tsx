@@ -321,12 +321,18 @@ export default function AuthPage() {
     setLoading(false);
     setPassword('');
     setConfirmation('');
-    if (recoveryReady && next !== 'reset') {
-      // Leaving recovery without changing the password cancels the temporary
-      // recovery session. Otherwise a later reload could hydrate it as a login.
+    if (mode === 'reset' && next !== 'reset') {
+      // Leaving the reset screen cancels its temporary session and removes the
+      // reset marker from the URL so refresh cannot reopen a stale reset flow.
+      let hasRecoveryMarker = false;
+      try {
+        hasRecoveryMarker = !!window.sessionStorage.getItem('testagram-password-recovery');
+        window.sessionStorage.removeItem('testagram-password-recovery');
+      } catch {}
+      if (recoveryReady || hasRecoveryMarker) void supabase.auth.signOut();
       setRecoveryReady(false);
-      try { window.sessionStorage.removeItem('testagram-password-recovery'); } catch {}
-      void supabase.auth.signOut();
+      setRecoveryChecking(false);
+      window.history.replaceState({}, document.title, '/auth');
     }
     setMode(next);
   };
