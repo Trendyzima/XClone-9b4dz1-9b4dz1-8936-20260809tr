@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { ExternalLink, Megaphone, MoreHorizontal, ShieldCheck } from 'lucide-react';
+import { ExternalLink, Megaphone, MoreHorizontal, ShieldCheck, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { usePremium } from '@/hooks/usePremium';
 
 export type TestagramAdPlacement =
   | 'HOME_FEED' | 'FOLLOWING_FEED' | 'VIDEO_FEED' | 'REELS'
   | 'STORIES' | 'EXPLORE' | 'SEARCH' | 'PROFILE' | 'POST_DETAIL'
-  | 'COMMUNITY' | 'THREAD' | 'MARKETPLACE' | 'PRODUCT' | 'SIDEBAR';
+  | 'COMMUNITY' | 'THREAD' | 'MARKETPLACE' | 'PRODUCT' | 'SIDEBAR' | 'IPTV' | 'TV_CHANNELS';
 
 export interface TestagramAdContext {
   content_id?: string;
@@ -39,6 +39,7 @@ const SLOT: Record<TestagramAdPlacement, string> = {
   REELS: 'reels', STORIES: 'story', EXPLORE: 'explore', SEARCH: 'search',
   PROFILE: 'profile', POST_DETAIL: 'post-detail', COMMUNITY: 'community',
   THREAD: 'post-detail', MARKETPLACE: 'explore', PRODUCT: 'explore', SIDEBAR: 'feed-inline',
+  IPTV: 'iptv-overlay', TV_CHANNELS: 'tv-channels',
 };
 
 function isRealAd(value: ServedAd | null | undefined): value is ServedAd {
@@ -51,14 +52,19 @@ function isRealAd(value: ServedAd | null | undefined): value is ServedAd {
   return hasMessage || hasAsset || hasDestination;
 }
 
-export function TestagramAdSlot({ placement, context, className = '' }: {
+export function TestagramAdSlot({ placement, context, className = '', compact = false, dismissible = false }: {
   placement: TestagramAdPlacement;
   context?: TestagramAdContext;
   className?: string;
+  /** Compact layout for video overlays; never changes serving or billing behavior. */
+  compact?: boolean;
+  /** Lets viewers dismiss a sponsored card without registering an ad click. */
+  dismissible?: boolean;
 }) {
   const { isActive: isPremium } = usePremium();
   const [ad, setAd] = useState<ServedAd | null>(null);
   const [loading, setLoading] = useState(true);
+  const [dismissed, setDismissed] = useState(false);
   const impressionRef = useRef<string>('');
   const eventTokenRef = useRef<string>('');
   const cardRef = useRef<HTMLElement | null>(null);
@@ -69,6 +75,7 @@ export function TestagramAdSlot({ placement, context, className = '' }: {
     const requestId = crypto.randomUUID();
     (async () => {
       setLoading(true);
+      setDismissed(false);
       setAd(null);
       impressionRef.current = '';
       eventTokenRef.current = '';
@@ -113,22 +120,23 @@ export function TestagramAdSlot({ placement, context, className = '' }: {
     }).catch(() => {});
   };
 
-  if (isPremium || loading || !isRealAd(ad)) return null;
+  if (isPremium || dismissed || loading || !isRealAd(ad)) return null;
 
   const isVideo = ad.format?.toLowerCase().includes('video');
 
   return (
-    <article ref={cardRef} className={`rounded-2xl border border-border bg-card overflow-hidden shadow-sm ${className}`} data-testagram-ad-placement={placement} data-campaign-id={ad.campaign_id}>
+    <article ref={cardRef} className={`relative rounded-2xl border border-border bg-card overflow-hidden shadow-sm ${compact ? 'text-xs' : ''} ${className}`} data-testagram-ad-placement={placement} data-campaign-id={ad.campaign_id}>
+      {dismissible && <button type="button" onClick={() => setDismissed(true)} aria-label="Dismiss sponsored ad" className="absolute right-2 top-2 z-10 rounded-full border border-border bg-background/90 p-1.5 text-muted-foreground shadow-sm hover:text-foreground"><X className="h-3.5 w-3.5" /></button>}
       <button type="button" onClick={() => { event('click'); if (ad.click_through_url) window.open(ad.click_through_url, '_blank', 'noopener,noreferrer'); }} className="w-full text-left">
-        <div className="flex items-center justify-between gap-2 px-3 pt-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+        <div className={`flex items-center justify-between gap-2 px-3 pt-3 text-[10px] font-bold uppercase tracking-widest text-muted-foreground ${compact ? 'pr-10' : ''}`}>
           <span className="inline-flex items-center gap-2"><Megaphone className="w-3 h-3" /> Sponsored · Testagram Ads</span>
-          <span className="inline-flex items-center gap-1 normal-case tracking-normal font-medium" title="Testagram Ads is the ad delivery system"><ShieldCheck className="w-3 h-3" /> Verified placement</span>
+          {!compact && <span className="inline-flex items-center gap-1 normal-case tracking-normal font-medium" title="Testagram Ads is the ad delivery system"><ShieldCheck className="w-3 h-3" /> Verified placement</span>}
         </div>
         {ad.asset_url ? (
           isVideo
             ? <video
                 src={ad.asset_url}
-                className="w-full max-h-[460px] object-cover mt-2 bg-muted"
+                className={`w-full object-cover mt-2 bg-muted ${compact ? 'max-h-20' : 'max-h-[460px]'}`}
                 muted playsInline preload="metadata"
                 onPlay={() => event('video_start')}
                 onTimeUpdate={(e) => {
@@ -143,12 +151,12 @@ export function TestagramAdSlot({ placement, context, className = '' }: {
                   }
                 }}
               />
-            : <img src={ad.asset_url} alt={ad.headline || 'Sponsored content'} className="w-full max-h-[460px] object-cover mt-2" loading="lazy" decoding="async" />
+            : <img src={ad.asset_url} alt={ad.headline || 'Sponsored content'} className={`w-full object-cover mt-2 ${compact ? 'max-h-20' : 'max-h-[460px]'}`} loading="lazy" decoding="async" />
         ) : null}
         <div className="p-3">
-          {ad.headline && <h3 className="font-bold text-base leading-tight">{ad.headline}</h3>}
-          {ad.body && <p className="text-sm text-muted-foreground mt-1 line-clamp-3">{ad.body}</p>}
-          <div className="flex items-center justify-between gap-3 mt-3">
+          {ad.headline && <h3 className={`font-bold leading-tight ${compact ? 'pr-5 text-sm line-clamp-1' : 'text-base'}`}>{ad.headline}</h3>}
+          {ad.body && <p className={`text-muted-foreground mt-1 ${compact ? 'line-clamp-2 text-xs' : 'text-sm line-clamp-3'}`}>{ad.body}</p>}
+          <div className={`flex items-center justify-between gap-3 ${compact ? 'mt-2' : 'mt-3'}`}>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-primary px-3 py-1.5 text-xs font-bold text-primary-foreground">{ad.cta || 'Learn more'} <ExternalLink className="w-3 h-3" /></span>
             <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground"><MoreHorizontal className="w-3 h-3" /> Ad</span>
           </div>
