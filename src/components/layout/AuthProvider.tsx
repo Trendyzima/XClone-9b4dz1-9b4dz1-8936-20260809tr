@@ -92,11 +92,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const finalizationInFlight = new Map<string, Promise<void>>();
 
     const hydrateUser = (user: User, requireFreshLegalConsent = false, retryAttempt = 0) => {
-      setLoading(true);
-      clearAuthError();
-
+      // A duplicate auth event can arrive while this user's hydration is already
+      // finishing. Do not set the global loading flag before checking the map:
+      // returning with an existing task after setting loading=true can strand the
+      // whole app on a spinner if that task has already cleared loading.
       const existing = finalizationInFlight.get(user.id);
       if (existing) return;
+
+      setLoading(true);
+      clearAuthError();
 
       const task = new Promise<void>((resolve) => {
         window.setTimeout(() => {
@@ -104,7 +108,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             resolve();
             return;
           }
-          void enforceTestagramSessionLifetime().then((valid) => {
+          void withBootstrapTimeout(enforceTestagramSessionLifetime(), 'Session validation').then((valid) => {
             if (!valid) throw new Error('SESSION_EXPIRED');
             markAuthenticatedSessionStarted(user.id);
             return finalizeAuthenticatedSession(user, { requireFreshLegalConsent });
