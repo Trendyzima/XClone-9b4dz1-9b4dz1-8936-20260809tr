@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { TestagramAdSlot } from '@/components/features/TestagramAdSlot';
 import { useNavigate } from 'react-router-dom';
 import { UserRound, LogIn } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
@@ -13,11 +14,22 @@ export default function TikVTVPage() {
   const { user } = useAuth();
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [showAd, setShowAd] = useState(false);
 
   useEffect(() => {
     setReady(false);
     setFailed(false);
+    setShowAd(false);
   }, []);
+
+  // Do not compete with initial IPTV startup or inject ads into the stream.
+  // The sponsored card appears as a dismissible overlay only after the player
+  // shell has had time to settle; playback itself remains untouched.
+  useEffect(() => {
+    if (!ready || failed) return;
+    const timer = window.setTimeout(() => setShowAd(true), 18000);
+    return () => window.clearTimeout(timer);
+  }, [ready, failed]);
 
   return (
     <div className="fixed inset-0 z-[60] bg-black" data-testid="iptv-page">
@@ -45,6 +57,19 @@ export default function TikVTVPage() {
           <div className="max-w-md text-center">
             <h1 className="text-xl font-semibold">IPTV is unavailable</h1>
             <p className="mt-2 text-sm text-white/60">The embedded IPTV bundle could not be loaded from this Xclone build.</p>
+          </div>
+        </div>
+      )}
+      {ready && !failed && showAd && (
+        <div className="pointer-events-none absolute bottom-4 left-3 right-3 z-[75] flex justify-end sm:bottom-6 sm:right-6 sm:left-auto">
+          <div className="pointer-events-auto w-full max-w-sm">
+            <TestagramAdSlot
+              placement="IPTV"
+              context={{ page_path: '/iptv', surface: 'IPTV' }}
+              compact
+              dismissible
+              className="w-full"
+            />
           </div>
         </div>
       )}

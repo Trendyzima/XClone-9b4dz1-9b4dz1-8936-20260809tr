@@ -13,7 +13,7 @@ const EVENTS = new Set(["click", "viewable", "video_start", "video_first_quartil
 
 async function currentUser(req: Request) {
   const authorization = req.headers.get("Authorization") ?? "";
-  const token = authorization.replace(/^Bearer\\s+/i, "");
+  const token = authorization.replace(/^Bearer\s+/i, "");
   if (!token || !ANON) return null;
   try {
     const client = createClient(URL, ANON, {

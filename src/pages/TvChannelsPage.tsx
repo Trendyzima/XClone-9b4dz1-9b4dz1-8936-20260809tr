@@ -4,6 +4,7 @@ import {AtSign,ChevronRight,Clapperboard,Globe2,Hash,Heart,MessageCircle,Play,Ra
 import {Button} from '@/components/ui/button';
 import {TvChannelPlayer} from '@/components/features/TvChannelPlayer';
 import {TestagramLiveChannelCard} from '@/components/features/TestagramLiveChannelCard';
+import {TestagramAdSlot} from '@/components/features/TestagramAdSlot';
 import {supabase} from '@/lib/supabase';
 import {useAuth} from '@/hooks/useAuth';
 import {getMyTvReaction,getTvReactionCounts,setTvReaction,TV_REACTIONS} from '@/services/tvChannelInteractionService';
@@ -280,6 +281,8 @@ export default function TvChannelsPage(){
     <div className='mb-3 flex items-end justify-between'><div><div className='flex items-center gap-2'><Sparkles className='h-4 w-4 text-primary'/><h2 className='text-base font-black'>Live on Testagram</h2></div><p className='mt-1 text-xs text-muted-foreground'>Your community's live broadcasts appear here first.</p></div><span className='rounded-full bg-red-500/10 px-2.5 py-1 text-[10px] font-bold text-red-500'>{testagramLive.length} LIVE</span></div>
     <div className='grid gap-3 sm:grid-cols-2 lg:grid-cols-4'>{testagramLive.slice(0,4).map(stream=><TestagramLiveChannelCard key={stream.id} stream={stream}/>)}</div>
    </section>}
+
+   <section className='mb-6' aria-label='Sponsored TV placement'><TestagramAdSlot placement='TV_CHANNELS' context={{page_path:pathname,surface:'TV_CHANNELS'}} className='mx-auto max-w-4xl'/></section>
 
    {featured&&<section className='mb-8 overflow-hidden rounded-3xl border bg-card shadow-sm'>
     <div className='grid lg:grid-cols-[1.7fr_1fr]'>
