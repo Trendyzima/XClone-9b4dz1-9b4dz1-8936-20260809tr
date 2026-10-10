@@ -363,7 +363,14 @@ export default function HomeHubPage(){
       return;
     }
     try{
+      // Background refresh reads the newest page, but its cursor must not replace
+      // the continuation cursor for the already-loaded older pages.
+      const continuationCursor=nextCursorRef.current;
       const next=await fetchTab('all',0,null,background);
+      if(background){
+        nextCursorRef.current=continuationCursor;
+        setNextCursor(continuationCursor);
+      }
       const previous=feedBufferRef.current;
       const previousIds=new Set(previous.map(x=>String(x.data?.id??x.data?.uri??'')));
       const fresh=next.filter(x=>!previousIds.has(String(x.data?.id??x.data?.uri??'')));
