@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
-type AdUnit = 'network-300' | 'content-300' | 'banner-728' | 'skyscraper-160' | 'exoclick-display';
+type AdUnit = 'network-300' | 'content-300' | 'banner-728' | 'skyscraper-160' | 'adsterra-160x300' | 'adsterra-320x50' | 'exoclick-display';
 const WIDE_PAGES = new Set(['/', '/home', '/explore', '/search', '/videos', '/shorts']);
 const BLOCKED_PATH = /^\/(auth|login|signup|register|forgot-password|reset-password|password-reset|verify|verify-identity|profile\/complete|admin|settings|account|security|billing|subscription|invoice|wallet|messages|notifications|help|premium|create-ad|my-ads|ad-|rewards|payouts|revenue|analytics|appeals|sessions|blocked|privacy|terms|policy|regulator|tv-studio|start-stream)(\/|$)/;
 
@@ -28,6 +28,14 @@ const AD_DOCUMENTS: Record<AdUnit, { width: number; height: number; html: string
   'skyscraper-160': {
     width: 160, height: 600,
     html: `<script>atOptions = {'key' : '88ee1539ff118d7f530a7f7611e3ea4d','format' : 'iframe','height' : 600,'width' : 160,'params' : {}};</script><script src="https://www.highrevenueformat.com/88ee1539ff118d7f530a7f7611e3ea4d/invoke.js"></script>`,
+  },
+  'adsterra-160x300': {
+    width: 160, height: 300,
+    html: `<script>atOptions = {'key' : '43d52963d531413e1002d738589fd2a0','format' : 'iframe','height' : 300,'width' : 160,'params' : {}};</script><script src="https://www.highrevenueformat.com/43d52963d531413e1002d738589fd2a0/invoke.js"></script>`,
+  },
+  'adsterra-320x50': {
+    width: 320, height: 50,
+    html: `<script>atOptions = {'key' : '805d1754a35091e2a2cb80cc19b9192c','format' : 'iframe','height' : 50,'width' : 320,'params' : {}};</script><script src="https://www.highrevenueformat.com/805d1754a35091e2a2cb80cc19b9192c/invoke.js"></script>`,
   },
 };
 
@@ -80,7 +88,7 @@ function AdFrame({ unit }: { unit: AdUnit }) {
 export function ExternalAdEngine({ surface = 'top' }: { surface?: 'top' | 'sidebar' | 'overlay' | 'feed' }) {
   const { pathname } = useLocation();
   if (BLOCKED_PATH.test(pathname) || (pathname === '/iptv' && surface !== 'overlay') || (pathname.startsWith('/tv/live/') && surface !== 'overlay')) return null;
-  if (surface === 'overlay') return <div className="rounded-xl bg-black/85 p-1 shadow-xl"><AdFrame unit="exoclick-display" /></div>;
+  if (surface === 'overlay') return <div className="rounded-xl bg-black/85 p-1 shadow-xl"><AdFrame unit="adsterra-160x300" /></div>;
   // External display ads belong inside a social feed slot, never in a global page header.
   if (surface === 'feed') return <div className="mx-auto w-full max-w-full"><AdFrame unit="exoclick-display" /></div>;
   if (surface === 'sidebar') {
@@ -90,7 +98,7 @@ export function ExternalAdEngine({ surface = 'top' }: { surface?: 'top' | 'sideb
   const widePage = getUnit(pathname) === 'banner-728';
   return (
     <div className="external-ad-top px-3 pt-2 pb-1">
-      <div className="xl:hidden"><AdFrame unit="exoclick-display" /></div>
+      <div className="xl:hidden"><AdFrame unit="adsterra-320x50" /></div>
       {widePage && <div className="hidden xl:block"><AdFrame unit="banner-728" /></div>}
     </div>
   );
