@@ -45,7 +45,7 @@ export async function writeHomeFeedCache(value:CachedFeed,key='home'){
 
 export function isHomeFeedCacheUsable(cache:CachedFeed|null,now=Date.now()){return Boolean(cache?.items?.length && Number.isFinite(cache.updatedAt) && now-cache.updatedAt<=MAX_CACHE_AGE_MS);}
 
-export function mergeHomeFeedItems(existing:any[],incoming:any[],max=MAX_ITEMS){
+export function mergeHomeFeedItems(existing:any[],incoming:any[],max=Number.MAX_SAFE_INTEGER){
   const seen=new Set<string>();
   const out:any[]=[];
   for(const item of filterFreshHomeFeedItems([...incoming,...existing])){
