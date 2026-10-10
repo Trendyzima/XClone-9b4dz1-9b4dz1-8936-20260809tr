@@ -332,7 +332,7 @@ export default function HomeHubPage(){
       // Storage quota/private browsing must not break scrolling or pagination.
       console.warn('[home-hub] feed cache write skipped',error);
     }
-  },[items]);
+  },[]);
 
   const hydratePublisherLayer=useCallback(async(seed:string|null = null)=>{
     try{
