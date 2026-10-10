@@ -24,6 +24,6 @@ Deno.serve(async req=>{
    try{favicon_url=new URL(item.canonical_url).origin+"/favicon.ico";}catch{}
    return {...item,favicon_url};
   });
-  return Response.json({items,count:items.length},{headers:{...cors,"Cache-Control":"public,max-age=60,stale-while-revalidate=300"}});
- }catch(e){return Response.json({error:e instanceof Error?e.message:String(e)},{status:500,headers:cors})}
+  return Response.json({items,count:items.length},{headers:{...cors,"Cache-Control":"public,max-age=15,s-maxage=15,must-revalidate"}});
+ }catch(e){return Response.json({error:e instanceof Error?e.message:String(e)},{status:500,headers:{...cors,"Cache-Control":"no-store"}})}
 });
