@@ -30,6 +30,19 @@ const UserSuggestionsWidget = lazy(() => import('@/components/features/UserSugge
 type Tab = 'all'|'following'|'explore'|'media'|'communities'|'polls'|'shopping'|'federated';
 type Item = { type:'post'|'thread'|'community'|'poll'|'product'|'fedpost'|'publisher'; data:any };
 
+function appendUniqueFeedItems(existing: Item[], incoming: Item[], max = Number.MAX_SAFE_INTEGER): Item[] {
+  const seen = new Set(existing.map((item) => String(item.type) + ':' + String(item.data?.id ?? item.data?.uri ?? '')));
+  const out = [...existing];
+  for (const item of incoming) {
+    const key = String(item.type) + ':' + String(item.data?.id ?? item.data?.uri ?? '');
+    if (key.endsWith(':') || seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+    if (out.length >= max) break;
+  }
+  return out;
+}
+
 function blendPublisherItems(nativeItems: Item[], publishers: FeedItem[], seed: string|null): Item[] {
   if (!nativeItems.length || !publishers.length) return nativeItems;
   const hash = Array.from(seed ?? 'home').reduce((n, ch) => (n * 31 + ch.charCodeAt(0)) >>> 0, 7);
@@ -454,14 +467,14 @@ export default function HomeHubPage(){
           const page=feedBufferRef.current.slice(offset,offset+6);
           if(!page.length){setHasMore(false);return false;}
           feedBufferOffsetRef.current=offset+page.length;
-          setItems(prev=>mergeHomeFeedItems(prev,page,Number.MAX_SAFE_INTEGER));
+          setItems(prev=>appendUniqueFeedItems(prev,page));
           return true;
         }
         if(cacheCursorRef.current){
           const next=await fetchTab('all',0,cacheCursorRef.current);
           if(next.length){
             const beforeLength=feedBufferRef.current.length;
-            feedBufferRef.current=mergeHomeFeedItems(feedBufferRef.current,next,Number.MAX_SAFE_INTEGER);
+            feedBufferRef.current=appendUniqueFeedItems(feedBufferRef.current,next);
             cacheCursorRef.current=nextCursorRef.current;
             const page=feedBufferRef.current.slice(beforeLength,beforeLength+6);
             if(!page.length){setHasMore(Boolean(cacheCursorRef.current));return Boolean(cacheCursorRef.current);}
@@ -476,7 +489,7 @@ export default function HomeHubPage(){
       }
       if(tab==='federated'){
         const next=await fetchTab('federated',0,nextCursor);
-        if(next.length)setItems(prev=>mergeHomeFeedItems(prev,next,Number.MAX_SAFE_INTEGER));
+        if(next.length)setItems(prev=>appendUniqueFeedItems(prev,next));
         return next.length>0;
       }
       const nextPage=tabPageRef.current+1;
