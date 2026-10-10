@@ -24,6 +24,29 @@ export function hasPasswordRecoveryMarker(): boolean {
   try { return window.sessionStorage.getItem(STORAGE_KEY) !== null; } catch { return false; }
 }
 
+/**
+ * Return the user bound to a recovery-only session even if its reset marker
+ * has expired. Expiry should disable password changes, not reclassify the
+ * still-live recovery session as an ordinary login.
+ */
+export function getPasswordRecoverySessionUserId(): string | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.sessionStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    try {
+      const marker = JSON.parse(raw) as Partial<RecoveryMarker>;
+      return typeof marker.userId === 'string' && marker.userId ? marker.userId : null;
+    } catch {
+      // A legacy marker contained only the user ID. It cannot unlock reset,
+      // but it still identifies a recovery-only session that must not be promoted.
+      return raw || null;
+    }
+  } catch {
+    return null;
+  }
+}
+
 export function getPasswordRecoveryUserId(now = Date.now()): string | null {
   if (typeof window === 'undefined') return null;
   try {
