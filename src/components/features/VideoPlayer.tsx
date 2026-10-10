@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { VideoMonetizationAd } from './VideoMonetizationAd';
+import { ExoClickVastPreRoll } from './ExoClickVastPreRoll';
 import { usePremium } from '@/hooks/usePremium';
 import { UniversalVideoPlayer } from './UniversalVideoPlayer';
 
@@ -37,6 +38,8 @@ function normalizeVideoReplies(rows: any[] | null | undefined): Reply[] {
 const authorPremiumCache: Map<string, boolean> = /* @__PURE__ */ new Map();
 
 const VIDEO_SOUND_STORAGE_KEY = 'testagram-video-sound';
+// Keep external VAST ads occasional in the vertical social reel feed.
+let exoclickReelActivationCount = 0;
 function readVideoSoundPreference(): boolean {
   try { return localStorage.getItem(VIDEO_SOUND_STORAGE_KEY) === 'on'; } catch { return false; }
 }
@@ -67,6 +70,8 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
   const [repliesCount, setRepliesCount]         = useState(post.replies_count ?? 0);
 
   // Ads
+  const [showPrerollAd, setShowPrerollAd]       = useState(false);
+  const prerollSeenRef = useRef(false);
   const [showMidrollAd, setShowMidrollAd]       = useState(false);
   const [midrollDone, setMidrollDone]           = useState(false);
 
@@ -157,22 +162,34 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
       const soundOn = readVideoSoundPreference();
       setIsMuted(!soundOn);
       trackView();
-      // External VAST pre-rolls interrupt organic reels and compete with the
-      // dedicated in-feed sponsored-video cards. Keep playback continuous here.
+      // Monetize the vertical reel surface sparingly: one VAST request per
+      // four newly activated reels, never on every swipe.
+      if (!isPremium && !prerollSeenRef.current) {
+        prerollSeenRef.current = true;
+        exoclickReelActivationCount += 1;
+        if (exoclickReelActivationCount % 4 === 0) {
+          video.pause();
+          setIsPlaying(false);
+          setShowPrerollAd(true);
+          return;
+        }
+      }
       video.muted = !soundOn;
       video.play().then(() => setIsPlaying(true)).catch(() => {});
     } else {
-      // Pause when scrolling away, but keep the user's sound preference for the next reel.
+      // Stop both content and any in-flight ad when the viewer swipes away.
       video.pause();
       setIsPlaying(false);
+      setShowPrerollAd(false);
       setShowComments(false);
       setShowRepostSheet(false);
       setShowShareSheet(false);
     }
-  }, [isActive]);
+  }, [isActive, isPremium, post.id]);
 
   /* ── Ad complete ─────────────────────────────────────────────────────── */
   const handleAdComplete = useCallback(() => {
+    setShowPrerollAd(false);
     setShowMidrollAd(false);
     const video = videoRef.current;
     if (video) video.play().then(() => setIsPlaying(true)).catch(() => {});
@@ -610,7 +627,8 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
       aria-label={`Video by ${post.user_id}`}
       style={{ touchAction: 'pan-y', WebkitTapHighlightColor: 'transparent' }}
     >
-      {/* Pre-roll ad */}
+      {/* ExoClick VAST vertical pre-roll; the player resumes on completion/no-fill. */}
+      {showPrerollAd && isActive && <ExoClickVastPreRoll onComplete={handleAdComplete} />}
 
       {/* Mid-roll ad */}
       {showMidrollAd && (
@@ -631,7 +649,7 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
       <UniversalVideoPlayer
         ref={videoRef}
         src={cancelPreload ? '' : (post.video_url || '')}
-        active={isActive}
+        active={isActive && !showPrerollAd && !showMidrollAd}
         preload={shouldPreload ? 'auto' : 'metadata'}
         muted={isMuted}
         loop
