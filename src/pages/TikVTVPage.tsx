@@ -30,6 +30,33 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
   let cardObserver: IntersectionObserver | null = null;
   let mutationObserver: MutationObserver | null = null;
 
+  // Do not show a Sponsored badge or dark banner until the publisher iframe
+  // confirms that it actually rendered a visible creative. Verify the sending
+  // frame as well as the message type so unrelated frames cannot reveal a slot.
+  const onIptvAdSlotMessage = (event: MessageEvent) => {
+    if (disposed || !event.data || event.data.type !== 'testagram-iptv-ad-slot') return;
+    const frames = Array.from(doc.querySelectorAll<HTMLIFrameElement>('iframe[data-testagram-adsterra-frame="320x50"]'));
+    const frame = frames.find((candidate) => candidate.contentWindow === event.source);
+    const banner = frame?.closest<HTMLElement>('[data-testagram-adsterra="320x50"]');
+    if (!frame || !banner || !banner.isConnected) return;
+
+    win.dispatchEvent(new CustomEvent('testagram:ad-slot-status', {
+      detail: { unit: 'adsterra-320x50', status: event.data.status, reason: event.data.reason || 'unspecified' },
+    }));
+    if (event.data.status === 'filled') {
+      banner.dataset.adStatus = 'filled';
+      banner.style.opacity = '1';
+      banner.style.pointerEvents = 'auto';
+      banner.style.background = 'rgba(0,0,0,.72)';
+      const label = banner.querySelector<HTMLElement>('[data-testagram-sponsored-label]');
+      if (label) label.style.display = 'block';
+    } else if (event.data.status === 'empty') {
+      banner.dataset.adStatus = 'empty';
+      banner.remove();
+    }
+  };
+  win.addEventListener('message', onIptvAdSlotMessage);
+
   const loadIma = (): Promise<void> => {
     if (win.google?.ima) return Promise.resolve();
     if (win.__testagramImaPromise) return win.__testagramImaPromise;
@@ -319,19 +346,22 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
         const banner = doc.createElement('section');
         banner.setAttribute('aria-label', 'Sponsored advertisement');
         banner.dataset.testagramAdsterra = '320x50';
-        banner.style.cssText = 'position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 116px);transform:translateX(-50%);z-index:30;width:min(320px,calc(100% - 16px));height:66px;box-sizing:border-box;padding-top:16px;overflow:hidden;background:rgba(0,0,0,.72);border-radius:8px;';
+        banner.style.cssText = 'position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 116px);transform:translateX(-50%);z-index:30;width:min(320px,calc(100% - 16px));height:66px;box-sizing:border-box;padding-top:16px;overflow:hidden;background:transparent;border-radius:8px;opacity:0;pointer-events:none;transition:opacity .15s ease;';
+        banner.dataset.adStatus = 'pending';
         const sponsored = doc.createElement('span');
+        sponsored.dataset.testagramSponsoredLabel = 'true';
         sponsored.textContent = 'Sponsored';
-        sponsored.style.cssText = 'position:absolute;left:6px;top:2px;color:#fff;font:700 9px/12px system-ui,sans-serif;text-transform:uppercase;letter-spacing:.08em;';
+        sponsored.style.cssText = 'display:none;position:absolute;left:6px;top:2px;color:#fff;font:700 9px/12px system-ui,sans-serif;text-transform:uppercase;letter-spacing:.08em;';
         const adFrame = doc.createElement('iframe');
         adFrame.title = 'Sponsored Adsterra banner';
         adFrame.width = '320';
         adFrame.height = '50';
         adFrame.loading = 'lazy';
         adFrame.referrerPolicy = 'strict-origin-when-cross-origin';
+        adFrame.dataset.testagramAdsterraFrame = '320x50';
         adFrame.setAttribute('sandbox', 'allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms');
         adFrame.style.cssText = 'display:block;width:320px;max-width:100%;height:50px;margin:0 auto;border:0;';
-        adFrame.srcdoc = '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;width:320px;height:50px;overflow:hidden;background:transparent}body{display:flex;align-items:center;justify-content:center}</style></head><body><script>atOptions={key:"805d1754a35091e2a2cb80cc19b9192c",format:"iframe",height:50,width:320,params:{}};</script><script src="https://www.highrevenueformat.com/805d1754a35091e2a2cb80cc19b9192c/invoke.js"></script></body></html>';
+        adFrame.srcdoc = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;width:320px;height:50px;overflow:hidden;background:transparent}body{display:flex;align-items:center;justify-content:center}</style></head><body><script>(function(){var done=false,start=Date.now(),timer=0;function report(status,reason){if(done)return;done=true;if(timer)clearInterval(timer);parent.postMessage({type:'testagram-iptv-ad-slot',status:status,reason:reason||'unspecified'},'*');}function hasCreative(){var nodes=Array.prototype.slice.call(document.querySelectorAll('iframe,img,video,canvas,object,embed'));return nodes.some(function(el){var r=el.getBoundingClientRect();if(r.width<30||r.height<20)return false;if(el.tagName==='IMG')return el.complete&&el.naturalWidth>0;if(el.tagName==='VIDEO')return el.readyState>=1||!!el.poster;if(el.tagName==='CANVAS')return el.width>0&&el.height>0;return true;});}window.atOptions={key:'805d1754a35091e2a2cb80cc19b9192c',format:'iframe',height:50,width:320,params:{}};var script=document.createElement('script');script.async=true;script.src='https://www.highrevenueformat.com/805d1754a35091e2a2cb80cc19b9192c/invoke.js';script.onerror=function(){report('empty','script-error');};document.body.appendChild(script);timer=setInterval(function(){if(hasCreative())report('filled','creative-detected');else if(Date.now()-start>=12000)report('empty','no-creative-timeout');},250);})();</script></body></html>`;
         banner.append(sponsored, adFrame);
         card.appendChild(banner);
       }
@@ -375,6 +405,7 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
     disposed = true;
     mutationObserver?.disconnect();
     cardObserver?.disconnect();
+    win.removeEventListener('message', onIptvAdSlotMessage);
     finishers.forEach((finish) => finish());
     activeCards.clear();
     finishers.clear();

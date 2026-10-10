@@ -9,6 +9,9 @@ on:
       - 'vendor/TikVTV'
       - 'src/App.tsx'
       - 'src/pages/TikVTVPage.tsx'
+      - 'src/components/features/ExternalAdEngine.tsx'
+      - 'scripts/validate-ad-slot-contract.mjs'
+      - 'package.json'
       - '_build.cjs'
       - '.github/workflows/iptv-tikvtv.yml'
   pull_request:
@@ -17,6 +20,9 @@ on:
       - 'vendor/TikVTV'
       - 'src/App.tsx'
       - 'src/pages/TikVTVPage.tsx'
+      - 'src/components/features/ExternalAdEngine.tsx'
+      - 'scripts/validate-ad-slot-contract.mjs'
+      - 'package.json'
       - '_build.cjs'
       - '.github/workflows/iptv-tikvtv.yml'
   workflow_dispatch:
@@ -54,6 +60,9 @@ jobs:
 
       - name: Install Xclone dependencies
         run: npm ci --no-audit --no-fund
+
+      - name: Validate ad creative lifecycle contracts
+        run: npm run validate:ads
 
       - name: Build Xclone and TikVTV
         run: npm run build
