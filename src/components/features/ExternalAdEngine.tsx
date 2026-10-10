@@ -105,7 +105,7 @@ function AdFrame({ unit }: { unit: AdUnit }) {
 export function ExternalAdEngine({ surface = 'top' }: { surface?: 'top' | 'sidebar' | 'overlay' | 'feed' }) {
   const { pathname } = useLocation();
   if (BLOCKED_PATH.test(pathname) || (pathname === '/iptv' && surface !== 'overlay') || (pathname.startsWith('/tv/live/') && surface !== 'overlay')) return null;
-  if (surface === 'overlay') return <div className="rounded-xl bg-black/85 p-1 shadow-xl"><AdFrame unit="adsterra-160x300" /></div>;
+  if (surface === 'overlay') return <AdFrame unit="adsterra-160x300" />;
   // External display ads belong inside a social feed slot, never in a global page header.
   if (surface === 'feed') return <div className="mx-auto w-full max-w-full"><AdFrame unit="exoclick-display" /></div>;
   if (surface === 'sidebar') {
@@ -114,7 +114,7 @@ export function ExternalAdEngine({ surface = 'top' }: { surface?: 'top' | 'sideb
   }
   const widePage = getUnit(pathname) === 'banner-728';
   return (
-    <div className="external-ad-top px-3 pt-2 pb-1">
+    <div className="external-ad-top">
       <div className="xl:hidden"><AdFrame unit="adsterra-320x50" /></div>
       {widePage && <div className="hidden xl:block"><AdFrame unit="banner-728" /></div>}
     </div>
