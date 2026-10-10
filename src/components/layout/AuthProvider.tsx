@@ -80,7 +80,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const finalizationInFlight = new Map<string, Promise<void>>();
 
-    const hydrateUser = (user: User, requireFreshLegalConsent = false) => {
+    const hydrateUser = (user: User, requireFreshLegalConsent = false, retryAttempt = 0) => {
       setLoading(true);
       clearAuthError();
 
@@ -126,11 +126,36 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 return;
               }
               const message = error instanceof Error ? error.message : 'Profile provisioning failed';
+              const terminalPolicyFailure = [
+                'SESSION_EXPIRED',
+                'AGE_RESTRICTION',
+                'LEGAL_ACCEPTANCE_REQUIRED',
+              ].includes(message);
+
               setAuthError(message);
-              logout();
-              setLoading(false);
-              try { await supabase.auth.signOut(); } catch { /* best effort */ }
               console.error('[Auth] Session finalization failed:', error);
+
+              if (terminalPolicyFailure) {
+                // Only explicit session/policy failures should end authentication.
+                // A failed profile or contact lookup is not proof that the token is
+                // invalid; signing out here made transient refresh-time outages look
+                // like an unexpected logout and destroyed the valid refresh token.
+                logout();
+                setLoading(false);
+                try { await supabase.auth.signOut(); } catch { /* best effort */ }
+              } else if (retryAttempt < 2) {
+                // Retry transient profile/RPC/network failures while keeping the
+                // existing Supabase session intact. A refresh must not revoke a
+                // valid session just because a dependent query failed once.
+                window.setTimeout(() => {
+                  if (mounted) hydrateUser(user, false, retryAttempt + 1);
+                }, 750 * (retryAttempt + 1));
+              } else {
+                // Preserve the Supabase session even if a dependent service remains
+                // unavailable. The next auth event or page load can retry hydration.
+                setLoading(false);
+                console.error('[Auth] Hydration retries exhausted; preserving auth session.');
+              }
               resolve();
             });
         }, 0);
