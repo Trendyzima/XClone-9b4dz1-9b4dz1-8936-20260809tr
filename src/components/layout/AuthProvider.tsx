@@ -143,6 +143,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
+        try { window.sessionStorage.removeItem('testagram-password-recovery'); } catch {}
         clearTestagramSessionLifetime();
         trackTestagramEvent(TestagramEvent.LOGGED_OUT, { auth_event: event });
         logout();
@@ -162,7 +163,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const isPasswordResetRoute =
         normalizedPathname() === '/auth' &&
         new URLSearchParams(window.location.search).get('reset') === '1';
-      if (isPasswordResetRoute) {
+      let recoveryUserId: string | null = null;
+      try { recoveryUserId = window.sessionStorage.getItem('testagram-password-recovery'); } catch {}
+      const isRecoverySession = recoveryUserId === session.user.id;
+      if (isPasswordResetRoute || isRecoverySession) {
         if (event === 'INITIAL_SESSION') setLoading(false);
         return;
       }
