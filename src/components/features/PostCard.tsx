@@ -763,7 +763,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
 
           {/* Video Player with monetization pre-roll */}
           {hasVideo && resolvedVideoUrl && (
-            <div className="mt-3 relative rounded-2xl overflow-hidden bg-black max-h-[600px]" onClick={e => e.stopPropagation()}>
+            <div className="mt-3 relative rounded-2xl overflow-hidden bg-black min-h-[240px] max-h-[600px]" onClick={e => e.stopPropagation()}>
               {showVideoAd && (
                 <ExoClickVastPreRoll onComplete={handleAdComplete} />
               )}
