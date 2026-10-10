@@ -73,6 +73,7 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
   useEffect(() => {
     let disposed = false;
     let startupTimeout = 0;
+    let readyTimeout = 0;
     let playbackTimeout = 0;
     let skipPoll = 0;
     let progressPoll = 0;
@@ -84,6 +85,7 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
       if (disposed || done.current) return;
       done.current = true;
       window.clearTimeout(startupTimeout);
+      window.clearTimeout(readyTimeout);
       window.clearTimeout(playbackTimeout);
       window.clearInterval(skipPoll);
       window.clearInterval(progressPoll);
@@ -108,6 +110,7 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
       if (!ads || !ima || disposed || done.current || playbackRequested.current) return;
       try {
         playbackRequested.current = true;
+        window.clearTimeout(readyTimeout);
         ads.init(container.current?.clientWidth || 360, container.current?.clientHeight || window.innerHeight || 640, ima.ViewMode.NORMAL);
         ads.start();
         setStatus('Starting sponsored video…');
@@ -135,9 +138,12 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
           manager.current = ads;
           setAdReady(true);
           setStatus('Tap to play · swipe to continue');
-          // Once the creative is ready, keep the slide fixed until the viewer
-          // starts it or swipes away; do not let a load timer collapse it.
+          // Give the viewer time to start or swipe away, but never leave an
+          // untouched sponsored overlay covering the channel indefinitely.
           window.clearTimeout(startupTimeout);
+          readyTimeout = window.setTimeout(() => {
+            if (!startRequested.current) finish();
+          }, 25_000);
 
           const onStart = () => {
             if (done.current) return;
@@ -192,6 +198,7 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
     return () => {
       disposed = true;
       window.clearTimeout(startupTimeout);
+      window.clearTimeout(readyTimeout);
       window.clearTimeout(playbackTimeout);
       window.clearInterval(skipPoll);
       window.clearInterval(progressPoll);
