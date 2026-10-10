@@ -155,6 +155,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      // A password-recovery session proves possession of the reset link, not
+      // completion of a normal sign-in. Keep its Supabase session available to
+      // updateUser({ password }), but do not hydrate the app store, start the
+      // logged-in lifetime, or trigger application redirects until reset succeeds.
+      const isPasswordResetRoute =
+        normalizedPathname() === '/auth' &&
+        new URLSearchParams(window.location.search).get('reset') === '1';
+      if (isPasswordResetRoute) {
+        if (event === 'INITIAL_SESSION') setLoading(false);
+        return;
+      }
+
       // Identity-first onboarding must never admit anonymous Auth sessions into
       // the application. Even if a hosted Auth setting is misconfigured, an
       // anonymous session is not a Testagram account and cannot bypass KYC.
