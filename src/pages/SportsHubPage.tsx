@@ -116,6 +116,7 @@ export default function SportsHubPage() {
   const [storyQuery, setStoryQuery] = useState('');
   const [storyFilter, setStoryFilter] = useState<'all' | 'kenya' | 'world'>('all');
   const [failedImages, setFailedImages] = useState<string[]>([]);
+  const [visibleStoryCount, setVisibleStoryCount] = useState(6);
   const scoresController = useRef<AbortController | null>(null);
   const storiesController = useRef<AbortController | null>(null);
 
@@ -204,37 +205,47 @@ export default function SportsHubPage() {
   });
   const featuredStories = filteredStories.slice(0, 1);
   const remainingStories = filteredStories.slice(1);
+  const visibleRemainingStories = remainingStories.slice(0, visibleStoryCount);
 
   return (
     <main className="min-h-screen bg-background text-foreground">
-      <div className="mx-auto w-full max-w-6xl px-3 py-4 sm:px-6 sm:py-7">
-        <header className="relative isolate mb-7 overflow-hidden rounded-[1.75rem] border border-white/10 bg-slate-950 text-white shadow-xl">
-          <div aria-hidden="true" className="absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_right,rgba(34,197,94,0.34),transparent_45%),radial-gradient(ellipse_at_bottom_left,rgba(59,130,246,0.24),transparent_45%)]" />
-          <div className="grid gap-6 p-5 sm:p-8 md:grid-cols-[1fr_auto] md:items-end">
-            <div>
-              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-300/25 bg-emerald-400/10 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.18em] text-emerald-300">
+      <div className="mx-auto w-full max-w-6xl px-3 py-4 sm:px-6 sm:py-6">
+        <header className="relative isolate mb-6 overflow-hidden rounded-3xl border border-border bg-card text-card-foreground shadow-sm">
+          <div aria-hidden="true" className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+            <div className="absolute -right-16 -top-24 h-64 w-64 rounded-full bg-primary/10 blur-3xl" />
+            <div className="absolute -bottom-28 left-1/4 h-56 w-56 rounded-full bg-blue-500/[0.07] blur-3xl" />
+          </div>
+          <div className="grid gap-5 p-4 sm:p-7 md:grid-cols-[1fr_auto] md:items-end">
+            <div className="min-w-0">
+              <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-[11px] font-black uppercase tracking-[0.16em] text-primary">
                 <Trophy className="h-3.5 w-3.5" /> Testagram Sports
               </div>
               <h1 className="max-w-2xl text-3xl font-black leading-tight tracking-tight sm:text-5xl">Every game has a story.</h1>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-slate-300 sm:text-base">Live scores, upcoming fixtures and the headlines moving sport — in one fast, mobile-first feed.</p>
-              <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-300">
-                <span className="inline-flex items-center gap-1.5"><Activity className="h-4 w-4 text-emerald-300" /> Live updates</span>
-                <span className="inline-flex items-center gap-1.5"><Newspaper className="h-4 w-4 text-sky-300" /> Publisher headlines</span>
-                <span className="inline-flex items-center gap-1.5"><Clock3 className="h-4 w-4 text-violet-300" /> Refreshes every minute</span>
+              <p className="mt-3 max-w-xl text-sm leading-6 text-muted-foreground sm:text-base">Live scores, upcoming fixtures and the headlines moving sport — all in one fast, mobile-first feed.</p>
+              <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5"><Activity className="h-4 w-4 text-emerald-500" /> Live updates</span>
+                <span className="inline-flex items-center gap-1.5"><Newspaper className="h-4 w-4 text-primary" /> Publisher-attributed news</span>
+                <span className="inline-flex items-center gap-1.5"><Clock3 className="h-4 w-4 text-muted-foreground" /> Scores refresh every minute</span>
               </div>
             </div>
-            <button type="button" onClick={() => { void loadScores(true); void loadStories(); }} disabled={refreshing || storiesLoading} className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-full bg-white px-5 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-100 disabled:cursor-wait disabled:opacity-60 md:self-end">
+            <button type="button" onClick={() => { void loadScores(true); void loadStories(); }} disabled={refreshing || storiesLoading} className="inline-flex min-h-11 items-center justify-center gap-2 self-start rounded-full bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground shadow-sm transition hover:opacity-90 disabled:cursor-wait disabled:opacity-60 md:self-end">
               <RefreshCw className={'h-4 w-4 ' + (refreshing || storiesLoading ? 'animate-spin' : '')} /> Refresh feed
             </button>
           </div>
-          <div className="border-t border-white/10 bg-black/15 px-4 py-4 sm:px-8">
-            <div className="flex items-center gap-2 overflow-x-auto pb-1" aria-label="Choose sport">
-              {SPORTS.map(option => <button key={option.value} type="button" onClick={() => setSport(option.value)} aria-pressed={sport === option.value} className={'inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-bold transition ' + (sport === option.value ? 'bg-emerald-400 text-slate-950 shadow-lg shadow-emerald-950/30' : 'border border-white/15 bg-white/5 text-slate-200 hover:bg-white/10')}>
+          <div className="border-t border-border bg-muted/30 px-4 py-3 sm:px-7">
+            <div className="flex items-center gap-2 overflow-x-auto pb-0.5" aria-label="Choose sport">
+              {SPORTS.map(option => <button key={option.value} type="button" onClick={() => setSport(option.value)} aria-pressed={sport === option.value} className={'inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full px-4 text-sm font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 ' + (sport === option.value ? 'bg-primary text-primary-foreground shadow-sm' : 'border border-border bg-card text-muted-foreground hover:bg-accent hover:text-foreground')}>
                 <span aria-hidden="true">{option.mark}</span>{option.label}
               </button>)}
             </div>
           </div>
         </header>
+
+        <div className="mb-7 grid grid-cols-3 gap-2 sm:gap-3" aria-label="Sports feed overview">
+          <div className="rounded-2xl border border-border bg-card p-3 sm:p-4"><p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground sm:text-xs"><span className="h-2 w-2 animate-pulse rounded-full bg-red-500" /> Live now</p><p className="mt-1 text-2xl font-black tabular-nums sm:text-3xl">{liveMatches.length}</p><p className="mt-0.5 hidden text-xs text-muted-foreground sm:block">Matches in play</p></div>
+          <div className="rounded-2xl border border-border bg-card p-3 sm:p-4"><p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground sm:text-xs"><CalendarDays className="h-3.5 w-3.5 text-primary" /> Upcoming</p><p className="mt-1 text-2xl font-black tabular-nums sm:text-3xl">{upcomingMatches.length}</p><p className="mt-0.5 hidden text-xs text-muted-foreground sm:block">Fixtures to follow</p></div>
+          <div className="rounded-2xl border border-border bg-card p-3 sm:p-4"><p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-muted-foreground sm:text-xs"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Results</p><p className="mt-1 text-2xl font-black tabular-nums sm:text-3xl">{finishedMatches.length}</p><p className="mt-0.5 hidden text-xs text-muted-foreground sm:block">Completed matches</p></div>
+        </div>
 
         <section className="mb-9" aria-labelledby="sports-scores-heading">
           <div className="mb-4 flex items-end justify-between gap-3">
@@ -285,10 +296,10 @@ export default function SportsHubPage() {
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <label className="relative block w-full sm:max-w-sm">
               <Search aria-hidden="true" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <input value={storyQuery} onChange={event => setStoryQuery(event.target.value)} type="search" placeholder="Search headlines, teams or publishers" aria-label="Search sports headlines" className="min-h-11 w-full rounded-xl border bg-card py-2 pl-9 pr-3 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20" />
+              <input value={storyQuery} onChange={event => { setStoryQuery(event.target.value); setVisibleStoryCount(6); }} type="search" placeholder="Search headlines, teams or publishers" aria-label="Search sports headlines" className="min-h-11 w-full rounded-xl border bg-card py-2 pl-9 pr-3 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/20" />
             </label>
             <div className="flex items-center gap-2 overflow-x-auto pb-1" aria-label="Filter sports headlines">
-              {([{ value: 'all', label: 'All stories' }, { value: 'kenya', label: 'Kenya' }, { value: 'world', label: 'International' }] as const).map(option => <button key={option.value} type="button" aria-pressed={storyFilter === option.value} onClick={() => setStoryFilter(option.value)} className={'min-h-9 shrink-0 rounded-full px-3 text-xs font-bold transition ' + (storyFilter === option.value ? 'bg-primary text-primary-foreground' : 'border bg-card text-muted-foreground hover:bg-accent')}>{option.label}</button>)}
+              {([{ value: 'all', label: 'All stories' }, { value: 'kenya', label: 'Kenya' }, { value: 'world', label: 'International' }] as const).map(option => <button key={option.value} type="button" aria-pressed={storyFilter === option.value} onClick={() => { setStoryFilter(option.value); setVisibleStoryCount(6); }} className={'min-h-9 shrink-0 rounded-full px-3 text-xs font-bold transition ' + (storyFilter === option.value ? 'bg-primary text-primary-foreground' : 'border bg-card text-muted-foreground hover:bg-accent')}>{option.label}</button>)}
             </div>
           </div>
           {storiesLoading && stories.length === 0 ? <div className="grid gap-4 sm:grid-cols-2"><div className="h-72 animate-pulse rounded-2xl bg-muted" /><div className="h-72 animate-pulse rounded-2xl bg-muted" /></div>
@@ -298,8 +309,12 @@ export default function SportsHubPage() {
               {featuredStories.length > 0 && <div className="mb-4 grid gap-4">
                 {featuredStories.map((story, index) => <StoryCard key={story.id} story={story} featured={index === 0} expanded={expandedStoryId === story.id} imageFailed={failedImages.includes(story.id)} onToggle={() => setExpandedStoryId(current => current === story.id ? null : story.id)} onImageError={() => setFailedImages(current => current.includes(story.id) ? current : [...current, story.id])} />)}
               </div>}
-              {remainingStories.length > 0 && <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {remainingStories.map(story => <StoryCard key={story.id} story={story} expanded={expandedStoryId === story.id} imageFailed={failedImages.includes(story.id)} onToggle={() => setExpandedStoryId(current => current === story.id ? null : story.id)} onImageError={() => setFailedImages(current => current.includes(story.id) ? current : [...current, story.id])} />)}
+              {visibleRemainingStories.length > 0 && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {visibleRemainingStories.map(story => <StoryCard key={story.id} story={story} expanded={expandedStoryId === story.id} imageFailed={failedImages.includes(story.id)} onToggle={() => setExpandedStoryId(current => current === story.id ? null : story.id)} onImageError={() => setFailedImages(current => current.includes(story.id) ? current : [...current, story.id])} />)}
+              </div>}
+              {remainingStories.length > visibleRemainingStories.length && <div className="mt-5 flex flex-col items-center gap-2">
+                <p className="text-xs text-muted-foreground">Showing {Math.min(filteredStories.length, visibleStoryCount + 1)} of {filteredStories.length} stories</p>
+                <button type="button" onClick={() => setVisibleStoryCount(count => count + 6)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-full border border-border bg-card px-5 py-2 text-sm font-bold transition hover:border-primary/40 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary">Show more stories <ChevronDown className="h-4 w-4" /></button>
               </div>}
               {storiesError && <p className="mt-3 text-xs text-muted-foreground">Showing the last available headlines. Refresh to try loading newer stories.</p>}
             </>}
@@ -315,12 +330,12 @@ function MatchCard({ match, sport, live = false }: { match: Match; sport: string
   const away = matchTeam(match, 'away');
   const status = matchStatus(match);
   const league = display(first(match, ['league', 'competition', 'tournament']));
-  return <article className={'rounded-2xl border bg-card p-4 transition hover:border-primary/40 hover:shadow-sm ' + (live ? 'border-red-500/20' : '')}>
-    <div className="mb-4 flex items-center justify-between gap-3 text-xs text-muted-foreground"><span className="truncate font-semibold">{league || sport.charAt(0).toUpperCase() + sport.slice(1)}</span>{live ? <span className="inline-flex shrink-0 items-center gap-1.5 font-black text-red-500"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" /> LIVE</span> : <span className="shrink-0">{status}</span>}</div>
+  return <article className={'group rounded-2xl border bg-card p-3.5 transition duration-200 hover:border-primary/40 hover:shadow-md hover:shadow-black/[0.04] sm:p-4 ' + (live ? 'border-red-500/25 bg-red-500/[0.025]' : '')}>
+    <div className="mb-3 flex items-center justify-between gap-3 text-xs text-muted-foreground"><span className="truncate font-semibold">{league || sport.charAt(0).toUpperCase() + sport.slice(1)}</span>{live ? <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-red-500/10 px-2 py-1 font-black text-red-500"><span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" /> LIVE</span> : <span className="max-w-[45%] shrink-0 truncate rounded-full bg-muted px-2 py-1 text-[10px] font-semibold">{status}</span>}</div>
     <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 sm:gap-3">
-      <span className="truncate text-sm font-bold">{home}</span>
-      <span className="rounded-xl bg-muted px-3 py-2 text-base font-black tabular-nums">{matchScore(match, 'home') || '–'} <span className="text-muted-foreground">:</span> {matchScore(match, 'away') || '–'}</span>
-      <span className="truncate text-right text-sm font-bold">{away}</span>
+      <span title={home} className="truncate text-sm font-bold leading-5 group-hover:text-primary">{home}</span>
+      <span className="min-w-[76px] rounded-xl border border-border/70 bg-muted/70 px-2.5 py-2 text-center text-base font-black tabular-nums">{matchScore(match, 'home') || '–'} <span className="text-muted-foreground">:</span> {matchScore(match, 'away') || '–'}</span>
+      <span title={away} className="truncate text-right text-sm font-bold leading-5 group-hover:text-primary">{away}</span>
     </div>
     {live && <p className="mt-3 text-[11px] text-muted-foreground">{status}</p>}
   </article>;
@@ -339,7 +354,7 @@ function StoryCard({ story, featured = false, expanded, imageFailed, onToggle, o
   const showImage = Boolean(imageUrl && !imageFailed);
   return <article className={'group overflow-hidden rounded-2xl border bg-card transition duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-lg hover:shadow-black/5 ' + (featured ? 'md:grid md:grid-cols-[0.95fr_1.05fr]' : '')}>
     <div className={'relative isolate overflow-hidden bg-slate-900 ' + (featured ? 'aspect-[16/10] md:aspect-auto md:min-h-[260px]' : 'aspect-[16/9]')}>
-      {showImage ? <img src={imageUrl} alt={story.title} loading={featured ? 'eager' : 'lazy'} fetchPriority={featured ? 'high' : 'auto'} decoding="async" onError={onImageError} className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
+      {showImage ? <img src={imageUrl} alt="" loading={featured ? 'eager' : 'lazy'} fetchPriority={featured ? 'high' : 'auto'} decoding="async" onError={onImageError} className="absolute inset-0 h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]" />
         : <div aria-hidden="true" className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(16,185,129,0.55),transparent_48%),linear-gradient(135deg,#0f172a,#1e293b_55%,#064e3b)]"><div className="absolute -right-8 -top-12 h-44 w-44 rounded-full border border-white/10" /><div className="absolute -right-1 -top-5 h-32 w-32 rounded-full border border-white/10" /><div className="absolute bottom-4 left-5 flex items-center gap-2 text-white/80"><ImageOff className="h-4 w-4" /><span className="text-[10px] font-black uppercase tracking-[0.2em]">{storySport(story)} · Matchday</span></div><Trophy className="absolute right-7 top-1/2 h-12 w-12 -translate-y-1/2 text-white/20" /></div>}
       <div className="absolute left-3 top-3 rounded-full border border-white/15 bg-black/55 px-2.5 py-1 text-[10px] font-bold text-white backdrop-blur-sm">{story.country_code === 'KE' ? 'KENYA SPORTS' : 'SPORTS NEWS'}</div>
     </div>
