@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { finalizeAuthenticatedSession } from '@/lib/auth';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 import { clearTestagramSessionLifetime, enforceTestagramSessionLifetime, markAuthenticatedSessionStarted } from '@/lib/sessionPolicy';
-import { clearPasswordRecoverySession, getPasswordRecoveryUserId } from '@/lib/passwordRecovery';
+import { clearPasswordRecoverySession, getPasswordRecoverySessionUserId, hasPasswordRecoveryMarker } from '@/lib/passwordRecovery';
 
 function normalizedPathname() {
   if (typeof window === 'undefined') return '/';
@@ -190,10 +190,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const isPasswordResetRoute =
         normalizedPathname() === '/auth' &&
         (authCallbackParams.get('reset') === '1' || authCallbackParams.get('type') === 'recovery');
-      const recoveryUserId = getPasswordRecoveryUserId();
-      const isRecoverySession = recoveryUserId === session.user.id;
-      if (isPasswordResetRoute || isRecoverySession) {
+      const recoveryUserId = getPasswordRecoverySessionUserId();
+      const recoveryMarkerPresent = hasPasswordRecoveryMarker();
+      const isRecoverySession =
+        recoveryMarkerPresent && (!recoveryUserId || recoveryUserId === session.user.id);
+      if (isPasswordResetRoute) {
         if (event === 'INITIAL_SESSION') setLoading(false);
+        return;
+      }
+      if (isRecoverySession) {
+        // Recovery sessions may be used only to set a new password. If the user
+        // leaves the reset route or its short-lived marker expires, do not let a
+        // refresh turn that temporary session into a normal application login.
+        void supabase.auth.signOut();
+        logout();
+        setLoading(false);
         return;
       }
 
