@@ -16,7 +16,7 @@ const PUBLIC_AD_SLOTS = new Set(["iptv-overlay", "tv-channels"]);
 
 async function currentUser(req: Request) {
   const authorization = req.headers.get("Authorization") ?? "";
-  const token = authorization.replace(/^Bearer\\s+/i, "");
+  const token = authorization.replace(/^Bearer\s+/i, "");
   if (!token || !ANON) return null;
   try {
     const client = createClient(URL, ANON, {
