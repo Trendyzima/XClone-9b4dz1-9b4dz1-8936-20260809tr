@@ -340,7 +340,6 @@ export default function HomeHubPage(){
       setItems(prev=>{
         const merged=blendPublisherItems(prev,publisherItems,seed);
         if(merged===prev)return prev;
-        feedBufferRef.current=mergeHomeFeedItems(feedBufferRef.current,merged.filter(item=>item.type==='publisher'),Number.MAX_SAFE_INTEGER);
         return merged;
       });
       await persistBuffer();
@@ -363,27 +362,23 @@ export default function HomeHubPage(){
       const previous=feedBufferRef.current;
       const previousIds=new Set(previous.map(x=>String(x.data?.id??x.data?.uri??'')));
       const fresh=next.filter(x=>!previousIds.has(String(x.data?.id??x.data?.uri??'')));
-      const retained=previous.filter(x=>x.type!=='fedpost');
-      feedBufferRef.current=mergeHomeFeedItems(retained,next,Number.MAX_SAFE_INTEGER);
-      cacheCursorRef.current=nextCursorRef.current;
       if(background){
+        // Refresh the visible top without replacing the cursor for the already
+        // buffered older pages. The cache contains only the ordered API feed;
+        // publisher cards are layered into the visible list separately.
         setNewCount(fresh.length);
         if(fresh.length&&window.scrollY<500){
-          setItems(prev=>{
-            const merged=[...fresh,...prev].slice(0,80);
-            // Preserve the pagination cursor: refresh inserts only the number
-            // of genuinely new rows ahead of the already-consumed buffer.
-            feedBufferOffsetRef.current=Math.min(
-              feedBufferRef.current.length,
-              feedBufferOffsetRef.current + fresh.length
-            );
-            return merged;
-          });
+          setItems(prev=>[...fresh,...prev].slice(0,240));
         }
       }else{
-        const composed = composeForYouContent(next);setItems(composed);feedBufferRef.current=mergeHomeFeedItems([],composed,Number.MAX_SAFE_INTEGER);feedBufferOffsetRef.current=composed.length;cacheCursorRef.current=nextCursorRef.current;setLoading(false);
+        const composed = composeForYouContent(next);
+        setItems(composed);
+        feedBufferRef.current=mergeHomeFeedItems([],composed,Number.MAX_SAFE_INTEGER);
+        feedBufferOffsetRef.current=composed.length;
+        cacheCursorRef.current=nextCursorRef.current;
+        setLoading(false);
       }
-      setHasMore(Boolean(cacheCursorRef.current));
+      setHasMore(Boolean(cacheCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
       await persistBuffer();
       void hydratePublisherLayer(background ? nextCursorRef.current : null);
     }catch(e){console.error('[home-hub]',e);if(!background){
