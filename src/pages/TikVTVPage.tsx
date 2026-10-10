@@ -311,6 +311,30 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
       observedCards.add(card);
       card.dataset.testagramChannelKey = 'channel-' + (card.dataset.index || card.textContent?.trim().slice(0, 80) || 'unknown');
       stabilizeCard(card);
+      // Keep a compact Adsterra banner in a reserved overlay layer on every
+      // fourth IPTV slide. Absolute positioning means it cannot change slide
+      // height, flex basis, scroll snapping, or the video player's layout.
+      const slideIndex = Number(card.dataset.index);
+      if (Number.isFinite(slideIndex) && (slideIndex + 1) % 4 === 0) {
+        const banner = doc.createElement('section');
+        banner.setAttribute('aria-label', 'Sponsored advertisement');
+        banner.dataset.testagramAdsterra = '320x50';
+        banner.style.cssText = 'position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 116px);transform:translateX(-50%);z-index:30;width:min(320px,calc(100% - 16px));height:66px;box-sizing:border-box;padding-top:16px;overflow:hidden;background:rgba(0,0,0,.72);border-radius:8px;';
+        const sponsored = doc.createElement('span');
+        sponsored.textContent = 'Sponsored';
+        sponsored.style.cssText = 'position:absolute;left:6px;top:2px;color:#fff;font:700 9px/12px system-ui,sans-serif;text-transform:uppercase;letter-spacing:.08em;';
+        const adFrame = doc.createElement('iframe');
+        adFrame.title = 'Sponsored Adsterra banner';
+        adFrame.width = '320';
+        adFrame.height = '50';
+        adFrame.loading = 'lazy';
+        adFrame.referrerPolicy = 'strict-origin-when-cross-origin';
+        adFrame.setAttribute('sandbox', 'allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms');
+        adFrame.style.cssText = 'display:block;width:320px;max-width:100%;height:50px;margin:0 auto;border:0;';
+        adFrame.srcdoc = '<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;width:320px;height:50px;overflow:hidden;background:transparent}body{display:flex;align-items:center;justify-content:center}</style></head><body><script>atOptions={key:"805d1754a35091e2a2cb80cc19b9192c",format:"iframe",height:50,width:320,params:{}};</script><script src="https://www.highrevenueformat.com/805d1754a35091e2a2cb80cc19b9192c/invoke.js"></script></body></html>';
+        banner.append(sponsored, adFrame);
+        card.appendChild(banner);
+      }
       cardObserver?.observe(card);
     });
   };
