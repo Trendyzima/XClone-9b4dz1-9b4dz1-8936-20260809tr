@@ -55,7 +55,7 @@ function AdFrame({ unit }: { unit: AdUnit }) {
       <div className="mb-1 flex items-center justify-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
         <span aria-hidden="true">ⓘ</span><span>Sponsored</span>
       </div>
-      <div className="mx-auto max-w-full overflow-hidden" style={{ width: ad.width, height: ad.height }}>
+      <div className="mx-auto max-w-full overflow-x-auto overflow-y-hidden" style={{ width: ad.width, height: ad.height }}>
         <iframe
           ref={frameRef}
           title="Sponsored advertisement"
