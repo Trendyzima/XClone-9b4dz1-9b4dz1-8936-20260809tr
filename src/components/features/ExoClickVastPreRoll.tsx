@@ -15,19 +15,35 @@ function loadIma(): Promise<void> {
   if (window.__testagramIma) return window.__testagramIma;
 
   window.__testagramIma = new Promise<void>((resolve, reject) => {
-    let script = document.querySelector<HTMLScriptElement>('script[data-testagram-ima]');
-    const timeout = window.setTimeout(() => reject(new Error('IMA timeout')), 8_000);
-    const loaded = () => { window.clearTimeout(timeout); resolve(); };
-    const failed = () => { window.clearTimeout(timeout); reject(new Error('IMA unavailable')); };
-    if (!script) {
-      script = document.createElement('script');
+    const existing = document.querySelector<HTMLScriptElement>('script[data-testagram-ima]');
+    const script = existing ?? document.createElement('script');
+    let settled = false;
+    const cleanup = () => {
+      window.clearTimeout(timeout);
+      script.removeEventListener('load', loaded);
+      script.removeEventListener('error', failed);
+    };
+    const settle = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      if (error && !window.google?.ima) script.remove();
+      if (error) reject(error);
+      else resolve();
+    };
+    const loaded = () => window.google?.ima
+      ? settle()
+      : settle(new Error('IMA SDK loaded without its API'));
+    const failed = () => settle(new Error('IMA unavailable'));
+    const timeout = window.setTimeout(() => settle(new Error('IMA timeout')), 8_000);
+    script.addEventListener('load', loaded, { once: true });
+    script.addEventListener('error', failed, { once: true });
+    if (!existing) {
       script.src = IMA_SRC;
       script.async = true;
       script.dataset.testagramIma = '1';
       document.head.appendChild(script);
     }
-    script.addEventListener('load', loaded, { once: true });
-    script.addEventListener('error', failed, { once: true });
   }).catch((error) => {
     window.__testagramIma = undefined;
     throw error;
@@ -41,6 +57,7 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
   const container = useRef<HTMLDivElement>(null);
   const manager = useRef<any>(null);
   const display = useRef<any>(null);
+  const loader = useRef<any>(null);
   const initialized = useRef(false);
   const startRequested = useRef(false);
   const playbackRequested = useRef(false);
@@ -56,16 +73,25 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
   useEffect(() => {
     let disposed = false;
     let startupTimeout = 0;
+    let playbackTimeout = 0;
     let skipPoll = 0;
+    let progressPoll = 0;
     let startedAt = 0;
+    let lastAdTime = 0;
+    let lastProgressAt = 0;
 
     const finish = () => {
       if (disposed || done.current) return;
       done.current = true;
       window.clearTimeout(startupTimeout);
+      window.clearTimeout(playbackTimeout);
       window.clearInterval(skipPoll);
+      window.clearInterval(progressPoll);
       try { manager.current?.destroy(); } catch {}
+      try { loader.current?.destroy(); } catch {}
+      try { display.current?.destroy?.(); } catch {}
       manager.current = null;
+      loader.current = null;
       display.current = null;
       onComplete();
     };
@@ -99,9 +125,10 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
       const ima = window.google.ima;
       const adDisplay = new ima.AdDisplayContainer(container.current, video.current);
       display.current = adDisplay;
-      const loader = new ima.AdsLoader(adDisplay);
+      const adLoader = new ima.AdsLoader(adDisplay);
+      loader.current = adLoader;
 
-      loader.addEventListener(ima.AdsManagerLoadedEvent.Type.ADS_MANAGER_LOADED, (event: any) => {
+      adLoader.addEventListener(ima.AdsManagerLoadedEvent.Type.ADS_MANAGER_LOADED, (event: any) => {
         if (disposed || done.current) return finish();
         try {
           const ads = event.getAdsManager(video.current, new ima.AdsRenderingSettings());
@@ -116,8 +143,21 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
             if (done.current) return;
             started.current = true;
             startedAt = Date.now();
+            lastProgressAt = startedAt;
+            lastAdTime = video.current?.currentTime ?? 0;
             setStatus('Sponsored');
             window.clearTimeout(startupTimeout);
+            window.clearTimeout(playbackTimeout);
+            playbackTimeout = window.setTimeout(() => finish(), 60_000);
+            window.clearInterval(progressPoll);
+            progressPoll = window.setInterval(() => {
+              const currentTime = video.current?.currentTime ?? 0;
+              if (Number.isFinite(currentTime) && currentTime > lastAdTime + 0.05) {
+                lastAdTime = currentTime;
+                lastProgressAt = Date.now();
+              }
+              if (Date.now() - lastProgressAt >= 12_000) finish();
+            }, 1_000);
             window.clearInterval(skipPoll);
             skipPoll = window.setInterval(() => {
               try { setCanSkip(Date.now() - startedAt >= 5_000 && Boolean(ads.getAdSkippableState?.())); }
@@ -128,6 +168,7 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
           ads.addEventListener(ima.AdEvent.Type.SKIPPED, finish);
           ads.addEventListener(ima.AdEvent.Type.COMPLETE, finish);
           ads.addEventListener(ima.AdEvent.Type.ALL_ADS_COMPLETED, finish);
+          ads.addEventListener(ima.AdEvent.Type.CONTENT_RESUME_REQUESTED, finish);
           ads.addEventListener(ima.AdErrorEvent.Type.AD_ERROR, finish);
 
           if (startRequested.current && initialized.current) startPlayback();
@@ -136,14 +177,14 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
         }
       }, false);
 
-      loader.addEventListener(ima.AdErrorEvent.Type.AD_ERROR, finish, false);
+      adLoader.addEventListener(ima.AdErrorEvent.Type.AD_ERROR, finish, false);
       const request = new ima.AdsRequest();
       request.adTagUrl = VAST_TAG;
       request.linearAdSlotWidth = container.current.clientWidth || window.innerWidth || 360;
       request.linearAdSlotHeight = container.current.clientHeight || window.innerHeight || 640;
       request.nonLinearAdSlotWidth = request.linearAdSlotWidth;
       request.nonLinearAdSlotHeight = Math.round(request.linearAdSlotHeight / 3);
-      loader.requestAds(request);
+      adLoader.requestAds(request);
     }).catch(() => {
       if (!disposed) finish();
     });
@@ -151,11 +192,16 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
     return () => {
       disposed = true;
       window.clearTimeout(startupTimeout);
+      window.clearTimeout(playbackTimeout);
       window.clearInterval(skipPoll);
+      window.clearInterval(progressPoll);
       finishRef.current = () => {};
       startPlaybackRef.current = () => {};
       try { manager.current?.destroy(); } catch {}
+      try { loader.current?.destroy(); } catch {}
+      try { display.current?.destroy?.(); } catch {}
       manager.current = null;
+      loader.current = null;
       display.current = null;
     };
   }, [onComplete]);
