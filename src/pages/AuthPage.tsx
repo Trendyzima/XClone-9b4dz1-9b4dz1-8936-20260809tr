@@ -113,7 +113,7 @@ export default function AuthPage() {
     // is accepted here only when the early Auth listener recorded the actual
     // PASSWORD_RECOVERY event for this exact user; the mere presence of "code"
     // in the URL is never treated as proof of recovery.
-    if (isResetRoute) {
+    if (isRecoveryCallback) {
       void supabase.auth.getSession().then(({ data, error }) => {
         if (cancelled) return;
         const userId = data.session?.user?.id;
