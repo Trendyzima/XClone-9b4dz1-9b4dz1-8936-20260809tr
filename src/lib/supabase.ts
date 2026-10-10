@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { clearPasswordRecoverySession, markPasswordRecoverySession } from '@/lib/passwordRecovery';
 
 // Capture the original callback URL before createClient's automatic PKCE
 // detection can exchange the code and clean it out of window.location.
@@ -34,6 +35,17 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
     // hosted server-side session time-boxing is plan-gated and is not assumed here.
     debug: false,
   },
+});
+
+// Register immediately after client creation so a fast PKCE callback cannot emit
+// PASSWORD_RECOVERY before AuthPage mounts its effect. This listener performs
+// storage-only work; it must never await another Supabase Auth operation.
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'PASSWORD_RECOVERY' && session?.user?.id) {
+    markPasswordRecoverySession(session.user.id);
+  } else if (event === 'SIGNED_OUT') {
+    clearPasswordRecoverySession();
+  }
 });
 
 // Secondary project: legacy/expanded data plane. It has its own API client and
