@@ -28,6 +28,8 @@ const REACTIONS: { key: ReactionKey; label: string; Icon: typeof Heart }[] = [
 ];
 
 const CACHE_TTL = 60_000;
+const RSS_FRESHNESS_MS = 12 * 60 * 60 * 1000;
+function freshRssItems(items: FeedItem[]) { const cutoff = Date.now() - RSS_FRESHNESS_MS; return items.filter(item => { const published = new Date(item.published_at).getTime(); return Number.isFinite(published) && published >= cutoff && published <= Date.now() + 5 * 60 * 1000; }); }
 const SESSION_KEY = 'testagram_rss_temporary_reactions_v1';
 let cache: { at: number; items: FeedItem[] } = { at: 0, items: [] };
 let pending: Promise<FeedItem[]> | null = null;
@@ -47,7 +49,7 @@ function writeReactions(value: Record<string, ReactionKey>) {
 }
 
 export async function loadPublisherFeed(): Promise<FeedItem[]> {
-  if (cache.items.length && Date.now() - cache.at < CACHE_TTL) return cache.items;
+  if (cache.items.length && Date.now() - cache.at < CACHE_TTL) return freshRssItems(cache.items);
   if (pending) return pending;
   pending = fetch(supabaseUrl + '/functions/v1/testagram-rss-feed?limit=12', {
     headers: { Accept: 'application/json' },
@@ -56,11 +58,11 @@ export async function loadPublisherFeed(): Promise<FeedItem[]> {
     .then(async response => {
       if (!response.ok) throw new Error('RSS feed HTTP ' + response.status);
       const payload = await response.json();
-      const items = Array.isArray(payload?.items) ? payload.items.slice(0, 12) as FeedItem[] : [];
+      const items = freshRssItems(Array.isArray(payload?.items) ? payload.items.slice(0, 12) as FeedItem[] : []);
       cache = { at: Date.now(), items };
       return items;
     })
-    .catch(() => cache.items)
+    .catch(() => freshRssItems(cache.items))
     .finally(() => { pending = null; });
   return pending;
 }

@@ -10,16 +10,18 @@ const REACTIONS:{key:ReactionKey;Icon:typeof Heart;label:string}[]=[
 ];
 const REACTION_KEY='testagram_rss_temporary_reactions_v1';
 const HIDE=/^(\/auth|\/admin|\/settings|\/wallet|\/messages|\/notifications|\/help|\/premium|\/create-ad|\/my-ads|\/ad-|\/rewards|\/verify|\/privacy|\/terms|\/policy|\/regulator|\/sessions|\/blocked|\/appeals|\/payouts|\/revenue|\/analytics)/;
+const RSS_FRESHNESS_MS=12*60*60*1000;
+function freshItems(items:Item[]){const cutoff=Date.now()-RSS_FRESHNESS_MS;return items.filter(item=>{const t=new Date(item.published_at).getTime();return Number.isFinite(t)&&t>=cutoff&&t<=Date.now()+5*60*1000;});}
 let rssCache:{at:number;items:Item[]}={at:0,items:[]};
 let rssPending:Promise<Item[]>|null=null;
 function readTemporaryReactions():Record<string,ReactionKey>{try{const raw=sessionStorage.getItem(REACTION_KEY);const parsed=raw?JSON.parse(raw):{};return parsed&&typeof parsed==='object'?parsed:{}}catch{return {}}}
 function writeTemporaryReactions(value:Record<string,ReactionKey>){try{sessionStorage.setItem(REACTION_KEY,JSON.stringify(value))}catch{}}
 async function loadRail(){
- if(rssCache.items.length&&Date.now()-rssCache.at<60000)return rssCache.items;
+ if(rssCache.items.length&&Date.now()-rssCache.at<60000)return freshItems(rssCache.items);
  if(rssPending)return rssPending;
  rssPending=fetch(supabaseUrl+'/functions/v1/testagram-rss-feed?limit=6',{headers:{Accept:'application/json'},credentials:'omit'})
-  .then(async response=>{if(!response.ok)throw new Error('RSS rail HTTP '+response.status);const data=await response.json();const items=Array.isArray(data?.items)?data.items.slice(0,6):[];rssCache={at:Date.now(),items};return items;})
-  .catch(()=>rssCache.items)
+  .then(async response=>{if(!response.ok)throw new Error('RSS rail HTTP '+response.status);const data=await response.json();const items=freshItems(Array.isArray(data?.items)?data.items.slice(0,6):[]);rssCache={at:Date.now(),items};return items;})
+  .catch(()=>freshItems(rssCache.items))
   .finally(()=>{rssPending=null;});
  return rssPending;
 }

@@ -3,16 +3,19 @@ import {ExternalLink,Newspaper,X} from 'lucide-react';
 import {supabase} from '@/lib/supabase';
 
 type FeedItem={id:string;canonical_url:string;title:string;excerpt?:string|null;author?:string|null;image_url?:string|null;category:string;country_code?:string|null;published_at:string;testagram_rss_source_profiles?:{display_name?:string;avatar_url?:string|null}};
-const cache=new Map<string,FeedItem[]>();
+const cache=new Map<string,{at:number;items:FeedItem[]}>();
+const CACHE_TTL=60_000;
+const FRESHNESS_MS=12*60*60*1000;
+function isFresh(item:FeedItem){const t=new Date(item.published_at).getTime();return Number.isFinite(t)&&t>=Date.now()-FRESHNESS_MS&&t<=Date.now()+5*60*1000;}
 const pending=new Map<string,Promise<FeedItem[]>>();
 const dismissedKey='testagram_rss_inline_dismissed_v1';
 
 const clean=(s:string)=>s.toLowerCase().replace(/https?:\/\/\S+/g,' ');
 function topicFor(text:string){const t=clean(text);if(/breaking|news|headline|election|government|parliament|president|world/.test(t))return'news';if(/football|soccer|basketball|tennis|rugby|cricket|match|league|afcon|premier league/.test(t))return'sports';if(/music|song|artist|album|concert|dj|radio/.test(t))return'music';if(/movie|film|actor|celebrity|entertainment|tv show/.test(t))return'entertainment';if(/technology|tech|ai|software|startup|iphone|android|cyber/.test(t))return'technology';if(/business|market|stock|economy|money|finance/.test(t))return'business';return'news';}
 async function getFeed(category:string){
- if(cache.has(category))return cache.get(category)!;
+ const cached=cache.get(category);if(cached&&Date.now()-cached.at<CACHE_TTL)return cached.items.filter(isFresh);if(cached)cache.delete(category);
  if(pending.has(category))return pending.get(category)!;
- const q=supabase.functions.invoke('testagram-rss-feed',{body:{category,limit:12}}).then(({data,error})=>{if(error)throw error;const items=(data?.items||[]) as FeedItem[];cache.set(category,items);pending.delete(category);return items}).catch(()=>{pending.delete(category);return [] as FeedItem[]});
+ const q=supabase.functions.invoke('testagram-rss-feed',{body:{category,limit:12}}).then(({data,error})=>{if(error)throw error;const items=((data?.items||[]) as FeedItem[]).filter(isFresh);cache.set(category,{at:Date.now(),items});pending.delete(category);return items}).catch(()=>{pending.delete(category);return [] as FeedItem[]});
  pending.set(category,q);return q;
 }
 function allowed(id:string){try{return !(localStorage.getItem(dismissedKey)||'').split(',').includes(id)}catch{return true}}
