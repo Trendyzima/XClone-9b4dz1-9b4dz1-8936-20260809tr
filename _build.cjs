@@ -469,24 +469,28 @@ function runTikVTVBuild() {
   const restoreAuthOverlay = patchTikVTVForTestagramAuth(vendorRoot);
 
   try {
+    // Windows exposes npm as npm.cmd, which Node cannot launch directly with
+    // shell:false. Use the platform shell only on Windows; keep direct spawning
+    // on POSIX. Without this, spawnSync returns ENOENT before vendor npm emits
+    // any output, and the build reports a misleading dependency-install error.
     const npmBin = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    const install = spawnSync(npmBin, ['ci', '--no-audit', '--no-fund'], {
+    const npmOptions = {
       cwd: vendorRoot,
       stdio: 'inherit',
-      shell: false,
+      shell: process.platform === 'win32',
       env: { ...process.env },
-    });
+    };
+    const install = spawnSync(npmBin, ['ci', '--no-audit', '--no-fund'], npmOptions);
     if (install.error || install.status !== 0) {
+      if (install.error) process.stderr.write(`[_build] TikVTV npm ci could not start: ${install.error.message}\\n`);
+      else process.stderr.write(`[_build] TikVTV npm ci exited with status ${install.status} (signal: ${install.signal || 'none'})\\n`);
       throw new Error('TikVTV dependency installation failed');
     }
 
-    const tikBuild = spawnSync(npmBin, ['run', 'build', '--', '--base=/iptv-app/'], {
-      cwd: vendorRoot,
-      stdio: 'inherit',
-      shell: false,
-      env: { ...process.env },
-    });
+    const tikBuild = spawnSync(npmBin, ['run', 'build', '--', '--base=/iptv-app/'], npmOptions);
     if (tikBuild.error || tikBuild.status !== 0) {
+      if (tikBuild.error) process.stderr.write(`[_build] TikVTV build could not start: ${tikBuild.error.message}\\n`);
+      else process.stderr.write(`[_build] TikVTV build exited with status ${tikBuild.status} (signal: ${tikBuild.signal || 'none'})\\n`);
       throw new Error('TikVTV production build failed');
     }
 
