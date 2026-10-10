@@ -186,12 +186,12 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
   }, [isActive]);
 
   /* ── Ad complete ─────────────────────────────────────────────────────── */
-  const handleAdComplete = () => {
+  const handleAdComplete = useCallback(() => {
     setShowPrerollAd(false);
     setShowMidrollAd(false);
     const video = videoRef.current;
     if (video) video.play().then(() => setIsPlaying(true)).catch(() => {});
-  };
+  }, []);
 
   /* ── Time update → progress + mid-roll trigger ───────────────────────── */
   const handleTimeUpdate = () => {
