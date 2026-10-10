@@ -53,7 +53,7 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
   activeRef.current = isActive;
 
   const { user }                = useAuth();
-  const { isActive: isPremium } = usePremium();
+  const { isActive: isPremium, loading: premiumLoading } = usePremium();
   const navigate                = useNavigate();
   const { toast }               = useToast();
 
@@ -70,8 +70,15 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
 
   // Ads
   const [showPrerollAd, setShowPrerollAd]       = useState(false);
+  const [premiumCheckTimedOut, setPremiumCheckTimedOut] = useState(false);
   const prerollSeenRef = useRef(false);
   const prerollPostIdRef = useRef(post.id);
+
+  useEffect(() => {
+    if (!premiumLoading) return;
+    const timeout = window.setTimeout(() => setPremiumCheckTimedOut(true), 6_000);
+    return () => window.clearTimeout(timeout);
+  }, [premiumLoading, post.id]);
 
   // Progress bar
   const [videoProgress, setVideoProgress]       = useState(0);
@@ -165,6 +172,21 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
       const soundOn = readVideoSoundPreference();
       setIsMuted(!soundOn);
       trackView();
+      if (premiumLoading && !premiumCheckTimedOut) {
+        // Keep content paused briefly while entitlement resolves, but never
+        // leave a reel frozen forever if the premium-status RPC stalls.
+        video.pause();
+        setIsPlaying(false);
+        return;
+      }
+      if (premiumLoading && premiumCheckTimedOut) {
+        // Entitlement is unknown: prioritize playback and do not risk showing
+        // ads to a premium viewer because the status service is unavailable.
+        prerollSeenRef.current = true;
+        video.muted = !soundOn;
+        video.play().then(() => setIsPlaying(true)).catch(() => {});
+        return;
+      }
       // One VAST ad opportunity for each distinct reel. A post is marked
       // seen once, so returning to the same reel does not duplicate the ad.
       if (!isPremium && !prerollSeenRef.current) {
@@ -185,7 +207,7 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
       setShowRepostSheet(false);
       setShowShareSheet(false);
     }
-  }, [isActive, isPremium, post.id]);
+  }, [isActive, isPremium, premiumLoading, premiumCheckTimedOut, post.id]);
 
   /* ── Ad complete ─────────────────────────────────────────────────────── */
   const handleAdComplete = useCallback(() => {
@@ -626,7 +648,7 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
       <UniversalVideoPlayer
         ref={videoRef}
         src={cancelPreload ? '' : (post.video_url || '')}
-        active={isActive && !showPrerollAd && (isPremium || prerollSeenRef.current)}
+        active={isActive && !showPrerollAd && (isPremium || prerollSeenRef.current || premiumCheckTimedOut)}
         preload={shouldPreload ? 'auto' : 'metadata'}
         muted={isMuted}
         loop
