@@ -18,6 +18,12 @@ export function markPasswordRecoverySession(userId: string) {
   }
 }
 
+/** Whether any marker exists, including an expired/legacy marker to clean up. */
+export function hasPasswordRecoveryMarker(): boolean {
+  if (typeof window === 'undefined') return false;
+  try { return window.sessionStorage.getItem(STORAGE_KEY) !== null; } catch { return false; }
+}
+
 export function getPasswordRecoveryUserId(now = Date.now()): string | null {
   if (typeof window === 'undefined') return null;
   try {
@@ -25,7 +31,8 @@ export function getPasswordRecoveryUserId(now = Date.now()): string | null {
     if (!raw) return null;
     // Deliberately reject legacy user-ID-only markers. They had no trustworthy
     // age and could let an old normal session unlock a later reset URL.
-    const marker = JSON.parse(raw) as Partial<RecoveryMarker>;
+    let marker: Partial<RecoveryMarker>;
+    try { marker = JSON.parse(raw) as Partial<RecoveryMarker>; } catch { return null; }
     if (
       typeof marker.userId !== 'string' ||
       !marker.userId ||
@@ -34,12 +41,13 @@ export function getPasswordRecoveryUserId(now = Date.now()): string | null {
       marker.issuedAt > now ||
       now - marker.issuedAt >= RECOVERY_MARKER_MAX_AGE_MS
     ) {
-      window.sessionStorage.removeItem(STORAGE_KEY);
+      // Keep invalid/expired marker presence until the reset flow is explicitly
+      // abandoned or a sign-out occurs, so a recovery-only session is not
+      // accidentally promoted to a normal app session on the way out.
       return null;
     }
     return marker.userId;
   } catch {
-    try { window.sessionStorage.removeItem(STORAGE_KEY); } catch {}
     return null;
   }
 }
