@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { finalizeAuthenticatedSession } from '@/lib/auth';
 import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 import { clearTestagramSessionLifetime, enforceTestagramSessionLifetime, markAuthenticatedSessionStarted } from '@/lib/sessionPolicy';
+import { clearPasswordRecoverySession, getPasswordRecoveryUserId } from '@/lib/passwordRecovery';
 
 function normalizedPathname() {
   if (typeof window === 'undefined') return '/';
@@ -168,7 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
-        try { window.sessionStorage.removeItem('testagram-password-recovery'); } catch {}
+        clearPasswordRecoverySession();
         clearTestagramSessionLifetime();
         trackTestagramEvent(TestagramEvent.LOGGED_OUT, { auth_event: event });
         logout();
@@ -189,8 +190,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const isPasswordResetRoute =
         normalizedPathname() === '/auth' &&
         (authCallbackParams.get('reset') === '1' || authCallbackParams.get('type') === 'recovery');
-      let recoveryUserId: string | null = null;
-      try { recoveryUserId = window.sessionStorage.getItem('testagram-password-recovery'); } catch {}
+      const recoveryUserId = getPasswordRecoveryUserId();
       const isRecoverySession = recoveryUserId === session.user.id;
       if (isPasswordResetRoute || isRecoverySession) {
         if (event === 'INITIAL_SESSION') setLoading(false);
