@@ -267,14 +267,19 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
         if (entry.isIntersecting && entry.intersectionRatio >= 0.75) {
           activeCards.add(card);
           // There can only be one full-screen ad layer at a time.
-          finishers.forEach((finish, otherCard) => { if (otherCard !== card) finish(); });
+          finishers.forEach((finish, otherCard) => {
+            if (otherCard !== card) {
+              activeCards.delete(otherCard);
+              finish();
+            }
+          });
           startAd(card);
-        } else {
+        } else if (!entry.isIntersecting || entry.intersectionRatio < 0.25) {
           activeCards.delete(card);
           finishers.get(card)?.();
         }
       });
-    }, { threshold: [0, 0.75] });
+    }, { threshold: [0, 0.25, 0.75] });
     scan();
     mutationObserver = new win.MutationObserver(scan);
     if (doc.body) mutationObserver.observe(doc.body, { childList: true, subtree: true });
