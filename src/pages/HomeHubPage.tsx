@@ -326,7 +326,12 @@ export default function HomeHubPage(){
   },[user?.id]);
 
   const persistBuffer=useCallback(async()=>{
-    await writeHomeFeedCache({key:'home',items:feedBufferRef.current,cursor:cacheCursorRef.current,updatedAt:Date.now(),scrollY:window.scrollY,anchorId:items[0]?.data?.id??null});
+    try{
+      await writeHomeFeedCache({key:'home',items:feedBufferRef.current,cursor:cacheCursorRef.current,updatedAt:Date.now(),scrollY:window.scrollY,anchorId:items[0]?.data?.id??null});
+    }catch(error){
+      // Storage quota/private browsing must not break scrolling or pagination.
+      console.warn('[home-hub] feed cache write skipped',error);
+    }
   },[items]);
 
   const hydratePublisherLayer=useCallback(async(seed:string|null = null)=>{
