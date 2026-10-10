@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { authService, finalizeAuthenticatedSession } from '@/lib/auth';
-import { initialAuthCallbackSearch, supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
 import { clearPasswordRecoverySession, getPasswordRecoveryUserId, markPasswordRecoverySession } from '@/lib/passwordRecovery';
 import { useSEO } from '@/hooks/useSEO';
 import { useAuthStore } from '@/stores/authStore';
@@ -84,8 +84,6 @@ export default function AuthPage() {
     const params = new URLSearchParams(window.location.search);
     const isResetRoute = params.get('reset') === '1';
     const isRecoveryCallback = isResetRoute || params.get('type') === 'recovery';
-    const initialCallbackParams = new URLSearchParams(initialAuthCallbackSearch);
-    const hasPkceCode = params.has('code') || (isResetRoute && initialCallbackParams.has('code'));
     if (isRecoveryCallback) {
       setMode('reset');
       setRecoveryChecking(true);
@@ -107,7 +105,6 @@ export default function AuthPage() {
         setRecoveryReady(true);
         setRecoveryChecking(false);
         setLoading(false);
-        try { window.sessionStorage.setItem('testagram-password-recovery', session.user.id); } catch {}
         window.history.replaceState({}, document.title, '/auth?reset=1');
       }
     });
@@ -133,17 +130,6 @@ export default function AuthPage() {
     const requestedTokenType = params.get('type')?.trim();
     const allowedTokenTypes = new Set(['email', 'signup', 'magiclink', 'recovery', 'invite', 'email_change']);
     if (!tokenHash || !requestedTokenType || !allowedTokenTypes.has(requestedTokenType)) {
-      if (isResetRoute && !hasPkceCode) {
-        void supabase.auth.getSession().then(({ data, error }) => {
-          if (cancelled) return;
-          if (error || !data.session?.user) {
-            setRecoveryChecking(false);
-            return;
-          }
-          if (getPasswordRecoveryUserId() === data.session.user.id) setRecoveryReady(true);
-          setRecoveryChecking(false);
-        });
-      }
       return () => { cancelled = true; subscription.unsubscribe(); };
     }
     const tokenType = requestedTokenType as 'email' | 'signup' | 'magiclink' | 'recovery' | 'invite' | 'email_change';
