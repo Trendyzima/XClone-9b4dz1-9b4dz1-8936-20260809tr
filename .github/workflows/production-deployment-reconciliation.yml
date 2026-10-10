@@ -38,8 +38,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          TARGET_SHA="$GITHUB_SHA"
-          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::GitHub provided an invalid triggering SHA."; exit 1; }
+          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
+            # On a merged pull_request.closed event, GITHUB_SHA can identify the
+            # PR head branch. Deploy the actual merge commit on main instead.
+            TARGET_SHA="${{ github.event.pull_request.merge_commit_sha }}"
+          else
+            TARGET_SHA="$GITHUB_SHA"
+          fi
+          [[ "$TARGET_SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "::error::GitHub provided an invalid production target SHA."; exit 1; }
           echo "Production reconciliation is immutable: deploying only the commit that triggered this run ($TARGET_SHA)."
           echo "sha=$TARGET_SHA" >> "$GITHUB_OUTPUT"
 
