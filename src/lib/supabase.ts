@@ -43,8 +43,21 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
 supabase.auth.onAuthStateChange((event, session) => {
   if (event === 'PASSWORD_RECOVERY' && session?.user?.id) {
     markPasswordRecoverySession(session.user.id);
-  } else if (event === 'SIGNED_OUT') {
+    return;
+  }
+  if (event === 'SIGNED_OUT') {
     clearPasswordRecoverySession();
+    return;
+  }
+  if (event === 'SIGNED_IN') {
+    // Supabase recovery callbacks can emit SIGNED_IN as part of the same flow.
+    // Keep the marker while the browser is on an explicit recovery callback;
+    // otherwise clear stale markers before a normal login is hydrated.
+    const params = new URLSearchParams(window.location.search);
+    const isRecoveryCallback =
+      window.location.pathname === '/auth' &&
+      (params.get('reset') === '1' || params.get('type') === 'recovery');
+    if (!isRecoveryCallback) clearPasswordRecoverySession();
   }
 });
 
