@@ -82,9 +82,10 @@ export default function AuthPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const isResetRoute = params.get('reset') === '1';
+    const isRecoveryCallback = isResetRoute || params.get('type') === 'recovery';
     const initialCallbackParams = new URLSearchParams(initialAuthCallbackSearch);
     const hasPkceCode = params.has('code') || (isResetRoute && initialCallbackParams.has('code'));
-    if (isResetRoute) {
+    if (isRecoveryCallback) {
       setMode('reset');
       setRecoveryChecking(true);
     }
