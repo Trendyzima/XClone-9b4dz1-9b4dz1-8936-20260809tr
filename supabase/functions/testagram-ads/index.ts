@@ -10,9 +10,6 @@ const admin = createClient(URL, SERVICE, { auth: { persistSession: false, autoRe
 const cors = { ...corsHeaders, "Access-Control-Allow-Methods": "POST,OPTIONS" };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { ...cors, "Content-Type": "application/json", "Cache-Control": "no-store" } });
 const EVENTS = new Set(["click", "viewable", "video_start", "video_first_quartile", "video_midpoint", "video_third_quartile", "video_complete"]);
-// IPTV and the TV channel directory are public viewing surfaces. Allow anonymous
-// delivery only for these explicit slots; all other inventory remains login-gated.
-const PUBLIC_AD_SLOTS = new Set(["iptv-overlay", "tv-channels"]);
 
 async function currentUser(req: Request) {
   const authorization = req.headers.get("Authorization") ?? "";
@@ -65,8 +62,8 @@ async function verifyEventToken(token: string, impressionId: string) {
 }
 
 async function serve(req: Request, body: any, userId: string | null) {
+  if (!userId) return json({ error: "Authentication required" }, 401);
   const slotCode = String(body.slot_code ?? "feed-top");
-  if (!userId && !PUBLIC_AD_SLOTS.has(slotCode)) return json({ error: "Authentication required" }, 401);
   const requestId = String(body.request_id ?? crypto.randomUUID());
   const upstream = await fetch(`${URL}/functions/v1/zenad-decision`, {
     method: "POST",
@@ -102,6 +99,7 @@ async function serve(req: Request, body: any, userId: string | null) {
 }
 
 async function event(req: Request, body: any, userId: string | null) {
+  if (!userId) return json({ error: "Authentication required" }, 401);
   const impressionId = String(body.impression_id ?? "");
   const eventType = String(body.event_type ?? "");
   const eventToken = String(body.event_token ?? "");
@@ -109,13 +107,12 @@ async function event(req: Request, body: any, userId: string | null) {
   if (!eventToken || !(await verifyEventToken(eventToken, impressionId))) return json({ error: "Invalid or expired event token" }, 401);
   const { data: impression, error: lookupError } = await admin
     .from("testagram_ad_impressions")
-    .select("user_id,slot_code")
+    .select("user_id")
     .eq("impression_id", impressionId)
     .maybeSingle();
   if (lookupError) return json({ error: "Ad event lookup failed" }, 500);
   if (!impression) return json({ error: "Unknown impression" }, 404);
   if (impression.user_id !== userId) return json({ error: "Not authorized for this impression" }, 403);
-  if (!userId && !PUBLIC_AD_SLOTS.has(String(impression.slot_code ?? ""))) return json({ error: "Authentication required" }, 401);
   const { data: ok, error } = await admin.rpc("testagram_record_ad_event", {
     p_impression_id: impressionId,
     p_event_type: eventType,
