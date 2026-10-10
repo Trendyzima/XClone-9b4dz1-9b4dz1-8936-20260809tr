@@ -46,6 +46,7 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
   const playbackRequested = useRef(false);
   const started = useRef(false);
   const finishRef = useRef<() => void>(() => {});
+  const startPlaybackRef = useRef<() => void>(() => {});
   const done = useRef(false);
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const [canSkip, setCanSkip] = useState(false);
@@ -91,6 +92,7 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
         finish();
       }
     };
+    startPlaybackRef.current = startPlayback;
 
     void loadIma().then(() => {
       if (disposed || !window.google?.ima || !video.current || !container.current) return;
@@ -151,6 +153,7 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
       window.clearTimeout(startupTimeout);
       window.clearInterval(skipPoll);
       finishRef.current = () => {};
+      startPlaybackRef.current = () => {};
       try { manager.current?.destroy(); } catch {}
       manager.current = null;
       display.current = null;
@@ -191,7 +194,7 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
         return;
       }
     }
-    startPlayback();
+    startPlaybackRef.current();
   };
 
   return (
