@@ -46,10 +46,8 @@ function isRealAd(value: ServedAd | null | undefined): value is ServedAd {
   if (!value?.ok || !value.impression_id || !value.campaign_id || !value.creative_id || !value.event_token) return false;
   const hasMessage = Boolean(value.headline?.trim() || value.body?.trim());
   const hasAsset = Boolean(value.asset_url?.trim());
-  const hasDestination = Boolean(value.click_through_url?.trim());
-  // Never render a shell/placeholder as an ad. A valid Testagram ad needs
-  // identifiable campaign lineage plus meaningful creative or a destination.
-  return hasMessage || hasAsset || hasDestination;
+  // A click URL alone is not a creative. Do not show an empty sponsored shell.
+  return hasMessage || hasAsset;
 }
 
 export function TestagramAdSlot({ placement, context, className = '', compact = false, dismissible = false }: {
@@ -65,6 +63,7 @@ export function TestagramAdSlot({ placement, context, className = '', compact = 
   const [ad, setAd] = useState<ServedAd | null>(null);
   const [loading, setLoading] = useState(true);
   const [dismissed, setDismissed] = useState(false);
+  const [assetFailed, setAssetFailed] = useState(false);
   const impressionRef = useRef<string>('');
   const eventTokenRef = useRef<string>('');
   const cardRef = useRef<HTMLElement | null>(null);
@@ -76,6 +75,7 @@ export function TestagramAdSlot({ placement, context, className = '', compact = 
     (async () => {
       setLoading(true);
       setDismissed(false);
+      setAssetFailed(false);
       setAd(null);
       impressionRef.current = '';
       eventTokenRef.current = '';
@@ -120,7 +120,7 @@ export function TestagramAdSlot({ placement, context, className = '', compact = 
     }).catch(() => {});
   };
 
-  if (isPremium || dismissed || loading || !isRealAd(ad)) return null;
+  if (isPremium || dismissed || loading || assetFailed || !isRealAd(ad)) return null;
 
   const isVideo = ad.format?.toLowerCase().includes('video');
 
@@ -157,6 +157,7 @@ export function TestagramAdSlot({ placement, context, className = '', compact = 
                 src={ad.asset_url}
                 className={`w-full object-cover mt-2 bg-muted ${compact ? 'max-h-20' : 'max-h-[460px]'}`}
                 muted playsInline preload="metadata"
+                onError={() => { if (!ad.headline?.trim() && !ad.body?.trim()) setAssetFailed(true); }}
                 onPlay={() => event('video_start')}
                 onTimeUpdate={(e) => {
                   const video = e.currentTarget;
@@ -170,7 +171,7 @@ export function TestagramAdSlot({ placement, context, className = '', compact = 
                   }
                 }}
               />
-            : <img src={ad.asset_url} alt={ad.headline || 'Sponsored content'} className={`w-full object-cover mt-2 ${compact ? 'max-h-20' : 'max-h-[460px]'}`} loading="lazy" decoding="async" />
+            : <img src={ad.asset_url} alt={ad.headline || 'Sponsored content'} className={`w-full object-cover mt-2 ${compact ? 'max-h-20' : 'max-h-[460px]'}`} loading="lazy" decoding="async" onError={() => { if (!ad.headline?.trim() && !ad.body?.trim()) setAssetFailed(true); }} />
         ) : null}
         <div className="p-3">
           {ad.headline && <h3 className={`font-bold leading-tight ${compact ? 'pr-5 text-sm line-clamp-1' : 'text-base'}`}>{ad.headline}</h3>}
