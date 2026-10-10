@@ -50,20 +50,72 @@ export default function AuthPage() {
   const authUser = useAuthStore((state) => state.user);
   const login = useAuthStore((state) => state.login);
   const [legalAccepted, setLegalAccepted] = useState(() => !!readLegalConsent());
+  const [recoveryReady, setRecoveryReady] = useState(false);
+  const [recoveryChecking, setRecoveryChecking] = useState(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    if (params.get('reset') === '1') setMode('reset');
+    const isResetRoute = params.get('reset') === '1';
+    const hasPkceCode = params.has('code');
+    if (isResetRoute) {
+      setMode('reset');
+      setRecoveryChecking(true);
+    }
     const ref = params.get('ref')?.trim();
     if (ref) window.localStorage.setItem('testagram-referral-code', ref);
+
+    // PKCE recovery links are exchanged by Supabase's URL detector. The
+    // PASSWORD_RECOVERY event, not merely the presence of a session, marks the
+    // browser as being in the password-reset flow.
+    let cancelled = false;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' && session?.user) {
+        setMode('reset');
+        setRecoveryReady(true);
+        setRecoveryChecking(false);
+        setLoading(false);
+        try { window.sessionStorage.setItem('testagram-password-recovery', session.user.id); } catch {}
+        window.history.replaceState({}, document.title, '/auth?reset=1');
+      }
+    });
+
+    // If Supabase completed a PKCE code exchange before this component mounted,
+    // accept it only when this navigation actually contained the one-time code.
+    if (isResetRoute && hasPkceCode) {
+      void supabase.auth.getSession().then(({ data, error }) => {
+        if (cancelled || error || !data.session?.user) return;
+        setRecoveryReady(true);
+        setRecoveryChecking(false);
+        try { window.sessionStorage.setItem('testagram-password-recovery', data.session.user.id); } catch {}
+        window.history.replaceState({}, document.title, '/auth?reset=1');
+      });
+    }
 
     const tokenHash = params.get('token_hash')?.trim();
     const requestedTokenType = params.get('type')?.trim();
     const allowedTokenTypes = new Set(['email', 'signup', 'magiclink', 'recovery', 'invite', 'email_change']);
-    if (!tokenHash || !requestedTokenType || !allowedTokenTypes.has(requestedTokenType)) return;
+    if (!tokenHash || !requestedTokenType || !allowedTokenTypes.has(requestedTokenType)) {
+      // A refresh of a reset page may retain the recovery session. Only trust a
+      // session marker written after a recovery event, and confirm it is still
+      // the same live Supabase user before enabling password changes.
+      if (isResetRoute && !hasPkceCode) {
+        void supabase.auth.getSession().then(({ data, error }) => {
+          if (cancelled || error || !data.session?.user) {
+            if (!cancelled) setRecoveryChecking(false);
+            return;
+          }
+          let marker: string | null = null;
+          try { marker = window.sessionStorage.getItem('testagram-password-recovery'); } catch {}
+          if (marker === data.session.user.id) {
+            setRecoveryReady(true);
+          }
+          setRecoveryChecking(false);
+        });
+      }
+      return () => { cancelled = true; subscription.unsubscribe(); };
+    }
     const tokenType = requestedTokenType as 'email' | 'signup' | 'magiclink' | 'recovery' | 'invite' | 'email_change';
 
-    let cancelled = false;
     (async () => {
       setLoading(true);
       try {
@@ -71,16 +123,29 @@ export default function AuthPage() {
         if (error) throw error;
         if (!data.user) throw new Error('Verification succeeded but no user session was returned');
         if (cancelled) return;
-        window.history.replaceState({}, document.title, tokenType === 'recovery' ? '/auth?reset=1' : '/auth');
+        if (tokenType === 'recovery') {
+          // Recovery verifies identity for the purpose of changing a password;
+          // it must never run the normal sign-in finalizer or navigate home.
+          setMode('reset');
+          setRecoveryReady(true);
+          setRecoveryChecking(false);
+          setLoading(false);
+          try { window.sessionStorage.setItem('testagram-password-recovery', data.user.id); } catch {}
+          window.history.replaceState({}, document.title, '/auth?reset=1');
+          return;
+        }
+        window.history.replaceState({}, document.title, '/auth');
         await finishLogin(data.user);
       } catch (error: any) {
         if (!cancelled) {
           setLoading(false);
+          setRecoveryChecking(false);
+          setRecoveryReady(false);
           toast({ title: 'Verification link failed', description: error?.message || 'Request a new verification email.', variant: 'destructive' });
         }
       }
     })();
-    return () => { cancelled = true; };
+    return () => { cancelled = true; subscription.unsubscribe(); };
   }, []);
 
   useEffect(() => {
@@ -211,6 +276,10 @@ export default function AuthPage() {
 
   const updatePassword = async (event: FormEvent) => {
     event.preventDefault();
+    if (!recoveryReady) {
+      toast({ title: 'Recovery link required', description: 'Open the latest password-reset link from your email before choosing a new password.', variant: 'destructive' });
+      return;
+    }
     if (password.length < 8 || password !== confirmation) {
       toast({ title: 'Check your new password', description: password !== confirmation ? 'Passwords do not match.' : 'Use at least 8 characters.', variant: 'destructive' });
       return;
@@ -218,6 +287,8 @@ export default function AuthPage() {
     setLoading(true);
     try {
       const user = await authService.updatePassword(password);
+      try { window.sessionStorage.removeItem('testagram-password-recovery'); } catch {}
+      setRecoveryReady(false);
       login(await finalizeAuthenticatedSession(user));
       window.history.replaceState({}, document.title, '/auth');
       navigate(getSafeReturnTo(), { replace: true });
@@ -297,7 +368,7 @@ export default function AuthPage() {
 
               {mode === 'recover' && <form onSubmit={requestReset} className="space-y-4"><div className="rounded-2xl border border-primary/15 bg-primary/5 p-4 text-sm leading-6 text-muted-foreground"><KeyRound className="mb-2 h-5 w-5 text-primary" />Enter the email linked to your Testagram account. We’ll send a secure, time-limited reset link.</div><Field icon={Mail} type="email" autoComplete="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} required /><Button disabled={loading} className="h-13 w-full rounded-2xl font-black">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Send reset link'}</Button></form>}
 
-              {mode === 'reset' && <form onSubmit={updatePassword} className="space-y-3.5"><div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-muted-foreground"><CheckCircle2 className="mb-2 h-5 w-5 text-emerald-600" />You’re using a valid recovery session. Choose a new password below.</div><Field icon={KeyRound} type="password" autoComplete="new-password" placeholder="New password (8+ characters)" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} /><Field icon={KeyRound} type="password" autoComplete="new-password" placeholder="Confirm new password" value={confirmation} onChange={e => setConfirmation(e.target.value)} required minLength={8} /><Button disabled={loading} className="h-13 w-full rounded-2xl font-black">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Update password'}</Button></form>}
+              {mode === 'reset' && (recoveryReady ? <form onSubmit={updatePassword} className="space-y-3.5"><div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-4 text-sm text-muted-foreground"><CheckCircle2 className="mb-2 h-5 w-5 text-emerald-600" />Recovery link verified. Choose a new password to complete the reset.</div><Field icon={KeyRound} type="password" autoComplete="new-password" placeholder="New password (8+ characters)" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} /><Field icon={KeyRound} type="password" autoComplete="new-password" placeholder="Confirm new password" value={confirmation} onChange={e => setConfirmation(e.target.value)} required minLength={8} /><Button disabled={loading} className="h-13 w-full rounded-2xl font-black">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Update password'}</Button></form> : <div className="space-y-3 rounded-2xl border border-border/70 bg-muted/30 p-5 text-sm text-muted-foreground">{recoveryChecking ? <><Loader2 className="mb-2 h-5 w-5 animate-spin" />Verifying your password-reset link…</> : <>This reset link is invalid, expired, or already used. Request a new password-reset email and open its newest link.</>}<Button type="button" variant="outline" className="w-full rounded-2xl" onClick={() => go('recover')}>Request a new reset link</Button></div>)}
 
               <div className="mt-8 flex items-center justify-center gap-2 text-center text-[11px] leading-5 text-muted-foreground"><ShieldCheck className="h-3.5 w-3.5 shrink-0" /> Your account is protected by Supabase authentication.</div>
               <p className="mt-3 text-center text-[11px] leading-5 text-muted-foreground">By continuing, you agree to the Terms, Privacy Policy and Community Guidelines. Testagram is for adults 18+.</p>
