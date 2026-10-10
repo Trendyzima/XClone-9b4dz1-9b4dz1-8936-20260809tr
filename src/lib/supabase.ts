@@ -1,9 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-
-// Capture the original callback URL before createClient's automatic PKCE
-// detection can exchange the code and clean it out of window.location.
-export const initialAuthCallbackSearch =
-  typeof window !== 'undefined' ? window.location.search : '';
+import { clearPasswordRecoverySession, markPasswordRecoverySession } from '@/lib/passwordRecovery';
 
 const PRIMARY_SUPABASE_URL = 'https://ffrhglgkukgsuhxenena.supabase.co';
 const PRIMARY_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya';
@@ -34,6 +30,30 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
     // hosted server-side session time-boxing is plan-gated and is not assumed here.
     debug: false,
   },
+});
+
+// Register immediately after client creation so a fast PKCE callback cannot emit
+// PASSWORD_RECOVERY before AuthPage mounts its effect. This listener performs
+// storage-only work; it must never await another Supabase Auth operation.
+supabase.auth.onAuthStateChange((event, session) => {
+  if (event === 'PASSWORD_RECOVERY' && session?.user?.id) {
+    markPasswordRecoverySession(session.user.id);
+    return;
+  }
+  if (event === 'SIGNED_OUT') {
+    clearPasswordRecoverySession();
+    return;
+  }
+  if (event === 'SIGNED_IN') {
+    // Supabase recovery callbacks can emit SIGNED_IN as part of the same flow.
+    // Keep the marker while the browser is on an explicit recovery callback;
+    // otherwise clear stale markers before a normal login is hydrated.
+    const params = new URLSearchParams(window.location.search);
+    const isRecoveryCallback =
+      window.location.pathname === '/auth' &&
+      (params.get('reset') === '1' || params.get('type') === 'recovery');
+    if (!isRecoveryCallback) clearPasswordRecoverySession();
+  }
 });
 
 // Secondary project: legacy/expanded data plane. It has its own API client and

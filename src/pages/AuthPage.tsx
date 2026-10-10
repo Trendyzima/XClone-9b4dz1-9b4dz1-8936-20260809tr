@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
 import { authService, finalizeAuthenticatedSession } from '@/lib/auth';
-import { initialAuthCallbackSearch, supabase } from '@/lib/supabase';
+import { supabase } from '@/lib/supabase';
+import { clearPasswordRecoverySession, getPasswordRecoveryUserId, hasPasswordRecoveryMarker, markPasswordRecoverySession } from '@/lib/passwordRecovery';
 import { useSEO } from '@/hooks/useSEO';
 import { useAuthStore } from '@/stores/authStore';
 import { LegalAcceptanceGate, readLegalConsent } from '@/components/auth/LegalAcceptanceGate';
@@ -83,8 +84,6 @@ export default function AuthPage() {
     const params = new URLSearchParams(window.location.search);
     const isResetRoute = params.get('reset') === '1';
     const isRecoveryCallback = isResetRoute || params.get('type') === 'recovery';
-    const initialCallbackParams = new URLSearchParams(initialAuthCallbackSearch);
-    const hasPkceCode = params.has('code') || (isResetRoute && initialCallbackParams.has('code'));
     if (isRecoveryCallback) {
       setMode('reset');
       setRecoveryChecking(true);
@@ -96,27 +95,34 @@ export default function AuthPage() {
     // PKCE recovery links are exchanged by Supabase's URL detector. Only the
     // recovery event is allowed to unlock the password-reset form.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      const recoveryCallbackEvent =
-        event === 'PASSWORD_RECOVERY' ||
-        (isResetRoute && hasPkceCode && (event === 'SIGNED_IN' || event === 'INITIAL_SESSION'));
+      // A normal SIGNED_IN / INITIAL_SESSION can be an already-persisted
+      // session. Neither proves the reset code was redeemed, even when the URL
+      // merely contains a "code" query parameter.
+      const recoveryCallbackEvent = event === 'PASSWORD_RECOVERY';
       if (recoveryCallbackEvent && session?.user) {
+        markPasswordRecoverySession(session.user.id);
         setMode('reset');
         setRecoveryReady(true);
         setRecoveryChecking(false);
         setLoading(false);
-        try { window.sessionStorage.setItem('testagram-password-recovery', session.user.id); } catch {}
         window.history.replaceState({}, document.title, '/auth?reset=1');
       }
     });
 
-    // Supabase may finish exchanging the PKCE code before this component mounts.
-    if (isResetRoute && hasPkceCode) {
+    // PKCE exchange may have completed before this component mounted. A session
+    // is accepted here only when the early Auth listener recorded the actual
+    // PASSWORD_RECOVERY event for this exact user; the mere presence of "code"
+    // in the URL is never treated as proof of recovery.
+    if (isRecoveryCallback) {
       void supabase.auth.getSession().then(({ data, error }) => {
-        if (cancelled || error || !data.session?.user) return;
-        setRecoveryReady(true);
+        if (cancelled) return;
+        const userId = data.session?.user?.id;
+        const recoveryUserId = getPasswordRecoveryUserId();
+        if (!error && userId && recoveryUserId === userId) {
+          setRecoveryReady(true);
+          window.history.replaceState({}, document.title, '/auth?reset=1');
+        }
         setRecoveryChecking(false);
-        try { window.sessionStorage.setItem('testagram-password-recovery', data.session.user.id); } catch {}
-        window.history.replaceState({}, document.title, '/auth?reset=1');
       });
     }
 
@@ -124,19 +130,6 @@ export default function AuthPage() {
     const requestedTokenType = params.get('type')?.trim();
     const allowedTokenTypes = new Set(['email', 'signup', 'magiclink', 'recovery', 'invite', 'email_change']);
     if (!tokenHash || !requestedTokenType || !allowedTokenTypes.has(requestedTokenType)) {
-      if (isResetRoute && !hasPkceCode) {
-        void supabase.auth.getSession().then(({ data, error }) => {
-          if (cancelled) return;
-          if (error || !data.session?.user) {
-            setRecoveryChecking(false);
-            return;
-          }
-          let marker: string | null = null;
-          try { marker = window.sessionStorage.getItem('testagram-password-recovery'); } catch {}
-          if (marker === data.session.user.id) setRecoveryReady(true);
-          setRecoveryChecking(false);
-        });
-      }
       return () => { cancelled = true; subscription.unsubscribe(); };
     }
     const tokenType = requestedTokenType as 'email' | 'signup' | 'magiclink' | 'recovery' | 'invite' | 'email_change';
@@ -155,7 +148,7 @@ export default function AuthPage() {
           setRecoveryReady(true);
           setRecoveryChecking(false);
           setLoading(false);
-          try { window.sessionStorage.setItem('testagram-password-recovery', data.user.id); } catch {}
+          markPasswordRecoverySession(data.user.id);
           window.history.replaceState({}, document.title, '/auth?reset=1');
           return;
         }
@@ -311,7 +304,7 @@ export default function AuthPage() {
     try {
       const user = await authService.updatePassword(password);
       const finalized = await finalizeAuthenticatedSession(user);
-      try { window.sessionStorage.removeItem('testagram-password-recovery'); } catch {}
+      clearPasswordRecoverySession();
       setRecoveryReady(false);
       login(finalized);
       window.history.replaceState({}, document.title, '/auth');
@@ -334,12 +327,23 @@ export default function AuthPage() {
     if (mode === 'reset' && next !== 'reset') {
       // Leaving the reset screen cancels its temporary session and removes the
       // reset marker from the URL so refresh cannot reopen a stale reset flow.
-      let hasRecoveryMarker = false;
-      try {
-        hasRecoveryMarker = !!window.sessionStorage.getItem('testagram-password-recovery');
-        window.sessionStorage.removeItem('testagram-password-recovery');
-      } catch {}
-      if (recoveryReady || hasRecoveryMarker) void supabase.auth.signOut();
+      const hasRecoveryMarker = hasPasswordRecoveryMarker();
+      clearPasswordRecoverySession();
+      if (recoveryReady || hasRecoveryMarker) {
+        // A redeemed recovery link creates a temporary session. Leaving the
+        // reset flow without changing the password must not turn that into a
+        // normal signed-in app session.
+        void supabase.auth.signOut();
+      } else {
+        // A malformed /auth?reset=1 URL must not strand a previously signed-in
+        // user in an unhydrated app state after they leave the reset screen.
+        void supabase.auth.getSession().then(({ data, error }) => {
+          if (error || !data.session?.user) return;
+          void finalizeAuthenticatedSession(data.session.user)
+            .then(login)
+            .catch((error) => console.error('[Auth] Could not restore existing session after leaving invalid reset URL:', error));
+        });
+      }
       setRecoveryReady(false);
       setRecoveryChecking(false);
       window.history.replaceState({}, document.title, '/auth');
