@@ -192,7 +192,7 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
 
   return (
     <div
-      className="absolute inset-0 z-30 bg-black touch-pan-y"
+      className="absolute inset-0 z-[100] bg-black touch-pan-y"
       aria-label="Sponsored vertical video advertisement"
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
