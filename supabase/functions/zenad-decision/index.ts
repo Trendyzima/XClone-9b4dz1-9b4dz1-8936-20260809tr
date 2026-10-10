@@ -64,7 +64,11 @@ Deno.serve(async req => {
     const suppliedUser = body.user ?? {};
     const authUser = await resolveUser(req);
     const userId = authUser?.id ?? null;
-    const user = { ...suppliedUser, id: userId ?? suppliedUser.id ?? undefined };
+    // Only the server-verified session may supply a user identity. Accept a
+    // non-sensitive device hint for contextual placement, not client-supplied
+    // IDs, interests, segments, or country targeting.
+    const deviceHint = String(suppliedUser.device ?? "").slice(0, 40).toLowerCase();
+    const user = { id: userId, device: deviceHint || null, country: "", interests: [], segments: [] };
 
     const { data: slot, error: slotError } = await admin.from("testagram_ad_slots").select("code,kind,floor_cpm_micros,enabled").eq("code", slotCode).maybeSingle();
     if (slotError) throw slotError;

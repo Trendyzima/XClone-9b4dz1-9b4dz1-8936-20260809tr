@@ -65,6 +65,12 @@ timebox = "24h"
 [functions.tv-cdn-playback]
 verify_jwt = false
 
+
+# Public ad serving and signed impression events perform their own identity,
+# event-token, owner, and rate-limit checks inside the handler.
+[functions.testagram-ads]
+verify_jwt = false
+
 # Public, read-only SportScore proxy used by the Sports Hub.
 [functions.testagram-sports]
 verify_jwt = false

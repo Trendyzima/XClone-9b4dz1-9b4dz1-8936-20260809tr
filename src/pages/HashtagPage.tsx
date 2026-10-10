@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { Fragment, useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
 import { PostCard } from '@/components/features/PostCard';
+import { ExoClickInlineAd } from '@/components/features/ExoClickInlineAd';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/lib/supabase';
 import { Post } from '@/types/app-types';
@@ -419,11 +420,11 @@ export default function HashtagPage() {
             <p>No posts found with this hashtag</p>
           </div>
         ) : (
-          (sortMode === 'recent' ? [...posts, ...federatedPosts] : [...topPosts, ...federatedPosts]).sort((a:any,b:any) => new Date(b.created_at ?? b.published_at ?? 0).getTime() - new Date(a.created_at ?? a.published_at ?? 0).getTime()).map((post:any) => (
-            <div key={post.id ?? post.uri}>
+          (sortMode === 'recent' ? [...posts, ...federatedPosts] : [...topPosts, ...federatedPosts]).sort((a:any,b:any) => new Date(b.created_at ?? b.published_at ?? 0).getTime() - new Date(a.created_at ?? a.published_at ?? 0).getTime()).map((post:any, index:number) => (
+            <Fragment key={post.id ?? post.uri}><div>
               <div className="px-4 pt-2"><span className={`inline-flex rounded-full border px-2 py-0.5 text-[10px] font-bold ${post.is_federated ? 'border-sky-500/20 bg-sky-500/5 text-sky-600 dark:text-sky-400' : 'border-primary/20 bg-primary/5 text-primary'}`}>{post.is_federated ? 'Fediverse' : 'Testagram'}</span></div>
               <PostCard post={post} onUpdate={fetchHashtagAndPosts} />
-            </div>
+            </div>{index===4&&<ExoClickInlineAd surface="hashtag"/>}</Fragment>
           ))
         )}
       </div>
