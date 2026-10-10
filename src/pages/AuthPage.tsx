@@ -57,7 +57,11 @@ function Field({ icon: Icon, ...props }: ComponentProps<typeof Input> & { icon: 
 
 export default function AuthPage() {
   useSEO({ noindex: true, title: 'Sign in · Testagram', url: '/auth' });
-  const [mode, setMode] = useState<AuthMode>('signin');
+  const [mode, setMode] = useState<AuthMode>(() => {
+    if (typeof window === 'undefined') return 'signin';
+    const params = new URLSearchParams(window.location.search);
+    return params.get('reset') === '1' || params.get('type') === 'recovery' ? 'reset' : 'signin';
+  });
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');
