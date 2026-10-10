@@ -28,7 +28,8 @@ export function useInfiniteScroll(
   const lastElementRef = useCallback((node: HTMLElement | null) => {
     observerRef.current?.disconnect();
     observerRef.current = null;
-    if (!node || typeof IntersectionObserver === 'undefined') return;
+    if (!node) { blockedNodeRef.current = null; return; }
+    if (typeof IntersectionObserver === 'undefined') return;
 
     if (blockedNodeRef.current !== node) blockedNodeRef.current = null;
     observerRef.current = new IntersectionObserver((entries) => {
