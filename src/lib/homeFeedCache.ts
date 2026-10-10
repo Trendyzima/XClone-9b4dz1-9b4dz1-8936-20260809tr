@@ -56,5 +56,18 @@ export function mergeHomeFeedItems(existing:any[],incoming:any[],max=MAX_ITEMS){
 }
 
 export function saveHomeScroll(y:number,anchorId:string|null){
-  void readHomeFeedCache().then(c=>c&&writeHomeFeedCache({...c,scrollY:y,anchorId})).catch(()=>{});
+  if(typeof indexedDB==='undefined')return;
+  // Update only scroll metadata; don't rewrite and re-warm every cached post on
+  // each scroll event (the feed records can be large on long sessions).
+  void openFeedDb().then(db=>new Promise<void>((resolve,reject)=>{
+    const tx=db.transaction(STORE,'readwrite');
+    const store=tx.objectStore(STORE);
+    const request=store.get('home');
+    request.onsuccess=()=>{
+      if(request.result)store.put({...request.result,scrollY:y,anchorId});
+    };
+    request.onerror=()=>reject(request.error);
+    tx.oncomplete=()=>resolve();
+    tx.onerror=()=>reject(tx.error);
+  })).catch(()=>{});
 }
