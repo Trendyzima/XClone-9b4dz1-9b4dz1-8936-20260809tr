@@ -81,6 +81,13 @@ runSeoValidation();
 runSelfHeal();
 
 
+// Normalize checked-out text before exact source patches. Windows runners may
+// materialize LF repository files as CRLF; matching multiline literals against
+// those files otherwise silently fails and leaves upstream auth UI in place.
+function readNormalizedUtf8(filePath) {
+  return fs.readFileSync(filePath, 'utf8').replace(/\r\n?/g, '\n');
+}
+
 function patchTikVTVForTestagramAuth(vendorRoot) {
   const supabasePath = path.join(vendorRoot, 'src', 'lib', 'supabase.ts');
   const profilePath = path.join(vendorRoot, 'src', 'pages', 'Profile.tsx');
@@ -139,24 +146,24 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   }
 
   const original = new Map([
-    [supabasePath, fs.readFileSync(supabasePath, 'utf8')],
-    [profilePath, fs.readFileSync(profilePath, 'utf8')],
-    [headerPath, fs.readFileSync(headerPath, 'utf8')],
-    [feedPath, fs.readFileSync(feedPath, 'utf8')],
-    [indexHtmlPath, fs.readFileSync(indexHtmlPath, 'utf8')],
-    [reactionHookPath, fs.readFileSync(reactionHookPath, 'utf8')],
-    [commentsHookPath, fs.readFileSync(commentsHookPath, 'utf8')],
-    [favoritesHookPath, fs.readFileSync(favoritesHookPath, 'utf8')],
-    [watchHistoryHookPath, fs.readFileSync(watchHistoryHookPath, 'utf8')],
-    [trendingHookPath, fs.readFileSync(trendingHookPath, 'utf8')],
-    [reactionBarPath, fs.readFileSync(reactionBarPath, 'utf8')],
-    [videoPlayerPath, fs.readFileSync(videoPlayerPath, 'utf8')],
-    [channelDetailPath, fs.readFileSync(channelDetailPath, 'utf8')],
-    [channelCardPath, fs.readFileSync(channelCardPath, 'utf8')],
-    [categoryTabsPath, fs.readFileSync(categoryTabsPath, 'utf8')],
-    [indexCssPath, fs.readFileSync(indexCssPath, 'utf8')],
-    [iptvApiPath, fs.readFileSync(iptvApiPath, 'utf8')],
-    [channelsHookPath, fs.readFileSync(channelsHookPath, 'utf8')],
+    [supabasePath, readNormalizedUtf8(supabasePath)],
+    [profilePath, readNormalizedUtf8(profilePath)],
+    [headerPath, readNormalizedUtf8(headerPath)],
+    [feedPath, readNormalizedUtf8(feedPath)],
+    [indexHtmlPath, readNormalizedUtf8(indexHtmlPath)],
+    [reactionHookPath, readNormalizedUtf8(reactionHookPath)],
+    [commentsHookPath, readNormalizedUtf8(commentsHookPath)],
+    [favoritesHookPath, readNormalizedUtf8(favoritesHookPath)],
+    [watchHistoryHookPath, readNormalizedUtf8(watchHistoryHookPath)],
+    [trendingHookPath, readNormalizedUtf8(trendingHookPath)],
+    [reactionBarPath, readNormalizedUtf8(reactionBarPath)],
+    [videoPlayerPath, readNormalizedUtf8(videoPlayerPath)],
+    [channelDetailPath, readNormalizedUtf8(channelDetailPath)],
+    [channelCardPath, readNormalizedUtf8(channelCardPath)],
+    [categoryTabsPath, readNormalizedUtf8(categoryTabsPath)],
+    [indexCssPath, readNormalizedUtf8(indexCssPath)],
+    [iptvApiPath, readNormalizedUtf8(iptvApiPath)],
+    [channelsHookPath, readNormalizedUtf8(channelsHookPath)],
   ]);
 
   let profile = original.get(profilePath);
