@@ -18,6 +18,8 @@ import { loadPublisherFeed, PublisherFeedCard, type FeedItem } from '@/component
 import { TvPostStream } from '@/components/features/TvPostStream';
 import { NewsifyTrendingRail } from '@/components/features/NewsifyTrendingRail';
 import { OrganicSportsStories } from '@/components/features/OrganicSportsStories';
+import { FeedAdCard } from '@/components/features/FeedAdCard';
+import { ExternalAdEngine } from '@/components/features/ExternalAdEngine';
 
 const LiveSpacesDiscoveryStrip = lazy(() => import('@/components/features/LiveSpacesDiscoveryStrip').then(m => ({ default: m.LiveSpacesDiscoveryStrip })));
 const SyndicatedNewsRail = lazy(() => import('@/components/features/SyndicatedNewsRail').then(m => ({ default: m.SyndicatedNewsRail })));
@@ -506,7 +508,7 @@ export default function HomeHubPage(){
     {!loading&&<button onClick={refresh} disabled={refreshing} className="w-full py-2 border-b border-border text-xs text-muted-foreground flex items-center justify-center gap-2"><RefreshCw className={'w-3 h-3 '+(refreshing?'animate-spin':'')}/>{refreshing?'Refreshing…':'Refresh feed'}</button>}
     {loading?<div className="py-20 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-primary"/></div>:
       items.length===0?<div className="py-20 text-center text-muted-foreground"><Sparkles className="w-10 h-10 mx-auto mb-3 opacity-30"/><p className="font-semibold">Nothing here yet</p><p className="text-sm mt-1">Explore another section or be the first to add content.</p></div>:
-      <div>{items.map((item,i)=><HomeFeedItem key={item.type+'-'+(item.data?.id??i)} item={item} index={i} lastElementRef={i===items.length-1?lastElementRef:null} tab={tab} onUpdate={()=>load(tab)} onNavigate={navigate}/>)}
+      <div>{items.map((item,i)=><div key={item.type+'-'+(item.data?.id??i)}><HomeFeedItem item={item} index={i} lastElementRef={i===items.length-1?lastElementRef:null} tab={tab} onUpdate={()=>load(tab)} onNavigate={navigate}/>{(tab==='all'||tab==='following'||tab==='explore'||tab==='media')&&(i+1)%6===0&&<div data-social-feed-ad-slot="true">{(i+1)%12===0?<ExternalAdEngine surface="feed"/>:<FeedAdCard/>}</div>}</div>)}
       {loadingMore&&<div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary"/></div>}
       {!loadingMore&&!hasMore&&<div className="py-10 text-center text-xs text-muted-foreground">You’re all caught up.</div>}</div>}
   </div>;
