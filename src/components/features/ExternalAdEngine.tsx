@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 
 type AdUnit = 'network-300' | 'content-300' | 'banner-728' | 'skyscraper-160';
 const WIDE_PAGES = new Set(['/', '/home', '/explore', '/search', '/videos', '/shorts']);
-const BLOCKED_PATH = /^\/(auth|verify|verify-identity|profile\/complete|admin|settings|wallet|messages|notifications|help|premium|create-ad|my-ads|ad-|rewards|payouts|revenue|analytics|appeals|sessions|blocked|privacy|terms|policy|regulator|tv-studio|start-stream)(\/|$)/;
+const BLOCKED_PATH = /^\/(auth|login|signup|register|forgot-password|reset-password|password-reset|verify|verify-identity|profile\/complete|admin|settings|account|security|billing|subscription|invoice|wallet|messages|notifications|help|premium|create-ad|my-ads|ad-|rewards|payouts|revenue|analytics|appeals|sessions|blocked|privacy|terms|policy|regulator|tv-studio|start-stream)(\/|$)/;
 
 function getUnit(pathname: string): AdUnit {
   return WIDE_PAGES.has(pathname) || pathname.startsWith('/home/') ? 'banner-728' : 'network-300';
@@ -73,9 +73,10 @@ function AdFrame({ unit }: { unit: AdUnit }) {
   );
 }
 
-export function ExternalAdEngine({ surface = 'top' }: { surface?: 'top' | 'sidebar' }) {
+export function ExternalAdEngine({ surface = 'top' }: { surface?: 'top' | 'sidebar' | 'overlay' }) {
   const { pathname } = useLocation();
-  if (BLOCKED_PATH.test(pathname) || pathname.startsWith('/tv/live/')) return null;
+  if (BLOCKED_PATH.test(pathname) || (pathname === '/iptv' && surface !== 'overlay') || (pathname.startsWith('/tv/live/') && surface !== 'overlay')) return null;
+  if (surface === 'overlay') return <div className="rounded-xl bg-black/85 p-1 shadow-xl"><AdFrame unit="content-300" /></div>;
   if (surface === 'sidebar') {
     if (WIDE_PAGES.has(pathname) || pathname.startsWith('/home/')) return null;
     return <div className="hidden xl:block"><AdFrame unit="skyscraper-160" /></div>;

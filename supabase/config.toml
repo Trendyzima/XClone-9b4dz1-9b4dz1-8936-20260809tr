@@ -64,3 +64,9 @@ timebox = "2h"
 
 [functions.tv-cdn-playback]
 verify_jwt = false
+
+
+# Public ad serving and signed impression events perform their own identity,
+# event-token, owner, and rate-limit checks inside the handler.
+[functions.testagram-ads]
+verify_jwt = false
