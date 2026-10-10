@@ -77,5 +77,5 @@ jobs:
       - run: npm ci
       - run: cargo install tauri-cli --version "^2" --locked
       - name: Generate desktop bundle icons
-        run: npm run tauri -- icon ../../public/app-icon.jpg --output icons
+        run: npm run tauri -- icon ../../public/tsocial-logo.png --output icons
       - run: npm run tauri:build
