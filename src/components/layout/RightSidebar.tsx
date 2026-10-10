@@ -454,7 +454,7 @@ export function RightSidebar() {
   };
   
   return (<>
-    <div className="hidden xl:block w-80 px-4 pt-4"><ExternalAdEngine surface="sidebar" /></div>
+    <ExternalAdEngine surface="sidebar" />
     <aside className="hidden xl:block w-80 h-screen sticky top-0 p-4 space-y-4 overflow-y-auto">
       {/* Create Community */}
       <div className="bg-muted/50 rounded-xl p-4 border border-border">
