@@ -341,12 +341,23 @@ export default function AuthPage() {
     if (mode === 'reset' && next !== 'reset') {
       // Leaving the reset screen cancels its temporary session and removes the
       // reset marker from the URL so refresh cannot reopen a stale reset flow.
-      let hasRecoveryMarker = false;
-      try {
-        hasRecoveryMarker = !!window.sessionStorage.getItem('testagram-password-recovery');
-        window.sessionStorage.removeItem('testagram-password-recovery');
-      } catch {}
-      if (recoveryReady || hasRecoveryMarker) void supabase.auth.signOut();
+      const hasRecoveryMarker = getPasswordRecoveryUserId() !== null;
+      clearPasswordRecoverySession();
+      if (recoveryReady || hasRecoveryMarker) {
+        // A redeemed recovery link creates a temporary session. Leaving the
+        // reset flow without changing the password must not turn that into a
+        // normal signed-in app session.
+        void supabase.auth.signOut();
+      } else {
+        // A malformed /auth?reset=1 URL must not strand a previously signed-in
+        // user in an unhydrated app state after they leave the reset screen.
+        void supabase.auth.getSession().then(({ data, error }) => {
+          if (error || !data.session?.user) return;
+          void finalizeAuthenticatedSession(data.session.user)
+            .then(login)
+            .catch((error) => console.error('[Auth] Could not restore existing session after leaving invalid reset URL:', error));
+        });
+      }
       setRecoveryReady(false);
       setRecoveryChecking(false);
       window.history.replaceState({}, document.title, '/auth');
