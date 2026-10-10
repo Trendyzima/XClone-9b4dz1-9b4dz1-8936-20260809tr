@@ -292,7 +292,7 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
     doc.querySelectorAll<HTMLElement>('[data-index]').forEach((card) => {
       if (observedCards.has(card) || !card.querySelector('video')) return;
       observedCards.add(card);
-      const channelLabel = card.querySelector('button')?.textContent?.trim().replace(/\\s+/g, ' ') || card.textContent?.trim().replace(/\\s+/g, ' ').slice(0, 100) || 'unknown';
+      const channelLabel = card.querySelector('button')?.textContent?.trim().replace(/\s+/g, ' ') || card.textContent?.trim().replace(/\s+/g, ' ').slice(0, 100) || 'unknown';
       card.dataset.testagramChannelKey = 'channel-' + (card.dataset.index || 'x') + '-' + channelLabel;
       stabilizeCard(card);
       cardObserver?.observe(card);
