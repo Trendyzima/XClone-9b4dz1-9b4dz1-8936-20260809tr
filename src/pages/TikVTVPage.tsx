@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UserRound, LogIn, X } from 'lucide-react';
+import { UserRound, LogIn } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 
 /**
@@ -13,11 +13,6 @@ export default function TikVTVPage() {
   const { user } = useAuth();
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
-  useEffect(() => {
-    setReady(false);
-    setFailed(false);
-  }, []);
-
   return (
     <div className="fixed inset-0 z-[60] bg-black" data-testid="iptv-page">
       <div className="absolute right-3 top-3 z-[80] flex items-center gap-2 rounded-full border border-white/15 bg-black/75 p-1.5 shadow-lg backdrop-blur-md">
