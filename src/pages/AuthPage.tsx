@@ -317,7 +317,19 @@ export default function AuthPage() {
   // only a pre-account convenience and never the authorization source.
   if (mode === 'signup' && !legalAccepted) return <div className="min-h-screen bg-gradient-to-b from-background via-background to-primary/5 p-4 flex items-center justify-center"><LegalAcceptanceGate onAccepted={() => setLegalAccepted(true)} /></div>;
 
-  const go = (next: AuthMode) => { setLoading(false); setPassword(''); setConfirmation(''); setMode(next); };
+  const go = (next: AuthMode) => {
+    setLoading(false);
+    setPassword('');
+    setConfirmation('');
+    if (recoveryReady && next !== 'reset') {
+      // Leaving recovery without changing the password cancels the temporary
+      // recovery session. Otherwise a later reload could hydrate it as a login.
+      setRecoveryReady(false);
+      try { window.sessionStorage.removeItem('testagram-password-recovery'); } catch {}
+      void supabase.auth.signOut();
+    }
+    setMode(next);
+  };
   const title = mode === 'signin' ? 'Welcome back' : mode === 'signup' ? 'Create your account' : mode === 'otp' ? 'Enter your verification code' : mode === 'recover' ? 'Reset your password' : 'Choose a new password';
   const subtitle = mode === 'signin' ? 'Sign in to continue your Testagram journey.' : mode === 'signup' ? 'Verify your email and identity first. You will create your password after approval.' : mode === 'otp' ? `We sent a 6-digit code to ${email}. Enter it below to continue.` : mode === 'recover' ? 'We’ll send a secure reset link to your email.' : 'Your new password should be at least 8 characters.';
 
