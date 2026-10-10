@@ -24,6 +24,8 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
   const doc = childDocument;
   const attemptedChannels = new Set<string>();
   const observedCards = new WeakSet<HTMLElement>();
+  const pendingCards = new WeakSet<HTMLElement>();
+  const pendingCleanups = new Map<HTMLElement, () => void>();
   const activeCards = new Set<HTMLElement>();
   const finishers = new Map<HTMLElement, () => void>();
   let disposed = false;
@@ -65,7 +67,10 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
     card.style.maxHeight = '100dvh';
     card.style.flex = '0 0 100dvh';
     card.style.flexShrink = '0';
+    card.style.minWidth = '100%';
     card.style.scrollSnapAlign = 'start';
+    card.style.scrollSnapStop = 'always';
+    card.style.overscrollBehavior = 'contain';
     card.style.overflow = 'hidden';
     card.style.contain = 'layout paint';
   };
@@ -76,9 +81,42 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
     if (attemptedChannels.has(key)) return;
     const contentVideo = card.querySelector<HTMLVideoElement>('video');
     if (!contentVideo) return;
-    attemptedChannels.add(key);
 
     stabilizeCard(card);
+
+    // Do not start the VAST pre-roll merely because a <video> node exists.
+    // The IPTV player's own startup deadline is shorter than the ad load
+    // deadline; pausing HLS before it has begun can make the player mark a
+    // healthy channel dead and remove the whole vertical slide. Wait until the
+    // active channel is actually playing, then pause it for the ad.
+    if (contentVideo.paused || contentVideo.readyState < 2) {
+      if (pendingCards.has(card)) return;
+      pendingCards.add(card);
+      const clearPending = () => {
+        contentVideo.removeEventListener('playing', onReady);
+        contentVideo.removeEventListener('canplay', onReady);
+        contentVideo.removeEventListener('loadeddata', onReady);
+        contentVideo.removeEventListener('error', onFailure);
+        pendingCards.delete(card);
+        pendingCleanups.delete(card);
+      };
+      const onReady = () => {
+        if (contentVideo.paused || contentVideo.readyState < 2) return;
+        clearPending();
+        if (!disposed && activeCards.has(card) && card.isConnected) startAd(card);
+      };
+      const onFailure = () => clearPending();
+      pendingCleanups.set(card, clearPending);
+      contentVideo.addEventListener('playing', onReady);
+      contentVideo.addEventListener('canplay', onReady);
+      contentVideo.addEventListener('loadeddata', onReady);
+      contentVideo.addEventListener('error', onFailure, { once: true });
+      // Close the race where playback became ready just before listeners were attached.
+      onReady();
+      return;
+    }
+
+    attemptedChannels.add(key);
     const previousMuted = contentVideo.muted;
     const wasPlaying = !contentVideo.paused;
     contentVideo.pause();
@@ -254,7 +292,8 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
     doc.querySelectorAll<HTMLElement>('[data-index]').forEach((card) => {
       if (observedCards.has(card) || !card.querySelector('video')) return;
       observedCards.add(card);
-      card.dataset.testagramChannelKey = 'channel-' + (card.dataset.index || card.textContent?.trim().slice(0, 80) || 'unknown');
+      const channelLabel = card.querySelector('button')?.textContent?.trim().replace(/\\s+/g, ' ') || card.textContent?.trim().replace(/\\s+/g, ' ').slice(0, 100) || 'unknown';
+      card.dataset.testagramChannelKey = 'channel-' + (card.dataset.index || 'x') + '-' + channelLabel;
       stabilizeCard(card);
       cardObserver?.observe(card);
     });
@@ -283,6 +322,7 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
           startAd(card);
         } else if (!entry.isIntersecting || entry.intersectionRatio < 0.25) {
           activeCards.delete(card);
+          pendingCleanups.get(card)?.();
           finishers.get(card)?.();
         }
       });
@@ -296,6 +336,8 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
     disposed = true;
     mutationObserver?.disconnect();
     cardObserver?.disconnect();
+    pendingCleanups.forEach((cleanup) => cleanup());
+    pendingCleanups.clear();
     finishers.forEach((finish) => finish());
     activeCards.clear();
     finishers.clear();
