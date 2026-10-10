@@ -1,6 +1,6 @@
 /* global self, URL, caches, fetch */
 
-const VERSION = 'testagram-shell-v4';
+const VERSION = 'testagram-shell-v5';
 const STATIC_CACHE = VERSION + '-static';
 const RUNTIME_CACHE = VERSION + '-runtime';
 const MAX_RUNTIME_ENTRIES = 80;
@@ -16,7 +16,7 @@ self.addEventListener('install', (event) => {
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((key) => ![STATIC_CACHE, RUNTIME_CACHE].includes(key)).map((key) => caches.delete(key))))
+    caches.keys().then((keys) => Promise.all(keys.filter((key) => ![STATIC_CACHE, RUNTIME_CACHE, MEDIA_CACHE].includes(key)).map((key) => caches.delete(key))))
       .then(() => self.clients.claim()),
   );
 });

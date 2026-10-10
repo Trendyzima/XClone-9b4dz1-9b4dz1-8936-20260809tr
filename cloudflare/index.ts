@@ -637,8 +637,17 @@ export default {
       const optimized = await optimizePublicHtml(response, url.pathname);
       const headers = commonHeaders(new Headers(optimized.headers));
 
-      if (url.pathname.startsWith('/assets/') || /\.(js|css)$/.test(url.pathname)) {
+      // The service-worker script is mutable and must be revalidated so a
+      // deployment can rotate cache versions immediately. Only fingerprinted
+      // Vite assets under /assets/ are safe for long-lived immutable caching.
+      if (url.pathname === '/sw.js') {
+        headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        headers.set('CDN-Cache-Control', 'no-store');
+        headers.set('Cloudflare-CDN-Cache-Control', 'no-store');
+      } else if (url.pathname.startsWith('/assets/') && /\.(js|css)$/.test(url.pathname)) {
         headers.set('Cache-Control', 'public, max-age=31536000, immutable');
+      } else if (/\.(js|css)$/.test(url.pathname)) {
+        headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
       } else if (/\.(xml)$/.test(url.pathname)) {
         headers.set('Cache-Control', 'public, max-age=86400');
       } else {

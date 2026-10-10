@@ -190,7 +190,8 @@ module.exports = defineConfig({
       },
       onwarn(warning, warn) {
         if (warning.code === 'MODULE_LEVEL_DIRECTIVE') return;
-        if (warning.code === 'MISSING_EXPORT') return;
+        // Never hide missing exports: they can become runtime failures in lazy
+        // route chunks even when typecheck succeeds for generated/vendor code.
         warn(warning);
       },
     },
