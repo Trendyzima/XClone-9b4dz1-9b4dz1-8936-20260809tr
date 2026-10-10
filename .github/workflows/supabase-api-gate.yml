@@ -83,39 +83,6 @@ jobs:
           echo "Supabase Management API authentication: OK"
           echo "Target project: ${SUPABASE_PROJECT_ID}"
 
-      - name: Apply and verify the 24-hour Auth session time-box
-        # Keep hosted Supabase Auth aligned with supabase/config.toml whenever a
-        # Supabase-related change reaches main. The update only touches this one
-        # field; it does not replace the rest of the project's Auth configuration.
-        if: github.event_name == 'push'
-        shell: bash
-        run: |
-          set -euo pipefail
-          if [[ -z "${SUPABASE_ACCESS_TOKEN}" ]]; then
-            echo "::error::SUPABASE_ACCESS_TOKEN is required to apply the production Auth session time-box."
-            exit 1
-          fi
-          printf '::add-mask::%s\n' "${SUPABASE_ACCESS_TOKEN}"
-          response_file="/tmp/supabase-auth-config.json"
-          http_status="$(curl --silent --show-error --output "${response_file}" --write-out '%{http_code}' \
-            --request PATCH \
-            -H "Authorization: Bearer ${SUPABASE_ACCESS_TOKEN}" \
-            -H "Content-Type: application/json" \
-            -H "Accept: application/json" \
-            --data '{"sessions_timebox":86400}' \
-            "https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_ID}/config/auth")"
-          if [[ "${http_status}" != "200" ]]; then
-            echo "::error::Could not apply the 24-hour Auth session time-box (HTTP ${http_status})."
-            cat "${response_file}" || true
-            exit 1
-          fi
-          actual="$(jq -r '.sessions_timebox // empty' "${response_file}")"
-          if [[ "${actual}" != "86400" ]]; then
-            echo "::error::Supabase did not confirm sessions_timebox=86400; actual value: ${actual:-missing}."
-            exit 1
-          fi
-          echo "Hosted Supabase Auth session time-box verified: 86400 seconds (24 hours)."
-
       - name: Verify Supabase Data API
         shell: bash
         env:
