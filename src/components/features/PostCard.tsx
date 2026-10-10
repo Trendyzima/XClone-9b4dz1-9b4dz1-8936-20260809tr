@@ -382,11 +382,14 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   const videoRef2 = useRef<HTMLVideoElement | null>(null);
   const adShownRef = useRef(false);
   const pendingAdUntilPremiumCheckRef = useRef(false);
+  const pendingAdTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [showVideoAd, setShowVideoAd] = useState(false);
 
   useEffect(() => {
     if (premiumLoading || !pendingAdUntilPremiumCheckRef.current) return;
     pendingAdUntilPremiumCheckRef.current = false;
+    if (pendingAdTimerRef.current) clearTimeout(pendingAdTimerRef.current);
+    pendingAdTimerRef.current = null;
     if (isPremium) {
       videoRef2.current?.play().catch(() => {});
       return;
@@ -395,11 +398,25 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
     setShowVideoAd(true);
   }, [premiumLoading, isPremium]);
 
+  useEffect(() => () => {
+    if (pendingAdTimerRef.current) clearTimeout(pendingAdTimerRef.current);
+  }, []);
+
   const handleVideoPlay = () => {
     if (adShownRef.current || isPremium) return;
     videoRef2.current?.pause();
     if (premiumLoading) {
       pendingAdUntilPremiumCheckRef.current = true;
+      if (!pendingAdTimerRef.current) {
+        // Do not freeze an inline video indefinitely if the entitlement RPC stalls.
+        pendingAdTimerRef.current = setTimeout(() => {
+          pendingAdTimerRef.current = null;
+          if (!pendingAdUntilPremiumCheckRef.current) return;
+          pendingAdUntilPremiumCheckRef.current = false;
+          adShownRef.current = true;
+          videoRef2.current?.play().catch(() => {});
+        }, 6_000);
+      }
       return;
     }
     adShownRef.current = true;
