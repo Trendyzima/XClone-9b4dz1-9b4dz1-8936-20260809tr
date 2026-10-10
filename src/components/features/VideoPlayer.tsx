@@ -10,7 +10,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
-import { VideoMonetizationAd } from './VideoMonetizationAd';
 import { ExoClickVastPreRoll } from './ExoClickVastPreRoll';
 import { usePremium } from '@/hooks/usePremium';
 import { UniversalVideoPlayer } from './UniversalVideoPlayer';
@@ -38,8 +37,6 @@ function normalizeVideoReplies(rows: any[] | null | undefined): Reply[] {
 const authorPremiumCache: Map<string, boolean> = /* @__PURE__ */ new Map();
 
 const VIDEO_SOUND_STORAGE_KEY = 'testagram-video-sound';
-// Keep external VAST ads occasional in the vertical social reel feed.
-let exoclickReelActivationCount = 0;
 function readVideoSoundPreference(): boolean {
   try { return localStorage.getItem(VIDEO_SOUND_STORAGE_KEY) === 'on'; } catch { return false; }
 }
@@ -73,8 +70,6 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
   const [showPrerollAd, setShowPrerollAd]       = useState(false);
   const prerollSeenRef = useRef(false);
   const prerollPostIdRef = useRef(post.id);
-  const [showMidrollAd, setShowMidrollAd]       = useState(false);
-  const [midrollDone, setMidrollDone]           = useState(false);
 
   // Progress bar
   const [videoProgress, setVideoProgress]       = useState(0);
@@ -168,17 +163,14 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
       const soundOn = readVideoSoundPreference();
       setIsMuted(!soundOn);
       trackView();
-      // Monetize the vertical reel surface sparingly: one VAST request per
-      // four newly activated reels, never on every swipe.
+      // One VAST ad opportunity for each distinct reel. A post is marked
+      // seen once, so returning to the same reel does not duplicate the ad.
       if (!isPremium && !prerollSeenRef.current) {
         prerollSeenRef.current = true;
-        exoclickReelActivationCount += 1;
-        if (exoclickReelActivationCount % 4 === 0) {
-          video.pause();
-          setIsPlaying(false);
-          setShowPrerollAd(true);
-          return;
-        }
+        video.pause();
+        setIsPlaying(false);
+        setShowPrerollAd(true);
+        return;
       }
       video.muted = !soundOn;
       video.play().then(() => setIsPlaying(true)).catch(() => {});
@@ -196,7 +188,6 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
   /* ── Ad complete ─────────────────────────────────────────────────────── */
   const handleAdComplete = useCallback(() => {
     setShowPrerollAd(false);
-    setShowMidrollAd(false);
     const video = videoRef.current;
     if (video) video.play().then(() => setIsPlaying(true)).catch(() => {});
   }, []);
@@ -205,14 +196,7 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
   const handleTimeUpdate = () => {
     const video = videoRef.current;
     if (!video || isDragging) return;
-    const pct = video.currentTime / (video.duration || 1);
-    setVideoProgress(pct * 100);
-    if (midrollDone || !post.is_monetized || isPremium) return;
-    if (pct >= 0.5) {
-      setMidrollDone(true);
-      video.pause();
-      setShowMidrollAd(true);
-    }
+    setVideoProgress((video.currentTime / (video.duration || 1)) * 100);
   };
 
   /* ── Track view — one per user per session (dedup via browsing_history) ── */
@@ -636,26 +620,11 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
       {/* ExoClick VAST vertical pre-roll; the player resumes on completion/no-fill. */}
       {showPrerollAd && isActive && <ExoClickVastPreRoll onComplete={handleAdComplete} />}
 
-      {/* Mid-roll ad */}
-      {showMidrollAd && (
-        <div className="absolute inset-0 z-50 flex flex-col">
-          <div className="absolute top-2 right-2 z-10 bg-black/60 text-white/70 text-[10px] font-bold px-2 py-0.5 rounded-full">
-            Mid-roll
-          </div>
-          <VideoMonetizationAd
-            postId={post.id}
-            creatorUserId={post.user_id}
-            onAdComplete={handleAdComplete}
-            skipAfterSeconds={5}
-          />
-        </div>
-      )}
-
       {/* ── Universal video engine ──────────────────────────────────────── */}
       <UniversalVideoPlayer
         ref={videoRef}
         src={cancelPreload ? '' : (post.video_url || '')}
-        active={isActive && !showPrerollAd && !showMidrollAd}
+        active={isActive && !showPrerollAd}
         preload={shouldPreload ? 'auto' : 'metadata'}
         muted={isMuted}
         loop
@@ -708,8 +677,7 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
       </button>
 
       {/* ── Seek / progress bar ───────────────────────────────────────────── */}
-      {!showMidrollAd && (
-        <div
+      <div
           ref={progressRef}
           className="absolute left-0 right-0 z-30 cursor-pointer"
           style={{ bottom: showComments ? '70vh' : '88px', touchAction: 'none' }}
@@ -727,14 +695,9 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
                 style={{ width: `${videoProgress}%` }} />
               <div className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 bg-white rounded-full shadow-md shadow-black/50 -ml-1.5 transition-opacity"
                 style={{ left: `${videoProgress}%`, opacity: isDragging ? 1 : 0.85 }} />
-              {post.is_monetized && !isPremium && !midrollDone && (
-                <div className="absolute top-1/2 -translate-y-1/2 w-2 h-2 rounded-full bg-amber-400 border border-black/40"
-                  style={{ left: '50%', marginLeft: '-4px' }} title="Ad at 50%" />
-              )}
             </div>
           </div>
         </div>
-      )}
 
       {/* ── Main overlay: author info + action buttons ────────────────────── */}
       <div
