@@ -34,19 +34,35 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
     if (win.google?.ima) return Promise.resolve();
     if (win.__testagramImaPromise) return win.__testagramImaPromise;
     win.__testagramImaPromise = new Promise<void>((resolve, reject) => {
-      let script = doc.querySelector<HTMLScriptElement>('script[data-testagram-ima]');
-      const timeout = win.setTimeout(() => reject(new Error('IMA timeout')), 8_000);
-      const loaded = () => { win.clearTimeout(timeout); resolve(); };
-      const failed = () => { win.clearTimeout(timeout); reject(new Error('IMA unavailable')); };
-      if (!script) {
-        script = doc.createElement('script');
+      const existing = doc.querySelector<HTMLScriptElement>('script[data-testagram-ima]');
+      const script = existing ?? doc.createElement('script');
+      let settled = false;
+      const cleanup = () => {
+        win.clearTimeout(timeout);
+        script.removeEventListener('load', loaded);
+        script.removeEventListener('error', failed);
+      };
+      const settle = (error?: Error) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        if (error && !win.google?.ima) script.remove();
+        if (error) reject(error);
+        else resolve();
+      };
+      const loaded = () => win.google?.ima
+        ? settle()
+        : settle(new Error('IMA SDK loaded without its API'));
+      const failed = () => settle(new Error('IMA unavailable'));
+      const timeout = win.setTimeout(() => settle(new Error('IMA timeout')), 8_000);
+      script.addEventListener('load', loaded, { once: true });
+      script.addEventListener('error', failed, { once: true });
+      if (!existing) {
         script.src = 'https://imasdk.googleapis.com/js/sdkloader/ima3.js';
         script.async = true;
         script.dataset.testagramIma = '1';
         doc.head.appendChild(script);
       }
-      script.addEventListener('load', loaded, { once: true });
-      script.addEventListener('error', failed, { once: true });
     }).catch((error) => {
       win.__testagramImaPromise = undefined;
       throw error;
@@ -120,26 +136,40 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
     card.appendChild(overlay);
 
     let manager: any = null;
+    let loader: any = null;
     let display: any = null;
     let disposedAd = false;
     let requestReady = false;
     let initialized = false;
     let startRequested = false;
     let adStarted = false;
+    let creativeStarted = false;
     let startedAt = 0;
+    let lastAdTime = 0;
+    let lastProgressAt = 0;
     let loadTimeout = 0;
+    let readyTimeout = 0;
+    let startTimeout = 0;
     let hardTimeout = 0;
     let skipPoll = 0;
+    let progressPoll = 0;
     let pointerStart: { x: number; y: number } | null = null;
 
     const finish = () => {
       if (disposedAd) return;
       disposedAd = true;
       win.clearTimeout(loadTimeout);
+      win.clearTimeout(readyTimeout);
+      win.clearTimeout(startTimeout);
       win.clearTimeout(hardTimeout);
       win.clearInterval(skipPoll);
+      win.clearInterval(progressPoll);
       try { manager?.destroy(); } catch {}
+      try { loader?.destroy(); } catch {}
+      try { display?.destroy?.(); } catch {}
       manager = null;
+      loader = null;
+      display = null;
       overlay.remove();
       finishers.delete(card);
       contentVideo.muted = previousMuted;
@@ -156,6 +186,8 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
         adStarted = true;
         prompt.style.display = 'none';
         status.textContent = 'Starting sponsored video…';
+        win.clearTimeout(readyTimeout);
+        startTimeout = win.setTimeout(() => { if (!creativeStarted) finish(); }, 15_000);
         hardTimeout = win.setTimeout(finish, 60_000);
       } catch {
         finish();
@@ -163,11 +195,17 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
     };
 
     const beginFromGesture = () => {
+      if (!display) {
+        // A tap before the SDK/display is ready cannot initialize IMA on mobile.
+        // Keep the slide intact and let the viewer tap again when the creative is ready.
+        status.textContent = 'Preparing sponsored video… tap again when ready';
+        return;
+      }
       startRequested = true;
       if (!initialized) {
         try {
           // Must run directly from the pointer gesture on mobile browsers.
-          display?.initialize();
+          display.initialize();
           initialized = true;
         } catch {
           finish();
@@ -209,7 +247,7 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
       if (disposed || disposedAd || !win.google?.ima || !overlay.isConnected) return finish();
       const ima = win.google.ima;
       display = new ima.AdDisplayContainer(adContainer, adVideo);
-      const loader = new ima.AdsLoader(display);
+      loader = new ima.AdsLoader(display);
       loader.addEventListener(ima.AdsManagerLoadedEvent.Type.ADS_MANAGER_LOADED, (event: any) => {
         if (disposed || disposedAd) return finish();
         try {
@@ -218,11 +256,26 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
           win.clearTimeout(loadTimeout);
           status.textContent = 'Sponsored';
           prompt.style.display = 'block';
+          // A ready but untouched overlay must not trap the viewer forever.
+          readyTimeout = win.setTimeout(() => { if (!startRequested) finish(); }, 25_000);
           manager.addEventListener(ima.AdEvent.Type.STARTED, () => {
+            creativeStarted = true;
             adStarted = true;
             startedAt = Date.now();
+            lastProgressAt = startedAt;
+            lastAdTime = adVideo.currentTime || 0;
+            win.clearTimeout(startTimeout);
             prompt.style.display = 'none';
             status.textContent = 'Sponsored';
+            win.clearInterval(progressPoll);
+            progressPoll = win.setInterval(() => {
+              const currentTime = adVideo.currentTime || 0;
+              if (Number.isFinite(currentTime) && currentTime > lastAdTime + 0.05) {
+                lastAdTime = currentTime;
+                lastProgressAt = Date.now();
+              }
+              if (Date.now() - lastProgressAt >= 12_000) finish();
+            }, 1_000);
             win.clearInterval(skipPoll);
             skipPoll = win.setInterval(() => {
               try { skip.hidden = !(Date.now() - startedAt >= 5_000 && manager?.getAdSkippableState?.()); }
@@ -232,7 +285,9 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
           manager.addEventListener(ima.AdEvent.Type.SKIPPED, finish);
           manager.addEventListener(ima.AdEvent.Type.COMPLETE, finish);
           manager.addEventListener(ima.AdEvent.Type.ALL_ADS_COMPLETED, finish);
+          manager.addEventListener(ima.AdEvent.Type.CONTENT_RESUME_REQUESTED, finish);
           manager.addEventListener(ima.AdErrorEvent.Type.AD_ERROR, finish);
+          adVideo.addEventListener('error', finish, { once: true });
           if (startRequested && initialized) startManager();
         } catch {
           finish();
