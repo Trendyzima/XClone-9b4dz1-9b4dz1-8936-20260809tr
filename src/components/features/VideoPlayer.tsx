@@ -72,6 +72,7 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
   // Ads
   const [showPrerollAd, setShowPrerollAd]       = useState(false);
   const prerollSeenRef = useRef(false);
+  const prerollPostIdRef = useRef(post.id);
   const [showMidrollAd, setShowMidrollAd]       = useState(false);
   const [midrollDone, setMidrollDone]           = useState(false);
 
@@ -159,6 +160,11 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
     if (!video) return;
 
     if (isActive) {
+      if (prerollPostIdRef.current !== post.id) {
+        prerollPostIdRef.current = post.id;
+        prerollSeenRef.current = false;
+        setShowPrerollAd(false);
+      }
       const soundOn = readVideoSoundPreference();
       setIsMuted(!soundOn);
       trackView();
