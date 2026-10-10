@@ -22,7 +22,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { VideoMonetizationAd } from './VideoMonetizationAd';
+import { ExoClickVastPreRoll } from './ExoClickVastPreRoll';
+import { usePremium } from '@/hooks/usePremium';
 import { EmbedRenderer, PostContentEmbeds } from './EmbedRenderer';
 import { InlineTvSuggestion } from './InlineTvSuggestion';
 import { FediverseRichText } from './FediverseRichText';
@@ -55,6 +56,7 @@ const premiumCache = new Map<string, boolean>();
 
 export function PostCard({ post, onUpdate }: PostCardProps) {
   const { user } = useAuth();
+  const { isActive: isPremium, loading: premiumLoading } = usePremium();
   const navigate = useNavigate();
   const { toast } = useToast();
   const remoteStatusUri = (post as any).remote_status_uri || ((post as any).uri?.startsWith?.('https://') ? (post as any).uri : '');
@@ -379,19 +381,34 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
   // Video monetization pre-roll
   const videoRef2 = useRef<HTMLVideoElement | null>(null);
   const adShownRef = useRef(false);
+  const pendingAdUntilPremiumCheckRef = useRef(false);
   const [showVideoAd, setShowVideoAd] = useState(false);
 
-  const handleVideoPlay = () => {
-    if ((post as any).is_monetized && !adShownRef.current) {
-      adShownRef.current = true;
-      videoRef2.current?.pause();
-      setShowVideoAd(true);
+  useEffect(() => {
+    if (premiumLoading || !pendingAdUntilPremiumCheckRef.current) return;
+    pendingAdUntilPremiumCheckRef.current = false;
+    if (isPremium) {
+      videoRef2.current?.play().catch(() => {});
+      return;
     }
+    adShownRef.current = true;
+    setShowVideoAd(true);
+  }, [premiumLoading, isPremium]);
+
+  const handleVideoPlay = () => {
+    if (adShownRef.current || isPremium) return;
+    videoRef2.current?.pause();
+    if (premiumLoading) {
+      pendingAdUntilPremiumCheckRef.current = true;
+      return;
+    }
+    adShownRef.current = true;
+    setShowVideoAd(true);
   };
 
   const handleAdComplete = () => {
     setShowVideoAd(false);
-    videoRef2.current?.play().catch(() => {});
+    if (!isPremium) videoRef2.current?.play().catch(() => {});
   };
 
   const rawMedia = (post as any).media_urls ?? (post as any).mediaUrls ?? (post as any).attachments ?? [];
@@ -748,12 +765,7 @@ export function PostCard({ post, onUpdate }: PostCardProps) {
           {hasVideo && resolvedVideoUrl && (
             <div className="mt-3 relative rounded-2xl overflow-hidden bg-black max-h-[600px]" onClick={e => e.stopPropagation()}>
               {showVideoAd && (
-                <VideoMonetizationAd
-                  postId={post.id}
-                  creatorUserId={post.user_id}
-                  onAdComplete={handleAdComplete}
-                  skipAfterSeconds={5}
-                />
+                <ExoClickVastPreRoll onComplete={handleAdComplete} />
               )}
               {(post as any).is_monetized && (
                 <div className="absolute top-2 right-2 z-10 flex items-center gap-1 px-2 py-0.5 bg-black/60 backdrop-blur-sm rounded-full text-xs text-green-400 font-semibold pointer-events-none">
