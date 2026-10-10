@@ -20,7 +20,7 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
   }
   if (!childWindow || !childDocument) return () => {};
 
-  const win = childWindow;
+  const win: any = childWindow;
   const doc = childDocument;
   const seenChannels = new Set<string>();
   const activeCards = new Set<HTMLElement>();
