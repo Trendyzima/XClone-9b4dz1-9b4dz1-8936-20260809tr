@@ -156,24 +156,25 @@ export default function HomeHubPage(){
   const [tab,setTab]=useState<Tab>('all'); const [items,setItems]=useState<Item[]>([]);
   const [loading,setLoading]=useState(true); const [loadingMore,setLoadingMore]=useState(false);
   const [refreshing,setRefreshing]=useState(false); const [hasMore,setHasMore]=useState(true); const [nextCursor,setNextCursor]=useState<string|null>(null);
-  const [cacheHydrated,setCacheHydrated]=useState(false); const [newCount,setNewCount]=useState(0); const nextCursorRef=useRef<string|null>(null); const scrollTimer=useRef<number|undefined>(undefined); const feedBufferRef=useRef<Item[]>([]); const feedBufferOffsetRef=useRef(0); const cacheCursorRef=useRef<string|null>(null); const prefetchingRef=useRef(false); const refreshTimerRef=useRef<number|undefined>(undefined);
+  const [cacheHydrated,setCacheHydrated]=useState(false); const [newCount,setNewCount]=useState(0); const [loadMoreError,setLoadMoreError]=useState<string|null>(null); const nextCursorRef=useRef<string|null>(null); const scrollTimer=useRef<number|undefined>(undefined); const feedBufferRef=useRef<Item[]>([]); const feedBufferOffsetRef=useRef(0); const cacheCursorRef=useRef<string|null>(null); const tabPageRef=useRef(0); const refreshTimerRef=useRef<number|undefined>(undefined);
 
   useSEO({title:'Home — Testagram',description:'One home feed for posts, videos, communities, polls, shopping and the Fediverse on Testagram.',url:'/',type:'website'});
 
   const fetchTab=useCallback(async(target:Tab,pageNum=0,cursorOverride: string|null = null,includeFederated=true):Promise<Item[]>=>{
-    const offset=pageNum*12;
+    const pageSize=target==='communities'||target==='polls'||target==='shopping'?12:20;
+    const offset=pageNum*pageSize;
     if(target==='communities'){
-      const {data,error}=await supabase.from('communities').select('*').order('member_count',{ascending:false}).range(0,11);
+      const {data,error}=await supabase.from('communities').select('*').order('member_count',{ascending:false}).range(offset,offset+pageSize-1);
       if(error)throw error;
       return (data??[]).map((x:any)=>({type:'community',data:x}));
     }
     if(target==='polls'){
-      const {data,error}=await supabase.from('polls').select('*').order('created_at',{ascending:false}).range(offset,offset+11);
+      const {data,error}=await supabase.from('polls').select('*').order('created_at',{ascending:false}).range(offset,offset+pageSize-1);
       if(error)throw error;
       return (data??[]).map((x:any)=>({type:'poll',data:x}));
     }
     if(target==='shopping'){
-      const {data,error}=await supabase.from('products').select('*').eq('is_active',true).order('created_at',{ascending:false}).range(offset,offset+11);
+      const {data,error}=await supabase.from('products').select('*').eq('is_active',true).order('created_at',{ascending:false}).range(offset,offset+pageSize-1);
       if(error)throw error;
       return (data??[]).map((x:any)=>({type:'product',data:x}));
     }
@@ -306,7 +307,7 @@ export default function HomeHubPage(){
     if(target==='media')query=query.or('image_url.not.is.null,video_url.not.is.null,media_count.gt.0');
     if(target==='explore')query=query.order('likes_count',{ascending:false}).order('views_count',{ascending:false});
     else query=query.order('created_at',{ascending:false});
-    const {data,error}=await query.range(offset,offset+19);
+    const {data,error}=await query.range(offset,offset+pageSize-1);
     if(error)throw error;
     return (data??[]).map((x:any)=>({type:'post' as const,data:x}));
   },[user?.id]);
@@ -326,33 +327,21 @@ export default function HomeHubPage(){
       setItems(prev=>{
         const merged=blendPublisherItems(prev,publisherItems,seed);
         if(merged===prev)return prev;
-        feedBufferRef.current=mergeHomeFeedItems(feedBufferRef.current,merged.filter(item=>item.type==='publisher'),80);
+        feedBufferRef.current=mergeHomeFeedItems(feedBufferRef.current,merged.filter(item=>item.type==='publisher'),Number.MAX_SAFE_INTEGER);
         return merged;
       });
       await persistBuffer();
     }catch(e){console.warn('[home-hub] publisher layer',e);}
   },[persistBuffer]);
 
-  const prefetchNext=useCallback(async()=>{
-    if(tab!=='all'||prefetchingRef.current||!cacheCursorRef.current)return;
-    prefetchingRef.current=true;
-    try{
-      const next=await fetchTab('all',0,cacheCursorRef.current);
-      if(next.length){
-        feedBufferRef.current=mergeHomeFeedItems(feedBufferRef.current,next,80);
-        cacheCursorRef.current=nextCursorRef.current;
-        setHasMore(Boolean(cacheCursorRef.current));
-        await persistBuffer();
-      }else{cacheCursorRef.current=null;nextCursorRef.current=null;setHasMore(false);}
-    }catch(e){console.warn('[home-hub] background prefetch',e)}
-    finally{prefetchingRef.current=false;}
-  },[fetchTab,persistBuffer,tab]);
-
   const load=useCallback(async(target:Tab,background=false)=>{
     if(target!=='all'){
-      if(!background)setLoading(true);
-      try{const next=await fetchTab(target,0);setItems(next);setHasMore(next.length>=12);}
-      catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);}}
+      if(!background){setLoading(true);tabPageRef.current=0;setLoadMoreError(null);}
+      try{
+        const next=await fetchTab(target,0);
+        setItems(next);
+        if(target!=='federated')setHasMore(next.length >= (target==='communities'||target==='polls'||target==='shopping'?12:20));
+      }catch(e){console.error('[home-hub]',e);if(!background){setItems([]);setHasMore(false);}}
       finally{if(!background)setLoading(false);}
       return;
     }
@@ -362,7 +351,7 @@ export default function HomeHubPage(){
       const previousIds=new Set(previous.map(x=>String(x.data?.id??x.data?.uri??'')));
       const fresh=next.filter(x=>!previousIds.has(String(x.data?.id??x.data?.uri??'')));
       const retained=previous.filter(x=>x.type!=='fedpost');
-      feedBufferRef.current=mergeHomeFeedItems(retained,next,80);
+      feedBufferRef.current=mergeHomeFeedItems(retained,next,Number.MAX_SAFE_INTEGER);
       cacheCursorRef.current=nextCursorRef.current;
       if(background){
         setNewCount(fresh.length);
@@ -379,7 +368,7 @@ export default function HomeHubPage(){
           });
         }
       }else{
-        const composed = composeForYouContent(next);setItems(composed);feedBufferRef.current=mergeHomeFeedItems([],composed,80);feedBufferOffsetRef.current=next.length;cacheCursorRef.current=nextCursorRef.current;setLoading(false);
+        const composed = composeForYouContent(next);setItems(composed);feedBufferRef.current=mergeHomeFeedItems([],composed,Number.MAX_SAFE_INTEGER);feedBufferOffsetRef.current=composed.length;cacheCursorRef.current=nextCursorRef.current;setLoading(false);
       }
       setHasMore(Boolean(cacheCursorRef.current));
       await persistBuffer();
@@ -456,33 +445,57 @@ export default function HomeHubPage(){
   useEffect(()=>{if(newCount>0&&window.scrollY<500)setNewCount(0);},[newCount]);
 
   const loadMore=useCallback(async()=>{
-    if(!hasMore||loadingMore)return false;setLoadingMore(true);
+    if(!hasMore||loadingMore)return false;
+    setLoadingMore(true);setLoadMoreError(null);
     try{
       if(tab==='all'){
         const offset=feedBufferOffsetRef.current;
         if(offset<feedBufferRef.current.length){
-          const next=feedBufferRef.current.slice(offset,offset+6);
-          feedBufferOffsetRef.current=offset+next.length;setItems(prev=>[...prev,...next]);
-          if(feedBufferOffsetRef.current+3>=feedBufferRef.current.length)void prefetchNext();
-          return next.length>0;
+          const page=feedBufferRef.current.slice(offset,offset+6);
+          if(!page.length){setHasMore(false);return false;}
+          feedBufferOffsetRef.current=offset+page.length;
+          setItems(prev=>mergeHomeFeedItems(prev,page,Number.MAX_SAFE_INTEGER));
+          return true;
         }
         if(cacheCursorRef.current){
           const next=await fetchTab('all',0,cacheCursorRef.current);
           if(next.length){
-            feedBufferRef.current=mergeHomeFeedItems(feedBufferRef.current,next,80);
+            const beforeLength=feedBufferRef.current.length;
+            feedBufferRef.current=mergeHomeFeedItems(feedBufferRef.current,next,Number.MAX_SAFE_INTEGER);
             cacheCursorRef.current=nextCursorRef.current;
-            const page=feedBufferRef.current.slice(offset,offset+6);
-            feedBufferOffsetRef.current=offset+page.length;setItems(prev=>[...prev,...page]);await persistBuffer();
-            return page.length>0;
+            const page=feedBufferRef.current.slice(beforeLength,beforeLength+6);
+            if(!page.length){setHasMore(Boolean(cacheCursorRef.current));return Boolean(cacheCursorRef.current);}
+            feedBufferOffsetRef.current=beforeLength+page.length;
+            setItems(prev=>mergeHomeFeedItems(prev,page,Number.MAX_SAFE_INTEGER));
+            setHasMore(Boolean(cacheCursorRef.current));
+            await persistBuffer();
+            return true;
           }
         }
-        setHasMore(false);return false;
+        cacheCursorRef.current=null;nextCursorRef.current=null;setHasMore(false);return false;
       }
-      const next=await fetchTab(tab,1,nextCursor);setItems(prev=>[...prev,...next]);setHasMore(next.length>=12);return next.length>0;
+      if(tab==='federated'){
+        const next=await fetchTab('federated',0,nextCursor);
+        if(next.length)setItems(prev=>mergeHomeFeedItems(prev,next,Number.MAX_SAFE_INTEGER));
+        return next.length>0;
+      }
+      const nextPage=tabPageRef.current+1;
+      const next=await fetchTab(tab,nextPage);
+      if(next.length){
+        tabPageRef.current=nextPage;
+        setItems(prev=>mergeHomeFeedItems(prev,next,Number.MAX_SAFE_INTEGER));
+      }
+      const pageSize=tab==='communities'||tab==='polls'||tab==='shopping'?12:20;
+      setHasMore(next.length>=pageSize);
+      return next.length>0;
+    }catch(error){
+      console.error('[home-hub] load more failed',error);
+      setLoadMoreError('Could not load more posts. Check your connection and retry.');
+      return false;
     }finally{setLoadingMore(false);}
-  },[fetchTab,hasMore,loadingMore,tab,nextCursor,prefetchNext,persistBuffer]);
+  },[fetchTab,hasMore,loadingMore,tab,nextCursor,persistBuffer]);
 
-  const {lastElementRef}=useInfiniteScroll(loadMore);
+  const {lastElementRef}=useInfiniteScroll(loadMore,{hasMore});
   const refresh=async()=>{setRefreshing(true);try{await load(tab);}finally{setRefreshing(false);}};
 
   return <div className="min-h-screen bg-background pb-16 lg:pb-0">
@@ -509,6 +522,8 @@ export default function HomeHubPage(){
       items.length===0?<div className="py-20 text-center text-muted-foreground"><Sparkles className="w-10 h-10 mx-auto mb-3 opacity-30"/><p className="font-semibold">Nothing here yet</p><p className="text-sm mt-1">Explore another section or be the first to add content.</p></div>:
       <div>{items.map((item,i)=><div key={item.type+'-'+(item.data?.id??i)}><HomeFeedItem item={item} index={i} lastElementRef={i===items.length-1?lastElementRef:null} tab={tab} onUpdate={()=>load(tab)} onNavigate={navigate}/>{(tab==='all'||tab==='following'||tab==='explore'||tab==='media')&&(i+1)%6===0&&<FeedAdCard key={'sponsored-'+(i+1)} />}</div>)}
       {loadingMore&&<div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary"/></div>}
+      {loadMoreError&&<div className="px-4 py-3 text-center text-xs text-muted-foreground">{loadMoreError}<button onClick={()=>void loadMore()} className="ml-2 font-semibold text-primary underline">Retry</button></div>}
+      {!loadingMore&&hasMore&&<button onClick={()=>void loadMore()} className="w-full border-t border-border py-4 text-sm font-semibold text-primary hover:bg-muted/30">Load more</button>}
       {!loadingMore&&!hasMore&&<div className="py-10 text-center text-xs text-muted-foreground">You’re all caught up.</div>}</div>}
   </div>;
 }
