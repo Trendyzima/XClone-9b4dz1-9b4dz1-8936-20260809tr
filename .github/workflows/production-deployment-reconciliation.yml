@@ -15,7 +15,9 @@ on:
         type: boolean
 
 concurrency:
-  group: production-deployment-reconciliation
+  # A closed-but-unmerged PR must not cancel an active production deployment.
+  # Merged PR closes and main pushes intentionally share the production lane.
+  group: production-deployment-reconciliation-${{ github.event_name == 'pull_request' && github.event.pull_request.merged == false && github.run_id || 'main' }}
   cancel-in-progress: true
 
 permissions:
