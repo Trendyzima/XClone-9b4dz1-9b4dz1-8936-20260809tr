@@ -1,11 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { clearPasswordRecoverySession, markPasswordRecoverySession } from '@/lib/passwordRecovery';
 
-// Capture the original callback URL before createClient's automatic PKCE
-// detection can exchange the code and clean it out of window.location.
-export const initialAuthCallbackSearch =
-  typeof window !== 'undefined' ? window.location.search : '';
-
 const PRIMARY_SUPABASE_URL = 'https://ffrhglgkukgsuhxenena.supabase.co';
 const PRIMARY_SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya';
 
