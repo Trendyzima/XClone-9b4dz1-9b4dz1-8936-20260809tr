@@ -73,7 +73,7 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
     // No-fill and blocked-autoplay paths must always release the reel.
     startupTimeout = window.setTimeout(() => {
       if (!started.current) finish();
-    }, 20_000);
+    }, 12_000);
 
     const startPlayback = () => {
       const ads = manager.current;
@@ -84,8 +84,9 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
         ads.init(container.current?.clientWidth || 360, container.current?.clientHeight || window.innerHeight || 640, ima.ViewMode.NORMAL);
         ads.start();
         setStatus('Starting sponsored video…');
-        // Keep the deadline until the SDK confirms STARTED; a silent player
-        // failure must not leave a frozen reel.
+        window.clearTimeout(startupTimeout);
+        startupTimeout = window.setTimeout(() => { if (!started.current) finish(); }, 15_000);
+        // Keep a separate playback deadline after the user explicitly starts.
       } catch {
         finish();
       }
@@ -105,6 +106,9 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
           manager.current = ads;
           setAdReady(true);
           setStatus('Tap to play · swipe to continue');
+          // Once the creative is ready, keep the slide fixed until the viewer
+          // starts it or swipes away; do not let a load timer collapse it.
+          window.clearTimeout(startupTimeout);
 
           const onStart = () => {
             if (done.current) return;
