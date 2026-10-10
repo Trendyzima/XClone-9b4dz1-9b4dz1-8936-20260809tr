@@ -626,7 +626,7 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
       <UniversalVideoPlayer
         ref={videoRef}
         src={cancelPreload ? '' : (post.video_url || '')}
-        active={isActive && !showPrerollAd}
+        active={isActive && !showPrerollAd && (isPremium || prerollSeenRef.current)}
         preload={shouldPreload ? 'auto' : 'metadata'}
         muted={isMuted}
         loop
