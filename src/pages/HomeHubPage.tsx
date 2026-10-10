@@ -479,7 +479,7 @@ export default function HomeHubPage(){
             const page=feedBufferRef.current.slice(beforeLength,beforeLength+6);
             if(!page.length){setHasMore(Boolean(cacheCursorRef.current));return Boolean(cacheCursorRef.current);}
             feedBufferOffsetRef.current=beforeLength+page.length;
-            setItems(prev=>mergeHomeFeedItems(prev,page,Number.MAX_SAFE_INTEGER));
+            setItems(prev=>appendUniqueFeedItems(prev,page));
             setHasMore(Boolean(cacheCursorRef.current));
             await persistBuffer();
             return true;
@@ -496,7 +496,7 @@ export default function HomeHubPage(){
       const next=await fetchTab(tab,nextPage);
       if(next.length){
         tabPageRef.current=nextPage;
-        setItems(prev=>mergeHomeFeedItems(prev,next,Number.MAX_SAFE_INTEGER));
+        setItems(prev=>appendUniqueFeedItems(prev,next));
       }
       const pageSize=tab==='communities'||tab==='polls'||tab==='shopping'?12:20;
       setHasMore(next.length>=pageSize);
