@@ -1,5 +1,7 @@
 const DB_NAME='testagram-feed-cache-v2';
 const STORE='home-feed';
+// Keep a bounded offline window; page size is six so this aligns with full feed pages.
+export const HOME_FEED_CACHE_LIMIT=288;
 const MAX_CACHE_AGE_MS=7*24*60*60*1000;
 const FEDERATED_MAX_AGE_MS=24*60*60*1000;
 import { warmOfflineFeedItems } from '@/lib/offlineMediaCache';
@@ -34,7 +36,7 @@ export async function readHomeFeedCache(key='home'):Promise<CachedFeed|null>{
 export async function writeHomeFeedCache(value:CachedFeed,key='home'){
   if(typeof indexedDB==='undefined')return;
   const db=await openFeedDb();
-  const items=filterFreshHomeFeedItems(value.items.filter(Boolean));
+  const items=filterFreshHomeFeedItems(value.items.filter(Boolean)).slice(0,HOME_FEED_CACHE_LIMIT);
   return new Promise<void>((resolve,reject)=>{
     const tx=db.transaction(STORE,'readwrite');
     tx.objectStore(STORE).put({...value,key,items});

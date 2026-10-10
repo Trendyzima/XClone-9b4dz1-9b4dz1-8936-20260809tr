@@ -115,15 +115,8 @@ function blend(items: any[], limit: number) {
     const key = sourceKey(chosen);
     if (used.has(key)) continue;
 
-    // Avoid monotonous runs from the same surface/author while preserving
-    // strong follow affinity.
-    const recent = out.slice(-2);
-    const chosenAuthor = String(chosen.data?.author_id || chosen.data?.user_id || chosen.data?.owner_id || '');
-    const sameAuthor = chosenAuthor && recent.filter((x) =>
-      String(x.data?.author_id || x.data?.user_id || x.data?.owner_id || '') === chosenAuthor).length >= 2;
-    const sameSource = recent.filter((x) => String(x.data?.feed_source || x._source || '') === String(chosen.source || '')).length >= 2;
-    if (sameAuthor || sameSource) continue;
-
+    // Diversity is a preference, not permission to drop candidates: every
+    // fetched row must be returned so cursor pagination cannot skip it.
     used.add(key);
     out.push({ type: chosen.type, data: { ...chosen.data, feed_source: chosen.source } });
     if (shouldPriority) prioritySlots += 1;
@@ -532,7 +525,7 @@ export default async function handler(request: RequestLike) {
       }
     }
 
-    const items = injectFollowing(discovery, followed, limit);
+    const items = injectFollowing(discovery, followed, Number.MAX_SAFE_INTEGER);
     const fedCandidateCount = fed.length;
     const followedFederatedCandidateCount = fed.filter((item: any) => item.source === 'following-federated').length;
     const discoveryFederatedCandidateCount = fedCandidateCount - followedFederatedCandidateCount;

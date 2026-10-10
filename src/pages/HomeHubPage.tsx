@@ -12,7 +12,7 @@ import { useSEO } from '@/hooks/useSEO';
 import { useInfiniteScroll } from '@/hooks/useInfiniteScroll';
 import * as federation from '@/api/federation';
 import { Loader2, Sparkles, Users, ShoppingBag, BarChart3, RefreshCw, ArrowRight } from 'lucide-react';
-import { readHomeFeedCache, writeHomeFeedCache, saveHomeScroll, mergeHomeFeedItems, isHomeFeedCacheUsable } from '@/lib/homeFeedCache';
+import { readHomeFeedCache, writeHomeFeedCache, saveHomeScroll, mergeHomeFeedItems, isHomeFeedCacheUsable, HOME_FEED_CACHE_LIMIT } from '@/lib/homeFeedCache';
 import { FederatedHashtagDiscovery } from '@/components/features/FederatedOrganicDiscovery';
 import { loadPublisherFeed, PublisherFeedCard, type FeedItem } from '@/components/features/PublisherFeedStream';
 import { TvPostStream } from '@/components/features/TvPostStream';
@@ -363,7 +363,14 @@ export default function HomeHubPage(){
       return;
     }
     try{
+      // Background refresh reads the newest page, but its cursor must not replace
+      // the continuation cursor for the already-loaded older pages.
+      const continuationCursor=nextCursorRef.current;
       const next=await fetchTab('all',0,null,background);
+      if(background){
+        nextCursorRef.current=continuationCursor;
+        setNextCursor(continuationCursor);
+      }
       const previous=feedBufferRef.current;
       const previousIds=new Set(previous.map(x=>String(x.data?.id??x.data?.uri??'')));
       const fresh=next.filter(x=>!previousIds.has(String(x.data?.id??x.data?.uri??'')));
@@ -383,12 +390,12 @@ export default function HomeHubPage(){
         cacheCursorRef.current=nextCursorRef.current;
         setLoading(false);
       }
-      setHasMore(Boolean(cacheCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
+      setHasMore(Boolean(nextCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
       await persistBuffer();
       void hydratePublisherLayer(background ? nextCursorRef.current : null);
     }catch(e){console.error('[home-hub]',e);if(!background){
       const cached=await readHomeFeedCache().catch(()=>null);
-      if(cached && isHomeFeedCacheUsable(cached)){ feedBufferRef.current=cached.items; setItems(cached.items.slice(0, Math.max(6, feedBufferOffsetRef.current||6))); setHasMore(Boolean(cached.cursor)||cached.items.length>6); }
+      if(cached && isHomeFeedCacheUsable(cached)){ feedBufferRef.current=cached.items; feedBufferOffsetRef.current=cached.items.length; setItems(cached.items); cacheCursorRef.current=cached.cursor; nextCursorRef.current=cached.cursor; setHasMore(Boolean(cached.cursor)); }
       else {setItems([]);setHasMore(false);}
       setLoading(false);
     }}
@@ -465,22 +472,29 @@ export default function HomeHubPage(){
         const offset=feedBufferOffsetRef.current;
         if(offset<feedBufferRef.current.length){
           const page=feedBufferRef.current.slice(offset,offset+6);
-          if(!page.length){setHasMore(false);return false;}
+          if(!page.length){setHasMore(Boolean(nextCursorRef.current));return Boolean(nextCursorRef.current);}
           feedBufferOffsetRef.current=offset+page.length;
           setItems(prev=>appendUniqueFeedItems(prev,page));
+          setHasMore(Boolean(nextCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
           return true;
         }
-        if(cacheCursorRef.current){
-          const next=await fetchTab('all',0,cacheCursorRef.current);
+        if(nextCursorRef.current){
+          const next=await fetchTab('all',0,nextCursorRef.current);
           if(next.length){
             const beforeLength=feedBufferRef.current.length;
             feedBufferRef.current=appendUniqueFeedItems(feedBufferRef.current,next);
-            cacheCursorRef.current=nextCursorRef.current;
+            // The persisted cache contains only the first 288 items. Keep its
+            // cursor at or before that boundary so restoring cache can never
+            // skip older items; a boundary-crossing page may be fetched again
+            // once and deduplicated safely.
+            if(beforeLength < HOME_FEED_CACHE_LIMIT && feedBufferRef.current.length <= HOME_FEED_CACHE_LIMIT){
+              cacheCursorRef.current=nextCursorRef.current;
+            }
             const page=feedBufferRef.current.slice(beforeLength,beforeLength+6);
-            if(!page.length){setHasMore(Boolean(cacheCursorRef.current));return Boolean(cacheCursorRef.current);}
+            if(!page.length){setHasMore(Boolean(nextCursorRef.current));return Boolean(nextCursorRef.current);}
             feedBufferOffsetRef.current=beforeLength+page.length;
             setItems(prev=>appendUniqueFeedItems(prev,page));
-            setHasMore(Boolean(cacheCursorRef.current));
+            setHasMore(Boolean(nextCursorRef.current)||feedBufferOffsetRef.current<feedBufferRef.current.length);
             await persistBuffer();
             return true;
           }

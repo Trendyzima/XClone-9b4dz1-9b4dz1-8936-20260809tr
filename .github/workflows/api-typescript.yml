@@ -41,3 +41,5 @@ jobs:
           npx tsc --version
       - name: Typecheck API media boundary
         run: npm run typecheck:api
+      - name: Typecheck Home feed pagination endpoint
+        run: npx tsc --noEmit --target ES2022 --module ESNext --moduleResolution node --skipLibCheck --esModuleInterop api/home-feed.ts
