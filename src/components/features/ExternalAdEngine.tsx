@@ -11,7 +11,42 @@ function getUnit(pathname: string): AdUnit {
 const AD_DOCUMENTS: Record<AdUnit, { width: number; height: number; html: string }> = {
   'exoclick-display': {
     width: 300, height: 250,
-    html: '<script async type="application/javascript" src="https://a.magsrv.com/ad-provider.js"></script><ins class="eas6a97888e37" data-zoneid="6052126"></ins><script>(window.AdProvider=window.AdProvider||[]).push({"serve":{}});</script>',
+    // Primary: the requested ExoClick zone. If it returns no creative, try the
+    // already-configured Profitablerate unit and always leave a visible state
+    // instead of rendering a blank "Sponsored" shell.
+    html: `<script async type="application/javascript" src="https://a.magsrv.com/ad-provider.js"></script>
+<ins class="eas6a97888e37" data-zoneid="6052126" style="position:relative;z-index:1;display:block"></ins>
+<script>(window.AdProvider=window.AdProvider||[]).push({"serve":{}});</script>
+<div id="testagram-ad-fallback-status" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#fff;background:#111;font:600 12px system-ui,sans-serif;z-index:0">Loading sponsored ad…</div>
+<script>
+(function(){
+  var slot=document.querySelector('ins.eas6a97888e37');
+  var status=document.getElementById('testagram-ad-fallback-status');
+  var fallbackId='container-2e9d7cc41a80641600217164310c0008';
+  function primaryPresent(){return !!document.querySelector('iframe') || !!(slot&&slot.children.length);}
+  function fallbackPresent(){var box=document.getElementById(fallbackId);return !!(box&&(box.querySelector('iframe')||box.children.length));}
+  function setStatus(message){if(status)status.textContent=message;}
+  function useFallback(){
+    if(primaryPresent()){if(status)status.remove();return;}
+    if(slot)slot.remove();
+    setStatus('Loading another sponsored ad…');
+    var box=document.createElement('div');
+    box.id=fallbackId;
+    box.style.cssText='position:relative;z-index:1;width:300px;height:250px;';
+    document.body.appendChild(box);
+    var script=document.createElement('script');
+    script.async=true;
+    script.setAttribute('data-cfasync','false');
+    script.src='https://pl31756272.profitableratecpmnetwork.com/2e9d7cc41a80641600217164310c0008/invoke.js';
+    document.body.appendChild(script);
+    window.setTimeout(function(){
+      if(primaryPresent()||fallbackPresent()){if(status)status.remove();}
+      else setStatus('Sponsored ad temporarily unavailable');
+    },8000);
+  }
+  window.setTimeout(useFallback,8000);
+})();
+</script>`,
   },
   'network-300': {
     width: 300, height: 250,
