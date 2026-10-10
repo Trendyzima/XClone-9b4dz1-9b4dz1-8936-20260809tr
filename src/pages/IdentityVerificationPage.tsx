@@ -30,6 +30,7 @@ function friendlyIdentityError(error: unknown, fallback: string) {
     IDENTITY_REQUEST_FAILED: 'The verification request could not be completed. Please try again.',
     FILE_TOO_LARGE: 'Each evidence file must be 10 MB or smaller.',
     UNSUPPORTED_FILE_TYPE: 'Choose a supported image or video file.',
+    UNSUPPORTED_VIDEO_CAPTURE: 'This browser cannot record the required liveness video format. Try a recent version of Chrome or another supported browser.',
     UPLOAD_SLOT_MISSING: 'The upload session expired. Start a new verification attempt.',
     MISSING_EVIDENCE: 'Capture all four verification items before continuing.',
     CAMERA_PERMISSION_DENIED: 'Allow camera access in your browser settings, then try again.',
@@ -124,8 +125,9 @@ export default function IdentityVerificationPage() {
     const target = uploads[kind];
     if (!target) throw new Error('UPLOAD_SLOT_MISSING');
     if (file.size > 10 * 1024 * 1024) throw new Error('FILE_TOO_LARGE');
-    const allowedTypes = kind === 'liveness_video' ? ['video/webm', 'video/mp4', 'video/quicktime'] : ['image/jpeg', 'image/png', 'image/webp'];
-    if (file.type && !allowedTypes.includes(file.type)) throw new Error('UNSUPPORTED_FILE_TYPE');
+    const mimeType = file.type.split(';')[0].trim().toLowerCase();
+    const allowedTypes = kind === 'liveness_video' ? ['video/webm'] : ['image/jpeg', 'image/png', 'image/webp'];
+    if (mimeType && !allowedTypes.includes(mimeType)) throw new Error('UNSUPPORTED_FILE_TYPE');
     await identitySignup.uploadEvidence(target, file);
     await identitySignup.verification('mark_uploaded', { kind, path: target.path });
     setUploaded(prev => ({...prev,[kind]:true}));
@@ -142,17 +144,16 @@ export default function IdentityVerificationPage() {
     setMessage('');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});
-      const supportedMimeType = ['video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'].find(type => MediaRecorder.isTypeSupported(type));
-      const recorder = supportedMimeType ? new MediaRecorder(stream, { mimeType: supportedMimeType }) : new MediaRecorder(stream);
+      const supportedMimeType = ['video/webm;codecs=vp8,opus', 'video/webm'].find(type => MediaRecorder.isTypeSupported(type));
+      if (!supportedMimeType) throw new Error('UNSUPPORTED_VIDEO_CAPTURE');
+      const recorder = new MediaRecorder(stream, { mimeType: supportedMimeType });
       chunks.current = [];
       recorder.ondataavailable = e => { if (e.data.size) chunks.current.push(e.data); };
       recorder.onstop = async () => {
         stream.getTracks().forEach(track => track.stop());
         setRecording(false);
-        const mimeType = recorder.mimeType || 'video/webm';
-        const blob = new Blob(chunks.current, { type: mimeType });
-        const extension = mimeType.includes('mp4') ? 'mp4' : 'webm';
-        try { await upload('liveness_video', new File([blob], `liveness.${extension}`, { type: mimeType })); }
+        const blob = new Blob(chunks.current, { type: 'video/webm' });
+        try { await upload('liveness_video', new File([blob], 'liveness.webm', { type: 'video/webm' })); }
         catch (error:any) { setMessage(friendlyIdentityError(error, 'Liveness upload failed.')); }
       };
       mediaRecorder.current = recorder;
