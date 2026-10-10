@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast';
 import { VideoMonetizationAd } from './VideoMonetizationAd';
 import { usePremium } from '@/hooks/usePremium';
 import { UniversalVideoPlayer } from './UniversalVideoPlayer';
+import { ExoClickVastPreRoll } from './ExoClickVastPreRoll';
 
 interface VideoPlayerProps {
   post: Post;
@@ -164,6 +165,10 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
       const shouldShowAd = !isPremium && !adDoneForThisPost &&
         (post.is_monetized || viewCounterRef.current % 3 === 0);
       if (shouldShowAd) {
+        // Pause the selected reel before requesting the external VAST pre-roll.
+        // If the provider has no fill, the ad component fails open after its timeout.
+        video.pause();
+        setIsPlaying(false);
         setShowPrerollAd(true);
         setAdDoneForThisPost(true);
       } else {
@@ -181,12 +186,12 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
   }, [isActive]);
 
   /* ── Ad complete ─────────────────────────────────────────────────────── */
-  const handleAdComplete = () => {
+  const handleAdComplete = useCallback(() => {
     setShowPrerollAd(false);
     setShowMidrollAd(false);
     const video = videoRef.current;
     if (video) video.play().then(() => setIsPlaying(true)).catch(() => {});
-  };
+  }, []);
 
   /* ── Time update → progress + mid-roll trigger ───────────────────────── */
   const handleTimeUpdate = () => {
@@ -621,14 +626,7 @@ export function VideoPlayer({ post, isActive, onUpdate, shouldPreload, cancelPre
       style={{ touchAction: 'pan-y', WebkitTapHighlightColor: 'transparent' }}
     >
       {/* Pre-roll ad */}
-      {showPrerollAd && (
-        <VideoMonetizationAd
-          postId={post.id}
-          creatorUserId={post.user_id}
-          onAdComplete={handleAdComplete}
-          skipAfterSeconds={5}
-        />
-      )}
+      {showPrerollAd && <ExoClickVastPreRoll onComplete={handleAdComplete} />}
 
       {/* Mid-roll ad */}
       {showMidrollAd && (

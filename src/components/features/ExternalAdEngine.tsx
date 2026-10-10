@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
-type AdUnit = 'network-300' | 'content-300' | 'banner-728' | 'skyscraper-160';
+type AdUnit = 'network-300' | 'content-300' | 'banner-728' | 'skyscraper-160' | 'exoclick-display';
 const WIDE_PAGES = new Set(['/', '/home', '/explore', '/search', '/videos', '/shorts']);
 const BLOCKED_PATH = /^\/(auth|login|signup|register|forgot-password|reset-password|password-reset|verify|verify-identity|profile\/complete|admin|settings|account|security|billing|subscription|invoice|wallet|messages|notifications|help|premium|create-ad|my-ads|ad-|rewards|payouts|revenue|analytics|appeals|sessions|blocked|privacy|terms|policy|regulator|tv-studio|start-stream)(\/|$)/;
 
@@ -9,6 +9,10 @@ function getUnit(pathname: string): AdUnit {
   return WIDE_PAGES.has(pathname) || pathname.startsWith('/home/') ? 'banner-728' : 'network-300';
 }
 const AD_DOCUMENTS: Record<AdUnit, { width: number; height: number; html: string }> = {
+  'exoclick-display': {
+    width: 300, height: 250,
+    html: '<ins class="eas6a97888e37" data-zoneid="6052126"></ins><script async type="application/javascript" src="https://a.magsrv.com/ad-provider.js"></script><script>(window.AdProvider=window.AdProvider||[]).push({"serve":{}});</script>',
+  },
   'network-300': {
     width: 300, height: 250,
     html: `<script async="async" data-cfasync="false" src="https://pl31756272.profitableratecpmnetwork.com/2e9d7cc41a80641600217164310c0008/invoke.js"></script><div id="container-2e9d7cc41a80641600217164310c0008"></div>`,
@@ -76,7 +80,7 @@ function AdFrame({ unit }: { unit: AdUnit }) {
 export function ExternalAdEngine({ surface = 'top' }: { surface?: 'top' | 'sidebar' | 'overlay' }) {
   const { pathname } = useLocation();
   if (BLOCKED_PATH.test(pathname) || (pathname === '/iptv' && surface !== 'overlay') || (pathname.startsWith('/tv/live/') && surface !== 'overlay')) return null;
-  if (surface === 'overlay') return <div className="rounded-xl bg-black/85 p-1 shadow-xl"><AdFrame unit="content-300" /></div>;
+  if (surface === 'overlay') return <div className="rounded-xl bg-black/85 p-1 shadow-xl"><AdFrame unit="exoclick-display" /></div>;
   if (surface === 'sidebar') {
     if (WIDE_PAGES.has(pathname) || pathname.startsWith('/home/')) return null;
     return <div className="hidden xl:block"><AdFrame unit="skyscraper-160" /></div>;
@@ -84,7 +88,7 @@ export function ExternalAdEngine({ surface = 'top' }: { surface?: 'top' | 'sideb
   const widePage = getUnit(pathname) === 'banner-728';
   return (
     <div className="external-ad-top px-3 pt-2 pb-1">
-      <div className="xl:hidden"><AdFrame unit={widePage ? 'network-300' : 'content-300'} /></div>
+      <div className="xl:hidden"><AdFrame unit="exoclick-display" /></div>
       {widePage && <div className="hidden xl:block"><AdFrame unit="banner-728" /></div>}
     </div>
   );

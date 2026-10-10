@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { TestagramAdSlot } from '@/components/features/TestagramAdSlot';
 import { useNavigate } from 'react-router-dom';
 import { UserRound, LogIn, X } from 'lucide-react';
 import { ExternalAdEngine } from '@/components/features/ExternalAdEngine';
+import { ExoClickVastPreRoll } from '@/components/features/ExoClickVastPreRoll';
 import { usePremium } from '@/hooks/usePremium';
 import { useAuth } from '@/hooks/useAuth';
 
@@ -16,11 +17,14 @@ export default function TikVTVPage() {
   const { user } = useAuth();
   const { isActive: isPremium } = usePremium();
   const [ready, setReady] = useState(false);
+  const [preRollDone, setPreRollDone] = useState(false);
   const [failed, setFailed] = useState(false);
   const [showAd, setShowAd] = useState(false);
   const [adsDismissed, setAdsDismissed] = useState(false);
+  const completePreRoll = useCallback(() => setPreRollDone(true), []);
 
   useEffect(() => {
+    setPreRollDone(false);
     setReady(false);
     setFailed(false);
     setShowAd(false);
@@ -49,7 +53,8 @@ export default function TikVTVPage() {
           {user?.username ? 'XClone profile' : 'Sign in'}
         </button>
       </div>
-      {!ready && !failed && (
+      {!preRollDone && !isPremium && <ExoClickVastPreRoll onComplete={completePreRoll} />}
+      {(preRollDone || isPremium) && !ready && !failed && (
         <div className="absolute inset-0 z-10 grid place-items-center bg-black text-white">
           <div className="text-center">
             <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
@@ -78,7 +83,7 @@ export default function TikVTVPage() {
           </div>
         </div>
       )}
-      <iframe
+      {(preRollDone || isPremium) && <iframe
         title="Testagram IPTV"
         src="/iptv-app/entry.html"
         className="h-full w-full border-0 bg-black"
@@ -86,7 +91,7 @@ export default function TikVTVPage() {
         allowFullScreen
         onLoad={() => setReady(true)}
         onError={() => setFailed(true)}
-      />
+      />}
     </div>
   );
 }
