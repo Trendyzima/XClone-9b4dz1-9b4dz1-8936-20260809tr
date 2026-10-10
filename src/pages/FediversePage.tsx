@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { Fragment, useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
 import { useAuth } from '@/hooks/useAuth';
@@ -23,6 +23,7 @@ import { useSEO, buildOgImageUrl } from '@/hooks/useSEO';
 
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { PostCard } from '@/components/features/PostCard';
+import { ExoClickInlineAd } from '@/components/features/ExoClickInlineAd';
 import { FederatedOrganicInjection } from '@/components/features/FederatedOrganicDiscovery';
 function FediverseAdBanner() { return <PageAdBanner />; }
 
@@ -1181,7 +1182,7 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
           ) : (
             <>
               <div className="fediverse-feed-list divide-y divide-border">
-                {remotePosts.map((p: any, i: number) => <RemotePostRow key={p.uri ?? p.id ?? p.object_url ?? i} p={p} />)}
+                {remotePosts.map((p: any, i: number) => <Fragment key={p.uri ?? p.id ?? p.object_url ?? i}><RemotePostRow p={p} />{i===4&&<ExoClickInlineAd surface="fediverse"/>}</Fragment>)}
               </div>
               <div ref={feedSentinelRef} className="min-h-10" aria-hidden="true">
                 {loadingMoreFeed && hasMoreFeed && (

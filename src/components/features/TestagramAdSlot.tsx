@@ -124,6 +124,25 @@ export function TestagramAdSlot({ placement, context, className = '', compact = 
 
   const isVideo = ad.format?.toLowerCase().includes('video');
 
+  if (compact) {
+    return (
+      <article ref={cardRef} className={`rounded-xl border border-border bg-card/95 overflow-hidden shadow-lg backdrop-blur ${className}`} data-testagram-ad-placement={placement} data-campaign-id={ad.campaign_id}>
+        <div className="flex items-center justify-between gap-2 px-3 pt-2 text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          <span className="inline-flex items-center gap-1.5"><Megaphone className="w-3 h-3" /> Sponsored · Testagram Ads</span>
+          <span className="inline-flex items-center gap-1 normal-case tracking-normal font-medium"><ShieldCheck className="w-3 h-3" /> Ad</span>
+        </div>
+        <button type="button" onClick={() => { event('click'); if (ad.click_through_url) window.open(ad.click_through_url, '_blank', 'noopener,noreferrer'); }} className="flex w-full items-center gap-3 p-3 text-left">
+          {ad.asset_url && <img src={ad.asset_url} alt="" className="h-14 w-14 shrink-0 rounded-md object-cover bg-muted" loading="lazy" decoding="async" />}
+          <span className="min-w-0 flex-1">
+            {ad.headline && <span className="block truncate text-sm font-bold leading-tight">{ad.headline}</span>}
+            {ad.body && <span className="mt-1 block line-clamp-2 text-xs text-muted-foreground">{ad.body}</span>}
+            <span className="mt-1 inline-flex items-center gap-1 text-xs font-semibold text-primary">{ad.cta || 'Learn more'} <ExternalLink className="h-3 w-3" /></span>
+          </span>
+        </button>
+      </article>
+    );
+  }
+
   return (
     <article ref={cardRef} className={`relative rounded-2xl border border-border bg-card overflow-hidden shadow-sm ${compact ? 'text-xs' : ''} ${className}`} data-testagram-ad-placement={placement} data-campaign-id={ad.campaign_id}>
       {dismissible && <button type="button" onClick={() => setDismissed(true)} aria-label="Dismiss sponsored ad" className="absolute right-2 top-2 z-10 rounded-full border border-border bg-background/90 p-1.5 text-muted-foreground shadow-sm hover:text-foreground"><X className="h-3.5 w-3.5" /></button>}

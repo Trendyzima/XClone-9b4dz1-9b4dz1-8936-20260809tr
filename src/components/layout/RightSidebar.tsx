@@ -16,7 +16,7 @@ import { TrendingUp, Users, Hash, Radio, Sparkles, Plus, Check, RefreshCw, Troph
 import { formatNumber } from '@/lib/utils';
 import { UserSuggestionsWidget } from '../features/UserSuggestionsWidget';
 import { ContentSuggestionsWidget } from '../features/ContentSuggestionsWidget';
-import { TestagramAdSlot } from '../features/TestagramAdSlot';
+import { ExternalAdEngine } from '../features/ExternalAdEngine';
 import { toast } from 'sonner';
 
 interface TrendingHashtag {
@@ -316,7 +316,6 @@ function CreatorLeaderboardWidget() {
 }
 
 export function RightSidebar() {
-  const adContext = { page_path: typeof window !== 'undefined' ? window.location.pathname : '/', surface: 'SIDEBAR' };
   const navigate = useNavigate();
   const { user } = useAuth();
   const [trending, setTrending] = useState<TrendingTopic[]>([]);
@@ -455,7 +454,7 @@ export function RightSidebar() {
   };
   
   return (<>
-    <div className="hidden xl:block w-80 px-4 pt-4"><TestagramAdSlot placement="SIDEBAR" context={adContext} /></div>
+    <div className="hidden xl:block w-80 px-4 pt-4"><ExternalAdEngine surface="sidebar" /></div>
     <aside className="hidden xl:block w-80 h-screen sticky top-0 p-4 space-y-4 overflow-y-auto">
       {/* Create Community */}
       <div className="bg-muted/50 rounded-xl p-4 border border-border">
