@@ -555,7 +555,9 @@ const result = spawnSync(
   viteArgs,
   {
     stdio: 'inherit',
-    shell: false,
+    // Windows .cmd shims (npx.cmd) must be launched through a shell. Direct
+    // spawn with shell:false fails with EINVAL after the vendor bundle succeeds.
+    shell: process.platform === 'win32',
     env: {
       ...process.env,
       NODE_OPTIONS: nodeOptions,
