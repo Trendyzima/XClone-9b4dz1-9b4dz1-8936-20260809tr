@@ -43,7 +43,9 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
   const display = useRef<any>(null);
   const initialized = useRef(false);
   const startRequested = useRef(false);
+  const playbackRequested = useRef(false);
   const started = useRef(false);
+  const finishRef = useRef<() => void>(() => {});
   const done = useRef(false);
   const pointerStart = useRef<{ x: number; y: number } | null>(null);
   const [canSkip, setCanSkip] = useState(false);
@@ -66,6 +68,7 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
       display.current = null;
       onComplete();
     };
+    finishRef.current = finish;
 
     // No-fill and blocked-autoplay paths must always release the reel.
     startupTimeout = window.setTimeout(() => {
@@ -75,13 +78,14 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
     const startPlayback = () => {
       const ads = manager.current;
       const ima = window.google?.ima;
-      if (!ads || !ima || disposed || done.current || started.current) return;
+      if (!ads || !ima || disposed || done.current || playbackRequested.current) return;
       try {
+        playbackRequested.current = true;
         ads.init(container.current?.clientWidth || 360, container.current?.clientHeight || window.innerHeight || 640, ima.ViewMode.NORMAL);
         ads.start();
-        started.current = true;
         setStatus('Starting sponsored video…');
-        window.clearTimeout(startupTimeout);
+        // Keep the deadline until the SDK confirms STARTED; a silent player
+        // failure must not leave a frozen reel.
       } catch {
         finish();
       }
@@ -142,6 +146,7 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
       disposed = true;
       window.clearTimeout(startupTimeout);
       window.clearInterval(skipPoll);
+      finishRef.current = () => {};
       try { manager.current?.destroy(); } catch {}
       manager.current = null;
       display.current = null;
@@ -162,11 +167,7 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
     if (Math.abs(dy) > 64 || Math.abs(dx) > 88) {
       // ExoClick's vertical format is dismissed by swiping, not by trapping
       // the viewer in a mandatory full-screen ad.
-      if (!done.current) {
-        done.current = true;
-        try { manager.current?.destroy(); } catch {}
-        onComplete();
-      }
+      finishRef.current();
       return;
     }
 
@@ -186,21 +187,7 @@ export function ExoClickVastPreRoll({ onComplete }: { onComplete: () => void }) 
         return;
       }
     }
-    const ads = manager.current;
-    const ima = window.google?.ima;
-    if (ads && ima && !started.current && !done.current) {
-      try {
-        ads.init(container.current?.clientWidth || 360, container.current?.clientHeight || window.innerHeight || 640, ima.ViewMode.NORMAL);
-        ads.start();
-        started.current = true;
-        setStatus('Starting sponsored video…');
-      } catch {
-        if (!done.current) {
-          done.current = true;
-          onComplete();
-        }
-      }
-    }
+    startPlayback();
   };
 
   return (
