@@ -14,6 +14,28 @@ import { identitySignup } from '@/lib/identitySignup';
 
 type AuthMode = 'signin' | 'signup' | 'otp' | 'recover' | 'reset';
 
+function friendlyAuthError(error: unknown, fallback: string) {
+  const message = error instanceof Error ? error.message : '';
+  const safeMessages: Record<string, string> = {
+    AGE_RESTRICTION: 'You must be at least 18 years old to create a Testagram account.',
+    LEGAL_ACCEPTANCE_REQUIRED: 'Please review and accept the required policies before continuing.',
+    INVALID_EMAIL: 'Enter a valid email address.',
+    EMAIL_ALREADY_REGISTERED: 'An account may already exist for this email. Try signing in or recovering your password.',
+    REGISTRATION_EXPIRED: 'This registration has expired. Start again to receive a new verification code.',
+    REGISTRATION_TOKEN_REQUIRED: 'Your registration session has expired. Start again to continue.',
+    REGISTRATION_COMPLETED: 'This registration has already been completed. Please sign in.',
+    PASSWORD_TOO_SHORT: 'Use a password with at least 8 characters.',
+    EMAIL_NOT_VERIFIED: 'Verify your email before continuing.',
+    IDENTITY_NOT_APPROVED: 'Your identity must be approved before creating the account.',
+    IDENTITY_SERVICE_UNAVAILABLE: 'Authentication services are temporarily unavailable. Please try again shortly.',
+    IDENTITY_REQUEST_TIMEOUT: 'The request took too long. Check your connection and try again.',
+    IDENTITY_NETWORK_ERROR: 'Could not reach the authentication service. Check your connection and try again.',
+    RATE_LIMITED: 'Too many attempts. Wait a little before trying again.',
+    TESTAGRAM_MAIL_NOT_CONFIGURED: 'Email verification is temporarily unavailable. Please try again later.',
+  };
+  return safeMessages[message] || (message.includes('timed out') ? 'The request took too long. Check your connection and try again.' : fallback);
+}
+
 function getSafeReturnTo() {
   if (typeof window === 'undefined') return '/';
   const value = new URLSearchParams(window.location.search).get('returnTo')?.trim();
@@ -76,7 +98,7 @@ export default function AuthPage() {
       } catch (error: any) {
         if (!cancelled) {
           setLoading(false);
-          toast({ title: 'Verification link failed', description: error?.message || 'Request a new verification email.', variant: 'destructive' });
+          toast({ title: 'Verification link failed', description: friendlyAuthError(error, 'Request a new verification email.'), variant: 'destructive' });
         }
       }
     })();
@@ -111,7 +133,7 @@ export default function AuthPage() {
   const handlePasswordSignIn = async (event: FormEvent) => {
     event.preventDefault(); setLoading(true);
     try { await finishLogin(await authService.signInWithPassword(email, password)); }
-    catch (error: any) { setLoading(false); toast({ title: 'Sign-in failed', description: error?.message || 'Check your details and try again.', variant: 'destructive' }); }
+    catch (error: any) { setLoading(false); toast({ title: 'Sign-in failed', description: friendlyAuthError(error, 'Check your details and try again.'), variant: 'destructive' }); }
   };
 
   const startIdentitySignup = async () => {
@@ -134,15 +156,13 @@ export default function AuthPage() {
 
   const handlePasswordSignUp = async (event: FormEvent) => {
     event.preventDefault();
-    if (password.length < 8 || password !== confirmation) {
-      toast({ title: 'Check your password', description: password !== confirmation ? 'Passwords do not match.' : 'Use at least 8 characters.', variant: 'destructive' });
-      return;
-    }
+    // Password creation happens only after email and identity verification have
+    // succeeded. Do not collect a password here that cannot yet be used.
     setLoading(true);
     try {
       await startIdentitySignup();
     } catch (error: any) {
-      toast({ title: 'Could not start identity verification', description: error?.message || 'Please try again.', variant: 'destructive' });
+      toast({ title: 'Could not start identity verification', description: friendlyAuthError(error, 'Please try again.'), variant: 'destructive' });
     } finally { setLoading(false); }
   };
 
@@ -159,7 +179,7 @@ export default function AuthPage() {
         toast({ title: 'Verification code sent', description: 'Enter the 6-digit code we sent to your email.' });
       }
     } catch (error: any) {
-      toast({ title: 'Code request failed', description: error?.message || 'We could not send the verification code.', variant: 'destructive' });
+      toast({ title: 'Code request failed', description: friendlyAuthError(error, 'We could not send the verification code.'), variant: 'destructive' });
     } finally { setLoading(false); }
   };
 
@@ -180,7 +200,7 @@ export default function AuthPage() {
       await finishLogin(await authService.verifyEmailOtp(email, otp, 'email'));
     } catch (error: any) {
       setLoading(false);
-      toast({ title: 'Verification failed', description: error?.message || 'The code is invalid or expired.', variant: 'destructive' });
+      toast({ title: 'Verification failed', description: friendlyAuthError(error, 'The code is invalid or expired.'), variant: 'destructive' });
     }
   };
 
@@ -195,7 +215,7 @@ export default function AuthPage() {
       setOtp('');
       toast({ title: 'New code sent', description: 'Check your email for the latest 6-digit verification code.' });
     } catch (error: any) {
-      toast({ title: 'Could not resend code', description: error?.message || 'Please try again.', variant: 'destructive' });
+      toast({ title: 'Could not resend code', description: friendlyAuthError(error, 'Please try again.'), variant: 'destructive' });
     } finally { setLoading(false); }
   };
 
@@ -205,7 +225,7 @@ export default function AuthPage() {
       await authService.resetPassword(email);
       toast({ title: 'Check your email', description: 'If the account exists, we sent a secure password reset link.' });
     } catch (error: any) {
-      toast({ title: 'Reset request failed', description: error?.message || 'Please check the email and try again.', variant: 'destructive' });
+      toast({ title: 'Reset request failed', description: friendlyAuthError(error, 'Please check the email and try again.'), variant: 'destructive' });
     } finally { setLoading(false); }
   };
 
@@ -222,7 +242,7 @@ export default function AuthPage() {
       window.history.replaceState({}, document.title, '/auth');
       navigate(getSafeReturnTo(), { replace: true });
     } catch (error: any) {
-      toast({ title: 'Password update failed', description: error?.message || 'Your reset link may have expired. Request a new one.', variant: 'destructive' });
+      toast({ title: 'Password update failed', description: friendlyAuthError(error, 'Your reset link may have expired. Request a new one.'), variant: 'destructive' });
     } finally { setLoading(false); }
   };
 
@@ -234,7 +254,7 @@ export default function AuthPage() {
 
   const go = (next: AuthMode) => { setLoading(false); setPassword(''); setConfirmation(''); setMode(next); };
   const title = mode === 'signin' ? 'Welcome back' : mode === 'signup' ? 'Create your account' : mode === 'otp' ? 'Enter your verification code' : mode === 'recover' ? 'Reset your password' : 'Choose a new password';
-  const subtitle = mode === 'signin' ? 'Sign in to continue your Testagram journey.' : mode === 'signup' ? 'Join Testagram and start sharing what matters.' : mode === 'otp' ? `We sent a 6-digit code to ${email}. Enter it below to continue.` : mode === 'recover' ? 'We’ll send a secure reset link to your email.' : 'Your new password should be at least 8 characters.';
+  const subtitle = mode === 'signin' ? 'Sign in to continue your Testagram journey.' : mode === 'signup' ? 'Verify your email and identity first. You will create your password after approval.' : mode === 'otp' ? `We sent a 6-digit code to ${email}. Enter it below to continue.` : mode === 'recover' ? 'We’ll send a secure reset link to your email.' : 'Your new password should be at least 8 characters.';
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,_hsl(var(--primary)/.13),_transparent_38%),linear-gradient(180deg,hsl(var(--background)),hsl(var(--muted)/.35))] px-4 py-6 sm:py-10">
@@ -268,9 +288,8 @@ export default function AuthPage() {
                   <form onSubmit={mode === 'signin' ? handlePasswordSignIn : handlePasswordSignUp} className="space-y-3.5">
                     {mode === 'signup' && <Field icon={Sparkles} type="text" autoComplete="username" placeholder="Username (optional)" value={username} onChange={e => setUsername(e.target.value)} />}
                     <Field icon={Mail} type="email" autoComplete="email" placeholder="Email address" value={email} onChange={e => setEmail(e.target.value)} required />
-                    <div className="relative"><Field icon={KeyRound} type={showPassword ? 'text' : 'password'} autoComplete={mode === 'signin' ? 'current-password' : 'new-password'} placeholder="Password (8+ characters)" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} /><button type="button" aria-label="Toggle password visibility" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-xl p-2 text-muted-foreground hover:bg-muted">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>
-                    {mode === 'signup' && <div className="relative"><Field icon={KeyRound} type={showConfirmation ? 'text' : 'password'} autoComplete="new-password" placeholder="Confirm password" value={confirmation} onChange={e => setConfirmation(e.target.value)} required minLength={8} /><button type="button" aria-label="Toggle confirmation visibility" onClick={() => setShowConfirmation(v => !v)} className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-xl p-2 text-muted-foreground hover:bg-muted">{showConfirmation ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>}
-                    <Button type="submit" disabled={loading} className="h-13 w-full rounded-2xl text-sm font-black shadow-lg shadow-primary/20">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : mode === 'signin' ? 'Log in with password' : 'Create account'}</Button>
+                    {mode === 'signin' && <div className="relative"><Field icon={KeyRound} type={showPassword ? 'text' : 'password'} autoComplete="current-password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} /><button type="button" aria-label="Toggle password visibility" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-1/2 z-20 -translate-y-1/2 rounded-xl p-2 text-muted-foreground hover:bg-muted">{showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button></div>}
+                    <Button type="submit" disabled={loading} className="h-13 w-full rounded-2xl text-sm font-black shadow-lg shadow-primary/20">{loading ? <Loader2 className="h-5 w-5 animate-spin" /> : mode === 'signin' ? 'Log in with password' : 'Continue to email verification'}</Button>
                   </form>
 
                   {mode === 'signin' && <button onClick={() => go('recover')} className="mt-4 w-full text-center text-sm font-semibold text-muted-foreground hover:text-primary">Forgot your password?</button>}

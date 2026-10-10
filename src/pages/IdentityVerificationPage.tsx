@@ -16,6 +16,31 @@ const labels: Record<EvidenceKind,string> = {
   liveness_video: 'Liveness video',
 };
 
+function friendlyIdentityError(error: unknown, fallback: string) {
+  const message = error instanceof Error ? error.message : '';
+  const messages: Record<string, string> = {
+    REGISTRATION_TOKEN_REQUIRED: 'Your registration session has expired. Return to sign up and start again.',
+    REGISTRATION_EXPIRED: 'Your registration has expired. Start again to receive a new verification session.',
+    REGISTRATION_COMPLETED: 'This registration has already been completed. Please sign in.',
+    VERIFICATION_SESSION_REQUIRED: 'Your verification session is missing. Start a new verification attempt.',
+    VERIFICATION_SESSION_EXPIRED: 'Your verification session expired. Start a new attempt to continue.',
+    IDENTITY_SERVICE_UNAVAILABLE: 'Identity verification is temporarily unavailable. Please try again shortly.',
+    IDENTITY_REQUEST_TIMEOUT: 'The request took too long. Check your connection and try again.',
+    IDENTITY_NETWORK_ERROR: 'Could not reach the verification service. Check your connection and try again.',
+    IDENTITY_REQUEST_FAILED: 'The verification request could not be completed. Please try again.',
+    FILE_TOO_LARGE: 'Each evidence file must be 10 MB or smaller.',
+    UNSUPPORTED_FILE_TYPE: 'Choose a supported image or video file.',
+    UNSUPPORTED_VIDEO_CAPTURE: 'This browser cannot record the required liveness video format. Try a recent version of Chrome or another supported browser.',
+    UPLOAD_SLOT_MISSING: 'The upload session expired. Start a new verification attempt.',
+    MISSING_EVIDENCE: 'Capture all four verification items before continuing.',
+    CAMERA_PERMISSION_DENIED: 'Allow camera access in your browser settings, then try again.',
+    IDENTITY_NOT_APPROVED: 'Your identity has not been approved yet.',
+  };
+  if (messages[message]) return messages[message];
+  if (message === 'NotAllowedError' || /permission denied/i.test(message)) return 'Allow camera access in your browser settings, then try again.';
+  return fallback;
+}
+
 export default function IdentityVerificationPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -88,6 +113,8 @@ export default function IdentityVerificationPage() {
       for (const item of (urlResult.uploads || [])) next[item.kind as EvidenceKind] = { kind:item.kind, path:item.path, token:item.token };
       setUploads(next);
       setUploaded({});
+      setStatus('pending');
+      setMessage('');
       setStage('capture');
     } catch (error: any) {
       setMessage(error?.message || 'We could not start your private verification session.');
@@ -98,6 +125,9 @@ export default function IdentityVerificationPage() {
     const target = uploads[kind];
     if (!target) throw new Error('UPLOAD_SLOT_MISSING');
     if (file.size > 10 * 1024 * 1024) throw new Error('FILE_TOO_LARGE');
+    const mimeType = file.type.split(';')[0].trim().toLowerCase();
+    const allowedTypes = kind === 'liveness_video' ? ['video/webm'] : ['image/jpeg', 'image/png', 'image/webp'];
+    if (mimeType && !allowedTypes.includes(mimeType)) throw new Error('UNSUPPORTED_FILE_TYPE');
     await identitySignup.uploadEvidence(target, file);
     await identitySignup.verification('mark_uploaded', { kind, path: target.path });
     setUploaded(prev => ({...prev,[kind]:true}));
@@ -106,7 +136,7 @@ export default function IdentityVerificationPage() {
   const captureFile = async (kind: EvidenceKind, file: File | undefined) => {
     if (!file) return;
     setMessage('');
-    try { await upload(kind,file); } catch (error:any) { setMessage(error?.message || 'Evidence upload failed.'); }
+    try { await upload(kind,file); } catch (error:any) { setMessage(friendlyIdentityError(error, 'Evidence upload failed.')); }
   };
 
   const startLiveness = async () => {
@@ -114,20 +144,23 @@ export default function IdentityVerificationPage() {
     setMessage('');
     try {
       const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});
-      const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+      const supportedMimeType = ['video/webm;codecs=vp8,opus', 'video/webm'].find(type => MediaRecorder.isTypeSupported(type));
+      if (!supportedMimeType) throw new Error('UNSUPPORTED_VIDEO_CAPTURE');
+      const recorder = new MediaRecorder(stream, { mimeType: supportedMimeType });
       chunks.current = [];
       recorder.ondataavailable = e => { if (e.data.size) chunks.current.push(e.data); };
       recorder.onstop = async () => {
         stream.getTracks().forEach(track => track.stop());
-        const blob = new Blob(chunks.current,{type:'video/webm'});
-        try { await upload('liveness_video', new File([blob],'liveness.webm',{type:'video/webm'})); }
-        catch (error:any) { setMessage(error?.message || 'Liveness upload failed.'); }
+        setRecording(false);
+        const blob = new Blob(chunks.current, { type: 'video/webm' });
+        try { await upload('liveness_video', new File([blob], 'liveness.webm', { type: 'video/webm' })); }
+        catch (error:any) { setMessage(friendlyIdentityError(error, 'Liveness upload failed.')); }
       };
       mediaRecorder.current = recorder;
       recorder.start();
       setRecording(true);
       window.setTimeout(() => recorder.state === 'recording' && recorder.stop(), 5000);
-    } catch (error:any) { setMessage(error?.message || 'Camera access is required for liveness.'); }
+    } catch (error:any) { setRecording(false); setMessage(friendlyIdentityError(error, 'Camera access is required for liveness.')); }
   };
 
   const beginProcessing = async () => {
@@ -138,7 +171,7 @@ export default function IdentityVerificationPage() {
       await identitySignup.verification('begin_processing');
       setStage('processing');
       await loadStatus();
-    } catch (error:any) { setProcessing(false); setMessage(error?.message || 'We could not submit the verification for processing.'); }
+    } catch (error:any) { setProcessing(false); setMessage(friendlyIdentityError(error, 'We could not submit the verification for processing.')); }
   };
 
   useEffect(() => {
@@ -156,7 +189,7 @@ export default function IdentityVerificationPage() {
       const finalized = await finalizeAuthenticatedSession(createdUser);
       login(finalized);
       navigate('/', { replace: true });
-    } catch (error:any) { setMessage(error?.message || 'Account creation could not be completed.'); }
+    } catch (error:any) { setMessage(friendlyIdentityError(error, 'Account creation could not be completed.')); }
     finally { setFinalizing(false); }
   };
 
@@ -180,12 +213,12 @@ export default function IdentityVerificationPage() {
             <p className="mt-1 text-muted-foreground">Testagram now performs the verification flow itself. Your Kenyan national ID is captured front and back, followed by selfie and liveness evidence. The raw evidence is private, processed by our own verification engine, and removed after the retention window.</p>
           </div>
 
-          {rejected && <div className="mt-5 flex gap-3 rounded-2xl border border-red-500/30 bg-red-500/5 p-4"><XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" /><div><p className="font-bold">Identity verification was not approved</p><p className="text-sm text-muted-foreground">{message || 'You can start a fresh verification session with the correct document.'}</p></div></div>}
+          {rejected && <div className="mt-5 flex gap-3 rounded-2xl border border-red-500/30 bg-red-500/5 p-4"><XCircle className="mt-0.5 h-5 w-5 shrink-0 text-red-600" /><div><p className="font-bold">Identity verification was not approved</p><p className="text-sm text-muted-foreground">{message || 'Review the capture guidance, then start a fresh verification attempt.'}</p></div></div>}
           {underReview && <div className="mt-5 flex gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/5 p-4"><Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" /><div><p className="font-bold">Verification is under review</p><p className="text-sm text-muted-foreground">The local engine did not have enough confidence for automatic approval. Testagram will not create or unlock the account until review is complete.</p></div></div>}
 
-          {!approved && !underReview && !rejected && !captureReady && (
+          {!approved && !underReview && (!captureReady || rejected) && (
             <button disabled={starting} onClick={start} className="mt-6 flex h-13 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-4 font-black text-primary-foreground disabled:opacity-50">
-              {starting ? <Loader2 className="h-5 w-5 animate-spin" /> : <><ShieldCheck className="h-5 w-5" />Start private verification</>}
+              {starting ? <Loader2 className="h-5 w-5 animate-spin" /> : <><ShieldCheck className="h-5 w-5" />{rejected ? 'Start a new verification attempt' : 'Start private verification'}</>}
             </button>
           )}
 

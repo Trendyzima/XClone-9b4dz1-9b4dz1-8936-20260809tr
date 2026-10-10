@@ -331,9 +331,42 @@ Deno.serve(async (req) => {
     return json({ok:false,error:"UNKNOWN_ACTION"},400);
   } catch (error) {
     const details = errorDetails(error);
-    const message = details.message;
-    const status = /RESTRICTION|NOT_APPROVED|NOT_VERIFIED|EXPIRED|REQUIRED|NOT_CONFIGURED|TIMEOUT/.test(message) ? 400 : 500;
+    const internalMessage = details.message;
+    const publicCodes = new Set([
+      "INVALID_EMAIL", "INVALID_BIRTH_DATE", "INVALID_NATIONAL_ID",
+      "AGE_RESTRICTION", "LEGAL_ACCEPTANCE_REQUIRED", "REGISTRATION_NOT_FOUND",
+      "REGISTRATION_COMPLETED", "REGISTRATION_EXPIRED", "REGISTRATION_TOKEN_REQUIRED",
+      "EMAIL_NOT_VERIFIED", "CODE_EXPIRED", "INVALID_CODE", "EMAIL_ALREADY_REGISTERED",
+      "IDENTITY_NOT_APPROVED", "VERIFICATION_SESSION_MISSING",
+      "IDENTITY_ENGINE_APPROVAL_REQUIRED", "IDENTITY_FINGERPRINT_MISSING",
+      "BIRTH_DATE_MISMATCH", "PASSWORD_TOO_SHORT", "IDENTITY_ALREADY_REGISTERED",
+      "AUTH_REQUIRED", "UNKNOWN_ACTION", "VERIFICATION_SESSION_REQUIRED",
+      "VERIFICATION_SESSION_NOT_FOUND", "VERIFICATION_SESSION_EXPIRED",
+      "VERIFICATION_SESSION_TERMINAL", "MISSING_EVIDENCE", "EVIDENCE_NOT_FOUND",
+      "IDENTITY_SECRET_NOT_CONFIGURED", "TESTAGRAM_MAIL_NOT_CONFIGURED",
+    ]);
+    const publicError = publicCodes.has(internalMessage) ? internalMessage : "IDENTITY_SERVICE_ERROR";
+    const conflictCodes = new Set(["EMAIL_ALREADY_REGISTERED", "IDENTITY_ALREADY_REGISTERED"]);
+    const unavailableCodes = new Set(["IDENTITY_SECRET_NOT_CONFIGURED", "TESTAGRAM_MAIL_NOT_CONFIGURED"]);
+    const clientErrorCodes = new Set([
+      "INVALID_EMAIL", "INVALID_BIRTH_DATE", "INVALID_NATIONAL_ID", "AGE_RESTRICTION",
+      "LEGAL_ACCEPTANCE_REQUIRED", "REGISTRATION_NOT_FOUND", "REGISTRATION_COMPLETED",
+      "REGISTRATION_EXPIRED", "REGISTRATION_TOKEN_REQUIRED", "EMAIL_NOT_VERIFIED",
+      "CODE_EXPIRED", "INVALID_CODE", "IDENTITY_NOT_APPROVED", "VERIFICATION_SESSION_MISSING",
+      "IDENTITY_ENGINE_APPROVAL_REQUIRED", "IDENTITY_FINGERPRINT_MISSING", "BIRTH_DATE_MISMATCH",
+      "PASSWORD_TOO_SHORT", "AUTH_REQUIRED", "UNKNOWN_ACTION", "VERIFICATION_SESSION_REQUIRED",
+      "VERIFICATION_SESSION_NOT_FOUND", "VERIFICATION_SESSION_EXPIRED", "VERIFICATION_SESSION_TERMINAL",
+      "MISSING_EVIDENCE", "EVIDENCE_NOT_FOUND",
+    ]);
+    const status = conflictCodes.has(publicError) ? 409
+      : publicError === "AGE_RESTRICTION" ? 403
+      : publicError === "AUTH_REQUIRED" ? 401
+      : unavailableCodes.has(publicError) ? 503
+      : clientErrorCodes.has(publicError) ? 400
+      : 500;
+    // Keep full diagnostics in server logs, but never return database, mail
+    // provider, stack, or upstream error details to unauthenticated callers.
     console.error("IDENTITY_SIGNUP_FAILURE", JSON.stringify({ error: details }));
-    return json({ok:false,error:message},status);
+    return json({ok:false,error:publicError},status);
   }
 });
