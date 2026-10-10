@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { Fragment, useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { TopBar } from '@/components/layout/TopBar';
 import { PostCard } from '@/components/features/PostCard';
@@ -29,6 +29,7 @@ import { formatNumber } from '@/lib/utils';
 import { toast as sonnerToast } from 'sonner';
 import { formatDistanceToNow, isPast } from 'date-fns';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
+import { ExoClickInlineAd } from '@/components/features/ExoClickInlineAd';
 import { backendCapabilities } from '@/services/backendClient';
 
 // ── Module-level constants (esbuild-safe) ────────────────────────────────────
@@ -1053,8 +1054,8 @@ export default function CommunityPage({ section, standalone = false }: { section
             ) : posts.length === 0 ? (
               <div className="flex flex-col items-center text-center py-12 text-muted-foreground"><Image className="w-12 h-12 mb-3 opacity-40" /><p className="font-semibold">No posts yet</p></div>
             ) : (
-              [...posts].sort((a, b) => (pinnedPostIds.has(b.id) ? 1 : 0) - (pinnedPostIds.has(a.id) ? 1 : 0)).map(post => (
-                <div key={post.id} className="relative">
+              [...posts].sort((a, b) => (pinnedPostIds.has(b.id) ? 1 : 0) - (pinnedPostIds.has(a.id) ? 1 : 0)).map((post, index) => (
+                <Fragment key={post.id}><div className="relative">
                   {pinnedPostIds.has(post.id) && <div className="flex items-center gap-1.5 px-4 pt-2 pb-0 text-xs font-semibold text-amber-600"><Pin className="w-3 h-3" /> Pinned</div>}
                   <PostCard post={post} onUpdate={fetchPosts} />
                   {isAdmin && (
@@ -1077,7 +1078,7 @@ export default function CommunityPage({ section, standalone = false }: { section
                       )}
                     </div>
                   )}
-                </div>
+                </div>{index===4&&<ExoClickInlineAd surface="community"/>}</Fragment>
               ))
             )}
             {hasMorePosts && (
