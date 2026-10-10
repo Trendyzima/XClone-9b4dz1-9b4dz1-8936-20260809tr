@@ -54,7 +54,7 @@ export default function TikVTVPage() {
         </button>
       </div>
       {!preRollDone && !isPremium && <ExoClickVastPreRoll onComplete={completePreRoll} />}
-      {(!ready && !failed && (
+      {(preRollDone || isPremium) && !ready && !failed && (
         <div className="absolute inset-0 z-10 grid place-items-center bg-black text-white">
           <div className="text-center">
             <div className="mx-auto mb-3 h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
@@ -83,8 +83,7 @@ export default function TikVTVPage() {
           </div>
         </div>
       )}
-      ))}
-      {preRollDone && <iframe
+      {(preRollDone || isPremium) && <iframe
         title="Testagram IPTV"
         src="/iptv-app/entry.html"
         className="h-full w-full border-0 bg-black"
