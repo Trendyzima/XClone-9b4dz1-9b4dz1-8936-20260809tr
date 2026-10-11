@@ -21,6 +21,13 @@ import '../features/communities/communities_page.dart';
 import '../features/communities/community_detail_page.dart';
 import '../features/creator/creator_studio_page.dart';
 import '../features/tv/tv_studio_page.dart';
+import '../features/videos/videos_page.dart';
+import '../features/discovery/discovery_pages.dart';
+import '../features/marketplace/products_page.dart';
+import '../features/marketplace/orders_page.dart';
+import '../features/news/news_page.dart';
+import '../features/fediverse/fediverse_page.dart';
+import '../features/spaces/spaces_page.dart';
 import 'testagram_shell.dart';
 
 class TestagramApp extends StatefulWidget {
@@ -87,6 +94,22 @@ class _TestagramAppState extends State<TestagramApp> {
         final publicRoute = path == '/' ||
             path == '/explore' ||
             path == '/tv' ||
+            path == '/videos' ||
+            path == '/shorts' ||
+            path == '/videos/watchlater' ||
+            path == '/hashtags' ||
+            path.startsWith('/hashtag/') ||
+            path == '/leaderboard' ||
+            path == '/leaderboard/creators' ||
+            path == '/news' ||
+            path == '/fediverse' ||
+            path == '/fediverse/instances' ||
+            path == '/spaces' ||
+            path.startsWith('/spaces/') ||
+            path.startsWith('/space-recording/') ||
+            path == '/products' ||
+            path == '/marketplace' ||
+            path.startsWith('/p/') ||
             path == '/threads' ||
             path == '/communities' ||
             path.startsWith('/thread/') ||
@@ -152,6 +175,57 @@ class _TestagramAppState extends State<TestagramApp> {
                     threadId: state.pathParameters['threadId'] ?? '',
                     repliesOnly: true)),
             GoRoute(path: '/tv', builder: (_, __) => const TvPage()),
+            GoRoute(path: '/videos', builder: (_, __) => const VideosPage()),
+            GoRoute(
+                path: '/shorts',
+                builder: (_, __) => const VideosPage(shortsMode: true)),
+            GoRoute(
+                path: '/videos/watchlater',
+                builder: (_, __) => const VideosPage(watchLaterOnly: true)),
+            GoRoute(
+                path: '/hashtags', builder: (_, __) => const HashtagsPage()),
+            GoRoute(
+                path: '/hashtag/:tag',
+                builder: (_, state) =>
+                    HashtagsPage(tag: state.pathParameters['tag'])),
+            GoRoute(
+                path: '/leaderboard',
+                builder: (_, __) => const LeaderboardPage()),
+            GoRoute(
+                path: '/leaderboard/creators',
+                builder: (_, __) => const LeaderboardPage()),
+            GoRoute(
+                path: '/products', builder: (_, __) => const ProductsPage()),
+            GoRoute(
+                path: '/marketplace', builder: (_, __) => const ProductsPage()),
+            GoRoute(
+                path: '/p/:productId',
+                builder: (_, state) =>
+                    ProductsPage(productId: state.pathParameters['productId'])),
+            GoRoute(path: '/orders', builder: (_, __) => const OrdersPage()),
+            GoRoute(path: '/news', builder: (_, __) => const NewsPage()),
+            GoRoute(
+                path: '/fediverse', builder: (_, __) => const FediversePage()),
+            GoRoute(
+                path: '/fediverse/instances',
+                builder: (_, __) => const FediversePage(instancesOnly: true)),
+            GoRoute(path: '/spaces', builder: (_, __) => const SpacesPage()),
+            GoRoute(
+                path: '/spaces/:id',
+                builder: (_, state) =>
+                    SpacesPage(spaceId: state.pathParameters['id'])),
+            GoRoute(
+                path: '/space-recording/:id',
+                builder: (_, state) =>
+                    SpacesPage(recordingId: state.pathParameters['id'])),
+            GoRoute(
+                path: '/space/:id',
+                builder: (_, state) =>
+                    SpacesPage(spaceId: state.pathParameters['id'])),
+            GoRoute(
+                path: '/space/:id/recordings',
+                builder: (_, state) =>
+                    SpacesPage(spaceId: state.pathParameters['id'])),
             GoRoute(
                 path: '/tv-studio', builder: (_, __) => const TvStudioPage()),
             GoRoute(
