@@ -9,6 +9,44 @@ type IptvAdWindow = Window & {
   __testagramImaPromise?: Promise<void>;
 };
 
+/** Apply strict, TikTok-style snapping to the real same-origin IPTV feed shell. */
+function installRigidIptvScrollShell(frame: HTMLIFrameElement): () => void {
+  let doc: Document | null = null;
+  try { doc = frame.contentDocument; } catch { return () => {}; }
+  if (!doc?.defaultView) return () => {};
+  const win = doc.defaultView;
+  const style = doc.createElement('style');
+  style.dataset.testagramRigidScroll = '1';
+  style.textContent = 'html,body{overscroll-behavior-y:none} [data-testagram-scroll-shell="1"]{scroll-snap-type:y mandatory!important;overscroll-behavior-y:contain!important;-webkit-overflow-scrolling:touch;touch-action:pan-y;scrollbar-width:none} [data-testagram-scroll-shell="1"]::-webkit-scrollbar{display:none} [data-testagram-channel-shell="1"]{scroll-snap-align:start!important;scroll-snap-stop:always!important;flex-shrink:0!important;box-sizing:border-box!important;backface-visibility:hidden}';
+  (doc.head || doc.documentElement).appendChild(style);
+  const markShells = () => {
+    const vh = win.innerHeight || doc!.documentElement.clientHeight || 0;
+    if (!vh) return;
+    let best: HTMLElement | null = null;
+    let bestScore = 0;
+    for (const el of Array.from(doc!.querySelectorAll<HTMLElement>('body *'))) {
+      if (el === style || el.closest('script,style,iframe,video')) continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 160 || rect.height < vh * 0.65 || el.scrollHeight <= el.clientHeight + 8) continue;
+      const overflow = win.getComputedStyle(el).overflowY;
+      if (!/(auto|scroll|overlay)/.test(overflow)) continue;
+      const score = el.scrollHeight / Math.max(1, el.clientHeight);
+      if (score > bestScore) { best = el; bestScore = score; }
+    }
+    if (!best) return;
+    best.dataset.testagramScrollShell = '1';
+    for (const child of Array.from(best.children)) {
+      if (!(child instanceof win.HTMLElement)) continue;
+      const rect = child.getBoundingClientRect();
+      if (rect.height >= vh * 0.65 && rect.width >= best.clientWidth * 0.65) child.dataset.testagramChannelShell = '1';
+    }
+  };
+  markShells();
+  const observer = win.MutationObserver ? new win.MutationObserver(markShells) : null;
+  if (observer && doc.body) observer.observe(doc.body, { childList: true, subtree: true });
+  win.addEventListener('resize', markShells, { passive: true });
+  return () => { observer?.disconnect(); win.removeEventListener('resize', markShells); style.remove(); doc!.querySelectorAll('[data-testagram-scroll-shell="1"]').forEach(el => delete (el as HTMLElement).dataset.testagramScrollShell); doc!.querySelectorAll('[data-testagram-channel-shell="1"]').forEach(el => delete (el as HTMLElement).dataset.testagramChannelShell); };
+}
 function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
   let childWindow: (Window & { google?: any; __testagramImaPromise?: Promise<void> }) | null = null;
   let childDocument: Document | null = null;
@@ -421,8 +459,11 @@ export default function TikVTVPage() {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
   useEffect(() => {
-    if (!ready || isPremium || !iframeRef.current) return;
-    return installIptvChannelAds(iframeRef.current);
+    if (!ready || !iframeRef.current) return;
+    const frame = iframeRef.current;
+    const removeRigidScroll = installRigidIptvScrollShell(frame);
+    const removeAds = isPremium ? undefined : installIptvChannelAds(frame);
+    return () => { removeAds?.(); removeRigidScroll(); };
   }, [ready, isPremium]);
 
   return (
