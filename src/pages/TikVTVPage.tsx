@@ -61,6 +61,8 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
   const win = childWindow as Window & { google?: any; __testagramImaPromise?: Promise<void> };
   const doc = childDocument;
   const attemptedChannels = new Set<string>();
+  // Full-screen IMA is opt-in only; production defaults to uninterrupted channel playback.
+  const allowFullscreenIma = doc.documentElement.dataset.testagramAllowFullscreenIma === 'true';
   const observedCards = new WeakSet<HTMLElement>();
   const activeCards = new Set<HTMLElement>();
   const finishers = new Map<HTMLElement, () => void>();
@@ -394,12 +396,12 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
         adFrame.title = 'Sponsored Adsterra banner';
         adFrame.width = '320';
         adFrame.height = '50';
-        adFrame.loading = 'lazy';
+        adFrame.loading = 'eager';
         adFrame.referrerPolicy = 'strict-origin-when-cross-origin';
         adFrame.dataset.testagramAdsterraFrame = '320x50';
         adFrame.setAttribute('sandbox', 'allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms');
         adFrame.style.cssText = 'display:block;width:320px;max-width:100%;height:50px;margin:0 auto;border:0;';
-        adFrame.srcdoc = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;width:320px;height:50px;overflow:hidden;background:transparent}body{display:flex;align-items:center;justify-content:center}</style></head><body><script>(function(){var done=false,start=Date.now(),timer=0;function report(status,reason){if(done)return;done=true;if(timer)clearInterval(timer);parent.postMessage({type:'testagram-iptv-ad-slot',status:status,reason:reason||'unspecified'},'*');}function hasCreative(){var nodes=Array.prototype.slice.call(document.querySelectorAll('iframe,img,video,canvas,object,embed'));return nodes.some(function(el){var r=el.getBoundingClientRect();if(r.width<30||r.height<20)return false;if(el.tagName==='IMG')return el.complete&&el.naturalWidth>0;if(el.tagName==='VIDEO')return el.readyState>=1||!!el.poster;if(el.tagName==='CANVAS')return el.width>0&&el.height>0;return true;});}window.atOptions={key:'805d1754a35091e2a2cb80cc19b9192c',format:'iframe',height:50,width:320,params:{}};var script=document.createElement('script');script.async=true;script.src='https://www.highrevenueformat.com/805d1754a35091e2a2cb80cc19b9192c/invoke.js';script.onerror=function(){report('empty','script-error');};document.body.appendChild(script);timer=setInterval(function(){if(hasCreative())report('filled','creative-detected');else if(Date.now()-start>=12000)report('empty','no-creative-timeout');},250);})();</script></body></html>`;
+        adFrame.srcdoc = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;width:320px;height:50px;overflow:hidden;background:transparent}body{display:flex;align-items:center;justify-content:center}</style></head><body><script>(function(){var done=false,start=Date.now(),timer=0;function report(status,reason){if(done)return;done=true;if(timer)clearInterval(timer);parent.postMessage({type:'testagram-iptv-ad-slot',status:status,reason:reason||'unspecified'},'*');}function hasCreative(){var nodes=Array.prototype.slice.call(document.querySelectorAll('iframe,img,video,canvas,object,embed'));return nodes.some(function(el){var r=el.getBoundingClientRect();if(r.width<30||r.height<20)return false;if(el.tagName==='IFRAME'){var src=el.getAttribute('src')||'';return !!src&&src!=='about:blank'&&src.indexOf('javascript:')!==0;}if(el.tagName==='IMG')return el.complete&&el.naturalWidth>0;if(el.tagName==='VIDEO')return el.readyState>=1||!!el.poster;if(el.tagName==='CANVAS')return el.width>0&&el.height>0;return true;});}window.atOptions={key:'805d1754a35091e2a2cb80cc19b9192c',format:'iframe',height:50,width:320,params:{}};var script=document.createElement('script');script.async=true;script.src='https://www.highrevenueformat.com/805d1754a35091e2a2cb80cc19b9192c/invoke.js';script.onerror=function(){report('empty','script-error');};document.body.appendChild(script);timer=setInterval(function(){if(hasCreative())report('filled','creative-detected');else if(Date.now()-start>=12000)report('empty','no-creative-timeout');},250);})();</script></body></html>`;
         banner.append(sponsored, adFrame);
         card.appendChild(banner);
       }
@@ -427,7 +429,10 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
               finish();
             }
           });
-          startAd(card);
+          // Full-screen IMA interruption is intentionally disabled. Channel
+          // playback must remain continuous; only the non-blocking banner below
+          // may be mounted on the channel card.
+          if (allowFullscreenIma) startAd(card);
         } else if (!entry.isIntersecting || entry.intersectionRatio < 0.25) {
           activeCards.delete(card);
           finishers.get(card)?.();
