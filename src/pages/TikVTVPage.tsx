@@ -248,7 +248,7 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
     const startManager = () => {
       if (!requestReady || !manager || !win.google?.ima || disposed || disposedAd || adStarted) return;
       try {
-        manager.init(Math.max(320, card.clientWidth || win.innerWidth || 360), Math.max(480, card.clientHeight || win.innerHeight || 640), win.google.ima.ViewMode.NORMAL);
+        manager.init(Math.max(200, overlay.clientWidth || 320), Math.max(112, overlay.clientHeight || 180), win.google.ima.ViewMode.NORMAL);
         manager.start();
         adStarted = true;
         prompt.style.display = 'none';
@@ -363,8 +363,8 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
       loader.addEventListener(ima.AdErrorEvent.Type.AD_ERROR, finish, false);
       const request = new ima.AdsRequest();
       request.adTagUrl = 'https://s.magsrv.com/v1/vast.php?idzone=6052130';
-      request.linearAdSlotWidth = Math.max(320, card.clientWidth || win.innerWidth || 360);
-      request.linearAdSlotHeight = Math.max(480, card.clientHeight || win.innerHeight || 640);
+      request.linearAdSlotWidth = Math.max(200, overlay.clientWidth || 320);
+      request.linearAdSlotHeight = Math.max(112, overlay.clientHeight || 180);
       request.nonLinearAdSlotWidth = request.linearAdSlotWidth;
       request.nonLinearAdSlotHeight = Math.round(request.linearAdSlotHeight / 3);
       loader.requestAds(request);
