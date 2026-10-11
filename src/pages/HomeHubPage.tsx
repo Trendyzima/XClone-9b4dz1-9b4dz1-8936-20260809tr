@@ -525,7 +525,7 @@ export default function HomeHubPage(){
   const {lastElementRef}=useInfiniteScroll(loadMore,{hasMore});
   const refresh=async()=>{setRefreshing(true);try{await load(tab);}finally{setRefreshing(false);}};
 
-  return <div className="min-h-screen bg-background pb-16 lg:pb-0">
+  return <div className="tg-social-home-shell min-h-screen bg-background pb-16 lg:pb-0">
     <TopBar title="Home"/>
     <Suspense fallback={<div className="h-20 border-b border-border bg-background" aria-hidden="true" />}><StoriesStrip tv={<TvPostStream index={0} compact />} /></Suspense>
 
@@ -547,7 +547,7 @@ export default function HomeHubPage(){
     {!loading&&<button onClick={refresh} disabled={refreshing} className="w-full py-2 border-b border-border text-xs text-muted-foreground flex items-center justify-center gap-2"><RefreshCw className={'w-3 h-3 '+(refreshing?'animate-spin':'')}/>{refreshing?'Refreshing…':'Refresh feed'}</button>}
     {loading?<div className="py-20 flex justify-center"><Loader2 className="w-7 h-7 animate-spin text-primary"/></div>:
       items.length===0?<div className="py-20 text-center text-muted-foreground"><Sparkles className="w-10 h-10 mx-auto mb-3 opacity-30"/><p className="font-semibold">Nothing here yet</p><p className="text-sm mt-1">Explore another section or be the first to add content.</p></div>:
-      <div>{items.map((item,i)=><div key={item.type+'-'+(item.data?.id??i)}><HomeFeedItem item={item} index={i} lastElementRef={i===items.length-1?lastElementRef:null} tab={tab} onUpdate={()=>load(tab)} onNavigate={navigate}/>{(tab==='all'||tab==='following'||tab==='explore'||tab==='media')&&(i+1)%8===0&&<FeedAdCard key={'sponsored-'+(i+1)} />}</div>)}
+      <div className="tg-home-feed-list">{items.map((item,i)=><div className="tg-home-feed-row" key={item.type+'-'+(item.data?.id??i)}><HomeFeedItem item={item} index={i} lastElementRef={i===items.length-1?lastElementRef:null} tab={tab} onUpdate={()=>load(tab)} onNavigate={navigate}/>{(tab==='all'||tab==='following'||tab==='explore'||tab==='media')&&(i+1)%8===0&&<FeedAdCard key={'sponsored-'+(i+1)} />}</div>)}
       {loadingMore&&<div className="py-8 flex justify-center"><Loader2 className="w-6 h-6 animate-spin text-primary"/></div>}
       {loadMoreError&&<div className="px-4 py-3 text-center text-xs text-muted-foreground">{loadMoreError}<button onClick={()=>void loadMore()} className="ml-2 font-semibold text-primary underline">Retry</button></div>}
       {!loadingMore&&hasMore&&<button onClick={()=>void loadMore()} className="w-full border-t border-border py-4 text-sm font-semibold text-primary hover:bg-muted/30">Load more</button>}
