@@ -296,10 +296,12 @@ export default function SpacesPage() {
     if (profile) setUserProfile(profile);
     if (!capabilityError && capability) {
       const row = Array.isArray(capability) ? capability[0] : capability;
+      const isOwner = Boolean(row?.is_owner) || (!capabilityError && Boolean(ownerFlag));
+      const isVerified = Boolean(row?.is_verified) || Boolean(profile?.verified);
       setHostCapability({
-        canHost: Boolean(row?.can_host),
-        isOwner: Boolean(row?.is_owner),
-        isVerified: Boolean(row?.is_verified),
+        canHost: isOwner || Boolean(row?.can_host) || isVerified,
+        isOwner,
+        isVerified,
         loading: false,
       });
     } else {
@@ -454,7 +456,7 @@ export default function SpacesPage() {
                 className="rounded-full border-red-500/30 text-red-600 hover:bg-red-500/10"
                 onClick={() => navigate('/tv-studio')}
               >
-                <Video className="w-4 h-4 mr-1.5" />TV Studio
+                <Video className="w-4 h-4 mr-1.5" />TV Production Studio
               </Button>
             )}
             {user && (
@@ -543,7 +545,7 @@ export default function SpacesPage() {
       <SpacesAdBanner />
 
       {/* Verified badge info */}
-      {user && !hostCapability.loading && !hostCapability.canHost && (
+      {user && !hostCapability.loading && !hostCapability.canHost && !hostCapability.isOwner && (
         <div className="mx-4 mt-4 flex items-center gap-3 p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-xl">
           <Lock className="w-5 h-5 text-orange-500 flex-shrink-0" />
           <div>
