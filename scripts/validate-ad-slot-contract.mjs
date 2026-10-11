@@ -3,8 +3,10 @@ import fs from 'node:fs';
 
 const externalPath = 'src/components/features/ExternalAdEngine.tsx';
 const iptvPath = 'src/pages/TikVTVPage.tsx';
+const appPath = 'src/App.tsx';
 const external = fs.readFileSync(externalPath, 'utf8');
 const iptv = fs.readFileSync(iptvPath, 'utf8');
+const app = fs.readFileSync(appPath, 'utf8');
 
 function extractTemplate(source, marker, endMarker) {
   const markerIndex = source.indexOf(marker);
@@ -41,6 +43,12 @@ assert.ok(!external.includes('relative h-px w-full overflow-hidden'), 'ExternalA
 assert.ok(!external.includes('-z-10 overflow-hidden opacity-0'), 'ExternalAdEngine must not hide the publisher frame while waiting for creative detection');
 assert.ok(external.includes("report('empty','script-error')"), 'ExternalAdEngine must distinguish script errors from no-fill timeouts');
 assert.ok(external.includes("}, [unit]);"), 'ExternalAdEngine message listener must track the current unit');
+assert.ok(external.includes("data-zoneid=\\\"6052126\\\""), 'ExoClick display slot must preserve the approved publisher zone ID');
+assert.ok(external.includes('data-testid="exoclick-page-placement"'), 'ExoClick page placement must have a stable test hook');
+assert.ok(external.includes('return <div className="external-ad-top mx-auto w-full max-w-full py-1" data-testid="exoclick-page-placement">\\n      <AdFrame unit="exoclick-display" />'), 'Top page placement must use ExoClick display inventory');
+assert.ok(app.includes("import { ExternalAdEngine } from '@/components/features/ExternalAdEngine';"), 'Shared application shell must import the external ad engine');
+assert.ok(app.includes('<ExternalAdEngine key={location.pathname} surface="top"/>'), 'Shared application shell must remount the ad slot on eligible route navigation');
+assert.ok(external.includes('checkout|orders|cart|payment|purchases|withdraw|withdrawals'), 'External ads must be suppressed on transactional routes');
 
 const iptvTemplate = extractTemplate(iptv, 'adFrame.srcdoc = `', '`;');
 validateEmbeddedScript(iptvTemplate, 'IPTV Adsterra banner');
