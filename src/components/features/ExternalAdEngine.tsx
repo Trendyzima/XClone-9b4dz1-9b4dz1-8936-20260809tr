@@ -80,28 +80,36 @@ function AdFrame({ unit }: { unit: AdUnit }) {
     return () => window.removeEventListener('message', onMessage);
   }, [unit]);
 
-  const srcDoc = useMemo(() => `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;width:${ad.width}px;height:${ad.height}px;overflow:hidden;background:transparent}body{display:flex;align-items:flex-start;justify-content:flex-start}</style></head><body>${ad.html}<script>(function(){var done=false,start=Date.now();function hasCreative(){var nodes=Array.prototype.slice.call(document.querySelectorAll('iframe,img,video,canvas,object,embed'));return nodes.some(function(el){var r=el.getBoundingClientRect();if(r.width<30||r.height<20)return false;if(el.tagName==='IMG')return el.complete&&el.naturalWidth>0;if(el.tagName==='VIDEO')return el.readyState>=1||!!el.poster;if(el.tagName==='CANVAS')return el.width>0&&el.height>0;return true;});}function report(status,reason){if(done)return;done=true;parent.postMessage({type:'testagram-ad-slot',status:status,reason:reason||'unspecified'},'*');}var timer=setInterval(function(){if(hasCreative()){clearInterval(timer);report('filled','creative-detected');}else if(Date.now()-start>12000){clearInterval(timer);report('empty','no-creative-timeout');}},300);})();</script></body></html>`, [ad]);
+  const srcDoc = useMemo(() => `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>html,body{margin:0;padding:0;width:${ad.width}px;height:${ad.height}px;overflow:hidden;background:transparent}body{display:flex;align-items:flex-start;justify-content:flex-start}</style></head><body>${ad.html}<script>(function(){var done=false,start=Date.now(),timer=0;function report(status,reason){if(done)return;done=true;clearInterval(timer);parent.postMessage({type:'testagram-ad-slot',status:status,reason:reason||'unspecified'},'*');}function hasCreative(){var nodes=Array.prototype.slice.call(document.querySelectorAll('iframe,img,video,canvas,object,embed'));return nodes.some(function(el){var r=el.getBoundingClientRect();if(r.width<30||r.height<20)return false;if(el.tagName==='IMG')return el.complete&&el.naturalWidth>0;if(el.tagName==='VIDEO')return el.readyState>=1||!!el.poster;if(el.tagName==='CANVAS')return el.width>0&&el.height>0;return true;});}window.addEventListener('error',function(event){var target=event.target;if(target&&target.tagName==='SCRIPT'&&target.src&&target.src.indexOf(location.origin)!==0)report('empty','script-error');},true);timer=setInterval(function(){if(hasCreative())report('filled','creative-detected');else if(Date.now()-start>=12000)report('empty','no-creative-timeout');},250);})();</script></body></html>`, [ad]);
 
   if (adStatus === 'empty') return null;
   const filled = adStatus === 'filled';
   return (
-    <section className={`external-ad-shell mx-auto max-w-full ${filled ? 'my-3' : 'relative h-px w-full overflow-hidden'}`} aria-label="Sponsored advertisement" data-external-ad-unit={unit} data-ad-status={adStatus}>
-      <div ref={probeRef} aria-hidden="true" className={filled ? 'hidden' : 'absolute inset-0 h-px w-full'} />
+    <section
+      ref={probeRef}
+      className={`external-ad-shell mx-auto max-w-full overflow-hidden ${filled ? 'my-3' : 'my-2'}`}
+      aria-label="Sponsored advertisement placement"
+      data-external-ad-unit={unit}
+      data-ad-status={adStatus}
+      style={{ width: ad.width, maxWidth: '100%', minHeight: ad.height }}
+    >
       {filled && <div className="mb-1 flex items-center justify-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"><span aria-hidden="true">ⓘ</span><span>Sponsored</span></div>}
-      <div className={filled ? 'mx-auto max-w-full overflow-x-auto overflow-y-hidden' : 'pointer-events-none absolute left-0 top-0 -z-10 overflow-hidden opacity-0'} style={{ width: ad.width, height: ad.height }}>
-        <iframe
-          ref={frameRef}
-          title="Sponsored advertisement"
-          width={ad.width}
-          height={ad.height}
-          loading="lazy"
-          referrerPolicy="strict-origin-when-cross-origin"
-          sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms"
-          srcDoc={nearViewport ? srcDoc : '<!doctype html><html><body style="margin:0"></body></html>'}
-          className="block border-0"
-          style={{ width: ad.width, height: ad.height, maxWidth: 'none' }}
-        />
-      </div>
+      {nearViewport && (
+        <div className="mx-auto max-w-full overflow-hidden" style={{ width: ad.width, height: ad.height }}>
+          <iframe
+            ref={frameRef}
+            title="Sponsored advertisement"
+            width={ad.width}
+            height={ad.height}
+            loading="eager"
+            referrerPolicy="strict-origin-when-cross-origin"
+            sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox allow-forms"
+            srcDoc={srcDoc}
+            className="block border-0"
+            style={{ width: ad.width, height: ad.height, maxWidth: '100%', background: 'transparent' }}
+          />
+        </div>
+      )}
     </section>
   );
 }
