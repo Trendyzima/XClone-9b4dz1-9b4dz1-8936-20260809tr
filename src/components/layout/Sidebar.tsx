@@ -412,7 +412,7 @@ export function Sidebar() {
               <h3 className="px-4 text-xs font-semibold text-muted-foreground uppercase tracking-wide">Creator Tools</h3>
             </div>
             <div className="space-y-1">
-              {creatorTools.map((item) => {
+              {creatorTools.filter((item) => item.path !== '/tv-studio' || governance.is_owner).map((item) => {
                 const Icon = item.icon;
                 const isActive = location.pathname === item.path;
                 const badge = item.path === '/scheduled' ? scheduledBadge : 0;
