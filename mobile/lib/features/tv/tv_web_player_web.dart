@@ -77,9 +77,12 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
     });
   }
 
-  static Future<bool> _ensureHls() {
-    if (_hlsConstructor != null) return Future<bool>.value(true);
-    return _hlsLoad ??= () async {
+  static Future<bool> _ensureHls() async {
+    if (_hlsConstructor != null) return true;
+    final pending = _hlsLoad;
+    if (pending != null) return pending;
+
+    final load = () async {
       final completer = Completer<bool>();
       final script = web.HTMLScriptElement()
         ..src = 'https://cdn.jsdelivr.net/npm/hls.js@1.6.13/dist/hls.min.js'
@@ -94,6 +97,7 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
       script.addEventListener(
           'error',
           ((web.Event event) {
+            script.remove();
             if (!completer.isCompleted) {
               completer.complete(false);
             }
@@ -101,14 +105,23 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
       web.document.head?.append(script);
       return completer.future.timeout(
         const Duration(seconds: 12),
-        onTimeout: () => false,
+        onTimeout: () {
+          script.remove();
+          return false;
+        },
       );
     }();
+
+    _hlsLoad = load;
+    final loaded = await load;
+    if (!loaded && identical(_hlsLoad, load)) _hlsLoad = null;
+    return loaded;
   }
 
   Future<void> _attach(
       web.HTMLVideoElement video, String url, int generation) async {
     _destroyHls();
+    _error = null;
     video.pause();
     video.removeAttribute('src');
     video.load();
