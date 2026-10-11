@@ -525,7 +525,7 @@ export default function HomeHubPage(){
   const {lastElementRef}=useInfiniteScroll(loadMore,{hasMore});
   const refresh=async()=>{setRefreshing(true);try{await load(tab);}finally{setRefreshing(false);}};
 
-  return <div className="min-h-screen bg-background pb-16 lg:pb-0">
+  return <div className="tg-social-home-shell min-h-screen bg-background pb-16 lg:pb-0">
     <TopBar title="Home"/>
     <Suspense fallback={<div className="h-20 border-b border-border bg-background" aria-hidden="true" />}><StoriesStrip tv={<TvPostStream index={0} compact />} /></Suspense>
 
