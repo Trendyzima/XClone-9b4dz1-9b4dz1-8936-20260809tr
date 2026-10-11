@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-11T19:00:48.197Z",
+  "generated_at": "2026-10-11T19:05:01.101Z",
   "source_of_truth": "React Router declarations in src/App.tsx; route coverage does not imply feature parity.",
   "source_route_declarations": 214,
   "unique_source_routes": 212,
@@ -17,12 +17,15 @@
     "/creator-studio",
     "/creator-studio/:section",
     "/explore",
+    "/fediverse",
+    "/fediverse/instances",
     "/hashtag/:tag",
     "/hashtags",
     "/leaderboard",
     "/leaderboard/creators",
     "/marketplace",
     "/messages",
+    "/news",
     "/notifications",
     "/orders",
     "/p/:productId",
@@ -350,8 +353,8 @@
     {
       "path": "/fediverse",
       "domain": "fediverse",
-      "status": "legacy_web_fallback",
-      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
     },
     {
       "path": "/fediverse/analytics",
@@ -596,8 +599,8 @@
     {
       "path": "/news",
       "domain": "news",
-      "status": "legacy_web_fallback",
-      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
     },
     {
       "path": "/news/:id",
@@ -1314,3 +1317,4 @@
       "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
     }
   ]
+}
