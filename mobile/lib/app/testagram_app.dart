@@ -22,6 +22,7 @@ import '../features/communities/community_detail_page.dart';
 import '../features/creator/creator_studio_page.dart';
 import '../features/tv/tv_studio_page.dart';
 import '../features/videos/videos_page.dart';
+import '../features/discovery/discovery_pages.dart';
 import 'testagram_shell.dart';
 
 class TestagramApp extends StatefulWidget {
@@ -91,6 +92,10 @@ class _TestagramAppState extends State<TestagramApp> {
             path == '/videos' ||
             path == '/shorts' ||
             path == '/videos/watchlater' ||
+            path == '/hashtags' ||
+            path.startsWith('/hashtag/') ||
+            path == '/leaderboard' ||
+            path == '/leaderboard/creators' ||
             path == '/threads' ||
             path == '/communities' ||
             path.startsWith('/thread/') ||
@@ -163,6 +168,18 @@ class _TestagramAppState extends State<TestagramApp> {
             GoRoute(
                 path: '/videos/watchlater',
                 builder: (_, __) => const VideosPage(watchLaterOnly: true)),
+            GoRoute(
+                path: '/hashtags', builder: (_, __) => const HashtagsPage()),
+            GoRoute(
+                path: '/hashtag/:tag',
+                builder: (_, state) =>
+                    HashtagsPage(tag: state.pathParameters['tag'])),
+            GoRoute(
+                path: '/leaderboard',
+                builder: (_, __) => const LeaderboardPage()),
+            GoRoute(
+                path: '/leaderboard/creators',
+                builder: (_, __) => const LeaderboardPage()),
             GoRoute(
                 path: '/tv-studio', builder: (_, __) => const TvStudioPage()),
             GoRoute(
