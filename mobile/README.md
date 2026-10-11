@@ -42,14 +42,14 @@ The app intentionally shows a setup screen if build-time configuration is absent
 - Email/password sign-in, password recovery/update, legal acceptance and 24-hour secure session policy.
 - Feed pagination, pull-to-refresh, text/photo/video post composition, camera capture and gallery selection, media type/size validation, Supabase Storage upload with orphan cleanup on post-write failure, heart reactions, comments/replies, reposts, bookmarks, share sheet, copy-link, report submission, image rendering and tap-to-play video.
 - People/post search, follow/unfollow and public profile navigation.
-- Current-user profile and post listing.
+- Current-user profile and post listing, display name/bio/website/location editing through the canonical profile_update RPC, avatar capture/gallery selection, cover selection, size/type validation, and uploads through the existing authenticated profile-media-upload capability.
 - Notification listing, mark-read and mark-all-read.
 - Public IPTV catalogue sources (Kenya, news, sports and more) load progressively in batches as viewers swipe, alongside Testagram community live streams. TikVTV-style full-height feed includes channel-list fallback, provider resolver, native Android playback and a lazy-loaded Hls.js browser adapter with retry/share controls. Real-stream/device validation remains a release blocker.
 - Conversation index only. Native encrypted send/receive, E2EE key management, receipts, presence, voice notes and calls are not marked complete.
 - Settings, sign-out and appearance controls.
 - Flutter analyzer/widget/session-policy tests.
 
-In-app notification rows refresh through Supabase Realtime while the notifications screen is open; device/background push remains blocked on verified FCM registration and delivery. Some actions intentionally show a migration notice rather than pretending that an unfinished backend adapter is functional. These are release blockers, not completed features. In particular, the external advertising scripts, full TV production interface, creator tools, payments, commerce, federated services, all moderation/admin pages, device push delivery, microphone/voice capture, complete media/profile editing, E2EE messaging/calls and full SEO parity still need their own ports and contract tests.
+In-app notification rows refresh through Supabase Realtime while the notifications screen is open; device/background push remains blocked on verified FCM registration and delivery. Some actions intentionally show a migration notice rather than pretending that an unfinished backend adapter is functional. These are release blockers, not completed features. In particular, the external advertising scripts, full TV production interface, creator tools, payments, commerce, federated services, all moderation/admin pages, device push delivery, microphone/voice capture, advanced profile fields/social-link and phone editing, full media lifecycle, E2EE messaging/calls and full SEO parity still need their own ports and contract tests.
 
 ## Required parity inventory
 

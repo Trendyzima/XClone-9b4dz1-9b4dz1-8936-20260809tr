@@ -1,6 +1,13 @@
+import 'dart:convert';
+
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../../core/config/app_config.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({this.username, super.key});
@@ -137,50 +144,316 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  Future<String> _uploadProfileMedia(XFile file, String kind) async {
+    final session = _client.auth.currentSession;
+    if (session == null) {
+      throw Exception('Sign in again before uploading profile media.');
+    }
+    final extension =
+        file.name.contains('.') ? file.name.split('.').last.toLowerCase() : '';
+    const mimeByExtension = <String, String>{
+      'jpg': 'image/jpeg',
+      'jpeg': 'image/jpeg',
+      'png': 'image/png',
+      'webp': 'image/webp',
+      'gif': 'image/gif',
+      'avif': 'image/avif',
+    };
+    final mime = mimeByExtension[extension];
+    if (mime == null) {
+      throw Exception('Choose a JPG, PNG, WebP, GIF or AVIF image.');
+    }
+    final bytes = await file.readAsBytes();
+    final limit = kind == 'avatar' ? 2 * 1024 * 1024 : 5 * 1024 * 1024;
+    if (bytes.isEmpty || bytes.length > limit) {
+      throw Exception(kind == 'avatar'
+          ? 'Avatar must be a non-empty image no larger than 2 MB.'
+          : 'Cover image must be a non-empty image no larger than 5 MB.');
+    }
+    final uri = Uri.parse(AppConfig.supabaseUrl)
+        .resolve('/functions/v1/profile-media-upload');
+    final request = http.MultipartRequest('POST', uri)
+      ..headers.addAll({
+        'apikey': AppConfig.supabasePublishableKey,
+        'Authorization': 'Bearer ${session.accessToken}',
+        'Accept': 'application/json',
+      })
+      ..fields['kind'] = kind
+      ..files.add(http.MultipartFile.fromBytes(
+        'file',
+        bytes,
+        filename: file.name,
+        contentType: MediaType.parse(mime),
+      ));
+    final streamed = await request.send().timeout(const Duration(seconds: 35));
+    final response = await http.Response.fromStream(streamed);
+    final payload = jsonDecode(response.body);
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final message = payload is Map
+          ? '${payload['error'] ?? payload['message'] ?? 'Profile media upload failed'}'
+          : 'Profile media upload failed (HTTP ${response.statusCode}).';
+      throw Exception(message);
+    }
+    if (payload is! Map ||
+        payload['ok'] != true ||
+        payload['delivery_url'] is! String) {
+      throw Exception('The profile media service did not confirm the upload.');
+    }
+    return payload['delivery_url'] as String;
+  }
+
   Future<void> _editProfile() async {
     final name = TextEditingController(
         text: '${_profile?['display_name'] ?? _profile?['full_name'] ?? ''}');
     final bio = TextEditingController(text: '${_profile?['bio'] ?? ''}');
-    final save = await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-              title: const Text('Edit profile'),
-              content: SingleChildScrollView(
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                TextField(
+    final website = TextEditingController(
+        text: '${_profile?['website'] ?? _profile?['website_url'] ?? ''}');
+    final location =
+        TextEditingController(text: '${_profile?['location'] ?? ''}');
+    final picker = ImagePicker();
+    XFile? avatarFile;
+    XFile? coverFile;
+    var picking = false;
+    final draft = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Edit profile'),
+          content: SizedBox(
+            width: 440,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextField(
                     controller: name,
                     maxLength: 80,
                     decoration:
-                        const InputDecoration(labelText: 'Display name')),
-                const SizedBox(height: 8),
-                TextField(
+                        const InputDecoration(labelText: 'Display name'),
+                  ),
+                  TextField(
                     controller: bio,
-                    maxLength: 280,
+                    maxLength: 500,
                     minLines: 2,
                     maxLines: 4,
-                    decoration: const InputDecoration(labelText: 'Bio')),
-              ])),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(context, false),
-                    child: const Text('Cancel')),
-                FilledButton(
-                    onPressed: () => Navigator.pop(context, true),
-                    child: const Text('Save'))
-              ],
-            ));
-    if (save != true) {
-      name.dispose();
-      bio.dispose();
-      return;
-    }
+                    decoration: const InputDecoration(labelText: 'Bio'),
+                  ),
+                  TextField(
+                    controller: website,
+                    maxLength: 500,
+                    keyboardType: TextInputType.url,
+                    decoration: const InputDecoration(labelText: 'Website'),
+                  ),
+                  TextField(
+                    controller: location,
+                    maxLength: 120,
+                    decoration: const InputDecoration(labelText: 'Location'),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: picking
+                            ? null
+                            : () async {
+                                setDialogState(() => picking = true);
+                                try {
+                                  final file = await picker.pickImage(
+                                    source: ImageSource.camera,
+                                    imageQuality: 85,
+                                    maxWidth: 2048,
+                                  );
+                                  if (file != null) {
+                                    if (await file.length() > 2 * 1024 * 1024) {
+                                      if (dialogContext.mounted) {
+                                        ScaffoldMessenger.of(dialogContext)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                              content: Text(
+                                                  'Avatar must be 2 MB or smaller.')),
+                                        );
+                                      }
+                                    } else {
+                                      setDialogState(() => avatarFile = file);
+                                    }
+                                  }
+                                } catch (_) {
+                                  if (dialogContext.mounted) {
+                                    ScaffoldMessenger.of(dialogContext)
+                                        .showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              'Camera access failed. Check permission and retry.')),
+                                    );
+                                  }
+                                } finally {
+                                  if (dialogContext.mounted) {
+                                    setDialogState(() => picking = false);
+                                  }
+                                }
+                              },
+                        icon: const Icon(Icons.photo_camera_outlined),
+                        label: const Text('Take avatar photo'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: picking
+                            ? null
+                            : () async {
+                                setDialogState(() => picking = true);
+                                try {
+                                  final file = await picker.pickImage(
+                                    source: ImageSource.gallery,
+                                    imageQuality: 85,
+                                    maxWidth: 2048,
+                                  );
+                                  if (file != null) {
+                                    if (await file.length() > 2 * 1024 * 1024) {
+                                      if (dialogContext.mounted) {
+                                        ScaffoldMessenger.of(dialogContext)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                              content: Text(
+                                                  'Avatar must be 2 MB or smaller.')),
+                                        );
+                                      }
+                                    } else {
+                                      setDialogState(() => avatarFile = file);
+                                    }
+                                  }
+                                } catch (_) {
+                                  if (dialogContext.mounted) {
+                                    ScaffoldMessenger.of(dialogContext)
+                                        .showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              'Photo selection failed. Check media permissions and retry.')),
+                                    );
+                                  }
+                                } finally {
+                                  if (dialogContext.mounted) {
+                                    setDialogState(() => picking = false);
+                                  }
+                                }
+                              },
+                        icon: const Icon(Icons.account_circle_outlined),
+                        label: const Text('Choose avatar'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: picking
+                            ? null
+                            : () async {
+                                setDialogState(() => picking = true);
+                                try {
+                                  final file = await picker.pickImage(
+                                    source: ImageSource.gallery,
+                                    imageQuality: 85,
+                                    maxWidth: 2560,
+                                  );
+                                  if (file != null) {
+                                    if (await file.length() > 5 * 1024 * 1024) {
+                                      if (dialogContext.mounted) {
+                                        ScaffoldMessenger.of(dialogContext)
+                                            .showSnackBar(
+                                          const SnackBar(
+                                              content: Text(
+                                                  'Cover image must be 5 MB or smaller.')),
+                                        );
+                                      }
+                                    } else {
+                                      setDialogState(() => coverFile = file);
+                                    }
+                                  }
+                                } catch (_) {
+                                  if (dialogContext.mounted) {
+                                    ScaffoldMessenger.of(dialogContext)
+                                        .showSnackBar(
+                                      const SnackBar(
+                                          content: Text(
+                                              'Cover selection failed. Check media permissions and retry.')),
+                                    );
+                                  }
+                                } finally {
+                                  if (dialogContext.mounted) {
+                                    setDialogState(() => picking = false);
+                                  }
+                                }
+                              },
+                        icon: const Icon(Icons.wallpaper_outlined),
+                        label: const Text('Choose cover'),
+                      ),
+                    ],
+                  ),
+                  if (avatarFile != null || coverFile != null) ...[
+                    const SizedBox(height: 8),
+                    if (avatarFile != null)
+                      Text('Avatar: ${avatarFile!.name}',
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                    if (coverFile != null)
+                      Text('Cover: ${coverFile!.name}',
+                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                  ],
+                  if (picking)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: LinearProgressIndicator(),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: picking
+                  ? null
+                  : () => Navigator.pop(dialogContext, {
+                        'display_name': name.text.trim(),
+                        'bio': bio.text.trim(),
+                        'website': website.text.trim(),
+                        'location': location.text.trim(),
+                        'avatar': avatarFile,
+                        'cover': coverFile,
+                      }),
+              child: const Text('Save'),
+            ),
+          ],
+        ),
+      ),
+    );
+    name.dispose();
+    bio.dispose();
+    website.dispose();
+    location.dispose();
+    if (draft == null) return;
+
     try {
-      await _client.from('profiles').update({
-        'display_name': name.text.trim(),
-        'bio': bio.text.trim()
-      }).eq('id', _uid);
-      name.dispose();
-      bio.dispose();
+      final update = <String, dynamic>{
+        'display_name': draft['display_name'],
+        'bio': draft['bio'],
+        'website': draft['website'],
+        'location': draft['location'],
+      };
+      final avatar = draft['avatar'] as XFile?;
+      final cover = draft['cover'] as XFile?;
+      if (avatar != null) {
+        update['avatar_url'] = await _uploadProfileMedia(avatar, 'avatar');
+      }
+      if (cover != null) {
+        update['cover_url'] = await _uploadProfileMedia(cover, 'cover');
+      }
+      final result = await _client.rpc(
+        'profile_update',
+        params: {'p_input': update},
+      ).timeout(const Duration(seconds: 20));
+      if (result is! Map || result['updated'] != true) {
+        throw Exception('The server did not confirm the profile update.');
+      }
       if (mounted) {
         await _load();
         if (mounted) {
@@ -189,11 +462,12 @@ class _ProfilePageState extends State<ProfilePage> {
         }
       }
     } catch (error) {
-      name.dispose();
-      bio.dispose();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Profile update failed: $error')));
+          SnackBar(
+              content: Text(
+                  'Profile update failed: ${error.toString().replaceFirst('Exception: ', '')}')),
+        );
       }
     }
   }
@@ -204,6 +478,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final name =
         '${profile['display_name'] ?? profile['full_name'] ?? profile['username'] ?? 'Testagram user'}';
     final avatar = '${profile['avatar_url'] ?? ''}';
+    final cover = profile['cover_url']?.toString() ?? '';
     return RefreshIndicator(
       onRefresh: _load,
       child: ListView(padding: const EdgeInsets.all(14), children: [
@@ -213,6 +488,18 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Padding(
                 padding: const EdgeInsets.all(18),
                 child: Column(children: [
+                  if (cover.startsWith('http'))
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: CachedNetworkImage(
+                        imageUrl: cover,
+                        height: 112,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => const SizedBox(height: 8),
+                      ),
+                    ),
+                  if (cover.startsWith('http')) const SizedBox(height: 12),
                   CircleAvatar(
                       radius: 42,
                       backgroundImage: avatar.startsWith('http')
