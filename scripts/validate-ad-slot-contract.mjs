@@ -37,17 +37,19 @@ const externalHtml = Function('ad', `return \`${externalTemplate}\`;`)({
 validateEmbeddedScript(externalHtml, 'ExternalAdEngine');
 assert.ok(external.includes("window.dispatchEvent(new CustomEvent('testagram:ad-slot-status'"), 'ExternalAdEngine must expose a runtime status event');
 assert.ok(external.includes('data-ad-status={adStatus}'), 'ExternalAdEngine must expose its current slot status');
-assert.ok(external.includes('minHeight: nearViewport ? ad.height : 0'), 'ExternalAdEngine must defer slot height reservation until near the viewport to avoid blank page gaps');
+assert.ok(external.includes('minHeight: filled ? ad.height : 0'), 'ExternalAdEngine must not reserve vertical space until a creative is confirmed');
 assert.ok(external.includes('loading="eager"'), 'ExternalAdEngine must not lazy-load after the visibility probe has fired');
 assert.ok(!external.includes('relative h-px w-full overflow-hidden'), 'ExternalAdEngine must not collapse the slot to one pixel while waiting');
 assert.ok(!external.includes('-z-10 overflow-hidden opacity-0'), 'ExternalAdEngine must not hide the publisher frame while waiting for creative detection');
 assert.ok(external.includes("report('empty','script-error')"), 'ExternalAdEngine must distinguish script errors from no-fill timeouts');
 assert.ok(external.includes("}, [unit]);"), 'ExternalAdEngine message listener must track the current unit');
 assert.ok(external.includes('data-zoneid="6052126"'), 'ExoClick display slot must preserve the approved publisher zone ID');
-assert.ok(external.includes('data-testid="exoclick-page-placement"'), 'ExoClick page placement must have a stable test hook');
-assert.ok(external.includes('data-testid="exoclick-page-placement"') && external.includes('<AdFrame unit="exoclick-display" />'), 'Top page placement must use ExoClick display inventory');
-assert.ok(app.includes("import { ExternalAdEngine } from '@/components/features/ExternalAdEngine';"), 'Shared application shell must import the external ad engine');
-assert.ok(app.includes('<ExternalAdEngine key={location.pathname} surface="top"/>'), 'Shared application shell must remount the ad slot on eligible route navigation');
+assert.ok(!external.includes('external-ad-top'), 'External ads must not create a global top-of-page placement');
+assert.ok(!external.includes('data-testid="exoclick-page-placement"'), 'The global top-page placement hook must be removed');
+assert.ok(!app.includes("import { ExternalAdEngine } from '@/components/features/ExternalAdEngine';"), 'The shared application shell must not inject ads above every route');
+assert.ok(!app.includes('surface="top"'), 'No route may inject the external ad engine as a global top banner');
+assert.ok(external.includes("surface: 'sidebar' | 'overlay' | 'feed'"), 'External ads must be restricted to content-native feed, sidebar, and player-overlay surfaces');
+assert.ok(external.includes("if (surface === 'feed') return <AdFrame unit=\"exoclick-display\" feedNative />;"), 'External display inventory must be placed as a native sponsored feed item');
 assert.ok(external.includes('checkout|orders|cart|payment|purchases|withdraw|withdrawals'), 'External ads must be suppressed on transactional routes');
 assert.ok(external.includes('ad-[^/]+'), 'External ads must be suppressed on ad-management routes');
 
