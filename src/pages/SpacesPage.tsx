@@ -18,6 +18,7 @@ import { JoinSpaceDialog } from '@/components/features/JoinSpaceDialog';
 import { ManageSpaceDialog } from '@/components/features/ManageSpaceDialog';
 import { toast } from 'sonner';
 import { useSEO } from '@/hooks/useSEO';
+import { useGovernance } from '@/lib/governance';
 import { PageAdBanner } from '@/components/features/AdSenseAd';
 import { CommunitySpotlightStrip } from '@/components/features/CommunitySpotlightStrip';
 function SpacesAdBanner() { return <PageAdBanner />; }
@@ -72,6 +73,7 @@ interface Playlist { id: string; name: string; items: string[]; }
 
 export default function SpacesPage() {
   const { user } = useAuth();
+  const { governance } = useGovernance();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [spaces, setSpaces] = useState<Space[]>([]);
@@ -446,13 +448,15 @@ export default function SpacesPage() {
             >
               <Radio className="w-4 h-4 mr-1.5" />Watch TV
             </Button>
-            <Button
-              variant="outline"
-              className="rounded-full border-red-500/30 text-red-600 hover:bg-red-500/10"
-              onClick={() => navigate('/tv-studio')}
-            >
-              <Video className="w-4 h-4 mr-1.5" />TV Studio
-            </Button>
+            {governance.is_owner && (
+              <Button
+                variant="outline"
+                className="rounded-full border-red-500/30 text-red-600 hover:bg-red-500/10"
+                onClick={() => navigate('/tv-studio')}
+              >
+                <Video className="w-4 h-4 mr-1.5" />TV Studio
+              </Button>
+            )}
             {user && (
               <Button className="rounded-full shadow-lg shadow-primary/20" onClick={handleStartSpace}>
                 <Mic className="w-4 h-4 mr-1.5" />Go Live
@@ -473,7 +477,7 @@ export default function SpacesPage() {
 
       {/* Studio chooser: make the two creator studios discoverable from the Spaces hub. */}
       <div className="px-4 py-3 border-b border-border bg-muted/20">
-        <div className="grid grid-cols-2 gap-2">
+        <div className={governance.is_owner ? "grid grid-cols-2 gap-2" : "grid grid-cols-1 gap-2"}>
           <button
             type="button"
             onClick={handleStartSpace}
@@ -484,16 +488,18 @@ export default function SpacesPage() {
             </div>
             <p className="text-[11px] text-muted-foreground mt-1">Live rooms, podcasts & panels</p>
           </button>
-          <button
-            type="button"
-            onClick={() => navigate('/tv-studio')}
-            className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 text-left hover:bg-red-500/10 transition-colors"
-          >
-            <div className="flex items-center gap-2 font-bold text-sm">
-              <Video className="w-4 h-4 text-red-600" /> TV Production Studio
-            </div>
-            <p className="text-[11px] text-muted-foreground mt-1">Camera, screen, local recording & live broadcast</p>
-          </button>
+          {governance.is_owner && (
+            <button
+              type="button"
+              onClick={() => navigate('/tv-studio')}
+              className="rounded-xl border border-red-500/20 bg-red-500/5 p-3 text-left hover:bg-red-500/10 transition-colors"
+            >
+              <div className="flex items-center gap-2 font-bold text-sm">
+                <Video className="w-4 h-4 text-red-600" /> TV Production Studio
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-1">Camera, screen, local recording & live broadcast</p>
+            </button>
+          )}
         </div>
       </div>
 
