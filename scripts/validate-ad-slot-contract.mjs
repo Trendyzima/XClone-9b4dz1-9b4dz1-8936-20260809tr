@@ -49,6 +49,7 @@ assert.ok(external.includes('data-testid="exoclick-page-placement"') && external
 assert.ok(app.includes("import { ExternalAdEngine } from '@/components/features/ExternalAdEngine';"), 'Shared application shell must import the external ad engine');
 assert.ok(app.includes('<ExternalAdEngine key={location.pathname} surface="top"/>'), 'Shared application shell must remount the ad slot on eligible route navigation');
 assert.ok(external.includes('checkout|orders|cart|payment|purchases|withdraw|withdrawals'), 'External ads must be suppressed on transactional routes');
+assert.ok(external.includes('ad-[^/]+'), 'External ads must be suppressed on ad-management routes');
 
 const iptvTemplate = extractTemplate(iptv, 'adFrame.srcdoc = `', '`;');
 validateEmbeddedScript(iptvTemplate, 'IPTV Adsterra banner');
