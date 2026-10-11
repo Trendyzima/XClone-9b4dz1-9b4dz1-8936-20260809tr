@@ -568,3 +568,24 @@ class _SpacesPageState extends State<SpacesPage> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const Icon(Icons.headphones_rounded, size: 48),
+                    const SizedBox(height: 12),
+                    Text('${recording['title'] ?? 'Space recording'}',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w900)),
+                    const SizedBox(height: 8),
+                    Text('Created: ${recording['created_at'] ?? '—'}'),
+                    Text('Duration: ${recording['duration'] ?? 0} seconds'),
+                    if (recording['expires_at'] != null)
+                      Text('Available until: ${recording['expires_at']}'),
+                    const SizedBox(height: 14),
+                    FilledButton.icon(
+                        onPressed: () => _openRecording(recording),
+                        icon: const Icon(Icons.play_arrow_rounded),
+                        label: const Text('Open recording')),
+                  ]))),
+    ]);
+  }
+}

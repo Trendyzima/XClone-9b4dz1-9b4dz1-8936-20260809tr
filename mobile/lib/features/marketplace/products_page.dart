@@ -424,3 +424,4 @@ class _ProductsPageState extends State<ProductsPage> {
           }),
         ]));
   }
+}
