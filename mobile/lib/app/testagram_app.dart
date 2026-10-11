@@ -27,6 +27,7 @@ import '../features/marketplace/products_page.dart';
 import '../features/marketplace/orders_page.dart';
 import '../features/news/news_page.dart';
 import '../features/fediverse/fediverse_page.dart';
+import '../features/spaces/spaces_page.dart';
 import 'testagram_shell.dart';
 
 class TestagramApp extends StatefulWidget {
@@ -103,6 +104,9 @@ class _TestagramAppState extends State<TestagramApp> {
             path == '/news' ||
             path == '/fediverse' ||
             path == '/fediverse/instances' ||
+            path == '/spaces' ||
+            path.startsWith('/spaces/') ||
+            path.startsWith('/space-recording/') ||
             path == '/products' ||
             path == '/marketplace' ||
             path.startsWith('/p/') ||
@@ -205,6 +209,23 @@ class _TestagramAppState extends State<TestagramApp> {
             GoRoute(
                 path: '/fediverse/instances',
                 builder: (_, __) => const FediversePage(instancesOnly: true)),
+            GoRoute(path: '/spaces', builder: (_, __) => const SpacesPage()),
+            GoRoute(
+                path: '/spaces/:id',
+                builder: (_, state) =>
+                    SpacesPage(spaceId: state.pathParameters['id'])),
+            GoRoute(
+                path: '/space-recording/:id',
+                builder: (_, state) =>
+                    SpacesPage(recordingId: state.pathParameters['id'])),
+            GoRoute(
+                path: '/space/:id',
+                builder: (_, state) =>
+                    SpacesPage(spaceId: state.pathParameters['id'])),
+            GoRoute(
+                path: '/space/:id/recordings',
+                builder: (_, state) =>
+                    SpacesPage(spaceId: state.pathParameters['id'])),
             GoRoute(
                 path: '/tv-studio', builder: (_, __) => const TvStudioPage()),
             GoRoute(
@@ -227,76 +248,3 @@ class _TestagramAppState extends State<TestagramApp> {
             GoRoute(
                 path: '/settings', builder: (_, __) => const SettingsPage()),
           ],
-        ),
-      ],
-    );
-  }
-
-  @override
-  void dispose() {
-    _router.dispose();
-    _authRefresh.dispose();
-    _sessionGuard?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp.router(
-      title: 'Testagram',
-      debugShowCheckedModeBanner: false,
-      theme: TestagramTheme.light(),
-      darkTheme: TestagramTheme.dark(),
-      themeMode: _themeMode,
-      routerConfig: _router,
-    );
-  }
-}
-
-class _AuthRefresh extends ChangeNotifier {
-  dynamic _subscription;
-
-  void bind(Stream<AuthState> stream) {
-    _subscription = stream.listen((_) => notifyListeners());
-  }
-
-  @override
-  void dispose() {
-    _subscription?.cancel();
-    super.dispose();
-  }
-}
-
-class _SetupPage extends StatelessWidget {
-  const _SetupPage();
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 460),
-          child: Padding(
-            padding: const EdgeInsets.all(28),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Image.asset('assets/branding/testagram-icon.webp',
-                    width: 76, height: 76),
-                const SizedBox(height: 20),
-                Text('Testagram is not configured',
-                    style: Theme.of(context).textTheme.headlineSmall),
-                const SizedBox(height: 10),
-                const Text(
-                  'Build this client with SUPABASE_URL and SUPABASE_PUBLISHABLE_KEY. '
-                  'No backend credentials are embedded in the app source.',
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}

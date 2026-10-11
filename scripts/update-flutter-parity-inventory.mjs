@@ -58,6 +58,9 @@ const foundation = {
   'src/pages/ProductsPage.tsx': ['in_progress', 'Flutter product catalog and detail use the public catalog view and secure checkout RPC; seller tools, inventory management and full storefront parity remain.'],
   'src/pages/OrdersPage.tsx': ['in_progress', 'Flutter purchase/sales history is ported; fulfillment actions, refunds, dispute handling and full order lifecycle remain.'],
   'src/pages/LeaderboardPage.tsx': ['in_progress', 'Flutter creator leaderboard is ported; challenges, rewards and specialized leaderboard routes remain.'],
+  'src/pages/SpacesPage.tsx': ['in_progress', 'Flutter Live Spaces now lists live/upcoming rooms, prepares scheduled rooms and opens recordings; real WebRTC audio, speaker routing and host readiness remain blocked on media transport parity.'],
+  'src/pages/SpaceDetailPage.tsx': ['in_progress', 'Native room metadata/detail is ported, but listening/speaking remains disabled until Flutter WebRTC transport and signaling pass device tests.'],
+  'src/pages/SpaceRecordingViewerPage.tsx': ['in_progress', 'Native recording detail and external playback handoff are ported; embedded playback and expiry/access parity remain.'],
 };
 for (const [file, [status, note]] of Object.entries(foundation)) {
   if (sources[file]) sources[file] = { ...sources[file], status, note };

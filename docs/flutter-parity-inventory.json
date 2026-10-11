@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-11T19:19:19.765Z",
+  "generated_at": "2026-10-11T19:27:28.794Z",
   "rule": "A feature is not complete until its Flutter web and Android behavior, backend contract, permissions, failure recovery, and tests are verified. Existing web routes remain available until parity is accepted.",
   "domains": [
     {
@@ -1553,18 +1553,18 @@
       "source_type": "client_source"
     },
     "src/pages/SpaceDetailPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "status": "in_progress",
+      "note": "Native room metadata/detail is ported, but listening/speaking remains disabled until Flutter WebRTC transport and signaling pass device tests.",
       "source_type": "client_source"
     },
     "src/pages/SpaceRecordingViewerPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "status": "in_progress",
+      "note": "Native recording detail and external playback handoff are ported; embedded playback and expiry/access parity remain.",
       "source_type": "client_source"
     },
     "src/pages/SpacesPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "status": "in_progress",
+      "note": "Flutter Live Spaces now lists live/upcoming rooms, prepares scheduled rooms and opens recordings; real WebRTC audio, speaker routing and host readiness remain blocked on media transport parity.",
       "source_type": "client_source"
     },
     "src/pages/SportsHubPage.tsx": {
