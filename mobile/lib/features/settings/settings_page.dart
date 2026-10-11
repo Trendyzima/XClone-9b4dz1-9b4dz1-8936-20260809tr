@@ -96,10 +96,10 @@ class _SettingsPageState extends State<SettingsPage> {
             leading: const Icon(Icons.notifications_active_outlined),
             title: const Text('Notification preferences'),
             subtitle: const Text(
-                'Push registration and per-category preferences are part of the native notifications phase.'),
+                'In-app alerts refresh live while this screen is open. Device push and category controls still require native FCM wiring.'),
             onTap: () => ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                 content: Text(
-                    'Native notification preferences will be enabled after FCM token and delivery verification.')))),
+                    'Live in-app updates are enabled. Device push preferences are not enabled until FCM delivery is verified.')))),
       ])),
       const SizedBox(height: 14),
       FilledButton.tonalIcon(

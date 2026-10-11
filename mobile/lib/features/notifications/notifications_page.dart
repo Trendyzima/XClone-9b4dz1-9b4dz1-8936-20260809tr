@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -11,6 +13,7 @@ class _NotificationsPageState extends State<NotificationsPage> {
   List<Map<String, dynamic>> _items = [];
   bool _loading = false;
   String? _error;
+  RealtimeChannel? _channel;
   SupabaseClient get _client => Supabase.instance.client;
   String get _uid => _client.auth.currentUser!.id;
 
@@ -18,6 +21,29 @@ class _NotificationsPageState extends State<NotificationsPage> {
   void initState() {
     super.initState();
     _load();
+    _channel = _client
+        .channel('flutter-notifications-$_uid')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'notifications',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'recipient_id',
+            value: _uid,
+          ),
+          callback: (_) {
+            if (mounted) unawaited(_load());
+          },
+        )
+        .subscribe();
+  }
+
+  @override
+  void dispose() {
+    final channel = _channel;
+    if (channel != null) unawaited(_client.removeChannel(channel));
+    super.dispose();
   }
 
   Future<void> _load() async {
