@@ -201,6 +201,7 @@ public final class MainActivity extends AppCompatActivity {
             public void onPageFinished(WebView view, String url) {
                 super.onPageFinished(view, url);
                 publishPushTokenToWeb();
+                publishNativeNotificationStatusToWeb();
                 handlePushIntent(getIntent());
             }
 
@@ -389,6 +390,7 @@ public final class MainActivity extends AppCompatActivity {
         super.onResume();
         enterImmersiveFullscreen();
         publishPushTokenToWeb();
+        publishNativeNotificationStatusToWeb();
     }
 
     /**
@@ -449,6 +451,19 @@ public final class MainActivity extends AppCompatActivity {
                 // Token delivery to the page is best-effort; it will retry on the next page load.
             }
         });
+    }
+
+    private void publishNativeNotificationStatusToWeb() {
+        WebView target = webView;
+        if (target == null) return;
+        boolean runtimePermissionGranted = Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU
+                || ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                    == PackageManager.PERMISSION_GRANTED;
+        boolean enabled = runtimePermissionGranted
+                && androidx.core.app.NotificationManagerCompat.from(this).areNotificationsEnabled();
+        String script = "window.__TESTAGRAM_NATIVE_NOTIFICATION_STATUS__={available:true,enabled:" + enabled + "};"
+                + "window.dispatchEvent(new CustomEvent('testagram:native-notification-status',{detail:window.__TESTAGRAM_NATIVE_NOTIFICATION_STATUS__}));";
+        target.evaluateJavascript(script, null);
     }
 
     private void handlePushIntent(Intent intent) {
@@ -603,6 +618,7 @@ public final class MainActivity extends AppCompatActivity {
             geolocationCallback.invoke(geolocationOrigin, granted, false);
             geolocationCallback = null; geolocationOrigin = null;
         }
+        publishNativeNotificationStatusToWeb();
     }
 
     @Override

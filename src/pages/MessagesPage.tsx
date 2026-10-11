@@ -25,7 +25,7 @@ export default function MessagesPage() {
   const [showNewChat, setShowNewChat] = useState(false); const [showGroup, setShowGroup] = useState(false); const [groupSearch, setGroupSearch] = useState(''); const [groupMembers, setGroupMembers] = useState<Person[]>([]); const [groupResults, setGroupResults] = useState<Person[]>([]);
   const [typing, setTyping] = useState<Record<string, TypingState>>({}); const [presence, setPresence] = useState<Record<string, PresenceState>>({}); const [replyTo, setReplyTo] = useState<CommunicationMessage | null>(null); const [reactions, setReactions] = useState<Record<string, number>>({});
   const [callId, setCallId] = useState<string | null>(null); const [incomingCall, setIncomingCall] = useState<CallSession | null>(null); const [callKind, setCallKind] = useState<'voice' | 'video'>('video'); const [callState, setCallState] = useState<CallState>('idle'); const [hubTab, setHubTab] = useState<'chats' | 'updates' | 'calls'>('chats'); const [statuses, setStatuses] = useState<any[]>([]); const [callHistory, setCallHistory] = useState<CallSession[]>([]); const [starredIds, setStarredIds] = useState<Record<string, boolean>>({}); const [chatSettings, setChatSettings] = useState<any>(null); const typingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const fileInput = useRef<HTMLInputElement>(null); const statusFileInput = useRef<HTMLInputElement>(null); const bottom = useRef<HTMLDivElement>(null); const ringTimer = useRef<ReturnType<typeof setInterval> | null>(null); const ringAudio = useRef<AudioContext | null>(null); const mediaRecorderRef = useRef<MediaRecorder | null>(null); const recordingChunksRef = useRef<Blob[]>([]); const [recording, setRecording] = useState(false); const [statusDraft, setStatusDraft] = useState(''); const [statusFile, setStatusFile] = useState<File | null>(null); const [postingStatus, setPostingStatus] = useState(false);
+  const fileInput = useRef<HTMLInputElement>(null); const statusFileInput = useRef<HTMLInputElement>(null); const bottom = useRef<HTMLDivElement>(null); const ringTimer = useRef<ReturnType<typeof setInterval> | null>(null); const ringAudio = useRef<AudioContext | null>(null); const mediaRecorderRef = useRef<MediaRecorder | null>(null); const mediaStreamRef = useRef<MediaStream | null>(null); const recordingChunksRef = useRef<Blob[]>([]); const [recording, setRecording] = useState(false); const [statusDraft, setStatusDraft] = useState(''); const [statusFile, setStatusFile] = useState<File | null>(null); const [postingStatus, setPostingStatus] = useState(false);
 
   const other = useCallback((c: Conversation) => c.members?.find(m => m.id !== user?.id) ?? c.members?.[0] ?? null, [user?.id]);
   const refresh = useCallback(async () => { if (!user) return; try { const r = await communicationService.listConversations(50); setConversations((r.items ?? []) as Conversation[]); } catch (e) { console.debug('[messages] passive conversation load unavailable', e); setConversations([]); } finally { setLoading(false); } }, [user]);
@@ -41,7 +41,19 @@ export default function MessagesPage() {
 
   useEffect(() => { if (!selected) return; setTyping({}); setPresence({}); return communicationService.subscribeToConversation(selected.id, { onMessage: m => { setMessages(p => p.some(x => x.id === m.id) ? p : [...p, m]); if (m.sender_id !== user?.id) void communicationService.markMessageRead(m.id).catch(() => {}); setConversations(p => p.map(x => x.id === selected.id ? { ...x, latest_message: m, unread_count: 0, updated_at: m.created_at } : x)); }, onMessageChanged: m => setMessages(p => p.map(x => x.id === m.id ? { ...x, ...m } : x)), onMessageDeleted: m => setMessages(p => p.map(x => x.id === m.id ? { ...x, ...m, deleted_at: m.deleted_at ?? new Date().toISOString(), body: '' } : x)), onTyping: s => { if (s.user_id === user?.id) return; setTyping(p => ({ ...p, [s.user_id]: s })); }, onPresence: s => { if (s.user_id !== user?.id) setPresence(p => ({ ...p, [s.user_id]: s })); }, onCall: change => { const c = change.session; if (c.created_by === user?.id) return; if (c.status === 'ringing') { setIncomingCall(c); setCallKind((c.kind === 'voice' ? 'voice' : 'video')); setCallId(c.call_id); setCallState('ringing'); startRingtone(); if ('Notification' in window && Notification.permission === 'granted') new Notification(`Incoming ${c.kind === 'voice' ? 'voice' : 'video'} call`, { body: c.caller_phone_verified && c.caller_phone ? `${c.caller_display_name || c.caller_username || 'Testagram user'} · ${c.caller_phone}` : (c.caller_display_name || c.caller_username || 'Testagram user') }); } else if (c.call_id === callId && (c.status === 'ended' || c.status === 'failed')) { setCallState(c.status === 'failed' ? 'failed' : 'ended'); setIncomingCall(null); } } }); }, [selected?.id, user?.id, callId]);
   useEffect(() => { bottom.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages.length]);
-  useEffect(() => () => { if (typingTimer.current) clearTimeout(typingTimer.current); if (ringTimer.current) clearInterval(ringTimer.current); void ringAudio.current?.close().catch(() => {}); }, []);
+  useEffect(() => () => {
+    if (typingTimer.current) clearTimeout(typingTimer.current);
+    if (ringTimer.current) clearInterval(ringTimer.current);
+    void ringAudio.current?.close().catch(() => {});
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== 'inactive') {
+      recorder.onstop = null;
+      try { recorder.stop(); } catch { /* recorder may already be inactive */ }
+    }
+    mediaStreamRef.current?.getTracks().forEach(track => track.stop());
+    mediaStreamRef.current = null;
+    mediaRecorderRef.current = null;
+  }, []);
 
   const stopRingtone = () => { if (ringTimer.current) clearInterval(ringTimer.current); ringTimer.current = null; void ringAudio.current?.close().catch(() => {}); ringAudio.current = null; };
   const startRingtone = () => { stopRingtone(); try { const Ctx = window.AudioContext || (window as any).webkitAudioContext; if (!Ctx) return; const ctx = new Ctx(); ringAudio.current = ctx; const beep = () => { const osc = ctx.createOscillator(); const gain = ctx.createGain(); osc.type = 'sine'; osc.frequency.value = 880; gain.gain.value = 0.035; osc.connect(gain); gain.connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + 0.32); }; beep(); ringTimer.current = setInterval(beep, 1800); } catch { /* browser autoplay policy may block ringtone */ } };
@@ -50,7 +62,82 @@ export default function MessagesPage() {
   const updateTyping = (value: string) => { setDraft(value); if (!selected) return; void communicationService.setTyping(selected.id, Boolean(value.trim())).catch(() => {}); if (typingTimer.current) clearTimeout(typingTimer.current); if (value.trim()) typingTimer.current = setTimeout(() => void communicationService.setTyping(selected.id, false).catch(() => {}), 1800); };
   const send = async () => { const body = draft.trim(); if (!body || !selected || sending) return; setSending(true); setDraft(''); setReplyTo(null); if (typingTimer.current) clearTimeout(typingTimer.current); void communicationService.setTyping(selected.id, false).catch(() => {}); const id = crypto.randomUUID(); try { const r = await communicationService.sendMessage({ conversationId: selected.id, body, clientMessageId: id, ...(replyTo?.id ? { replyToMessageId: replyTo.id } : {}) }); setMessages(p => p.some(x => x.id === r.message_id) ? p : [...p, { id: r.message_id, conversation_id: selected.id, sender_id: user!.id, body, created_at: new Date().toISOString(), client_message_id: id, reply_to_message_id: replyTo?.id ?? null }]); void refresh(); } catch (e) { setDraft(body); toast.error(e instanceof Error ? e.message : 'Message failed'); } finally { setSending(false); } };
 
-  const toggleVoiceNote = async () => { if (recording) { mediaRecorderRef.current?.stop(); setRecording(false); return; } try { const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); const Recorder = (globalThis as any).MediaRecorder; if (!Recorder) throw new Error('Voice recording is not supported on this device'); const mime = Recorder.isTypeSupported?.('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm'; const recorder = Reflect.construct(Recorder, [stream, { mimeType: mime }]) as MediaRecorder; recordingChunksRef.current = []; recorder.ondataavailable = event => { if (event.data.size) recordingChunksRef.current.push(event.data); }; recorder.onstop = async () => { stream.getTracks().forEach(track => track.stop()); const blob = new Blob(recordingChunksRef.current, { type: mime }); if (blob.size < 1) return; await uploadAttachment(Object.assign(blob, { name: 'voice-note.webm' }) as File); }; recorder.start(); mediaRecorderRef.current = recorder; setRecording(true); } catch (e) { toast.error(e instanceof Error ? e.message : 'Microphone permission is required'); } };
+  const toggleVoiceNote = async () => {
+    if (recording) {
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== 'inactive') recorder.stop();
+      setRecording(false);
+      return;
+    }
+
+    const Recorder = globalThis.MediaRecorder;
+    if (typeof Recorder !== 'function') {
+      toast.error('Voice recording is not supported by this browser. Update the app or use an audio attachment.');
+      return;
+    }
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast.error('Microphone capture requires a supported browser and a secure HTTPS connection.');
+      return;
+    }
+
+    let stream: MediaStream | null = null;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+      });
+      mediaStreamRef.current = stream;
+      const candidates = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4;codecs=mp4a.40.2',
+        'audio/mp4',
+      ];
+      const mime = candidates.find(type => Recorder.isTypeSupported?.(type)) || '';
+      const recorder = mime ? new Recorder(stream, { mimeType: mime }) : new Recorder(stream);
+      recordingChunksRef.current = [];
+      recorder.ondataavailable = event => {
+        if (event.data.size) recordingChunksRef.current.push(event.data);
+      };
+      recorder.onerror = () => {
+        recorder.onstop = null;
+        try { if (recorder.state !== 'inactive') recorder.stop(); } catch { /* recorder already failed */ }
+        stream?.getTracks().forEach(track => track.stop());
+        mediaStreamRef.current = null;
+        setRecording(false);
+        mediaRecorderRef.current = null;
+        toast.error('Voice recording stopped unexpectedly. Please try again.');
+      };
+      recorder.onstop = async () => {
+        stream?.getTracks().forEach(track => track.stop());
+        mediaStreamRef.current = null;
+        setRecording(false);
+        mediaRecorderRef.current = null;
+        const actualMime = recorder.mimeType || mime || recordingChunksRef.current[0]?.type || 'application/octet-stream';
+        const blob = new Blob(recordingChunksRef.current, { type: actualMime });
+        if (blob.size < 1) {
+          toast.error('No audio was captured. Check microphone permission and try again.');
+          return;
+        }
+        const extension = actualMime.includes('mp4') ? 'm4a' : actualMime.includes('ogg') ? 'ogg' : actualMime.includes('webm') ? 'webm' : 'audio';
+        const file = new globalThis.File([blob], 'voice-note.' + extension, { type: actualMime });
+        await uploadAttachment(file);
+      };
+      recorder.start();
+      mediaRecorderRef.current = recorder;
+      setRecording(true);
+    } catch (e) {
+      stream?.getTracks().forEach(track => track.stop());
+      mediaStreamRef.current = null;
+      mediaRecorderRef.current = null;
+      setRecording(false);
+      const name = e instanceof DOMException ? e.name : '';
+      if (name === 'NotAllowedError' || name === 'SecurityError') {
+        toast.error('Microphone permission is blocked. Allow microphone access for Testagram in your device or browser settings.');
+      } else {
+        toast.error(e instanceof Error ? e.message : 'Unable to start voice recording.');
+      }
+    }
+  };
 
   const uploadAttachment = async (file: File) => { if (!selected || !user) return; setSending(true); try { const session = await supabase.auth.getSession(); const token = session.data.session?.access_token; if (!token) throw new Error('Authentication required'); const initResponse = await fetch('/api/media', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'init', name: file.name, mime_type: file.type, size_bytes: file.size }) }); const init = await initResponse.json().catch(() => null); if (!initResponse.ok || !init?.upload_url || !init?.media_id) throw new Error(init?.error ?? 'Unable to initialize media upload'); const uploadResponse = await fetch(init.upload_url, { method: 'PUT', headers: { 'Content-Type': file.type }, body: file }); if (!uploadResponse.ok) throw new Error('Media upload failed'); const completeResponse = await fetch('/api/media', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'complete', media_id: init.media_id }) }); const complete = await completeResponse.json().catch(() => null); if (!completeResponse.ok) throw new Error(complete?.error ?? 'Unable to finalize media upload'); const sent = await communicationService.sendMessage({ conversationId: selected.id, body: file.name, clientMessageId: crypto.randomUUID() }); await communicationService.attachMessage({ messageId: sent.message_id, mediaUrl: complete.public_url ?? '', mediaType: file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : 'file', mimeType: file.type || undefined, byteSize: file.size }); toast.success('Attachment sent'); void refresh(); } catch (e) { toast.error(e instanceof Error ? e.message : 'Attachment upload failed'); } finally { setSending(false); if (fileInput.current) fileInput.current.value = ''; } };
   const searchUsers = async (value: string, group = false) => { group ? setGroupSearch(value) : setNewChatSearch(value); const q = value.trim(); if (!q) { group ? setGroupResults([]) : setPeople([]); return; } setSearching(true); try { const r = await backendCapabilities.searchUsers(q, 12); group ? setGroupResults(r.items as Person[]) : setPeople(r.items as Person[]); } finally { setSearching(false); } };

@@ -43,6 +43,7 @@ jobs:
           distribution: temurin
           java-version: "21"
       - run: npm ci
+      - run: npm run validate:native
       - run: npm run build
       - name: Build Android
         working-directory: android

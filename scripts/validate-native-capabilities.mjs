@@ -5,6 +5,9 @@ const activity = readFileSync('android/app/src/main/java/com/xclone/app/MainActi
 const messaging = readFileSync('android/app/src/main/java/com/xclone/app/TestagramFirebaseMessagingService.java', 'utf8');
 const worker = readFileSync('public/sw.js', 'utf8');
 const push = readFileSync('src/services/pushNotifications.ts', 'utf8');
+const messages = readFileSync('src/pages/MessagesPage.tsx', 'utf8');
+const identity = readFileSync('src/pages/IdentityVerificationPage.tsx', 'utf8');
+const notificationPreferences = readFileSync('src/pages/NotificationPreferencesPage.tsx', 'utf8');
 const checks = [
   ['Android declares camera permission', manifest.includes('android.permission.CAMERA')],
   ['Android declares microphone permission', manifest.includes('android.permission.RECORD_AUDIO')],
@@ -19,6 +22,12 @@ const checks = [
   ['Web push requires a secure context and permission grant', push.includes('window.isSecureContext') && push.includes("permission !== 'granted'")],
   ['Service-worker notification targets are restricted to same origin', worker.includes('candidate.origin !== self.location.origin') && worker.includes('safeNotificationUrl(event.notification.data?.action_url')],
   ['Unrelated push notifications are not collapsed into one fixed tag', !worker.includes("tag: data.notification_id || 'testagram-notification'")],
+  ['Voice notes select supported WebM or MP4 codecs and create a real File', messages.includes('audio/mp4') && messages.includes('new globalThis.File([blob]')],
+  ['Voice note failure paths stop microphone tracks', messages.includes("stream?.getTracks().forEach(track => track.stop())")],
+  ['Voice note unmount cleanup stops the recorder and microphone stream', messages.includes('mediaStreamRef.current?.getTracks().forEach(track => track.stop())') && messages.includes('recorder.onstop = null')],
+  ['Identity liveness capture clears timers and stops media tracks', identity.includes('mediaStream.current?.getTracks().forEach(track => track.stop())') && identity.includes('captureTimeout.current !== null')],
+  ['Android shell publishes OS notification permission to the web app', readFileSync('android/app/src/main/java/com/xclone/app/MainActivity.java', 'utf8').includes('testagram:native-notification-status')],
+  ['Notification settings reflect native FCM status and keep the test action available', notificationPreferences.includes('native-granted') && notificationPreferences.includes('testagram:native-notification-status')],
 ];
 let failures = 0;
 for (const [name, passed] of checks) {

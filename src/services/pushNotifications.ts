@@ -2,6 +2,15 @@ import { backendCapabilities } from '@/services/backendClient';
 
 const SERVICE_WORKER_PATH = '/sw.js';
 
+type NativeNotificationStatus = { available: boolean; enabled: boolean };
+declare global {
+  interface Window {
+    __TESTAGRAM_NATIVE_NOTIFICATION_STATUS__?: NativeNotificationStatus;
+  }
+}
+
+export type LocalPushStatus = NotificationPermission | 'unsupported' | 'native-granted' | 'native-denied';
+
 function base64UrlToArrayBuffer(value: string): ArrayBuffer {
   const padding = '='.repeat((4 - (value.length % 4)) % 4);
   const normalized = (value + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -19,6 +28,12 @@ function supported(): boolean {
 }
 
 export async function enableLocalPushNotifications(): Promise<{ enabled: boolean; reason?: string }> {
+  const nativeStatus = typeof window !== 'undefined' ? window.__TESTAGRAM_NATIVE_NOTIFICATION_STATUS__ : undefined;
+  if (nativeStatus?.available) {
+    return nativeStatus.enabled
+      ? { enabled: true, reason: 'NATIVE_FCM_ACTIVE' }
+      : { enabled: false, reason: 'NATIVE_NOTIFICATIONS_BLOCKED' };
+  }
   if (!supported()) return { enabled: false, reason: 'PUSH_UNSUPPORTED' };
   if (!window.isSecureContext) return { enabled: false, reason: 'PUSH_REQUIRES_HTTPS' };
 
@@ -54,7 +69,10 @@ export async function enableLocalPushNotifications(): Promise<{ enabled: boolean
 }
 
 export async function disableLocalPushNotifications(): Promise<void> {
-  if (!supported()) return;
+  // Native FCM registration and the OS-level notification switch are managed by
+  // the Android shell. This function only removes a browser Push API subscription.
+  const nativeStatus = typeof window !== 'undefined' ? window.__TESTAGRAM_NATIVE_NOTIFICATION_STATUS__ : undefined;
+  if (nativeStatus?.available || !supported()) return;
   const registration = await navigator.serviceWorker.getRegistration(SERVICE_WORKER_PATH);
   const subscription = await registration?.pushManager.getSubscription();
   if (!subscription) return;
@@ -63,7 +81,9 @@ export async function disableLocalPushNotifications(): Promise<void> {
   await backendCapabilities.unsubscribePush(endpoint);
 }
 
-export async function getLocalPushStatus(): Promise<NotificationPermission | 'unsupported'> {
+export async function getLocalPushStatus(): Promise<LocalPushStatus> {
+  const nativeStatus = typeof window !== 'undefined' ? window.__TESTAGRAM_NATIVE_NOTIFICATION_STATUS__ : undefined;
+  if (nativeStatus?.available) return nativeStatus.enabled ? 'native-granted' : 'native-denied';
   if (!supported()) return 'unsupported';
   return Notification.permission;
 }

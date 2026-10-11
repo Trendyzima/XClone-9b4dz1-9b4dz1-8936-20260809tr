@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSEO } from '@/hooks/useSEO';
 import { TopBar } from '@/components/layout/TopBar';
 import { backendCapabilities } from '@/services/backendClient';
-import { enableLocalPushNotifications, disableLocalPushNotifications, getLocalPushStatus } from '@/services/pushNotifications';
+import { enableLocalPushNotifications, disableLocalPushNotifications, getLocalPushStatus, type LocalPushStatus } from '@/services/pushNotifications';
 import { useAuth } from '@/hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
@@ -138,7 +138,7 @@ export default function NotificationPreferencesPage() {
   const [saving, setSaving] = useState('');   // esbuild guard: string not string|null
   const [masterMute, setMasterMute] = useState(false);
   const [testing, setTesting] = useState(false);
-  const [pushStatus, setPushStatus] = useState<NotificationPermission | 'unsupported'>('unsupported');
+  const [pushStatus, setPushStatus] = useState<LocalPushStatus>('unsupported');
   const [pushBusy, setPushBusy] = useState(false);
   const enabledCount = Object.values(prefs).filter(p => p.in_app || p.push || p.email).length;
   const pushEnabledCount = Object.values(prefs).filter(p => p.push).length;
@@ -147,7 +147,12 @@ export default function NotificationPreferencesPage() {
   useEffect(() => {
     if (!user) { navigate('/auth'); return; }
     loadPrefs();
-    void getLocalPushStatus().then(setPushStatus);
+    const refreshPushStatus = () => { void getLocalPushStatus().then(setPushStatus); };
+    refreshPushStatus();
+    // The Android shell publishes OS notification permission separately from the
+    // browser Push API; update the controls when that native status arrives.
+    window.addEventListener('testagram:native-notification-status', refreshPushStatus);
+    return () => window.removeEventListener('testagram:native-notification-status', refreshPushStatus);
   }, [user]);
 
   const loadPrefs = async () => {
@@ -274,11 +279,11 @@ export default function NotificationPreferencesPage() {
             <div className="flex items-center gap-3 border-b border-border p-4">
               <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10"><Smartphone className="h-5 w-5 text-primary" /></div>
               <div className="min-w-0 flex-1"><p className="font-bold">This device</p><p className="mt-0.5 text-xs text-muted-foreground">Receive Testagram alerts when the site is in the background.</p></div>
-              <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${pushStatus === 'granted' ? 'bg-green-500/10 text-green-600' : pushStatus === 'denied' ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}`}>{pushStatus === 'granted' ? 'Enabled' : pushStatus === 'denied' ? 'Blocked' : pushStatus === 'unsupported' ? 'Unavailable' : 'Not enabled'}</span>
+              <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${pushStatus === 'granted' || pushStatus === 'native-granted' ? 'bg-green-500/10 text-green-600' : pushStatus === 'denied' || pushStatus === 'native-denied' ? 'bg-destructive/10 text-destructive' : 'bg-muted text-muted-foreground'}`}>{pushStatus === 'native-granted' ? 'App enabled' : pushStatus === 'native-denied' ? 'OS blocked' : pushStatus === 'granted' ? 'Enabled' : pushStatus === 'denied' ? 'Blocked' : pushStatus === 'unsupported' ? 'Unavailable' : 'Not enabled'}</span>
             </div>
             <div className="flex items-center justify-between gap-3 p-4">
-              <p className="text-xs text-muted-foreground">{pushStatus === 'denied' ? 'Browser permission is blocked. Allow notifications for Testagram in your browser settings, then return here.' : 'Push requires browser permission and an active service worker.'}</p>
-              {pushStatus === 'granted' ? <button onClick={disablePush} disabled={pushBusy} className="shrink-0 rounded-xl border border-border px-3 py-2 text-sm font-bold disabled:opacity-60">{pushBusy ? 'Working…' : 'Disable'}</button> : <button onClick={enablePush} disabled={pushBusy || pushStatus === 'unsupported' || pushStatus === 'denied'} className="shrink-0 rounded-xl bg-primary px-3 py-2 text-sm font-bold text-primary-foreground disabled:opacity-60">{pushBusy ? 'Enabling…' : 'Enable'}</button>}
+              <p className="text-xs text-muted-foreground">{pushStatus === 'native-granted' ? 'Android native push is active. Use the category switches below to choose which Testagram alerts you receive.' : pushStatus === 'native-denied' ? 'Android has blocked notifications for Testagram. Open Android Settings → Apps → Testagram → Notifications to allow them.' : pushStatus === 'denied' ? 'Browser permission is blocked. Allow notifications for Testagram in your browser settings, then return here.' : 'Push requires device permission and an available notification delivery channel.'}</p>
+              {pushStatus === 'native-granted' ? <span className="shrink-0 rounded-xl border border-border px-3 py-2 text-sm font-bold">Managed by app</span> : pushStatus === 'native-denied' ? <span className="shrink-0 rounded-xl border border-destructive/30 px-3 py-2 text-sm font-bold text-destructive">Check settings</span> : pushStatus === 'granted' ? <button onClick={disablePush} disabled={pushBusy} className="shrink-0 rounded-xl border border-border px-3 py-2 text-sm font-bold disabled:opacity-60">{pushBusy ? 'Working…' : 'Disable'}</button> : <button onClick={enablePush} disabled={pushBusy || pushStatus === 'unsupported' || pushStatus === 'denied'} className="shrink-0 rounded-xl bg-primary px-3 py-2 text-sm font-bold text-primary-foreground disabled:opacity-60">{pushBusy ? 'Enabling…' : 'Enable'}</button>}
             </div>
           </section>
 
@@ -286,7 +291,7 @@ export default function NotificationPreferencesPage() {
           <section className="flex items-center gap-3 rounded-2xl border border-border bg-card p-4">
             <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-primary/10"><Zap className="h-5 w-5 text-primary" /></div>
             <div className="min-w-0 flex-1"><p className="text-sm font-bold">Test your notifications</p><p className="mt-0.5 text-xs text-muted-foreground">Send a real test through Testagram's push pipeline.</p></div>
-            <button onClick={handleTestNotification} disabled={testing || pushStatus !== 'granted'} className="shrink-0 rounded-xl border border-border px-3 py-2 text-sm font-bold hover:bg-muted disabled:opacity-50">{testing ? 'Sending…' : 'Send test'}</button>
+            <button onClick={handleTestNotification} disabled={testing || (pushStatus !== 'granted' && pushStatus !== 'native-granted')} className="shrink-0 rounded-xl border border-border px-3 py-2 text-sm font-bold hover:bg-muted disabled:opacity-50">{testing ? 'Sending…' : 'Send test'}</button>
           </section>
 
           {/* Groups */}

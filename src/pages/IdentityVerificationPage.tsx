@@ -60,8 +60,24 @@ export default function IdentityVerificationPage() {
   const [finalizing, setFinalizing] = useState(false);
   const [recording, setRecording] = useState(false);
   const mediaRecorder = useRef<MediaRecorder | null>(null);
+  const mediaStream = useRef<MediaStream | null>(null);
+  const captureTimeout = useRef<number | null>(null);
   const chunks = useRef<Blob[]>([]);
   const fileRefs = useRef<Partial<Record<EvidenceKind, HTMLInputElement | null>>>({});
+
+  useEffect(() => () => {
+    if (captureTimeout.current !== null) window.clearTimeout(captureTimeout.current);
+    captureTimeout.current = null;
+    const recorder = mediaRecorder.current;
+    if (recorder && recorder.state !== 'inactive') {
+      // Do not let an unmounted page upload partial evidence from a stale capture.
+      recorder.onstop = null;
+      try { recorder.stop(); } catch { /* renderer may already have stopped the recorder */ }
+    }
+    mediaRecorder.current = null;
+    mediaStream.current?.getTracks().forEach(track => track.stop());
+    mediaStream.current = null;
+  }, []);
 
   const loadStatus = async () => {
     try {
@@ -142,25 +158,58 @@ export default function IdentityVerificationPage() {
   const startLiveness = async () => {
     if (!uploads.liveness_video || recording) return;
     setMessage('');
+    let stream: MediaStream | null = null;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error('UNSUPPORTED_VIDEO_CAPTURE');
+      stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'user'},audio:false});
+      mediaStream.current = stream;
       const supportedMimeType = ['video/webm;codecs=vp8,opus', 'video/webm'].find(type => MediaRecorder.isTypeSupported(type));
       if (!supportedMimeType) throw new Error('UNSUPPORTED_VIDEO_CAPTURE');
       const recorder = new MediaRecorder(stream, { mimeType: supportedMimeType });
       chunks.current = [];
       recorder.ondataavailable = e => { if (e.data.size) chunks.current.push(e.data); };
-      recorder.onstop = async () => {
-        stream.getTracks().forEach(track => track.stop());
+      recorder.onerror = () => {
+        recorder.onstop = null;
+        try { if (recorder.state !== 'inactive') recorder.stop(); } catch { /* recorder already failed */ }
+        stream?.getTracks().forEach(track => track.stop());
+        mediaStream.current = null;
+        mediaRecorder.current = null;
+        if (captureTimeout.current !== null) window.clearTimeout(captureTimeout.current);
+        captureTimeout.current = null;
         setRecording(false);
-        const blob = new Blob(chunks.current, { type: 'video/webm' });
-        try { await upload('liveness_video', new File([blob], 'liveness.webm', { type: 'video/webm' })); }
+        setMessage('Camera recording stopped unexpectedly. Please try again.');
+      };
+      recorder.onstop = async () => {
+        stream?.getTracks().forEach(track => track.stop());
+        mediaStream.current = null;
+        mediaRecorder.current = null;
+        if (captureTimeout.current !== null) window.clearTimeout(captureTimeout.current);
+        captureTimeout.current = null;
+        setRecording(false);
+        const blob = new Blob(chunks.current, { type: supportedMimeType.split(';')[0] });
+        if (blob.size < 1) {
+          setMessage('No video was captured. Check camera permission and try again.');
+          return;
+        }
+        try { await upload('liveness_video', new globalThis.File([blob], 'liveness.webm', { type: 'video/webm' })); }
         catch (error:any) { setMessage(friendlyIdentityError(error, 'Liveness upload failed.')); }
       };
       mediaRecorder.current = recorder;
       recorder.start();
       setRecording(true);
-      window.setTimeout(() => recorder.state === 'recording' && recorder.stop(), 5000);
-    } catch (error:any) { setRecording(false); setMessage(friendlyIdentityError(error, 'Camera access is required for liveness.')); }
+      captureTimeout.current = window.setTimeout(() => {
+        captureTimeout.current = null;
+        if (recorder.state === 'recording') recorder.stop();
+      }, 5000);
+    } catch (error:any) {
+      stream?.getTracks().forEach(track => track.stop());
+      mediaStream.current = null;
+      mediaRecorder.current = null;
+      if (captureTimeout.current !== null) window.clearTimeout(captureTimeout.current);
+      captureTimeout.current = null;
+      setRecording(false);
+      setMessage(friendlyIdentityError(error, 'Camera access is required for liveness.'));
+    }
   };
 
   const beginProcessing = async () => {
