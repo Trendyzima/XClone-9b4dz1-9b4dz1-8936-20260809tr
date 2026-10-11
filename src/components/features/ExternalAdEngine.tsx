@@ -3,11 +3,8 @@ import { useLocation } from 'react-router-dom';
 
 type AdUnit = 'network-300' | 'content-300' | 'banner-728' | 'skyscraper-160' | 'adsterra-160x300' | 'adsterra-320x50' | 'exoclick-display';
 const WIDE_PAGES = new Set(['/', '/home', '/explore', '/search', '/videos', '/shorts']);
-const BLOCKED_PATH = /^\/(auth|login|signup|register|forgot-password|reset-password|password-reset|verify|verify-identity|profile\/complete|admin|settings|account|security|billing|subscription|invoice|wallet|messages|notifications|help|premium|create-ad|my-ads|ad-|rewards|payouts|revenue|analytics|appeals|sessions|blocked|privacy|terms|policy|regulator|tv-studio|start-stream)(\/|$)/;
+const BLOCKED_PATH = /^\/(auth|login|signup|register|forgot-password|reset-password|password-reset|verify|verify-identity|profile\/complete|admin|settings|account|security|billing|subscription|invoice|wallet|messages|notifications|help|premium|create-ad|my-ads|ad-[^/]+|rewards|payouts|revenue|analytics|appeals|sessions|blocked|privacy|terms|policy|regulator|tv-studio|start-stream|checkout|orders|cart|payment|purchases|withdraw|withdrawals)(\/|$)/;
 
-function getUnit(pathname: string): AdUnit {
-  return WIDE_PAGES.has(pathname) || pathname.startsWith('/home/') ? 'banner-728' : 'network-300';
-}
 const AD_DOCUMENTS: Record<AdUnit, { width: number; height: number; html: string }> = {
   'exoclick-display': {
     width: 300, height: 250,
@@ -118,17 +115,16 @@ export function ExternalAdEngine({ surface = 'top' }: { surface?: 'top' | 'sideb
   const { pathname } = useLocation();
   if (BLOCKED_PATH.test(pathname) || (pathname === '/iptv' && surface !== 'overlay') || (pathname.startsWith('/tv/live/') && surface !== 'overlay')) return null;
   if (surface === 'overlay') return <AdFrame unit="adsterra-160x300" />;
-  // External display ads belong inside a social feed slot, never in a global page header.
+  // ExoClick display inventory is mounted once in the shared content column on eligible routes.
+  // The feed surface remains available for future explicitly designed in-feed placements.
   if (surface === 'feed') return <div className="mx-auto w-full max-w-full"><AdFrame unit="exoclick-display" /></div>;
   if (surface === 'sidebar') {
     if (WIDE_PAGES.has(pathname) || pathname.startsWith('/home/')) return null;
     return <div className="hidden xl:block"><AdFrame unit="skyscraper-160" /></div>;
   }
-  const widePage = getUnit(pathname) === 'banner-728';
   return (
-    <div className="external-ad-top">
-      <div className="xl:hidden"><AdFrame unit="adsterra-320x50" /></div>
-      {widePage && <div className="hidden xl:block"><AdFrame unit="banner-728" /></div>}
+    <div className="external-ad-top mx-auto w-full max-w-full py-1" data-testid="exoclick-page-placement">
+      <AdFrame unit="exoclick-display" />
     </div>
   );
 }

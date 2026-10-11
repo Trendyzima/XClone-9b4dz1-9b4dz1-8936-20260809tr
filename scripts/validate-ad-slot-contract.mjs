@@ -3,8 +3,10 @@ import fs from 'node:fs';
 
 const externalPath = 'src/components/features/ExternalAdEngine.tsx';
 const iptvPath = 'src/pages/TikVTVPage.tsx';
+const appPath = 'src/App.tsx';
 const external = fs.readFileSync(externalPath, 'utf8');
 const iptv = fs.readFileSync(iptvPath, 'utf8');
+const app = fs.readFileSync(appPath, 'utf8');
 
 function extractTemplate(source, marker, endMarker) {
   const markerIndex = source.indexOf(marker);
@@ -41,6 +43,13 @@ assert.ok(!external.includes('relative h-px w-full overflow-hidden'), 'ExternalA
 assert.ok(!external.includes('-z-10 overflow-hidden opacity-0'), 'ExternalAdEngine must not hide the publisher frame while waiting for creative detection');
 assert.ok(external.includes("report('empty','script-error')"), 'ExternalAdEngine must distinguish script errors from no-fill timeouts');
 assert.ok(external.includes("}, [unit]);"), 'ExternalAdEngine message listener must track the current unit');
+assert.ok(external.includes('data-zoneid="6052126"'), 'ExoClick display slot must preserve the approved publisher zone ID');
+assert.ok(external.includes('data-testid="exoclick-page-placement"'), 'ExoClick page placement must have a stable test hook');
+assert.ok(external.includes('data-testid="exoclick-page-placement"') && external.includes('<AdFrame unit="exoclick-display" />'), 'Top page placement must use ExoClick display inventory');
+assert.ok(app.includes("import { ExternalAdEngine } from '@/components/features/ExternalAdEngine';"), 'Shared application shell must import the external ad engine');
+assert.ok(app.includes('<ExternalAdEngine key={location.pathname} surface="top"/>'), 'Shared application shell must remount the ad slot on eligible route navigation');
+assert.ok(external.includes('checkout|orders|cart|payment|purchases|withdraw|withdrawals'), 'External ads must be suppressed on transactional routes');
+assert.ok(external.includes('ad-[^/]+'), 'External ads must be suppressed on ad-management routes');
 
 const iptvTemplate = extractTemplate(iptv, 'adFrame.srcdoc = `', '`;');
 validateEmbeddedScript(iptvTemplate, 'IPTV Adsterra banner');
@@ -50,4 +59,14 @@ assert.ok(iptv.includes("sponsored.style.cssText = 'display:none;"), 'IPTV Spons
 assert.ok(iptv.includes("candidate.contentWindow === event.source"), 'IPTV must verify the frame reporting the ad status');
 assert.ok(iptv.includes("banner.remove();"), 'IPTV empty ad slots must be removed');
 
-console.log('PASS ad slot contract: monitor scripts parse, offscreen slots do not reserve blank space, no-fill slots collapse, and Sponsored labels require a detected creative signal.');
+const apiWorkflowPath = '.github/workflows/adsterra-publisher-api-check.yml';
+const apiWorkflow = fs.readFileSync(apiWorkflowPath, 'utf8');
+assert.ok(apiWorkflow.includes('workflow_dispatch:'), 'Adsterra credential validation must be manually triggered');
+assert.ok(apiWorkflow.includes('${{ secrets.api_token_1 }}'), 'Adsterra API workflow must read the api_token_1 Actions secret');
+assert.ok(apiWorkflow.includes('https://api3.adsterratools.com/publisher/domains.json'), 'Adsterra workflow must call the documented publisher domains endpoint');
+assert.ok(apiWorkflow.includes('X-API-Key:'), 'Adsterra token must be sent in the request header, not URL');
+assert.ok(!apiWorkflow.includes('set -x'), 'Adsterra workflow must not enable shell tracing around secrets');
+assert.ok(apiWorkflow.includes('Response body suppressed'), 'Adsterra workflow must suppress API response bodies in error logs');
+assert.ok(apiWorkflow.includes('jq -e .'), 'Adsterra workflow must validate a successful JSON response');
+
+console.log('PASS ad slot contract: ad monitor scripts parse, route placements are guarded, and the Adsterra API workflow uses a protected secret without logging response bodies.');
