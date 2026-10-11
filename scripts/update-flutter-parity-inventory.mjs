@@ -41,6 +41,7 @@ const foundation = {
   'src/pages/HomePage.tsx': ['foundation', 'Native feed shell is started; full feed ranking, ads, replies, reposts and moderation parity still required.'],
   'src/pages/ExplorePage.tsx': ['foundation', 'Native profile/post search and follow toggle are started; discovery parity still required.'],
   'src/pages/NotificationsPage.tsx': ['foundation', 'Native notification list/read actions are started; capability API, push and category parity still required.'],
+  'src/components/features/ComposePost.tsx': ['foundation', 'Flutter feed supports text/photo/video compose and Supabase Storage upload; edit flows, full media parity and backend contract tests remain.'],
   'src/pages/MessagesPage.tsx': ['blocked_on_capability_port', 'Encrypted messaging must use the existing capability plane; never write plaintext directly to messages.'],
   'src/pages/CreatorStudio.tsx': ['not_started', 'Creator studio, upload pipeline, analytics and monetization require screen-by-screen parity.'],
   'src/pages/TvStudioPage.tsx': ['not_started', 'TV production, channel management and broadcast controls require parity tests.'],
@@ -74,6 +75,11 @@ const domains = [
   ['observability_and_release', 'Crash/error telemetry, structured logs, feature flags, CI gates, real-device matrix, canary rollout, rollback and release evidence'],
 ];
 const previousDomains = new Map((existing.domains ?? []).map((domain) => [domain.id, domain]));
+const initialProgress = new Map([
+  ['social_feed', 'in_progress'],
+  ['iptv_and_tv_production', 'in_progress'],
+  ['camera_microphone_media', 'in_progress'],
+]);
 const inventory = {
   schema_version: 1,
   generated_at: new Date().toISOString(),
@@ -81,7 +87,7 @@ const inventory = {
   domains: domains.map(([id, scope]) => ({
     id,
     scope,
-    status: previousDomains.get(id)?.status ?? 'not_started',
+    status: previousDomains.get(id)?.status ?? initialProgress.get(id) ?? 'not_started',
     acceptance: previousDomains.get(id)?.acceptance ?? ['positive path', 'unauthenticated/permission path', 'offline/timeout recovery', 'accessibility and responsive layout', 'web and Android tests'],
   })),
   sources,

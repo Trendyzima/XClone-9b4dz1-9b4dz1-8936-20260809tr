@@ -40,11 +40,11 @@ The app intentionally shows a setup screen if build-time configuration is absent
 - Shared routing, responsive shell, original Testagram styling and light/dark/system appearance control.
 - Supabase configuration boundary and PKCE authentication.
 - Email/password sign-in, password recovery/update, legal acceptance and 24-hour secure session policy.
-- Feed pagination, pull-to-refresh, text-post creation, heart reactions, comments/replies, reposts, bookmarks, share sheet, copy-link, report submission, image rendering and tap-to-play video.
+- Feed pagination, pull-to-refresh, text/photo/video post composition, camera capture and gallery selection, media type/size validation, Supabase Storage upload with orphan cleanup on post-write failure, heart reactions, comments/replies, reposts, bookmarks, share sheet, copy-link, report submission, image rendering and tap-to-play video.
 - People/post search, follow/unfollow and public profile navigation.
 - Current-user profile and post listing.
 - Notification listing, mark-read and mark-all-read.
-- Live-stream catalogue and native video-player attempt with explicit unavailable/failed playback states.
+- Live-stream catalogue, TikVTV-style vertical swipe feed with stable full-height channel surfaces, channel-list fallback, provider resolver, native video player, retry/share controls and explicit unavailable/failed playback states. Real-stream/device validation remains required.
 - Conversation index only. Native encrypted send/receive, E2EE key management, receipts, presence, voice notes and calls are not marked complete.
 - Settings, sign-out and appearance controls.
 - Flutter analyzer/widget/session-policy tests.

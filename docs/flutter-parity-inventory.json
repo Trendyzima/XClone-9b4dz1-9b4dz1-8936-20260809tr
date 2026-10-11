@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-11T13:53:25.554Z",
+  "generated_at": "2026-10-11T17:50:29.486Z",
   "rule": "A feature is not complete until its Flutter web and Android behavior, backend contract, permissions, failure recovery, and tests are verified. Existing web routes remain available until parity is accepted.",
   "domains": [
     {
@@ -18,13 +18,14 @@
     {
       "id": "social_feed",
       "scope": "Feed ranking, infinite pagination, cache, refresh, posts, compose/edit/delete, media, comments/replies, reactions, reposts/quotes, bookmarks, share, report",
-      "status": "not_started",
+      "status": "in_progress",
       "acceptance": [
         "positive path",
         "unauthenticated/permission path",
         "offline/timeout recovery",
         "accessibility and responsive layout",
-        "web and Android tests"
+        "web and Android tests",
+        "Flutter implementation exists; end-to-end production parity is not yet accepted"
       ]
     },
     {
@@ -66,13 +67,14 @@
     {
       "id": "iptv_and_tv_production",
       "scope": "TV channels, stream resolution, HLS playback, vertical TV feed, studio, live broadcast, channel profiles, TV admin/production interface",
-      "status": "not_started",
+      "status": "in_progress",
       "acceptance": [
         "positive path",
         "unauthenticated/permission path",
         "offline/timeout recovery",
         "accessibility and responsive layout",
-        "web and Android tests"
+        "web and Android tests",
+        "Flutter implementation exists; end-to-end production parity is not yet accepted"
       ]
     },
     {
@@ -114,13 +116,14 @@
     {
       "id": "camera_microphone_media",
       "scope": "Camera, microphone, gallery/file picker, permission denial/recovery, upload progress/retry, media codecs, storage/CDN URLs",
-      "status": "not_started",
+      "status": "in_progress",
       "acceptance": [
         "positive path",
         "unauthenticated/permission path",
         "offline/timeout recovery",
         "accessibility and responsive layout",
-        "web and Android tests"
+        "web and Android tests",
+        "Flutter implementation exists; end-to-end production parity is not yet accepted"
       ]
     },
     {
@@ -310,8 +313,8 @@
       "source_type": "client_source"
     },
     "src/components/features/ComposePost.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "status": "foundation",
+      "note": "Flutter feed supports text/photo/video compose and Supabase Storage upload; edit flows, full media parity and backend contract tests remain.",
       "source_type": "client_source"
     },
     "src/components/features/ContentSuggestionsWidget.tsx": {

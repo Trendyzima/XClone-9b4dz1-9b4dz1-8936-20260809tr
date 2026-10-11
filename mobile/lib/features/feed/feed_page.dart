@@ -1,9 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
+
+import '../../core/media/media_upload_policy.dart';
 
 class FeedPage extends StatefulWidget {
   const FeedPage({super.key});
@@ -18,6 +21,7 @@ class _FeedPageState extends State<FeedPage> {
   final Set<String> _bookmarked = {};
   final Set<String> _reposted = {};
   bool _loading = false;
+  bool _publishing = false;
   bool _hasMore = true;
   String? _error;
   int _page = 0;
@@ -320,59 +324,256 @@ class _FeedPageState extends State<FeedPage> {
 
   Future<void> _compose() async {
     final controller = TextEditingController();
-    final content = await showModalBottomSheet<String>(
+    final picker = ImagePicker();
+    XFile? selectedMedia;
+    var selectedIsVideo = false;
+    var choosingMedia = false;
+    final draft = await showModalBottomSheet<Map<String, dynamic>>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (context) => Padding(
-        padding: EdgeInsets.only(
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (context, setSheetState) => Padding(
+          padding: EdgeInsets.only(
             left: 20,
             right: 20,
             top: 12,
-            bottom: MediaQuery.viewInsetsOf(context).bottom + 24),
-        child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text('Create a post',
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w800)),
-              const SizedBox(height: 14),
-              TextField(
+            bottom: MediaQuery.viewInsetsOf(context).bottom + 24,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text('Create a post',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w800)),
+                const SizedBox(height: 14),
+                TextField(
                   controller: controller,
                   autofocus: true,
                   maxLength: 5000,
                   maxLines: 6,
                   minLines: 3,
                   decoration: const InputDecoration(
-                      hintText: 'What is happening on Testagram?',
-                      alignLabelWithHint: true)),
-              const SizedBox(height: 12),
-              FilledButton(
-                  onPressed: () =>
-                      Navigator.pop(context, controller.text.trim()),
-                  child: const Text('Publish post')),
-            ]),
+                    hintText: 'What is happening on Testagram?',
+                    alignLabelWithHint: true,
+                  ),
+                ),
+                if (selectedMedia != null) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color:
+                          Theme.of(context).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(children: [
+                      Icon(selectedIsVideo
+                          ? Icons.video_file_rounded
+                          : Icons.image_rounded),
+                      const SizedBox(width: 10),
+                      Expanded(
+                          child: Text(selectedMedia!.name,
+                              maxLines: 2, overflow: TextOverflow.ellipsis)),
+                      IconButton(
+                        tooltip: 'Remove attachment',
+                        onPressed: () => setSheetState(() {
+                          selectedMedia = null;
+                          selectedIsVideo = false;
+                        }),
+                        icon: const Icon(Icons.close_rounded),
+                      ),
+                    ]),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: choosingMedia
+                          ? null
+                          : () async {
+                              setSheetState(() => choosingMedia = true);
+                              try {
+                                final file = await picker.pickImage(
+                                    source: ImageSource.camera,
+                                    imageQuality: 88,
+                                    maxWidth: 2560);
+                                if (file != null) {
+                                  setSheetState(() {
+                                    selectedMedia = file;
+                                    selectedIsVideo = false;
+                                  });
+                                }
+                              } catch (_) {
+                                if (sheetContext.mounted) {
+                                  ScaffoldMessenger.of(sheetContext)
+                                      .showSnackBar(const SnackBar(
+                                          content: Text(
+                                              'Camera is unavailable or permission was denied.')));
+                                }
+                              } finally {
+                                if (sheetContext.mounted) {
+                                  setSheetState(() => choosingMedia = false);
+                                }
+                              }
+                            },
+                      icon: const Icon(Icons.photo_camera_outlined),
+                      label: const Text('Camera'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: choosingMedia
+                          ? null
+                          : () async {
+                              setSheetState(() => choosingMedia = true);
+                              try {
+                                final file = await picker.pickImage(
+                                    source: ImageSource.gallery,
+                                    imageQuality: 88,
+                                    maxWidth: 2560);
+                                if (file != null) {
+                                  setSheetState(() {
+                                    selectedMedia = file;
+                                    selectedIsVideo = false;
+                                  });
+                                }
+                              } catch (_) {
+                                if (sheetContext.mounted) {
+                                  ScaffoldMessenger.of(sheetContext)
+                                      .showSnackBar(const SnackBar(
+                                          content: Text(
+                                              'Photo selection failed. Check media permissions and retry.')));
+                                }
+                              } finally {
+                                if (sheetContext.mounted) {
+                                  setSheetState(() => choosingMedia = false);
+                                }
+                              }
+                            },
+                      icon: const Icon(Icons.photo_library_outlined),
+                      label: const Text('Photo'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: choosingMedia
+                          ? null
+                          : () async {
+                              setSheetState(() => choosingMedia = true);
+                              try {
+                                final file = await picker.pickVideo(
+                                    source: ImageSource.gallery,
+                                    maxDuration: const Duration(minutes: 5));
+                                if (file != null) {
+                                  setSheetState(() {
+                                    selectedMedia = file;
+                                    selectedIsVideo = true;
+                                  });
+                                }
+                              } catch (_) {
+                                if (sheetContext.mounted) {
+                                  ScaffoldMessenger.of(sheetContext)
+                                      .showSnackBar(const SnackBar(
+                                          content: Text(
+                                              'Video selection failed. Check media permissions and retry.')));
+                                }
+                              } finally {
+                                if (sheetContext.mounted) {
+                                  setSheetState(() => choosingMedia = false);
+                                }
+                              }
+                            },
+                      icon: const Icon(Icons.video_library_outlined),
+                      label: const Text('Video'),
+                    ),
+                  ],
+                ),
+                if (choosingMedia) const LinearProgressIndicator(),
+                const SizedBox(height: 14),
+                FilledButton(
+                  onPressed: choosingMedia ||
+                          (controller.text.trim().isEmpty &&
+                              selectedMedia == null)
+                      ? null
+                      : () => Navigator.pop(sheetContext, {
+                            'content': controller.text.trim(),
+                            'media': selectedMedia,
+                            'isVideo': selectedIsVideo,
+                          }),
+                  child: const Text('Publish post'),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
     controller.dispose();
-    if (content == null || content.isEmpty) return;
+    if (draft == null) return;
+    final content = '${draft['content'] ?? ''}'.trim();
+    final media = draft['media'] as XFile?;
+    final isVideo = draft['isVideo'] == true;
+    if (content.isEmpty && media == null) return;
+    if (_publishing) return;
+    setState(() => _publishing = true);
+    String? uploadedPath;
     try {
-      await _client.from('posts').insert(
-          {'user_id': _userId, 'author_id': _userId, 'content': content});
+      String? mediaUrl;
+      if (media != null) {
+        final bytes = await media.readAsBytes();
+        final extension = MediaUploadPolicy.normalizeExtension(
+          media.name,
+          isVideo: isVideo,
+        );
+        MediaUploadPolicy.validateSize(bytes.length, isVideo: isVideo);
+        final path =
+            '$_userId/${DateTime.now().microsecondsSinceEpoch}.$extension';
+        await _client.storage.from('posts').uploadBinary(
+              path,
+              bytes,
+              fileOptions: FileOptions(
+                contentType: MediaUploadPolicy.contentType(extension),
+                upsert: false,
+              ),
+            );
+        uploadedPath = path;
+        mediaUrl = _client.storage.from('posts').getPublicUrl(path);
+      }
+      await _client.from('posts').insert({
+        'user_id': _userId,
+        'author_id': _userId,
+        'content': content,
+        if (mediaUrl != null && isVideo) 'video_url': mediaUrl,
+        if (mediaUrl != null && !isVideo) 'image_url': mediaUrl,
+        if (mediaUrl != null) 'is_video': isVideo,
+      });
       if (mounted) {
         await _load(reset: true);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Your post has been published.')));
+          const SnackBar(content: Text('Your post has been published.')),
+        );
       }
     } catch (error) {
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Post failed: $error')));
+      if (uploadedPath != null) {
+        try {
+          await _client.storage.from('posts').remove([uploadedPath]);
+        } catch (_) {
+          // Best-effort cleanup; storage policies remain authoritative.
+        }
       }
+      if (mounted) {
+        final message = error.toString().replaceFirst('Exception: ', '');
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Post failed: $message')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _publishing = false);
     }
   }
 
@@ -390,7 +591,7 @@ class _FeedPageState extends State<FeedPage> {
               child: Card(
                 child: InkWell(
                   borderRadius: BorderRadius.circular(18),
-                  onTap: _compose,
+                  onTap: _publishing ? null : _compose,
                   child: Padding(
                     padding: const EdgeInsets.all(14),
                     child: Row(children: [

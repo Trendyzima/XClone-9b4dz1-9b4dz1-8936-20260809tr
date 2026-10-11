@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../core/config/app_config.dart';
@@ -23,6 +24,8 @@ class _TvPageState extends State<TvPage> {
   VideoPlayerController? _player;
   YoutubePlayerController? _youtubePlayer;
   bool _playerLoading = false;
+  bool _verticalMode = true;
+  int _activeIndex = 0;
   String? _playbackError;
   SupabaseClient get _client => Supabase.instance.client;
 
@@ -145,8 +148,292 @@ class _TvPageState extends State<TvPage> {
     }
   }
 
+  Widget _buildVerticalFeed(BuildContext context) {
+    final active = _channels.isNotEmpty && _activeIndex < _channels.length
+        ? _channels[_activeIndex]
+        : null;
+    final selectedIsActive =
+        active != null && '${_selected?['id'] ?? ''}' == '${active['id']}';
+    final player = selectedIsActive ? _player : null;
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
+          child: Row(children: [
+            Expanded(
+              child: Text('TikVTV',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
+                      )),
+            ),
+            IconButton(
+              tooltip: 'Refresh live channels',
+              onPressed: _load,
+              icon: const Icon(Icons.refresh_rounded),
+            ),
+            IconButton.filledTonal(
+              tooltip: 'Switch to channel list',
+              onPressed: () => setState(() => _verticalMode = false),
+              icon: const Icon(Icons.view_list_rounded),
+            ),
+          ]),
+        ),
+        if (_error != null && _channels.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            child: Text(_error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error)),
+          ),
+        Expanded(
+          child: _loading && _channels.isEmpty
+              ? const Center(child: CircularProgressIndicator())
+              : _channels.isEmpty
+                  ? Center(
+                      child: Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.live_tv_rounded, size: 56),
+                            const SizedBox(height: 12),
+                            Text(
+                                _error ??
+                                    'No live channels are available right now.',
+                                textAlign: TextAlign.center),
+                            const SizedBox(height: 8),
+                            FilledButton.icon(
+                                onPressed: _load,
+                                icon: const Icon(Icons.refresh_rounded),
+                                label: const Text('Retry')),
+                          ],
+                        ),
+                      ),
+                    )
+                  : PageView.builder(
+                      scrollDirection: Axis.vertical,
+                      itemCount: _channels.length,
+                      onPageChanged: (index) {
+                        setState(() => _activeIndex = index);
+                        _play(_channels[index]);
+                      },
+                      itemBuilder: (context, index) {
+                        final channel = _channels[index];
+                        final isCurrent =
+                            index == _activeIndex && selectedIsActive;
+                        final title = '${channel['title'] ?? 'Live channel'}';
+                        final description =
+                            '${channel['description'] ?? channel['category'] ?? 'Live on Testagram'}';
+                        final thumb = '${channel['thumbnail_url'] ?? ''}';
+                        return GestureDetector(
+                          onTap: () async {
+                            if (isCurrent &&
+                                player?.value.isInitialized == true) {
+                              if (player!.value.isPlaying) {
+                                await player.pause();
+                              } else {
+                                await player.play();
+                              }
+                              if (mounted) setState(() {});
+                            } else {
+                              await _play(channel);
+                            }
+                          },
+                          child: Container(
+                            color: Colors.black,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                if (isCurrent && _youtubePlayer != null)
+                                  YoutubePlayer(
+                                      controller: _youtubePlayer!,
+                                      aspectRatio: 9 / 16)
+                                else if (isCurrent &&
+                                    player?.value.isInitialized == true)
+                                  FittedBox(
+                                    fit: BoxFit.cover,
+                                    child: SizedBox(
+                                      width: player!.value.size.width,
+                                      height: player.value.size.height,
+                                      child: VideoPlayer(player),
+                                    ),
+                                  )
+                                else if (thumb.startsWith('http'))
+                                  CachedNetworkImage(
+                                    imageUrl: thumb,
+                                    fit: BoxFit.cover,
+                                    placeholder: (_, __) => const Center(
+                                        child: Icon(Icons.live_tv_rounded,
+                                            color: Colors.white54, size: 54)),
+                                    errorWidget: (_, __, ___) => const Center(
+                                        child: Icon(Icons.live_tv_rounded,
+                                            color: Colors.white54, size: 54)),
+                                  )
+                                else
+                                  const Center(
+                                      child: Icon(Icons.live_tv_rounded,
+                                          color: Colors.white54, size: 64)),
+                                const DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        Color(0x99000000),
+                                        Colors.transparent,
+                                        Color(0xE6000000)
+                                      ],
+                                      stops: [0, 0.35, 1],
+                                    ),
+                                  ),
+                                ),
+                                Positioned(
+                                  left: 16,
+                                  right: 88,
+                                  bottom: 26,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 10, vertical: 5),
+                                        decoration: BoxDecoration(
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary,
+                                            borderRadius:
+                                                BorderRadius.circular(99)),
+                                        child: const Text('LIVE',
+                                            style: TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w900,
+                                                fontSize: 11,
+                                                letterSpacing: 1.1)),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Text(title,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 23,
+                                              fontWeight: FontWeight.w900,
+                                              shadows: [
+                                                Shadow(
+                                                    color: Colors.black87,
+                                                    blurRadius: 12)
+                                              ])),
+                                      const SizedBox(height: 5),
+                                      Text(description,
+                                          maxLines: 3,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 13,
+                                              height: 1.35)),
+                                      const SizedBox(height: 12),
+                                      if (_playbackError != null && isCurrent)
+                                        Text(_playbackError!,
+                                            style: const TextStyle(
+                                                color: Color(0xFFFFB4AB),
+                                                fontWeight: FontWeight.w600)),
+                                      if (!isCurrent ||
+                                          player?.value.isInitialized != true)
+                                        FilledButton.icon(
+                                          onPressed: _playerLoading && isCurrent
+                                              ? null
+                                              : () => _play(channel),
+                                          icon: _playerLoading && isCurrent
+                                              ? const SizedBox(
+                                                  width: 16,
+                                                  height: 16,
+                                                  child:
+                                                      CircularProgressIndicator(
+                                                          strokeWidth: 2))
+                                              : const Icon(
+                                                  Icons.play_arrow_rounded),
+                                          label: Text(
+                                              _playerLoading && isCurrent
+                                                  ? 'Connecting…'
+                                                  : 'Watch channel'),
+                                        )
+                                      else
+                                        Text(
+                                            player!.value.isPlaying
+                                                ? 'Tap video to pause'
+                                                : 'Tap video to resume',
+                                            style: const TextStyle(
+                                                color: Colors.white70,
+                                                fontSize: 12)),
+                                    ],
+                                  ),
+                                ),
+                                Positioned(
+                                  right: 14,
+                                  bottom: 34,
+                                  child: Column(
+                                    children: [
+                                      CircleAvatar(
+                                        radius: 25,
+                                        backgroundColor: Colors.white
+                                            .withValues(alpha: 0.14),
+                                        child: const Icon(Icons.live_tv_rounded,
+                                            color: Colors.white, size: 28),
+                                      ),
+                                      const SizedBox(height: 7),
+                                      const Text('Channel',
+                                          style: TextStyle(
+                                              color: Colors.white,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w700)),
+                                      const SizedBox(height: 18),
+                                      IconButton.filledTonal(
+                                        tooltip: 'Share channel',
+                                        onPressed: () => Share.share(
+                                            '$title · Watch on Testagram TV\nhttps://testagram.site/iptv'),
+                                        icon: const Icon(Icons.share_rounded),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      IconButton.filledTonal(
+                                        tooltip: 'Retry playback',
+                                        onPressed: () => _play(channel),
+                                        icon: const Icon(Icons.replay_rounded),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                if (_playerLoading && isCurrent)
+                                  const Positioned(
+                                      top: 12,
+                                      left: 0,
+                                      right: 0,
+                                      child: LinearProgressIndicator(
+                                          minHeight: 3)),
+                                if (index == 0)
+                                  const Positioned(
+                                      top: 18,
+                                      left: 16,
+                                      child: Text('Swipe up for next channel',
+                                          style: TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w600))),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (_verticalMode) return _buildVerticalFeed(context);
     final player = _player;
     return RefreshIndicator(
       onRefresh: _load,
@@ -161,7 +448,11 @@ class _TvPageState extends State<TvPage> {
           IconButton(
               tooltip: 'Refresh channels',
               onPressed: _load,
-              icon: const Icon(Icons.refresh_rounded))
+              icon: const Icon(Icons.refresh_rounded)),
+          IconButton.filledTonal(
+              tooltip: 'Open vertical TV feed',
+              onPressed: () => setState(() => _verticalMode = true),
+              icon: const Icon(Icons.view_carousel_rounded))
         ]),
         const Text(
             'Live channels · playback depends on provider availability and your connection.'),
