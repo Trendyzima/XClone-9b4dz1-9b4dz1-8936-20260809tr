@@ -305,13 +305,30 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       if (sfxUrlRef.current) URL.revokeObjectURL(sfxUrlRef.current);
       if (downloadUrlRef.current) URL.revokeObjectURL(downloadUrlRef.current);
       roomRef.current?.close();
+      nativeViewerRoomRef.current?.close();
       guestRoomRef.current?.close();
       musicAudioRef.current?.pause();
       sfxAudioRef.current?.pause();
+      guestVideoElementsRef.current.forEach(video => {
+        video.pause();
+        video.srcObject = null;
+        video.remove();
+      });
+      guestVideoElementsRef.current.clear();
+      guestAudioElementsRef.current.forEach(audio => {
+        audio.pause();
+        audio.srcObject = null;
+        audio.remove();
+      });
+      guestAudioElementsRef.current.clear();
       cameraStreamRef.current?.getTracks().forEach(track => track.stop());
       screenStreamRef.current?.getTracks().forEach(track => track.stop());
+      programStreamRef.current?.getTracks().forEach(track => track.stop());
       productionVideoStreamRef.current?.getTracks().forEach(track => track.stop());
       productionCanvasStreamRef.current?.getTracks().forEach(track => track.stop());
+      guestMultiviewStreamRef.current?.getTracks().forEach(track => track.stop());
+      productionVideoTrackRef.current?.stop();
+      productionAudioTrackRef.current?.stop();
       screenVideoRef.current?.pause();
       if (screenVideoRef.current) screenVideoRef.current.srcObject = null;
       audioPipelineRef.current?.stop().catch(() => undefined);
