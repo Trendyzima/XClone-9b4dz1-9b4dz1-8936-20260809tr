@@ -44,3 +44,9 @@ Native code must expose small, typed interfaces to Flutter. Product screens must
 
 ## Rollout
 Flutter is introduced feature-by-feature behind explicit parity gates. There is no big-bang cutover.
+
+## Shared Web + Android migration
+
+The shared Flutter project lives in `mobile/` and targets both browser and Android. The checked-in parity inventory is generated from the existing React page/feature/service source files and must be validated in CI. The migration is deliberately additive: the current React website remains live and the current Android WebView release remains a rollback client until each feature passes parity tests.
+
+See [`flutter-migration-plan.md`](./flutter-migration-plan.md) for the phase gates, and [`flutter-parity-inventory.json`](./flutter-parity-inventory.json) for the source-level inventory. A Flutter Web build passing is not authorization to deploy it to `testagram.site`; SEO, route/deep-link, ad-provider and full feature parity are separate blockers.
