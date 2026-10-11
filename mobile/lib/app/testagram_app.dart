@@ -23,6 +23,7 @@ import '../features/creator/creator_studio_page.dart';
 import '../features/tv/tv_studio_page.dart';
 import '../features/videos/videos_page.dart';
 import '../features/discovery/discovery_pages.dart';
+import '../features/marketplace/products_page.dart';
 import 'testagram_shell.dart';
 
 class TestagramApp extends StatefulWidget {
@@ -96,6 +97,9 @@ class _TestagramAppState extends State<TestagramApp> {
             path.startsWith('/hashtag/') ||
             path == '/leaderboard' ||
             path == '/leaderboard/creators' ||
+            path == '/products' ||
+            path == '/marketplace' ||
+            path.startsWith('/p/') ||
             path == '/threads' ||
             path == '/communities' ||
             path.startsWith('/thread/') ||
@@ -180,6 +184,14 @@ class _TestagramAppState extends State<TestagramApp> {
             GoRoute(
                 path: '/leaderboard/creators',
                 builder: (_, __) => const LeaderboardPage()),
+            GoRoute(
+                path: '/products', builder: (_, __) => const ProductsPage()),
+            GoRoute(
+                path: '/marketplace', builder: (_, __) => const ProductsPage()),
+            GoRoute(
+                path: '/p/:productId',
+                builder: (_, state) =>
+                    ProductsPage(productId: state.pathParameters['productId'])),
             GoRoute(
                 path: '/tv-studio', builder: (_, __) => const TvStudioPage()),
             GoRoute(
