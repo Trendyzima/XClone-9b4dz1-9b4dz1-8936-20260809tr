@@ -92,7 +92,7 @@ function AdFrame({ unit, feedNative = false }: { unit: AdUnit; feedNative?: bool
       data-ad-status={adStatus}
       style={{ width: ad.width, maxWidth: '100%', minHeight: nearViewport ? ad.height : 0 }}
     >
-      {filled && <div className="mb-1 flex items-center justify-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"><span aria-hidden="true">ⓘ</span><span>Sponsored</span></div>}
+      {filled && !feedNative && <div className="mb-1 flex items-center justify-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"><span aria-hidden="true">ⓘ</span><span>Sponsored</span></div>}
       {nearViewport && (
         <div className="mx-auto max-w-full overflow-hidden" style={{ width: ad.width, height: ad.height }}>
           <iframe
@@ -118,8 +118,7 @@ export function ExternalAdEngine({ surface = 'top' }: { surface?: 'top' | 'sideb
   const { pathname } = useLocation();
   if (BLOCKED_PATH.test(pathname) || (pathname === '/iptv' && surface !== 'overlay') || (pathname.startsWith('/tv/live/') && surface !== 'overlay')) return null;
   if (surface === 'overlay') return <AdFrame unit="adsterra-160x300" />;
-  // ExoClick display inventory is mounted once in the shared content column on eligible routes.
-  // The feed surface remains available for future explicitly designed in-feed placements.
+  // Keep display inventory in the scrolling feed, styled as a native sponsored item.
   if (surface === 'feed') return <AdFrame unit="exoclick-display" feedNative />;
   if (surface === 'sidebar') {
     if (WIDE_PAGES.has(pathname) || pathname.startsWith('/home/')) return null;
