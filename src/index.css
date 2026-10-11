@@ -501,3 +501,60 @@ html[data-tg-platform="android"] .tg-card:hover {
 @media (prefers-reduced-motion: reduce) {
   .tg-social-home-shell > :nth-child(4) > div { scroll-behavior: auto; }
 }
+
+
+/* Firm social-feed treatment: flat post rows, clear separators, stable controls.
+   Avoid the floating website-card look on the home feed only. */
+.tg-social-home-shell {
+  background: hsl(var(--background));
+}
+.tg-social-home-shell .tg-home-feed-list {
+  border-top: 1px solid hsl(var(--border));
+}
+.tg-social-home-shell .tg-home-feed-row {
+  min-width: 0;
+  border-bottom: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
+}
+.tg-social-home-shell .tg-home-feed-row > div {
+  min-width: 0;
+}
+.tg-social-home-shell .tg-home-feed-row .tg-card,
+.tg-social-home-shell .tg-home-feed-row [class*="rounded-xl"][class*="border"],
+.tg-social-home-shell .tg-home-feed-row [class*="rounded-2xl"][class*="border"] {
+  border-radius: 0;
+  box-shadow: none;
+}
+.tg-social-home-shell .tg-home-feed-row [class*="border-b"][class*="border-border"] {
+  border-bottom-color: hsl(var(--border));
+}
+.tg-social-home-shell > :nth-child(4) {
+  box-shadow: 0 2px 0 hsl(var(--border) / .85);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.tg-social-home-shell > :nth-child(5) {
+  border-radius: 0;
+  box-shadow: none;
+}
+.tg-social-home-shell > :nth-child(5) button {
+  border-radius: 10px;
+  box-shadow: 0 2px 0 hsl(var(--border) / .85);
+  font-size: 12px;
+  font-weight: 800;
+}
+.tg-social-home-shell button:focus-visible,
+.tg-social-home-shell a:focus-visible {
+  outline: 3px solid hsl(var(--ring) / .55);
+  outline-offset: 2px;
+}
+@media (max-width: 639px) {
+  .tg-social-home-shell .tg-home-feed-row {
+    border-bottom-width: 1px;
+  }
+  .tg-social-home-shell .tg-home-feed-row .tg-card,
+  .tg-social-home-shell .tg-home-feed-row [class*="rounded-xl"][class*="border"],
+  .tg-social-home-shell .tg-home-feed-row [class*="rounded-2xl"][class*="border"] {
+    border-inline: 0;
+  }
+}
