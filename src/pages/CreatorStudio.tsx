@@ -199,7 +199,7 @@ export default function CreatorStudio({ section = 'overview', standalone = false
 
   const fetchMonthlyGoal = async () => {
     if (!user) return;
-    const { data } = await supabase.from('user_monetization').select('monthly_tip_goal').eq('user_id', user.id).maybeSingle();
+    const { data } = await supabase.from('creator_preferences').select('monthly_tip_goal').eq('user_id', user.id).maybeSingle();
     setMonthlyGoal(Number(data?.monthly_tip_goal ?? 0));
   };
 
@@ -207,7 +207,7 @@ export default function CreatorStudio({ section = 'overview', standalone = false
     if (!user) return;
     const val = parseFloat(goalInput);
     if (isNaN(val) || val < 0) { toast.error('Enter a valid amount'); return; }
-    const { error } = await supabase.from('user_monetization').upsert({ user_id: user.id, monthly_tip_goal: val }, { onConflict: 'user_id' });
+    const { error } = await supabase.from('creator_preferences').upsert({ user_id: user.id, monthly_tip_goal: val, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
     if (error) { toast.error(error.message); return; }
     setMonthlyGoal(val); setEditingGoal(false); toast.success('Goal saved!');
   };

@@ -55,7 +55,6 @@ class _HashtagsPageState extends State<HashtagsPage> {
             .from('post_hashtags')
             .select('post_id')
             .eq('hashtag_id', '${hashtag['id']}')
-            .order('created_at', ascending: false)
             .limit(50);
         final ids = links.map((r) => '${r['post_id']}').toList();
         final rows = ids.isEmpty

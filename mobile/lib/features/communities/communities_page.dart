@@ -44,7 +44,7 @@ class _CommunitiesPageState extends State<CommunitiesPage> {
     });
     try {
       var query = _db.from('communities').select(
-          'id,name,display_name,description,icon_url,banner_url,category,is_private,member_count,post_count,created_at');
+          'id,name,display_name,description,icon_url,banner_url,is_private,member_count,post_count,created_at');
       final q = _search.text
           .trim()
           .replaceAll(',', ' ')

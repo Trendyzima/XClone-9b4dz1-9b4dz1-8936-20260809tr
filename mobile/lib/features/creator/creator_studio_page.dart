@@ -49,8 +49,7 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
       final result = await Future.wait<dynamic>([
         _db
             .from('profiles')
-            .select(
-                'id,username,display_name,follower_count,is_creator,can_monetize')
+            .select('id,username,display_name,follower_count,is_creator')
             .eq('id', uid)
             .maybeSingle(),
         _db
@@ -62,12 +61,12 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
             .limit(30),
         _db
             .from('creator_earnings')
-            .select('amount,source,status,created_at')
+            .select('amount,source,status,created_at,currency')
             .eq('creator_id', uid)
             .order('created_at', ascending: false)
             .limit(60),
         _db
-            .from('user_monetization')
+            .from('creator_preferences')
             .select('monthly_tip_goal')
             .eq('user_id', uid)
             .maybeSingle(),
@@ -139,9 +138,11 @@ class _CreatorStudioPageState extends State<CreatorStudioPage> {
     }
     setState(() => _saving = true);
     try {
-      await _db.from('user_monetization').upsert(
-          {'user_id': uid, 'monthly_tip_goal': value},
-          onConflict: 'user_id');
+      await _db.from('creator_preferences').upsert({
+        'user_id': uid,
+        'monthly_tip_goal': value,
+        'updated_at': DateTime.now().toUtc().toIso8601String()
+      }, onConflict: 'user_id');
       if (mounted) {
         setState(() => _goal = value);
         ScaffoldMessenger.of(context)
