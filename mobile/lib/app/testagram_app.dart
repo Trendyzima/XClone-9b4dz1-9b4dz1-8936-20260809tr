@@ -77,7 +77,12 @@ class _TestagramAppState extends State<TestagramApp> {
         final signedIn = Supabase.instance.client.auth.currentSession != null;
         final onAuth = state.matchedLocation == '/auth';
         final onSetup = state.matchedLocation == '/setup';
-        if (!signedIn && !onAuth && !onSetup) return '/auth';
+        final path = state.matchedLocation;
+        final publicRoute = path == '/' ||
+            path == '/explore' ||
+            path == '/tv' ||
+            path.startsWith('/profile/');
+        if (!signedIn && !onAuth && !onSetup && !publicRoute) return '/auth';
         return null;
       },
       routes: [

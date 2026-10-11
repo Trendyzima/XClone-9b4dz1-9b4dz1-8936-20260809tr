@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -67,11 +68,12 @@ class _FeedPageState extends State<FeedPage> {
     try {
       final start = _page * _pageSize;
       List<String> followingIds = [];
-      if (_feedTab == 'Following') {
+      final viewerId = _client.auth.currentUser?.id;
+      if (_feedTab == 'Following' && viewerId != null) {
         final follows = await _client
             .from('follows')
             .select('following_id')
-            .eq('follower_id', _userId)
+            .eq('follower_id', viewerId)
             .timeout(const Duration(seconds: 12));
         followingIds = follows
             .map((row) => '${row['following_id']}')
@@ -79,14 +81,15 @@ class _FeedPageState extends State<FeedPage> {
             .toList();
       }
       final postQuery = _client.from('posts').select('*');
-      final response = _feedTab == 'Following' && followingIds.isEmpty
-          ? <dynamic>[]
-          : await (_feedTab == 'Following'
-                  ? postQuery.inFilter('author_id', followingIds)
-                  : postQuery)
-              .order('created_at', ascending: false)
-              .range(start, start + _pageSize - 1)
-              .timeout(const Duration(seconds: 15));
+      final response =
+          _feedTab == 'Following' && (viewerId == null || followingIds.isEmpty)
+              ? <dynamic>[]
+              : await (_feedTab == 'Following'
+                      ? postQuery.inFilter('author_id', followingIds)
+                      : postQuery)
+                  .order('created_at', ascending: false)
+                  .range(start, start + _pageSize - 1)
+                  .timeout(const Duration(seconds: 15));
       final rows = response
           .map((row) => Map<String, dynamic>.from(row as Map))
           .where((row) => row['deleted_at'] == null)
@@ -112,7 +115,7 @@ class _FeedPageState extends State<FeedPage> {
         row['profile'] = byId['${row['author_id'] ?? row['user_id']}'];
       }
       final postIds = rows.map((row) => '${row['id']}').toList();
-      if (postIds.isNotEmpty) {
+      if (postIds.isNotEmpty && viewerId != null) {
         final likeRows = await _client
             .from('post_reactions')
             .select('post_id')
@@ -146,6 +149,18 @@ class _FeedPageState extends State<FeedPage> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  void _promptSignIn(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        action: SnackBarAction(
+          label: 'Sign in',
+          onPressed: () => context.go('/auth'),
+        ),
+      ),
+    );
   }
 
   String _friendlyError(Object error) {
@@ -282,6 +297,10 @@ class _FeedPageState extends State<FeedPage> {
   }
 
   Future<void> _reportPost(Map<String, dynamic> post) async {
+    if (_client.auth.currentUser == null) {
+      _promptSignIn('Sign in to report a post.');
+      return;
+    }
     const reasons = <String, String>{
       'spam': 'Spam or misleading',
       'hate_speech': 'Hate speech',
@@ -329,6 +348,10 @@ class _FeedPageState extends State<FeedPage> {
   }
 
   Future<void> _showComments(Map<String, dynamic> post) async {
+    if (_client.auth.currentUser == null) {
+      _promptSignIn('Sign in to open the discussion.');
+      return;
+    }
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -339,6 +362,10 @@ class _FeedPageState extends State<FeedPage> {
   }
 
   Future<void> _compose() async {
+    if (_client.auth.currentUser == null) {
+      _promptSignIn('Sign in to publish a post.');
+      return;
+    }
     final controller = TextEditingController();
     final picker = ImagePicker();
     XFile? selectedMedia;
@@ -699,11 +726,13 @@ class _FeedPageState extends State<FeedPage> {
                 hasScrollBody: false,
                 child: Center(child: CircularProgressIndicator()))
           else if (_posts.isEmpty && _error == null)
-            const SliverFillRemaining(
+            SliverFillRemaining(
                 hasScrollBody: false,
                 child: Center(
-                    child:
-                        Text('No posts yet. Be the first to share something.')))
+                    child: Text(_feedTab == 'Following' &&
+                            _client.auth.currentUser == null
+                        ? 'Sign in to see posts from people you follow.'
+                        : 'No posts yet. Be the first to share something.')))
           else
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
