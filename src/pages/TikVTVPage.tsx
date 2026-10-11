@@ -61,6 +61,8 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
   const win = childWindow as Window & { google?: any; __testagramImaPromise?: Promise<void> };
   const doc = childDocument;
   const attemptedChannels = new Set<string>();
+  // Full-screen IMA is opt-in only; production defaults to uninterrupted channel playback.
+  const allowFullscreenIma = doc.documentElement.dataset.testagramAllowFullscreenIma === 'true';
   const observedCards = new WeakSet<HTMLElement>();
   const activeCards = new Set<HTMLElement>();
   const finishers = new Map<HTMLElement, () => void>();
@@ -430,7 +432,7 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
           // Full-screen IMA interruption is intentionally disabled. Channel
           // playback must remain continuous; only the non-blocking banner below
           // may be mounted on the channel card.
-          if (false) startAd(card);
+          if (allowFullscreenIma) startAd(card);
         } else if (!entry.isIntersecting || entry.intersectionRatio < 0.25) {
           activeCards.delete(card);
           finishers.get(card)?.();
