@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-11T18:39:41.641Z",
+  "generated_at": "2026-10-11T18:46:16.327Z",
   "source_of_truth": "React Router declarations in src/App.tsx; route coverage does not imply feature parity.",
   "source_route_declarations": 214,
   "unique_source_routes": 212,
@@ -23,11 +23,14 @@
     "/profile/:username",
     "/settings",
     "/setup",
+    "/shorts",
     "/thread/:id",
     "/thread/:threadId/replies",
     "/threads",
     "/tv",
-    "/tv-studio"
+    "/tv-studio",
+    "/videos",
+    "/videos/watchlater"
   ],
   "routes": [
     {
@@ -1029,8 +1032,8 @@
     {
       "path": "/shorts",
       "domain": "videos",
-      "status": "legacy_web_fallback",
-      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
     },
     {
       "path": "/space-recording/:id",
@@ -1209,14 +1212,14 @@
     {
       "path": "/videos",
       "domain": "videos",
-      "status": "legacy_web_fallback",
-      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
     },
     {
       "path": "/videos/watchlater",
       "domain": "videos",
-      "status": "legacy_web_fallback",
-      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
     },
     {
       "path": "/wallet",

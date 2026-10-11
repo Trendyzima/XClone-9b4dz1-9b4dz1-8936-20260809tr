@@ -21,6 +21,7 @@ import '../features/communities/communities_page.dart';
 import '../features/communities/community_detail_page.dart';
 import '../features/creator/creator_studio_page.dart';
 import '../features/tv/tv_studio_page.dart';
+import '../features/videos/videos_page.dart';
 import 'testagram_shell.dart';
 
 class TestagramApp extends StatefulWidget {
@@ -87,6 +88,9 @@ class _TestagramAppState extends State<TestagramApp> {
         final publicRoute = path == '/' ||
             path == '/explore' ||
             path == '/tv' ||
+            path == '/videos' ||
+            path == '/shorts' ||
+            path == '/videos/watchlater' ||
             path == '/threads' ||
             path == '/communities' ||
             path.startsWith('/thread/') ||
@@ -152,6 +156,13 @@ class _TestagramAppState extends State<TestagramApp> {
                     threadId: state.pathParameters['threadId'] ?? '',
                     repliesOnly: true)),
             GoRoute(path: '/tv', builder: (_, __) => const TvPage()),
+            GoRoute(path: '/videos', builder: (_, __) => const VideosPage()),
+            GoRoute(
+                path: '/shorts',
+                builder: (_, __) => const VideosPage(shortsMode: true)),
+            GoRoute(
+                path: '/videos/watchlater',
+                builder: (_, __) => const VideosPage(watchLaterOnly: true)),
             GoRoute(
                 path: '/tv-studio', builder: (_, __) => const TvStudioPage()),
             GoRoute(
