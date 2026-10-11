@@ -26,7 +26,15 @@ export function useGovernance() {
         status: typeof data.status === 'string' ? data.status : null,
         permissions: Array.isArray(data.permissions) ? data.permissions.map(String) : [],
       });
-    } else setGovernance(EMPTY);
+    } else {
+      // Fail over to the canonical server-side owner predicate. The UI must not
+      // hide the owner studio solely because the richer governance RPC is unavailable.
+      const { data: ownerData, error: ownerError } = await supabase.rpc('testagram_is_owner');
+      const isOwner = !ownerError && ownerData === true;
+      setGovernance(isOwner
+        ? { ...EMPTY, is_owner: true, is_admin: true, role: 'owner' }
+        : EMPTY);
+    }
     setLoading(false);
   }, []);
 
