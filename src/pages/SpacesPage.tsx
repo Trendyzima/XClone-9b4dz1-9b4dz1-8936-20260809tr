@@ -87,7 +87,7 @@ export default function SpacesPage() {
   const [showManageDialog, setShowManageDialog] = useState(false);
   const [selectedSpace, setSelectedSpace] = useState<any>(null);
   const [userProfile, setUserProfile] = useState<any>(null);
-  const [hostCapability, setHostCapability] = useState({ canHost: false, isOwner: false, isVerified: false, loading: false });
+  const [hostCapability, setHostCapability] = useState({ canHost: false, isOwner: false, isVerified: false, loading: true });
   const [liveViewerCounts, setLiveViewerCounts] = useState<{ [id: string]: number }>({});
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -299,7 +299,7 @@ export default function SpacesPage() {
       const isOwner = Boolean(row?.is_owner) || (!capabilityError && Boolean(ownerFlag));
       const isVerified = Boolean(row?.is_verified) || Boolean(profile?.verified);
       setHostCapability({
-        canHost: isOwner || Boolean(row?.can_host) || isVerified,
+        canHost: isOwner || Boolean(row?.can_host),
         isOwner,
         isVerified,
         loading: false,
