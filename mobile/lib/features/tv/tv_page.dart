@@ -1,14 +1,17 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:http/http.dart' as http;
 import 'package:youtube_player_iframe/youtube_player_iframe.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../core/config/app_config.dart';
+import 'tv_web_player.dart';
 
 class TvPage extends StatefulWidget {
   const TvPage({super.key});
@@ -25,8 +28,12 @@ class _TvPageState extends State<TvPage> {
   YoutubePlayerController? _youtubePlayer;
   bool _playerLoading = false;
   bool _verticalMode = true;
+  bool _loadingMore = false;
   int _activeIndex = 0;
+  int _loadedCatalogSourceCount = 0;
+  int _playGeneration = 0;
   String? _playbackError;
+  String? _webPlaybackUrl;
   SupabaseClient get _client => Supabase.instance.client;
 
   @override
@@ -42,29 +49,200 @@ class _TvPageState extends State<TvPage> {
     super.dispose();
   }
 
+  static const _catalogSources = <String>[
+    'nexus-ke',
+    'nexus-news',
+    'iptv-org-ke',
+    'world-ip-tv-verified',
+    'nexus-best',
+    'nexus-sports',
+    'nexus-music',
+    'nexus-kids',
+    'nexus-entertainment',
+    'iptv-org-int',
+    'free-tv-ke',
+    'free-tv-global',
+    'iptv-org-news',
+    'iptv-org-sports',
+    'iptv-org-music',
+    'iprtl-freetv',
+    'iprtl-pluto',
+    'subash-football-cricket',
+    'dhanytv-indonesia',
+    'blitz-latam',
+    'freecast-global',
+    'india-active-community',
+    'portugal-free-tv',
+    'indonesia-community',
+    'xumo-community',
+    'south-africa-community',
+    'plex-fast-global',
+    'samsung-tv-plus-global',
+    'roku-fast-global',
+    'italy-openiptv-community',
+    'alplox-public-official-global',
+    'south-africa-freevisionplay',
+    'm3upt-portuguese-global',
+  ];
+  static const _initialSourceCount = 3;
+  static const _sourceBatchSize = 3;
+
+  Future<List<Map<String, dynamic>>> _loadCatalogSource(String sourceId) async {
+    try {
+      final base = Uri.parse(AppConfig.supabaseUrl);
+      final uri = Uri.https(base.host, '/functions/v1/tv-catalog', {
+        'source': sourceId,
+      });
+      final response = await http.get(uri, headers: const {
+        'Accept': 'application/json'
+      }).timeout(const Duration(seconds: 18));
+      if (response.statusCode < 200 || response.statusCode >= 300) return [];
+      final payload = jsonDecode(response.body);
+      if (payload is! Map || payload['channels'] is! List) return [];
+      final raw = (payload['channels'] as List).take(180);
+      return raw
+          .whereType<Map>()
+          .map((channel) {
+            final row = Map<String, dynamic>.from(channel);
+            final url = '${row['url'] ?? row['source_url'] ?? ''}'.trim();
+            final name = '${row['name'] ?? 'Live TV'}'.trim();
+            if (!url.startsWith('https://') && !url.startsWith('http://')) {
+              return <String, dynamic>{};
+            }
+            return <String, dynamic>{
+              ...row,
+              'id': '${row['id'] ?? '$sourceId-${name.hashCode}'}',
+              'title': name,
+              'name': name,
+              'description':
+                  '${row['group'] ?? row['category'] ?? row['source'] ?? 'Public live channel'}',
+              'thumbnail_url': row['logo'] ?? row['logo_url'],
+              'playback_url': url,
+              'stream_url': url,
+              'url': url,
+              'category': row['group'] ?? row['category'] ?? sourceId,
+              '_sourceType': 'catalog',
+              'is_live': true,
+            };
+          })
+          .where((row) => row.isNotEmpty)
+          .toList();
+    } catch (_) {
+      // Each source is independent: one upstream outage must not blank TV.
+      return [];
+    }
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final rows = await _client
-          .from('live_streams')
-          .select('*')
-          .eq('is_live', true)
-          .order('started_at', ascending: false)
-          .limit(40);
+      _loadedCatalogSourceCount = _initialSourceCount;
+      final catalogFuture = Future.wait(
+        _catalogSources.take(_initialSourceCount).map(_loadCatalogSource),
+      );
+      final liveFuture = () async {
+        try {
+          final rows = await _client
+              .from('live_streams')
+              .select('*')
+              .eq('is_live', true)
+              .order('started_at', ascending: false)
+              .limit(40)
+              .timeout(const Duration(seconds: 15));
+          return rows
+              .map((row) => Map<String, dynamic>.from(row as Map)
+                ..['_sourceType'] = 'testagram-live')
+              .toList();
+        } catch (_) {
+          return <Map<String, dynamic>>[];
+        }
+      }();
+
+      // Render the public catalog as soon as it is ready instead of waiting on
+      // the separate Testagram community-live query.
+      final catalogGroups = await catalogFuture;
+      final catalogChannels = _dedupeChannels(
+        catalogGroups.expand((group) => group).toList(),
+      );
       if (mounted) {
-        setState(() => _channels =
-            rows.map((row) => Map<String, dynamic>.from(row as Map)).toList());
+        setState(() {
+          _channels = catalogChannels;
+          if (_activeIndex >= catalogChannels.length) {
+            _activeIndex = 0;
+          }
+          if (catalogChannels.isEmpty) {
+            _error = 'Loading community live channels…';
+          }
+        });
       }
-    } catch (error) {
+
+      final live = await liveFuture;
+      final merged = _dedupeChannels(live, existing: catalogChannels);
+      if (mounted) {
+        setState(() {
+          _channels = merged;
+          _error = merged.isEmpty
+              ? 'TV channels could not be loaded. Check your connection and retry.'
+              : null;
+          if (_activeIndex >= merged.length) _activeIndex = 0;
+        });
+      }
+    } catch (_) {
       if (mounted) {
         setState(() => _error =
-            'Live channels are unavailable. Check the connection and retry.');
+            'TV channels could not be loaded. Check your connection and retry.');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  List<Map<String, dynamic>> _dedupeChannels(
+    List<Map<String, dynamic>> rows, {
+    List<Map<String, dynamic>> existing = const [],
+  }) {
+    final seenIds = <String>{};
+    final seenUrls = <String>{};
+    final merged = <Map<String, dynamic>>[];
+    for (final row in [...existing, ...rows]) {
+      final id = '${row['id'] ?? ''}';
+      final url = _streamUrl(row).toLowerCase();
+      if ((id.isNotEmpty && !seenIds.add(id)) ||
+          (url.isNotEmpty && !seenUrls.add(url))) {
+        continue;
+      }
+      merged.add(row);
+    }
+    return merged;
+  }
+
+  Future<void> _loadMoreCatalogSources() async {
+    if (_loadingMore || _loadedCatalogSourceCount >= _catalogSources.length) {
+      return;
+    }
+    _loadingMore = true;
+    final start = _loadedCatalogSourceCount;
+    final end = (start + _sourceBatchSize).clamp(0, _catalogSources.length);
+    // Advance the cursor before awaiting to prevent overlapping page-change callbacks.
+    _loadedCatalogSourceCount = end;
+    if (mounted) setState(() {});
+    try {
+      final groups = await Future.wait(
+        _catalogSources.skip(start).take(end - start).map(_loadCatalogSource),
+      );
+      if (!mounted) return;
+      setState(() {
+        _channels = _dedupeChannels(
+          groups.expand((group) => group).toList(),
+          existing: _channels,
+        );
+      });
+    } finally {
+      _loadingMore = false;
+      if (mounted) setState(() {});
     }
   }
 
@@ -74,7 +252,8 @@ class _TvPageState extends State<TvPage> {
       'stream_url',
       'hls_url',
       'video_url',
-      'manifest_url'
+      'manifest_url',
+      'url'
     ]) {
       final value = '${channel[key] ?? ''}'.trim();
       if (value.startsWith('https://') || value.startsWith('http://')) {
@@ -85,17 +264,52 @@ class _TvPageState extends State<TvPage> {
   }
 
   Future<void> _play(Map<String, dynamic> channel) async {
+    final generation = ++_playGeneration;
+    final previousPlayer = _player;
+    final previousYoutube = _youtubePlayer;
     setState(() {
       _selected = channel;
+      _player = null;
+      _youtubePlayer = null;
+      _webPlaybackUrl = null;
       _playerLoading = true;
       _playbackError = null;
     });
-    await _player?.dispose();
-    await _youtubePlayer?.close();
-    _player = null;
-    _youtubePlayer = null;
     try {
-      // Resolve provider metadata through the same viewer API as the web client.
+      await previousPlayer?.dispose();
+      await previousYoutube?.close();
+      if (generation != _playGeneration) return;
+
+      if (channel['_sourceType'] == 'catalog') {
+        final url = _streamUrl(channel);
+        if (url.isEmpty) {
+          throw Exception(
+              'The TV catalog did not return a playable stream URL.');
+        }
+        if (kIsWeb) {
+          _webPlaybackUrl = url;
+          if (mounted) setState(() {});
+          return;
+        }
+        final player = VideoPlayerController.networkUrl(Uri.parse(url));
+        if (generation != _playGeneration) {
+          await player.dispose();
+          return;
+        }
+        _player = player;
+        await player.initialize().timeout(const Duration(seconds: 20));
+        if (generation != _playGeneration) {
+          await player.dispose();
+          if (identical(_player, player)) {
+            _player = null;
+          }
+          return;
+        }
+        await player.setLooping(true);
+        await player.play();
+        return;
+      }
+
       final base = Uri.parse(AppConfig.siteUrl);
       final resolverUri = Uri.https(base.host, '/api/live', {
         'action': 'viewer',
@@ -103,6 +317,7 @@ class _TvPageState extends State<TvPage> {
       });
       final response =
           await http.get(resolverUri).timeout(const Duration(seconds: 12));
+      if (generation != _playGeneration) return;
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final payload = jsonDecode(response.body);
         final data = payload is Map ? payload['data'] : null;
@@ -112,7 +327,7 @@ class _TvPageState extends State<TvPage> {
             : null;
         final videoId = '${youtube?['video_id'] ?? ''}'.trim();
         if (provider == 'youtube' && videoId.isNotEmpty) {
-          _youtubePlayer = YoutubePlayerController.fromVideoId(
+          final controller = YoutubePlayerController.fromVideoId(
             videoId: videoId,
             autoPlay: true,
             params: const YoutubePlayerParams(
@@ -122,6 +337,11 @@ class _TvPageState extends State<TvPage> {
               origin: AppConfig.siteUrl,
             ),
           );
+          if (generation != _playGeneration) {
+            await controller.close();
+            return;
+          }
+          _youtubePlayer = controller;
           if (mounted) setState(() {});
           return;
         }
@@ -131,20 +351,41 @@ class _TvPageState extends State<TvPage> {
         throw Exception(
             'No playable media URL was returned by the provider resolver.');
       }
+      if (kIsWeb) {
+        _webPlaybackUrl = url;
+        if (mounted) setState(() {});
+        return;
+      }
       final player = VideoPlayerController.networkUrl(Uri.parse(url));
+      if (generation != _playGeneration) {
+        await player.dispose();
+        return;
+      }
       _player = player;
       await player.initialize().timeout(const Duration(seconds: 20));
+      if (generation != _playGeneration) {
+        await player.dispose();
+        if (identical(_player, player)) {
+          _player = null;
+        }
+        return;
+      }
       await player.setLooping(true);
       await player.play();
-    } catch (error) {
+    } catch (_) {
+      if (generation != _playGeneration) return;
       _playbackError =
           'Playback could not start. The stream may be offline or require a provider-specific adapter.';
       await _player?.dispose();
+      if (generation != _playGeneration) return;
       _player = null;
       await _youtubePlayer?.close();
+      if (generation != _playGeneration) return;
       _youtubePlayer = null;
     } finally {
-      if (mounted) setState(() => _playerLoading = false);
+      if (mounted && generation == _playGeneration) {
+        setState(() => _playerLoading = false);
+      }
     }
   }
 
@@ -216,6 +457,9 @@ class _TvPageState extends State<TvPage> {
                       onPageChanged: (index) {
                         setState(() => _activeIndex = index);
                         _play(_channels[index]);
+                        if (index >= _channels.length - 8) {
+                          unawaited(_loadMoreCatalogSources());
+                        }
                       },
                       itemBuilder: (context, index) {
                         final channel = _channels[index];
@@ -463,7 +707,19 @@ class _TvPageState extends State<TvPage> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (_youtubePlayer != null)
+                    if (kIsWeb && _webPlaybackUrl != null)
+                      SizedBox(
+                        height: 440,
+                        child: TvWebPlayer(
+                          url: _webPlaybackUrl!,
+                          onError: (message) {
+                            if (mounted) {
+                              setState(() => _playbackError = message);
+                            }
+                          },
+                        ),
+                      )
+                    else if (_youtubePlayer != null)
                       YoutubePlayer(
                           controller: _youtubePlayer!, aspectRatio: 16 / 9)
                     else
@@ -530,12 +786,14 @@ class _TvPageState extends State<TvPage> {
                                                 .error))),
                               TextButton.icon(
                                   onPressed: () async {
+                                    _playGeneration++;
                                     await _player?.dispose();
                                     await _youtubePlayer?.close();
                                     if (mounted) {
                                       setState(() {
                                         _player = null;
                                         _youtubePlayer = null;
+                                        _webPlaybackUrl = null;
                                         _selected = null;
                                         _playbackError = null;
                                       });
@@ -546,6 +804,15 @@ class _TvPageState extends State<TvPage> {
                             ])),
                   ])),
         ],
+        if (_loadingMore)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 8),
+            child: Center(
+                child: SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2))),
+          ),
         if (_loading && _channels.isEmpty)
           const Padding(
               padding: EdgeInsets.all(24),

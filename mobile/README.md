@@ -44,12 +44,12 @@ The app intentionally shows a setup screen if build-time configuration is absent
 - People/post search, follow/unfollow and public profile navigation.
 - Current-user profile and post listing.
 - Notification listing, mark-read and mark-all-read.
-- Live-stream catalogue, TikVTV-style vertical swipe feed with stable full-height channel surfaces, channel-list fallback, provider resolver, native video player, retry/share controls and explicit unavailable/failed playback states. Real-stream/device validation remains required.
+- Public IPTV catalogue sources (Kenya, news, sports and more) load progressively in batches as viewers swipe, alongside Testagram community live streams. TikVTV-style full-height feed includes channel-list fallback, provider resolver, native Android playback and a lazy-loaded Hls.js browser adapter with retry/share controls. Real-stream/device validation remains a release blocker.
 - Conversation index only. Native encrypted send/receive, E2EE key management, receipts, presence, voice notes and calls are not marked complete.
 - Settings, sign-out and appearance controls.
 - Flutter analyzer/widget/session-policy tests.
 
-Some actions intentionally show a migration notice rather than pretending that an unfinished backend adapter is functional. These are release blockers, not completed features. In particular, the external advertising scripts, full TV production interface, creator tools, payments, commerce, federated services, all moderation/admin pages, push delivery, camera/media uploads, E2EE messaging/calls and full SEO parity still need their own ports and contract tests.
+In-app notification rows refresh through Supabase Realtime while the notifications screen is open; device/background push remains blocked on verified FCM registration and delivery. Some actions intentionally show a migration notice rather than pretending that an unfinished backend adapter is functional. These are release blockers, not completed features. In particular, the external advertising scripts, full TV production interface, creator tools, payments, commerce, federated services, all moderation/admin pages, device push delivery, microphone/voice capture, complete media/profile editing, E2EE messaging/calls and full SEO parity still need their own ports and contract tests.
 
 ## Required parity inventory
 
