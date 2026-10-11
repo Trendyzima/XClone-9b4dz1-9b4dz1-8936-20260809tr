@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-11T18:16:50.489Z",
+  "generated_at": "2026-10-11T18:20:50.933Z",
   "rule": "A feature is not complete until its Flutter web and Android behavior, backend contract, permissions, failure recovery, and tests are verified. Existing web routes remain available until parity is accepted.",
   "domains": [
     {

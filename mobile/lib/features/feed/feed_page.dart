@@ -23,6 +23,7 @@ class _FeedPageState extends State<FeedPage> {
   bool _loading = false;
   bool _publishing = false;
   bool _hasMore = true;
+  String _feedTab = 'For you';
   String? _error;
   int _page = 0;
   static const _pageSize = 15;
@@ -65,13 +66,28 @@ class _FeedPageState extends State<FeedPage> {
     }
     try {
       final start = _page * _pageSize;
-      final response = await _client
-          .from('posts')
-          .select('*')
-          .order('created_at', ascending: false)
-          .range(start, start + _pageSize - 1)
-          .timeout(const Duration(seconds: 15));
-      final rows = (response as List<dynamic>)
+      List<String> followingIds = [];
+      if (_feedTab == 'Following') {
+        final follows = await _client
+            .from('follows')
+            .select('following_id')
+            .eq('follower_id', _userId)
+            .timeout(const Duration(seconds: 12));
+        followingIds = follows
+            .map((row) => '${row['following_id']}')
+            .where((id) => id.isNotEmpty)
+            .toList();
+      }
+      final postQuery = _client.from('posts').select('*');
+      final response = _feedTab == 'Following' && followingIds.isEmpty
+          ? <dynamic>[]
+          : await (_feedTab == 'Following'
+                  ? postQuery.inFilter('author_id', followingIds)
+                  : postQuery)
+              .order('created_at', ascending: false)
+              .range(start, start + _pageSize - 1)
+              .timeout(const Duration(seconds: 15));
+      final rows = response
           .map((row) => Map<String, dynamic>.from(row as Map))
           .where((row) => row['deleted_at'] == null)
           .toList();
@@ -585,6 +601,60 @@ class _FeedPageState extends State<FeedPage> {
         controller: _scroll,
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
+          SliverToBoxAdapter(
+            child: Container(
+              decoration: BoxDecoration(
+                color: Theme.of(context)
+                    .scaffoldBackgroundColor
+                    .withValues(alpha: 0.94),
+                border: Border(
+                  bottom: BorderSide(color: Theme.of(context).dividerColor),
+                ),
+              ),
+              child: Row(
+                children: [
+                  for (final tab in const ['For you', 'Following'])
+                    Expanded(
+                      child: InkWell(
+                        onTap: _feedTab == tab || _loading
+                            ? null
+                            : () {
+                                setState(() => _feedTab = tab);
+                                _load(reset: true);
+                              },
+                        child: Container(
+                          constraints: const BoxConstraints(minHeight: 48),
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: _feedTab == tab
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Colors.transparent,
+                                width: 3,
+                              ),
+                            ),
+                          ),
+                          child: Text(
+                            tab,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: _feedTab == tab
+                                  ? Theme.of(context).colorScheme.onSurface
+                                  : Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.color,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
