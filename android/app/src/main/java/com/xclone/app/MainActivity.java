@@ -229,11 +229,36 @@ public final class MainActivity extends AppCompatActivity {
             @Override
             public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
                 Uri uri = request.getUrl();
-                String host = uri.getHost();
-                if ("testagram.site".equalsIgnoreCase(host) || "www.testagram.site".equalsIgnoreCase(host)) {
+                if (isTrustedTestagramUrl(uri)) {
                     return false;
                 }
-                startActivity(new Intent(Intent.ACTION_VIEW, uri));
+
+                // Upgrade the site's own accidental HTTP links before loading them.
+                String scheme = uri.getScheme();
+                String host = uri.getHost();
+                if ("http".equalsIgnoreCase(scheme)
+                        && ("testagram.site".equalsIgnoreCase(host) || "www.testagram.site".equalsIgnoreCase(host))) {
+                    Uri secure = canonicalTestagramUrl(uri).buildUpon().scheme("https").authority("testagram.site").build();
+                    view.loadUrl(secure.toString());
+                    return true;
+                }
+
+                // External navigation is delegated only for conventional web links
+                // and user-initiated phone/email links. Block javascript:, file:,
+                // intent: and other schemes from crossing the WebView boundary.
+                boolean safeExternalScheme = "https".equalsIgnoreCase(scheme)
+                        || "http".equalsIgnoreCase(scheme)
+                        || "mailto".equalsIgnoreCase(scheme)
+                        || "tel".equalsIgnoreCase(scheme);
+                if (safeExternalScheme) {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW, uri));
+                    } catch (android.content.ActivityNotFoundException ignored) {
+                        android.util.Log.w("TestagramWebView", "No handler for external URL scheme: " + scheme);
+                    } catch (SecurityException ignored) {
+                        android.util.Log.w("TestagramWebView", "External URL launch was blocked");
+                    }
+                }
                 return true;
             }
         });
@@ -281,18 +306,48 @@ public final class MainActivity extends AppCompatActivity {
 
             @Override
             public void onPermissionRequest(PermissionRequest request) {
+                if (request == null) return;
                 runOnUiThread(() -> {
-                    boolean camera = ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
-                    boolean audio = ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+                    // WebView permissions are origin-scoped. Never grant capture to an
+                    // embedded/untrusted origin, and fail closed on resource types that
+                    // this shell does not explicitly support.
+                    if (!isTrustedTestagramUrl(request.getOrigin())) {
+                        safeDeny(request);
+                        return;
+                    }
+
+                    java.util.ArrayList<String> requestedResources = new java.util.ArrayList<>();
                     boolean needsCamera = false;
                     boolean needsAudio = false;
+                    boolean unsupportedResource = false;
+                    boolean camera = ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
+                    boolean audio = ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+
                     for (String resource : request.getResources()) {
-                        if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) needsCamera = !camera;
-                        if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) needsAudio = !audio;
+                        if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) {
+                            requestedResources.add(resource);
+                            needsCamera = !camera;
+                        } else if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) {
+                            requestedResources.add(resource);
+                            needsAudio = !audio;
+                        } else {
+                            unsupportedResource = true;
+                        }
+                    }
+                    if (unsupportedResource || requestedResources.isEmpty()) {
+                        safeDeny(request);
+                        return;
                     }
                     if (!needsCamera && !needsAudio) {
-                        request.grant(request.getResources());
+                        safeGrant(request, requestedResources.toArray(new String[0]));
                         return;
+                    }
+
+                    // A WebView may issue overlapping requests; don't leave an earlier
+                    // callback hanging or accidentally grant it after a later prompt.
+                    if (pendingMediaPermissionRequest != null) {
+                        safeDeny(pendingMediaPermissionRequest);
+                        pendingMediaPermissionRequest = null;
                     }
                     pendingMediaPermissionRequest = request;
                     java.util.ArrayList<String> permissions = new java.util.ArrayList<>();
@@ -448,7 +503,10 @@ public final class MainActivity extends AppCompatActivity {
         if (uri == null) return false;
         String scheme = uri.getScheme();
         String host = uri.getHost();
+        int port = uri.getPort();
         return "https".equalsIgnoreCase(scheme)
+                && (port == -1 || port == 443)
+                && uri.getUserInfo() == null
                 && ("testagram.site".equalsIgnoreCase(host) || "www.testagram.site".equalsIgnoreCase(host));
     }
 
@@ -485,6 +543,22 @@ public final class MainActivity extends AppCompatActivity {
         manager.createNotificationChannel(updates);
     }
 
+    private static void safeGrant(PermissionRequest request, String[] resources) {
+        try {
+            request.grant(resources);
+        } catch (IllegalStateException ignored) {
+            // The renderer may have navigated or been destroyed while the dialog was open.
+        }
+    }
+
+    private static void safeDeny(PermissionRequest request) {
+        try {
+            request.deny();
+        } catch (IllegalStateException ignored) {
+            // A stale WebView permission request is already invalid; nothing else to do.
+        }
+    }
+
     private void requestNotificationPermission() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
                 && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
@@ -507,12 +581,21 @@ public final class MainActivity extends AppCompatActivity {
                 boolean camera = ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED;
                 boolean audio = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
                 java.util.ArrayList<String> grant = new java.util.ArrayList<>();
+                boolean unsupportedResource = false;
                 for (String resource : pending.getResources()) {
-                    if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource) && camera) grant.add(resource);
-                    if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource) && audio) grant.add(resource);
+                    if (PermissionRequest.RESOURCE_VIDEO_CAPTURE.equals(resource)) {
+                        if (camera) grant.add(resource);
+                    } else if (PermissionRequest.RESOURCE_AUDIO_CAPTURE.equals(resource)) {
+                        if (audio) grant.add(resource);
+                    } else {
+                        unsupportedResource = true;
+                    }
                 }
-                if (!grant.isEmpty()) pending.grant(grant.toArray(new String[0]));
-                else pending.deny();
+                if (!isTrustedTestagramUrl(pending.getOrigin()) || unsupportedResource || grant.isEmpty()) {
+                    safeDeny(pending);
+                } else {
+                    safeGrant(pending, grant.toArray(new String[0]));
+                }
             }
         } else if (requestCode == LOCATION_PERMISSION && geolocationCallback != null) {
             boolean granted = ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
@@ -535,6 +618,19 @@ public final class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onDestroy() {
+        if (pendingMediaPermissionRequest != null) {
+            safeDeny(pendingMediaPermissionRequest);
+            pendingMediaPermissionRequest = null;
+        }
+        if (geolocationCallback != null && geolocationOrigin != null) {
+            geolocationCallback.invoke(geolocationOrigin, false, false);
+            geolocationCallback = null;
+            geolocationOrigin = null;
+        }
+        if (fileCallback != null) {
+            fileCallback.onReceiveValue(null);
+            fileCallback = null;
+        }
         if (webView != null) {
             webView.stopLoading();
             webView.setWebChromeClient(null);

@@ -17,17 +17,33 @@ export function useGovernance() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase.rpc('testagram_get_governance');
-    if (!error && data) {
-      setGovernance({
-        is_owner: data.is_owner === true,
-        is_admin: data.is_admin === true,
-        role: typeof data.role === 'string' ? data.role : null,
-        status: typeof data.status === 'string' ? data.status : null,
-        permissions: Array.isArray(data.permissions) ? data.permissions.map(String) : [],
-      });
-    } else setGovernance(EMPTY);
-    setLoading(false);
+    try {
+      // These are both caller-scoped server predicates. Check the canonical owner
+      // predicate even when the richer governance RPC succeeds: a stale or partial
+      // governance payload must never hide the verified owner controls.
+      const [{ data, error }, { data: ownerData, error: ownerError }] = await Promise.all([
+        supabase.rpc('testagram_get_governance'),
+        supabase.rpc('testagram_is_owner'),
+      ]);
+      const isOwner = (!ownerError && ownerData === true) || (!error && data?.is_owner === true);
+      if (!error && data) {
+        setGovernance({
+          is_owner: isOwner,
+          is_admin: isOwner || data.is_admin === true,
+          role: isOwner ? 'owner' : (typeof data.role === 'string' ? data.role : null),
+          status: typeof data.status === 'string' ? data.status : null,
+          permissions: Array.isArray(data.permissions) ? data.permissions.map(String) : [],
+        });
+      } else {
+        setGovernance(isOwner
+          ? { ...EMPTY, is_owner: true, is_admin: true, role: 'owner' }
+          : EMPTY);
+      }
+    } catch {
+      setGovernance(EMPTY);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);

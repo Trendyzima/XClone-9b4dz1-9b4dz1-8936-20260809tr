@@ -104,25 +104,55 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
+function safeNotificationUrl(value) {
+  try {
+    const candidate = new URL(typeof value === 'string' ? value : '/notifications', self.location.origin);
+    // Push payloads are server-originated but still treated as untrusted input:
+    // never let a notification turn a click into an external redirect.
+    if (candidate.origin !== self.location.origin || !['https:', 'http:'].includes(candidate.protocol)) {
+      return new URL('/notifications', self.location.origin).href;
+    }
+    return candidate.href;
+  } catch {
+    return new URL('/notifications', self.location.origin).href;
+  }
+}
+
 self.addEventListener('push', (event) => {
   let payload = {};
   try { payload = event.data ? event.data.json() : {}; } catch { payload = { body: event.data ? event.data.text() : '' }; }
-  const title = payload.title || 'Testagram';
-  const body = payload.body || 'You have a new notification.';
-  const data = payload.data || {};
-  const actionUrl = data.action_url || '/notifications';
-  event.waitUntil(self.registration.showNotification(title, {
-    body, icon: '/app-icon.jpg', badge: '/app-icon.jpg',
-    tag: data.notification_id || 'testagram-notification', renotify: true,
-    data: { action_url: actionUrl },
-  }));
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) payload = {};
+  const title = typeof payload.title === 'string' && payload.title.trim() ? payload.title : 'Testagram';
+  const body = typeof payload.body === 'string' && payload.body.trim() ? payload.body : 'You have a new notification.';
+  const data = payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data) ? payload.data : {};
+  const notificationId = typeof data.notification_id === 'string' && data.notification_id.trim()
+    ? data.notification_id.slice(0, 160)
+    : undefined;
+  const options = {
+    body,
+    icon: '/app-icon.jpg',
+    badge: '/app-icon.jpg',
+    data: { action_url: safeNotificationUrl(data.action_url) },
+  };
+  // Only group/replace notifications when the sender supplies a stable ID.
+  // A single constant fallback tag caused unrelated alerts to overwrite each other.
+  if (notificationId) {
+    options.tag = notificationId;
+    options.renotify = true;
+  }
+  event.waitUntil(self.registration.showNotification(title, options));
 });
 
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const target = new URL(event.notification.data?.action_url || '/notifications', self.location.origin).href;
+  const target = safeNotificationUrl(event.notification.data?.action_url || '/notifications');
   event.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-    for (const client of clients) if ('focus' in client) { client.navigate(target); return client.focus(); }
+    for (const client of clients) {
+      if (new URL(client.url).origin === self.location.origin && 'focus' in client) {
+        client.navigate(target);
+        return client.focus();
+      }
+    }
     return self.clients.openWindow(target);
   }));
 });
