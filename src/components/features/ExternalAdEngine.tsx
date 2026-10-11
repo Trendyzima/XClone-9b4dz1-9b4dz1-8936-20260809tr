@@ -3,7 +3,7 @@ import { useLocation } from 'react-router-dom';
 
 type AdUnit = 'network-300' | 'content-300' | 'banner-728' | 'skyscraper-160' | 'adsterra-160x300' | 'adsterra-320x50' | 'exoclick-display';
 const WIDE_PAGES = new Set(['/', '/home', '/explore', '/search', '/videos', '/shorts']);
-const BLOCKED_PATH = /^\/(auth|login|signup|register|forgot-password|reset-password|password-reset|verify|verify-identity|profile\/complete|admin|settings|account|security|billing|subscription|invoice|wallet|messages|notifications|help|premium|create-ad|my-ads|ad-|rewards|payouts|revenue|analytics|appeals|sessions|blocked|privacy|terms|policy|regulator|tv-studio|start-stream)(\/|$)/;
+const BLOCKED_PATH = /^\\/(auth|login|signup|register|forgot-password|reset-password|password-reset|verify|verify-identity|profile\\/complete|admin|settings|account|security|billing|subscription|invoice|wallet|messages|notifications|help|premium|create-ad|my-ads|ad-|rewards|payouts|revenue|analytics|appeals|sessions|blocked|privacy|terms|policy|regulator|tv-studio|start-stream|checkout|orders|cart|payment|purchases|withdraw|withdrawals)(\\/|$)/;
 
 const AD_DOCUMENTS: Record<AdUnit, { width: number; height: number; html: string }> = {
   'exoclick-display': {
