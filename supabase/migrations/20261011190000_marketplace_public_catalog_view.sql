@@ -22,7 +22,7 @@ select
   pr.display_name as seller_display_name,
   pr.avatar_url as seller_avatar_url
 from public.products p
-left join public.media_assets m on m.id = p.media_asset_id and m.status = 'uploaded'
+left join public.media_assets m on m.id = p.media_asset_id and m.owner_id = p.seller_id and m.status = 'uploaded'
 left join public.profiles pr on pr.id = p.seller_id
 where p.status = 'active';
 

@@ -35,6 +35,7 @@ class _ProductsPageState extends State<ProductsPage> {
     setState(() {
       _loading = true;
       _error = null;
+      _wishlisted.clear();
     });
     try {
       var query = _db.from('marketplace_public_products').select(
@@ -423,4 +424,3 @@ class _ProductsPageState extends State<ProductsPage> {
           }),
         ]));
   }
-}
