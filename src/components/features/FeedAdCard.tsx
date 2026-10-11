@@ -1,6 +1,6 @@
 import { ExternalAdEngine } from './ExternalAdEngine';
 
-/** A feed slot that disappears entirely when the network returns no creative. */
+/** A native-style sponsored item in the scrolling social feed. */
 export function FeedAdCard() {
   return <ExternalAdEngine surface="feed" />;
 }

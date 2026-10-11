@@ -36,7 +36,7 @@ const AD_DOCUMENTS: Record<AdUnit, { width: number; height: number; html: string
   },
 };
 
-function AdFrame({ unit }: { unit: AdUnit }) {
+function AdFrame({ unit, feedNative = false }: { unit: AdUnit; feedNative?: boolean }) {
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const probeRef = useRef<HTMLDivElement | null>(null);
   const [nearViewport, setNearViewport] = useState(false);
@@ -82,15 +82,17 @@ function AdFrame({ unit }: { unit: AdUnit }) {
   if (adStatus === 'empty') return null;
   const filled = adStatus === 'filled';
   return (
+    <article className={feedNative ? 'w-full border-b border-border bg-background px-4 py-3' : undefined} data-native-feed-ad={feedNative ? 'true' : undefined}>
+      {feedNative && filled && <div className="mb-2 flex items-center gap-3 text-left"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-black text-primary">T</div><div className="min-w-0 flex-1"><p className="text-sm font-bold leading-tight">Testagram Ads</p><p className="text-xs text-muted-foreground">Sponsored</p></div><span className="rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-muted-foreground">Ad</span></div>}
     <section
       ref={probeRef}
-      className={`external-ad-shell mx-auto max-w-full overflow-hidden ${filled ? 'my-3' : 'my-2'}`}
+      className={`external-ad-shell mx-auto max-w-full overflow-hidden ${feedNative ? 'my-1' : filled ? 'my-3' : 'my-2'}`}
       aria-label="Sponsored advertisement placement"
       data-external-ad-unit={unit}
       data-ad-status={adStatus}
       style={{ width: ad.width, maxWidth: '100%', minHeight: nearViewport ? ad.height : 0 }}
     >
-      {filled && <div className="mb-1 flex items-center justify-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"><span aria-hidden="true">ⓘ</span><span>Sponsored</span></div>}
+      {filled && !feedNative && <div className="mb-1 flex items-center justify-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground"><span aria-hidden="true">ⓘ</span><span>Sponsored</span></div>}
       {nearViewport && (
         <div className="mx-auto max-w-full overflow-hidden" style={{ width: ad.width, height: ad.height }}>
           <iframe
@@ -108,6 +110,7 @@ function AdFrame({ unit }: { unit: AdUnit }) {
         </div>
       )}
     </section>
+    </article>
   );
 }
 
@@ -115,9 +118,8 @@ export function ExternalAdEngine({ surface = 'top' }: { surface?: 'top' | 'sideb
   const { pathname } = useLocation();
   if (BLOCKED_PATH.test(pathname) || (pathname === '/iptv' && surface !== 'overlay') || (pathname.startsWith('/tv/live/') && surface !== 'overlay')) return null;
   if (surface === 'overlay') return <AdFrame unit="adsterra-160x300" />;
-  // ExoClick display inventory is mounted once in the shared content column on eligible routes.
-  // The feed surface remains available for future explicitly designed in-feed placements.
-  if (surface === 'feed') return <div className="mx-auto w-full max-w-full"><AdFrame unit="exoclick-display" /></div>;
+  // Keep display inventory in the scrolling feed, styled as a native sponsored item.
+  if (surface === 'feed') return <AdFrame unit="exoclick-display" feedNative />;
   if (surface === 'sidebar') {
     if (WIDE_PAGES.has(pathname) || pathname.startsWith('/home/')) return null;
     return <div className="hidden xl:block"><AdFrame unit="skyscraper-160" /></div>;
