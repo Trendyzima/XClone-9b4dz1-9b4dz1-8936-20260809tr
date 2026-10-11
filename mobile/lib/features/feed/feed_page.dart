@@ -1,0 +1,936 @@
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:share_plus/share_plus.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:video_player/video_player.dart';
+
+class FeedPage extends StatefulWidget {
+  const FeedPage({super.key});
+  @override
+  State<FeedPage> createState() => _FeedPageState();
+}
+
+class _FeedPageState extends State<FeedPage> {
+  final _scroll = ScrollController();
+  final List<Map<String, dynamic>> _posts = [];
+  final Set<String> _liked = {};
+  final Set<String> _bookmarked = {};
+  final Set<String> _reposted = {};
+  bool _loading = false;
+  bool _hasMore = true;
+  String? _error;
+  int _page = 0;
+  static const _pageSize = 15;
+
+  SupabaseClient get _client => Supabase.instance.client;
+  String get _userId => _client.auth.currentUser!.id;
+
+  @override
+  void initState() {
+    super.initState();
+    _load(reset: true);
+    _scroll.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scroll.removeListener(_onScroll);
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scroll.position.pixels >= _scroll.position.maxScrollExtent - 700) {
+      if (!_loading && _hasMore) _load();
+    }
+  }
+
+  Future<void> _load({bool reset = false}) async {
+    if (_loading || (!reset && !_hasMore)) return;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    if (reset) {
+      _page = 0;
+      _hasMore = true;
+      _liked.clear();
+      _bookmarked.clear();
+      _reposted.clear();
+    }
+    try {
+      final start = _page * _pageSize;
+      final response = await _client
+          .from('posts')
+          .select('*')
+          .order('created_at', ascending: false)
+          .range(start, start + _pageSize - 1)
+          .timeout(const Duration(seconds: 15));
+      final rows = (response as List<dynamic>)
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .where((row) => row['deleted_at'] == null)
+          .toList();
+      final ids = rows
+          .map((row) => '${row['author_id'] ?? row['user_id'] ?? ''}')
+          .where((id) => id.isNotEmpty)
+          .toSet()
+          .toList();
+      final profiles = ids.isEmpty
+          ? <dynamic>[]
+          : await _client
+              .from('profiles')
+              .select(
+                  'id,username,display_name,avatar_url,verified,verified_tier')
+              .inFilter('id', ids);
+      final byId = <String, Map<String, dynamic>>{};
+      for (final profile in profiles) {
+        final value = Map<String, dynamic>.from(profile as Map);
+        byId['${value['id']}'] = value;
+      }
+      for (final row in rows) {
+        row['profile'] = byId['${row['author_id'] ?? row['user_id']}'];
+      }
+      final postIds = rows.map((row) => '${row['id']}').toList();
+      if (postIds.isNotEmpty) {
+        final likeRows = await _client
+            .from('post_reactions')
+            .select('post_id')
+            .eq('user_id', _userId)
+            .eq('emoji', '❤️')
+            .inFilter('post_id', postIds);
+        final bookmarkRows = await _client
+            .from('bookmarks')
+            .select('post_id')
+            .eq('user_id', _userId)
+            .inFilter('post_id', postIds);
+        final repostRows = await _client
+            .from('reposts')
+            .select('post_id')
+            .eq('user_id', _userId)
+            .inFilter('post_id', postIds);
+        _liked.addAll(likeRows.map((row) => '${row['post_id']}'));
+        _bookmarked.addAll(bookmarkRows.map((row) => '${row['post_id']}'));
+        _reposted.addAll(repostRows.map((row) => '${row['post_id']}'));
+      }
+      if (!mounted) return;
+      setState(() {
+        if (reset) _posts.clear();
+        final known = _posts.map((post) => '${post['id']}').toSet();
+        _posts.addAll(rows.where((row) => !known.contains('${row['id']}')));
+        _page++;
+        _hasMore = rows.length == _pageSize;
+      });
+    } catch (error) {
+      if (mounted) setState(() => _error = _friendlyError(error));
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String _friendlyError(Object error) {
+    final message = error.toString();
+    if (message.contains('SocketException') ||
+        message.contains('Failed host lookup')) {
+      return 'You appear to be offline. Check your connection and retry.';
+    }
+    if (message.contains('TimeoutException')) {
+      return 'The feed took too long to respond. Pull down to retry.';
+    }
+    return 'Could not load the feed. Please retry. Details: ${message.length > 150 ? '${message.substring(0, 150)}…' : message}';
+  }
+
+  Future<void> _toggleLike(Map<String, dynamic> post) async {
+    final id = '${post['id']}';
+    final wasLiked = _liked.contains(id);
+    setState(() {
+      wasLiked ? _liked.remove(id) : _liked.add(id);
+    });
+    try {
+      if (wasLiked) {
+        await _client
+            .from('post_reactions')
+            .delete()
+            .eq('user_id', _userId)
+            .eq('post_id', id)
+            .eq('emoji', '❤️');
+      } else {
+        await _client.from('post_reactions').upsert(
+            {'user_id': _userId, 'post_id': id, 'emoji': '❤️'},
+            onConflict: 'post_id,user_id');
+      }
+      if (mounted) {
+        setState(() => post['likes_count'] =
+            ((post['likes_count'] as num?)?.toInt() ?? 0) +
+                (wasLiked ? -1 : 1));
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          wasLiked ? _liked.add(id) : _liked.remove(id);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not update like: $error')));
+      }
+    }
+  }
+
+  Future<void> _toggleBookmark(Map<String, dynamic> post) async {
+    final id = '${post['id']}';
+    final wasSaved = _bookmarked.contains(id);
+    setState(() {
+      wasSaved ? _bookmarked.remove(id) : _bookmarked.add(id);
+    });
+    try {
+      if (wasSaved) {
+        await _client
+            .from('bookmarks')
+            .delete()
+            .eq('user_id', _userId)
+            .eq('post_id', id);
+      } else {
+        await _client
+            .from('bookmarks')
+            .insert({'user_id': _userId, 'post_id': id});
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          wasSaved ? _bookmarked.add(id) : _bookmarked.remove(id);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not update bookmark: $error')));
+      }
+    }
+  }
+
+  Future<void> _toggleRepost(Map<String, dynamic> post) async {
+    final id = '${post['id']}';
+    final wasReposted = _reposted.contains(id);
+    setState(() {
+      wasReposted ? _reposted.remove(id) : _reposted.add(id);
+    });
+    try {
+      if (wasReposted) {
+        await _client
+            .from('reposts')
+            .delete()
+            .eq('user_id', _userId)
+            .eq('post_id', id);
+      } else {
+        await _client
+            .from('reposts')
+            .insert({'user_id': _userId, 'post_id': id});
+      }
+      if (mounted) {
+        setState(() => post['reposts_count'] =
+            ((post['reposts_count'] as num?)?.toInt() ?? 0) +
+                (wasReposted ? -1 : 1));
+      }
+    } catch (error) {
+      if (mounted) {
+        setState(() {
+          wasReposted ? _reposted.add(id) : _reposted.remove(id);
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not update repost: $error')));
+      }
+    }
+  }
+
+  Future<void> _copyPostLink(Map<String, dynamic> post) async {
+    final link = 'https://testagram.site/post/${post['id']}';
+    await Clipboard.setData(ClipboardData(text: link));
+    if (mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Post link copied.')));
+    }
+  }
+
+  Future<void> _sharePost(Map<String, dynamic> post) async {
+    final link = 'https://testagram.site/post/${post['id']}';
+    final body =
+        '${post['content'] ?? 'Check out this post on Testagram'}\n$link';
+    try {
+      await Share.share(body, subject: 'Testagram post');
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Could not open the share sheet: $error')));
+      }
+    }
+  }
+
+  Future<void> _reportPost(Map<String, dynamic> post) async {
+    const reasons = <String, String>{
+      'spam': 'Spam or misleading',
+      'hate_speech': 'Hate speech',
+      'misinformation': 'Misinformation',
+      'explicit': 'Explicit content',
+      'violence': 'Violence or threats',
+      'harassment': 'Harassment or bullying',
+    };
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Report post'),
+        content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: reasons.entries
+                .map((entry) => ListTile(
+                    title: Text(entry.value),
+                    onTap: () => Navigator.pop(context, entry.key)))
+                .toList()),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Cancel'))
+        ],
+      ),
+    );
+    if (reason == null) return;
+    try {
+      await _client.from('reports').insert({
+        'reporter_id': _userId,
+        'target_type': 'post',
+        'target_id': post['id'],
+        'reason': reason
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Report submitted to Testagram moderation.')));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Report could not be submitted: $error')));
+      }
+    }
+  }
+
+  Future<void> _showComments(Map<String, dynamic> post) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => _CommentsSheet(
+          postId: '${post['id']}', client: _client, userId: _userId),
+    );
+  }
+
+  Future<void> _compose() async {
+    final controller = TextEditingController();
+    final content = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (context) => Padding(
+        padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 12,
+            bottom: MediaQuery.viewInsetsOf(context).bottom + 24),
+        child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text('Create a post',
+                  style: Theme.of(context)
+                      .textTheme
+                      .titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w800)),
+              const SizedBox(height: 14),
+              TextField(
+                  controller: controller,
+                  autofocus: true,
+                  maxLength: 5000,
+                  maxLines: 6,
+                  minLines: 3,
+                  decoration: const InputDecoration(
+                      hintText: 'What is happening on Testagram?',
+                      alignLabelWithHint: true)),
+              const SizedBox(height: 12),
+              FilledButton(
+                  onPressed: () =>
+                      Navigator.pop(context, controller.text.trim()),
+                  child: const Text('Publish post')),
+            ]),
+      ),
+    );
+    controller.dispose();
+    if (content == null || content.isEmpty) return;
+    try {
+      await _client.from('posts').insert(
+          {'user_id': _userId, 'author_id': _userId, 'content': content});
+      if (mounted) {
+        await _load(reset: true);
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('Your post has been published.')));
+      }
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Post failed: $error')));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RefreshIndicator(
+      onRefresh: () => _load(reset: true),
+      child: CustomScrollView(
+        controller: _scroll,
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 10),
+              child: Card(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(18),
+                  onTap: _compose,
+                  child: Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Row(children: [
+                      CircleAvatar(
+                          backgroundColor:
+                              Theme.of(context).colorScheme.primaryContainer,
+                          child: const Icon(Icons.edit_rounded)),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                          child: Text('Share something with your community…')),
+                      IconButton(
+                          tooltip: 'Create post',
+                          onPressed: _compose,
+                          icon: const Icon(Icons.add_circle_rounded)),
+                    ]),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (_error != null)
+            SliverToBoxAdapter(
+                child: Padding(
+                    padding: const EdgeInsets.all(18),
+                    child: Column(children: [
+                      Text(_error!, textAlign: TextAlign.center),
+                      const SizedBox(height: 8),
+                      OutlinedButton.icon(
+                          onPressed: () => _load(reset: true),
+                          icon: const Icon(Icons.refresh_rounded),
+                          label: const Text('Retry'))
+                    ]))),
+          if (_posts.isEmpty && _loading)
+            const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: CircularProgressIndicator()))
+          else if (_posts.isEmpty && _error == null)
+            const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                    child:
+                        Text('No posts yet. Be the first to share something.')))
+          else
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
+              sliver: SliverList.separated(
+                itemCount: _posts.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 10),
+                itemBuilder: (context, index) {
+                  final post = _posts[index];
+                  return _PostCard(
+                    post: post,
+                    liked: _liked.contains('${post['id']}'),
+                    bookmarked: _bookmarked.contains('${post['id']}'),
+                    reposted: _reposted.contains('${post['id']}'),
+                    onLike: () => _toggleLike(post),
+                    onBookmark: () => _toggleBookmark(post),
+                    onRepost: () => _toggleRepost(post),
+                    onReply: () => _showComments(post),
+                    onShare: () => _sharePost(post),
+                    onCopyLink: () => _copyPostLink(post),
+                    onReport: () => _reportPost(post),
+                  );
+                },
+              ),
+            ),
+          if (_loading && _posts.isNotEmpty)
+            const SliverToBoxAdapter(
+                child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Center(child: CircularProgressIndicator()))),
+          if (!_hasMore && _posts.isNotEmpty)
+            const SliverToBoxAdapter(
+                child: Padding(
+                    padding: EdgeInsets.fromLTRB(20, 10, 20, 24),
+                    child: Center(
+                        child: Text('You’re all caught up.',
+                            style: TextStyle(fontSize: 12))))),
+        ],
+      ),
+    );
+  }
+}
+
+class _PostCard extends StatelessWidget {
+  const _PostCard(
+      {required this.post,
+      required this.liked,
+      required this.bookmarked,
+      required this.reposted,
+      required this.onLike,
+      required this.onBookmark,
+      required this.onRepost,
+      required this.onReply,
+      required this.onShare,
+      required this.onCopyLink,
+      required this.onReport});
+  final Map<String, dynamic> post;
+  final bool liked;
+  final bool bookmarked;
+  final bool reposted;
+  final VoidCallback onLike;
+  final VoidCallback onBookmark;
+  final VoidCallback onRepost;
+  final VoidCallback onReply;
+  final VoidCallback onShare;
+  final VoidCallback onCopyLink;
+  final VoidCallback onReport;
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = (post['profile'] as Map?)?.cast<String, dynamic>() ??
+        <String, dynamic>{};
+    final name =
+        '${profile['display_name'] ?? profile['username'] ?? 'Testagram user'}';
+    final avatar = '${profile['avatar_url'] ?? ''}';
+    final content = '${post['content'] ?? ''}';
+    final media = '${post['image_url'] ?? ''}';
+    final video = '${post['video_url'] ?? ''}';
+    final verified = profile['verified'] == true ||
+        (profile['verified_tier'] != null &&
+            profile['verified_tier'] != 'none');
+    final date = DateTime.tryParse('${post['created_at'] ?? ''}');
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 13, 14, 8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            CircleAvatar(
+                radius: 21,
+                backgroundImage: avatar.startsWith('http')
+                    ? CachedNetworkImageProvider(avatar)
+                    : null,
+                child: avatar.startsWith('http')
+                    ? null
+                    : Text(name.isNotEmpty ? name[0].toUpperCase() : 'T')),
+            const SizedBox(width: 10),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Row(children: [
+                    Flexible(
+                        child: Text(name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                const TextStyle(fontWeight: FontWeight.w800))),
+                    if (verified)
+                      const Padding(
+                          padding: EdgeInsets.only(left: 4),
+                          child: Icon(Icons.verified_rounded,
+                              size: 15, color: Color(0xFF148F44)))
+                  ]),
+                  Text(
+                      '@${profile['username'] ?? 'testagram'} · ${date == null ? '' : _relativeDate(date)}',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color:
+                              Theme.of(context).colorScheme.onSurfaceVariant)),
+                ])),
+            IconButton(
+                tooltip: 'More options',
+                onPressed: () => showModalBottomSheet<void>(
+                    context: context,
+                    showDragHandle: true,
+                    builder: (context) => SafeArea(
+                            child: Wrap(children: [
+                          ListTile(
+                              leading: const Icon(Icons.link_rounded),
+                              title: const Text('Copy post link'),
+                              onTap: () {
+                                Navigator.pop(context);
+                                onCopyLink();
+                              }),
+                          ListTile(
+                              leading: const Icon(Icons.flag_outlined),
+                              title: const Text('Report post'),
+                              onTap: () {
+                                Navigator.pop(context);
+                                onReport();
+                              })
+                        ]))),
+                icon: const Icon(Icons.more_horiz_rounded)),
+          ]),
+          if (content.isNotEmpty)
+            Padding(
+                padding: const EdgeInsets.only(top: 10, bottom: 8),
+                child: SelectableText(content,
+                    style: const TextStyle(fontSize: 15, height: 1.4))),
+          if (video.startsWith('http'))
+            Padding(
+                padding: const EdgeInsets.only(top: 6, bottom: 8),
+                child: _InlineVideo(url: video)),
+          if (media.startsWith('http'))
+            Padding(
+              padding: const EdgeInsets.only(top: 6, bottom: 8),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(14),
+                child: CachedNetworkImage(
+                  imageUrl: media,
+                  width: double.infinity,
+                  fit: BoxFit.cover,
+                  placeholder: (_, __) => const SizedBox(
+                    height: 160,
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                  errorWidget: (_, __, ___) => const SizedBox(
+                    height: 100,
+                    child: Center(child: Icon(Icons.broken_image_outlined)),
+                  ),
+                ),
+              ),
+            ),
+          const Divider(height: 12),
+          Row(children: [
+            _PostAction(
+                icon: liked
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
+                label: '${post['likes_count'] ?? 0}',
+                active: liked,
+                onTap: onLike),
+            _PostAction(
+                icon: Icons.mode_comment_outlined,
+                label: '${post['replies_count'] ?? 0}',
+                onTap: onReply),
+            _PostAction(
+                icon: Icons.repeat_rounded,
+                label: '${post['reposts_count'] ?? 0}',
+                active: reposted,
+                onTap: onRepost),
+            IconButton(
+                tooltip: 'Share post',
+                onPressed: onShare,
+                icon: const Icon(Icons.share_outlined)),
+            const Spacer(),
+            IconButton(
+                tooltip: bookmarked ? 'Remove bookmark' : 'Bookmark',
+                onPressed: onBookmark,
+                icon: Icon(
+                    bookmarked
+                        ? Icons.bookmark_rounded
+                        : Icons.bookmark_border_rounded,
+                    color: bookmarked
+                        ? Theme.of(context).colorScheme.primary
+                        : null)),
+          ]),
+        ]),
+      ),
+    );
+  }
+
+  String _relativeDate(DateTime date) {
+    final delta = DateTime.now().difference(date);
+    if (delta.inMinutes < 1) return 'now';
+    if (delta.inHours < 1) return '${delta.inMinutes}m';
+    if (delta.inDays < 1) return '${delta.inHours}h';
+    if (delta.inDays < 7) return '${delta.inDays}d';
+    return '${date.day}/${date.month}/${date.year}';
+  }
+}
+
+class _PostAction extends StatelessWidget {
+  const _PostAction(
+      {required this.icon,
+      required this.label,
+      required this.onTap,
+      this.active = false});
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool active;
+  @override
+  Widget build(BuildContext context) => TextButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 19, color: active ? Colors.redAccent : null),
+      label: Text(label, style: const TextStyle(fontSize: 12)));
+}
+
+class _InlineVideo extends StatefulWidget {
+  const _InlineVideo({required this.url});
+  final String url;
+  @override
+  State<_InlineVideo> createState() => _InlineVideoState();
+}
+
+class _InlineVideoState extends State<_InlineVideo> {
+  VideoPlayerController? _controller;
+  bool _loading = false;
+  String? _error;
+
+  Future<void> _toggle() async {
+    if (_controller == null) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+      try {
+        final controller =
+            VideoPlayerController.networkUrl(Uri.parse(widget.url));
+        _controller = controller;
+        await controller.initialize().timeout(const Duration(seconds: 18));
+        if (!mounted) {
+          await controller.dispose();
+          return;
+        }
+        await controller.play();
+        setState(() {});
+      } catch (error) {
+        _error = 'Video could not start. Check the stream URL or network.';
+        await _controller?.dispose();
+        _controller = null;
+      } finally {
+        if (mounted) setState(() => _loading = false);
+      }
+      return;
+    }
+    if (_controller!.value.isPlaying) {
+      await _controller!.pause();
+    } else {
+      await _controller!.play();
+    }
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = _controller;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(14),
+      child: AspectRatio(
+        aspectRatio: controller?.value.isInitialized == true
+            ? controller!.value.aspectRatio
+            : 16 / 9,
+        child: Stack(fit: StackFit.expand, children: [
+          if (controller?.value.isInitialized == true)
+            VideoPlayer(controller!)
+          else
+            Container(
+                color: Colors.black87,
+                child: Center(
+                    child: Icon(Icons.play_circle_outline_rounded,
+                        size: 54, color: Colors.white.withValues(alpha: 0.9)))),
+          Material(
+              color: Colors.transparent,
+              child: InkWell(
+                  onTap: _toggle,
+                  child: Center(
+                      child: _loading
+                          ? const CircularProgressIndicator()
+                          : controller?.value.isPlaying == true
+                              ? const Icon(Icons.pause_circle_outline_rounded,
+                                  size: 54, color: Colors.white)
+                              : const Icon(Icons.play_circle_outline_rounded,
+                                  size: 54, color: Colors.white)))),
+          if (_error != null)
+            Positioned(
+                left: 8,
+                right: 8,
+                bottom: 8,
+                child: Text(_error!,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(color: Colors.white, fontSize: 12))),
+        ]),
+      ),
+    );
+  }
+}
+
+class _CommentsSheet extends StatefulWidget {
+  const _CommentsSheet(
+      {required this.postId, required this.client, required this.userId});
+  final String postId;
+  final SupabaseClient client;
+  final String userId;
+  @override
+  State<_CommentsSheet> createState() => _CommentsSheetState();
+}
+
+class _CommentsSheetState extends State<_CommentsSheet> {
+  final _composer = TextEditingController();
+  List<Map<String, dynamic>> _replies = [];
+  bool _loading = false;
+  bool _sending = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _composer.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final rows = await widget.client
+          .from('replies')
+          .select('id,user_id,post_id,content,created_at')
+          .eq('post_id', widget.postId)
+          .order('created_at', ascending: true)
+          .limit(100);
+      final replies =
+          rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+      final ids = replies.map((row) => '${row['user_id']}').toSet().toList();
+      if (ids.isNotEmpty) {
+        final profiles = await widget.client
+            .from('profiles')
+            .select('id,username,display_name,avatar_url')
+            .inFilter('id', ids);
+        final byId = {
+          for (final row in profiles)
+            '${row['id']}': Map<String, dynamic>.from(row as Map)
+        };
+        for (final reply in replies) {
+          reply['profile'] = byId['${reply['user_id']}'];
+        }
+      }
+      if (mounted) setState(() => _replies = replies);
+    } catch (error) {
+      if (mounted) {
+        setState(() => _error = 'Comments could not be loaded. Retry.');
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _send() async {
+    final text = _composer.text.trim();
+    if (text.isEmpty || _sending) return;
+    setState(() => _sending = true);
+    try {
+      await widget.client.from('replies').insert({
+        'post_id': widget.postId,
+        'user_id': widget.userId,
+        'content': text
+      });
+      _composer.clear();
+      await _load();
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Comment failed: $error')));
+      }
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => SafeArea(
+        child: SizedBox(
+          height: MediaQuery.sizeOf(context).height * 0.78,
+          child: Column(children: [
+            Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+                child: Row(children: [
+                  Expanded(
+                      child: Text('Replies (${_replies.length})',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleLarge
+                              ?.copyWith(fontWeight: FontWeight.w800))),
+                  IconButton(
+                      onPressed: _load, icon: const Icon(Icons.refresh_rounded))
+                ])),
+            if (_error != null)
+              Padding(padding: const EdgeInsets.all(8), child: Text(_error!)),
+            if (_loading && _replies.isEmpty)
+              const Expanded(child: Center(child: CircularProgressIndicator()))
+            else
+              Expanded(
+                  child: _replies.isEmpty
+                      ? const Center(child: Text('Be the first to reply.'))
+                      : ListView.builder(
+                          itemCount: _replies.length,
+                          itemBuilder: (context, index) {
+                            final reply = _replies[index];
+                            final profile = (reply['profile'] as Map?)
+                                    ?.cast<String, dynamic>() ??
+                                <String, dynamic>{};
+                            final name =
+                                '${profile['display_name'] ?? profile['username'] ?? 'Testagram user'}';
+                            final avatar = '${profile['avatar_url'] ?? ''}';
+                            return ListTile(
+                                leading: CircleAvatar(
+                                    backgroundImage: avatar.startsWith('http')
+                                        ? CachedNetworkImageProvider(avatar)
+                                        : null,
+                                    child: avatar.startsWith('http')
+                                        ? null
+                                        : Text(name.isEmpty
+                                            ? 'T'
+                                            : name[0].toUpperCase())),
+                                title: Text(name,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w700)),
+                                subtitle: Text('${reply['content'] ?? ''}'));
+                          })),
+            Padding(
+                padding: EdgeInsets.fromLTRB(
+                    12, 8, 12, MediaQuery.viewInsetsOf(context).bottom + 12),
+                child:
+                    Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                  Expanded(
+                      child: TextField(
+                          controller: _composer,
+                          minLines: 1,
+                          maxLines: 4,
+                          maxLength: 2000,
+                          decoration: const InputDecoration(
+                              hintText: 'Write a reply…', counterText: ''))),
+                  const SizedBox(width: 8),
+                  IconButton.filled(
+                      onPressed: _sending ? null : _send,
+                      icon: _sending
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.send_rounded))
+                ])),
+          ]),
+        ),
+      );
+}

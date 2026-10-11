@@ -1,26 +1,71 @@
-# Testagram Mobile — Flutter Foundation
+# Testagram Flutter clients
 
-Testagram mobile is being migrated from the current WebView shell to Flutter incrementally.
+This directory contains the shared Flutter application compiled for **Flutter Web** and **native Android**. It is a migration foundation, not yet a claim of full feature parity. The production React/Vite website and existing Android WebView release remain the fallback until the parity inventory is complete and the release gates pass.
 
-## Target architecture
-- Flutter: product UI, navigation, feeds, profiles, messaging UI, settings, notification UI, state and presentation logic.
-- Supabase: authentication/session, data APIs, realtime, storage metadata and server-side business rules.
-- Native Android/Kotlin: FCM, notification channels, background execution, media/camera/microphone integrations, deep links and other Android-only capabilities.
-- Existing web app: remains the source of truth during migration and continues serving testagram.site.
+## Run locally
 
-## Migration rule
-No feature is removed from the current Android client until its Flutter replacement is validated against production behavior and backend contracts.
+Install the stable Flutter SDK, then:
 
-## Phases
-1. Foundation + design system.
-2. Auth/session parity.
-3. Home/feed + compose.
-4. Profiles/explore/trending.
-5. Notifications + messaging.
-6. Media/video/camera.
-7. Spaces/TV mobile surfaces.
-8. Fediverse surfaces.
-9. Offline/cache/performance.
-10. Native Android parity and release validation.
+```bash
+cd mobile
+flutter pub get
+flutter analyze
+flutter test
+flutter run -d chrome --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-define=SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
+flutter run -d android --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-define=SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
+```
 
-The WebView shell remains the rollback path until Flutter reaches feature parity.
+The app intentionally shows a setup screen if build-time configuration is absent. Never put service-role keys, database passwords, signing credentials, or other privileged secrets in Dart source, assets, `--dart-define` values committed to Git, or web bundles. A Supabase publishable key is public; authorization must be enforced by RLS and server-side capabilities.
+
+## Preserve the original product
+
+- `lib/core/theme/testagram_theme.dart` contains the green/black palette and surface tokens sampled from the existing Testagram CSS.
+- `lib/core/widgets/testagram_background.dart` recreates the subtle green light bloom and fine-grain texture without remote assets.
+- The original Testagram logo is used for the Flutter launcher and web icons.
+- Responsive navigation uses a bottom bar on phones and a navigation rail on wide layouts.
+- Existing backend projects, account records, storage objects, policies, APIs and business rules remain the source of truth.
+
+## Security and sessions
+
+- Auth uses Supabase PKCE.
+- `TestagramSessionStorage` uses Android secure storage and browser storage on Flutter Web.
+- `SessionPolicy` and `SessionGuard` enforce a maximum 24-hour session age without resetting the clock on refresh-token rotation, including while the app remains open.
+- The existing 18+ legal gate and `accept_testagram_legal` RPC are retained; native login must not bypass legal acceptance.
+- Encrypted messaging is deliberately not written directly to the `messages` table. It stays behind the existing capability plane until the native encryption/key lifecycle is ported and tested.
+- Android declares network, camera, microphone, notification and media permissions, but runtime prompts must be requested only when a user invokes the corresponding feature.
+
+## Implemented foundation in this branch
+
+- Flutter Web and Android platform projects.
+- Shared routing, responsive shell, original Testagram styling and light/dark/system appearance control.
+- Supabase configuration boundary and PKCE authentication.
+- Email/password sign-in, password recovery/update, legal acceptance and 24-hour secure session policy.
+- Feed pagination, pull-to-refresh, text-post creation, heart reactions, comments/replies, reposts, bookmarks, share sheet, copy-link, report submission, image rendering and tap-to-play video.
+- People/post search, follow/unfollow and public profile navigation.
+- Current-user profile and post listing.
+- Notification listing, mark-read and mark-all-read.
+- Live-stream catalogue and native video-player attempt with explicit unavailable/failed playback states.
+- Conversation index only. Native encrypted send/receive, E2EE key management, receipts, presence, voice notes and calls are not marked complete.
+- Settings, sign-out and appearance controls.
+- Flutter analyzer/widget/session-policy tests.
+
+Some actions intentionally show a migration notice rather than pretending that an unfinished backend adapter is functional. These are release blockers, not completed features. In particular, the external advertising scripts, full TV production interface, creator tools, payments, commerce, federated services, all moderation/admin pages, push delivery, camera/media uploads, E2EE messaging/calls and full SEO parity still need their own ports and contract tests.
+
+## Required parity inventory
+
+`docs/flutter-parity-inventory.json` is generated from every source file under `src/`, plus API routes, Supabase Edge Functions and migrations, and existing Android native references, plus cross-cutting product domains. Every new source file must be tracked. Update it with:
+
+```bash
+node scripts/update-flutter-parity-inventory.mjs
+node scripts/validate-flutter-parity-inventory.mjs
+```
+
+A feature is accepted only after web and Android behavior, backend contract, permissions, failure recovery, accessibility, and tests are verified. See [`docs/mobile-architecture.md`](../docs/mobile-architecture.md) and [`docs/flutter-migration-plan.md`](../docs/flutter-migration-plan.md).
+
+## Web deployment rule
+
+`flutter build web --release` is a CI validation artifact only. It must **not** replace `testagram.site` until the route inventory, public-page SEO/metadata, canonical URLs, sitemap/robots, deep links, external ad provider behavior, authentication callbacks, accessibility, and production smoke tests pass. Flutter is well suited to app-like interactive surfaces, but public crawlable content and SEO need an explicit route-by-route strategy. The existing React site remains live during the migration.
+
+## Android release rule
+
+The Flutter Android application uses the existing package ID `com.xclone.app`. Do not replace the published APK until the permanent production signing certificate is available and verified against the installed release; the current legacy workflow uses temporary CI signing material, which is not a safe in-place upgrade identity. Build/debug artifacts are for testing only. Do not publish the Flutter APK as the latest release before real-device auth, push, media, back-navigation, deep-link, video, low-memory and offline tests pass.
