@@ -61,8 +61,7 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
   const win = childWindow as Window & { google?: any; __testagramImaPromise?: Promise<void> };
   const doc = childDocument;
   const attemptedChannels = new Set<string>();
-  // Full-screen IMA is opt-in only; production defaults to uninterrupted channel playback.
-  const allowFullscreenIma = doc.documentElement.dataset.testagramAllowFullscreenIma === 'true';
+  // ExoClick VAST is click-to-load: no request or interruption until a viewer taps the ad CTA.
   const observedCards = new WeakSet<HTMLElement>();
   const activeCards = new Set<HTMLElement>();
   const finishers = new Map<HTMLElement, () => void>();
@@ -169,8 +168,9 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
 
     const overlay = doc.createElement('div');
     overlay.setAttribute('role', 'region');
-    overlay.setAttribute('aria-label', 'Sponsored vertical video advertisement');
-    overlay.style.cssText = 'position:absolute;inset:0;z-index:9999;width:100%;height:100%;min-height:100dvh;box-sizing:border-box;background:#000;overflow:hidden;touch-action:pan-y;';
+    overlay.setAttribute('aria-label', 'ExoClick sponsored video advertisement');
+    // Keep the VAST player inside a bounded in-feed panel. Never force mobile fullscreen.
+    overlay.style.cssText = 'position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 190px);transform:translateX(-50%);z-index:40;width:min(360px,calc(100% - 24px));height:auto;aspect-ratio:16/9;max-height:42dvh;box-sizing:border-box;background:#000;overflow:hidden;touch-action:pan-y;border:1px solid rgba(255,255,255,.25);border-radius:12px;box-shadow:0 12px 36px rgba(0,0,0,.45);';
 
     const adVideo = doc.createElement('video');
     adVideo.playsInline = true;
@@ -182,7 +182,7 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
     adContainer.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;';
 
     const label = doc.createElement('span');
-    label.textContent = 'Sponsored';
+    label.textContent = 'Ads by ExoClick · Sponsored';
     label.style.cssText = 'position:absolute;top:16px;left:16px;z-index:10002;background:rgba(0,0,0,.82);color:#fff;padding:7px 10px;border-radius:7px;font:700 12px/1.2 system-ui,sans-serif;';
 
     const status = doc.createElement('span');
@@ -190,7 +190,7 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
     status.style.cssText = 'position:absolute;top:16px;right:16px;z-index:10002;background:rgba(0,0,0,.82);color:#fff;padding:7px 10px;border-radius:7px;font:500 12px/1.2 system-ui,sans-serif;';
 
     const prompt = doc.createElement('div');
-    prompt.textContent = 'Tap to play sponsored video · swipe to continue';
+    prompt.textContent = 'Tap to play · swipe away to continue';
     prompt.style.cssText = 'position:absolute;left:16px;right:16px;top:50%;transform:translateY(-50%);z-index:10002;margin:auto;max-width:320px;text-align:center;background:rgba(0,0,0,.82);border:1px solid rgba(255,255,255,.22);color:#fff;padding:18px 16px;border-radius:16px;font:600 14px/1.45 system-ui,sans-serif;display:none;';
 
     const skip = doc.createElement('button');
@@ -405,6 +405,28 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
         banner.append(sponsored, adFrame);
         card.appendChild(banner);
       }
+      // A sparse, explicit click-to-load VAST slot avoids autoplay and ad clutter.
+      if (Number.isFinite(slideIndex) && (slideIndex + 1) % 8 === 0 && !card.querySelector('[data-testagram-exoclick-cta]')) {
+        const exoSlot = doc.createElement('section');
+        exoSlot.dataset.testagramExoclickCta = 'true';
+        exoSlot.setAttribute('aria-label', 'ExoClick video advertisement');
+        exoSlot.style.cssText = 'position:absolute;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 190px);transform:translateX(-50%);z-index:39;width:min(360px,calc(100% - 24px));box-sizing:border-box;padding:10px 12px;border:1px solid rgba(255,255,255,.22);border-radius:12px;background:rgba(0,0,0,.78);color:#fff;text-align:left;';
+        const exoLabel = doc.createElement('div');
+        exoLabel.textContent = 'Ads by ExoClick · Sponsored';
+        exoLabel.style.cssText = 'margin-bottom:7px;font:700 10px/1.3 system-ui,sans-serif;letter-spacing:.04em;';
+        const exoButton = doc.createElement('button');
+        exoButton.type = 'button';
+        exoButton.textContent = 'Play sponsored video';
+        exoButton.style.cssText = 'display:block;width:100%;min-height:40px;padding:9px 12px;border:0;border-radius:8px;background:#fff;color:#111;font:700 13px/1.2 system-ui,sans-serif;cursor:pointer;';
+        exoButton.addEventListener('click', (event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          startAd(card);
+          exoSlot.remove();
+        }, { once: true });
+        exoSlot.append(exoLabel, exoButton);
+        card.appendChild(exoSlot);
+      }
       cardObserver?.observe(card);
     });
   };
@@ -429,10 +451,8 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
               finish();
             }
           });
-          // Full-screen IMA interruption is intentionally disabled. Channel
-          // playback must remain continuous; only the non-blocking banner below
-          // may be mounted on the channel card.
-          if (allowFullscreenIma) startAd(card);
+          // ExoClick VAST is deliberately not auto-requested on visibility.
+          // The viewer must tap the dedicated ad CTA to request and start the ad.
         } else if (!entry.isIntersecting || entry.intersectionRatio < 0.25) {
           activeCards.delete(card);
           finishers.get(card)?.();
