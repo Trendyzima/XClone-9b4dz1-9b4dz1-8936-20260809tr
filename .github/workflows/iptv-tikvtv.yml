@@ -11,6 +11,7 @@ on:
       - 'src/pages/TikVTVPage.tsx'
       - 'src/components/features/ExternalAdEngine.tsx'
       - 'scripts/validate-ad-slot-contract.mjs'
+      - 'scripts/validate-iptv-prefetch.mjs'
       - 'package.json'
       - '_build.cjs'
       - '.github/workflows/iptv-tikvtv.yml'
@@ -22,6 +23,7 @@ on:
       - 'src/pages/TikVTVPage.tsx'
       - 'src/components/features/ExternalAdEngine.tsx'
       - 'scripts/validate-ad-slot-contract.mjs'
+      - 'scripts/validate-iptv-prefetch.mjs'
       - 'package.json'
       - '_build.cjs'
       - '.github/workflows/iptv-tikvtv.yml'
@@ -63,6 +65,9 @@ jobs:
 
       - name: Validate ad creative lifecycle contracts
         run: npm run validate:ads
+
+      - name: Validate IPTV preload and cache safety contract
+        run: node scripts/validate-iptv-prefetch.mjs
 
       - name: Build Xclone and TikVTV
         run: npm run build
