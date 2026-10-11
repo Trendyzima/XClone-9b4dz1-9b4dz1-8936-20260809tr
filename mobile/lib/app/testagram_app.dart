@@ -15,6 +15,12 @@ import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/settings/settings_page.dart';
 import '../features/tv/tv_page.dart';
+import '../features/threads/threads_page.dart';
+import '../features/threads/thread_detail_page.dart';
+import '../features/communities/communities_page.dart';
+import '../features/communities/community_detail_page.dart';
+import '../features/creator/creator_studio_page.dart';
+import '../features/tv/tv_studio_page.dart';
 import 'testagram_shell.dart';
 
 class TestagramApp extends StatefulWidget {
@@ -81,6 +87,10 @@ class _TestagramAppState extends State<TestagramApp> {
         final publicRoute = path == '/' ||
             path == '/explore' ||
             path == '/tv' ||
+            path == '/threads' ||
+            path == '/communities' ||
+            path.startsWith('/thread/') ||
+            path.startsWith('/c/') ||
             path.startsWith('/profile/');
         if (!signedIn && !onAuth && !onSetup && !publicRoute) return '/auth';
         return null;
@@ -104,7 +114,53 @@ class _TestagramAppState extends State<TestagramApp> {
           routes: [
             GoRoute(path: '/', builder: (_, __) => const FeedPage()),
             GoRoute(path: '/explore', builder: (_, __) => const ExplorePage()),
+            GoRoute(path: '/threads', builder: (_, __) => const ThreadsPage()),
+            GoRoute(
+                path: '/communities',
+                builder: (_, __) => const CommunitiesPage()),
+            GoRoute(
+                path: '/c/:name',
+                builder: (_, state) => CommunityDetailPage(
+                    name: state.pathParameters['name'] ?? '')),
+            GoRoute(
+                path: '/c/:name/posts',
+                builder: (_, state) => CommunityDetailPage(
+                    name: state.pathParameters['name'] ?? '')),
+            GoRoute(
+                path: '/c/:name/members',
+                builder: (_, state) => CommunityDetailPage(
+                    name: state.pathParameters['name'] ?? '')),
+            GoRoute(
+                path: '/c/:name/chat',
+                builder: (_, state) => CommunityDetailPage(
+                    name: state.pathParameters['name'] ?? '')),
+            GoRoute(
+                path: '/c/:name/events',
+                builder: (_, state) => CommunityDetailPage(
+                    name: state.pathParameters['name'] ?? '')),
+            GoRoute(
+                path: '/c/:name/shop',
+                builder: (_, state) => CommunityDetailPage(
+                    name: state.pathParameters['name'] ?? '')),
+            GoRoute(
+                path: '/thread/:id',
+                builder: (_, state) => ThreadDetailPage(
+                    threadId: state.pathParameters['id'] ?? '')),
+            GoRoute(
+                path: '/thread/:threadId/replies',
+                builder: (_, state) => ThreadDetailPage(
+                    threadId: state.pathParameters['threadId'] ?? '',
+                    repliesOnly: true)),
             GoRoute(path: '/tv', builder: (_, __) => const TvPage()),
+            GoRoute(
+                path: '/tv-studio', builder: (_, __) => const TvStudioPage()),
+            GoRoute(
+                path: '/creator-studio',
+                builder: (_, __) => const CreatorStudioPage()),
+            GoRoute(
+                path: '/creator-studio/:section',
+                builder: (_, state) => CreatorStudioPage(
+                    section: state.pathParameters['section'] ?? 'overview')),
             GoRoute(
                 path: '/notifications',
                 builder: (_, __) => const NotificationsPage()),

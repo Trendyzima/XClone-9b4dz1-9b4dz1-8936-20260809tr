@@ -1,0 +1,1306 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-11T18:39:41.641Z",
+  "source_of_truth": "React Router declarations in src/App.tsx; route coverage does not imply feature parity.",
+  "source_route_declarations": 214,
+  "unique_source_routes": 212,
+  "flutter_native_routes": [
+    "/",
+    "/auth",
+    "/c/:name",
+    "/c/:name/chat",
+    "/c/:name/events",
+    "/c/:name/members",
+    "/c/:name/posts",
+    "/c/:name/shop",
+    "/communities",
+    "/creator-studio",
+    "/creator-studio/:section",
+    "/explore",
+    "/messages",
+    "/notifications",
+    "/profile",
+    "/profile/:username",
+    "/settings",
+    "/setup",
+    "/thread/:id",
+    "/thread/:threadId/replies",
+    "/threads",
+    "/tv",
+    "/tv-studio"
+  ],
+  "routes": [
+    {
+      "path": "*",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/",
+      "domain": "general",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/ad-analytics",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/ad-performance",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/admin",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/admin/ads",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/admin/ads-management",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/admin/ads-review",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/admin/fraud",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/admin/governance",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/admin/identity-verification",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/admin/overview",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/admin/platform-revenue",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/admin/revenue",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/admin/seo",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/admin/staff-recruitment",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/admin/users",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/admin/verifications",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/ai",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/ai-bot-setup",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/analytics",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/appeals",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/auth",
+      "domain": "authentication",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/blocked",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/bookmarks",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/boost-analytics/:postId",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/boost-create",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/c/:name",
+      "domain": "communities",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/c/:name/chat",
+      "domain": "communities",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/c/:name/events",
+      "domain": "communities",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/c/:name/members",
+      "domain": "communities",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/c/:name/posts",
+      "domain": "communities",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/c/:name/shop",
+      "domain": "communities",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/call/:callId",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/challenge/:id",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/channel/:handle",
+      "domain": "tv_and_live",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/communities",
+      "domain": "communities",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/create-ad",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/creator-studio",
+      "domain": "creator_and_monetization",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/creator-studio/analytics",
+      "domain": "creator_and_monetization",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/creator-studio/earnings",
+      "domain": "creator_and_monetization",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/creator-studio/overview",
+      "domain": "creator_and_monetization",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/creator-studio/revenue",
+      "domain": "creator_and_monetization",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/creator-studio/videos",
+      "domain": "creator_and_monetization",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/credits",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/daily-rewards",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/discover",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/discover/fediverse",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/discover/popular",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/discover/suggested",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/explore",
+      "domain": "general",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/fediverse",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/analytics",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/controls",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/discover",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/feed",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/identity",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/inbox",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/mastodon",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/organic-discovery",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/profile",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/profile/analytics",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/profile/followers",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/profile/following",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/profile/gifts",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/profile/likes",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/profile/media",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/profile/podcasts",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/profile/posts",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/profile/replies",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/profile/series",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/profile/threads",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/profile/tips",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/profile/videos",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fediverse/relay",
+      "domain": "fediverse",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/fraud-detection",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/hashtag/:tag",
+      "domain": "hashtags_and_trends",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/hashtags",
+      "domain": "hashtags_and_trends",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/help",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/history",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/interests",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/iptv",
+      "domain": "tv_and_live",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/jobs",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/leaderboard",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/leaderboard/challenges",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/leaderboard/creators",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/lists",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/lists/:id",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/marketplace",
+      "domain": "commerce",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/messages",
+      "domain": "general",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/monetization",
+      "domain": "creator_and_monetization",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/my-ads",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/news",
+      "domain": "news",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/news/:id",
+      "domain": "news",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/notification-preferences",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/notifications",
+      "domain": "general",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/orders",
+      "domain": "commerce",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/p/:productId",
+      "domain": "commerce",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/payouts",
+      "domain": "creator_and_monetization",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/platform-inbox",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/podcasts/analytics",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/podcasts/search",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/policy",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/polls",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/post-analytics",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/post-analytics/:postId",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/post-remote",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/post-remote/likes",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/post-remote/quotes",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/post-remote/replies",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/post-remote/reply/:replyId",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/post-remote/reposts",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/post/:postId",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/post/:postId/likes",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/post/:postId/quote",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/post/:postId/quote-likes",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/post/:postId/quotes",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/post/:postId/replies",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/post/:postId/reply/:replyId",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/post/:postId/reposts",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/premium",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/privacy",
+      "domain": "settings_and_legal",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/products",
+      "domain": "commerce",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/profile-features",
+      "domain": "profiles",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/profile/:username",
+      "domain": "profiles",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/profile/:username/analytics",
+      "domain": "profiles",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/profile/:username/followers",
+      "domain": "profiles",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/profile/:username/following",
+      "domain": "profiles",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/profile/:username/gifts",
+      "domain": "profiles",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/profile/:username/likes",
+      "domain": "profiles",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/profile/:username/media",
+      "domain": "profiles",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/profile/:username/podcasts",
+      "domain": "profiles",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/profile/:username/posts",
+      "domain": "profiles",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/profile/:username/replies",
+      "domain": "profiles",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/profile/:username/series",
+      "domain": "profiles",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/profile/:username/threads",
+      "domain": "profiles",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/profile/:username/tips",
+      "domain": "profiles",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/profile/:username/videos",
+      "domain": "profiles",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/profile/complete",
+      "domain": "profiles",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/referral",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/referrals",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/regulator",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/regulator/analytics",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/regulator/announce",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/regulator/audit",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/regulator/employees",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/regulator/features",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/regulator/moderation",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/regulator/platform",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/regulator/reports",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/regulator/wallets",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/revenue-analytics",
+      "domain": "creator_and_monetization",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/rewards",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/ride",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/scheduled",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/search",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/seller/:username",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/series",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/sessions",
+      "domain": "settings_and_legal",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/settings",
+      "domain": "settings_and_legal",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/settings/account",
+      "domain": "settings_and_legal",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/settings/appearance",
+      "domain": "settings_and_legal",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/settings/connections",
+      "domain": "settings_and_legal",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/settings/notifications",
+      "domain": "settings_and_legal",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/settings/privacy",
+      "domain": "settings_and_legal",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/shop",
+      "domain": "commerce",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/shorts",
+      "domain": "videos",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/space-recording/:id",
+      "domain": "spaces",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/spaces",
+      "domain": "spaces",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/spaces/:id",
+      "domain": "spaces",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/sports",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/staff",
+      "domain": "administration",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/start-stream",
+      "domain": "tv_and_live",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/story-analytics",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/stream/:streamId",
+      "domain": "tv_and_live",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/team-chat",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/terms",
+      "domain": "settings_and_legal",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/thread/:id",
+      "domain": "threads",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/thread/:threadId/likes",
+      "domain": "threads",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/thread/:threadId/quote-likes/:quoteId",
+      "domain": "threads",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/thread/:threadId/quotes",
+      "domain": "threads",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/thread/:threadId/replies",
+      "domain": "threads",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/thread/:threadId/reply-likes/:replyId",
+      "domain": "threads",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/thread/:threadId/reposts",
+      "domain": "threads",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/threads",
+      "domain": "threads",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/threads/create",
+      "domain": "threads",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/trending/:topic",
+      "domain": "hashtags_and_trends",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/tv",
+      "domain": "tv_and_live",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/tv-studio",
+      "domain": "tv_and_live",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/tv-studio/:streamId",
+      "domain": "tv_and_live",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/tv-studio/:streamId/guests",
+      "domain": "tv_and_live",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/tv/channels",
+      "domain": "tv_and_live",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/tv/live/:streamId",
+      "domain": "tv_and_live",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/tv/reels",
+      "domain": "tv_and_live",
+      "status": "native_partial",
+      "note": "Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated."
+    },
+    {
+      "path": "/verify",
+      "domain": "authentication",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/verify-identity",
+      "domain": "authentication",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/videos",
+      "domain": "videos",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/videos/watchlater",
+      "domain": "videos",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/wallet",
+      "domain": "commerce",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/wallet/analytics",
+      "domain": "commerce",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/wallet/converter",
+      "domain": "commerce",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/wallet/history",
+      "domain": "commerce",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/wallet/mpesa",
+      "domain": "commerce",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/wallet/pocket",
+      "domain": "commerce",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/wallet/receive",
+      "domain": "commerce",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/wallet/referrals",
+      "domain": "commerce",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/wallet/reminders",
+      "domain": "commerce",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/wallet/savings",
+      "domain": "commerce",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/wallet/scheduled",
+      "domain": "commerce",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/wallet/security",
+      "domain": "commerce",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/wallet/send",
+      "domain": "commerce",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    },
+    {
+      "path": "/wishlist",
+      "domain": "general",
+      "status": "legacy_web_fallback",
+      "note": "No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated."
+    }
+  ]
+}
