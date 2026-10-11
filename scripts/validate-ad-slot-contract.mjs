@@ -35,6 +35,11 @@ const externalHtml = Function('ad', `return \`${externalTemplate}\`;`)({
 validateEmbeddedScript(externalHtml, 'ExternalAdEngine');
 assert.ok(external.includes("window.dispatchEvent(new CustomEvent('testagram:ad-slot-status'"), 'ExternalAdEngine must expose a runtime status event');
 assert.ok(external.includes('data-ad-status={adStatus}'), 'ExternalAdEngine must expose its current slot status');
+assert.ok(external.includes('minHeight: ad.height'), 'ExternalAdEngine must reserve a real slot while the publisher loads');
+assert.ok(external.includes('loading="eager"'), 'ExternalAdEngine must not lazy-load after the visibility probe has fired');
+assert.ok(!external.includes('relative h-px w-full overflow-hidden'), 'ExternalAdEngine must not collapse the slot to one pixel while waiting');
+assert.ok(!external.includes('-z-10 overflow-hidden opacity-0'), 'ExternalAdEngine must not hide the publisher frame while waiting for creative detection');
+assert.ok(external.includes("report('empty','script-error')"), 'ExternalAdEngine must distinguish script errors from no-fill timeouts');
 assert.ok(external.includes("}, [unit]);"), 'ExternalAdEngine message listener must track the current unit');
 
 const iptvTemplate = extractTemplate(iptv, 'adFrame.srcdoc = `', '`;');
