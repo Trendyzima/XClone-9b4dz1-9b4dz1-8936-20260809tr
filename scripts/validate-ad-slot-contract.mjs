@@ -49,5 +49,11 @@ assert.ok(iptv.includes("else if(Date.now()-start>=12000)report('empty','no-crea
 assert.ok(iptv.includes("sponsored.style.cssText = 'display:none;"), 'IPTV Sponsored label must remain hidden until a creative is confirmed');
 assert.ok(iptv.includes("candidate.contentWindow === event.source"), 'IPTV must verify the frame reporting the ad status');
 assert.ok(iptv.includes("banner.remove();"), 'IPTV empty ad slots must be removed');
+assert.ok(iptv.includes("request.adTagUrl = 'https://s.magsrv.com/v1/vast.php?idzone=6052130';"), 'ExoClick VAST publisher URL must remain byte-for-byte unchanged');
+assert.ok(iptv.includes("exoButton.textContent = 'Play sponsored video';"), 'ExoClick VAST must be requested from an explicit viewer action');
+assert.ok(iptv.includes("exoButton.addEventListener('click'"), 'ExoClick VAST CTA must own the user-initiated request path');
+assert.ok(!iptv.includes('if (allowFullscreenIma) startAd(card)'), 'ExoClick VAST must not depend on a hidden fullscreen opt-in');
+assert.ok(iptv.includes("width:min(360px,calc(100% - 24px))") && iptv.includes("overlay.clientWidth || 320"), 'ExoClick VAST must render and request inventory at bounded inline-player dimensions');
+assert.ok(!iptv.includes("position:absolute;inset:0;z-index:9999;width:100%;height:100%;min-height:100dvh"), 'ExoClick VAST must not take over the full vertical-video slide');
 
 console.log('PASS ad slot contract: monitor scripts parse, offscreen slots do not reserve blank space, no-fill slots collapse, and Sponsored labels require a detected creative signal.');
