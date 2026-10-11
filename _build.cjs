@@ -266,8 +266,8 @@ export const supabase = createClient(supabaseUrl, supabasePublishableKey, {
   prefetchSource += String.raw`
 const SEGMENT_CACHE_NAME = 'testagram-iptv-segments-v1';
 const SEGMENT_CACHE_TTL_MS = 18_000;
-const SEGMENT_CACHE_LIMIT = 24;
-const MAX_PREFETCH_SEGMENT_BYTES = 8 * 1024 * 1024;
+const SEGMENT_CACHE_LIMIT = 8;
+const MAX_PREFETCH_SEGMENT_BYTES = 4 * 1024 * 1024;
 const cacheableSegmentUrl = (raw: string) => {
   try {
     const url = new URL(raw);
