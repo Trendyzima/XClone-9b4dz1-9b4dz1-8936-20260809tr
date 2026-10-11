@@ -62,7 +62,6 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
   const doc = childDocument;
   const observedCards = new WeakSet<HTMLElement>();
   let disposed = false;
-  let cardObserver: IntersectionObserver | null = null;
   let mutationObserver: MutationObserver | null = null;
 
   // Do not show a Sponsored badge or dark banner until the publisher iframe
@@ -145,27 +144,18 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
     });
   };
 
-  const observerWindow = win as unknown as {
-    IntersectionObserver?: typeof IntersectionObserver;
-    MutationObserver?: typeof MutationObserver;
-  };
-  const IntersectionObserverCtor = observerWindow.IntersectionObserver;
-  const MutationObserverCtor = observerWindow.MutationObserver;
+  const MutationObserverCtor = win.MutationObserver;
 
   // IPTV channel playback must not be paused or covered by an unconfirmed VAST
   // request. Keep monetization in the independent, non-layout-shifting banner slot.
   // This avoids a full-screen black/empty ad layer when IMA is blocked or returns no-fill.
-  if (IntersectionObserverCtor) {
-    cardObserver = new IntersectionObserverCtor(() => {}, { threshold: [0, 0.25, 0.75] });
-    scan();
-    if (MutationObserverCtor) mutationObserver = new MutationObserverCtor(scan);
-    if (doc.body && mutationObserver) mutationObserver.observe(doc.body, { childList: true, subtree: true });
-  }
+  scan();
+  if (MutationObserverCtor) mutationObserver = new MutationObserverCtor(scan);
+  if (doc.body && mutationObserver) mutationObserver.observe(doc.body, { childList: true, subtree: true });
 
   return () => {
     disposed = true;
     mutationObserver?.disconnect();
-    cardObserver?.disconnect();
     win.removeEventListener('message', onIptvAdSlotMessage);
   };
 }
