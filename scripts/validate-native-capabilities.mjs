@@ -26,7 +26,7 @@ const checks = [
   ['Voice note failure paths stop microphone tracks', messages.includes("stream?.getTracks().forEach(track => track.stop())")],
   ['Voice note unmount cleanup stops the recorder and microphone stream', messages.includes('mediaStreamRef.current?.getTracks().forEach(track => track.stop())') && messages.includes('recorder.onstop = null')],
   ['Identity liveness capture clears timers and stops media tracks', identity.includes('mediaStream.current?.getTracks().forEach(track => track.stop())') && identity.includes('captureTimeout.current !== null')],
-  ['Android shell publishes OS notification permission to the web app', readFileSync('android/app/src/main/java/com/xclone/app/MainActivity.java', 'utf8').includes('testagram:native-notification-status')],
+  ['Android shell publishes OS notification permission to the web app', activity.includes('testagram:native-notification-status') && activity.includes('runtimePermissionGranted') && activity.includes('NotificationManagerCompat.from(this).areNotificationsEnabled()')],
   ['Notification settings reflect native FCM status and keep the test action available', notificationPreferences.includes('native-granted') && notificationPreferences.includes('testagram:native-notification-status')],
 ];
 let failures = 0;
