@@ -73,16 +73,6 @@ jobs:
       - name: Resolve Flutter dependencies
         working-directory: mobile
         run: flutter pub get
-      - name: Formatting diagnostics for sponsored-feed patch
-        working-directory: mobile
-        run: |
-          cp lib/features/feed/feed_page.dart /tmp/feed_page.dart.original
-          cp lib/features/feed/sponsored_ad_service.dart /tmp/sponsored_ad_service.dart.original
-          cp test/sponsored_ad_service_test.dart /tmp/sponsored_ad_service_test.dart.original
-          dart format lib/features/feed/feed_page.dart lib/features/feed/sponsored_ad_service.dart test/sponsored_ad_service_test.dart
-          diff -u /tmp/feed_page.dart.original lib/features/feed/feed_page.dart || true
-          diff -u /tmp/sponsored_ad_service.dart.original lib/features/feed/sponsored_ad_service.dart || true
-          diff -u /tmp/sponsored_ad_service_test.dart.original test/sponsored_ad_service_test.dart || true
       - name: Enforce formatting
         working-directory: mobile
         run: dart format --output=none --set-exit-if-changed lib test
