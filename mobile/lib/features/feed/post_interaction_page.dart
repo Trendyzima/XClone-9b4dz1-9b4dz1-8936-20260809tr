@@ -212,8 +212,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                       child: ListView.separated(
                         physics: const AlwaysScrollableScrollPhysics(),
                         itemCount: _items.length,
-                        separatorBuilder: (_, __) =>
-                            const Divider(height: 1),
+                        separatorBuilder: (_, __) => const Divider(height: 1),
                         itemBuilder: (context, index) {
                           final item = _items[index];
                           final profile =
@@ -237,7 +236,9 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                               child: avatar.startsWith('http')
                                   ? null
                                   : Text(
-                                      name.isEmpty ? 'T' : name[0].toUpperCase(),
+                                      name.isEmpty
+                                          ? 'T'
+                                          : name[0].toUpperCase(),
                                     ),
                             ),
                             title: Text(
