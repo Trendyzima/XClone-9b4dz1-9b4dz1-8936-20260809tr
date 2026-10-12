@@ -399,7 +399,8 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       void navigator.mediaDevices.enumerateDevices().then(devices => {
         const inputs = devices.filter(device => device.kind === 'audioinput');
         setAudioInputs(inputs);
-        if (!audioInputId && inputs[0]?.deviceId) setAudioInputId(inputs[0].deviceId);
+        const activeInputId = audioTrack?.getSettings().deviceId;
+        if (!audioInputId && (activeInputId || inputs[0]?.deviceId)) setAudioInputId(activeInputId || inputs[0].deviceId);
       }).catch(() => undefined);
       return s;
     } catch (error) {
