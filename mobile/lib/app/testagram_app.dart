@@ -15,6 +15,7 @@ import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/settings/settings_page.dart';
 import '../features/tv/tv_page.dart';
+import '../features/tv/channel_profile_page.dart';
 import '../features/threads/threads_page.dart';
 import '../features/threads/thread_detail_page.dart';
 import '../features/communities/communities_page.dart';
@@ -104,6 +105,9 @@ class _TestagramAppState extends State<TestagramApp> {
             path == '/iptv' ||
             path == '/tv/channels' ||
             path == '/tv/reels' ||
+            path.startsWith('/tv/live/') ||
+            path.startsWith('/stream/') ||
+            path.startsWith('/channel/') ||
             path == '/shop' ||
             path == '/fediverse/feed' ||
             path == '/fediverse/discover' ||
@@ -214,12 +218,44 @@ class _TestagramAppState extends State<TestagramApp> {
                 repliesOnly: true,
               ),
             ),
-            GoRoute(path: '/tv', builder: (_, __) => const TvPage()),
+            GoRoute(
+              path: '/tv',
+              builder: (_, __) => const TvPage(verticalMode: false),
+            ),
             // Legacy IPTV/channel entry points share the native TV catalogue
             // and player while provider-specific parity is verified.
-            GoRoute(path: '/iptv', builder: (_, __) => const TvPage()),
-            GoRoute(path: '/tv/channels', builder: (_, __) => const TvPage()),
-            GoRoute(path: '/tv/reels', builder: (_, __) => const TvPage()),
+            GoRoute(
+              path: '/iptv',
+              builder: (_, __) => const TvPage(verticalMode: true),
+            ),
+            GoRoute(
+              path: '/tv/channels',
+              builder: (_, __) => const TvPage(verticalMode: false),
+            ),
+            GoRoute(
+              path: '/tv/reels',
+              builder: (_, __) => const TvPage(verticalMode: true),
+            ),
+            GoRoute(
+              path: '/stream/:streamId',
+              builder: (_, state) => TvPage(
+                streamId: state.pathParameters['streamId'],
+                verticalMode: false,
+              ),
+            ),
+            GoRoute(
+              path: '/tv/live/:streamId',
+              builder: (_, state) => TvPage(
+                streamId: state.pathParameters['streamId'],
+                verticalMode: false,
+              ),
+            ),
+            GoRoute(
+              path: '/channel/:handle',
+              builder: (_, state) => ChannelProfilePage(
+                handle: state.pathParameters['handle'] ?? '',
+              ),
+            ),
             GoRoute(path: '/videos', builder: (_, __) => const VideosPage()),
             GoRoute(
               path: '/shorts',
@@ -333,6 +369,19 @@ class _TestagramAppState extends State<TestagramApp> {
             GoRoute(
               path: '/tv-studio',
               builder: (_, __) => const TvStudioPage(),
+            ),
+            GoRoute(
+              path: '/tv-studio/:streamId/guests',
+              builder: (_, state) => TvStudioPage(
+                streamId: state.pathParameters['streamId'],
+                section: 'guests',
+              ),
+            ),
+            GoRoute(
+              path: '/tv-studio/:streamId',
+              builder: (_, state) => TvStudioPage(
+                streamId: state.pathParameters['streamId'],
+              ),
             ),
             GoRoute(
               path: '/creator-studio',

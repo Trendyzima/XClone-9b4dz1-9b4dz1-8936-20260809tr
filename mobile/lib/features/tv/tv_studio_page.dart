@@ -6,7 +6,9 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// WebRTC guest bridge and encoder hand-off are separate release gates; this
 /// page intentionally never marks a stream live without that media pipeline.
 class TvStudioPage extends StatefulWidget {
-  const TvStudioPage({super.key});
+  const TvStudioPage({super.key, this.streamId, this.section});
+  final String? streamId;
+  final String? section;
   @override
   State<TvStudioPage> createState() => _TvStudioPageState();
 }

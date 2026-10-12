@@ -14,7 +14,9 @@ import '../../core/config/app_config.dart';
 import 'tv_web_player.dart';
 
 class TvPage extends StatefulWidget {
-  const TvPage({super.key});
+  const TvPage({super.key, this.verticalMode = true, this.streamId});
+  final bool verticalMode;
+  final String? streamId;
   @override
   State<TvPage> createState() => _TvPageState();
 }
@@ -39,6 +41,7 @@ class _TvPageState extends State<TvPage> {
   @override
   void initState() {
     super.initState();
+    _verticalMode = widget.verticalMode;
     _load();
   }
 
@@ -145,13 +148,19 @@ class _TvPageState extends State<TvPage> {
       );
       final liveFuture = () async {
         try {
-          final rows = await _client
+          final query = _client
               .from('live_streams')
               .select('*')
-              .eq('is_live', true)
-              .order('started_at', ascending: false)
-              .limit(40)
-              .timeout(const Duration(seconds: 15));
+              .eq('is_live', true);
+          final rows = widget.streamId == null
+              ? await query
+                  .order('started_at', ascending: false)
+                  .limit(40)
+                  .timeout(const Duration(seconds: 15))
+              : await query
+                  .eq('id', widget.streamId!)
+                  .limit(1)
+                  .timeout(const Duration(seconds: 15));
           return rows
               .map((row) => Map<String, dynamic>.from(row as Map)
                 ..['_sourceType'] = 'testagram-live')
@@ -180,15 +189,32 @@ class _TvPageState extends State<TvPage> {
       }
 
       final live = await liveFuture;
-      final merged = _dedupeChannels(live, existing: catalogChannels);
+      final filteredCatalog = widget.streamId == null
+          ? catalogChannels
+          : catalogChannels
+              .where((row) => '${row['id'] ?? ''}' == widget.streamId)
+              .toList();
+      final merged = _dedupeChannels(
+        live,
+        existing: widget.streamId == null ? catalogChannels : filteredCatalog,
+      );
       if (mounted) {
         setState(() {
           _channels = merged;
           _error = merged.isEmpty
-              ? 'TV channels could not be loaded. Check your connection and retry.'
+              ? (widget.streamId == null
+                  ? 'TV channels could not be loaded. Check your connection and retry.'
+                  : 'This live stream is unavailable or has ended.')
               : null;
           if (_activeIndex >= merged.length) _activeIndex = 0;
         });
+        if (widget.streamId != null && merged.isNotEmpty) {
+          final target = merged.firstWhere(
+            (row) => '${row['id'] ?? ''}' == widget.streamId,
+            orElse: () => merged.first,
+          );
+          unawaited(_play(target));
+        }
       }
     } catch (_) {
       if (mounted) {
