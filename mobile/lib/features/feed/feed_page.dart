@@ -201,8 +201,8 @@ class _FeedPageState extends State<FeedPage> {
             requestGeneration: generation,
             currentGeneration: _loadGeneration,
           )) {
-            return;
-          }
+        return;
+      }
       setState(() {
         if (reset) _posts.clear();
         final known = _posts.map((post) => '${post['id']}').toSet();
