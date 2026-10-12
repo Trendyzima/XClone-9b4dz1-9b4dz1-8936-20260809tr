@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-12T05:31:26.422Z",
+  "generated_at": "2026-10-12T00:00:00.000Z",
   "rule": "A feature is not complete until its Flutter web and Android behavior, backend contract, permissions, failure recovery, and tests are verified. Existing web routes remain available until parity is accepted.",
   "domains": [
     {
@@ -281,6 +281,226 @@
     }
   ],
   "sources": {
+    "android/app/src/main/AndroidManifest.xml": {
+      "source_type": "legacy_android_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "android/app/src/main/java/com/xclone/app/MainActivity.java": {
+      "source_type": "legacy_android_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "android/app/src/main/java/com/xclone/app/SplashActivity.java": {
+      "source_type": "legacy_android_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "android/app/src/main/java/com/xclone/app/SplashCanvasView.java": {
+      "source_type": "legacy_android_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "android/app/src/main/java/com/xclone/app/TestagramFirebaseMessagingService.java": {
+      "source_type": "legacy_android_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "android/app/src/main/res/drawable-v24/ic_launcher_foreground.xml": {
+      "source_type": "legacy_android_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "android/app/src/main/res/drawable/ic_launcher_background.xml": {
+      "source_type": "legacy_android_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "android/app/src/main/res/drawable/splash_blank.xml": {
+      "source_type": "legacy_android_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "android/app/src/main/res/layout/activity_main.xml": {
+      "source_type": "legacy_android_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml": {
+      "source_type": "legacy_android_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml": {
+      "source_type": "legacy_android_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "android/app/src/main/res/values-v27/styles.xml": {
+      "source_type": "legacy_android_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "android/app/src/main/res/values-v31/styles.xml": {
+      "source_type": "legacy_android_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "android/app/src/main/res/values/ic_launcher_background.xml": {
+      "source_type": "legacy_android_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "android/app/src/main/res/values/strings.xml": {
+      "source_type": "legacy_android_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "android/app/src/main/res/values/styles.xml": {
+      "source_type": "legacy_android_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "android/app/src/main/res/xml/file_paths.xml": {
+      "source_type": "legacy_android_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "android/app/src/main/res/xml/network_security_config.xml": {
+      "source_type": "legacy_android_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "android/scripts/generate_brand_assets.py": {
+      "source_type": "legacy_android_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "api/auth/send-sms.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "api/capability.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "api/email/send.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "api/health.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "api/home-discovery.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "api/home-feed.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "api/live.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "api/media.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "api/news.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "api/ready.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "api/sitemap-community.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "api/sitemap-fallback.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "api/sitemap-index.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "api/sitemap-posts.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "api/sitemap-threads.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "api/sitemap-users.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "api/sports.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "api/story-cleanup.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "api/tv-cloudflare-ingest.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "api/tv-youtube-ingest.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "src/api/federation.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/App.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/auth/LegalAcceptanceGate.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/auth/OwnerOnlyAdminRoute.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/auth/PlatformFeatureRoute.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
     "src/components/features/AdMobAd.tsx": {
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
@@ -536,12 +756,12 @@
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
     },
-    "src/components/features/PayPalTopUp.tsx": {
+    "src/components/features/PaymentDialog.tsx": {
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
     },
-    "src/components/features/PaymentDialog.tsx": {
+    "src/components/features/PayPalTopUp.tsx": {
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
@@ -786,6 +1006,451 @@
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
     },
+    "src/components/FollowButton.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/layout/AuthProvider.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/layout/BottomNav.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/layout/CrossSurfaceNav.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/layout/FloatingActionButton.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/layout/LegalMiniSidebar.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/layout/MobileSidebarDrawer.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/layout/ProfileMiniSidebar.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/layout/RightSidebar.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/layout/SettingsMiniSidebar.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/layout/Sidebar.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/layout/ThemeToggle.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/layout/TopBar.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/marketplace/MarketplaceDeliveryTracker.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/platform/PlatformFeatureGate.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/seo/RouteSEO.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/TestagramEmojiText.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/accordion.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/alert.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/aspect-ratio.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/badge.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/breadcrumb.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/button.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/calendar.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/card.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/carousel.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/chart.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/collapsible.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/command.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/context-menu.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/dialog.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/drawer.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/hover-card.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/input-otp.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/input.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/label.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/menubar.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/navigation-menu.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/popover.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/resizable.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/scroll-area.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/select.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/separator.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/sheet.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/sidebar.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/skeleton.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/slider.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/sonner.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/switch.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/table.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/tabs.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/textarea.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/toaster.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/toggle-group.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/toggle.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/tooltip.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/use-toast.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/components/ui/VerifiedTick.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/features/federatedReactions/federatedReactionsService.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/features/federation/federatedMedia.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/features/federation/federatedPostAdapter.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/features/likes/likesService.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/features/quoteLikes/quoteLikesService.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/features/quotes/quotesService.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/features/replies/repliesService.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/features/replies/replyInteractionService.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/features/reposts/repostsService.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/features/threadLikes/threadLikesService.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/features/threadQuoteLikes/threadQuoteLikesService.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/features/threadQuotes/threadQuotesService.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/features/threadReplies/threadRepliesService.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/features/threadReplyLikes/threadReplyLikesService.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/features/threadReposts/threadRepostsService.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/hooks/use-mobile.tsx": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/hooks/use-toast.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/hooks/useAuth.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/hooks/useCreatorTierAlert.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/hooks/useFeatureUnlock.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/hooks/useFederatedInfiniteFeed.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/hooks/useFediversePolling.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/hooks/useFollow.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/hooks/useInfiniteScroll.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/hooks/useNotificationSound.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/hooks/usePageBanner.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/hooks/usePayment.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/hooks/usePlatformFeature.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/hooks/usePremium.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/hooks/useSEO.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/hooks/useWallet.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
     "src/lib/admob.ts": {
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
@@ -931,15 +1596,140 @@
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
     },
-    "src/pages/AIBotSetup.tsx": {
+    "src/main.jsx": {
+      "source_type": "client_source",
       "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
     },
-    "src/pages/AIPage.tsx": {
+    "src/modules/monetization/accessControl.ts": {
+      "source_type": "client_source",
       "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/monetization/analytics.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/monetization/config.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/monetization/db.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/monetization/eventBus.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/monetization/featureRegistry.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/monetization/fraudDetection.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/monetization/idempotency.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/monetization/index.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/monetization/ledger.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/monetization/mpesaWebhook.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/monetization/realtime.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/monetization/subscriptions.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/monetization/useFeature.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/monetization/walletMiddleware.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/payments/callbackHandler.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/payments/mpesa.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/payments/mpesaCallbackHandler.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/payments/paymentOrchestrator.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/payments/transactionService.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/payments/types.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/payments/userResolver.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/payments/verifyPayment.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/payments/walletRepository.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/payments/walletService.db.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
+    },
+    "src/modules/payments/walletService.ts": {
+      "source_type": "client_source",
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it."
     },
     "src/pages/AccountPrivacyPage.tsx": {
       "status": "not_started",
@@ -961,7 +1751,22 @@
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
     },
-    "src/pages/AdPerformanceComparison.tsx": {
+    "src/pages/admin/AdminAdsPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/admin/AdminFraudPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/admin/AdminOverviewPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/admin/AdminUsersPage.tsx": {
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
@@ -992,6 +1797,21 @@
       "source_type": "client_source"
     },
     "src/pages/AdminVerificationPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/AdPerformanceComparison.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/AIBotSetup.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/AIPage.tsx": {
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
@@ -1051,6 +1871,31 @@
       "note": "Flutter has community discovery, search, membership and details; community chat, events, shop and moderation still require separate ports.",
       "source_type": "client_source"
     },
+    "src/pages/community/CommunityChatPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/community/CommunityEventsPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/community/CommunityMembersPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/community/CommunityPostsPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/community/CommunityShopPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
     "src/pages/CommunityPage.tsx": {
       "status": "in_progress",
       "note": "Community detail and post surfaces are ported; member management, events, chat and full community moderation are not complete.",
@@ -1081,6 +1926,31 @@
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
     },
+    "src/pages/creator/CreatorAnalyticsPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/creator/CreatorEarningsPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/creator/CreatorOverviewPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/creator/CreatorRevenuePage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/creator/CreatorVideosPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
     "src/pages/CreatorLeaderboardPage.tsx": {
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
@@ -1097,6 +1967,21 @@
       "source_type": "client_source"
     },
     "src/pages/DailyRewardsPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/discover/DiscoverFediversePage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/discover/DiscoverPopularPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/discover/DiscoverSuggestedPage.tsx": {
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
@@ -1316,12 +2201,12 @@
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
     },
-    "src/pages/MarketProductPage.tsx": {
+    "src/pages/MarketplacePage.tsx": {
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
     },
-    "src/pages/MarketplacePage.tsx": {
+    "src/pages/MarketProductPage.tsx": {
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
@@ -1476,6 +2361,46 @@
       "note": "Flutter product catalog and detail use the public catalog view and secure checkout RPC; seller tools, inventory management and full storefront parity remain.",
       "source_type": "client_source"
     },
+    "src/pages/profile/ProfileFollowersPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/profile/ProfileFollowingPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/profile/ProfileLikesPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/profile/ProfileMediaPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/profile/ProfilePostsPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/profile/ProfileRepliesPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/profile/ProfileThreadsPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/profile/ProfileVideosPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
     "src/pages/ProfileFeaturesPage.tsx": {
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
@@ -1516,11 +2441,6 @@
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
     },
-    "src/pages/SEOAuditPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
     "src/pages/ScheduledPostsPage.tsx": {
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
@@ -1546,7 +2466,37 @@
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
     },
+    "src/pages/SEOAuditPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
     "src/pages/SeriesPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/settings/SettingsAccountPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/settings/SettingsAppearancePage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/settings/SettingsConnectionsPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/settings/SettingsNotificationsPage.tsx": {
+      "status": "not_started",
+      "note": "Port and verify behavior against the existing web implementation before retiring it.",
+      "source_type": "client_source"
+    },
+    "src/pages/settings/SettingsPrivacyPage.tsx": {
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
@@ -1691,14 +2641,14 @@
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
     },
-    "src/pages/VideoWatchLaterPage.tsx": {
-      "status": "in_progress",
-      "note": "Device-local Watch Later is implemented; account-synced watch history and full web parity remain.",
-      "source_type": "client_source"
-    },
     "src/pages/VideosPage.tsx": {
       "status": "in_progress",
       "note": "Flutter has native vertical video/shorts playback, paging, likes, sharing and Watch Later; captions, ad pacing, reports and creator-specific video routes remain.",
+      "source_type": "client_source"
+    },
+    "src/pages/VideoWatchLaterPage.tsx": {
+      "status": "in_progress",
+      "note": "Device-local Watch Later is implemented; account-synced watch history and full web parity remain.",
       "source_type": "client_source"
     },
     "src/pages/WalletAnalyticsPage.tsx": {
@@ -1767,156 +2717,6 @@
       "source_type": "client_source"
     },
     "src/pages/WishlistPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/admin/AdminAdsPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/admin/AdminFraudPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/admin/AdminOverviewPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/admin/AdminUsersPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/community/CommunityChatPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/community/CommunityEventsPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/community/CommunityMembersPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/community/CommunityPostsPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/community/CommunityShopPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/creator/CreatorAnalyticsPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/creator/CreatorEarningsPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/creator/CreatorOverviewPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/creator/CreatorRevenuePage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/creator/CreatorVideosPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/discover/DiscoverFediversePage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/discover/DiscoverPopularPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/discover/DiscoverSuggestedPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/profile/ProfileFollowersPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/profile/ProfileFollowingPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/profile/ProfileLikesPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/profile/ProfileMediaPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/profile/ProfilePostsPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/profile/ProfileRepliesPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/profile/ProfileThreadsPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/profile/ProfileVideosPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/settings/SettingsAccountPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/settings/SettingsAppearancePage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/settings/SettingsConnectionsPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/settings/SettingsNotificationsPage.tsx": {
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it.",
-      "source_type": "client_source"
-    },
-    "src/pages/settings/SettingsPrivacyPage.tsx": {
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
@@ -2075,806 +2875,6 @@
       "status": "not_started",
       "note": "Port and verify behavior against the existing web implementation before retiring it.",
       "source_type": "client_source"
-    },
-    "android/app/src/main/AndroidManifest.xml": {
-      "source_type": "legacy_android_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "android/app/src/main/java/com/xclone/app/MainActivity.java": {
-      "source_type": "legacy_android_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "android/app/src/main/java/com/xclone/app/SplashActivity.java": {
-      "source_type": "legacy_android_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "android/app/src/main/java/com/xclone/app/SplashCanvasView.java": {
-      "source_type": "legacy_android_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "android/app/src/main/java/com/xclone/app/TestagramFirebaseMessagingService.java": {
-      "source_type": "legacy_android_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "android/app/src/main/res/drawable-v24/ic_launcher_foreground.xml": {
-      "source_type": "legacy_android_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "android/app/src/main/res/drawable/ic_launcher_background.xml": {
-      "source_type": "legacy_android_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "android/app/src/main/res/drawable/splash_blank.xml": {
-      "source_type": "legacy_android_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "android/app/src/main/res/layout/activity_main.xml": {
-      "source_type": "legacy_android_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml": {
-      "source_type": "legacy_android_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "android/app/src/main/res/mipmap-anydpi-v26/ic_launcher_round.xml": {
-      "source_type": "legacy_android_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "android/app/src/main/res/values-v27/styles.xml": {
-      "source_type": "legacy_android_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "android/app/src/main/res/values-v31/styles.xml": {
-      "source_type": "legacy_android_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "android/app/src/main/res/values/ic_launcher_background.xml": {
-      "source_type": "legacy_android_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "android/app/src/main/res/values/strings.xml": {
-      "source_type": "legacy_android_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "android/app/src/main/res/values/styles.xml": {
-      "source_type": "legacy_android_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "android/app/src/main/res/xml/file_paths.xml": {
-      "source_type": "legacy_android_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "android/app/src/main/res/xml/network_security_config.xml": {
-      "source_type": "legacy_android_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "android/scripts/generate_brand_assets.py": {
-      "source_type": "legacy_android_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "api/auth/send-sms.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "api/capability.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "api/email/send.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "api/health.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "api/home-discovery.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "api/home-feed.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "api/live.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "api/media.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "api/news.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "api/ready.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "api/sitemap-community.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "api/sitemap-fallback.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "api/sitemap-index.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "api/sitemap-posts.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "api/sitemap-threads.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "api/sitemap-users.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "api/sports.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "api/story-cleanup.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "api/tv-cloudflare-ingest.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "api/tv-youtube-ingest.ts": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "src/App.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/api/federation.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/FollowButton.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/TestagramEmojiText.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/auth/LegalAcceptanceGate.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/auth/OwnerOnlyAdminRoute.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/auth/PlatformFeatureRoute.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/layout/AuthProvider.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/layout/BottomNav.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/layout/CrossSurfaceNav.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/layout/FloatingActionButton.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/layout/LegalMiniSidebar.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/layout/MobileSidebarDrawer.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/layout/ProfileMiniSidebar.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/layout/RightSidebar.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/layout/SettingsMiniSidebar.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/layout/Sidebar.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/layout/ThemeToggle.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/layout/TopBar.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/marketplace/MarketplaceDeliveryTracker.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/platform/PlatformFeatureGate.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/seo/RouteSEO.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/VerifiedTick.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/accordion.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/alert.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/aspect-ratio.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/badge.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/breadcrumb.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/button.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/calendar.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/card.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/carousel.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/chart.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/collapsible.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/command.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/context-menu.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/dialog.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/drawer.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/hover-card.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/input-otp.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/input.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/label.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/menubar.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/navigation-menu.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/popover.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/resizable.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/scroll-area.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/select.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/separator.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/sheet.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/sidebar.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/skeleton.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/slider.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/sonner.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/switch.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/table.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/tabs.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/textarea.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/toaster.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/toggle-group.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/toggle.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/tooltip.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/components/ui/use-toast.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/features/federatedReactions/federatedReactionsService.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/features/federation/federatedMedia.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/features/federation/federatedPostAdapter.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/features/likes/likesService.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/features/quoteLikes/quoteLikesService.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/features/quotes/quotesService.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/features/replies/repliesService.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/features/replies/replyInteractionService.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/features/reposts/repostsService.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/features/threadLikes/threadLikesService.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/features/threadQuoteLikes/threadQuoteLikesService.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/features/threadQuotes/threadQuotesService.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/features/threadReplies/threadRepliesService.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/features/threadReplyLikes/threadReplyLikesService.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/features/threadReposts/threadRepostsService.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/hooks/use-mobile.tsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/hooks/use-toast.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/hooks/useAuth.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/hooks/useCreatorTierAlert.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/hooks/useFeatureUnlock.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/hooks/useFederatedInfiniteFeed.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/hooks/useFediversePolling.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/hooks/useFollow.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/hooks/useInfiniteScroll.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/hooks/useNotificationSound.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/hooks/usePageBanner.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/hooks/usePayment.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/hooks/usePlatformFeature.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/hooks/usePremium.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/hooks/useSEO.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/hooks/useWallet.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/main.jsx": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/monetization/accessControl.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/monetization/analytics.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/monetization/config.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/monetization/db.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/monetization/eventBus.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/monetization/featureRegistry.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/monetization/fraudDetection.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/monetization/idempotency.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/monetization/index.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/monetization/ledger.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/monetization/mpesaWebhook.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/monetization/realtime.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/monetization/subscriptions.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/monetization/useFeature.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/monetization/walletMiddleware.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/payments/callbackHandler.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/payments/mpesa.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/payments/mpesaCallbackHandler.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/payments/paymentOrchestrator.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/payments/transactionService.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/payments/types.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/payments/userResolver.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/payments/verifyPayment.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/payments/walletRepository.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/payments/walletService.db.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
-    },
-    "src/modules/payments/walletService.ts": {
-      "source_type": "client_source",
-      "status": "not_started",
-      "note": "Port and verify behavior against the existing web implementation before retiring it."
     },
     "src/stores/authStore.ts": {
       "source_type": "client_source",
@@ -3441,41 +3441,6 @@
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     },
-    "supabase/migrations/20260915162352_mastodon_api_compatibility_contract.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "supabase/migrations/20260915212000_community_notes_adaptive_scoring_v1.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "supabase/migrations/20260915220000_recommendation_pipeline_v1.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "supabase/migrations/20260915223000_service_plane_operational_telemetry_v1.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "supabase/migrations/20260915223000_testagram_operations_observability_v1.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "supabase/migrations/20260915230000_x_feature_ranking_v2.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "supabase/migrations/20260915232000_capability_gateway_v1.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
     "supabase/migrations/20260915_add_secure_p2p_wallet_transfer.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
@@ -3507,6 +3472,41 @@
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     },
     "supabase/migrations/20260915_pesapal_wallet_settlement.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20260915162352_mastodon_api_compatibility_contract.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20260915212000_community_notes_adaptive_scoring_v1.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20260915220000_recommendation_pipeline_v1.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20260915223000_service_plane_operational_telemetry_v1.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20260915223000_testagram_operations_observability_v1.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20260915230000_x_feature_ranking_v2.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20260915232000_capability_gateway_v1.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
@@ -3562,6 +3562,51 @@
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     },
     "supabase/migrations/20260916170100_harden_matrix_bridge_contract.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20260917_canonical_creator_payout_processing_v1.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20260917_communication_e2ee_envelope_salt_v1.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20260917_communication_e2ee_foundation_v1.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20260917_platform_owner_control_audit_v1.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20260917_platform_treasury_control_v1.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20260917_zenad_event_idempotency.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20260917_zenad_story_and_ad_wallet_accounting.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20260917_zenad_testagram_ads.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20260917_zenad_testagram_house_seed.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
@@ -3672,51 +3717,6 @@
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     },
     "supabase/migrations/20260917243000_audio_spaces_lineage_constraints_v7.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "supabase/migrations/20260917_canonical_creator_payout_processing_v1.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "supabase/migrations/20260917_communication_e2ee_envelope_salt_v1.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "supabase/migrations/20260917_communication_e2ee_foundation_v1.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "supabase/migrations/20260917_platform_owner_control_audit_v1.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "supabase/migrations/20260917_platform_treasury_control_v1.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "supabase/migrations/20260917_zenad_event_idempotency.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "supabase/migrations/20260917_zenad_story_and_ad_wallet_accounting.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "supabase/migrations/20260917_zenad_testagram_ads.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "supabase/migrations/20260917_zenad_testagram_house_seed.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
@@ -4551,6 +4551,16 @@
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     },
+    "supabase/migrations/20260928_enable_stream_chat_realtime_scaling.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20260928_tv_chat_broadcast_fanout.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
     "supabase/migrations/20260928080000_tv_single_active_broadcast.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
@@ -4567,16 +4577,6 @@
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     },
     "supabase/migrations/20260928150000_tv_mux_hybrid_control_plane.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "supabase/migrations/20260928_enable_stream_chat_realtime_scaling.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
-    "supabase/migrations/20260928_tv_chat_broadcast_fanout.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
@@ -5296,11 +5296,6 @@
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     },
-    "supabase/migrations/schedule_daily_earnings.sql": {
-      "source_type": "backend_contract_reference",
-      "status": "reference_only",
-      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
-    },
     "supabase/migrations/20261011133000_restore_owner_governance_rpc_grants.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
@@ -5320,6 +5315,16 @@
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Registers the canonical feed-inline slot consumed by the Flutter sponsored-ad client; verify migration and live slot availability before ad parity is accepted."
+    },
+    "supabase/migrations/20261012170000_wallet_p2p_transfer_pin_gate.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Server-side security contract for Flutter wallet transfers. Keep money movement in authenticated SQL RPCs; verify PIN lockout, sender identity, idempotency, and atomic transfer behavior in migration tests."
+    },
+    "supabase/migrations/schedule_daily_earnings.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     }
   }
 }
