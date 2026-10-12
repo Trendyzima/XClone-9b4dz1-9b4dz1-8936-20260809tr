@@ -21,7 +21,7 @@ void main() {
           return http.Response('{}', 200);
         }),
       );
-  
+
       await expectLater(
         client.call<Map<String, dynamic>>('testagram.messages.list'),
         throwsA(
@@ -76,11 +76,11 @@ void main() {
           return http.Response(jsonEncode({'services': <dynamic>[]}), 200);
         }),
       );
-  
+
       final result = await client.call<Map<String, dynamic>>(
         'testagram.health.read',
       );
-  
+
       expect(captured.headers['Authorization'], 'Bearer public-key');
       expect(result['services'], isEmpty);
       client.close();
@@ -130,7 +130,7 @@ void main() {
               403,
             )),
       );
-  
+
       await expectLater(
         client.call<Map<String, dynamic>>('testagram.messages.list'),
         throwsA(
@@ -160,7 +160,7 @@ void main() {
           return http.Response('{}', 200);
         }),
       );
-  
+
       await expectLater(
         client.call<Map<String, dynamic>>('testagram.messages.list'),
         throwsA(
