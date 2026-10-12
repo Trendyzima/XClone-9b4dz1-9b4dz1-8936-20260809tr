@@ -73,14 +73,6 @@ jobs:
       - name: Resolve Flutter dependencies
         working-directory: mobile
         run: flutter pub get
-      - name: Diagnose Dart formatter delta
-        working-directory: mobile
-        shell: bash
-        run: |
-          cp lib/features/feed/post_interaction_page.dart /tmp/post_interaction_page.dart
-          dart format lib/features/feed/post_interaction_page.dart
-          diff -u /tmp/post_interaction_page.dart lib/features/feed/post_interaction_page.dart || true
-          cp /tmp/post_interaction_page.dart lib/features/feed/post_interaction_page.dart
       - name: Enforce formatting
         working-directory: mobile
         run: dart format --output=none --set-exit-if-changed lib test
