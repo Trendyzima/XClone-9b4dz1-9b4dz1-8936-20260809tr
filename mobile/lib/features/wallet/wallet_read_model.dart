@@ -69,7 +69,8 @@ class WalletTransactionReadModel {
     );
   }
 
-  bool get isIncoming => direction == 'in' ||
+  bool get isIncoming =>
+      direction == 'in' ||
       (direction == null &&
           (type == 'deposit' || type == 'earnings' || type == 'credit'));
 }
