@@ -490,7 +490,10 @@ class _TestagramAppState extends State<TestagramApp> {
               builder: (_, __) => const MessagesPage(),
             ),
             GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
-            GoRoute(path: '/bookmarks', builder: (_, __) => const BookmarksPage()),
+            GoRoute(
+              path: '/bookmarks',
+              builder: (_, __) => const BookmarksPage(),
+            ),
             GoRoute(
               path: '/profile/:username/followers',
               builder: (_, state) => ProfilePage(
