@@ -17,6 +17,7 @@ import '../features/profile/profile_page.dart';
 import '../features/profile/bookmarks_page.dart';
 import '../features/profile/history_page.dart';
 import '../features/settings/settings_page.dart';
+import '../features/settings/blocked_users_page.dart';
 import '../features/tv/tv_page.dart';
 import '../features/tv/tv_channel_profile_page.dart';
 import '../features/threads/threads_page.dart';
@@ -791,13 +792,7 @@ class _TestagramAppState extends State<TestagramApp> {
               ),
             ),
             GoRoute(
-              path: '/blocked',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Blocked Accounts',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
-            ),
+                path: '/blocked', builder: (_, __) => const BlockedUsersPage()),
             GoRoute(
               path: '/boost-analytics/:postId',
               builder: (_, state) => NativeFeaturePage(
