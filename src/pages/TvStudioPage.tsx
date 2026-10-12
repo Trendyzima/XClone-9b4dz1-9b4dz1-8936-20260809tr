@@ -554,6 +554,8 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       return;
     }
     let replacement: MediaStream | null = null;
+    let nextPipeline: StudioAudioPipeline | null = null;
+    let nextSource: MediaStreamAudioSourceNode | null = null;
     try {
       replacement = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -569,28 +571,34 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       });
       const nextTrack = replacement.getAudioTracks()[0];
       if (!nextTrack) throw new Error('The selected soundcard did not provide an audio input track.');
+      nextPipeline = await createStudioAudioPipeline(replacement);
+      const context = productionAudioContextRef.current;
+      if (context && productionCommentaryGainRef.current && productionMasterGainRef.current) {
+        nextSource = context.createMediaStreamSource(nextPipeline.stream);
+        if (productionCommentaryAnalyserRef.current) nextSource.connect(productionCommentaryAnalyserRef.current);
+        else nextSource.connect(productionCommentaryGainRef.current);
+      }
+
       const previousTrack = current.getAudioTracks()[0];
       if (previousTrack) current.removeTrack(previousTrack);
       current.addTrack(nextTrack);
-      previousTrack?.stop();
       nextTrack.onended = () => {
         setMuted(true);
         setStudioHealth('degraded');
         toast.error('Selected soundcard input disconnected. Recording remains local; choose another audio input.');
       };
 
-      // Rebuild the voice processor around the newly selected physical input.
-      productionCommentarySourceRef.current?.disconnect();
-      productionCommentarySourceRef.current = null;
-      if (audioPipelineRef.current) await audioPipelineRef.current.stop().catch(() => undefined);
-      audioPipelineRef.current = await createStudioAudioPipeline(current);
-      const context = productionAudioContextRef.current;
-      if (context && productionCommentaryGainRef.current && productionMasterGainRef.current) {
-        const source = context.createMediaStreamSource(audioPipelineRef.current.stream);
-        productionCommentarySourceRef.current = source;
-        if (productionCommentaryAnalyserRef.current) source.connect(productionCommentaryAnalyserRef.current);
-        else source.connect(productionCommentaryGainRef.current);
-      }
+      const previousPipeline = audioPipelineRef.current;
+      const previousSource = productionCommentarySourceRef.current;
+      audioPipelineRef.current = nextPipeline;
+      productionCommentarySourceRef.current = nextSource;
+      nextPipeline = null;
+      nextSource = null;
+      previousSource?.disconnect();
+      if (previousPipeline) await previousPipeline.stop().catch(() => undefined);
+      previousTrack?.stop();
+      replacement = null;
+
       const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
       setAudioInputs(devices.filter(device => device.kind === 'audioinput'));
       setMuted(false);
@@ -598,6 +606,8 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       setPermissionError(null);
       toast.success('Studio audio input switched. Check the MIC meter before recording.');
     } catch (error) {
+      nextSource?.disconnect();
+      if (nextPipeline) await nextPipeline.stop().catch(() => undefined);
       replacement?.getTracks().forEach(track => track.stop());
       const currentDevice = current.getAudioTracks()[0]?.getSettings().deviceId || '';
       setAudioInputId(currentDevice);
