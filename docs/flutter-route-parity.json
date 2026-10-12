@@ -1465,7 +1465,7 @@
       "path": "/wallet/savings",
       "domain": "commerce",
       "status": "native_partial",
-      "note": "Native savings pocket uses authenticated server-side ledger RPCs and RLS-scoped savings goals; end-to-end Web/Android acceptance remains pending."
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/wallet/scheduled",
