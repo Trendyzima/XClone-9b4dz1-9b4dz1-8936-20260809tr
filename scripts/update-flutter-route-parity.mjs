@@ -8,6 +8,12 @@ const flutter = fs.readFileSync(path.join(root, 'mobile/lib/app/testagram_app.da
 const declarations = [...source.matchAll(/<Route\b[^>]*\bpath\s*=\s*["']([^"']+)["'][^>]*>/g)].map((match) => match[1]);
 const unique = [...new Set(declarations)].sort();
 const native = new Set([...flutter.matchAll(/\bpath:\s*'([^']+)'/g)].map((match) => match[1]));
+const matchesRoute = (pattern, sourceRoute) => {
+  const patternParts = pattern.split('/');
+  const sourceParts = sourceRoute.split('/');
+  return patternParts.length === sourceParts.length &&
+    patternParts.every((part, index) => part.startsWith(':') || part === sourceParts[index]);
+};
 const routeDomain = (p) => {
   if (/^\/(auth|verify|profile\/complete|verify-identity)/.test(p)) return 'authentication';
   if (/^\/(messages|call\/|team-chat|platform-inbox)/.test(p)) return 'messaging';
@@ -28,7 +34,7 @@ if (declarations.length < 100 || unique.length < 100 || native.size < 1) {
   throw new Error('Route extraction looks incomplete: ' + declarations.length + ' declarations, ' + unique.length + ' unique source routes, ' + native.size + ' Flutter routes.');
 }
 const routes = unique.filter((pathname) => pathname !== '*').map((pathname) => {
-  const isNative = native.has(pathname);
+  const isNative = [...native].some((pattern) => matchesRoute(pattern, pathname));
   return {
     path: pathname,
     domain: routeDomain(pathname),
