@@ -18,6 +18,8 @@ on:
       - 'mobile/**'
       - 'docs/flutter-migration-plan.md'
       - 'docs/flutter-parity-inventory.json'
+      - 'docs/flutter-route-parity.json'
+      - 'scripts/update-flutter-route-parity.mjs'
       - 'docs/mobile-architecture.md'
       - 'scripts/update-flutter-parity-inventory.mjs'
       - 'scripts/validate-flutter-parity-inventory.mjs'
