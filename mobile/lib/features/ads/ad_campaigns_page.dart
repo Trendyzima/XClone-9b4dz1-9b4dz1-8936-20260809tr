@@ -264,10 +264,11 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
       _showMessage(
           'Campaign draft created. Complete M-Pesa payment to activate it.');
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = error is StateError
-            ? '${error.message}'
+            ? error.message
             : 'Campaign could not be created. Check your connection and retry.');
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -275,9 +276,12 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
 
   String? _normalizePhone(String value) {
     final digits = value.replaceAll(RegExp(r'\D'), '');
-    if (digits.startsWith('254') && digits.length == 12) return digits;
-    if (digits.startsWith('0') && digits.length == 10)
+    if (digits.startsWith('254') && digits.length == 12) {
+      return digits;
+    }
+    if (digits.startsWith('0') && digits.length == 10) {
       return '254${digits.substring(1)}';
+    }
     if ((digits.startsWith('7') || digits.startsWith('1')) &&
         digits.length == 9) {
       return '254$digits';
@@ -330,10 +334,11 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
       });
       _pollPayment();
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = error is StateError
             ? error.message
             : 'M-Pesa request failed. Retry after checking your phone.');
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -349,7 +354,9 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
           uid == null ||
           campaignId == null ||
           checkoutId == null ||
-          !_checkingPayment) return;
+          !_checkingPayment) {
+        return;
+      }
       try {
         final payment = await _db
             .from('testagram_ad_payments')
@@ -380,9 +387,10 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
               campaign['payment_reference'] ==
                   payment['mpesa_receipt_number'] &&
               campaign['status'] == 'active';
-          if (!valid)
+          if (!valid) {
             throw StateError(
                 'Payment has not yet been verified against the campaign ledger.');
+          }
           if (!mounted) return;
           setState(() {
             _checkingPayment = false;
@@ -392,12 +400,13 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
           return;
         }
         if (payment != null && payment['status'] == 'failed') {
-          if (mounted)
+          if (mounted) {
             setState(() {
               _checkingPayment = false;
               _paymentFailed = true;
               _error = 'M-Pesa payment failed. You can retry payment.';
             });
+          }
           return;
         }
       } catch (_) {
@@ -495,7 +504,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
           ]),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            value: _objective,
+            initialValue: _objective,
             decoration: const InputDecoration(
                 labelText: 'Campaign objective', border: OutlineInputBorder()),
             items: const [
@@ -510,7 +519,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            value: _cta,
+            initialValue: _cta,
             decoration: const InputDecoration(
                 labelText: 'Call to action', border: OutlineInputBorder()),
             items: const [
@@ -527,7 +536,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            value: _format,
+            initialValue: _format,
             decoration: const InputDecoration(
                 labelText: 'Ad format', border: OutlineInputBorder()),
             items: const [
