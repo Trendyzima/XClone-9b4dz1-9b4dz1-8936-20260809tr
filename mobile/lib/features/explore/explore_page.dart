@@ -182,7 +182,8 @@ class _ExplorePageState extends State<ExplorePage> {
           wasFollowing ? _following.add(id) : _following.remove(id);
         });
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Follow update failed: $error')));
+          SnackBar(content: Text('Follow update failed: $error')),
+        );
       }
     }
   }
