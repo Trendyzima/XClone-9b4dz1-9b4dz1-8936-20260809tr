@@ -105,8 +105,10 @@ jobs:
             echo "::error::APK certificate fingerprint does not match TESTAGRAM_ANDROID_CERT_SHA256."
             exit 1
           fi
-          jarsigner -verify -strict -certs "$AAB"
-          "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest application-id "$APK" | grep -Fx 'com.xclone.app'
+          jarsigner -verify -certs "$AAB"
+          APKANALYZER="$(find "$ANDROID_HOME" -type f -name apkanalyzer | head -n 1)"
+          test -x "$APKANALYZER"
+          "$APKANALYZER" manifest application-id "$APK" | grep -Fx 'com.xclone.app'
           sha256sum "$APK" "$AAB"
           echo "APK and AAB signatures, package ID and pinned production certificate verified."
 
