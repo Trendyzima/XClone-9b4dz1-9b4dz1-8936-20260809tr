@@ -1,3 +1,4 @@
+// Temporary formatter diagnostic trigger.
 import 'dart:async';
 import 'dart:convert';
 
