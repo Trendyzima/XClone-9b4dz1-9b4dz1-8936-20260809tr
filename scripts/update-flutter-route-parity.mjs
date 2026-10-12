@@ -1,43 +1,56 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const source = fs.readFileSync(path.join(root, 'src/App.tsx'), 'utf8');
 const flutter = fs.readFileSync(path.join(root, 'mobile/lib/app/testagram_app.dart'), 'utf8');
-const routePattern = /<Route\s+path=["']([^"']+)["']/g;
-const routes = [...source.matchAll(routePattern)].map(m => m[1]);
-const unique = [...new Set(routes)].sort();
-const native = new Set([...flutter.matchAll(/GoRoute\s*\(\s*path:\s*'([^']+)'/g)].map(m => m[1]));
-const exactAliases = new Map([['/home', '/'], ['/tv/channels', '/tv'], ['/tv/reels', '/tv']]);
-const matchesRoute = (pattern, actual) => { const p = pattern.split('/'); const a = actual.split('/'); return p.length === a.length && p.every((part, i) => part.startsWith(':') || part === a[i]); };
-const routeDomain = p => p.startsWith('/admin') || p.startsWith('/regulator') || p.startsWith('/staff') ? 'administration'
-  : p.startsWith('/creator-studio') || p.startsWith('/monetization') || p.startsWith('/payouts') || p.startsWith('/revenue') ? 'creator_and_monetization'
-  : p.startsWith('/tv') || p.startsWith('/iptv') || p.startsWith('/channel') || p.startsWith('/stream') || p.startsWith('/start-stream') ? 'tv_and_live'
-  : p.startsWith('/fediverse') ? 'fediverse'
-  : p.startsWith('/c/') || p === '/communities' ? 'communities'
-  : p.startsWith('/thread') || p.startsWith('/threads') ? 'threads'
-  : p.startsWith('/wallet') || p === '/orders' || p.startsWith('/p/') || p === '/products' || p === '/marketplace' || p === '/shop' ? 'commerce'
-  : p.startsWith('/profile') ? 'profiles'
-  : p.startsWith('/settings') || p === '/privacy' || p === '/terms' || p === '/sessions' ? 'settings_and_legal'
-  : p.startsWith('/news') ? 'news'
-  : p.startsWith('/hashtag') || p === '/hashtags' || p.startsWith('/trending') ? 'hashtags_and_trends'
-  : p.startsWith('/space') ? 'spaces'
-  : p === '/videos' || p === '/shorts' || p.startsWith('/videos/') ? 'videos'
-  : p === '/auth' || p === '/verify' || p === '/verify-identity' ? 'authentication'
-  : 'general';
+const declarations = [...source.matchAll(/<Route\b[^>]*\bpath\s*=\s*["']([^"']+)["'][^>]*>/g)].map((match) => match[1]);
+const unique = [...new Set(declarations)].sort();
+const native = new Set([...flutter.matchAll(/\bpath:\s*'([^']+)'/g)].map((match) => match[1]));
+const routeDomain = (p) => {
+  if (/^\/(auth|verify|profile\/complete|verify-identity)/.test(p)) return 'authentication';
+  if (/^\/(messages|call\/|team-chat|platform-inbox)/.test(p)) return 'messaging';
+  if (/^\/(tv|iptv|stream\/|start-stream|channel\/)/.test(p)) return 'tv_and_live';
+  if (/^\/(create-ad|my-ads|ad-|admin\/ads|boost-|revenue-analytics|payouts|monetization)/.test(p)) return 'advertising';
+  if (/^\/(wallet|products|marketplace|shop|p\/|orders|wishlist|seller\/|credits|rewards|referral|referrals)/.test(p)) return 'commerce';
+  if (/^\/fediverse/.test(p)) return 'fediverse';
+  if (/^\/(communities|c\/|spaces|space-recording\/|space\/)/.test(p)) return 'communities';
+  if (/^\/(creator-studio|podcasts|series|leaderboard|daily-rewards)/.test(p)) return 'creator';
+  if (/^\/(admin|regulator|staff|appeals|fraud-detection)/.test(p)) return 'administration';
+  if (/^\/(settings|notification-preferences|privacy|terms|policy|sessions|blocked|help)/.test(p)) return 'settings';
+  if (/^\/(videos|shorts|history|story-analytics)/.test(p)) return 'media';
+  if (/^\/(explore|discover|search|hashtag|hashtags|trending|sports|news)/.test(p)) return 'discovery';
+  if (/^\/(post|post-remote|thread|threads|profile|bookmarks|lists|polls)/.test(p)) return 'social';
+  return 'general';
+};
+if (declarations.length < 100 || unique.length < 100 || native.size < 1) {
+  throw new Error('Route extraction looks incomplete: ' + declarations.length + ' declarations, ' + unique.length + ' unique source routes, ' + native.size + ' Flutter routes.');
+}
+const routes = unique.filter((pathname) => pathname !== '*').map((pathname) => {
+  const isNative = native.has(pathname);
+  return {
+    path: pathname,
+    domain: routeDomain(pathname),
+    status: isNative ? 'native_partial' : 'legacy_web_fallback',
+    note: isNative
+      ? 'An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance.'
+      : 'No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated.'
+  };
+});
 const inventory = {
-  schema_version: 1,
-  generated_at: new Date().toISOString(),
-  source_of_truth: 'React Router declarations in src/App.tsx; route coverage does not imply feature parity.',
-  source_route_declarations: routes.length,
+  schema_version: 2,
+  source_of_truth: 'React Router declarations in src/App.tsx compared with explicit GoRouter path declarations in mobile/lib/app/testagram_app.dart. A native route is not proof of feature parity.',
+  source_route_declarations: declarations.length,
   unique_source_routes: unique.length,
   flutter_native_routes: [...native].sort(),
-  routes: unique.map(pathname => {
-    const target = exactAliases.get(pathname) ?? pathname;
-    const isNative = native.has(target) || [...native].some(pattern => matchesRoute(pattern, target));
-    return { path: pathname, domain: routeDomain(pathname), status: isNative ? 'native_partial' : 'legacy_web_fallback', note: isNative ? 'Flutter route exists; backend, interactions, visual parity, and Android/web acceptance remain individually gated.' : 'No equivalent Flutter route is registered; GoRouter currently falls back to the original website. This is not migrated.' };
-  }),
+  counts: {
+    unique_source_routes_including_wildcard: unique.length,
+    source_routes_excluding_wildcard: routes.length,
+    native_route_matches: routes.filter((route) => route.status === 'native_partial').length,
+    legacy_web_fallbacks: routes.filter((route) => route.status === 'legacy_web_fallback').length
+  },
+  routes
 };
-fs.writeFileSync(path.join(root, 'docs/flutter-route-parity.json'), `${JSON.stringify(inventory, null, 2)}\n`);
-const counts = inventory.routes.reduce((acc, r) => (acc[r.status] = (acc[r.status] ?? 0) + 1, acc), {});
-console.log(`Wrote ${unique.length} unique React routes (${routes.length} declarations): ${JSON.stringify(counts)}`);
+fs.writeFileSync(path.join(root, 'docs/flutter-route-parity.json'), JSON.stringify(inventory, null, 2) + '\n');
+console.log('Updated Flutter route parity: ' + declarations.length + ' declarations, ' + unique.length + ' unique source routes, ' + native.size + ' explicit Flutter routes, ' + inventory.counts.legacy_web_fallbacks + ' source routes still falling back to legacy web.');
