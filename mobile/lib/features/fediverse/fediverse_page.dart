@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
+import 'fediverse_feed_policy.dart';
 
 class FediversePage extends StatefulWidget {
   const FediversePage({
@@ -50,6 +51,8 @@ class _FediversePageState extends State<FediversePage> {
   SupabaseClient get _db => Supabase.instance.client;
   String? get _uid => _db.auth.currentUser?.id;
   List<Map<String, dynamic>> _posts = [], _instances = [];
+  List<Map<String, dynamic>> _pendingPosts = [];
+  final ScrollController _feedScrollController = ScrollController();
   List<Map<String, dynamic>> _surfaceRows = [];
   Map<String, int> _surfaceMetrics = {};
   String? _surfaceMessage;
@@ -64,7 +67,9 @@ class _FediversePageState extends State<FediversePage> {
 
   Future<void> _load() async {
     setState(() {
-      _loading = true;
+      // Keep cached posts mounted during a refresh so the scroll offset and
+      // card geometry remain stable on mobile and Android WebView.
+      _loading = _posts.isEmpty && _instances.isEmpty;
       _error = null;
       _surfaceRows = [];
       _surfaceMetrics = {};
@@ -135,14 +140,38 @@ class _FediversePageState extends State<FediversePage> {
             .where((r) => r['reaction_type'] == 'boost')
             .map((r) => '${r['object_uri']}'));
       }
-      if (mounted) setState(() => _posts = posts);
-    } catch (_) {
       if (mounted) {
+        setState(() {
+          if (_posts.isEmpty) {
+            _posts = posts;
+            _pendingPosts = [];
+          } else {
+            final result = reconcileFediverseFeed(_posts, posts);
+            _posts = result.visible;
+            final staged = <String, Map<String, dynamic>>{
+              for (final post in _pendingPosts)
+                '${post['uri'] ?? post['object_url'] ?? post['id'] ?? ''}': post,
+              for (final post in result.pending)
+                '${post['uri'] ?? post['object_url'] ?? post['id'] ?? ''}': post,
+            }..remove('');
+            _pendingPosts = staged.values.toList()
+              ..sort((a, b) {
+                final aTime = DateTime.tryParse('${a['published_at'] ?? a['created_at'] ?? ''}') ??
+                    DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+                final bTime = DateTime.tryParse('${b['published_at'] ?? b['created_at'] ?? ''}') ??
+                    DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+                return bTime.compareTo(aTime);
+              });
+          }
+        });
+      }
+    } catch (_) {
+      if (mounted && _posts.isEmpty) {
         setState(() => _error =
             'Fediverse data could not load. Check your connection and retry.');
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && _loading) setState(() => _loading = false);
     }
   }
 
@@ -533,6 +562,12 @@ class _FediversePageState extends State<FediversePage> {
   }
 
   @override
+  void dispose() {
+    _feedScrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     if (widget.instancesOnly ||
         widget.section == 'discover' ||
@@ -578,7 +613,7 @@ class _FediversePageState extends State<FediversePage> {
     }
     return RefreshIndicator(
         onRefresh: _load,
-        child: ListView(padding: const EdgeInsets.all(14), children: [
+        child: ListView(controller: _feedScrollController, padding: const EdgeInsets.all(14), children: [
           Row(children: [
             Expanded(
                 child: Text(widget.title,
@@ -711,6 +746,30 @@ class _FediversePageState extends State<FediversePage> {
               child: Center(
                 child: Text(
                     'No items are available in ${widget.title.toLowerCase()} yet.'),
+              ),
+            ),
+          if (_pendingPosts.isNotEmpty && !_sectionNeedsDedicatedBackend)
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 12),
+              child: Center(
+                child: FilledButton.tonalIcon(
+                  onPressed: () {
+                    setState(() {
+                      _posts = applyPendingFediversePosts(_posts, _pendingPosts);
+                      _pendingPosts = [];
+                    });
+                    // Scroll to the top only after explicit user intent.
+                    _feedScrollController.animateTo(
+                      0,
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOut,
+                    );
+                  },
+                  icon: const Icon(Icons.arrow_upward_rounded),
+                  label: Text(
+                    '${_pendingPosts.length} new ${_pendingPosts.length == 1 ? 'post' : 'posts'} · Show',
+                  ),
+                ),
               ),
             ),
           if (!_sectionNeedsDedicatedBackend)
