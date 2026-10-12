@@ -1,18 +1,19 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-11T19:27:28.794Z",
+  "generated_at": "2026-10-12T05:31:26.422Z",
   "rule": "A feature is not complete until its Flutter web and Android behavior, backend contract, permissions, failure recovery, and tests are verified. Existing web routes remain available until parity is accepted.",
   "domains": [
     {
       "id": "authentication_and_legal",
       "scope": "Login, signup/verified identity, OTP, password recovery, age/legal acceptance, session refresh, 24-hour session policy, sign-out",
-      "status": "not_started",
+      "status": "in_progress",
       "acceptance": [
         "positive path",
         "unauthenticated/permission path",
         "offline/timeout recovery",
         "accessibility and responsive layout",
-        "web and Android tests"
+        "web and Android tests",
+        "Flutter implementation exists; end-to-end production parity is not yet accepted"
       ]
     },
     {
@@ -31,37 +32,40 @@
     {
       "id": "profiles_and_graph",
       "scope": "Profile display/edit, avatars/covers, follow/unfollow, followers/following, lists, blocks, mutes, verification and profile tabs",
-      "status": "not_started",
+      "status": "in_progress",
       "acceptance": [
         "positive path",
         "unauthenticated/permission path",
         "offline/timeout recovery",
         "accessibility and responsive layout",
-        "web and Android tests"
+        "web and Android tests",
+        "Flutter implementation exists; end-to-end production parity is not yet accepted"
       ]
     },
     {
       "id": "search_and_discovery",
       "scope": "Global search, people/posts/hashtags, trends, recommendations, discover, publisher/RSS content",
-      "status": "not_started",
+      "status": "in_progress",
       "acceptance": [
         "positive path",
         "unauthenticated/permission path",
         "offline/timeout recovery",
         "accessibility and responsive layout",
-        "web and Android tests"
+        "web and Android tests",
+        "Flutter implementation exists; end-to-end production parity is not yet accepted"
       ]
     },
     {
       "id": "stories_and_shorts",
       "scope": "Stories, story views, vertical video feed, player lifecycle, preloading, captions, reporting, creator reels",
-      "status": "not_started",
+      "status": "in_progress",
       "acceptance": [
         "positive path",
         "unauthenticated/permission path",
         "offline/timeout recovery",
         "accessibility and responsive layout",
-        "web and Android tests"
+        "web and Android tests",
+        "Flutter implementation exists; end-to-end production parity is not yet accepted"
       ]
     },
     {
@@ -104,13 +108,14 @@
     {
       "id": "notifications",
       "scope": "In-app notifications, unread state, preferences, Firebase Cloud Messaging, foreground/background/tap routing, token rotation",
-      "status": "not_started",
+      "status": "in_progress",
       "acceptance": [
         "positive path",
         "unauthenticated/permission path",
         "offline/timeout recovery",
         "accessibility and responsive layout",
-        "web and Android tests"
+        "web and Android tests",
+        "Flutter implementation exists; end-to-end production parity is not yet accepted"
       ]
     },
     {
@@ -129,49 +134,53 @@
     {
       "id": "communities_and_live_spaces",
       "scope": "Communities, memberships, community moderation, live audio spaces, speakers/listeners, recording, events",
-      "status": "not_started",
+      "status": "in_progress",
       "acceptance": [
         "positive path",
         "unauthenticated/permission path",
         "offline/timeout recovery",
         "accessibility and responsive layout",
-        "web and Android tests"
+        "web and Android tests",
+        "Flutter implementation exists; end-to-end production parity is not yet accepted"
       ]
     },
     {
       "id": "fediverse",
       "scope": "Federated identities, timelines, inbox, relays, follows, media, profiles, analytics and federation safety",
-      "status": "not_started",
+      "status": "in_progress",
       "acceptance": [
         "positive path",
         "unauthenticated/permission path",
         "offline/timeout recovery",
         "accessibility and responsive layout",
-        "web and Android tests"
+        "web and Android tests",
+        "Flutter implementation exists; end-to-end production parity is not yet accepted"
       ]
     },
     {
       "id": "commerce_and_wallet",
       "scope": "Products, marketplace, orders, wishlist, M-Pesa, payments, wallet, ledger, rewards, referrals, savings and transfers",
-      "status": "not_started",
+      "status": "in_progress",
       "acceptance": [
         "positive path",
         "unauthenticated/permission path",
         "offline/timeout recovery",
         "accessibility and responsive layout",
-        "web and Android tests"
+        "web and Android tests",
+        "Flutter implementation exists; end-to-end production parity is not yet accepted"
       ]
     },
     {
       "id": "creator_tools",
       "scope": "Creator studio, scheduled posts, series, podcasts, analytics, monetization, leaderboards and rewards",
-      "status": "not_started",
+      "status": "in_progress",
       "acceptance": [
         "positive path",
         "unauthenticated/permission path",
         "offline/timeout recovery",
         "accessibility and responsive layout",
-        "web and Android tests"
+        "web and Android tests",
+        "Flutter implementation exists; end-to-end production parity is not yet accepted"
       ]
     },
     {
