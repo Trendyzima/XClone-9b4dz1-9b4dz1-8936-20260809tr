@@ -115,7 +115,9 @@ class _BookmarksPageState extends State<BookmarksPage> {
                   ?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 6),
-            const Text('Posts you bookmarked for later. Only you can manage your saved list.'),
+            const Text(
+              'Posts you bookmarked for later. Only you can manage your saved list.',
+            ),
             const SizedBox(height: 12),
             if (_loading && _items.isEmpty)
               const Padding(
