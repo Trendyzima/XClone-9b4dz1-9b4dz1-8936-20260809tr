@@ -12,7 +12,9 @@ class NotificationsPage extends StatefulWidget {
 class _NotificationsPageState extends State<NotificationsPage> {
   List<Map<String, dynamic>> _items = [];
   bool _loading = false;
+  bool _loadInFlight = false;
   String? _error;
+  int _loadGeneration = 0;
   RealtimeChannel? _channel;
   SupabaseClient get _client => Supabase.instance.client;
   String get _uid => _client.auth.currentUser!.id;
@@ -47,28 +49,37 @@ class _NotificationsPageState extends State<NotificationsPage> {
   }
 
   Future<void> _load() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    if (_loadInFlight) return;
+    _loadInFlight = true;
+    final generation = ++_loadGeneration;
+    if (mounted) {
+      setState(() {
+        _loading = true;
+        _error = null;
+      });
+    }
     try {
       final rows = await _client
           .from('notifications')
           .select('*')
           .eq('recipient_id', _uid)
           .order('created_at', ascending: false)
-          .limit(50);
-      if (mounted) {
+          .limit(50)
+          .timeout(const Duration(seconds: 15));
+      if (mounted && generation == _loadGeneration) {
         setState(() => _items =
             rows.map((row) => Map<String, dynamic>.from(row as Map)).toList());
       }
-    } catch (error) {
-      if (mounted) {
+    } catch (_) {
+      if (mounted && generation == _loadGeneration) {
         setState(() => _error =
             'Notifications are temporarily unavailable. Retry to reconnect.');
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      _loadInFlight = false;
+      if (mounted && generation == _loadGeneration) {
+        setState(() => _loading = false);
+      }
     }
   }
 
