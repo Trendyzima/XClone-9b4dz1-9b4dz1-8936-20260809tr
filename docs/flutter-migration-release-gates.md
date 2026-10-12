@@ -6,8 +6,9 @@ This plan is based on the checked-in route inventory and feature-domain inventor
 
 - Unique source routes including wildcard: 212
 - Source routes excluding wildcard: 211
-- Explicit Flutter native route matches: 93
-- Legacy website fallbacks: 118
+- Explicit Flutter feature-native/partial route matches: 124
+- Native migration-shell routes: 87
+- Legacy website fallbacks: 0
 - Product domains tracked: 22
 
 A native route means only that a GoRouter declaration exists. It does not prove UI, backend, permissions, error recovery, accessibility, or platform parity.
@@ -63,7 +64,7 @@ A native route means only that a GoRouter declaration exists. It does not prove 
 
 ### Gate 5 — Route closure and release
 
-- Migrate remaining fallback routes in feature slices, with route-specific tests.
+- Replace remaining migration shells and verify partial routes in feature slices, with route-specific tests.
 - For each slice, update the route progress gate only when actual native behavior exists.
 - Validate responsive web, Android navigation/back behavior, deep links, accessibility and localization.
 - Produce a signed Android release artifact, run upgrade/install smoke tests, and verify the deployed Flutter Web artifact on a staging URL before cutover.
@@ -83,4 +84,4 @@ A domain is complete only when all are true:
 
 ## Progress guard
 
-`scripts/validate-flutter-route-progress.mjs` prevents route coverage from regressing below the audited baseline of 93 native matches / 118 legacy fallbacks. When coverage improves, update its thresholds in the same pull request to ratchet the baseline forward. This guard measures route accounting only; it must never be presented as proof that all features work.
+`scripts/validate-flutter-route-progress.mjs` prevents route coverage from regressing below the audited baseline of 124 native matches / 87 migration shells / 0 legacy fallbacks. When coverage improves, update its thresholds in the same pull request to ratchet the baseline forward. This guard measures route accounting only; it must never be presented as proof that all features work.
