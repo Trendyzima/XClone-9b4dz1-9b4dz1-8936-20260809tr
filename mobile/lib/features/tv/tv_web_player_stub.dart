@@ -1,10 +1,16 @@
 import 'package:flutter/material.dart';
 
 class TvWebPlayer extends StatelessWidget {
-  const TvWebPlayer({required this.url, this.onError, super.key});
+  const TvWebPlayer({
+    required this.url,
+    this.onError,
+    this.onPlaybackReady,
+    super.key,
+  });
 
   final String url;
   final ValueChanged<String>? onError;
+  final VoidCallback? onPlaybackReady;
 
   @override
   Widget build(BuildContext context) => const ColoredBox(
