@@ -649,10 +649,11 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
 
     const sourceVideo = sourceVideoRef.current;
     if (sourceVideo) {
-      // Keep uploaded media muted at the element level. The production AudioContext
-      // is the single authoritative audio path, so autoplay policy cannot prevent
-      // decoded video frames from entering the compositor.
-      sourceVideo.muted = true;
+      // Once a MediaElementAudioSourceNode is attached, keep the element unmuted:
+      // its decoded audio must flow into the Web Audio graph. It is routed to the
+      // Program destination (not directly to speakers), so this does not create a
+      // second audible path.
+      sourceVideo.muted = false;
       sourceVideo.playsInline = true;
       sourceVideo.preload = 'auto';
       if (sourceVideo.readyState < 2) {
@@ -993,8 +994,10 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       productionSourceGainRef.current.gain.value =
         programSceneRef.current === 'video' && !sourceVideoMuted && !programMuted ? programLevel : 0;
     }
-    // Route uploaded-media audio through the production mixer only.
-    if (sourceVideo) sourceVideo.muted = true;
+    // Route uploaded-media audio through the production mixer only. Muting the
+    // media element itself can silence its MediaElementAudioSourceNode on some
+    // browser/WebView implementations; the GainNode is the authoritative mute.
+    if (sourceVideo) sourceVideo.muted = false;
 
     if (audioPipelineRef.current && !productionCommentaryGainRef.current) {
       const commentary = audioContext.createMediaStreamSource(audioPipelineRef.current.stream);
@@ -1280,13 +1283,13 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     const url = URL.createObjectURL(file);
     sourceVideoUrlRef.current = url;
     const video = sourceVideoRef.current ?? document.createElement('video');
-    // Dedicated decode element: its audio never plays directly. The Web Audio
-    // graph owns the Program bus and therefore owns mute/level control.
+    // Dedicated decode element: after createMediaElementSource is attached, its
+    // decoded audio is routed exclusively through the Program Web Audio bus.
     video.src = url;
     video.preload = 'auto';
     video.playsInline = true;
     video.autoplay = false;
-    video.muted = true;
+    video.muted = false;
     video.controls = false;
     sourceVideoRef.current = video;
     try { video.load(); } catch {}
@@ -1322,10 +1325,9 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     }
     const nextMuted = !sourceVideoMuted;
     setSourceVideoMuted(nextMuted);
-    // Keep the media element muted locally; the production AudioContext gain
-    // is the authoritative Program audio control, preventing duplicate local
-    // playback and making MUTE/UNMUTE deterministic.
-    sourceVideoRef.current.muted = true;
+    // The element must remain unmuted for decoded audio to reach its Web Audio
+    // source node. Mute only at the Program gain to keep mixer control deterministic.
+    sourceVideoRef.current.muted = false;
     const gain = productionSourceGainRef.current;
     if (gain) {
       const context = productionAudioContextRef.current;
