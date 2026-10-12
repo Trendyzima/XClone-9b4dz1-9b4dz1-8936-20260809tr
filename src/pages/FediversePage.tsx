@@ -1102,15 +1102,38 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
   return (
     <div className="fediverse-page min-h-screen bg-background pb-16 md:pb-0">
       <style>{`
-        .fediverse-page { overflow-anchor: none; overscroll-behavior-y: contain; }
-        .fediverse-feed-list { overflow-anchor: none; contain: layout style; }
-        .fediverse-page img, .fediverse-page video { transform: translateZ(0); }
+        /* Preserve native scroll anchoring and avoid layout-changing GPU hacks. */
+        .fediverse-page { overscroll-behavior-y: contain; }
+        .fediverse-feed-list { overflow-anchor: auto; }
+        .fediverse-page .fediverse-ad-slot {
+          display: block;
+          min-height: 90px;
+          contain: layout;
+        }
+        .fediverse-page img,
+        .fediverse-page video {
+          max-width: 100%;
+          height: auto;
+        }
         @media (max-width: 640px) {
-          .fediverse-page .fediverse-tabs { backdrop-filter: none; -webkit-backdrop-filter: none; }
+          .fediverse-page .fediverse-tabs {
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+          }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .fediverse-page *, .fediverse-page *::before, .fediverse-page *::after {
+            scroll-behavior: auto !important;
+            animation-duration: 0.01ms !important;
+            animation-iteration-count: 1 !important;
+            transition-duration: 0.01ms !important;
+          }
         }
       `}</style>
       <TopBar title="Fediverse · testagram.site" showBack />
-      <FediverseAdBanner />
+      <div className="fediverse-ad-slot" aria-label="Advertisement">
+        <FediverseAdBanner />
+      </div>
 
       {gatewayOk === false && (
         <div className="flex items-center gap-2 px-4 py-2 bg-amber-500/10 border-b border-amber-500/20 text-amber-600 dark:text-amber-400 text-xs">
@@ -1160,10 +1183,12 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
           )}
 
           {/* AdSense banner — fediverse feed */}
-          <FediverseAdBanner />
+          <div className="fediverse-ad-slot" aria-label="Advertisement">
+            <FediverseAdBanner />
+          </div>
 
           {pendingFeedPosts.length > 0 && (
-            <div className="sticky top-[104px] z-20 flex justify-center px-3 py-2 pointer-events-none">
+            <div className="fixed top-[104px] left-1/2 -translate-x-1/2 z-40 flex justify-center px-3 py-2 pointer-events-none">
               <button
                 type="button"
                 onClick={() => {
@@ -1174,7 +1199,8 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
                   });
                   setRemotePosts(prev => [...incoming, ...prev]);
                   setPendingFeedPosts([]);
-                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                  // Avoid animated scroll motion in Android WebView after explicit user action.
+                  window.scrollTo({ top: 0, behavior: 'auto' });
                 }}
                 className="pointer-events-auto rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-lg"
               >
