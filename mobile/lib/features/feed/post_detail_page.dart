@@ -144,6 +144,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
             'user_id': uid,
             'entity_type': 'post',
             'entity_id': widget.postId,
+            'post_id': widget.postId,
+            'view_type': 'post',
           });
         } catch (_) {
           // Viewing remains available if history recording is blocked by policy.
