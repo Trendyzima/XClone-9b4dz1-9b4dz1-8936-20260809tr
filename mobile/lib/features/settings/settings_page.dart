@@ -19,13 +19,13 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _error;
 
   String get _title => switch (widget.section) {
-        'account' => 'Account',
-        'appearance' => 'Appearance',
-        'connections' => 'Connections',
-        'notifications' => 'Notifications',
-        'privacy' => 'Privacy and safety',
-        _ => 'Settings',
-      };
+    'account' => 'Account',
+    'appearance' => 'Appearance',
+    'connections' => 'Connections',
+    'notifications' => 'Notifications',
+    'privacy' => 'Privacy and safety',
+    _ => 'Settings',
+  };
 
   Future<void> _openSite([String path = '']) async {
     final base = AppConfig.siteUrl.replaceFirst(RegExp(r'/$'), '');
@@ -33,7 +33,9 @@ class _SettingsPageState extends State<SettingsPage> {
     if (!await launchUrl(uri, mode: LaunchMode.externalApplication) &&
         mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not open Testagram in your browser.')),
+        const SnackBar(
+          content: Text('Could not open Testagram in your browser.'),
+        ),
       );
     }
   }
@@ -44,14 +46,15 @@ class _SettingsPageState extends State<SettingsPage> {
       _error = null;
     });
     try {
-      await Supabase.instance.client.auth
-          .signOut()
-          .timeout(const Duration(seconds: 10));
+      await Supabase.instance.client.auth.signOut().timeout(
+        const Duration(seconds: 10),
+      );
       if (mounted) context.go('/auth');
     } catch (_) {
       if (mounted) {
-        setState(() =>
-            _error = 'Sign-out could not complete. Retry when connected.');
+        setState(
+          () => _error = 'Sign-out could not complete. Retry when connected.',
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -278,9 +281,7 @@ class _SettingsPageState extends State<SettingsPage> {
             Expanded(
               child: Text(
                 _title,
-                style: Theme.of(context)
-                    .textTheme
-                    .headlineSmall
+                style: Theme.of(context).textTheme.headlineSmall
                     ?.copyWith(fontWeight: FontWeight.w800),
               ),
             ),
