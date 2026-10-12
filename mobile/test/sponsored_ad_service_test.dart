@@ -87,7 +87,9 @@ void main() {
       );
       final ad = await service.requestAd(
         slotCode: 'feed-inline',
-        content: {'keywords': ['creator']},
+        content: {
+          'keywords': ['creator']
+        },
       );
       expect(ad, isNotNull);
       expect(captured.url.path, '/functions/v1/zenad-decision');
@@ -100,8 +102,8 @@ void main() {
       final service = SponsoredAdService(
         supabaseUrl: 'https://project.supabase.co',
         publishableKey: 'public-key',
-        httpClient: MockClient((request) async =>
-            http.Response('{"kind":"no_fill"}', 200)),
+        httpClient: MockClient(
+            (request) async => http.Response('{"kind":"no_fill"}', 200)),
       );
       expect(await service.requestAd(slotCode: 'feed-inline'), isNull);
       service.close();
