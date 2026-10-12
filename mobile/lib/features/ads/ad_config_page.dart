@@ -136,7 +136,7 @@ class _AdConfigPageState extends State<AdConfigPage> {
       if (response.status < 200 || response.status >= 300 ||
           data is! Map || data['ok'] != true) {
         throw StateError(data is Map
-            ? '${data['error'] ?? 'Placement update failed.'}
+            ? '${data['error'] ?? 'Placement update failed.'}'
             : 'Invalid response from the ads service.');
       }
       if (!mounted) return;
