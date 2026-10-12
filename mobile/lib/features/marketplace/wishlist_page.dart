@@ -49,11 +49,12 @@ class _WishlistPageState extends State<WishlistPage> {
           .where((id) => id.isNotEmpty)
           .toList();
       if (ids.isEmpty) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             _products = const [];
             _loading = false;
           });
+        }
         return;
       }
       final products = await _client
@@ -93,16 +94,18 @@ class _WishlistPageState extends State<WishlistPage> {
           .delete()
           .eq('user_id', user.id)
           .eq('product_id', productId);
-      if (mounted)
+      if (mounted) {
         setState(
           () => _products =
               _products.where((p) => '${p['id']}' != productId).toList(),
         );
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Item was not removed. Please retry.')),
         );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
