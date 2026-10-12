@@ -54,6 +54,7 @@
     "/fediverse/relay",
     "/hashtag/:tag",
     "/hashtags",
+    "/history",
     "/iptv",
     "/leaderboard",
     "/leaderboard/creators",
@@ -61,6 +62,7 @@
     "/messages",
     "/my-ads",
     "/news",
+    "/news/:id",
     "/notification-preferences",
     "/notifications",
     "/orders",
@@ -114,8 +116,8 @@
   "counts": {
     "unique_source_routes_including_wildcard": 212,
     "source_routes_excluding_wildcard": 211,
-    "native_route_matches": 105,
-    "legacy_web_fallbacks": 106
+    "native_route_matches": 107,
+    "legacy_web_fallbacks": 104
   },
   "routes": [
     {
@@ -589,8 +591,8 @@
     {
       "path": "/history",
       "domain": "media",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/interests",
@@ -673,8 +675,8 @@
     {
       "path": "/news/:id",
       "domain": "discovery",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/notification-preferences",
