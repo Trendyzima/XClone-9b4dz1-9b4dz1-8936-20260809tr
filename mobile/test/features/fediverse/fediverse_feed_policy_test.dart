@@ -1,7 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:testagram/features/fediverse/fediverse_feed_policy.dart';
 
-Map<String, dynamic> post(String uri, String publishedAt, {String? content}) => {
+Map<String, dynamic> post(String uri, String publishedAt, {String? content}) =>
+    {
       'uri': uri,
       'published_at': publishedAt,
       if (content != null) 'content': content,
@@ -38,7 +39,8 @@ void main() {
       expect(result.pending.single['uri'], 'same');
     });
 
-    test('applies pending items newest-first without duplicating visible rows', () {
+    test('applies pending items newest-first without duplicating visible rows',
+        () {
       final result = applyPendingFediversePosts(
         [post('visible', '2026-10-10T10:00:00Z')],
         [
