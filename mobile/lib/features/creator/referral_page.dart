@@ -81,9 +81,10 @@ class _ReferralPageState extends State<ReferralPage> {
   Future<void> _copy() async {
     if (_code == null || _code!.isEmpty) return;
     await Clipboard.setData(ClipboardData(text: _link));
-    if (mounted)
+    if (mounted) {
       ScaffoldMessenger.of(context)
           .showSnackBar(const SnackBar(content: Text('Referral link copied')));
+    }
   }
 
   Future<void> _share() async {
