@@ -99,7 +99,9 @@ class _FeedPageState extends State<FeedPage> {
         if (!FeedLoadPolicy.isCurrent(
           requestGeneration: generation,
           currentGeneration: _loadGeneration,
-        )) return;
+        )) {
+          return;
+        }
         followingIds = follows
             .map((row) => '${row['following_id']}')
             .where((id) => id.isNotEmpty)
@@ -118,7 +120,9 @@ class _FeedPageState extends State<FeedPage> {
       if (!FeedLoadPolicy.isCurrent(
         requestGeneration: generation,
         currentGeneration: _loadGeneration,
-      )) return;
+      )) {
+        return;
+      }
       final rows = response
           .map((row) => Map<String, dynamic>.from(row as Map))
           .where((row) => row['deleted_at'] == null)
@@ -138,7 +142,9 @@ class _FeedPageState extends State<FeedPage> {
       if (!FeedLoadPolicy.isCurrent(
         requestGeneration: generation,
         currentGeneration: _loadGeneration,
-      )) return;
+      )) {
+        return;
+      }
       final byId = <String, Map<String, dynamic>>{};
       for (final profile in profiles) {
         final value = Map<String, dynamic>.from(profile as Map);
@@ -161,7 +167,9 @@ class _FeedPageState extends State<FeedPage> {
         if (!FeedLoadPolicy.isCurrent(
           requestGeneration: generation,
           currentGeneration: _loadGeneration,
-        )) return;
+        )) {
+          return;
+        }
         final bookmarkRows = await _client
             .from('bookmarks')
             .select('post_id')
@@ -170,7 +178,9 @@ class _FeedPageState extends State<FeedPage> {
         if (!FeedLoadPolicy.isCurrent(
           requestGeneration: generation,
           currentGeneration: _loadGeneration,
-        )) return;
+        )) {
+          return;
+        }
         final repostRows = await _client
             .from('reposts')
             .select('post_id')
@@ -179,7 +189,9 @@ class _FeedPageState extends State<FeedPage> {
         if (!FeedLoadPolicy.isCurrent(
           requestGeneration: generation,
           currentGeneration: _loadGeneration,
-        )) return;
+        )) {
+          return;
+        }
         loadedLikes.addAll(likeRows.map((row) => '${row['post_id']}'));
         loadedBookmarks.addAll(bookmarkRows.map((row) => '${row['post_id']}'));
         loadedReposts.addAll(repostRows.map((row) => '${row['post_id']}'));
@@ -188,7 +200,9 @@ class _FeedPageState extends State<FeedPage> {
           !FeedLoadPolicy.isCurrent(
             requestGeneration: generation,
             currentGeneration: _loadGeneration,
-          )) return;
+          )) {
+            return;
+          }
       setState(() {
         if (reset) _posts.clear();
         final known = _posts.map((post) => '${post['id']}').toSet();
