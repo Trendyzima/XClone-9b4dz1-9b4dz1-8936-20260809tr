@@ -753,13 +753,13 @@ class _FediversePageState extends State<FediversePage> {
               padding: const EdgeInsets.only(top: 8, bottom: 12),
               child: Center(
                 child: FilledButton.tonalIcon(
-                  onPressed: () {
+                  onPressed: () async {
                     setState(() {
                       _posts = applyPendingFediversePosts(_posts, _pendingPosts);
                       _pendingPosts = [];
                     });
                     // Scroll to the top only after explicit user intent.
-                    _feedScrollController.animateTo(
+                    await _feedScrollController.animateTo(
                       0,
                       duration: const Duration(milliseconds: 220),
                       curve: Curves.easeOut,
