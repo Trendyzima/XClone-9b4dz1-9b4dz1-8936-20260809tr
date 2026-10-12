@@ -67,8 +67,8 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
     if (tvShouldPauseForLifecycle(state)) {
       final player = _player;
       if (player != null &&
-          player.value.isInitialized &&
-          player.value.isPlaying) {
+        player.value.isInitialized &&
+        player.value.isPlaying) {
         _lifecyclePausedPlayer = player;
         unawaited(_pauseNativePlayer(player));
       }
@@ -100,8 +100,8 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
   Future<void> _resumeNativePlayer(VideoPlayerController player) async {
     try {
       if (mounted &&
-          identical(_player, player) &&
-          player.value.isInitialized) {
+        identical(_player, player) &&
+        player.value.isInitialized) {
         await player.play();
       }
     } catch (_) {
