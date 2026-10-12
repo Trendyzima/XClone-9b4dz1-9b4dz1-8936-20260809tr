@@ -76,6 +76,54 @@ void main() {
     });
   });
 
+  group('sponsoredAdVisibleFraction', () {
+    const viewport = Size(400, 800);
+
+    test('counts a fully visible creative as fully visible', () {
+      expect(
+        sponsoredAdVisibleFraction(
+          Rect.fromLTWH(20, 100, 100, 100),
+          viewport,
+        ),
+        1,
+      );
+    });
+
+    test('reports the actual fraction when clipped at the viewport edge', () {
+      expect(
+        sponsoredAdVisibleFraction(
+          Rect.fromLTWH(-50, 100, 100, 100),
+          viewport,
+        ),
+        0.5,
+      );
+      expect(
+        sponsoredAdVisibleFraction(
+          Rect.fromLTWH(-60, 100, 100, 100),
+          viewport,
+        ),
+        closeTo(0.4, 0.0001),
+      );
+    });
+
+    test('returns zero for an offscreen creative or empty viewport', () {
+      expect(
+        sponsoredAdVisibleFraction(
+          Rect.fromLTWH(0, -120, 100, 100),
+          viewport,
+        ),
+        0,
+      );
+      expect(
+        sponsoredAdVisibleFraction(
+          Rect.fromLTWH(0, 0, 100, 100),
+          Size.zero,
+        ),
+        0,
+      );
+    });
+  });
+
   group('SponsoredAdService', () {
     test('requests the selected slot and parses a display response', () async {
       late http.Request captured;
