@@ -250,7 +250,9 @@ class _FeedPageState extends State<FeedPage> {
   Future<void> _loadSponsoredAd(int refreshGeneration) async {
     final ad = await _adService.requestAd(
       slotCode: 'feed-inline',
-      content: const {'genres': ['social', 'community']},
+      content: const {
+        'genres': ['social', 'community']
+      },
     );
     if (!mounted ||
         !FeedLoadPolicy.isCurrent(
@@ -873,11 +875,10 @@ class _FeedPageState extends State<FeedPage> {
                       service: _adService,
                     );
                   }
-                  final postIndex = _sponsoredAd != null &&
-                          _posts.length >= 5 &&
-                          index > 5
-                      ? index - 1
-                      : index;
+                  final postIndex =
+                      _sponsoredAd != null && _posts.length >= 5 && index > 5
+                          ? index - 1
+                          : index;
                   final post = _posts[postIndex];
                   return _PostCard(
                     post: post,
