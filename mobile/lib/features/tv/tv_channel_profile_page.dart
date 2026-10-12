@@ -148,7 +148,8 @@ class _TvChannelProfilePageState extends State<TvChannelProfilePage> {
               height: 170,
               width: double.infinity,
               child: bannerUrl.startsWith('https://')
-                  ? _networkImage(bannerUrl, height: 170, width: double.infinity)
+                  ? _networkImage(bannerUrl,
+                      height: 170, width: double.infinity)
                   : Container(color: theme.colorScheme.surfaceContainerHighest),
             ),
             Padding(
@@ -174,8 +175,7 @@ class _TvChannelProfilePageState extends State<TvChannelProfilePage> {
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: avatarUrl.startsWith('https://')
-                              ? _networkImage(avatarUrl,
-                                  width: 78, height: 78)
+                              ? _networkImage(avatarUrl, width: 78, height: 78)
                               : Icon(isTv
                                   ? Icons.live_tv_rounded
                                   : Icons.mic_rounded),
@@ -201,8 +201,8 @@ class _TvChannelProfilePageState extends State<TvChannelProfilePage> {
                         ),
                         Text(
                           '@${channel['handle'] ?? widget.handle}',
-                          style: theme.textTheme.bodyMedium
-                              ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant),
                         ),
                         if ('${channel['bio'] ?? ''}'.isNotEmpty)
                           Padding(
@@ -239,10 +239,10 @@ class _TvChannelProfilePageState extends State<TvChannelProfilePage> {
                           ListTile(
                             contentPadding: EdgeInsets.zero,
                             leading: CircleAvatar(
-                              backgroundImage:
-                                  '${owner['avatar_url'] ?? ''}'.startsWith('https://')
-                                      ? NetworkImage('${owner['avatar_url']}')
-                                      : null,
+                              backgroundImage: '${owner['avatar_url'] ?? ''}'
+                                      .startsWith('https://')
+                                  ? NetworkImage('${owner['avatar_url']}')
+                                  : null,
                               child: '${owner['avatar_url'] ?? ''}'
                                       .startsWith('https://')
                                   ? null
@@ -255,8 +255,8 @@ class _TvChannelProfilePageState extends State<TvChannelProfilePage> {
                                 : Text('@${owner['username']}'),
                             onTap: owner['username'] == null
                                 ? null
-                                : () => context.go(
-                                    '/profile/${owner['username']}'),
+                                : () =>
+                                    context.go('/profile/${owner['username']}'),
                           ),
                         Card(
                           child: Padding(
@@ -266,7 +266,8 @@ class _TvChannelProfilePageState extends State<TvChannelProfilePage> {
                               children: [
                                 Text('About this channel',
                                     style: theme.textTheme.titleMedium
-                                        ?.copyWith(fontWeight: FontWeight.w800)),
+                                        ?.copyWith(
+                                            fontWeight: FontWeight.w800)),
                                 const SizedBox(height: 8),
                                 Text(isTv
                                     ? 'This Testagram TV channel broadcasts live. Finished broadcasts are not stored as videos by Testagram.'
