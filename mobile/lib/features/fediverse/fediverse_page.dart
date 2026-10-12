@@ -150,15 +150,19 @@ class _FediversePageState extends State<FediversePage> {
             _posts = result.visible;
             final staged = <String, Map<String, dynamic>>{
               for (final post in _pendingPosts)
-                '${post['uri'] ?? post['object_url'] ?? post['id'] ?? ''}': post,
+                '${post['uri'] ?? post['object_url'] ?? post['id'] ?? ''}':
+                    post,
               for (final post in result.pending)
-                '${post['uri'] ?? post['object_url'] ?? post['id'] ?? ''}': post,
+                '${post['uri'] ?? post['object_url'] ?? post['id'] ?? ''}':
+                    post,
             }..remove('');
             _pendingPosts = staged.values.toList()
               ..sort((a, b) {
-                final aTime = DateTime.tryParse('${a['published_at'] ?? a['created_at'] ?? ''}') ??
+                final aTime = DateTime.tryParse(
+                        '${a['published_at'] ?? a['created_at'] ?? ''}') ??
                     DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
-                final bTime = DateTime.tryParse('${b['published_at'] ?? b['created_at'] ?? ''}') ??
+                final bTime = DateTime.tryParse(
+                        '${b['published_at'] ?? b['created_at'] ?? ''}') ??
                     DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
                 return bTime.compareTo(aTime);
               });
@@ -613,273 +617,285 @@ class _FediversePageState extends State<FediversePage> {
     }
     return RefreshIndicator(
         onRefresh: _load,
-        child: ListView(controller: _feedScrollController, padding: const EdgeInsets.all(14), children: [
-          Row(children: [
-            Expanded(
-                child: Text(widget.title,
-                    style: Theme.of(context)
-                        .textTheme
-                        .headlineSmall
-                        ?.copyWith(fontWeight: FontWeight.w900))),
-            IconButton(
-                tooltip: 'Discover instances',
-                onPressed: () => context.go('/fediverse/instances'),
-                icon: const Icon(Icons.public_rounded)),
-            IconButton(
-                tooltip: 'Refresh timeline',
-                onPressed: _load,
-                icon: const Icon(Icons.refresh_rounded))
-          ]),
-          const SizedBox(height: 4),
-          if (_surfaceMessage != null)
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Text(_surfaceMessage!),
-              ),
-            ),
-          if (_surfaceMetrics.isNotEmpty)
-            ..._surfaceMetrics.entries.map((entry) => Card(
-                  child: ListTile(
-                    leading:
-                        const CircleAvatar(child: Icon(Icons.insights_rounded)),
-                    title: Text(entry.key),
-                    trailing: Text('${entry.value}',
+        child: ListView(
+            controller: _feedScrollController,
+            padding: const EdgeInsets.all(14),
+            children: [
+              Row(children: [
+                Expanded(
+                    child: Text(widget.title,
                         style: Theme.of(context)
                             .textTheme
-                            .titleLarge
-                            ?.copyWith(fontWeight: FontWeight.w900)),
-                  ),
-                )),
-          if (_sectionNeedsDedicatedBackend &&
-              !_loading &&
-              _error == null &&
-              _surfaceMessage == null &&
-              _surfaceMetrics.isEmpty &&
-              _surfaceRows.isEmpty)
-            const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(child: Text('Nothing to show here yet.')),
-            ),
-          if (_sectionNeedsDedicatedBackend) ...[
-            ..._surfaceRows.map((row) {
-              final title =
-                  '${row['kind'] ?? row['display_name'] ?? row['remote_username'] ?? row['username'] ?? row['activity_type'] ?? row['name'] ?? row['domain'] ?? row['object_type'] ?? 'Activity'}';
-              final subtitle =
-                  '${row['domain'] ?? row['remote_domain'] ?? row['actor_url'] ?? row['actor_id'] ?? row['remote_actor_url'] ?? row['phrase'] ?? row['url'] ?? row['object_url'] ?? row['activity_id'] ?? row['created_at'] ?? ''}';
-              final detail =
-                  '${row['content'] ?? row['summary'] ?? row['payload'] ?? ''}';
-              return Card(
-                margin: const EdgeInsets.only(bottom: 8),
-                child: ListTile(
-                  leading: Icon(widget.section == 'inbox'
-                      ? Icons.inbox_rounded
-                      : widget.section == 'relay'
-                          ? Icons.outbox_rounded
-                          : widget.section == 'controls'
-                              ? Icons.shield_rounded
-                              : Icons.public_rounded),
-                  title: Text(title,
-                      style: const TextStyle(fontWeight: FontWeight.w800)),
-                  subtitle: Text(
-                      [subtitle, detail]
-                          .where((value) => value.isNotEmpty && value != '{}')
-                          .join('\\n'),
-                      maxLines: 4,
-                      overflow: TextOverflow.ellipsis),
-                  trailing: widget.section == 'inbox' &&
-                          row['processed'] != true
-                      ? IconButton(
-                          tooltip: 'Mark processed',
-                          onPressed: () => _markInboxProcessed(row),
-                          icon: const Icon(Icons.check_circle_outline_rounded),
-                        )
-                      : widget.section == 'relay'
-                          ? Icon(row['delivered'] == true
-                              ? Icons.check_circle_rounded
-                              : Icons.schedule_rounded)
-                          : widget.section == 'controls'
-                              ? IconButton(
-                                  tooltip: 'Remove safety control',
-                                  onPressed: () => _removeSafetyControl(row),
-                                  icon:
-                                      const Icon(Icons.delete_outline_rounded),
-                                )
-                              : null,
-                ),
-              );
-            }),
-          ],
-          if (widget.section == 'discover' ||
-              widget.section == 'organic-discovery')
-            const Text(
-                'Discover public instances and open social communities.'),
-          if (!_sectionNeedsDedicatedBackend &&
-              widget.section != 'discover' &&
-              widget.section != 'organic-discovery')
-            const Text(
-              'A cached ActivityPub timeline from the open social web.',
-            ),
-          if (_loading)
-            const Padding(
-                padding: EdgeInsets.all(20),
-                child: Center(child: CircularProgressIndicator())),
-          if (_error != null)
-            Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(children: [
-                  Text(_error!),
-                  TextButton(onPressed: _load, child: const Text('Retry'))
-                ])),
-          if (!_loading && _posts.isEmpty && _error == null)
-            const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(
-                    child: Text(
-                        'No federated posts are cached yet. Refresh later.'))),
-          if (!_sectionNeedsDedicatedBackend &&
-              _visiblePosts.isEmpty &&
-              !_loading &&
-              _error == null)
-            Padding(
-              padding: const EdgeInsets.all(24),
-              child: Center(
-                child: Text(
-                    'No items are available in ${widget.title.toLowerCase()} yet.'),
-              ),
-            ),
-          if (_pendingPosts.isNotEmpty && !_sectionNeedsDedicatedBackend)
-            Padding(
-              padding: const EdgeInsets.only(top: 8, bottom: 12),
-              child: Center(
-                child: FilledButton.tonalIcon(
-                  onPressed: () {
-                    setState(() {
-                      _posts = applyPendingFediversePosts(_posts, _pendingPosts);
-                      _pendingPosts = [];
-                    });
-                    // Scroll to the top only after explicit user intent.
-                    _feedScrollController.animateTo(
-                      0,
-                      duration: const Duration(milliseconds: 220),
-                      curve: Curves.easeOut,
-                    );
-                  },
-                  icon: const Icon(Icons.arrow_upward_rounded),
-                  label: Text(
-                    '${_pendingPosts.length} new ${_pendingPosts.length == 1 ? 'post' : 'posts'} · Show',
-                  ),
-                ),
-              ),
-            ),
-          if (!_sectionNeedsDedicatedBackend)
-            ..._visiblePosts.map((p) {
-              final actor = (p['actor'] as Map<String, dynamic>?) ?? {};
-              final handle =
-                  '${actor['username'] ?? 'remote'}@${actor['domain'] ?? 'fediverse'}';
-              final name = '${actor['display_name'] ?? handle}';
-              final uri = '${p['uri'] ?? ''}';
-              final url = '${p['url'] ?? uri}';
-              final sensitive = p['sensitive'] == true ||
-                  '${p['content_warning'] ?? ''}'.isNotEmpty;
-              return Card(
-                  margin: const EdgeInsets.only(bottom: 10),
+                            .headlineSmall
+                            ?.copyWith(fontWeight: FontWeight.w900))),
+                IconButton(
+                    tooltip: 'Discover instances',
+                    onPressed: () => context.go('/fediverse/instances'),
+                    icon: const Icon(Icons.public_rounded)),
+                IconButton(
+                    tooltip: 'Refresh timeline',
+                    onPressed: _load,
+                    icon: const Icon(Icons.refresh_rounded))
+              ]),
+              const SizedBox(height: 4),
+              if (_surfaceMessage != null)
+                Card(
                   child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(children: [
-                              CircleAvatar(
-                                  backgroundImage:
-                                      '${actor['avatar_url'] ?? ''}'
+                    padding: const EdgeInsets.all(14),
+                    child: Text(_surfaceMessage!),
+                  ),
+                ),
+              if (_surfaceMetrics.isNotEmpty)
+                ..._surfaceMetrics.entries.map((entry) => Card(
+                      child: ListTile(
+                        leading: const CircleAvatar(
+                            child: Icon(Icons.insights_rounded)),
+                        title: Text(entry.key),
+                        trailing: Text('${entry.value}',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w900)),
+                      ),
+                    )),
+              if (_sectionNeedsDedicatedBackend &&
+                  !_loading &&
+                  _error == null &&
+                  _surfaceMessage == null &&
+                  _surfaceMetrics.isEmpty &&
+                  _surfaceRows.isEmpty)
+                const Padding(
+                  padding: EdgeInsets.all(24),
+                  child: Center(child: Text('Nothing to show here yet.')),
+                ),
+              if (_sectionNeedsDedicatedBackend) ...[
+                ..._surfaceRows.map((row) {
+                  final title =
+                      '${row['kind'] ?? row['display_name'] ?? row['remote_username'] ?? row['username'] ?? row['activity_type'] ?? row['name'] ?? row['domain'] ?? row['object_type'] ?? 'Activity'}';
+                  final subtitle =
+                      '${row['domain'] ?? row['remote_domain'] ?? row['actor_url'] ?? row['actor_id'] ?? row['remote_actor_url'] ?? row['phrase'] ?? row['url'] ?? row['object_url'] ?? row['activity_id'] ?? row['created_at'] ?? ''}';
+                  final detail =
+                      '${row['content'] ?? row['summary'] ?? row['payload'] ?? ''}';
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      leading: Icon(widget.section == 'inbox'
+                          ? Icons.inbox_rounded
+                          : widget.section == 'relay'
+                              ? Icons.outbox_rounded
+                              : widget.section == 'controls'
+                                  ? Icons.shield_rounded
+                                  : Icons.public_rounded),
+                      title: Text(title,
+                          style: const TextStyle(fontWeight: FontWeight.w800)),
+                      subtitle: Text(
+                          [subtitle, detail]
+                              .where(
+                                  (value) => value.isNotEmpty && value != '{}')
+                              .join('\\n'),
+                          maxLines: 4,
+                          overflow: TextOverflow.ellipsis),
+                      trailing:
+                          widget.section == 'inbox' && row['processed'] != true
+                              ? IconButton(
+                                  tooltip: 'Mark processed',
+                                  onPressed: () => _markInboxProcessed(row),
+                                  icon: const Icon(
+                                      Icons.check_circle_outline_rounded),
+                                )
+                              : widget.section == 'relay'
+                                  ? Icon(row['delivered'] == true
+                                      ? Icons.check_circle_rounded
+                                      : Icons.schedule_rounded)
+                                  : widget.section == 'controls'
+                                      ? IconButton(
+                                          tooltip: 'Remove safety control',
+                                          onPressed: () =>
+                                              _removeSafetyControl(row),
+                                          icon: const Icon(
+                                              Icons.delete_outline_rounded),
+                                        )
+                                      : null,
+                    ),
+                  );
+                }),
+              ],
+              if (widget.section == 'discover' ||
+                  widget.section == 'organic-discovery')
+                const Text(
+                    'Discover public instances and open social communities.'),
+              if (!_sectionNeedsDedicatedBackend &&
+                  widget.section != 'discover' &&
+                  widget.section != 'organic-discovery')
+                const Text(
+                  'A cached ActivityPub timeline from the open social web.',
+                ),
+              if (_loading)
+                const Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Center(child: CircularProgressIndicator())),
+              if (_error != null)
+                Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(children: [
+                      Text(_error!),
+                      TextButton(onPressed: _load, child: const Text('Retry'))
+                    ])),
+              if (!_loading && _posts.isEmpty && _error == null)
+                const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(
+                        child: Text(
+                            'No federated posts are cached yet. Refresh later.'))),
+              if (!_sectionNeedsDedicatedBackend &&
+                  _visiblePosts.isEmpty &&
+                  !_loading &&
+                  _error == null)
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Center(
+                    child: Text(
+                        'No items are available in ${widget.title.toLowerCase()} yet.'),
+                  ),
+                ),
+              if (_pendingPosts.isNotEmpty && !_sectionNeedsDedicatedBackend)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 12),
+                  child: Center(
+                    child: FilledButton.tonalIcon(
+                      onPressed: () {
+                        setState(() {
+                          _posts =
+                              applyPendingFediversePosts(_posts, _pendingPosts);
+                          _pendingPosts = [];
+                        });
+                        // Scroll to the top only after explicit user intent.
+                        _feedScrollController.animateTo(
+                          0,
+                          duration: const Duration(milliseconds: 220),
+                          curve: Curves.easeOut,
+                        );
+                      },
+                      icon: const Icon(Icons.arrow_upward_rounded),
+                      label: Text(
+                        '${_pendingPosts.length} new ${_pendingPosts.length == 1 ? 'post' : 'posts'} · Show',
+                      ),
+                    ),
+                  ),
+                ),
+              if (!_sectionNeedsDedicatedBackend)
+                ..._visiblePosts.map((p) {
+                  final actor = (p['actor'] as Map<String, dynamic>?) ?? {};
+                  final handle =
+                      '${actor['username'] ?? 'remote'}@${actor['domain'] ?? 'fediverse'}';
+                  final name = '${actor['display_name'] ?? handle}';
+                  final uri = '${p['uri'] ?? ''}';
+                  final url = '${p['url'] ?? uri}';
+                  final sensitive = p['sensitive'] == true ||
+                      '${p['content_warning'] ?? ''}'.isNotEmpty;
+                  return Card(
+                      margin: const EdgeInsets.only(bottom: 10),
+                      child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(children: [
+                                  CircleAvatar(
+                                      backgroundImage:
+                                          '${actor['avatar_url'] ?? ''}'
+                                                  .startsWith('http')
+                                              ? NetworkImage(
+                                                  '${actor['avatar_url']}')
+                                              : null,
+                                      child: '${actor['avatar_url'] ?? ''}'
                                               .startsWith('http')
-                                          ? NetworkImage(
-                                              '${actor['avatar_url']}')
-                                          : null,
-                                  child: '${actor['avatar_url'] ?? ''}'
-                                          .startsWith('http')
-                                      ? null
-                                      : const Icon(
-                                          Icons.person_outline_rounded)),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                  child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                    Text(name,
-                                        style: const TextStyle(
-                                            fontWeight: FontWeight.w800)),
-                                    Text('@$handle',
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall)
-                                  ])),
-                              IconButton(
-                                  tooltip: 'Open remote post',
-                                  onPressed: () => _open(url),
-                                  icon: const Icon(Icons.open_in_new_rounded))
-                            ]),
-                            if (sensitive)
-                              Padding(
-                                  padding: const EdgeInsets.only(top: 10),
-                                  child: Text(
-                                      'Content warning: ${p['content_warning'] ?? 'sensitive media'}',
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          color: Colors.orange))),
-                            Padding(
-                                padding: const EdgeInsets.only(top: 10),
-                                child: Text(
-                                    sensitive
-                                        ? 'This post is marked sensitive. Open the remote post to view its full content.'
-                                        : '${p['content'] ?? p['summary'] ?? ''}',
-                                    maxLines: sensitive ? 3 : 12,
-                                    overflow: TextOverflow.ellipsis)),
-                            if (p['tags'] is List &&
-                                (p['tags'] as List).isNotEmpty)
-                              Padding(
-                                  padding: const EdgeInsets.only(top: 8),
-                                  child: Wrap(
-                                      spacing: 6,
-                                      children: (p['tags'] as List)
-                                          .take(6)
-                                          .map((tag) => Chip(
-                                              label: Text(
-                                                  '#${tag is Map ? tag['name'] ?? '' : tag}'),
-                                              visualDensity:
-                                                  VisualDensity.compact))
-                                          .toList())),
-                            const Divider(height: 24),
-                            Row(children: [
-                              TextButton.icon(
-                                  onPressed: () => _react(p, 'like'),
-                                  icon: Icon(
-                                      _liked.contains(uri)
-                                          ? Icons.favorite
-                                          : Icons.favorite_border,
-                                      color: _liked.contains(uri)
-                                          ? Colors.pink
-                                          : null),
-                                  label: Text('${p['like_count'] ?? 0}')),
-                              TextButton.icon(
-                                  onPressed: () => _react(p, 'boost'),
-                                  icon: Icon(Icons.repeat_rounded,
-                                      color: _boosted.contains(uri)
-                                          ? Colors.green
-                                          : null),
-                                  label: Text('${p['announce_count'] ?? 0}')),
-                              const Spacer(),
-                              Text('${p['reply_count'] ?? 0} replies',
-                                  style: Theme.of(context).textTheme.bodySmall),
-                              IconButton(
-                                  tooltip: 'Share',
-                                  onPressed: () => Share.share('$name\n$url'),
-                                  icon: const Icon(Icons.share_rounded))
-                            ])
-                          ])));
-            }),
-        ]));
+                                          ? null
+                                          : const Icon(
+                                              Icons.person_outline_rounded)),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                      child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                        Text(name,
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w800)),
+                                        Text('@$handle',
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall)
+                                      ])),
+                                  IconButton(
+                                      tooltip: 'Open remote post',
+                                      onPressed: () => _open(url),
+                                      icon:
+                                          const Icon(Icons.open_in_new_rounded))
+                                ]),
+                                if (sensitive)
+                                  Padding(
+                                      padding: const EdgeInsets.only(top: 10),
+                                      child: Text(
+                                          'Content warning: ${p['content_warning'] ?? 'sensitive media'}',
+                                          style: const TextStyle(
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.orange))),
+                                Padding(
+                                    padding: const EdgeInsets.only(top: 10),
+                                    child: Text(
+                                        sensitive
+                                            ? 'This post is marked sensitive. Open the remote post to view its full content.'
+                                            : '${p['content'] ?? p['summary'] ?? ''}',
+                                        maxLines: sensitive ? 3 : 12,
+                                        overflow: TextOverflow.ellipsis)),
+                                if (p['tags'] is List &&
+                                    (p['tags'] as List).isNotEmpty)
+                                  Padding(
+                                      padding: const EdgeInsets.only(top: 8),
+                                      child: Wrap(
+                                          spacing: 6,
+                                          children: (p['tags'] as List)
+                                              .take(6)
+                                              .map((tag) => Chip(
+                                                  label: Text(
+                                                      '#${tag is Map ? tag['name'] ?? '' : tag}'),
+                                                  visualDensity:
+                                                      VisualDensity.compact))
+                                              .toList())),
+                                const Divider(height: 24),
+                                Row(children: [
+                                  TextButton.icon(
+                                      onPressed: () => _react(p, 'like'),
+                                      icon: Icon(
+                                          _liked.contains(uri)
+                                              ? Icons.favorite
+                                              : Icons.favorite_border,
+                                          color: _liked.contains(uri)
+                                              ? Colors.pink
+                                              : null),
+                                      label: Text('${p['like_count'] ?? 0}')),
+                                  TextButton.icon(
+                                      onPressed: () => _react(p, 'boost'),
+                                      icon: Icon(Icons.repeat_rounded,
+                                          color: _boosted.contains(uri)
+                                              ? Colors.green
+                                              : null),
+                                      label:
+                                          Text('${p['announce_count'] ?? 0}')),
+                                  const Spacer(),
+                                  Text('${p['reply_count'] ?? 0} replies',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall),
+                                  IconButton(
+                                      tooltip: 'Share',
+                                      onPressed: () =>
+                                          Share.share('$name\n$url'),
+                                      icon: const Icon(Icons.share_rounded))
+                                ])
+                              ])));
+                }),
+            ]));
   }
 }
