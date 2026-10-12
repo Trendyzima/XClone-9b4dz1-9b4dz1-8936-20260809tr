@@ -67,7 +67,7 @@ class WalletTransactionReadModel {
       type: (json['type'] ?? 'transaction').toString().toLowerCase(),
       direction: json['direction']?.toString().toLowerCase(),
       status: (json['status'] ?? 'unknown').toString().toLowerCase(),
-      reference: json['reference']?.toString(),
+      reference: (json['reference'] ?? json['provider_reference'])?.toString(),
       createdAt: rawDate == null ? null : DateTime.tryParse(rawDate),
     );
   }
