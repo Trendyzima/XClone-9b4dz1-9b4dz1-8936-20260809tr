@@ -121,7 +121,9 @@ Deno.serve(async req=>{
  const {data:s,error}=await client.from("live_streams").select("id,user_id,is_live,title,description,viewer_count,tv_provider,tv_connection_state,tv_last_heartbeat_at,tv_host_peer_id,youtube_broadcast_id,youtube_stream_id,youtube_video_id,youtube_status,youtube_error").eq("id",id).maybeSingle();
  if(error||!s)return json({ok:false,error:{code:"STREAM_NOT_FOUND",message:"TV broadcast was not found."}},404);
  const user=auth.startsWith("Bearer ")?(await client.auth.getUser()).data.user:null,owner=Boolean(user&&user.id===s.user_id);
- const platformOwner=Boolean(user&&(await client.rpc("testagram_is_owner")).data===true);
+ // Stream ownership is sufficient for host controls; the governance RPC is only a fallback.
+ let platformOwner=false;
+ if(user&&!owner){try{platformOwner=(await client.rpc("testagram_is_owner")).data===true;}catch{platformOwner=false;}}
  const contract=async(role:string,extra:any={})=>({provider:s.tv_provider==="testagram"?"testagram":"youtube",output_mode:s.tv_provider==="testagram"?"testagram":"dual",native_p2p:{enabled:true,max_viewers:20,transport:"webrtc",signaling:"supabase-realtime"},room_id:id,room_type:"tv",role,signaling_topic:"tv:"+id,title:s.title,viewer_count:s.viewer_count??0,ice_servers:role==="viewer"?[]:await ice(),playback_id:s.youtube_video_id||s.youtube_broadcast_id||null,playback_url:s.youtube_video_id||s.youtube_broadcast_id?embed(s.youtube_video_id||s.youtube_broadcast_id):null,testagram:{status:s.tv_connection_state||"offline"},youtube:{enabled:s.tv_provider!=="testagram"&&ytApiReady(),status:s.tv_provider==="testagram"?"disabled":s.youtube_status||"disabled",broadcast_id:s.youtube_broadcast_id||null,stream_id:s.youtube_stream_id||null,video_id:s.youtube_video_id||s.youtube_broadcast_id||null,error:s.youtube_error||null},...extra});
  if(action==="start"){
   if(!owner&&!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can start this TV broadcast."}},403);
