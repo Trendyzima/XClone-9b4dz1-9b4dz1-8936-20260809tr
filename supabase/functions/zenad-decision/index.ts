@@ -52,11 +52,33 @@ function matchesTargeting(target: Targeting, user: any, content: any) {
 
 function b64url(bytes: Uint8Array) { let s = ""; for (const x of bytes) s += String.fromCharCode(x); return btoa(s).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/g, ""); }
 
+async function sign(value: string) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(SIGNING_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return b64url(new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(value))));
+}
+
 async function issueEventToken(impressionId: string) {
   const payload = b64url(new TextEncoder().encode(JSON.stringify({ i: impressionId, e: Math.floor(Date.now() / 1000) + 900 })));
-  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(SIGNING_SECRET), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
-  const sig = b64url(new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(payload))));
-  return `${payload}.${sig}`;
+  return payload + "." + await sign(payload);
+}
+
+function clientAddress(req: Request) {
+  return req.headers.get("cf-connecting-ip")?.trim()
+    || req.headers.get("x-real-ip")?.trim()
+    || req.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
+    || "unknown-client";
+}
+
+async function consumeRateLimit(req: Request) {
+  // HMAC the address so the database never stores raw IP addresses.
+  const keyHash = await sign("serve:" + clientAddress(req));
+  const { data, error } = await admin.rpc("testagram_consume_ad_rate_limit", {
+    p_key_hash: keyHash,
+    p_window_seconds: 60,
+    p_limit: 60,
+  });
+  if (error) throw error;
+  return data === true;
 }
 
 Deno.serve(async req => {
@@ -64,6 +86,9 @@ Deno.serve(async req => {
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
   if (!SERVICE || !SIGNING_SECRET) return json({ error: "Ad serving is not configured" }, 503);
   try {
+    if (!(await consumeRateLimit(req))) {
+      return json({ error: "Ad request rate limit exceeded" }, 429);
+    }
     const body = await req.json();
     const slotCode = String(body.slotCode ?? "feed-top");
     const requestId = String(body.id ?? crypto.randomUUID());
