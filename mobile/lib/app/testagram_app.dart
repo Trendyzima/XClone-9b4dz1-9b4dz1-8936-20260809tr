@@ -15,6 +15,7 @@ import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/settings/settings_page.dart';
 import '../features/tv/tv_page.dart';
+import '../features/tv/tv_channel_profile_page.dart';
 import '../features/threads/threads_page.dart';
 import '../features/threads/thread_detail_page.dart';
 import '../features/communities/communities_page.dart';
@@ -219,6 +220,12 @@ class _TestagramAppState extends State<TestagramApp> {
             GoRoute(
               path: '/tv',
               builder: (_, __) => const TvPage(title: 'TikVTV'),
+            ),
+            GoRoute(
+              path: '/channel/:handle',
+              builder: (_, state) => TvChannelProfilePage(
+                handle: state.pathParameters['handle'] ?? '',
+              ),
             ),
             GoRoute(
               path: '/iptv',
