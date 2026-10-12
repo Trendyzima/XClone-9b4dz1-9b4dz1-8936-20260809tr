@@ -75,7 +75,7 @@ jobs:
         run: flutter pub get
       - name: Enforce formatting
         working-directory: mobile
-        run: dart format --output=show lib/features/feed/post_interaction_page.dart
+        run: dart format --output=none --set-exit-if-changed lib test
       - name: Analyze Flutter source
         working-directory: mobile
         run: flutter analyze --fatal-infos --fatal-warnings
