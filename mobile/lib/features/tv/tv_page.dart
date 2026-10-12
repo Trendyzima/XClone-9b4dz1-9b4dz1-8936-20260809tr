@@ -13,6 +13,7 @@ import 'package:video_player/video_player.dart';
 import '../../core/config/app_config.dart';
 import 'tv_web_player.dart';
 import 'tv_playback_policy.dart';
+import '../feed/sponsored_ad_service.dart';
 
 class TvPage extends StatefulWidget {
   const TvPage({
@@ -44,6 +45,10 @@ class _TvPageState extends State<TvPage> {
   int _playGeneration = 0;
   String? _playbackError;
   String? _webPlaybackUrl;
+  SponsoredAd? _tvSponsoredAd;
+  bool _tvAdRequestedForGeneration = false;
+  late final SponsoredAdService _adService =
+      SponsoredAdService.forClient(_client);
   SupabaseClient get _client => Supabase.instance.client;
 
   @override
@@ -57,6 +62,7 @@ class _TvPageState extends State<TvPage> {
   void dispose() {
     _player?.dispose();
     _youtubePlayer?.close();
+    _adService.close();
     super.dispose();
   }
 
@@ -313,6 +319,8 @@ class _TvPageState extends State<TvPage> {
       _player = null;
       _youtubePlayer = null;
       _webPlaybackUrl = null;
+      _tvSponsoredAd = null;
+      _tvAdRequestedForGeneration = false;
       _playerLoading = true;
       _playbackError = null;
     });
@@ -348,6 +356,7 @@ class _TvPageState extends State<TvPage> {
         }
         await player.setLooping(true);
         await player.play();
+        unawaited(_loadTvSponsoredAd(channel, generation));
         return;
       }
 
@@ -384,6 +393,7 @@ class _TvPageState extends State<TvPage> {
           }
           _youtubePlayer = controller;
           if (mounted) setState(() {});
+          unawaited(_loadTvSponsoredAd(channel, generation));
           return;
         }
       }
@@ -413,6 +423,7 @@ class _TvPageState extends State<TvPage> {
       }
       await player.setLooping(true);
       await player.play();
+      unawaited(_loadTvSponsoredAd(channel, generation));
     } catch (_) {
       if (generation != _playGeneration) return;
       _playbackError =
@@ -428,6 +439,30 @@ class _TvPageState extends State<TvPage> {
         setState(() => _playerLoading = false);
       }
     }
+  }
+
+  Future<void> _loadTvSponsoredAd(
+    Map<String, dynamic> channel,
+    int playGeneration,
+  ) async {
+    if (!mounted ||
+        !tvCanRequestSponsoredAd(
+          hasPlaybackStarted: true,
+          alreadyRequested: _tvAdRequestedForGeneration,
+          isCurrentGeneration: playGeneration == _playGeneration,
+        )) {
+      return;
+    }
+    _tvAdRequestedForGeneration = true;
+    final ad = await _adService.requestAd(
+      slotCode: 'iptv-overlay',
+      content: {
+        'genres': ['television', '${channel['category'] ?? 'live'}'],
+        'keywords': ['${channel['title'] ?? channel['name'] ?? 'live tv'}'],
+      },
+    );
+    if (!mounted || playGeneration != _playGeneration) return;
+    setState(() => _tvSponsoredAd = ad);
   }
 
   Widget _buildVerticalFeed(BuildContext context) {
@@ -518,6 +553,7 @@ class _TvPageState extends State<TvPage> {
                         final description =
                             '${channel['description'] ?? channel['category'] ?? 'Live on Testagram'}';
                         final thumb = '${channel['thumbnail_url'] ?? ''}';
+                        final playbackGeneration = _playGeneration;
                         return GestureDetector(
                           // Let embedded browser/YouTube controls receive taps;
                           // native video can still use the card tap to pause.
@@ -552,6 +588,12 @@ class _TvPageState extends State<TvPage> {
                                     _webPlaybackUrl != null)
                                   TvWebPlayer(
                                     url: _webPlaybackUrl!,
+                                    onPlaybackReady: () => unawaited(
+                                      _loadTvSponsoredAd(
+                                        channel,
+                                        playbackGeneration,
+                                      ),
+                                    ),
                                     onError: (message) {
                                       if (mounted) {
                                         setState(
@@ -600,6 +642,19 @@ class _TvPageState extends State<TvPage> {
                                     ),
                                   ),
                                 ),
+                                if (isCurrent && _tvSponsoredAd != null)
+                                  Positioned(
+                                    top: 52,
+                                    left: 12,
+                                    right: 72,
+                                    child: SponsoredAdCard(
+                                      key: ValueKey(
+                                          _tvSponsoredAd!.impressionId),
+                                      ad: _tvSponsoredAd!,
+                                      service: _adService,
+                                      compact: true,
+                                    ),
+                                  ),
                                 Positioned(
                                   left: 16,
                                   right: 88,
