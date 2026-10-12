@@ -801,6 +801,43 @@ jobs:
           upsert_dns "rsend.testagram.site" "CNAME" "send.forge.rmta.net"
           echo "Resend DNS authentication records reconciled."
 
+      - name: Deploy Cloudflare Worker and Custom Domains
+        shell: bash
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || secrets.TESTAGRAM_CLOUDFLARE_ACCOUNT_ID }}
+          NPM_CONFIG_LOGLEVEL: error
+          NODE_OPTIONS: --no-deprecation
+        run: |
+          set -euo pipefail
+          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is missing from the production environment."; exit 1; }
+          [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::Cloudflare account ID is missing or invalid. Configure CLOUDFLARE_ACCOUNT_ID or TESTAGRAM_CLOUDFLARE_ACCOUNT_ID in the production environment."; exit 1; }
+          echo "Preparing immutable build-time production revision metadata..."
+          cat > cloudflare/deployment-meta.ts <<'META'
+          export const DEPLOYED_COMMIT_SHA = '${{ steps.target.outputs.sha }}';
+          META
+          grep -F "${{ steps.target.outputs.sha }}" cloudflare/deployment-meta.ts >/dev/null
+          echo "Build-time revision metadata locked to ${{ steps.target.outputs.sha }}."
+          echo "Deploying testagram-web to Cloudflare and applying configured Custom Domains..."
+          npx wrangler deploy --name testagram-web
+          echo "Reasserting the production Custom Domain -> Worker attachment..."
+          domain_status="$(curl -sS -o /tmp/testagram-worker-domain.json -w '%{http_code}' \
+            -X PUT \
+            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            --data '{"hostname":"testagram.site","service":"testagram-web","zone_id":"${{ secrets.CLOUDFLARE_ZONE_ID }}","zone_name":"testagram.site"}' \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/domains")"
+          if [[ "$domain_status" != "200" ]] || ! jq -e '.success == true and .result.hostname == "testagram.site" and .result.service == "testagram-web"' /tmp/testagram-worker-domain.json >/dev/null 2>&1; then
+            echo "::error::Cloudflare Custom Domain attachment did not resolve to Worker testagram-web (HTTP $domain_status)."
+            cat /tmp/testagram-worker-domain.json
+            exit 1
+          fi
+          echo "ActivityPub proxy is deployed with cache bypass; skipping privileged cache purge."
+          echo "The public contract probe below is authoritative for endpoint correctness."
+          echo "Verified Custom Domain testagram.site is attached to Worker testagram-web."
+          echo "Cloudflare Worker deployment and Custom Domain reconciliation completed."
+
       - name: Synchronize Resend runtime secret when provisioned
         shell: bash
         env:
@@ -839,43 +876,6 @@ jobs:
           printf '%s' "$key" | npx wrangler secret put SUPABASE_SERVICE_ROLE_KEY --name testagram-web
           unset key SUPABASE_SERVICE_ROLE_KEY SUPABASE_SECRET_KEY
           echo "Sitemap database credential synchronized to Worker testagram-web without printing its value."
-
-      - name: Deploy Cloudflare Worker and Custom Domains
-        shell: bash
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID || secrets.TESTAGRAM_CLOUDFLARE_ACCOUNT_ID }}
-          NPM_CONFIG_LOGLEVEL: error
-          NODE_OPTIONS: --no-deprecation
-        run: |
-          set -euo pipefail
-          [[ -n "$CLOUDFLARE_API_TOKEN" ]] || { echo "::error::CLOUDFLARE_API_TOKEN is missing from the production environment."; exit 1; }
-          [[ "$CLOUDFLARE_ACCOUNT_ID" =~ ^[0-9a-fA-F]{32}$ ]] || { echo "::error::Cloudflare account ID is missing or invalid. Configure CLOUDFLARE_ACCOUNT_ID or TESTAGRAM_CLOUDFLARE_ACCOUNT_ID in the production environment."; exit 1; }
-          echo "Preparing immutable build-time production revision metadata..."
-          cat > cloudflare/deployment-meta.ts <<'META'
-          export const DEPLOYED_COMMIT_SHA = '${{ steps.target.outputs.sha }}';
-          META
-          grep -F "${{ steps.target.outputs.sha }}" cloudflare/deployment-meta.ts >/dev/null
-          echo "Build-time revision metadata locked to ${{ steps.target.outputs.sha }}."
-          echo "Deploying testagram-web to Cloudflare and applying configured Custom Domains..."
-          npx wrangler deploy --name testagram-web
-          echo "Reasserting the production Custom Domain -> Worker attachment..."
-          domain_status="$(curl -sS -o /tmp/testagram-worker-domain.json -w '%{http_code}' \
-            -X PUT \
-            -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
-            -H "Content-Type: application/json" \
-            -H "Accept: application/json" \
-            --data '{"hostname":"testagram.site","service":"testagram-web","zone_id":"${{ secrets.CLOUDFLARE_ZONE_ID }}","zone_name":"testagram.site"}' \
-            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/workers/domains")"
-          if [[ "$domain_status" != "200" ]] || ! jq -e '.success == true and .result.hostname == "testagram.site" and .result.service == "testagram-web"' /tmp/testagram-worker-domain.json >/dev/null 2>&1; then
-            echo "::error::Cloudflare Custom Domain attachment did not resolve to Worker testagram-web (HTTP $domain_status)."
-            cat /tmp/testagram-worker-domain.json
-            exit 1
-          fi
-          echo "ActivityPub proxy is deployed with cache bypass; skipping privileged cache purge."
-          echo "The public contract probe below is authoritative for endpoint correctness."
-          echo "Verified Custom Domain testagram.site is attached to Worker testagram-web."
-          echo "Cloudflare Worker deployment and Custom Domain reconciliation completed."
 
       - name: Verify Cloudflare production domain
         shell: bash
