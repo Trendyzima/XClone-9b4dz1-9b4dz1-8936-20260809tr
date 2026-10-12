@@ -50,7 +50,7 @@ jobs:
       - name: Regenerate and verify Flutter route parity
         run: |
           node scripts/update-flutter-route-parity.mjs
-          node -e "const d = JSON.parse(require('node:fs').readFileSync('docs/flutter-route-parity.json', 'utf8')); if (d.routes.length < 200 || d.counts.legacy_web_fallbacks < 1) process.exit(1); console.log(JSON.stringify(d.counts));"
+          node -e "const d = JSON.parse(require('node:fs').readFileSync('docs/flutter-route-parity.json', 'utf8')); if (d.routes.length < 200 || d.counts.native_shell_routes < 1 || d.counts.legacy_web_fallbacks !== 0) process.exit(1); console.log(JSON.stringify(d.counts));"
           git diff --exit-code -- docs/flutter-route-parity.json
       - name: Prevent Flutter route coverage regressions
         run: node scripts/validate-flutter-route-progress.mjs
