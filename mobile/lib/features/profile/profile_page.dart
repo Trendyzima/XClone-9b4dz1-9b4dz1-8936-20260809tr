@@ -52,15 +52,15 @@ class _ProfilePageState extends State<ProfilePage> {
       }
       final profile = widget.username == null
           ? await _client
-                .from('profiles')
-                .select('*')
-                .eq('id', uid!)
-                .maybeSingle()
+              .from('profiles')
+              .select('*')
+              .eq('id', uid!)
+              .maybeSingle()
           : await _client
-                .from('profiles')
-                .select('*')
-                .eq('username', widget.username!)
-                .maybeSingle();
+              .from('profiles')
+              .select('*')
+              .eq('username', widget.username!)
+              .maybeSingle();
       if (profile == null) throw Exception('This profile could not be found.');
       final targetId = '${profile['id']}';
       final results = await Future.wait([
@@ -97,12 +97,10 @@ class _ProfilePageState extends State<ProfilePage> {
       }
       final people = <Map<String, dynamic>>[];
       if (widget.section == 'followers' || widget.section == 'following') {
-        final relationColumn = widget.section == 'followers'
-            ? 'following_id'
-            : 'follower_id';
-        final personColumn = widget.section == 'followers'
-            ? 'follower_id'
-            : 'following_id';
+        final relationColumn =
+            widget.section == 'followers' ? 'following_id' : 'follower_id';
+        final personColumn =
+            widget.section == 'followers' ? 'follower_id' : 'following_id';
         final relationships = await _client
             .from('follows')
             .select('follower_id,following_id')
@@ -199,9 +197,8 @@ class _ProfilePageState extends State<ProfilePage> {
     if (session == null) {
       throw Exception('Sign in again before uploading profile media.');
     }
-    final extension = file.name.contains('.')
-        ? file.name.split('.').last.toLowerCase()
-        : '';
+    final extension =
+        file.name.contains('.') ? file.name.split('.').last.toLowerCase() : '';
     const mimeByExtension = <String, String>{
       'jpg': 'image/jpeg',
       'jpeg': 'image/jpeg',
@@ -346,12 +343,12 @@ class _ProfilePageState extends State<ProfilePage> {
                                   if (dialogContext.mounted) {
                                     ScaffoldMessenger.of(dialogContext)
                                         .showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Camera access failed. Check permission and retry.',
-                                            ),
-                                          ),
-                                        );
+                                      const SnackBar(
+                                        content: Text(
+                                          'Camera access failed. Check permission and retry.',
+                                        ),
+                                      ),
+                                    );
                                   }
                                 } finally {
                                   if (dialogContext.mounted) {
@@ -394,12 +391,12 @@ class _ProfilePageState extends State<ProfilePage> {
                                   if (dialogContext.mounted) {
                                     ScaffoldMessenger.of(dialogContext)
                                         .showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Photo selection failed. Check media permissions and retry.',
-                                            ),
-                                          ),
-                                        );
+                                      const SnackBar(
+                                        content: Text(
+                                          'Photo selection failed. Check media permissions and retry.',
+                                        ),
+                                      ),
+                                    );
                                   }
                                 } finally {
                                   if (dialogContext.mounted) {
@@ -426,12 +423,12 @@ class _ProfilePageState extends State<ProfilePage> {
                                       if (dialogContext.mounted) {
                                         ScaffoldMessenger.of(dialogContext)
                                             .showSnackBar(
-                                              const SnackBar(
-                                                content: Text(
-                                                  'Cover image must be 5 MB or smaller.',
-                                                ),
-                                              ),
-                                            );
+                                          const SnackBar(
+                                            content: Text(
+                                              'Cover image must be 5 MB or smaller.',
+                                            ),
+                                          ),
+                                        );
                                       }
                                     } else {
                                       setDialogState(() => coverFile = file);
@@ -441,12 +438,12 @@ class _ProfilePageState extends State<ProfilePage> {
                                   if (dialogContext.mounted) {
                                     ScaffoldMessenger.of(dialogContext)
                                         .showSnackBar(
-                                          const SnackBar(
-                                            content: Text(
-                                              'Cover selection failed. Check media permissions and retry.',
-                                            ),
-                                          ),
-                                        );
+                                      const SnackBar(
+                                        content: Text(
+                                          'Cover selection failed. Check media permissions and retry.',
+                                        ),
+                                      ),
+                                    );
                                   }
                                 } finally {
                                   if (dialogContext.mounted) {
@@ -492,13 +489,13 @@ class _ProfilePageState extends State<ProfilePage> {
               onPressed: picking
                   ? null
                   : () => Navigator.pop(dialogContext, {
-                      'display_name': name.text.trim(),
-                      'bio': bio.text.trim(),
-                      'website': website.text.trim(),
-                      'location': location.text.trim(),
-                      'avatar': avatarFile,
-                      'cover': coverFile,
-                    }),
+                        'display_name': name.text.trim(),
+                        'bio': bio.text.trim(),
+                        'website': website.text.trim(),
+                        'location': location.text.trim(),
+                        'avatar': avatarFile,
+                        'cover': coverFile,
+                      }),
               child: const Text('Save'),
             ),
           ],
@@ -526,9 +523,8 @@ class _ProfilePageState extends State<ProfilePage> {
       if (cover != null) {
         update['cover_url'] = await _uploadProfileMedia(cover, 'cover');
       }
-      final result = await _client
-          .rpc('profile_update', params: {'p_input': update})
-          .timeout(const Duration(seconds: 20));
+      final result = await _client.rpc('profile_update',
+          params: {'p_input': update}).timeout(const Duration(seconds: 20));
       if (result is! Map || result['updated'] != true) {
         throw Exception('The server did not confirm the profile update.');
       }
@@ -598,7 +594,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   const SizedBox(height: 12),
                   Text(
                     name,
-                    style: Theme.of(context).textTheme.titleLarge
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
                         ?.copyWith(fontWeight: FontWeight.w800),
                   ),
                   Text(
@@ -654,7 +652,9 @@ class _ProfilePageState extends State<ProfilePage> {
               widget.section == 'following') ...[
             Text(
               widget.section == 'followers' ? 'Followers' : 'Following',
-              style: Theme.of(context).textTheme.titleMedium
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
                   ?.copyWith(fontWeight: FontWeight.w800),
             ),
             if (_loading && _people.isEmpty)
@@ -678,8 +678,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 margin: const EdgeInsets.only(top: 8),
                 child: ListTile(
                   leading: CircleAvatar(
-                    backgroundImage:
-                        '${person['avatar_url'] ?? ''}'.startsWith('http')
+                    backgroundImage: '${person['avatar_url'] ?? ''}'
+                            .startsWith('http')
                         ? CachedNetworkImageProvider('${person['avatar_url']}')
                         : null,
                     child: '${person['avatar_url'] ?? ''}'.startsWith('http')
@@ -693,15 +693,17 @@ class _ProfilePageState extends State<ProfilePage> {
                   onTap: '${person['username'] ?? ''}'.isEmpty
                       ? null
                       : () => context.go(
-                          '/profile/${Uri.encodeComponent('${person['username']}')}',
-                        ),
+                            '/profile/${Uri.encodeComponent('${person['username']}')}',
+                          ),
                 ),
               ),
             ),
           ] else ...[
             Text(
               '${_isOwnProfile ? 'Your' : 'Their'} posts',
-              style: Theme.of(context).textTheme.titleMedium
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
                   ?.copyWith(fontWeight: FontWeight.w800),
             ),
             if (_loading && _posts.isEmpty)
@@ -746,13 +748,15 @@ class _Stat extends StatelessWidget {
   final String label;
   @override
   Widget build(BuildContext context) => Column(
-    children: [
-      Text(
-        value,
-        style: Theme.of(context).textTheme.titleMedium
-            ?.copyWith(fontWeight: FontWeight.w800),
-      ),
-      Text(label, style: Theme.of(context).textTheme.bodySmall),
-    ],
-  );
+        children: [
+          Text(
+            value,
+            style: Theme.of(context)
+                .textTheme
+                .titleMedium
+                ?.copyWith(fontWeight: FontWeight.w800),
+          ),
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      );
 }
