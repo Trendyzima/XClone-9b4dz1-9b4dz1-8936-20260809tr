@@ -174,7 +174,8 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
       setState(() {
         _submitting = false;
         _status = 'failed';
-        _message = 'Could not confirm the M-Pesa request: ${error.toString().replaceFirst('Bad state: ', '')}';
+        _message =
+            'Could not confirm the M-Pesa request: ${error.toString().replaceFirst('Bad state: ', '')}';
       });
     }
   }
@@ -210,7 +211,8 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
       final data = response.data;
       if (response.status >= 400 || data is! Map || data['ok'] != true) {
         if (!silent && mounted) {
-          setState(() => _message = 'Status is not confirmed yet. Retry the status check.');
+          setState(() => _message =
+              'Status is not confirmed yet. Retry the status check.');
         }
         return;
       }
@@ -241,7 +243,8 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
       }
     } catch (_) {
       if (!silent && mounted) {
-        setState(() => _message = 'Could not check payment status. The payment remains unconfirmed.');
+        setState(() => _message =
+            'Could not check payment status. The payment remains unconfirmed.');
       }
     } finally {
       _checkingStatus = false;
@@ -408,3 +411,6 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
     );
   }
 }
+
+
+
