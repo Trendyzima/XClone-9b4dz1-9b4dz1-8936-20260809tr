@@ -1,0 +1,29 @@
+name: Temporary native Dart formatter diff
+on:
+  pull_request:
+    paths:
+      - 'mobile/lib/app/testagram_app.dart'
+      - 'mobile/lib/features/fediverse/fediverse_page.dart'
+      - 'mobile/lib/features/tv/tv_page.dart'
+      - 'mobile/lib/features/tv/tv_studio_page.dart'
+      - 'mobile/lib/features/tv/tv_channel_profile_page.dart'
+      - '.github/workflows/format-native-diff.yml'
+permissions:
+  contents: read
+jobs:
+  formatter-diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Resolve Flutter dependencies
+        working-directory: mobile
+        run: flutter pub get
+      - name: Format and print exact patch
+        working-directory: mobile
+        run: |
+          dart format lib/app/testagram_app.dart lib/features/fediverse/fediverse_page.dart lib/features/tv/tv_page.dart lib/features/tv/tv_studio_page.dart lib/features/tv/tv_channel_profile_page.dart
+          git diff -- lib/app/testagram_app.dart lib/features/fediverse/fediverse_page.dart lib/features/tv/tv_page.dart lib/features/tv/tv_studio_page.dart lib/features/tv/tv_channel_profile_page.dart
