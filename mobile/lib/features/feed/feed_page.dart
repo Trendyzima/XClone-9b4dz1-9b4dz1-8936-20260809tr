@@ -32,6 +32,7 @@ class _FeedPageState extends State<FeedPage> {
   String? _error;
   int _page = 0;
   int _loadGeneration = 0;
+  int _refreshGeneration = 0;
   SponsoredAd? _sponsoredAd;
   late final SponsoredAdService _adService =
       SponsoredAdService.forClient(_client);
@@ -71,6 +72,8 @@ class _FeedPageState extends State<FeedPage> {
     }
     _loadGeneration = FeedLoadPolicy.nextGeneration(_loadGeneration);
     final generation = _loadGeneration;
+    if (reset) _refreshGeneration++;
+    final refreshGeneration = _refreshGeneration;
     if (reset) {
       _page = 0;
       _hasMore = true;
@@ -209,7 +212,7 @@ class _FeedPageState extends State<FeedPage> {
         _hasMore = rows.length == _pageSize;
       });
       if (reset && _posts.length >= 5) {
-        unawaited(_loadSponsoredAd(generation));
+        unawaited(_loadSponsoredAd(refreshGeneration));
       }
     } catch (error) {
       if (mounted &&
@@ -230,15 +233,15 @@ class _FeedPageState extends State<FeedPage> {
     }
   }
 
-  Future<void> _loadSponsoredAd(int generation) async {
+  Future<void> _loadSponsoredAd(int refreshGeneration) async {
     final ad = await _adService.requestAd(
       slotCode: 'feed-inline',
       content: const {'genres': ['social', 'community']},
     );
     if (!mounted ||
         !FeedLoadPolicy.isCurrent(
-          requestGeneration: generation,
-          currentGeneration: _loadGeneration,
+          requestGeneration: refreshGeneration,
+          currentGeneration: _refreshGeneration,
         )) {
       return;
     }
@@ -851,6 +854,7 @@ class _FeedPageState extends State<FeedPage> {
                       _posts.length >= 5 &&
                       index == 5) {
                     return SponsoredAdCard(
+                      key: ValueKey(_sponsoredAd!.impressionId),
                       ad: _sponsoredAd!,
                       service: _adService,
                     );
