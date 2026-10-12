@@ -237,6 +237,23 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  String get _emptySectionMessage {
+    switch (widget.section) {
+      case 'threads':
+        return 'No threads yet.';
+      case 'replies':
+        return 'No replies yet.';
+      case 'media':
+        return 'No media posts yet.';
+      case 'videos':
+        return 'No videos yet.';
+      case 'likes':
+        return 'No liked posts to show.';
+      default:
+        return 'No posts yet.';
+    }
+  }
+
   String get _sectionHeading {
     final owner = _isOwnProfile ? 'Your' : 'Their';
     switch (widget.section) {
@@ -839,10 +856,14 @@ class _ProfilePageState extends State<ProfilePage> {
                 padding: EdgeInsets.all(24),
                 child: Center(child: CircularProgressIndicator()),
               ),
-            if (!_loading && _posts.isEmpty && _error == null)
-              const Padding(
-                padding: EdgeInsets.all(24),
-                child: Center(child: Text('No posts yet.')),
+            if (!_loading &&
+                _posts.isEmpty &&
+                _error == null &&
+                !const {'podcasts', 'series', 'tips', 'gifts', 'analytics'}
+                    .contains(widget.section))
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Center(child: Text(_emptySectionMessage)),
               ),
             ..._posts.map(
               (post) => Card(
