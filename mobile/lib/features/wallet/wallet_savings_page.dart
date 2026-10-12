@@ -18,16 +18,14 @@ class WalletSavingsSummary {
   final String currency;
   final String status;
 
-  double get remainingCapacity => max(0, savingsLimit - savingsBalance);
+  double get remainingCapacity => max(0.0, savingsLimit - savingsBalance);
 
   factory WalletSavingsSummary.fromJson(Map<String, dynamic> json) {
     return WalletSavingsSummary(
       walletBalance: _amount(json['balance_kes']),
       savingsBalance: _amount(json['savings_kes']),
       savingsLimit: _amount(json['savings_limit_kes'], fallback: 20000),
-      currency: (json['currency']?.toString().toUpperCase() == 'KES')
-          ? 'KES'
-          : 'KES',
+      currency: 'KES',
       status: (json['status'] ?? 'unknown').toString(),
     );
   }
