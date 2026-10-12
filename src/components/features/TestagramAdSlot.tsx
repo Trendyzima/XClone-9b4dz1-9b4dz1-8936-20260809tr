@@ -99,16 +99,72 @@ export function TestagramAdSlot({ placement, context, className = '', compact = 
   useEffect(() => {
     const node = cardRef.current;
     if (!node || !ad || viewableSentRef.current) return;
+
+    const requiredVisibleMs = 1000;
+    let visibleSince: number | null = null;
+    let viewabilityTimer: number | null = null;
+
+    const resetCandidate = () => {
+      if (viewabilityTimer !== null) window.clearTimeout(viewabilityTimer);
+      viewabilityTimer = null;
+      visibleSince = null;
+    };
+
     const observer = new IntersectionObserver((entries) => {
-      const visible = entries.some((entry) => entry.isIntersecting && entry.intersectionRatio >= 0.5);
-      if (visible && !viewableSentRef.current) {
-        viewableSentRef.current = true;
-        event('viewable');
-        observer.disconnect();
+      for (const entry of entries) {
+        if (entry.target !== node) continue;
+        const visible = document.visibilityState === 'visible'
+          && entry.isIntersecting
+          && entry.intersectionRatio >= 0.5;
+        if (!visible) {
+          resetCandidate();
+          continue;
+        }
+        if (visibleSince !== null || viewableSentRef.current) continue;
+
+        const startedAt = performance.now();
+        visibleSince = startedAt;
+        const confirmViewable = () => {
+          if (viewableSentRef.current || visibleSince !== startedAt) return;
+          if (document.visibilityState !== 'visible') {
+            resetCandidate();
+            return;
+          }
+          const visibleForMs = performance.now() - startedAt;
+          if (visibleForMs < requiredVisibleMs) {
+            viewabilityTimer = window.setTimeout(confirmViewable, requiredVisibleMs - visibleForMs);
+            return;
+          }
+
+          viewableSentRef.current = true;
+          event('viewable', {
+            visibleFraction: entry.intersectionRatio,
+            continuousVisibleMs: Math.round(visibleForMs),
+          });
+          resetCandidate();
+          observer.disconnect();
+        };
+        viewabilityTimer = window.setTimeout(confirmViewable, requiredVisibleMs);
       }
-    }, { threshold: [0.5] });
+    }, { threshold: [0, 0.5] });
+
+    const handleDocumentVisibility = () => {
+      if (document.visibilityState !== 'visible') {
+        resetCandidate();
+        return;
+      }
+      // Force a fresh intersection entry after returning to the foreground.
+      observer.unobserve(node);
+      observer.observe(node);
+    };
+
+    document.addEventListener('visibilitychange', handleDocumentVisibility);
     observer.observe(node);
-    return () => observer.disconnect();
+    return () => {
+      document.removeEventListener('visibilitychange', handleDocumentVisibility);
+      resetCandidate();
+      observer.disconnect();
+    };
   }, [ad?.impression_id]);
 
   const event = (eventType: string, metadata: Record<string, unknown> = {}) => {
