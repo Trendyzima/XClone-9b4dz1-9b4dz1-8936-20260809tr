@@ -216,12 +216,35 @@ class _TestagramAppState extends State<TestagramApp> {
                 repliesOnly: true,
               ),
             ),
-            GoRoute(path: '/tv', builder: (_, __) => const TvPage()),
-            // Legacy IPTV/channel entry points share the native TV catalogue
-            // and player while provider-specific parity is verified.
-            GoRoute(path: '/iptv', builder: (_, __) => const TvPage()),
-            GoRoute(path: '/tv/channels', builder: (_, __) => const TvPage()),
-            GoRoute(path: '/tv/reels', builder: (_, __) => const TvPage()),
+            GoRoute(
+              path: '/tv',
+              builder: (_, __) => const TvPage(title: 'TikVTV'),
+            ),
+            GoRoute(
+              path: '/iptv',
+              builder: (_, __) => const TvPage(title: 'IPTV · TikVTV'),
+            ),
+            GoRoute(
+              path: '/tv/channels',
+              builder: (_, __) => const TvPage(
+                title: 'TV channels',
+                initialVerticalMode: false,
+              ),
+            ),
+            GoRoute(
+              path: '/tv/reels',
+              builder: (_, __) => const TvPage(
+                title: 'TV Reels',
+                initialVerticalMode: true,
+              ),
+            ),
+            GoRoute(
+              path: '/tv/live/:streamId',
+              builder: (_, state) => TvPage(
+                title: 'Live broadcast',
+                streamId: state.pathParameters['streamId'],
+              ),
+            ),
             GoRoute(path: '/videos', builder: (_, __) => const VideosPage()),
             GoRoute(
               path: '/shorts',
@@ -297,19 +320,101 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/fediverse/feed',
-              builder: (_, __) => const FediversePage(),
+              builder: (_, __) => const FediversePage(section: 'feed'),
             ),
             GoRoute(
               path: '/fediverse/discover',
-              builder: (_, __) => const FediversePage(),
+              builder: (_, __) => const FediversePage(section: 'discover'),
             ),
             GoRoute(
               path: '/fediverse/organic-discovery',
-              builder: (_, __) => const FediversePage(),
+              builder: (_, __) =>
+                  const FediversePage(section: 'organic-discovery'),
             ),
             GoRoute(
               path: '/fediverse/instances',
               builder: (_, __) => const FediversePage(instancesOnly: true),
+            ),
+            GoRoute(
+              path: '/fediverse/mastodon',
+              builder: (_, __) => const FediversePage(section: 'mastodon'),
+            ),
+            GoRoute(
+              path: '/fediverse/inbox',
+              builder: (_, __) => const FediversePage(section: 'inbox'),
+            ),
+            GoRoute(
+              path: '/fediverse/relay',
+              builder: (_, __) => const FediversePage(section: 'relay'),
+            ),
+            GoRoute(
+              path: '/fediverse/analytics',
+              builder: (_, __) => const FediversePage(section: 'analytics'),
+            ),
+            GoRoute(
+              path: '/fediverse/identity',
+              builder: (_, __) => const FediversePage(section: 'identity'),
+            ),
+            GoRoute(
+              path: '/fediverse/controls',
+              builder: (_, __) => const FediversePage(section: 'controls'),
+            ),
+            GoRoute(
+              path: '/fediverse/profile',
+              builder: (_, __) => const FediversePage(section: 'profile'),
+            ),
+            GoRoute(
+              path: '/fediverse/profile/posts',
+              builder: (_, __) => const FediversePage(section: 'posts'),
+            ),
+            GoRoute(
+              path: '/fediverse/profile/threads',
+              builder: (_, __) => const FediversePage(section: 'threads'),
+            ),
+            GoRoute(
+              path: '/fediverse/profile/replies',
+              builder: (_, __) => const FediversePage(section: 'replies'),
+            ),
+            GoRoute(
+              path: '/fediverse/profile/media',
+              builder: (_, __) => const FediversePage(section: 'media'),
+            ),
+            GoRoute(
+              path: '/fediverse/profile/videos',
+              builder: (_, __) => const FediversePage(section: 'videos'),
+            ),
+            GoRoute(
+              path: '/fediverse/profile/podcasts',
+              builder: (_, __) => const FediversePage(section: 'podcasts'),
+            ),
+            GoRoute(
+              path: '/fediverse/profile/series',
+              builder: (_, __) => const FediversePage(section: 'series'),
+            ),
+            GoRoute(
+              path: '/fediverse/profile/likes',
+              builder: (_, __) => const FediversePage(section: 'likes'),
+            ),
+            GoRoute(
+              path: '/fediverse/profile/tips',
+              builder: (_, __) => const FediversePage(section: 'tips'),
+            ),
+            GoRoute(
+              path: '/fediverse/profile/gifts',
+              builder: (_, __) => const FediversePage(section: 'gifts'),
+            ),
+            GoRoute(
+              path: '/fediverse/profile/followers',
+              builder: (_, __) => const FediversePage(section: 'followers'),
+            ),
+            GoRoute(
+              path: '/fediverse/profile/following',
+              builder: (_, __) => const FediversePage(section: 'following'),
+            ),
+            GoRoute(
+              path: '/fediverse/profile/analytics',
+              builder: (_, __) =>
+                  const FediversePage(section: 'profile-analytics'),
             ),
             GoRoute(path: '/spaces', builder: (_, __) => const SpacesPage()),
             GoRoute(
@@ -335,6 +440,19 @@ class _TestagramAppState extends State<TestagramApp> {
             GoRoute(
               path: '/tv-studio',
               builder: (_, __) => const TvStudioPage(),
+            ),
+            GoRoute(
+              path: '/tv-studio/:streamId',
+              builder: (_, state) => TvStudioPage(
+                streamId: state.pathParameters['streamId'],
+              ),
+            ),
+            GoRoute(
+              path: '/tv-studio/:streamId/guests',
+              builder: (_, state) => TvStudioPage(
+                streamId: state.pathParameters['streamId'],
+                guestsOnly: true,
+              ),
             ),
             GoRoute(
               path: '/creator-studio',

@@ -14,7 +14,16 @@ import '../../core/config/app_config.dart';
 import 'tv_web_player.dart';
 
 class TvPage extends StatefulWidget {
-  const TvPage({super.key});
+  const TvPage({
+    super.key,
+    this.title = 'TikVTV',
+    this.initialVerticalMode = true,
+    this.streamId,
+  });
+
+  final String title;
+  final bool initialVerticalMode;
+  final String? streamId;
   @override
   State<TvPage> createState() => _TvPageState();
 }
@@ -39,6 +48,7 @@ class _TvPageState extends State<TvPage> {
   @override
   void initState() {
     super.initState();
+    _verticalMode = widget.initialVerticalMode;
     _load();
   }
 
@@ -189,6 +199,19 @@ class _TvPageState extends State<TvPage> {
               : null;
           if (_activeIndex >= merged.length) _activeIndex = 0;
         });
+        final requestedId = widget.streamId;
+        if (requestedId != null && requestedId.isNotEmpty) {
+          final index = merged.indexWhere(
+            (channel) => '${channel['id'] ?? ''}' == requestedId,
+          );
+          if (index >= 0) {
+            _activeIndex = index;
+            unawaited(_play(merged[index]));
+          } else if (merged.isNotEmpty) {
+            setState(() => _error =
+                'That stream is not in the current live catalogue. Refresh or open the TV catalogue.');
+          }
+        }
       }
     } catch (_) {
       if (mounted) {
@@ -402,7 +425,7 @@ class _TvPageState extends State<TvPage> {
           padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
           child: Row(children: [
             Expanded(
-              child: Text('TikVTV',
+              child: Text(widget.title,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w900,
                         letterSpacing: -0.5,
@@ -684,7 +707,7 @@ class _TvPageState extends State<TvPage> {
       child: ListView(padding: const EdgeInsets.all(14), children: [
         Row(children: [
           Expanded(
-              child: Text('Testagram TV',
+              child: Text(widget.title,
                   style: Theme.of(context)
                       .textTheme
                       .headlineSmall

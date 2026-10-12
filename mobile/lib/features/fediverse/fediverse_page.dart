@@ -5,8 +5,39 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 
 class FediversePage extends StatefulWidget {
-  const FediversePage({super.key, this.instancesOnly = false});
+  const FediversePage({
+    super.key,
+    this.instancesOnly = false,
+    this.section = 'feed',
+  });
   final bool instancesOnly;
+  final String section;
+
+  String get title => switch (section) {
+        'discover' => 'Discover the Fediverse',
+        'organic-discovery' => 'Organic discovery',
+        'mastodon' => 'Mastodon timeline',
+        'inbox' => 'Fediverse inbox',
+        'relay' => 'Fediverse relays',
+        'analytics' => 'Fediverse analytics',
+        'identity' => 'Federated identity',
+        'profile' => 'Federated profile',
+        'posts' => 'Federated posts',
+        'threads' => 'Federated threads',
+        'replies' => 'Federated replies',
+        'media' => 'Federated media',
+        'videos' => 'Federated videos',
+        'podcasts' => 'Federated podcasts',
+        'series' => 'Federated series',
+        'likes' => 'Liked federated posts',
+        'tips' => 'Federated tips',
+        'gifts' => 'Federated gifts',
+        'followers' => 'Federated followers',
+        'following' => 'Federated following',
+        'profile-analytics' => 'Profile analytics',
+        'controls' => 'Federation controls',
+        _ => 'Fediverse',
+      };
   @override
   State<FediversePage> createState() => _FediversePageState();
 }
@@ -30,7 +61,9 @@ class _FediversePageState extends State<FediversePage> {
       _error = null;
     });
     try {
-      if (widget.instancesOnly) {
+      if (widget.instancesOnly ||
+          widget.section == 'discover' ||
+          widget.section == 'organic-discovery') {
         final rows = await _db
             .from('federated_instances')
             .select(
@@ -99,6 +132,58 @@ class _FediversePageState extends State<FediversePage> {
     }
   }
 
+  List<Map<String, dynamic>> get _visiblePosts {
+    final source = _posts;
+    switch (widget.section) {
+      case 'replies':
+        return source
+            .where((p) => '${p['in_reply_to_uri'] ?? ''}'.isNotEmpty)
+            .toList();
+      case 'threads':
+        return source
+            .where((p) =>
+                '${p['in_reply_to_uri'] ?? ''}'.isEmpty &&
+                '${p['object_type'] ?? ''}'.toLowerCase() == 'note')
+            .toList();
+      case 'media':
+        return source
+            .where((p) => p['attachments'] is List &&
+                (p['attachments'] as List).isNotEmpty)
+            .toList();
+      case 'videos':
+        return source
+            .where((p) =>
+                '${p['object_type'] ?? ''}'.toLowerCase() == 'video' ||
+                '${p['content'] ?? ''}'.toLowerCase().contains('video'))
+            .toList();
+      case 'podcasts':
+        return source
+            .where((p) =>
+                '${p['object_type'] ?? ''}'.toLowerCase() == 'audio' ||
+                '${p['content'] ?? ''}'.toLowerCase().contains('podcast'))
+            .toList();
+      case 'likes':
+        return source.where((p) => _liked.contains('${p['uri']}')).toList();
+      default:
+        return source;
+    }
+  }
+
+  bool get _sectionNeedsDedicatedBackend =>
+      const {
+        'inbox',
+        'relay',
+        'analytics',
+        'identity',
+        'profile',
+        'tips',
+        'gifts',
+        'followers',
+        'following',
+        'profile-analytics',
+        'controls',
+      }.contains(widget.section);
+
   Future<void> _react(Map<String, dynamic> post, String kind) async {
     final uid = _uid;
     if (uid == null) {
@@ -162,7 +247,7 @@ class _FediversePageState extends State<FediversePage> {
                   onPressed: () => context.go('/fediverse'),
                   icon: const Icon(Icons.arrow_back_rounded)),
               Expanded(
-                  child: Text('Fediverse instances',
+                  child: Text(widget.title,
                       style: Theme.of(context)
                           .textTheme
                           .headlineSmall
@@ -198,7 +283,7 @@ class _FediversePageState extends State<FediversePage> {
         child: ListView(padding: const EdgeInsets.all(14), children: [
           Row(children: [
             Expanded(
-                child: Text('Fediverse',
+                child: Text(widget.title,
                     style: Theme.of(context)
                         .textTheme
                         .headlineSmall
@@ -213,7 +298,20 @@ class _FediversePageState extends State<FediversePage> {
                 icon: const Icon(Icons.refresh_rounded))
           ]),
           const SizedBox(height: 4),
-          const Text('A cached ActivityPub timeline from the open social web.'),
+          if (_sectionNeedsDedicatedBackend)
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Text(
+                  '${widget.title} is routed natively, but its dedicated API and permission contract is not yet connected. The app will not fabricate this data from the public timeline.',
+                ),
+              ),
+            )
+          else if (widget.section == 'discover' ||
+              widget.section == 'organic-discovery')
+            const Text('Discover public instances and open social communities.')
+          else
+            const Text('A cached ActivityPub timeline from the open social web.'),
           if (_loading)
             const Padding(
                 padding: EdgeInsets.all(20),
@@ -231,7 +329,15 @@ class _FediversePageState extends State<FediversePage> {
                 child: Center(
                     child: Text(
                         'No federated posts are cached yet. Refresh later.'))),
-          ..._posts.map((p) {
+          if (!_sectionNeedsDedicatedBackend &&
+              _visiblePosts.isEmpty && !_loading && _error == null)
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Center(
+                child: Text('No items are available in ${widget.title.toLowerCase()} yet.'),
+              ),
+            ),
+          if (!_sectionNeedsDedicatedBackend) ..._visiblePosts.map((p) {
             final actor = (p['actor'] as Map<String, dynamic>?) ?? {};
             final handle =
                 '${actor['username'] ?? 'remote'}@${actor['domain'] ?? 'fediverse'}';
