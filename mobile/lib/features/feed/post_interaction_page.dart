@@ -206,8 +206,10 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                           final item = _items[index];
                           final profile =
                               item['profile'] as Map<String, dynamic>?;
-                          final name =
-                              '${profile?['display_name'] ?? profile?['username'] ?? 'Testagram user'}';
+                          final name = (profile?['display_name'] ??
+                                  profile?['username'] ??
+                                  'Testagram user')
+                              .toString();
                           final username = '${profile?['username'] ?? ''}';
                           final avatar = '${profile?['avatar_url'] ?? ''}';
                           final detail = switch (widget.kind) {
