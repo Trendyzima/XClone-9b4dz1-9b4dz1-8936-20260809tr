@@ -13,3 +13,12 @@ bool tvHasPlaybackSurface({
   if (hasYoutubePlayer || hasInitializedNativePlayer) return true;
   return isWeb && (webPlaybackUrl?.trim().isNotEmpty ?? false);
 }
+
+/// Ads are eligible only after the selected player has actually started.
+/// Generation checks keep an old channel from requesting or attaching a unit.
+bool tvCanRequestSponsoredAd({
+  required bool hasPlaybackStarted,
+  required bool alreadyRequested,
+  required bool isCurrentGeneration,
+}) =>
+    hasPlaybackStarted && !alreadyRequested && isCurrentGeneration;
