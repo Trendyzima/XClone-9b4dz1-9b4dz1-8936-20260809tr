@@ -40,6 +40,7 @@ import '../features/fediverse/fediverse_page.dart';
 import '../features/spaces/spaces_page.dart';
 import '../features/native_route/native_feature_page.dart';
 import '../features/wallet/wallet_page.dart';
+import '../features/wallet/wallet_auxiliary_page.dart';
 import '../features/wallet/wallet_savings_page.dart';
 import '../features/wallet/wallet_send_page.dart';
 import '../features/wallet/wallet_security_page.dart';
@@ -1311,10 +1312,8 @@ class _TestagramAppState extends State<TestagramApp> {
             GoRoute(path: '/wallet', builder: (_, __) => const WalletPage()),
             GoRoute(
               path: '/wallet/analytics',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Wallet Analytics',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, __) => const WalletAuxiliaryPage(
+                mode: WalletAuxiliaryMode.analytics,
               ),
             ),
             GoRoute(
@@ -1335,34 +1334,24 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/wallet/pocket',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Wallet Pocket',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) =>
+                  const WalletAuxiliaryPage(mode: WalletAuxiliaryMode.pocket),
             ),
             GoRoute(
               path: '/wallet/receive',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Receive Money',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) =>
+                  const WalletAuxiliaryPage(mode: WalletAuxiliaryMode.receive),
             ),
             GoRoute(
               path: '/wallet/referrals',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Wallet Referrals',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, __) => const WalletAuxiliaryPage(
+                mode: WalletAuxiliaryMode.referrals,
               ),
             ),
             GoRoute(
               path: '/wallet/reminders',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Payment Reminders',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, __) => const WalletAuxiliaryPage(
+                mode: WalletAuxiliaryMode.reminders,
               ),
             ),
             GoRoute(
@@ -1371,10 +1360,8 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/wallet/scheduled',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Scheduled Transfers',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, __) => const WalletAuxiliaryPage(
+                mode: WalletAuxiliaryMode.scheduled,
               ),
             ),
             GoRoute(
