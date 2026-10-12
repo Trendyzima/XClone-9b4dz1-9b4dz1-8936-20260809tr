@@ -74,6 +74,7 @@ jobs:
         working-directory: mobile
         run: flutter pub get
       - name: Diagnose TV Dart formatter diff
+        working-directory: mobile
         shell: bash
         run: |
           dart format --output=show lib/features/tv/tv_page.dart > /tmp/tv_page.formatted.dart
