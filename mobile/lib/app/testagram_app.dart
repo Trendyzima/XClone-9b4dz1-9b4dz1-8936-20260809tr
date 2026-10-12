@@ -24,11 +24,14 @@ import '../features/threads/thread_detail_page.dart';
 import '../features/communities/communities_page.dart';
 import '../features/communities/community_detail_page.dart';
 import '../features/creator/creator_studio_page.dart';
+import '../features/creator/referral_page.dart';
+import '../features/creator/rewards_page.dart';
 import '../features/tv/tv_studio_page.dart';
 import '../features/videos/videos_page.dart';
 import '../features/discovery/discovery_pages.dart';
 import '../features/marketplace/products_page.dart';
 import '../features/marketplace/orders_page.dart';
+import '../features/marketplace/wishlist_page.dart';
 import '../features/ads/ad_campaigns_page.dart';
 import '../features/ads/ad_config_page.dart';
 import '../features/news/news_page.dart';
@@ -81,7 +84,8 @@ class _TestagramAppState extends State<TestagramApp> {
         final onAuth = state.matchedLocation == '/auth';
         final onSetup = state.matchedLocation == '/setup';
         final path = state.matchedLocation;
-        final publicRoute = path == '/' ||
+        final publicRoute =
+            path == '/' ||
             path == '/explore' ||
             path == '/search' ||
             path == '/discover' ||
@@ -125,7 +129,8 @@ class _TestagramAppState extends State<TestagramApp> {
         GoRoute(
           path: '/auth',
           builder: (_, state) => AuthPage(
-            recovery: state.uri.queryParameters['reset'] == '1' ||
+            recovery:
+                state.uri.queryParameters['reset'] == '1' ||
                 state.uri.queryParameters['type'] == 'recovery',
           ),
         ),
@@ -193,9 +198,8 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/post/:postId',
-              builder: (_, state) => PostDetailPage(
-                postId: state.pathParameters['postId'] ?? '',
-              ),
+              builder: (_, state) =>
+                  PostDetailPage(postId: state.pathParameters['postId'] ?? ''),
             ),
             GoRoute(
               path: '/communities',
@@ -266,10 +270,8 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/tv/reels',
-              builder: (_, __) => const TvPage(
-                title: 'TV Reels',
-                initialVerticalMode: true,
-              ),
+              builder: (_, __) =>
+                  const TvPage(title: 'TV Reels', initialVerticalMode: true),
             ),
             GoRoute(
               path: '/stream/:streamId',
@@ -356,9 +358,8 @@ class _TestagramAppState extends State<TestagramApp> {
             GoRoute(path: '/news', builder: (_, __) => const NewsPage()),
             GoRoute(
               path: '/news/:id',
-              builder: (_, state) => NewsArticlePage(
-                articleId: state.pathParameters['id'] ?? '',
-              ),
+              builder: (_, state) =>
+                  NewsArticlePage(articleId: state.pathParameters['id'] ?? ''),
             ),
             GoRoute(path: '/history', builder: (_, __) => const HistoryPage()),
             GoRoute(
@@ -494,9 +495,8 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/tv-studio/:streamId',
-              builder: (_, state) => TvStudioPage(
-                streamId: state.pathParameters['streamId'],
-              ),
+              builder: (_, state) =>
+                  TvStudioPage(streamId: state.pathParameters['streamId']),
             ),
             GoRoute(
               path: '/tv-studio/:streamId/guests',
@@ -841,11 +841,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/daily-rewards',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Daily Rewards',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const RewardsPage(),
             ),
             GoRoute(
               path: '/fraud-detection',
@@ -1065,19 +1061,11 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/referral',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Referral',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const ReferralPage(),
             ),
             GoRoute(
               path: '/referrals',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Referrals',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const ReferralPage(),
             ),
             GoRoute(
               path: '/regulator',
@@ -1167,14 +1155,7 @@ class _TestagramAppState extends State<TestagramApp> {
                 pathParameters: state.pathParameters,
               ),
             ),
-            GoRoute(
-              path: '/rewards',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Rewards',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
-            ),
+            GoRoute(path: '/rewards', builder: (_, __) => const RewardsPage()),
             GoRoute(
               path: '/ride',
               builder: (_, state) => NativeFeaturePage(
@@ -1327,10 +1308,7 @@ class _TestagramAppState extends State<TestagramApp> {
                 pathParameters: state.pathParameters,
               ),
             ),
-            GoRoute(
-              path: '/wallet',
-              builder: (_, __) => const WalletPage(),
-            ),
+            GoRoute(path: '/wallet', builder: (_, __) => const WalletPage()),
             GoRoute(
               path: '/wallet/analytics',
               builder: (_, state) => NativeFeaturePage(
@@ -1409,11 +1387,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/wishlist',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Wishlist',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const WishlistPage(),
             ),
           ],
         ),
