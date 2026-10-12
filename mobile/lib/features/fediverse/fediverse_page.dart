@@ -16,31 +16,32 @@ class FediversePage extends StatefulWidget {
   String get title {
     if (instancesOnly) return 'Fediverse instances';
     return switch (section) {
-        'discover' => 'Discover the Fediverse',
-        'organic-discovery' => 'Organic discovery',
-        'mastodon' => 'Mastodon timeline',
-        'inbox' => 'Fediverse inbox',
-        'relay' => 'Fediverse relays',
-        'analytics' => 'Fediverse analytics',
-        'identity' => 'Federated identity',
-        'profile' => 'Federated profile',
-        'posts' => 'Federated posts',
-        'threads' => 'Federated threads',
-        'replies' => 'Federated replies',
-        'media' => 'Federated media',
-        'videos' => 'Federated videos',
-        'podcasts' => 'Federated podcasts',
-        'series' => 'Federated series',
-        'likes' => 'Liked federated posts',
-        'tips' => 'Federated tips',
-        'gifts' => 'Federated gifts',
-        'followers' => 'Federated followers',
-        'following' => 'Federated following',
-        'profile-analytics' => 'Profile analytics',
-        'controls' => 'Federation controls',
-        _ => 'Fediverse',
-      };
+      'discover' => 'Discover the Fediverse',
+      'organic-discovery' => 'Organic discovery',
+      'mastodon' => 'Mastodon timeline',
+      'inbox' => 'Fediverse inbox',
+      'relay' => 'Fediverse relays',
+      'analytics' => 'Fediverse analytics',
+      'identity' => 'Federated identity',
+      'profile' => 'Federated profile',
+      'posts' => 'Federated posts',
+      'threads' => 'Federated threads',
+      'replies' => 'Federated replies',
+      'media' => 'Federated media',
+      'videos' => 'Federated videos',
+      'podcasts' => 'Federated podcasts',
+      'series' => 'Federated series',
+      'likes' => 'Liked federated posts',
+      'tips' => 'Federated tips',
+      'gifts' => 'Federated gifts',
+      'followers' => 'Federated followers',
+      'following' => 'Federated following',
+      'profile-analytics' => 'Profile analytics',
+      'controls' => 'Federation controls',
+      _ => 'Fediverse',
+    };
   }
+
   @override
   State<FediversePage> createState() => _FediversePageState();
 }
@@ -150,7 +151,8 @@ class _FediversePageState extends State<FediversePage> {
             .toList();
       case 'media':
         return source
-            .where((p) => p['attachments'] is List &&
+            .where((p) =>
+                p['attachments'] is List &&
                 (p['attachments'] as List).isNotEmpty)
             .toList();
       case 'videos':
@@ -172,8 +174,7 @@ class _FediversePageState extends State<FediversePage> {
     }
   }
 
-  bool get _sectionNeedsDedicatedBackend =>
-      const {
+  bool get _sectionNeedsDedicatedBackend => const {
         'inbox',
         'relay',
         'mastodon',
@@ -317,7 +318,8 @@ class _FediversePageState extends State<FediversePage> {
               widget.section == 'organic-discovery')
             const Text('Discover public instances and open social communities.')
           else
-            const Text('A cached ActivityPub timeline from the open social web.'),
+            const Text(
+                'A cached ActivityPub timeline from the open social web.'),
           if (_loading)
             const Padding(
                 padding: EdgeInsets.all(20),
@@ -336,116 +338,124 @@ class _FediversePageState extends State<FediversePage> {
                     child: Text(
                         'No federated posts are cached yet. Refresh later.'))),
           if (!_sectionNeedsDedicatedBackend &&
-              _visiblePosts.isEmpty && !_loading && _error == null)
+              _visiblePosts.isEmpty &&
+              !_loading &&
+              _error == null)
             Padding(
               padding: const EdgeInsets.all(24),
               child: Center(
-                child: Text('No items are available in ${widget.title.toLowerCase()} yet.'),
+                child: Text(
+                    'No items are available in ${widget.title.toLowerCase()} yet.'),
               ),
             ),
-          if (!_sectionNeedsDedicatedBackend) ..._visiblePosts.map((p) {
-            final actor = (p['actor'] as Map<String, dynamic>?) ?? {};
-            final handle =
-                '${actor['username'] ?? 'remote'}@${actor['domain'] ?? 'fediverse'}';
-            final name = '${actor['display_name'] ?? handle}';
-            final uri = '${p['uri'] ?? ''}';
-            final url = '${p['url'] ?? uri}';
-            final sensitive = p['sensitive'] == true ||
-                '${p['content_warning'] ?? ''}'.isNotEmpty;
-            return Card(
-                margin: const EdgeInsets.only(bottom: 10),
-                child: Padding(
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(children: [
-                            CircleAvatar(
-                                backgroundImage: '${actor['avatar_url'] ?? ''}'
-                                        .startsWith('http')
-                                    ? NetworkImage('${actor['avatar_url']}')
-                                    : null,
-                                child: '${actor['avatar_url'] ?? ''}'
-                                        .startsWith('http')
-                                    ? null
-                                    : const Icon(Icons.person_outline_rounded)),
-                            const SizedBox(width: 10),
-                            Expanded(
-                                child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                  Text(name,
+          if (!_sectionNeedsDedicatedBackend)
+            ..._visiblePosts.map((p) {
+              final actor = (p['actor'] as Map<String, dynamic>?) ?? {};
+              final handle =
+                  '${actor['username'] ?? 'remote'}@${actor['domain'] ?? 'fediverse'}';
+              final name = '${actor['display_name'] ?? handle}';
+              final uri = '${p['uri'] ?? ''}';
+              final url = '${p['url'] ?? uri}';
+              final sensitive = p['sensitive'] == true ||
+                  '${p['content_warning'] ?? ''}'.isNotEmpty;
+              return Card(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(children: [
+                              CircleAvatar(
+                                  backgroundImage:
+                                      '${actor['avatar_url'] ?? ''}'
+                                              .startsWith('http')
+                                          ? NetworkImage(
+                                              '${actor['avatar_url']}')
+                                          : null,
+                                  child: '${actor['avatar_url'] ?? ''}'
+                                          .startsWith('http')
+                                      ? null
+                                      : const Icon(
+                                          Icons.person_outline_rounded)),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                  child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                    Text(name,
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.w800)),
+                                    Text('@$handle',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall)
+                                  ])),
+                              IconButton(
+                                  tooltip: 'Open remote post',
+                                  onPressed: () => _open(url),
+                                  icon: const Icon(Icons.open_in_new_rounded))
+                            ]),
+                            if (sensitive)
+                              Padding(
+                                  padding: const EdgeInsets.only(top: 10),
+                                  child: Text(
+                                      'Content warning: ${p['content_warning'] ?? 'sensitive media'}',
                                       style: const TextStyle(
-                                          fontWeight: FontWeight.w800)),
-                                  Text('@$handle',
-                                      style:
-                                          Theme.of(context).textTheme.bodySmall)
-                                ])),
-                            IconButton(
-                                tooltip: 'Open remote post',
-                                onPressed: () => _open(url),
-                                icon: const Icon(Icons.open_in_new_rounded))
-                          ]),
-                          if (sensitive)
+                                          fontWeight: FontWeight.w700,
+                                          color: Colors.orange))),
                             Padding(
                                 padding: const EdgeInsets.only(top: 10),
                                 child: Text(
-                                    'Content warning: ${p['content_warning'] ?? 'sensitive media'}',
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w700,
-                                        color: Colors.orange))),
-                          Padding(
-                              padding: const EdgeInsets.only(top: 10),
-                              child: Text(
-                                  sensitive
-                                      ? 'This post is marked sensitive. Open the remote post to view its full content.'
-                                      : '${p['content'] ?? p['summary'] ?? ''}',
-                                  maxLines: sensitive ? 3 : 12,
-                                  overflow: TextOverflow.ellipsis)),
-                          if (p['tags'] is List &&
-                              (p['tags'] as List).isNotEmpty)
-                            Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Wrap(
-                                    spacing: 6,
-                                    children: (p['tags'] as List)
-                                        .take(6)
-                                        .map((tag) => Chip(
-                                            label: Text(
-                                                '#${tag is Map ? tag['name'] ?? '' : tag}'),
-                                            visualDensity:
-                                                VisualDensity.compact))
-                                        .toList())),
-                          const Divider(height: 24),
-                          Row(children: [
-                            TextButton.icon(
-                                onPressed: () => _react(p, 'like'),
-                                icon: Icon(
-                                    _liked.contains(uri)
-                                        ? Icons.favorite
-                                        : Icons.favorite_border,
-                                    color: _liked.contains(uri)
-                                        ? Colors.pink
-                                        : null),
-                                label: Text('${p['like_count'] ?? 0}')),
-                            TextButton.icon(
-                                onPressed: () => _react(p, 'boost'),
-                                icon: Icon(Icons.repeat_rounded,
-                                    color: _boosted.contains(uri)
-                                        ? Colors.green
-                                        : null),
-                                label: Text('${p['announce_count'] ?? 0}')),
-                            const Spacer(),
-                            Text('${p['reply_count'] ?? 0} replies',
-                                style: Theme.of(context).textTheme.bodySmall),
-                            IconButton(
-                                tooltip: 'Share',
-                                onPressed: () => Share.share('$name\n$url'),
-                                icon: const Icon(Icons.share_rounded))
-                          ])
-                        ])));
-          }),
+                                    sensitive
+                                        ? 'This post is marked sensitive. Open the remote post to view its full content.'
+                                        : '${p['content'] ?? p['summary'] ?? ''}',
+                                    maxLines: sensitive ? 3 : 12,
+                                    overflow: TextOverflow.ellipsis)),
+                            if (p['tags'] is List &&
+                                (p['tags'] as List).isNotEmpty)
+                              Padding(
+                                  padding: const EdgeInsets.only(top: 8),
+                                  child: Wrap(
+                                      spacing: 6,
+                                      children: (p['tags'] as List)
+                                          .take(6)
+                                          .map((tag) => Chip(
+                                              label: Text(
+                                                  '#${tag is Map ? tag['name'] ?? '' : tag}'),
+                                              visualDensity:
+                                                  VisualDensity.compact))
+                                          .toList())),
+                            const Divider(height: 24),
+                            Row(children: [
+                              TextButton.icon(
+                                  onPressed: () => _react(p, 'like'),
+                                  icon: Icon(
+                                      _liked.contains(uri)
+                                          ? Icons.favorite
+                                          : Icons.favorite_border,
+                                      color: _liked.contains(uri)
+                                          ? Colors.pink
+                                          : null),
+                                  label: Text('${p['like_count'] ?? 0}')),
+                              TextButton.icon(
+                                  onPressed: () => _react(p, 'boost'),
+                                  icon: Icon(Icons.repeat_rounded,
+                                      color: _boosted.contains(uri)
+                                          ? Colors.green
+                                          : null),
+                                  label: Text('${p['announce_count'] ?? 0}')),
+                              const Spacer(),
+                              Text('${p['reply_count'] ?? 0} replies',
+                                  style: Theme.of(context).textTheme.bodySmall),
+                              IconButton(
+                                  tooltip: 'Share',
+                                  onPressed: () => Share.share('$name\n$url'),
+                                  icon: const Icon(Icons.share_rounded))
+                            ])
+                          ])));
+            }),
         ]));
   }
 }

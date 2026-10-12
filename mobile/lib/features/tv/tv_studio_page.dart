@@ -53,9 +53,7 @@ class _TvStudioPageState extends State<TvStudioPage> {
       if (requestedStreamId != null && requestedStreamId.isNotEmpty) {
         query = query.eq('id', requestedStreamId);
       }
-      final rows = await query
-          .limit(30)
-          .timeout(const Duration(seconds: 15));
+      final rows = await query.limit(30).timeout(const Duration(seconds: 15));
       if (!mounted) return;
       setState(() => _streams =
           rows.map((r) => Map<String, dynamic>.from(r as Map)).toList());
