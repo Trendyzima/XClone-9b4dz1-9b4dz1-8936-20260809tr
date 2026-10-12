@@ -97,7 +97,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
           .from('profiles')
           .select('id,username,avatar_url,verified')
           .ilike('username',
-              '%\${query.trim().replaceAll('%', '').replaceAll('_', '')}%')
+              '%${query.trim().replaceAll('%', '').replaceAll('_', '')}%')
           .neq('id', _client.auth.currentUser!.id)
           .limit(8);
       if (!mounted) return;
@@ -128,7 +128,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
     final suffix = List<int>.generate(4, (_) => random.nextInt(1 << 32))
         .map((value) => value.toRadixString(16).padLeft(8, '0'))
         .join();
-    return 'flutter-p2p-\${DateTime.now().microsecondsSinceEpoch}-$suffix';
+    return 'flutter-p2p-${DateTime.now().microsecondsSinceEpoch}-$suffix';
   }
 
   Future<void> _confirmAndSend() async {
@@ -159,7 +159,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Confirm transfer'),
         content: Text(
-          'Send \${formatWalletAmount(amount, _wallet!.currency)} to @\${recipient['username'] ?? 'user'}? This will move funds from your wallet.',
+          'Send ${formatWalletAmount(amount, _wallet!.currency)} to @${recipient['username'] ?? 'user'}? This will move funds from your wallet.',
         ),
         actions: [
           TextButton(
@@ -312,7 +312,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
               child: ListTile(
                 leading: const CircleAvatar(child: Icon(Icons.person_outline)),
                 title:
-                    Text('@\${_recipient!['username'] ?? 'user'}'),
+                    Text('@${_recipient!['username'] ?? 'user'}'),
                 subtitle: const Text('Selected recipient'),
                 trailing: IconButton(
                     onPressed: _sending
@@ -326,14 +326,14 @@ class _WalletSendPageState extends State<WalletSendPage> {
                   child: ListTile(
                     leading:
                         const CircleAvatar(child: Icon(Icons.person_outline)),
-                    title: Text('@\${user['username'] ?? 'user'}'),
+                    title: Text('@${user['username'] ?? 'user'}'),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: _sending
                         ? null
                         : () => setState(() {
                               _recipient = user;
                               _searchController.text =
-                                  '@\${user['username'] ?? ''}';
+                                  '@${user['username'] ?? ''}';
                               _users = const [];
                             }),
                   ),
@@ -345,7 +345,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
             onChanged: (_) => _pendingIdempotencyKey = null,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
-                labelText: 'Amount (\${_wallet?.currency ?? 'KES'})',
+                labelText: 'Amount (${_wallet?.currency ?? 'KES'})',
                 border: const OutlineInputBorder()),
           ),
           const SizedBox(height: 12),
