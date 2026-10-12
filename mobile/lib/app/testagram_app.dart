@@ -13,6 +13,7 @@ import '../features/feed/feed_page.dart';
 import '../features/messages/messages_page.dart';
 import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_page.dart';
+import '../features/profile/bookmarks_page.dart';
 import '../features/settings/settings_page.dart';
 import '../features/tv/tv_page.dart';
 import '../features/tv/tv_channel_profile_page.dart';
@@ -489,6 +490,7 @@ class _TestagramAppState extends State<TestagramApp> {
               builder: (_, __) => const MessagesPage(),
             ),
             GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
+            GoRoute(path: '/bookmarks', builder: (_, __) => const BookmarksPage()),
             GoRoute(
               path: '/profile/:username/followers',
               builder: (_, state) => ProfilePage(
