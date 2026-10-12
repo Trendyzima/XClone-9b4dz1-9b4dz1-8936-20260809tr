@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -104,6 +105,9 @@ class SponsoredAdService {
     return Uri.parse('$base/functions/v1/$name');
   }
 
+  String get _deviceHint =>
+      kIsWeb ? 'web' : defaultTargetPlatform.name.toLowerCase();
+
   String _requestId() {
     final random = Random.secure().nextInt(1 << 32);
     return 'flutter_${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}_${random.toRadixString(36)}';
@@ -134,7 +138,7 @@ class SponsoredAdService {
               'slotCode': slotCode,
               'id': _requestId(),
               'content': content,
-              'user': {'device': 'flutter'},
+              'user': {'device': _deviceHint},
               'privacy': {'personalized': false},
             }),
           )
