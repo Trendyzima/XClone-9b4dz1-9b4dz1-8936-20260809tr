@@ -10,6 +10,7 @@
     "/admin/ads",
     "/admin/ads-management",
     "/auth",
+    "/bookmarks",
     "/c/:name",
     "/c/:name/chat",
     "/c/:name/events",
@@ -113,8 +114,8 @@
   "counts": {
     "unique_source_routes_including_wildcard": 212,
     "source_routes_excluding_wildcard": 211,
-    "native_route_matches": 104,
-    "legacy_web_fallbacks": 107
+    "native_route_matches": 105,
+    "legacy_web_fallbacks": 106
   },
   "routes": [
     {
@@ -258,8 +259,8 @@
     {
       "path": "/bookmarks",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "Native Flutter saved-posts screen reads the authenticated user's bookmarks and posts, and supports removing saved posts. Feature-level and platform acceptance remain required."
     },
     {
       "path": "/boost-analytics/:postId",
