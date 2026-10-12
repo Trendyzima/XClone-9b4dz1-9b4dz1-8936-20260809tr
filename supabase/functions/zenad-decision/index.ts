@@ -109,7 +109,7 @@ Deno.serve(async req => {
         .eq("id", existing.creative_id)
         .maybeSingle();
       if (creativeError) throw creativeError;
-      if (!campaign || !ad || !isRenderableCreative(creative)) return json({ kind: "no_fill", requestId, reason: "existing impression creative is not renderable" });
+      if (!campaign || !ad || !creative || !isRenderableCreative(creative)) return json({ kind: "no_fill", requestId, reason: "existing impression creative is not renderable" });
       const eventToken = await issueEventToken(existing.impression_id);
       return json({ kind: "display", requestId, impressionId: existing.impression_id, eventToken, campaignId: campaign.id, adSetId: ad.ad_set_id, adId: ad.id, creativeId: creative.id, headline: creative.headline, body: creative.body, cta: ad.call_to_action ?? creative.cta, imageUrl: creative.asset_url ?? null, clickThroughUrl: ad.destination_url ?? creative.click_through_url, sponsored: true, format: creative.format, owner: "testagram", servedBy: "zenad", trackers: { click: `${SUPABASE_URL}/functions/v1/zenad-event` } });
     }
