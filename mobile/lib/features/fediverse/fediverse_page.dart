@@ -677,7 +677,8 @@ class _FediversePageState extends State<FediversePage> {
           ],
           if (widget.section == 'discover' ||
               widget.section == 'organic-discovery')
-            const Text('Discover public instances and open social communities.'),
+            const Text(
+                'Discover public instances and open social communities.'),
           if (!_sectionNeedsDedicatedBackend &&
               widget.section != 'discover' &&
               widget.section != 'organic-discovery')
