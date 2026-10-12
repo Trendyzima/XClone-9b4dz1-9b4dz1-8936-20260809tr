@@ -102,7 +102,8 @@ class _ExplorePageState extends State<ExplorePage> {
             .from('follows')
             .select('following_id')
             .eq('follower_id', viewerId)
-            .inFilter('following_id', people.map((p) => '${p['id']}').toList())
+            .inFilter(
+                'following_id', people.map((p) => '${p['id']}').toList())
             .timeout(const Duration(seconds: 12));
         if (!mounted || generation != _searchGeneration) return;
         _following
@@ -140,7 +141,8 @@ class _ExplorePageState extends State<ExplorePage> {
     } catch (_) {
       if (mounted && generation == _searchGeneration) {
         setState(
-            () => _error = 'Search failed. Check your connection and retry.');
+          () => _error = 'Search failed. Check your connection and retry.',
+        );
       }
     } finally {
       if (mounted && generation == _searchGeneration) {
@@ -168,8 +170,11 @@ class _ExplorePageState extends State<ExplorePage> {
             .eq('follower_id', viewerId)
             .eq('following_id', id);
       } else {
-        await _client.from('follows').insert(
-            {'follower_id': viewerId, 'following_id': id, 'status': 'accepted'});
+        await _client.from('follows').insert({
+          'follower_id': viewerId,
+          'following_id': id,
+          'status': 'accepted',
+        });
       }
     } catch (error) {
       if (mounted) {
