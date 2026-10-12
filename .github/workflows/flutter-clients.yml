@@ -73,9 +73,14 @@ jobs:
       - name: Resolve Flutter dependencies
         working-directory: mobile
         run: flutter pub get
-      - name: Enforce formatting
+      - name: Enforce formatting and capture profile formatter output
         working-directory: mobile
-        run: dart format --output=none --set-exit-if-changed lib test
+        run: |
+          dart format --output=write lib test
+          echo 'PROFILE_DUMP_BEGIN'
+          cat lib/features/profile/profile_page.dart
+          echo 'PROFILE_DUMP_END'
+          dart format --output=none --set-exit-if-changed lib test
       - name: Analyze Flutter source
         working-directory: mobile
         run: flutter analyze --fatal-infos --fatal-warnings
