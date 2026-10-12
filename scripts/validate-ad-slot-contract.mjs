@@ -7,6 +7,7 @@ const appPath = 'src/App.tsx';
 const external = fs.readFileSync(externalPath, 'utf8');
 const iptv = fs.readFileSync(iptvPath, 'utf8');
 const app = fs.readFileSync(appPath, 'utf8');
+const ownedAds = fs.readFileSync('src/components/features/TestagramAdSlot.tsx', 'utf8');
 
 function extractTemplate(source, marker, endMarker) {
   const markerIndex = source.indexOf(marker);
@@ -77,4 +78,10 @@ assert.ok(!apiWorkflow.includes('set -x'), 'Adsterra workflow must not enable sh
 assert.ok(apiWorkflow.includes('Response body suppressed'), 'Adsterra workflow must suppress API response bodies in error logs');
 assert.ok(apiWorkflow.includes('jq -e .'), 'Adsterra workflow must validate a successful JSON response');
 
-console.log('PASS ad slot contract: ad monitor scripts parse, route placements are guarded, and the Adsterra API workflow uses a protected secret without logging response bodies.');
+assert.ok(ownedAds.includes('const requiredVisibleMs = 1000'), 'Owned ad impressions must require one continuous second of visibility');
+assert.ok(ownedAds.includes('entry.intersectionRatio >= 0.5'), 'Owned ad viewability must require at least 50% visibility');
+assert.ok(ownedAds.includes("document.addEventListener('visibilitychange'"), 'Owned ad viewability must respond to background/foreground transitions');
+assert.ok(ownedAds.includes('window.setTimeout(confirmViewable, requiredVisibleMs)'), 'Owned ad viewability must defer event recording until the dwell-time threshold');
+assert.ok(ownedAds.includes('continuousVisibleMs'), 'Owned ad viewable events must include the observed dwell time');
+
+console.log('PASS ad slot contract: external ad monitors parse, placements are guarded, owned ad viewability requires sustained visibility, and Adsterra credentials stay protected.');

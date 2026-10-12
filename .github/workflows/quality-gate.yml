@@ -71,6 +71,8 @@ jobs:
           npx tsc --noEmit
       - name: Lint web application
         run: npm run lint
+      - name: Validate ad slot and viewability contract
+        run: npm run validate:ads
       - name: Build application
         run: npm run build
       - name: Verify PostCard canonical interaction contract
