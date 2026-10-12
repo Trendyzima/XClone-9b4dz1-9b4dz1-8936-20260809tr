@@ -12,6 +12,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../core/config/app_config.dart';
 import 'tv_web_player.dart';
+import 'tv_playback_policy.dart';
 
 class TvPage extends StatefulWidget {
   const TvPage({
@@ -505,6 +506,14 @@ class _TvPageState extends State<TvPage> {
                         final channel = _channels[index];
                         final isCurrent =
                             index == _activeIndex && selectedIsActive;
+                        final hasPlaybackSurface = isCurrent &&
+                            tvHasPlaybackSurface(
+                              isWeb: kIsWeb,
+                              webPlaybackUrl: _webPlaybackUrl,
+                              hasYoutubePlayer: _youtubePlayer != null,
+                              hasInitializedNativePlayer:
+                                  player?.value.isInitialized == true,
+                            );
                         final title = '${channel['title'] ?? 'Live channel'}';
                         final description =
                             '${channel['description'] ?? channel['category'] ?? 'Live on Testagram'}';
@@ -532,6 +541,18 @@ class _TvPageState extends State<TvPage> {
                                   YoutubePlayer(
                                       controller: _youtubePlayer!,
                                       aspectRatio: 9 / 16)
+                                else if (isCurrent &&
+                                    kIsWeb &&
+                                    _webPlaybackUrl != null)
+                                  TvWebPlayer(
+                                    url: _webPlaybackUrl!,
+                                    onError: (message) {
+                                      if (mounted) {
+                                        setState(
+                                            () => _playbackError = message);
+                                      }
+                                    },
+                                  )
                                 else if (isCurrent &&
                                     player?.value.isInitialized == true)
                                   FittedBox(
@@ -623,8 +644,7 @@ class _TvPageState extends State<TvPage> {
                                             style: const TextStyle(
                                                 color: Color(0xFFFFB4AB),
                                                 fontWeight: FontWeight.w600)),
-                                      if (!isCurrent ||
-                                          player?.value.isInitialized != true)
+                                      if (!hasPlaybackSurface)
                                         FilledButton.icon(
                                           onPressed: _playerLoading && isCurrent
                                               ? null
@@ -645,9 +665,14 @@ class _TvPageState extends State<TvPage> {
                                         )
                                       else
                                         Text(
-                                            player!.value.isPlaying
-                                                ? 'Tap video to pause'
-                                                : 'Tap video to resume',
+                                            (kIsWeb &&
+                                                        _webPlaybackUrl !=
+                                                            null) ||
+                                                    _youtubePlayer != null
+                                                ? 'Use player controls to pause or resume'
+                                                : player!.value.isPlaying
+                                                    ? 'Tap video to pause'
+                                                    : 'Tap video to resume',
                                             style: const TextStyle(
                                                 color: Colors.white70,
                                                 fontSize: 12)),
