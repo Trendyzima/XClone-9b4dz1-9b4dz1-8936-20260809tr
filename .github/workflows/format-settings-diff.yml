@@ -1,0 +1,25 @@
+name: Temporary native settings formatter diff
+on:
+  pull_request:
+    paths:
+      - 'mobile/lib/app/testagram_app.dart'
+      - 'mobile/lib/features/settings/settings_page.dart'
+      - 'mobile/lib/features/profile/profile_page.dart'
+      - '.github/workflows/format-settings-diff.yml'
+permissions:
+  contents: read
+jobs:
+  formatter-diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.7'
+          channel: stable
+          cache: true
+      - name: Print Dart formatting patch
+        run: |
+          cd mobile
+          dart format lib/app/testagram_app.dart lib/features/settings/settings_page.dart lib/features/profile/profile_page.dart
+          git diff -- mobile/lib/app/testagram_app.dart mobile/lib/features/settings/settings_page.dart mobile/lib/features/profile/profile_page.dart
