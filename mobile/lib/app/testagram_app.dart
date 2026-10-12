@@ -10,9 +10,12 @@ import '../core/theme/testagram_theme.dart';
 import '../features/auth/auth_page.dart';
 import '../features/explore/explore_page.dart';
 import '../features/feed/feed_page.dart';
+import '../features/feed/post_detail_page.dart';
 import '../features/messages/messages_page.dart';
 import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_page.dart';
+import '../features/profile/bookmarks_page.dart';
+import '../features/profile/history_page.dart';
 import '../features/settings/settings_page.dart';
 import '../features/tv/tv_page.dart';
 import '../features/tv/tv_channel_profile_page.dart';
@@ -29,6 +32,7 @@ import '../features/marketplace/orders_page.dart';
 import '../features/ads/ad_campaigns_page.dart';
 import '../features/ads/ad_config_page.dart';
 import '../features/news/news_page.dart';
+import '../features/news/news_article_page.dart';
 import '../features/fediverse/fediverse_page.dart';
 import '../features/spaces/spaces_page.dart';
 import 'testagram_shell.dart';
@@ -117,6 +121,8 @@ class _TestagramAppState extends State<TestagramApp> {
             path == '/leaderboard' ||
             path == '/leaderboard/creators' ||
             path == '/news' ||
+            path.startsWith('/post/') ||
+            path.startsWith('/news/') ||
             path == '/fediverse' ||
             path == '/fediverse/instances' ||
             path == '/spaces' ||
@@ -169,6 +175,19 @@ class _TestagramAppState extends State<TestagramApp> {
               builder: (_, __) => const FediversePage(),
             ),
             GoRoute(path: '/threads', builder: (_, __) => const ThreadsPage()),
+            GoRoute(
+              path: '/post/:postId/replies',
+              builder: (_, state) => PostDetailPage(
+                postId: state.pathParameters['postId'] ?? '',
+                repliesOnly: true,
+              ),
+            ),
+            GoRoute(
+              path: '/post/:postId',
+              builder: (_, state) => PostDetailPage(
+                postId: state.pathParameters['postId'] ?? '',
+              ),
+            ),
             GoRoute(
               path: '/communities',
               builder: (_, __) => const CommunitiesPage(),
@@ -326,6 +345,13 @@ class _TestagramAppState extends State<TestagramApp> {
               builder: (_, __) => const AdConfigPage(),
             ),
             GoRoute(path: '/news', builder: (_, __) => const NewsPage()),
+            GoRoute(
+              path: '/news/:id',
+              builder: (_, state) => NewsArticlePage(
+                articleId: state.pathParameters['id'] ?? '',
+              ),
+            ),
+            GoRoute(path: '/history', builder: (_, __) => const HistoryPage()),
             GoRoute(
               path: '/fediverse',
               builder: (_, __) => const FediversePage(),
@@ -490,6 +516,10 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
             GoRoute(
+              path: '/bookmarks',
+              builder: (_, __) => const BookmarksPage(),
+            ),
+            GoRoute(
               path: '/profile/:username/followers',
               builder: (_, state) => ProfilePage(
                 username: state.pathParameters['username'],
@@ -501,6 +531,86 @@ class _TestagramAppState extends State<TestagramApp> {
               builder: (_, state) => ProfilePage(
                 username: state.pathParameters['username'],
                 section: 'following',
+              ),
+            ),
+            // Preserve the web client's distinct profile section deep links.
+            // These use the native profile data layer rather than falling
+            // through to the generic "screen still being migrated" handler.
+            GoRoute(
+              path: '/profile/:username/posts',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'posts',
+              ),
+            ),
+            GoRoute(
+              path: '/profile/:username/threads',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'threads',
+              ),
+            ),
+            GoRoute(
+              path: '/profile/:username/replies',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'replies',
+              ),
+            ),
+            GoRoute(
+              path: '/profile/:username/media',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'media',
+              ),
+            ),
+            GoRoute(
+              path: '/profile/:username/videos',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'videos',
+              ),
+            ),
+            GoRoute(
+              path: '/profile/:username/likes',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'likes',
+              ),
+            ),
+            GoRoute(
+              path: '/profile/:username/podcasts',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'podcasts',
+              ),
+            ),
+            GoRoute(
+              path: '/profile/:username/series',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'series',
+              ),
+            ),
+            GoRoute(
+              path: '/profile/:username/tips',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'tips',
+              ),
+            ),
+            GoRoute(
+              path: '/profile/:username/gifts',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'gifts',
+              ),
+            ),
+            GoRoute(
+              path: '/profile/:username/analytics',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'analytics',
               ),
             ),
             GoRoute(

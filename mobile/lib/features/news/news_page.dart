@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
@@ -45,6 +46,15 @@ class _NewsPageState extends State<NewsPage> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Future<void> _openStory(Map<String, dynamic> item, String raw) async {
+    final id = '${item['id'] ?? ''}'.trim();
+    if (id.isNotEmpty) {
+      context.push('/news/${Uri.encodeComponent(id)}');
+      return;
+    }
+    await _open(raw);
   }
 
   Future<void> _open(String? raw) async {
@@ -120,7 +130,7 @@ class _NewsPageState extends State<NewsPage> {
               margin: const EdgeInsets.only(bottom: 10),
               clipBehavior: Clip.antiAlias,
               child: InkWell(
-                  onTap: () => _open(url),
+                  onTap: () => _openStory(item, url),
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -169,7 +179,7 @@ class _NewsPageState extends State<NewsPage> {
                                             Share.share('$title\n$url'),
                                         icon: const Icon(Icons.share_rounded)),
                                     TextButton(
-                                        onPressed: () => _open(url),
+                                        onPressed: () => _openStory(item, url),
                                         child: const Text('Read story'))
                                   ])
                                 ]))

@@ -10,6 +10,7 @@
     "/admin/ads",
     "/admin/ads-management",
     "/auth",
+    "/bookmarks",
     "/c/:name",
     "/c/:name/chat",
     "/c/:name/events",
@@ -53,6 +54,7 @@
     "/fediverse/relay",
     "/hashtag/:tag",
     "/hashtags",
+    "/history",
     "/iptv",
     "/leaderboard",
     "/leaderboard/creators",
@@ -60,15 +62,29 @@
     "/messages",
     "/my-ads",
     "/news",
+    "/news/:id",
     "/notification-preferences",
     "/notifications",
     "/orders",
     "/p/:productId",
+    "/post/:postId",
+    "/post/:postId/replies",
     "/products",
     "/profile",
     "/profile/:username",
+    "/profile/:username/analytics",
     "/profile/:username/followers",
     "/profile/:username/following",
+    "/profile/:username/gifts",
+    "/profile/:username/likes",
+    "/profile/:username/media",
+    "/profile/:username/podcasts",
+    "/profile/:username/posts",
+    "/profile/:username/replies",
+    "/profile/:username/series",
+    "/profile/:username/threads",
+    "/profile/:username/tips",
+    "/profile/:username/videos",
     "/search",
     "/settings",
     "/settings/account",
@@ -102,8 +118,8 @@
   "counts": {
     "unique_source_routes_including_wildcard": 212,
     "source_routes_excluding_wildcard": 211,
-    "native_route_matches": 93,
-    "legacy_web_fallbacks": 118
+    "native_route_matches": 109,
+    "legacy_web_fallbacks": 102
   },
   "routes": [
     {
@@ -247,8 +263,8 @@
     {
       "path": "/bookmarks",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/boost-analytics/:postId",
@@ -577,8 +593,8 @@
     {
       "path": "/history",
       "domain": "media",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/interests",
@@ -661,8 +677,8 @@
     {
       "path": "/news/:id",
       "domain": "discovery",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/notification-preferences",
@@ -775,8 +791,8 @@
     {
       "path": "/post/:postId",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/post/:postId/likes",
@@ -805,8 +821,8 @@
     {
       "path": "/post/:postId/replies",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/post/:postId/reply/:replyId",
@@ -853,8 +869,8 @@
     {
       "path": "/profile/:username/analytics",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/profile/:username/followers",
@@ -871,62 +887,62 @@
     {
       "path": "/profile/:username/gifts",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/profile/:username/likes",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/profile/:username/media",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/profile/:username/podcasts",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/profile/:username/posts",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/profile/:username/replies",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/profile/:username/series",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/profile/:username/threads",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/profile/:username/tips",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/profile/:username/videos",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/profile/complete",
