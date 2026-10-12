@@ -42,6 +42,7 @@ class WalletTransactionReadModel {
     required this.id,
     required this.amount,
     required this.type,
+    this.direction,
     required this.status,
     required this.reference,
     required this.createdAt,
@@ -50,6 +51,7 @@ class WalletTransactionReadModel {
   final String id;
   final double amount;
   final String type;
+  final String? direction;
   final String status;
   final String? reference;
   final DateTime? createdAt;
@@ -60,14 +62,16 @@ class WalletTransactionReadModel {
       id: (json['id'] ?? '').toString(),
       amount: WalletReadModel._asAmount(json['amount']),
       type: (json['type'] ?? 'transaction').toString().toLowerCase(),
+      direction: json['direction']?.toString().toLowerCase(),
       status: (json['status'] ?? 'unknown').toString().toLowerCase(),
       reference: json['reference']?.toString(),
       createdAt: rawDate == null ? null : DateTime.tryParse(rawDate),
     );
   }
 
-  bool get isIncoming =>
-      type == 'deposit' || type == 'earnings' || type == 'credit';
+  bool get isIncoming => direction == 'in' ||
+      (direction == null &&
+          (type == 'deposit' || type == 'earnings' || type == 'credit'));
 }
 
 String formatWalletAmount(double amount, String currency) {
