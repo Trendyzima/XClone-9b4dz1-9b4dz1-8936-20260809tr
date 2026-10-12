@@ -537,6 +537,65 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     return cameraStream;
   };
 
+  const switchAudioInput = async (deviceId: string) => {
+    setAudioInputId(deviceId);
+    const current = cameraStreamRef.current;
+    if (!current) {
+      toast.info('Audio input selected. Tap Preview to open this soundcard input.');
+      return;
+    }
+    let replacement: MediaStream | null = null;
+    try {
+      replacement = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+          channelCount: { ideal: 1 },
+          sampleRate: { ideal: 48000 },
+          sampleSize: { ideal: 24 },
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+        video: false,
+      });
+      const nextTrack = replacement.getAudioTracks()[0];
+      if (!nextTrack) throw new Error('The selected soundcard did not provide an audio input track.');
+      const previousTrack = current.getAudioTracks()[0];
+      if (previousTrack) current.removeTrack(previousTrack);
+      current.addTrack(nextTrack);
+      previousTrack?.stop();
+      nextTrack.onended = () => {
+        setMuted(true);
+        setStudioHealth('degraded');
+        toast.error('Selected soundcard input disconnected. Recording remains local; choose another audio input.');
+      };
+
+      // Rebuild the voice processor around the newly selected physical input.
+      productionCommentarySourceRef.current?.disconnect();
+      productionCommentarySourceRef.current = null;
+      if (audioPipelineRef.current) await audioPipelineRef.current.stop().catch(() => undefined);
+      audioPipelineRef.current = await createStudioAudioPipeline(current);
+      const context = productionAudioContextRef.current;
+      if (context && productionCommentaryGainRef.current && productionMasterGainRef.current) {
+        const source = context.createMediaStreamSource(audioPipelineRef.current.stream);
+        productionCommentarySourceRef.current = source;
+        if (productionCommentaryAnalyserRef.current) source.connect(productionCommentaryAnalyserRef.current);
+        else source.connect(productionCommentaryGainRef.current);
+      }
+      const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+      setAudioInputs(devices.filter(device => device.kind === 'audioinput'));
+      setMuted(false);
+      setStudioHealth('ready');
+      setPermissionError(null);
+      toast.success('Studio audio input switched. Check the MIC meter before recording.');
+    } catch (error) {
+      replacement?.getTracks().forEach(track => track.stop());
+      const currentDevice = current.getAudioTracks()[0]?.getSettings().deviceId || '';
+      setAudioInputId(currentDevice);
+      toast.error(error instanceof Error ? error.message : 'Could not switch to that soundcard input.');
+    }
+  };
+
   const rebuildProgramStream = () => {
     return createProductionProgram();
   };
