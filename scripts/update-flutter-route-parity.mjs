@@ -7,9 +7,9 @@ const source = fs.readFileSync(path.join(root, 'src/App.tsx'), 'utf8');
 const flutter = fs.readFileSync(path.join(root, 'mobile/lib/app/testagram_app.dart'), 'utf8');
 const declarations = [...source.matchAll(/<Route\b[^>]*\bpath\s*=\s*["']([^"']+)["'][^>]*>/g)].map((match) => match[1]);
 const unique = [...new Set(declarations)].sort();
-const native = new Set([...flutter.matchAll(/\\bpath:\\s*'([^']+)'/g)].map((match) => match[1]));
+const native = new Set([...flutter.matchAll(/\bpath:\s*'([^']+)'/g)].map((match) => match[1]));
 const nativeShells = new Set();
-const routeMatches = [...flutter.matchAll(/GoRoute\\(\\s*path:\\s*'([^']+)'/g)];
+const routeMatches = [...flutter.matchAll(/GoRoute\(\s*path:\\s*'([^']+)'/g)];
 for (let index = 0; index < routeMatches.length; index += 1) {
   const start = routeMatches[index].index;
   const next = routeMatches[index + 1]?.index ?? flutter.length;
