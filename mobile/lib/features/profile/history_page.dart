@@ -107,8 +107,10 @@ class _HistoryPageState extends State<HistoryPage> {
       }
     } catch (_) {
       if (mounted && generation == _generation) {
-        setState(() => _error =
-            'Browsing history could not load. Check your connection and retry.');
+        setState(() => _error = [
+              'Browsing history could not load.',
+              'Check your connection and retry.',
+            ].join(' '));
       }
     } finally {
       if (mounted && generation == _generation) {
@@ -124,9 +126,10 @@ class _HistoryPageState extends State<HistoryPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Clear browsing history?'),
-        content: const Text(
-          'This removes your browsing-history records. It does not delete the posts themselves.',
-        ),
+        content: Text([
+          'This removes your browsing-history records.',
+          'It does not delete the posts themselves.',
+        ].join(' ')),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -159,7 +162,9 @@ class _HistoryPageState extends State<HistoryPage> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not clear browsing history. Retry.')),
+          const SnackBar(
+            content: Text('Could not clear browsing history. Retry.'),
+          ),
         );
       }
     } finally {
@@ -241,8 +246,9 @@ class _HistoryPageState extends State<HistoryPage> {
               ),
             ..._posts.map((post) {
               final profile = post['profile'] as Map<String, dynamic>? ?? {};
-              final name =
-                  '${profile['display_name'] ?? profile['username'] ?? 'Testagram user'}';
+              final name = profile['display_name']?.toString() ??
+                  profile['username']?.toString() ??
+                  'Testagram user';
               final username = '${profile['username'] ?? ''}';
               final body = '${post['content'] ?? post['body'] ?? ''}';
               final image = '${post['image_url'] ?? ''}';
@@ -321,8 +327,11 @@ class _HistoryPageState extends State<HistoryPage> {
                             tooltip: 'Copy post link',
                             onPressed: () async {
                               final id = '${post['id']}';
-                              await Clipboard.setData(ClipboardData(
-                                  text: '${Uri.parse('https://testagram.site/post/$id')}'));
+                              await Clipboard.setData(
+                                ClipboardData(
+                                  text: 'https://testagram.site/post/$id',
+                                ),
+                              );
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   const SnackBar(
