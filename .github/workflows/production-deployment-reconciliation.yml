@@ -1130,6 +1130,52 @@ jobs:
           console.log("ZenAd event contract passed: forged event token rejected without writing an event.");
           NODE
 
+      - name: Report Testagram owned-ad inventory readiness
+        if: steps.supabase-auth.outputs.available == 'true'
+        shell: bash
+        env:
+          SUPABASE_URL: https://ffrhglgkukgsuhxenena.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          key="${SUPABASE_SERVICE_ROLE_KEY:-${SUPABASE_SECRET_KEY:-}}"
+          if [[ -z "$key" ]]; then
+            echo "::warning::Cannot inspect Testagram-owned ad inventory without a server-side Supabase credential."
+            exit 0
+          fi
+
+          inventory_empty=false
+          inventory_check_incomplete=false
+          check_inventory() {
+            local table="$1" filters="$2" label="$3"
+            local file="/tmp/${table}-inventory.json" status count
+            status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+              -H "apikey: $key" \
+              -H "Authorization: Bearer $key" \
+              -o "$file" -w '%{http_code}' \
+              "$SUPABASE_URL/rest/v1/$table?select=id&$filters&limit=1" || true)"
+            if [[ "$status" != "200" ]]; then
+              echo "::warning::Could not inspect $label inventory (HTTP $status); live campaign delivery remains unverified."
+              inventory_check_incomplete=true
+              return 0
+            fi
+            count="$(node -e 'const fs = require("node:fs"); const rows = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); if (!Array.isArray(rows)) process.exit(2); process.stdout.write(String(rows.length));' "$file")"
+            if [[ "$count" == "0" ]]; then
+              echo "::warning::$label inventory has no eligible rows; Testagram-owned sponsored placements will return no-fill."
+              inventory_empty=true
+            fi
+          }
+
+          check_inventory "testagram_ad_campaigns" "status=eq.active&payment_status=eq.funded" "active funded campaign"
+          check_inventory "testagram_ad_sets" "status=eq.active" "active ad-set"
+          check_inventory "testagram_ads" "status=eq.active" "active ad"
+          check_inventory "testagram_ad_creatives" "enabled=eq.true" "enabled creative"
+
+          if [[ "$inventory_empty" == "false" && "$inventory_check_incomplete" == "false" ]]; then
+            echo "Candidate campaign/ad-set/ad/creative rows exist; dates, budgets, targeting, and real creative delivery still require runtime verification."
+          fi
+
       - name: Verify production SEO and sitemap contracts
         shell: bash
         run: |
