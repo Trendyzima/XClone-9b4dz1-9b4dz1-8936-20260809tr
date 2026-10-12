@@ -207,19 +207,21 @@ class _TestagramAppState extends State<TestagramApp> {
             GoRoute(path: '/orders', builder: (_, __) => const OrdersPage()),
             GoRoute(
                 path: '/create-ad',
-                builder: (_, __) => const AdCampaignsPage(mode: AdCampaignsMode.create)),
+                builder: (_, __) =>
+                    const AdCampaignsPage(mode: AdCampaignsMode.create)),
             GoRoute(
                 path: '/my-ads',
-                builder: (_, __) => const AdCampaignsPage(mode: AdCampaignsMode.list)),
+                builder: (_, __) =>
+                    const AdCampaignsPage(mode: AdCampaignsMode.list)),
             GoRoute(
                 path: '/ad-analytics',
-                builder: (_, __) => const AdCampaignsPage(mode: AdCampaignsMode.analytics)),
+                builder: (_, __) =>
+                    const AdCampaignsPage(mode: AdCampaignsMode.analytics)),
             GoRoute(
                 path: '/admin/ad-config',
                 builder: (_, __) => const AdConfigPage()),
             GoRoute(
-                path: '/admin/ads',
-                builder: (_, __) => const AdConfigPage()),
+                path: '/admin/ads', builder: (_, __) => const AdConfigPage()),
             GoRoute(
                 path: '/admin/ads-management',
                 builder: (_, __) => const AdConfigPage()),
