@@ -37,6 +37,8 @@ import '../features/fediverse/fediverse_page.dart';
 import '../features/spaces/spaces_page.dart';
 import '../features/native_route/native_feature_page.dart';
 import '../features/wallet/wallet_page.dart';
+import '../features/wallet/wallet_send_page.dart';
+import '../features/wallet/wallet_security_page.dart';
 import 'testagram_shell.dart';
 
 class TestagramApp extends StatefulWidget {
@@ -1405,19 +1407,11 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/wallet/security',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Wallet Security',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const WalletSecurityPage(),
             ),
             GoRoute(
               path: '/wallet/send',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Send Money',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const WalletSendPage(),
             ),
             GoRoute(
               path: '/wishlist',
