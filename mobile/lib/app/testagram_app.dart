@@ -17,6 +17,7 @@ import '../features/profile/profile_page.dart';
 import '../features/profile/bookmarks_page.dart';
 import '../features/profile/history_page.dart';
 import '../features/settings/settings_page.dart';
+import '../features/settings/blocked_users_page.dart';
 import '../features/tv/tv_page.dart';
 import '../features/tv/tv_channel_profile_page.dart';
 import '../features/threads/threads_page.dart';
@@ -24,12 +25,16 @@ import '../features/threads/thread_detail_page.dart';
 import '../features/communities/communities_page.dart';
 import '../features/communities/community_detail_page.dart';
 import '../features/creator/creator_studio_page.dart';
+import '../features/creator/referral_page.dart';
+import '../features/creator/rewards_page.dart';
 import '../features/tv/tv_studio_page.dart';
 import '../features/videos/videos_page.dart';
 import '../features/discovery/discovery_pages.dart';
 import '../features/marketplace/products_page.dart';
 import '../features/marketplace/orders_page.dart';
+import '../features/marketplace/wishlist_page.dart';
 import '../features/ads/ad_campaigns_page.dart';
+import '../features/admin/governance_page.dart';
 import '../features/ads/ad_config_page.dart';
 import '../features/news/news_page.dart';
 import '../features/news/news_article_page.dart';
@@ -37,6 +42,7 @@ import '../features/fediverse/fediverse_page.dart';
 import '../features/spaces/spaces_page.dart';
 import '../features/native_route/native_feature_page.dart';
 import '../features/wallet/wallet_page.dart';
+import '../features/wallet/wallet_auxiliary_page.dart';
 import '../features/wallet/wallet_savings_page.dart';
 import '../features/wallet/wallet_send_page.dart';
 import '../features/wallet/wallet_security_page.dart';
@@ -193,9 +199,8 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/post/:postId',
-              builder: (_, state) => PostDetailPage(
-                postId: state.pathParameters['postId'] ?? '',
-              ),
+              builder: (_, state) =>
+                  PostDetailPage(postId: state.pathParameters['postId'] ?? ''),
             ),
             GoRoute(
               path: '/communities',
@@ -266,10 +271,8 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/tv/reels',
-              builder: (_, __) => const TvPage(
-                title: 'TV Reels',
-                initialVerticalMode: true,
-              ),
+              builder: (_, __) =>
+                  const TvPage(title: 'TV Reels', initialVerticalMode: true),
             ),
             GoRoute(
               path: '/stream/:streamId',
@@ -356,9 +359,8 @@ class _TestagramAppState extends State<TestagramApp> {
             GoRoute(path: '/news', builder: (_, __) => const NewsPage()),
             GoRoute(
               path: '/news/:id',
-              builder: (_, state) => NewsArticlePage(
-                articleId: state.pathParameters['id'] ?? '',
-              ),
+              builder: (_, state) =>
+                  NewsArticlePage(articleId: state.pathParameters['id'] ?? ''),
             ),
             GoRoute(path: '/history', builder: (_, __) => const HistoryPage()),
             GoRoute(
@@ -494,9 +496,8 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/tv-studio/:streamId',
-              builder: (_, state) => TvStudioPage(
-                streamId: state.pathParameters['streamId'],
-              ),
+              builder: (_, state) =>
+                  TvStudioPage(streamId: state.pathParameters['streamId']),
             ),
             GoRoute(
               path: '/tv-studio/:streamId/guests',
@@ -688,13 +689,8 @@ class _TestagramAppState extends State<TestagramApp> {
               ),
             ),
             GoRoute(
-              path: '/admin/governance',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Governance',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
-            ),
+                path: '/admin/governance',
+                builder: (_, __) => const GovernancePage()),
             GoRoute(
               path: '/admin/identity-verification',
               builder: (_, state) => NativeFeaturePage(
@@ -792,13 +788,7 @@ class _TestagramAppState extends State<TestagramApp> {
               ),
             ),
             GoRoute(
-              path: '/blocked',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Blocked Accounts',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
-            ),
+                path: '/blocked', builder: (_, __) => const BlockedUsersPage()),
             GoRoute(
               path: '/boost-analytics/:postId',
               builder: (_, state) => NativeFeaturePage(
@@ -841,11 +831,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/daily-rewards',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Daily Rewards',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const RewardsPage(),
             ),
             GoRoute(
               path: '/fraud-detection',
@@ -1065,19 +1051,11 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/referral',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Referral',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const ReferralPage(),
             ),
             GoRoute(
               path: '/referrals',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Referrals',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const ReferralPage(),
             ),
             GoRoute(
               path: '/regulator',
@@ -1167,14 +1145,7 @@ class _TestagramAppState extends State<TestagramApp> {
                 pathParameters: state.pathParameters,
               ),
             ),
-            GoRoute(
-              path: '/rewards',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Rewards',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
-            ),
+            GoRoute(path: '/rewards', builder: (_, __) => const RewardsPage()),
             GoRoute(
               path: '/ride',
               builder: (_, state) => NativeFeaturePage(
@@ -1327,16 +1298,11 @@ class _TestagramAppState extends State<TestagramApp> {
                 pathParameters: state.pathParameters,
               ),
             ),
-            GoRoute(
-              path: '/wallet',
-              builder: (_, __) => const WalletPage(),
-            ),
+            GoRoute(path: '/wallet', builder: (_, __) => const WalletPage()),
             GoRoute(
               path: '/wallet/analytics',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Wallet Analytics',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, __) => const WalletAuxiliaryPage(
+                mode: WalletAuxiliaryMode.analytics,
               ),
             ),
             GoRoute(
@@ -1357,34 +1323,24 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/wallet/pocket',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Wallet Pocket',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) =>
+                  const WalletAuxiliaryPage(mode: WalletAuxiliaryMode.pocket),
             ),
             GoRoute(
               path: '/wallet/receive',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Receive Money',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) =>
+                  const WalletAuxiliaryPage(mode: WalletAuxiliaryMode.receive),
             ),
             GoRoute(
               path: '/wallet/referrals',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Wallet Referrals',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, __) => const WalletAuxiliaryPage(
+                mode: WalletAuxiliaryMode.referrals,
               ),
             ),
             GoRoute(
               path: '/wallet/reminders',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Payment Reminders',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, __) => const WalletAuxiliaryPage(
+                mode: WalletAuxiliaryMode.reminders,
               ),
             ),
             GoRoute(
@@ -1393,10 +1349,8 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/wallet/scheduled',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Scheduled Transfers',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, __) => const WalletAuxiliaryPage(
+                mode: WalletAuxiliaryMode.scheduled,
               ),
             ),
             GoRoute(
@@ -1409,11 +1363,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/wishlist',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Wishlist',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const WishlistPage(),
             ),
           ],
         ),
