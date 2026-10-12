@@ -25,7 +25,6 @@ bool tvCanRequestSponsoredAd({
 }) =>
     hasPlaybackStarted && !alreadyRequested && isCurrentGeneration;
 
-
 /// Native TV playback should pause whenever the app is not foregrounded.
 bool tvShouldPauseForLifecycle(AppLifecycleState state) =>
     state != AppLifecycleState.resumed;
