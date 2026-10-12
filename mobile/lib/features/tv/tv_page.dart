@@ -98,7 +98,9 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
 
   Future<void> _resumeNativePlayer(VideoPlayerController player) async {
     try {
-      if (mounted && identical(_player, player) && player.value.isInitialized) {
+      if (mounted &&
+          identical(_player, player) &&
+          player.value.isInitialized) {
         await player.play();
       }
     } catch (_) {
