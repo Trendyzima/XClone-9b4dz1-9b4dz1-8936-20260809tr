@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
+import 'fediverse_feed_policy.dart';
 
 class FediversePage extends StatefulWidget {
   const FediversePage({
@@ -50,6 +51,7 @@ class _FediversePageState extends State<FediversePage> {
   SupabaseClient get _db => Supabase.instance.client;
   String? get _uid => _db.auth.currentUser?.id;
   List<Map<String, dynamic>> _posts = [], _instances = [];
+  List<Map<String, dynamic>> _pendingPosts = [];
   List<Map<String, dynamic>> _surfaceRows = [];
   Map<String, int> _surfaceMetrics = {};
   String? _surfaceMessage;
@@ -64,7 +66,9 @@ class _FediversePageState extends State<FediversePage> {
 
   Future<void> _load() async {
     setState(() {
-      _loading = true;
+      // Keep cached posts mounted during a refresh so the scroll offset and
+      // card geometry remain stable on mobile and Android WebView.
+      _loading = _posts.isEmpty && _instances.isEmpty;
       _error = null;
       _surfaceRows = [];
       _surfaceMetrics = {};
@@ -135,14 +139,25 @@ class _FediversePageState extends State<FediversePage> {
             .where((r) => r['reaction_type'] == 'boost')
             .map((r) => '${r['object_uri']}'));
       }
-      if (mounted) setState(() => _posts = posts);
-    } catch (_) {
       if (mounted) {
+        setState(() {
+          if (_posts.isEmpty) {
+            _posts = posts;
+            _pendingPosts = [];
+          } else {
+            final result = reconcileFediverseFeed(_posts, posts);
+            _posts = result.visible;
+            _pendingPosts = result.pending;
+          }
+        });
+      }
+    } catch (_) {
+      if (mounted && _posts.isEmpty) {
         setState(() => _error =
             'Fediverse data could not load. Check your connection and retry.');
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && _loading) setState(() => _loading = false);
     }
   }
 
@@ -711,6 +726,31 @@ class _FediversePageState extends State<FediversePage> {
               child: Center(
                 child: Text(
                     'No items are available in ${widget.title.toLowerCase()} yet.'),
+              ),
+            ),
+          if (_pendingPosts.isNotEmpty && !_sectionNeedsDedicatedBackend)
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 12),
+              child: Center(
+                child: FilledButton.tonalIcon(
+                  onPressed: () {
+                    setState(() {
+                      _posts = applyPendingFediversePosts(_posts, _pendingPosts);
+                      _pendingPosts = [];
+                    });
+                    // Scroll to the top only when the reader explicitly asks
+                    // to reveal new posts, never during background refresh.
+                    Scrollable.ensureVisible(
+                      context,
+                      duration: const Duration(milliseconds: 180),
+                      alignment: 0,
+                    );
+                  },
+                  icon: const Icon(Icons.arrow_upward_rounded),
+                  label: Text(
+                    '${_pendingPosts.length} new ${_pendingPosts.length == 1 ? 'post' : 'posts'} · Show',
+                  ),
+                ),
               ),
             ),
           if (!_sectionNeedsDedicatedBackend)
