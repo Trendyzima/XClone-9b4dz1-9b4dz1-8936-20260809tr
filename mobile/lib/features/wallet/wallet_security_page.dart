@@ -50,7 +50,8 @@ class _WalletSecurityPageState extends State<WalletSecurityPage> {
       if (!mounted) return;
       setState(() {
         _loading = false;
-        _error = 'Wallet security could not be loaded. Check your connection and retry.';
+        _error =
+            'Wallet security could not be loaded. Check your connection and retry.';
       });
     }
   }
@@ -71,7 +72,8 @@ class _WalletSecurityPageState extends State<WalletSecurityPage> {
       _notice = null;
     });
     try {
-      final result = await _client.rpc('set_wallet_pin', params: {'p_pin': pin});
+      final result =
+          await _client.rpc('set_wallet_pin', params: {'p_pin': pin});
       final response = Map<String, dynamic>.from(result as Map);
       if (response['success'] != true) {
         throw StateError('The server did not confirm the PIN update.');
@@ -99,30 +101,44 @@ class _WalletSecurityPageState extends State<WalletSecurityPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text('Wallet security', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+        Text('Wallet security',
+            style: theme.textTheme.headlineSmall
+                ?.copyWith(fontWeight: FontWeight.w800)),
         const SizedBox(height: 8),
-        const Text('Secure your wallet before initiating transfers. PIN verification is enforced by the server-side transfer RPC.'),
+        const Text(
+            'Secure your wallet before initiating transfers. PIN verification is enforced by the server-side transfer RPC.'),
         const SizedBox(height: 16),
         if (_loading)
-          const Center(child: Padding(padding: EdgeInsets.all(32), child: CircularProgressIndicator()))
+          const Center(
+              child: Padding(
+                  padding: EdgeInsets.all(32),
+                  child: CircularProgressIndicator()))
         else ...[
           Card(
             child: ListTile(
-              leading: Icon(_pinSet ? Icons.lock : Icons.lock_open, color: _pinSet ? Colors.green : theme.colorScheme.error),
+              leading: Icon(_pinSet ? Icons.lock : Icons.lock_open,
+                  color: _pinSet ? Colors.green : theme.colorScheme.error),
               title: const Text('Wallet PIN'),
-              subtitle: Text(_pinSet ? 'A server-side PIN is configured.' : 'Set a PIN before sending money.'),
-              trailing: Icon(_pinSet ? Icons.check_circle : Icons.warning_amber, color: _pinSet ? Colors.green : Colors.orange),
+              subtitle: Text(_pinSet
+                  ? 'A server-side PIN is configured.'
+                  : 'Set a PIN before sending money.'),
+              trailing: Icon(_pinSet ? Icons.check_circle : Icons.warning_amber,
+                  color: _pinSet ? Colors.green : Colors.orange),
             ),
           ),
           Card(
             child: ListTile(
               leading: const Icon(Icons.fingerprint),
               title: const Text('Biometrics'),
-              subtitle: Text(_biometricEnabled ? 'A biometric credential is enabled.' : 'No biometric credential is enabled for this wallet.'),
+              subtitle: Text(_biometricEnabled
+                  ? 'A biometric credential is enabled.'
+                  : 'No biometric credential is enabled for this wallet.'),
             ),
           ),
           const SizedBox(height: 16),
-          Text(_pinSet ? 'Set a new PIN' : 'Create wallet PIN', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+          Text(_pinSet ? 'Set a new PIN' : 'Create wallet PIN',
+              style: theme.textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700)),
           const SizedBox(height: 8),
           TextField(
             controller: _pinController,
@@ -130,7 +146,8 @@ class _WalletSecurityPageState extends State<WalletSecurityPage> {
             obscureText: true,
             maxLength: 6,
             autofillHints: const [AutofillHints.newPassword],
-            decoration: const InputDecoration(labelText: 'New 4–6 digit PIN', border: OutlineInputBorder()),
+            decoration: const InputDecoration(
+                labelText: 'New 4–6 digit PIN', border: OutlineInputBorder()),
           ),
           const SizedBox(height: 8),
           TextField(
@@ -138,15 +155,29 @@ class _WalletSecurityPageState extends State<WalletSecurityPage> {
             keyboardType: TextInputType.number,
             obscureText: true,
             maxLength: 6,
-            decoration: const InputDecoration(labelText: 'Confirm PIN', border: OutlineInputBorder()),
+            decoration: const InputDecoration(
+                labelText: 'Confirm PIN', border: OutlineInputBorder()),
           ),
           const SizedBox(height: 12),
-          if (_error != null) _message(_error!, theme.colorScheme.errorContainer, theme.colorScheme.onErrorContainer),
-          if (_notice != null) _message(_notice!, theme.colorScheme.primaryContainer, theme.colorScheme.onPrimaryContainer),
+          if (_error != null)
+            _message(_error!, theme.colorScheme.errorContainer,
+                theme.colorScheme.onErrorContainer),
+          if (_notice != null)
+            _message(_notice!, theme.colorScheme.primaryContainer,
+                theme.colorScheme.onPrimaryContainer),
           FilledButton.icon(
             onPressed: _saving ? null : _savePin,
-            icon: _saving ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.shield_outlined),
-            label: Text(_saving ? 'Saving securely…' : _pinSet ? 'Update PIN' : 'Set wallet PIN'),
+            icon: _saving
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.shield_outlined),
+            label: Text(_saving
+                ? 'Saving securely…'
+                : _pinSet
+                    ? 'Update PIN'
+                    : 'Set wallet PIN'),
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
