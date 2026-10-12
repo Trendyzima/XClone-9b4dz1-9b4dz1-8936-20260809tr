@@ -203,7 +203,8 @@ class _WalletSendPageState extends State<WalletSendPage> {
           throw StateError(
               'Your available balance is insufficient for this transfer.');
         }
-        throw StateError('Transfer was rejected ($code). No success was recorded.');
+        throw StateError(
+            'Transfer was rejected ($code). No success was recorded.');
       }
       final reference = (result['reference'] ?? '').toString();
       if (!mounted) return;
@@ -311,8 +312,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
             Card(
               child: ListTile(
                 leading: const CircleAvatar(child: Icon(Icons.person_outline)),
-                title:
-                    Text('@${_recipient!['username'] ?? 'user'}'),
+                title: Text('@${_recipient!['username'] ?? 'user'}'),
                 subtitle: const Text('Selected recipient'),
                 trailing: IconButton(
                     onPressed: _sending
