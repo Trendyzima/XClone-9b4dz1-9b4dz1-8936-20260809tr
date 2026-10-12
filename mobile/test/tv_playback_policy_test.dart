@@ -66,7 +66,6 @@ void main() {
   });
 }
 
-
 group('TV app lifecycle playback policy', () {
   test('pauses when the app is inactive, hidden, paused, or detached', () {
     for (final state in [
