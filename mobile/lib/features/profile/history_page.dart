@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class HistoryPage extends StatefulWidget {
@@ -310,6 +311,11 @@ class _HistoryPageState extends State<HistoryPage> {
                               'Viewed ${post['_viewed_at'] ?? 'recently'}',
                               style: Theme.of(context).textTheme.bodySmall,
                             ),
+                          ),
+                          TextButton.icon(
+                            onPressed: () => context.push('/post/${post['id']}'),
+                            icon: const Icon(Icons.open_in_new_rounded),
+                            label: const Text('Open'),
                           ),
                           IconButton(
                             tooltip: 'Copy post link',
