@@ -591,12 +591,16 @@ class _FediversePageState extends State<FediversePage> {
                 ),
               );
             }),
-          ] else if (widget.section == 'discover' ||
+          ],
+          if (widget.section == 'discover' ||
               widget.section == 'organic-discovery')
-            const Text('Discover public instances and open social communities.')
-          else
+            const Text('Discover public instances and open social communities.'),
+          if (!_sectionNeedsDedicatedBackend &&
+              widget.section != 'discover' &&
+              widget.section != 'organic-discovery')
             const Text(
-                'A cached ActivityPub timeline from the open social web.'),
+              'A cached ActivityPub timeline from the open social web.',
+            ),
           if (_loading)
             const Padding(
                 padding: EdgeInsets.all(20),
