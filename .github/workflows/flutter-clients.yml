@@ -67,11 +67,6 @@ jobs:
       - name: Resolve Flutter dependencies
         working-directory: mobile
         run: flutter pub get
-      - name: Print formatter diff diagnostic (temporary)
-        working-directory: mobile
-        run: |
-          dart format lib/features/profile/profile_page.dart
-          git diff -- mobile/lib/features/profile/profile_page.dart
       - name: Enforce formatting
         working-directory: mobile
         run: dart format --output=none --set-exit-if-changed lib test

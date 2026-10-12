@@ -39,6 +39,7 @@
     "/messages",
     "/my-ads",
     "/news",
+    "/notification-preferences",
     "/notifications",
     "/orders",
     "/p/:productId",
@@ -49,6 +50,11 @@
     "/profile/:username/following",
     "/search",
     "/settings",
+    "/settings/account",
+    "/settings/appearance",
+    "/settings/connections",
+    "/settings/notifications",
+    "/settings/privacy",
     "/setup",
     "/shop",
     "/shorts",
@@ -70,8 +76,8 @@
   "counts": {
     "unique_source_routes_including_wildcard": 212,
     "source_routes_excluding_wildcard": 211,
-    "native_route_matches": 61,
-    "legacy_web_fallbacks": 150
+    "native_route_matches": 67,
+    "legacy_web_fallbacks": 144
   },
   "routes": [
     {
@@ -635,8 +641,8 @@
     {
       "path": "/notification-preferences",
       "domain": "settings",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/notifications",
@@ -1031,32 +1037,32 @@
     {
       "path": "/settings/account",
       "domain": "settings",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/settings/appearance",
       "domain": "settings",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/settings/connections",
       "domain": "settings",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/settings/notifications",
       "domain": "settings",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/settings/privacy",
       "domain": "settings",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/shop",
