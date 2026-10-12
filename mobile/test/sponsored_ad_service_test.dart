@@ -109,6 +109,7 @@ void main() {
       expect(captured.url.path, '/functions/v1/zenad-decision');
       expect(captured.headers['apikey'], 'public-key');
       expect(jsonDecode(captured.body)['slotCode'], 'feed-inline');
+      expect(jsonDecode(captured.body)['user']['device'], isNotEmpty);
       service.close();
     });
 
