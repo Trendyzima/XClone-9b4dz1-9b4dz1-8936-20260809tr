@@ -141,23 +141,23 @@ export default function TvPublicLivePage() {
 
           const contract = viewerPayload?.data;
 
-          if (contract?.provider !== 'youtube') {
-            throw new Error('Testagram TV is not configured for YouTube playback.');
+          const youtubeDelivery = contract?.provider === 'youtube';
+          const testagramOnly = contract?.provider === 'testagram';
+          if (!youtubeDelivery && !testagramOnly) {
+            throw new Error('This Testagram TV broadcast has an unsupported delivery mode.');
           }
 
           const videoId = String(contract?.youtube?.video_id || '').trim();
-
-          if (!videoId) {
+          if (youtubeDelivery && !videoId) {
             throw new Error('YouTube live video is not ready yet.');
           }
 
           setTitle(contract.title || 'Testagram TV');
-          setYoutubeVideoId(videoId);
+          setYoutubeVideoId(youtubeDelivery ? videoId : null);
           setNativeLive(false);
           setNativeError('');
-          // Prefer Testagram-native low-latency media when the host has capacity.
-          // If the host fan-out is full/unavailable, fall back to the CDN-backed
-          // YouTube player without making the viewer experience a dead end.
+          // Prefer Testagram-native low-latency media. Testagram-only broadcasts
+          // never fall back to YouTube, because no YouTube stream exists for them.
           try {
             const native = await TestagramTvMediaSession.connectViewer(streamId, (remote) => {
               if (nativeVideoRef.current && nativeVideoRef.current.srcObject !== remote) {
@@ -187,8 +187,14 @@ export default function TvPublicLivePage() {
             await nativeSessionRef.current?.close().catch(() => undefined);
             nativeSessionRef.current = null;
             setNativeLive(false);
-            setNativeError(nativeFailure instanceof Error ? nativeFailure.message : String(nativeFailure));
+            const nativeMessage = nativeFailure instanceof Error ? nativeFailure.message : String(nativeFailure);
+            setNativeError(nativeMessage);
+            if (testagramOnly) {
+              throw new Error('Testagram-only live media could not connect: ' + nativeMessage);
+            }
           }
+          // This fallback is intentionally available only when YouTube was enabled
+          // for this broadcast; native-only mode must not require a YouTube player.
           setLive(true);
           setConnecting(false);
           setError('');

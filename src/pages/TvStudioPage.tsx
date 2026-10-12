@@ -67,6 +67,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
   const productionVideoTrackRef = useRef<MediaStreamTrack | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
   const productionAudioTrackRef = useRef<MediaStreamTrack | null>(null);
+  const productionCommentarySourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const productionMasterGainRef = useRef<GainNode | null>(null);
   const productionGuestGainRef = useRef<GainNode | null>(null);
   const productionGuestSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
@@ -157,6 +158,9 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
   const [activeStreamId, setActiveStreamId] = useState<string | null>(streamId ?? null);
   const [mode, setMode] = useState<Mode>('studio');
   const [recording, setRecording] = useState(false);
+  const [youtubeEnabled, setYoutubeEnabled] = useState(false);
+  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
+  const [audioInputId, setAudioInputId] = useState('');
   const [live, setLive] = useState(false);
   const [muted, setMuted] = useState(false);
   const [camera, setCamera] = useState(true);
@@ -353,13 +357,13 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       try {
         s = await navigator.mediaDevices.getUserMedia({
           video: { ...CAMERA_CONSTRAINTS[quality], facingMode: { ideal: requestedFacing === 'front' ? 'user' : 'environment' } },
-          audio: { channelCount: { ideal: 1 }, sampleRate: { ideal: 48000 }, sampleSize: { ideal: 24 }, echoCancellation: true, noiseSuppression: true, autoGainControl: false },
+          audio: { ...(audioInputId ? { deviceId: { exact: audioInputId } } : {}), channelCount: { ideal: 1 }, sampleRate: { ideal: 48000 }, sampleSize: { ideal: 24 }, echoCancellation: true, noiseSuppression: true, autoGainControl: false },
         });
       } catch (error) {
         if ((error as DOMException)?.name !== 'OverconstrainedError') throw error;
         s = await navigator.mediaDevices.getUserMedia({
           video: { width: { ideal: preset.width }, height: { ideal: preset.height }, aspectRatio: { ideal: 16 / 9 }, frameRate: { ideal: preset.fps, max: preset.fps }, facingMode: { ideal: requestedFacing === 'front' ? 'user' : 'environment' } },
-          audio: { channelCount: { ideal: 1 }, sampleRate: { ideal: 48000 }, sampleSize: { ideal: 24 }, echoCancellation: true, noiseSuppression: true, autoGainControl: false },
+          audio: { ...(audioInputId ? { deviceId: { exact: audioInputId } } : {}), channelCount: { ideal: 1 }, sampleRate: { ideal: 48000 }, sampleSize: { ideal: 24 }, echoCancellation: true, noiseSuppression: true, autoGainControl: false },
         });
       }
       const track = s.getVideoTracks()[0];
@@ -392,6 +396,12 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       };
       setDeviceReady(true);
       setPermissionError(null);
+      void navigator.mediaDevices.enumerateDevices().then(devices => {
+        const inputs = devices.filter(device => device.kind === 'audioinput');
+        setAudioInputs(inputs);
+        const activeInputId = audioTrack?.getSettings().deviceId;
+        if (!audioInputId && (activeInputId || inputs[0]?.deviceId)) setAudioInputId(activeInputId || inputs[0].deviceId);
+      }).catch(() => undefined);
       return s;
     } catch (error) {
       setDeviceReady(false);
@@ -537,6 +547,75 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     return cameraStream;
   };
 
+  const switchAudioInput = async (deviceId: string) => {
+    setAudioInputId(deviceId);
+    const current = cameraStreamRef.current;
+    if (!current) {
+      toast.info('Audio input selected. Tap Preview to open this soundcard input.');
+      return;
+    }
+    let replacement: MediaStream | null = null;
+    let nextPipeline: StudioAudioPipeline | null = null;
+    let nextSource: MediaStreamAudioSourceNode | null = null;
+    try {
+      replacement = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          ...(deviceId ? { deviceId: { exact: deviceId } } : {}),
+          channelCount: { ideal: 1 },
+          sampleRate: { ideal: 48000 },
+          sampleSize: { ideal: 24 },
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+        },
+        video: false,
+      });
+      const nextTrack = replacement.getAudioTracks()[0];
+      if (!nextTrack) throw new Error('The selected soundcard did not provide an audio input track.');
+      nextPipeline = await createStudioAudioPipeline(replacement);
+      const context = productionAudioContextRef.current;
+      if (context && productionCommentaryGainRef.current && productionMasterGainRef.current) {
+        nextSource = context.createMediaStreamSource(nextPipeline.stream);
+        if (productionCommentaryAnalyserRef.current) nextSource.connect(productionCommentaryAnalyserRef.current);
+        else nextSource.connect(productionCommentaryGainRef.current);
+      }
+
+      const previousTrack = current.getAudioTracks()[0];
+      if (previousTrack) current.removeTrack(previousTrack);
+      current.addTrack(nextTrack);
+      nextTrack.onended = () => {
+        setMuted(true);
+        setStudioHealth('degraded');
+        toast.error('Selected soundcard input disconnected. Recording remains local; choose another audio input.');
+      };
+
+      const previousPipeline = audioPipelineRef.current;
+      const previousSource = productionCommentarySourceRef.current;
+      audioPipelineRef.current = nextPipeline;
+      productionCommentarySourceRef.current = nextSource;
+      nextPipeline = null;
+      nextSource = null;
+      previousSource?.disconnect();
+      if (previousPipeline) await previousPipeline.stop().catch(() => undefined);
+      previousTrack?.stop();
+      replacement = null;
+
+      const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
+      setAudioInputs(devices.filter(device => device.kind === 'audioinput'));
+      setMuted(false);
+      setStudioHealth('ready');
+      setPermissionError(null);
+      toast.success('Studio audio input switched. Check the MIC meter before recording.');
+    } catch (error) {
+      nextSource?.disconnect();
+      if (nextPipeline) await nextPipeline.stop().catch(() => undefined);
+      replacement?.getTracks().forEach(track => track.stop());
+      const currentDevice = current.getAudioTracks()[0]?.getSettings().deviceId || '';
+      setAudioInputId(currentDevice);
+      toast.error(error instanceof Error ? error.message : 'Could not switch to that soundcard input.');
+    }
+  };
+
   const rebuildProgramStream = () => {
     return createProductionProgram();
   };
@@ -570,10 +649,11 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
 
     const sourceVideo = sourceVideoRef.current;
     if (sourceVideo) {
-      // Keep uploaded media muted at the element level. The production AudioContext
-      // is the single authoritative audio path, so autoplay policy cannot prevent
-      // decoded video frames from entering the compositor.
-      sourceVideo.muted = true;
+      // Once a MediaElementAudioSourceNode is attached, keep the element unmuted:
+      // its decoded audio must flow into the Web Audio graph. It is routed to the
+      // Program destination (not directly to speakers), so this does not create a
+      // second audible path.
+      sourceVideo.muted = false;
       sourceVideo.playsInline = true;
       sourceVideo.preload = 'auto';
       if (sourceVideo.readyState < 2) {
@@ -914,8 +994,10 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       productionSourceGainRef.current.gain.value =
         programSceneRef.current === 'video' && !sourceVideoMuted && !programMuted ? programLevel : 0;
     }
-    // Route uploaded-media audio through the production mixer only.
-    if (sourceVideo) sourceVideo.muted = true;
+    // Route uploaded-media audio through the production mixer only. Muting the
+    // media element itself can silence its MediaElementAudioSourceNode on some
+    // browser/WebView implementations; the GainNode is the authoritative mute.
+    if (sourceVideo) sourceVideo.muted = false;
 
     if (audioPipelineRef.current && !productionCommentaryGainRef.current) {
       const commentary = audioContext.createMediaStreamSource(audioPipelineRef.current.stream);
@@ -923,6 +1005,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 512;
       commentary.connect(analyser).connect(commentaryGain).connect(productionMasterGainRef.current);
+      productionCommentarySourceRef.current = commentary;
       productionCommentaryGainRef.current = commentaryGain;
       productionCommentaryAnalyserRef.current = analyser;
       productionCommentaryMeterRef.current = analyser;
@@ -1200,13 +1283,13 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     const url = URL.createObjectURL(file);
     sourceVideoUrlRef.current = url;
     const video = sourceVideoRef.current ?? document.createElement('video');
-    // Dedicated decode element: its audio never plays directly. The Web Audio
-    // graph owns the Program bus and therefore owns mute/level control.
+    // Dedicated decode element: after createMediaElementSource is attached, its
+    // decoded audio is routed exclusively through the Program Web Audio bus.
     video.src = url;
     video.preload = 'auto';
     video.playsInline = true;
     video.autoplay = false;
-    video.muted = true;
+    video.muted = false;
     video.controls = false;
     sourceVideoRef.current = video;
     try { video.load(); } catch {}
@@ -1242,10 +1325,9 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     }
     const nextMuted = !sourceVideoMuted;
     setSourceVideoMuted(nextMuted);
-    // Keep the media element muted locally; the production AudioContext gain
-    // is the authoritative Program audio control, preventing duplicate local
-    // playback and making MUTE/UNMUTE deterministic.
-    sourceVideoRef.current.muted = true;
+    // The element must remain unmuted for decoded audio to reach its Web Audio
+    // source node. Mute only at the Program gain to keep mixer control deterministic.
+    sourceVideoRef.current.muted = false;
     const gain = productionSourceGainRef.current;
     if (gain) {
       const context = productionAudioContextRef.current;
@@ -1347,7 +1429,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
           description: broadcastDescription,
           category: broadcastCategory,
           is_live: false,
-          tv_provider: 'youtube',
+          tv_provider: youtubeEnabled ? 'youtube' : 'testagram',
         }).select('id,title,description,category,is_live,tv_provider').single();
         if (error || !data) throw new Error(error?.message || 'Could not create broadcast.');
         id = data.id;
@@ -1359,50 +1441,88 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       setBroadcastStage('connecting');
       const { data: auth } = await supabase.auth.getSession();
       const headers = { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: `Bearer ${auth.session.access_token}` } : {}) };
-      const startResponse = await fetch('/api/live', {
+      let outputProvider: 'youtube' | 'testagram' = youtubeEnabled ? 'youtube' : 'testagram';
+      let startResponse = await fetch('/api/live', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ action: 'start', provider: 'youtube', stream_id: id }),
+        body: JSON.stringify({ action: 'start', provider: outputProvider, stream_id: id }),
       });
-      const startPayload = await startResponse.json().catch(() => null);
-      const provider = 'youtube' as const;
-      const youtubeStart = startPayload?.data?.youtube;
-      const youtubeToken = typeof youtubeStart?.encoder_token === 'string' ? youtubeStart.encoder_token : '';
-      if (!startResponse.ok || !youtubeToken) {
-        throw new Error(String(startPayload?.error?.message || 'YouTube live delivery could not be started.'));
+      let startPayload = await startResponse.json().catch(() => null);
+
+      if (outputProvider === 'youtube') {
+        let youtubeFailure: string | null = null;
+        if (!startResponse.ok) {
+          youtubeFailure = String(startPayload?.error?.message || 'YouTube setup failed.');
+        } else {
+          const youtubeStart = startPayload?.data?.youtube;
+          const youtubeToken = typeof youtubeStart?.encoder_token === 'string' ? youtubeStart.encoder_token : '';
+          if (!youtubeToken) {
+            youtubeFailure = 'YouTube did not issue an encoder token.';
+          } else {
+            try {
+              session = await TestagramTvYouTubeSession.connect({
+                streamId: id,
+                encoderToken: youtubeToken,
+                program,
+                quality,
+                videoBitsPerSecond: VIDEO_PRESETS[quality].bitrate,
+                onStatus: (next, detail) => {
+                  setBroadcastDiagnostics(prev => ({ ...(prev || {}), provider: 'youtube', encoder_status: next, youtube_status: next, detail: detail || null }));
+                  if (next === 'reconnecting') setBroadcastStage('connecting');
+                },
+              });
+            } catch (youtubeError) {
+              youtubeFailure = youtubeError instanceof Error ? youtubeError.message : String(youtubeError);
+            }
+          }
+        }
+
+        // Optional YouTube failure must never cancel the Testagram broadcast.
+        if (youtubeFailure) {
+          setBroadcastDiagnostics(prev => ({ ...(prev || {}), youtube_status: 'unavailable', youtube_error: youtubeFailure, fallback: 'testagram' }));
+          if (startResponse.ok) {
+            await fetch('/api/live', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ action: 'stop', stream_id: id }),
+            }).catch(() => undefined);
+          }
+          session = null;
+          roomRef.current = null;
+          outputProvider = 'testagram';
+          startResponse = await fetch('/api/live', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ action: 'start', provider: 'testagram', stream_id: id }),
+          });
+          startPayload = await startResponse.json().catch(() => null);
+          if (!startResponse.ok) {
+            throw new Error('YouTube delivery failed (' + youtubeFailure + ') and Testagram fallback failed: ' + String(startPayload?.error?.message || 'unknown startup error'));
+          }
+          toast.warning('YouTube delivery is unavailable. Continuing live on Testagram only.');
+        }
+      } else if (!startResponse.ok) {
+        throw new Error(String(startPayload?.error?.message || 'Testagram TV could not be started.'));
       }
 
-      session = await TestagramTvYouTubeSession.connect({
-        streamId: id,
-        encoderToken: youtubeToken,
-        program,
-        quality,
-
-        videoBitsPerSecond: VIDEO_PRESETS[quality].bitrate,
-        onStatus: (next, detail) => {
-          setBroadcastDiagnostics(prev => ({
-            ...(prev || {}),
-            provider: 'youtube',
-            encoder_status: next,
-            youtube_status: next,
-            detail: detail || null,
-          }));
-          if (next === 'reconnecting') setBroadcastStage('connecting');
-        },
-      });
-
-      roomRef.current = session;
-
-      // Testagram-native public delivery runs alongside YouTube. It is deliberately
-      // capped to a small host-fanout ceiling; larger audiences use the CDN-backed
-      // YouTube path instead of turning one broadcaster's browser into a media CDN.
-      try {
-        const nativeSession = await TestagramTvMediaSession.connectHostExisting(id, program);
-        nativeSession.setViewerCountHandler?.((count) => setViewerCount(count));
-        nativeViewerRoomRef.current = nativeSession;
-        setBroadcastDiagnostics(prev => ({ ...(prev || {}), native_public_media: 'ready', native_viewer_limit: 20 }));
-      } catch (nativeError) {
-        setBroadcastDiagnostics(prev => ({ ...(prev || {}), native_public_media: 'degraded', native_public_media_error: nativeError instanceof Error ? nativeError.message : String(nativeError) }));
+      if (outputProvider === 'youtube') {
+        if (!session) throw new Error('YouTube encoder did not establish a session.');
+        roomRef.current = session;
+        // Native Testagram viewing is an additional low-latency path when YouTube is also enabled.
+        try {
+          const nativeSession = await TestagramTvMediaSession.connectHostExisting(id, program);
+          nativeSession.setViewerCountHandler?.((count) => setViewerCount(count));
+          nativeViewerRoomRef.current = nativeSession;
+          setBroadcastDiagnostics(prev => ({ ...(prev || {}), native_public_media: 'ready', native_viewer_limit: 20 }));
+        } catch (nativeError) {
+          setBroadcastDiagnostics(prev => ({ ...(prev || {}), native_public_media: 'degraded', native_public_media_error: nativeError instanceof Error ? nativeError.message : String(nativeError) }));
+        }
+      } else {
+        // Testagram-only delivery is the primary path; YouTube is never contacted unless requested.
+        session = await TestagramTvMediaSession.connectHostExisting(id, program);
+        session.setViewerCountHandler?.((count) => setViewerCount(count));
+        roomRef.current = session;
+        setBroadcastDiagnostics(prev => ({ ...(prev || {}), provider: 'testagram', native_public_media: 'ready', native_viewer_limit: 20, youtube_status: 'disabled' }));
       }
 
       // Guest WebRTC is an optional interactive feature. It must never block
@@ -1507,12 +1627,12 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
           setYoutubeStatus(String(youtube.status || 'disabled'));
           setBroadcastDiagnostics(prev => ({
             ...(prev || {}),
-            provider: 'youtube',
+            provider: outputProvider,
             encoder_status: roomRef.current?.getStatus?.() || 'encoding',
-            youtube_status: youtube.status || 'disabled',
-            youtube_stream_status: verifyPayload.data.youtube_stream_status || youtube.stream_status || null,
-            youtube_broadcast_status: verifyPayload.data.youtube_broadcast_status || youtube.broadcast_status || null,
-            youtube_error: youtube.error || null,
+            youtube_status: outputProvider === 'youtube' ? (youtube.status || 'disabled') : 'disabled',
+            youtube_stream_status: outputProvider === 'youtube' ? (verifyPayload.data.youtube_stream_status || youtube.stream_status || null) : null,
+            youtube_broadcast_status: outputProvider === 'youtube' ? (verifyPayload.data.youtube_broadcast_status || youtube.broadcast_status || null) : null,
+            youtube_error: outputProvider === 'youtube' ? (youtube.error || null) : null,
             on_air: Boolean(verifyPayload.data.on_air),
           }));
           if (verifyPayload.data.on_air) {
@@ -1524,7 +1644,9 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       }
       if (!onAir) {
         throw new Error(
-          `YouTube Live has not reached ON AIR within 60s. ${lastHealth ? JSON.stringify(lastHealth) : 'No YouTube health response.'}`,
+          outputProvider === 'youtube'
+            ? `YouTube Live has not reached ON AIR within 60s. ${lastHealth ? JSON.stringify(lastHealth) : 'No YouTube health response.'}`
+            : `Testagram native delivery has not confirmed ON AIR. ${lastHealth ? JSON.stringify(lastHealth) : 'No Testagram health response.'}`,
         );
       }
 
@@ -1536,7 +1658,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       setStatus('live');
       setElapsed(0);
       setBroadcastError(null);
-      toast.success(`Testagram TV is ON AIR · YouTube: ${youtubeStatus}`);
+      toast.success(outputProvider === 'youtube' ? `Testagram TV is ON AIR · YouTube: ${youtubeStatus}` : 'Testagram TV is ON AIR · YouTube delivery is disabled.');
     } catch (e: any) {
       if (guestSession) await guestSession.close().catch(() => undefined);
       if (nativeViewerRoomRef.current) { await nativeViewerRoomRef.current.close().catch(() => undefined); nativeViewerRoomRef.current = null; }
@@ -1725,6 +1847,9 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     try {
       await ensureStudio();
       const program = await createProductionProgram();
+      const programVideo = program.getVideoTracks().find(track => track.readyState === 'live');
+      const programAudio = program.getAudioTracks().find(track => track.readyState === 'live');
+      if (!programVideo || !programAudio) throw new Error('The local recording bus needs live Program video and mixed audio. Start Preview and select an active microphone/soundcard input first.');
       const preset = VIDEO_PRESETS[quality];
       const mime = [
         'video/webm;codecs=vp9,opus',
@@ -2497,6 +2622,17 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
               <select value={quality} disabled={live || recording} onChange={e => setQuality(e.target.value as Quality)} className="w-full mt-1 rounded-lg bg-zinc-800 p-2">
                 <option value="4k">4K UHD (local capture)</option><option value="1440p">1440p QHD (local capture)</option><option value="1080p">1080p Full HD · live output</option><option value="720p">720p HD</option><option value="480p">480p</option>
               </select>
+              <label className="mt-3 flex items-start gap-2 rounded-lg border border-white/10 bg-black/20 p-3 text-sm">
+                <input type="checkbox" checked={youtubeEnabled} disabled={live || broadcastStage !== 'idle'} onChange={e => setYoutubeEnabled(e.target.checked)} className="mt-1 accent-red-500" />
+                <span><span className="block font-semibold">Also deliver to YouTube (optional)</span><span className="block text-xs text-zinc-400">Off by default. Testagram live and local recording work without YouTube credentials or availability.</span></span>
+              </label>
+              <label className="mt-3 block text-xs text-zinc-400">Audio input / soundcard
+                <select value={audioInputId} disabled={live || recording} onChange={e => { void switchAudioInput(e.target.value); }} className="mt-1 w-full rounded-lg bg-zinc-800 p-2 text-sm text-white">
+                  <option value="">System default input</option>
+                  {audioInputs.map(device => <option key={device.deviceId} value={device.deviceId}>{device.label || `Audio input ${device.deviceId.slice(0, 6)}`}</option>)}
+                </select>
+                <span className="mt-1 block text-[10px] text-zinc-500">Choose the soundcard/mixer input carrying your voice. Browser permission is required; system playback capture is not automatic.</span>
+              </label>
               <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
                 <div className="rounded-lg bg-black/30 p-2"><Activity className="w-3.5 h-3.5 mb-1 text-emerald-400" /><span>{quality === '4k' ? '4K UHD' : quality}</span><p className="text-zinc-500">{quality === '4k' || quality === '1440p' ? 'capture · live capped at 1080p' : 'capture + live output'}</p></div>
                 <div className="rounded-lg bg-black/30 p-2"><Mic className="w-3.5 h-3.5 mb-1 text-emerald-400" /><span>48 kHz</span><p className="text-zinc-500">processed audio</p></div>

@@ -11,7 +11,7 @@ function pickMime(){
 export class TestagramTvYouTubeSession{
  private readonly options:Options;private socket:WebSocket|null=null;private recorder:MediaRecorder|null=null;private stopped=false;private reconnectTimer:number|null=null;private rotationTimer:number|null=null;private reconnectAttempts=0;private consecutiveEncodingErrors=0;private connectPromise:Promise<void>|null=null;private status:YouTubeSessionStatus="connecting";
  constructor(o:Options){this.options=o}
- static async connect(o:Options){const s=new TestagramTvYouTubeSession(o);await s.openTransport();return s}
+ static async connect(o:Options){const s=new TestagramTvYouTubeSession(o);try{await s.openTransport();return s}catch(error){await s.stop().catch(()=>undefined);throw error}}
  private setStatus(s:YouTubeSessionStatus,d?:string){this.status=s;this.options.onStatus?.(s,d)}
  private stopRecorder(){if(this.recorder){try{this.recorder.stop()}catch{}this.recorder=null}}
  private scheduleReconnect(){
