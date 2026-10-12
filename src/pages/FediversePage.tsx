@@ -72,6 +72,9 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
   const [activeRemoteProfile, setActiveRemoteProfile] = useState<any | null>(null);
   const [following, setFollowing] = useState(false);
   const [remotePosts, setRemotePosts] = useState<any[]>([]);
+  const remotePostsRef = useRef<any[]>([]);
+  const [pendingFeedPosts, setPendingFeedPosts] = useState<any[]>([]);
+  useEffect(() => { remotePostsRef.current = remotePosts; }, [remotePosts]);
   // Feed is cache-first + stale-while-revalidate. A cached page is always
   // rendered immediately; network refreshes never take the feed offline or
   // show a blocking spinner over existing content.
@@ -389,15 +392,9 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
         return incomingByKey.has(key) ? { ...item, ...incomingByKey.get(key) } : item;
       });
 
-    const unseen = [...incomingByKey.entries()]
-      .filter(([key]) => !existingKeys.has(key))
-      .map(([, item]) => item)
-      .filter(item => !item?.deleted_at && !item?.tombstone)
-      .sort((a, b) => new Date(b?.published_at ?? b?.created_at ?? 0).getTime() - new Date(a?.published_at ?? a?.created_at ?? 0).getTime());
-
-    // Existing rows retain their DOM position. New refresh items are the only
-    // rows allowed to enter at the top, preventing scroll jumps during refresh.
-    return [...unseen, ...existing];
+    // Refreshes may update existing rows, but never insert rows above the
+    // reader. New posts are staged separately to avoid mobile WebView scroll jumps.
+    return existing;
   }, []);
 
   const appendFederatedFeedItems = useCallback((current: any[], incoming: any[]) => {
@@ -455,7 +452,32 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
       setHasMoreFeed(page?.pagination?.hasMore !== false && Boolean(nextCursor));
 
       if (fresh.length > 0) {
-        setRemotePosts(prev => mergeFederatedFeedItems(prev, fresh));
+        const visibleKeys = new Set(remotePostsRef.current.map((item: any) =>
+          String(item?.uri ?? item?.object_url ?? item?.id ?? '')
+        ));
+        if (remotePostsRef.current.length === 0) {
+          // Seed an empty timeline on first successful fetch; do not stage the initial page.
+          setRemotePosts(fresh.filter((item: any) => !item?.deleted_at && !item?.tombstone));
+        } else {
+          const staged = fresh.filter((item: any) => {
+            const key = String(item?.uri ?? item?.object_url ?? item?.id ?? '');
+            return key && !visibleKeys.has(key) && !item?.deleted_at && !item?.tombstone;
+          });
+          if (staged.length) {
+            setPendingFeedPosts(prev => {
+              const keys = new Set(prev.map((item: any) => String(item?.uri ?? item?.object_url ?? item?.id ?? '')));
+              return [...staged.filter((item: any) => {
+                const key = String(item?.uri ?? item?.object_url ?? item?.id ?? '');
+                if (!key || keys.has(key)) return false;
+                keys.add(key);
+                return true;
+              }), ...prev].sort((a: any, b: any) =>
+                new Date(b?.published_at ?? b?.created_at ?? 0).getTime() - new Date(a?.published_at ?? a?.created_at ?? 0).getTime()
+              );
+            });
+          }
+          setRemotePosts(prev => mergeFederatedFeedItems(prev, fresh));
+        }
         // Upsert is the cache replacement step: changed remote objects replace
         // their previous cached representation by canonical URI.
         void cacheFederatedPosts(fresh);
@@ -1140,6 +1162,26 @@ export default function FediversePage({ initialTab = 'feed', standalone = false 
           {/* AdSense banner — fediverse feed */}
           <FediverseAdBanner />
 
+          {pendingFeedPosts.length > 0 && (
+            <div className="sticky top-[104px] z-20 flex justify-center px-3 py-2 pointer-events-none">
+              <button
+                type="button"
+                onClick={() => {
+                  const currentKeys = new Set(remotePostsRef.current.map((item: any) => String(item?.uri ?? item?.object_url ?? item?.id ?? '')));
+                  const incoming = pendingFeedPosts.filter((item: any) => {
+                    const key = String(item?.uri ?? item?.object_url ?? item?.id ?? '');
+                    return key && !currentKeys.has(key);
+                  });
+                  setRemotePosts(prev => [...incoming, ...prev]);
+                  setPendingFeedPosts([]);
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className="pointer-events-auto rounded-full bg-primary px-4 py-2 text-xs font-semibold text-primary-foreground shadow-lg"
+              >
+                {pendingFeedPosts.length} new {pendingFeedPosts.length === 1 ? 'post' : 'posts'} · Show
+              </button>
+            </div>
+          )}
           {(fedTrendingTags.length > 0 || loadingFedTags) && (
             <div className="border-b border-border px-4 py-3">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1.5">
