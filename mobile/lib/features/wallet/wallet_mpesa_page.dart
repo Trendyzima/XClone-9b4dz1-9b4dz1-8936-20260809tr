@@ -96,7 +96,7 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
       return;
     }
     final pin = _pinController.text;
-    if (!RegExp(r'^\d{4,6}).hasMatch(pin)) {
+    if (!RegExp(r'^\d{4,6}$').hasMatch(pin)) {
       setState(() => _message = 'Enter your 4–6 digit wallet PIN.');
       return;
     }
@@ -629,7 +629,6 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
                         hintText: '07xx xxx xxx or 2547xx xxx xxx',
                         border: OutlineInputBorder()),
                   ),
-                  const SizedBox(height: 12),
                   const SizedBox(height: 12),
                   TextField(
                     controller: _pinController,
