@@ -30,10 +30,16 @@ extension type _HlsInstance(JSObject _) implements JSObject {
 }
 
 class TvWebPlayer extends StatefulWidget {
-  const TvWebPlayer({required this.url, this.onError, super.key});
+  const TvWebPlayer({
+    required this.url,
+    this.onError,
+    this.onPlaybackReady,
+    super.key,
+  });
 
   final String url;
   final ValueChanged<String>? onError;
+  final VoidCallback? onPlaybackReady;
 
   @override
   State<TvWebPlayer> createState() => _TvWebPlayerState();
@@ -46,6 +52,7 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
   _HlsInstance? _hls;
   String? _error;
   int _generation = 0;
+  int _readyGeneration = -1;
 
   @override
   void initState() {
@@ -70,6 +77,13 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
           ((web.Event event) {
             _reportError(
                 'This stream failed to load in the browser. Try another channel or retry.');
+          }).toJS);
+      video.addEventListener(
+          'playing',
+          ((web.Event event) {
+            if (!mounted || _readyGeneration == _generation) return;
+            _readyGeneration = _generation;
+            widget.onPlaybackReady?.call();
           }).toJS);
       _video = video;
       unawaited(_attach(video, widget.url, ++_generation));
