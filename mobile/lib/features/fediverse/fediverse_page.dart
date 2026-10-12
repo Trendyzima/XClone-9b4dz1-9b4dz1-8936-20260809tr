@@ -13,7 +13,9 @@ class FediversePage extends StatefulWidget {
   final bool instancesOnly;
   final String section;
 
-  String get title => switch (section) {
+  String get title {
+    if (instancesOnly) return 'Fediverse instances';
+    return switch (section) {
         'discover' => 'Discover the Fediverse',
         'organic-discovery' => 'Organic discovery',
         'mastodon' => 'Mastodon timeline',
@@ -38,6 +40,7 @@ class FediversePage extends StatefulWidget {
         'controls' => 'Federation controls',
         _ => 'Fediverse',
       };
+  }
   @override
   State<FediversePage> createState() => _FediversePageState();
 }
@@ -173,6 +176,7 @@ class _FediversePageState extends State<FediversePage> {
       const {
         'inbox',
         'relay',
+        'mastodon',
         'analytics',
         'identity',
         'profile',
@@ -238,7 +242,9 @@ class _FediversePageState extends State<FediversePage> {
 
   @override
   Widget build(BuildContext context) {
-    if (widget.instancesOnly) {
+    if (widget.instancesOnly ||
+        widget.section == 'discover' ||
+        widget.section == 'organic-discovery') {
       return RefreshIndicator(
           onRefresh: _load,
           child: ListView(padding: const EdgeInsets.all(14), children: [

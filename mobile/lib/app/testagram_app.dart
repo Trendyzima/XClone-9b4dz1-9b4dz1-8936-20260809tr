@@ -438,6 +438,10 @@ class _TestagramAppState extends State<TestagramApp> {
                   SpacesPage(spaceId: state.pathParameters['id']),
             ),
             GoRoute(
+              path: '/start-stream',
+              builder: (_, __) => const TvStudioPage(),
+            ),
+            GoRoute(
               path: '/tv-studio',
               builder: (_, __) => const TvStudioPage(),
             ),
