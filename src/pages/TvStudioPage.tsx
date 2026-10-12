@@ -1591,7 +1591,9 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       }
       if (!onAir) {
         throw new Error(
-          `YouTube Live has not reached ON AIR within 60s. ${lastHealth ? JSON.stringify(lastHealth) : 'No YouTube health response.'}`,
+          outputProvider === 'youtube'
+            ? `YouTube Live has not reached ON AIR within 60s. ${lastHealth ? JSON.stringify(lastHealth) : 'No YouTube health response.'}`
+            : `Testagram native delivery has not confirmed ON AIR. ${lastHealth ? JSON.stringify(lastHealth) : 'No Testagram health response.'}`,
         );
       }
 
