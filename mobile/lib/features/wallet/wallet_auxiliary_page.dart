@@ -32,7 +32,7 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
   String? _error;
   String? _notice;
   Map<String, dynamic>? _wallet;
-  Map<String, dynamic>? _pocket;
+  Map<String, dynamic>? _pocketData;
   Map<String, dynamic>? _profile;
   List<Map<String, dynamic>> _rows = const [];
   DateTime _scheduledFor = DateTime.now().add(const Duration(days: 1));
@@ -103,7 +103,7 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
               .select('wallet_id,user_id,balance,currency,updated_at')
               .eq('user_id', user.id)
               .maybeSingle();
-          _pocket = pocketResponse == null
+          _pocketData = pocketResponse == null
               ? null
               : Map<String, dynamic>.from(pocketResponse);
           break;
@@ -173,7 +173,9 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
     if (value == null ||
         !value.isFinite ||
         value <= 0 ||
-        value * 100 != (value * 100).roundToDouble()) return null;
+        value * 100 != (value * 100).roundToDouble()) {
+      return null;
+    }
     return value;
   }
 
@@ -197,19 +199,21 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
         params: {'p_amount': amount, 'p_direction': direction},
       );
       _amount.clear();
-      if (mounted)
+      if (mounted) {
         setState(
           () => _notice = direction == 'in'
               ? 'Funds moved into your savings pocket.'
               : 'Funds returned to your wallet.',
         );
+      }
       await _load();
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _error =
               'The savings operation was not confirmed. Refresh your balances before retrying.',
         );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -233,8 +237,9 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
     });
     try {
       final wallet = await _db.rpc('get_my_wallet').maybeSingle();
-      if (wallet == null || wallet['id'] == null)
+      if (wallet == null || wallet['id'] == null) {
         throw StateError('Wallet missing');
+      }
       await _db.from('wallet_transaction_reminders').insert({
         'user_id': user.id,
         'wallet_id': wallet['id'],
@@ -250,11 +255,12 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
       if (mounted) setState(() => _notice = 'Reminder saved.');
       await _load();
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _error =
               'Reminder could not be saved. No reminder was confirmed.',
         );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -309,18 +315,20 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
       _username.clear();
       _amount.clear();
       _note.clear();
-      if (mounted)
+      if (mounted) {
         setState(
           () => _notice =
               'Transfer scheduled. It will be processed by the server at the selected time.',
         );
+      }
       await _load();
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _error =
               'Transfer was not scheduled. Verify the recipient, balance and future date.',
         );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -336,11 +344,12 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
       if (mounted) setState(() => _notice = 'Scheduled transfer cancelled.');
       await _load();
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _error =
               'Transfer cancellation was not confirmed. Refresh the list.',
         );
+      }
     }
   }
 
@@ -376,10 +385,11 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
     final details =
         'Receive money on Testagram${username == null ? '' : ' as @$username'}. Account reference: ${userId ?? ''}';
     await Clipboard.setData(ClipboardData(text: details));
-    if (mounted)
+    if (mounted) {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Receiving details copied')));
+    }
     await Share.share(details);
   }
 
@@ -420,7 +430,7 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
           if (!_loading && widget.mode == WalletAuxiliaryMode.analytics)
             _analytics(theme),
           if (!_loading && widget.mode == WalletAuxiliaryMode.pocket)
-            _pocket(theme),
+            _pocketContent(theme),
           if (!_loading && widget.mode == WalletAuxiliaryMode.receive)
             _receive(theme),
           if (!_loading && widget.mode == WalletAuxiliaryMode.referrals)
@@ -523,16 +533,16 @@ class _WalletAuxiliaryPageState extends State<WalletAuxiliaryPage> {
         ),
       );
 
-  Widget _pocket(ThemeData theme) => Column(
+  Widget _pocketContent(ThemeData theme) => Column(
         children: [
           Card(
             child: ListTile(
               leading: const Icon(Icons.savings_outlined),
               title: const Text('Pocket balance'),
               subtitle: Text(
-                'Currency: ${_pocket?['currency'] ?? _wallet?['currency'] ?? 'KES'}',
+                'Currency: ${_pocketData?['currency'] ?? _wallet?['currency'] ?? 'KES'}',
               ),
-              trailing: Text('${_pocket?['balance'] ?? '0.00'}'),
+              trailing: Text('${_pocketData?['balance'] ?? '0.00'}'),
             ),
           ),
           const SizedBox(height: 8),
