@@ -99,21 +99,24 @@ class _RewardsPageState extends State<RewardsPage> {
       final response = await _client.rpc('claim_daily_reward');
       final data =
           response is List && response.isNotEmpty ? response.first : response;
-      if (data is Map && data['ok'] == false)
+      if (data is Map && data['ok'] == false) {
         throw StateError('The daily reward was not accepted.');
-      if (mounted)
+      }
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Daily reward claimed. Refreshing your balance…'),
           ),
         );
+      }
       await _load();
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _error =
               'Reward claim was not confirmed. Refresh before trying again.',
         );
+      }
     } finally {
       if (mounted) setState(() => _claiming = false);
     }
