@@ -101,7 +101,7 @@ class SponsoredAdService {
 
   Uri _endpoint(String name) {
     final base = supabaseUrl.replaceFirst(RegExp(r'/+$'), '');
-    return Uri.parse('${base}/functions/v1/${name}');
+    return Uri.parse('$base/functions/v1/$name');
   }
 
   String _requestId() {
