@@ -80,6 +80,7 @@ class SponsoredAdService {
     required this.supabaseUrl,
     required this.publishableKey,
     this.accessToken,
+    this.accessTokenProvider,
     http.Client? httpClient,
   }) : _http = httpClient ?? http.Client();
 
@@ -87,13 +88,14 @@ class SponsoredAdService {
     return SponsoredAdService(
       supabaseUrl: AppConfig.supabaseUrl,
       publishableKey: AppConfig.supabasePublishableKey,
-      accessToken: client.auth.currentSession?.accessToken,
+      accessTokenProvider: () => client.auth.currentSession?.accessToken,
     );
   }
 
   final String supabaseUrl;
   final String publishableKey;
   final String? accessToken;
+  final String? Function()? accessTokenProvider;
   final http.Client _http;
 
   Uri _endpoint(String name) =>
@@ -108,8 +110,8 @@ class SponsoredAdService {
         'apikey': publishableKey,
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        if (accessToken != null && accessToken!.isNotEmpty)
-          'Authorization': 'Bearer $accessToken',
+        if ((accessTokenProvider?.call() ?? accessToken)?.isNotEmpty == true)
+          'Authorization': 'Bearer ${accessTokenProvider?.call() ?? accessToken}',
       };
 
   Future<SponsoredAd?> requestAd({
