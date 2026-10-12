@@ -135,7 +135,7 @@ class _ProfilePageState extends State<ProfilePage> {
           .toList();
       switch (widget.section) {
         case 'threads':
-          final rows = await _client
+          final threadRows = await _client
               .from('threads')
               .select('*')
               .eq('owner_id', targetId)
@@ -143,35 +143,35 @@ class _ProfilePageState extends State<ProfilePage> {
               .order('created_at', ascending: false)
               .limit(30)
               .timeout(const Duration(seconds: 15));
-          sectionItems = rows.map((row) {
+          sectionItems = threadRows.map((row) {
             final item = Map<String, dynamic>.from(row as Map);
             item['content'] = item['content'] ?? item['body'] ?? '';
             return item;
           }).toList();
           break;
         case 'replies':
-          final rows = await _client
+          final replyRows = await _client
               .from('replies')
               .select('*')
               .eq('user_id', targetId)
               .order('created_at', ascending: false)
               .limit(30)
               .timeout(const Duration(seconds: 15));
-          sectionItems = rows.map((row) {
+          sectionItems = replyRows.map((row) {
             final item = Map<String, dynamic>.from(row as Map);
             item['content'] = item['content'] ?? item['body'] ?? '';
             return item;
           }).toList();
           break;
         case 'likes':
-          final rows = await _client
+          final reactionRows = await _client
               .from('post_reactions')
               .select('post_id')
               .eq('user_id', targetId)
               .order('created_at', ascending: false)
               .limit(30)
               .timeout(const Duration(seconds: 15));
-          final postIds = rows
+          final postIds = reactionRows
               .map((row) => '${row['post_id']}')
               .where((id) => id.isNotEmpty)
               .toSet()
