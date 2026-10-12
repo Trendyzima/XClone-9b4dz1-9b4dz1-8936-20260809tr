@@ -204,12 +204,15 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
 
   String _financialError(Object error) {
     final message = error.toString().toLowerCase();
-    if (message.contains('insufficient'))
+    if (message.contains('insufficient')) {
       return 'Insufficient balance for this operation.';
-    if (message.contains('limit'))
+    }
+    if (message.contains('limit')) {
       return 'The savings limit would be exceeded.';
-    if (message.contains('authentication'))
+    }
+    if (message.contains('authentication')) {
       return 'Your session expired. Sign in again.';
+    }
     return 'The savings operation was not confirmed. Refresh balances before retrying.';
   }
 
