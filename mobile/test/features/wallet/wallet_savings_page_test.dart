@@ -20,20 +20,23 @@ void main() {
       expect(summary.remainingCapacity, 17500);
     });
 
-    test('defaults malformed amounts safely and prevents negative capacity', () {
-      final summary = WalletSavingsSummary.fromJson({
-        'balance_kes': 'invalid',
-        'savings_kes': 25000,
-        'savings_limit_kes': null,
-        'currency': 'USD',
-      });
+    test(
+      'defaults malformed amounts safely and prevents negative capacity',
+      () {
+        final summary = WalletSavingsSummary.fromJson({
+          'balance_kes': 'invalid',
+          'savings_kes': 25000,
+          'savings_limit_kes': null,
+          'currency': 'USD',
+        });
 
-      expect(summary.walletBalance, 0);
-      expect(summary.savingsBalance, 25000);
-      expect(summary.savingsLimit, 20000);
-      expect(summary.remainingCapacity, 0);
-      expect(summary.currency, 'KES');
-      expect(summary.status, 'unknown');
-    });
+        expect(summary.walletBalance, 0);
+        expect(summary.savingsBalance, 25000);
+        expect(summary.savingsLimit, 20000);
+        expect(summary.remainingCapacity, 0);
+        expect(summary.currency, 'KES');
+        expect(summary.status, 'unknown');
+      },
+    );
   });
 }
