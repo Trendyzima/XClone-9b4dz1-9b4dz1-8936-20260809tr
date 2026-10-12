@@ -79,6 +79,15 @@ jobs:
         run: |
           dart format --output=show lib/features/tv/tv_page.dart > /tmp/tv_page.formatted.dart
           diff -u lib/features/tv/tv_page.dart /tmp/tv_page.formatted.dart || true
+      - name: Diagnose remaining Dart formatter diffs
+        working-directory: mobile
+        shell: bash
+        run: |
+          set +e
+          for file in lib/features/fediverse/fediverse_feed_policy.dart lib/features/fediverse/fediverse_page.dart test/features/fediverse/fediverse_feed_policy_test.dart lib/features/native_route/native_feature_page.dart; do
+            dart format --output=show "$file" > /tmp/formatted.dart
+            diff -u "$file" /tmp/formatted.dart || true
+          done
       - name: Enforce formatting
         working-directory: mobile
         run: dart format --output=none --set-exit-if-changed lib test
