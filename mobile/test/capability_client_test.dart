@@ -8,8 +8,9 @@ import 'package:testagram/core/api/testagram_capability_client.dart';
 void main() {
   final endpoint = Uri.parse('https://testagram.site/api/capability');
 
-  test('rejects private capabilities without a session before network access',
-      () async {
+  test(
+    'rejects private capabilities without a session before network access',
+    () async {
     var requests = 0;
     final client = TestagramCapabilityClient(
       endpoint: endpoint,
@@ -61,8 +62,9 @@ void main() {
     client.close();
   });
 
-  test('only allows explicitly public capabilities without a session',
-      () async {
+  test(
+    'only allows explicitly public capabilities without a session',
+    () async {
     late http.Request captured;
     final client = TestagramCapabilityClient(
       endpoint: endpoint,
@@ -114,8 +116,9 @@ void main() {
     client.close();
   });
 
-  test('preserves a useful server error without leaking response internals',
-      () async {
+  test(
+    'preserves a useful server error without leaking response internals',
+    () async {
     final client = TestagramCapabilityClient(
       endpoint: endpoint,
       publishableKey: 'public-key',
@@ -141,8 +144,9 @@ void main() {
     client.close();
   });
 
-  test('times out instead of leaving a request pending indefinitely',
-      () async {
+  test(
+    'times out instead of leaving a request pending indefinitely',
+    () async {
     final client = TestagramCapabilityClient(
       endpoint: endpoint,
       publishableKey: 'public-key',
