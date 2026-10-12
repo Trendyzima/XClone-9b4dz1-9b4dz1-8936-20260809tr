@@ -5,13 +5,15 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config/app_config.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({this.username, super.key});
+  const ProfilePage({this.username, this.section = 'posts', super.key});
   final String? username;
+  final String section;
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
@@ -20,6 +22,7 @@ class ProfilePage extends StatefulWidget {
 class _ProfilePageState extends State<ProfilePage> {
   Map<String, dynamic>? _profile;
   List<Map<String, dynamic>> _posts = [];
+  List<Map<String, dynamic>> _people = [];
   int _followers = 0;
   int _following = 0;
   bool _isFollowing = false;
@@ -27,9 +30,9 @@ class _ProfilePageState extends State<ProfilePage> {
   bool _followBusy = false;
   String? _error;
   SupabaseClient get _client => Supabase.instance.client;
-  String get _uid => _client.auth.currentUser!.id;
-  String get _targetId => '${_profile?['id'] ?? _uid}';
-  bool get _isOwnProfile => _targetId == _uid;
+  String? get _uid => _client.auth.currentUser?.id;
+  String get _targetId => '${_profile?['id'] ?? _uid ?? ''}';
+  bool get _isOwnProfile => _uid != null && _targetId == _uid;
 
   @override
   void initState() {
@@ -43,11 +46,15 @@ class _ProfilePageState extends State<ProfilePage> {
       _error = null;
     });
     try {
+      final uid = _uid;
+      if (widget.username == null && uid == null) {
+        throw Exception('Sign in to view your own profile.');
+      }
       final profile = widget.username == null
           ? await _client
               .from('profiles')
               .select('*')
-              .eq('id', _uid)
+              .eq('id', uid!)
               .maybeSingle()
           : await _client
               .from('profiles')
@@ -88,8 +95,40 @@ class _ProfilePageState extends State<ProfilePage> {
             .maybeSingle();
         following = relation != null;
       }
+      final people = <Map<String, dynamic>>[];
+      if (widget.section == 'followers' || widget.section == 'following') {
+        final relationColumn =
+            widget.section == 'followers' ? 'following_id' : 'follower_id';
+        final personColumn =
+            widget.section == 'followers' ? 'follower_id' : 'following_id';
+        final relationships = await _client
+            .from('follows')
+            .select('follower_id,following_id')
+            .eq(relationColumn, targetId)
+            .eq('status', 'accepted')
+            .limit(1000)
+            .timeout(const Duration(seconds: 15));
+        final ids = relationships
+            .map((row) => '${row[personColumn]}')
+            .where((id) => id.isNotEmpty && id != targetId)
+            .toList();
+        if (ids.isNotEmpty) {
+          final profiles = await _client
+              .from('profiles')
+              .select('id,username,display_name,full_name,avatar_url,bio')
+              .inFilter('id', ids)
+              .limit(1000)
+              .timeout(const Duration(seconds: 15));
+          final byId = <String, Map<String, dynamic>>{
+            for (final row in profiles)
+              '${row['id']}': Map<String, dynamic>.from(row as Map),
+          };
+          people.addAll(ids.map((id) => byId[id]).whereType<Map<String, dynamic>>());
+        }
+      }
       if (!mounted) return;
       setState(() {
+        _people = people;
         _profile = Map<String, dynamic>.from(profile);
         _posts = (results[0] as List)
             .map((row) => Map<String, dynamic>.from(row as Map))
@@ -110,6 +149,11 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _toggleFollow() async {
     if (_isOwnProfile || _followBusy) return;
+    final uid = _uid;
+    if (uid == null) {
+      context.go('/auth');
+      return;
+    }
     final previous = _isFollowing;
     setState(() {
       _isFollowing = !previous;
@@ -121,11 +165,11 @@ class _ProfilePageState extends State<ProfilePage> {
         await _client
             .from('follows')
             .delete()
-            .eq('follower_id', _uid)
+            .eq('follower_id', uid)
             .eq('following_id', _targetId);
       } else {
         await _client.from('follows').insert({
-          'follower_id': _uid,
+          'follower_id': uid,
           'following_id': _targetId,
           'status': 'accepted'
         });
@@ -551,11 +595,44 @@ class _ProfilePageState extends State<ProfilePage> {
                         label: Text(_isFollowing ? 'Following' : 'Follow')),
                 ]))),
         const SizedBox(height: 12),
-        Text('${_isOwnProfile ? 'Your' : 'Their'} posts',
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w800)),
+        if (widget.section == 'followers' || widget.section == 'following') ...[
+          Text(widget.section == 'followers' ? 'Followers' : 'Following',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800)),
+          if (_loading && _people.isEmpty)
+            const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator())),
+          if (!_loading && _people.isEmpty && _error == null)
+            Padding(
+                padding: const EdgeInsets.all(24),
+                child: Center(
+                    child: Text(widget.section == 'followers'
+                        ? 'No followers to show yet.'
+                        : 'Not following anyone yet.'))),
+          ..._people.map((person) => Card(
+              margin: const EdgeInsets.only(top: 8),
+              child: ListTile(
+                  leading: CircleAvatar(
+                      backgroundImage: '${person['avatar_url'] ?? ''}'.startsWith('http')
+                          ? CachedNetworkImageProvider('${person['avatar_url']}')
+                          : null,
+                      child: '${person['avatar_url'] ?? ''}'.startsWith('http')
+                          ? null
+                          : const Icon(Icons.person_outline_rounded)),
+                  title: Text('${person['display_name'] ?? person['full_name'] ?? person['username'] ?? 'Testagram user'}'),
+                  subtitle: Text('@${person['username'] ?? 'testagram'}'),
+                  onTap: '${person['username'] ?? ''}'.isEmpty
+                      ? null
+                      : () => context.go('/profile/${Uri.encodeComponent('${person['username']}')}')))),
+        ] else ...[
+          Text('${_isOwnProfile ? 'Your' : 'Their'} posts',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800)),
         if (_loading && _posts.isEmpty)
           const Padding(
               padding: EdgeInsets.all(24),
@@ -564,18 +641,19 @@ class _ProfilePageState extends State<ProfilePage> {
           const Padding(
               padding: EdgeInsets.all(24),
               child: Center(child: Text('No posts yet.'))),
-        ..._posts.map((post) => Card(
-            margin: const EdgeInsets.only(top: 8),
-            child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('${post['content'] ?? ''}'),
-                      const SizedBox(height: 8),
-                      Text('${post['created_at'] ?? ''}',
-                          style: Theme.of(context).textTheme.bodySmall)
-                    ])))),
+          ..._posts.map((post) => Card(
+              margin: const EdgeInsets.only(top: 8),
+              child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${post['content'] ?? ''}'),
+                        const SizedBox(height: 8),
+                        Text('${post['created_at'] ?? ''}',
+                            style: Theme.of(context).textTheme.bodySmall)
+                      ])))),
+        ],
       ]),
     );
   }
