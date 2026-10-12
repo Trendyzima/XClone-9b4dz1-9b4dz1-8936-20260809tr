@@ -222,7 +222,8 @@ class _ProfilePageState extends State<ProfilePage> {
         case 'podcasts':
           final recordings = await _client
               .from('space_recordings')
-              .select('id,title,audio_url,video_url,duration,created_at,space_id,spaces(title,artwork_url,category,episode_number,subscriber_only,listener_count)')
+              .select(
+                  'id,title,audio_url,video_url,duration,created_at,space_id,spaces(title,artwork_url,category,episode_number,subscriber_only)')
               .eq('user_id', targetId)
               .order('created_at', ascending: false)
               .limit(30)
@@ -521,19 +522,17 @@ class _ProfilePageState extends State<ProfilePage> {
         }
         return _sectionRecords.map((item) {
           final rawItems = item['post_series_items'];
-          final count = rawItems is List && rawItems.isNotEmpty &&
-                  rawItems.first is Map
-              ? int.tryParse('${rawItems.first['count'] ?? 0}') ?? 0
-              : 0;
-          final cover =
-              '${item['cover_image_url'] ?? item['cover_url'] ?? ''}';
+          final count =
+              rawItems is List && rawItems.isNotEmpty && rawItems.first is Map
+                  ? int.tryParse('${rawItems.first['count'] ?? 0}') ?? 0
+                  : 0;
+          final cover = '${item['cover_image_url'] ?? item['cover_url'] ?? ''}';
           return Card(
             margin: const EdgeInsets.only(top: 8),
             child: ListTile(
               leading: CircleAvatar(
-                backgroundImage: cover.startsWith('https://')
-                    ? NetworkImage(cover)
-                    : null,
+                backgroundImage:
+                    cover.startsWith('https://') ? NetworkImage(cover) : null,
                 child: cover.startsWith('https://')
                     ? null
                     : const Icon(Icons.library_books_rounded),
@@ -609,7 +608,8 @@ class _ProfilePageState extends State<ProfilePage> {
                     ? Colors.amber.shade700
                     : Theme.of(context).colorScheme.onSurfaceVariant,
               ),
-              title: Text(received ? 'Premium gift received' : 'Premium gift sent'),
+              title: Text(
+                  received ? 'Premium gift received' : 'Premium gift sent'),
               subtitle: Text(
                 '$plan · $status · ${item['created_at'] ?? ''}',
                 maxLines: 2,
@@ -629,14 +629,14 @@ class _ProfilePageState extends State<ProfilePage> {
               child: ListTile(
                 leading: Icon(Icons.lock_outline_rounded),
                 title: Text('Analytics are private'),
-                subtitle: Text('Only the profile owner can view these metrics.'),
+                subtitle:
+                    Text('Only the profile owner can view these metrics.'),
               ),
             ),
           ];
         }
         final topPosts = [..._posts]
-          ..sort((a, b) =>
-              ((b['views_count'] as num?)?.toInt() ?? 0).compareTo(
+          ..sort((a, b) => ((b['views_count'] as num?)?.toInt() ?? 0).compareTo(
                 (a['views_count'] as num?)?.toInt() ?? 0,
               ));
         return [
@@ -809,7 +809,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final request = http.MultipartRequest('POST', uri)
       ..headers.addAll({
         'apikey': AppConfig.supabasePublishableKey,
-        'Authorization': 'Bearer ${session.accessToken}',
+        'Authorization': '***',
         'Accept': 'application/json',
       })
       ..fields['kind'] = kind

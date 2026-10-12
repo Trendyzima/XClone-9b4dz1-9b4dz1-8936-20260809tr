@@ -73,14 +73,9 @@ jobs:
       - name: Resolve Flutter dependencies
         working-directory: mobile
         run: flutter pub get
-      - name: Enforce formatting and capture profile formatter output
+      - name: Enforce formatting
         working-directory: mobile
-        run: |
-          dart format --output=write lib test
-          echo 'PROFILE_DUMP_BEGIN'
-          cat lib/features/profile/profile_page.dart
-          echo 'PROFILE_DUMP_END'
-          dart format --output=none --set-exit-if-changed lib test
+        run: dart format --output=none --set-exit-if-changed lib test
       - name: Analyze Flutter source
         working-directory: mobile
         run: flutter analyze --fatal-infos --fatal-warnings
@@ -98,7 +93,6 @@ jobs:
           --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
           --dart-define=TESTAGRAM_SITE_URL=https://testagram.site
       - name: Build native Android debug APK
-        if: false
         working-directory: mobile
         env:
           SUPABASE_URL: ${{ vars.TESTAGRAM_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co' }}
@@ -109,7 +103,6 @@ jobs:
           --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
           --dart-define=TESTAGRAM_SITE_URL=https://testagram.site
       - name: Verify artifacts and package identity
-        if: false
         working-directory: mobile
         run: |
           set -euo pipefail
@@ -125,7 +118,6 @@ jobs:
           if-no-files-found: error
           retention-days: 14
       - name: Upload Flutter Android debug APK (not a production release)
-        if: false
         uses: actions/upload-artifact@v4
         with:
           name: testagram-flutter-android-debug-${{ github.sha }}
