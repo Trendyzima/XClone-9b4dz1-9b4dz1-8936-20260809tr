@@ -42,12 +42,13 @@ class _AdConfigPageState extends State<AdConfigPage> {
       _error = null;
     });
     try {
-      final response = await _db.functions
-          .invoke('testagram-ads/admin', body: {'action': 'list'})
-          .timeout(const Duration(seconds: 20));
+      final response = await _db.functions.invoke('testagram-ads/admin',
+          body: {'action': 'list'}).timeout(const Duration(seconds: 20));
       final data = response.data;
-      if (response.status < 200 || response.status >= 300 ||
-          data is! Map || data['ok'] != true) {
+      if (response.status < 200 ||
+          response.status >= 300 ||
+          data is! Map ||
+          data['ok'] != true) {
         throw StateError(data is Map
             ? '${data['error'] ?? 'You are not authorized to manage ad delivery.'}'
             : 'Ads administration returned an invalid response.');
@@ -94,8 +95,10 @@ class _AdConfigPageState extends State<AdConfigPage> {
         body: {'action': 'toggle_campaign', 'campaign_id': id, 'status': next},
       ).timeout(const Duration(seconds: 20));
       final data = response.data;
-      if (response.status < 200 || response.status >= 300 ||
-          data is! Map || data['ok'] != true) {
+      if (response.status < 200 ||
+          response.status >= 300 ||
+          data is! Map ||
+          data['ok'] != true) {
         throw StateError(data is Map
             ? '${data['error'] ?? 'Campaign status update failed.'}'
             : 'Invalid response from the ads service.');
@@ -133,15 +136,18 @@ class _AdConfigPageState extends State<AdConfigPage> {
         },
       ).timeout(const Duration(seconds: 20));
       final data = response.data;
-      if (response.status < 200 || response.status >= 300 ||
-          data is! Map || data['ok'] != true) {
+      if (response.status < 200 ||
+          response.status >= 300 ||
+          data is! Map ||
+          data['ok'] != true) {
         throw StateError(data is Map
             ? '${data['error'] ?? 'Placement update failed.'}'
             : 'Invalid response from the ads service.');
       }
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Placement ${slot['enabled'] == true ? 'disabled' : 'enabled'}'),
+        content: Text(
+            'Placement ${slot['enabled'] == true ? 'disabled' : 'enabled'}'),
       ));
       await _load();
     } catch (error) {
@@ -181,11 +187,13 @@ class _AdConfigPageState extends State<AdConfigPage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.admin_panel_settings_outlined, size: 44),
+                        const Icon(Icons.admin_panel_settings_outlined,
+                            size: 44),
                         const SizedBox(height: 12),
                         Text(_error!, textAlign: TextAlign.center),
                         const SizedBox(height: 12),
-                        FilledButton(onPressed: _load, child: const Text('Retry')),
+                        FilledButton(
+                            onPressed: _load, child: const Text('Retry')),
                       ],
                     ),
                   ),
@@ -195,42 +203,86 @@ class _AdConfigPageState extends State<AdConfigPage> {
                   child: ListView(
                     padding: const EdgeInsets.all(16),
                     children: [
-                      Text('Delivery control', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+                      Text('Delivery control',
+                          style: theme.textTheme.headlineSmall
+                              ?.copyWith(fontWeight: FontWeight.w800)),
                       const SizedBox(height: 6),
-                      const Text('Changes are submitted to the existing server-side ads control API. Server authorization remains authoritative.'),
+                      const Text(
+                          'Changes are submitted to the existing server-side ads control API. Server authorization remains authoritative.'),
                       const SizedBox(height: 16),
                       Wrap(spacing: 12, runSpacing: 12, children: [
-                        _summary(theme, 'Campaigns', _campaigns.length.toString(), Icons.campaign_outlined),
-                        _summary(theme, 'Active', _campaigns.where((c) => c['status'] == 'active').length.toString(), Icons.play_circle_outline),
-                        _summary(theme, 'Enabled placements', _slots.where((s) => s['enabled'] == true).length.toString(), Icons.view_agenda_outlined),
-                        _summary(theme, 'Creatives', _creatives.length.toString(), Icons.image_outlined),
+                        _summary(
+                            theme,
+                            'Campaigns',
+                            _campaigns.length.toString(),
+                            Icons.campaign_outlined),
+                        _summary(
+                            theme,
+                            'Active',
+                            _campaigns
+                                .where((c) => c['status'] == 'active')
+                                .length
+                                .toString(),
+                            Icons.play_circle_outline),
+                        _summary(
+                            theme,
+                            'Enabled placements',
+                            _slots
+                                .where((s) => s['enabled'] == true)
+                                .length
+                                .toString(),
+                            Icons.view_agenda_outlined),
+                        _summary(theme, 'Creatives',
+                            _creatives.length.toString(), Icons.image_outlined),
                       ]),
                       const SizedBox(height: 24),
                       Row(children: [
-                        Expanded(child: Text('Campaigns', style: theme.textTheme.titleLarge)),
-                        TextButton.icon(onPressed: () => context.go('/create-ad'), icon: const Icon(Icons.add), label: const Text('Create')),
+                        Expanded(
+                            child: Text('Campaigns',
+                                style: theme.textTheme.titleLarge)),
+                        TextButton.icon(
+                            onPressed: () => context.go('/create-ad'),
+                            icon: const Icon(Icons.add),
+                            label: const Text('Create')),
                       ]),
-                      if (_campaigns.isEmpty) const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 18),
-                        child: Text('No campaigns returned by the ads service.'),
-                      ),
+                      if (_campaigns.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 18),
+                          child:
+                              Text('No campaigns returned by the ads service.'),
+                        ),
                       ..._campaigns.map((campaign) {
                         final id = '${campaign['id'] ?? ''}';
                         final status = '${campaign['status'] ?? 'unknown'}';
-                        final paid = '${campaign['payment_status'] ?? 'unknown'}';
+                        final paid =
+                            '${campaign['payment_status'] ?? 'unknown'}';
                         final busy = _busy.contains(id);
-                        final canResume = status != 'active' && paid == 'funded';
+                        final canResume =
+                            status != 'active' && paid == 'funded';
                         return Card(
                           child: ListTile(
-                            leading: const CircleAvatar(child: Icon(Icons.campaign_outlined)),
-                            title: Text('${campaign['name'] ?? campaign['headline'] ?? 'Campaign'}'),
+                            leading: const CircleAvatar(
+                                child: Icon(Icons.campaign_outlined)),
+                            title: Text(
+                                '${campaign['name'] ?? campaign['headline'] ?? 'Campaign'}'),
                             subtitle: Text('Status: $status · Payment: $paid'),
                             trailing: IconButton(
-                              tooltip: status == 'active' ? 'Pause campaign' : 'Activate campaign',
-                              onPressed: busy || (status != 'active' && !canResume) ? null : () => _toggleCampaign(campaign),
+                              tooltip: status == 'active'
+                                  ? 'Pause campaign'
+                                  : 'Activate campaign',
+                              onPressed:
+                                  busy || (status != 'active' && !canResume)
+                                      ? null
+                                      : () => _toggleCampaign(campaign),
                               icon: busy
-                                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                                  : Icon(status == 'active' ? Icons.pause_circle_outline : Icons.play_circle_outline),
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(
+                                          strokeWidth: 2))
+                                  : Icon(status == 'active'
+                                      ? Icons.pause_circle_outline
+                                      : Icons.play_circle_outline),
                             ),
                           ),
                         );
@@ -238,11 +290,14 @@ class _AdConfigPageState extends State<AdConfigPage> {
                       const SizedBox(height: 24),
                       Text('Ad placements', style: theme.textTheme.titleLarge),
                       const SizedBox(height: 6),
-                      const Text('Disable a placement to stop its eligibility in the existing decisioning engine.'),
-                      if (_slots.isEmpty) const Padding(
-                        padding: EdgeInsets.symmetric(vertical: 18),
-                        child: Text('No placements returned by the ads service.'),
-                      ),
+                      const Text(
+                          'Disable a placement to stop its eligibility in the existing decisioning engine.'),
+                      if (_slots.isEmpty)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 18),
+                          child: Text(
+                              'No placements returned by the ads service.'),
+                        ),
                       ..._slots.map((slot) {
                         final id = '${slot['id'] ?? ''}';
                         final enabled = slot['enabled'] == true;
@@ -251,9 +306,17 @@ class _AdConfigPageState extends State<AdConfigPage> {
                           child: SwitchListTile(
                             value: enabled,
                             onChanged: busy ? null : (_) => _toggleSlot(slot),
-                            title: Text('${slot['code'] ?? slot['location'] ?? 'Ad placement'}'),
-                            subtitle: Text('${slot['kind'] ?? slot['placement_type'] ?? 'Placement'} · ${enabled ? 'Enabled' : 'Disabled'}'),
-                            secondary: busy ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.view_agenda_outlined),
+                            title: Text(
+                                '${slot['code'] ?? slot['location'] ?? 'Ad placement'}'),
+                            subtitle: Text(
+                                '${slot['kind'] ?? slot['placement_type'] ?? 'Placement'} · ${enabled ? 'Enabled' : 'Disabled'}'),
+                            secondary: busy
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                        strokeWidth: 2))
+                                : const Icon(Icons.view_agenda_outlined),
                           ),
                         );
                       }),
@@ -269,10 +332,13 @@ class _AdConfigPageState extends State<AdConfigPage> {
         child: Card(
           child: Padding(
             padding: const EdgeInsets.all(14),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child:
+                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Icon(icon, color: theme.colorScheme.primary),
               const SizedBox(height: 8),
-              Text(value, style: theme.textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w800)),
+              Text(value,
+                  style: theme.textTheme.headlineMedium
+                      ?.copyWith(fontWeight: FontWeight.w800)),
               Text(label, style: theme.textTheme.bodySmall),
             ]),
           ),
