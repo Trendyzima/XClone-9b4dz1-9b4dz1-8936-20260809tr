@@ -443,7 +443,7 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
   Widget _limitsCard(ThemeData theme, WalletSavingsSummary summary) {
     final progress = summary.savingsLimit <= 0
         ? 0.0
-        : (summary.savingsBalance / summary.savingsLimit).clamp(0.0, 1.0);
+        : (summary.savingsBalance / summary.savingsLimit).clamp(0.0, 1.0).toDouble();
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -500,7 +500,7 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
   Widget _goalCard(ThemeData theme, Map<String, dynamic> goal) {
     final target = _readAmount(goal['target_amount']);
     final current = _readAmount(goal['current_amount']);
-    final progress = target <= 0 ? 0.0 : (current / target).clamp(0.0, 1.0);
+    final progress = target <= 0 ? 0.0 : (current / target).clamp(0.0, 1.0).toDouble();
     return Card(
       child: ListTile(
         leading: CircleAvatar(child: Text((goal['emoji'] ?? '🎯').toString())),
