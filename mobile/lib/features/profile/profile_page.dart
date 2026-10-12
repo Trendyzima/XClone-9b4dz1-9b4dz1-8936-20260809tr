@@ -7,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/app_config.dart';
 
@@ -67,7 +68,7 @@ class _ProfilePageState extends State<ProfilePage> {
         _client
             .from('posts')
             .select('*')
-            .eq('user_id', targetId)
+            .or('author_id.eq.$targetId,user_id.eq.$targetId')
             .isFilter('deleted_at', null)
             .order('created_at', ascending: false)
             .limit(30),
@@ -210,11 +211,134 @@ class _ProfilePageState extends State<ProfilePage> {
           }).toList();
           break;
         case 'podcasts':
+          final recordings = await _client
+              .from('space_recordings')
+              .select(
+                  'id,title,audio_url,video_url,duration,created_at,space_id,spaces(title,artwork_url,category,episode_number,subscriber_only)')
+              .eq('user_id', targetId)
+              .order('created_at', ascending: false)
+              .limit(30)
+              .timeout(const Duration(seconds: 15));
+          sectionItems = recordings.map((row) {
+            final item = Map<String, dynamic>.from(row as Map);
+            final space = item['spaces'];
+            final episodeTitle = '${item['title'] ?? ''}'.trim();
+            final spaceTitle =
+                space is Map ? '${space['title'] ?? ''}'.trim() : '';
+            item['content'] = episodeTitle.isNotEmpty
+                ? episodeTitle
+                : (spaceTitle.isNotEmpty ? spaceTitle : 'Podcast recording');
+            if (spaceTitle.isNotEmpty) item['series_title'] = spaceTitle;
+            return item;
+          }).toList();
+          break;
         case 'series':
+          final seriesRows = await _client
+              .from('post_series')
+              .select('*')
+              .eq('user_id', targetId)
+              .order('created_at', ascending: false)
+              .limit(30)
+              .timeout(const Duration(seconds: 15));
+          sectionItems = seriesRows.map((row) {
+            final item = Map<String, dynamic>.from(row as Map);
+            final name = '${item['name'] ?? 'Untitled series'}';
+            final description = '${item['description'] ?? ''}'.trim();
+            item['content'] = description.isEmpty ? name : '$name\n$description';
+            return item;
+          }).toList();
+          break;
         case 'tips':
+          final tipRows = await _client
+              .from('tips')
+              .select('id,from_user_id,to_user_id,amount,created_at')
+              .or('from_user_id.eq.$targetId,to_user_id.eq.$targetId')
+              .order('created_at', ascending: false)
+              .limit(30)
+              .timeout(const Duration(seconds: 15));
+          sectionItems = tipRows.map((row) {
+            final item = Map<String, dynamic>.from(row as Map);
+            final incoming = '${item['to_user_id']}' == targetId;
+            item['content'] =
+                'Tip ${incoming ? 'received' : 'sent'} · ${item['amount'] ?? 0}';
+            return item;
+          }).toList();
+          break;
         case 'gifts':
+          final giftRows = await _client
+              .from('premium_gifts')
+              .select('id,sender_id,recipient_id,amount,currency,status,expires_at,created_at')
+              .or('sender_id.eq.$targetId,recipient_id.eq.$targetId')
+              .order('created_at', ascending: false)
+              .limit(30)
+              .timeout(const Duration(seconds: 15));
+          sectionItems = giftRows.map((row) {
+            final item = Map<String, dynamic>.from(row as Map);
+            final incoming = '${item['recipient_id']}' == targetId;
+            item['content'] =
+                'Premium gift ${incoming ? 'received' : 'sent'} · ${item['amount'] ?? 0} ${item['currency'] ?? 'USD'} · ${item['status'] ?? 'unknown'}';
+            return item;
+          }).toList();
+          break;
         case 'analytics':
-          sectionItems = [];
+          if (uid != targetId) {
+            sectionItems = [];
+            break;
+          }
+          final profileViews = await _client
+              .from('browsing_history')
+              .select('id')
+              .eq('profile_id', targetId)
+              .eq('view_type', 'profile')
+              .gte(
+                'created_at',
+                DateTime.now()
+                    .subtract(const Duration(days: 7))
+                    .toUtc()
+                    .toIso8601String(),
+              )
+              .limit(1000)
+              .timeout(const Duration(seconds: 15));
+          final ownPosts = await _client
+              .from('posts')
+              .select('id')
+              .or('author_id.eq.$targetId,user_id.eq.$targetId')
+              .isFilter('deleted_at', null)
+              .limit(100)
+              .timeout(const Duration(seconds: 15));
+          final postIds = ownPosts
+              .map((row) => '${row['id']}')
+              .where((id) => id.isNotEmpty)
+              .toList();
+          var postViews = <dynamic>[];
+          if (postIds.isNotEmpty) {
+            postViews = await _client
+                .from('browsing_history')
+                .select('id')
+                .inFilter('post_id', postIds)
+                .eq('view_type', 'post')
+                .gte(
+                  'created_at',
+                  DateTime.now()
+                      .subtract(const Duration(days: 7))
+                      .toUtc()
+                      .toIso8601String(),
+                )
+                .limit(1000)
+                .timeout(const Duration(seconds: 15));
+          }
+          sectionItems = [
+            {
+              'id': 'profile-views-7d',
+              'content': 'Profile views in the last 7 days: ${profileViews.length}',
+              'created_at': DateTime.now().toUtc().toIso8601String(),
+            },
+            {
+              'id': 'post-views-7d',
+              'content': 'Post views in the last 7 days (up to 100 recent posts): ${postViews.length}',
+              'created_at': DateTime.now().toUtc().toIso8601String(),
+            },
+          ];
           break;
       }
       if (!mounted) return;
@@ -249,6 +373,16 @@ class _ProfilePageState extends State<ProfilePage> {
         return 'No videos yet.';
       case 'likes':
         return 'No liked posts to show.';
+      case 'podcasts':
+        return 'No podcast recordings yet.';
+      case 'series':
+        return 'No content series yet.';
+      case 'tips':
+        return 'No tips to show yet.';
+      case 'gifts':
+        return 'No premium gifts to show yet.';
+      case 'analytics':
+        return 'No analytics available yet.';
       default:
         return 'No posts yet.';
     }
@@ -840,13 +974,12 @@ class _ProfilePageState extends State<ProfilePage> {
                   .titleMedium
                   ?.copyWith(fontWeight: FontWeight.w800),
             ),
-            if (const {'podcasts', 'series', 'tips', 'gifts', 'analytics'}
-                .contains(widget.section))
+            if (widget.section == 'analytics' && !_isOwnProfile)
               const Padding(
                 padding: EdgeInsets.all(20),
                 child: Center(
                   child: Text(
-                    'This profile section is not yet connected to its native data view.',
+                    'Analytics are private and only visible to the profile owner.',
                     textAlign: TextAlign.center,
                   ),
                 ),
@@ -859,8 +992,7 @@ class _ProfilePageState extends State<ProfilePage> {
             if (!_loading &&
                 _posts.isEmpty &&
                 _error == null &&
-                !const {'podcasts', 'series', 'tips', 'gifts', 'analytics'}
-                    .contains(widget.section))
+                !(widget.section == 'analytics' && !_isOwnProfile))
               Padding(
                 padding: const EdgeInsets.all(24),
                 child: Center(child: Text(_emptySectionMessage)),
@@ -874,6 +1006,50 @@ class _ProfilePageState extends State<ProfilePage> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('${post['content'] ?? ''}'),
+                      if ('${post['series_title'] ?? ''}'.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'From ${post['series_title']}',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                      if (widget.section == 'podcasts' &&
+                          ('${post['audio_url'] ?? ''}'.isNotEmpty ||
+                              '${post['video_url'] ?? ''}'.isNotEmpty))
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: TextButton.icon(
+                            onPressed: () async {
+                              final raw = '${post['audio_url'] ?? post['video_url'] ?? ''}';
+                              final uri = Uri.tryParse(raw);
+                              if (uri == null ||
+                                  (uri.scheme != 'https' && uri.scheme != 'http') ||
+                                  uri.host.isEmpty) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('This recording has no valid media URL.'),
+                                    ),
+                                  );
+                                }
+                                return;
+                              }
+                              final opened = await launchUrl(
+                                uri,
+                                mode: LaunchMode.externalApplication,
+                              );
+                              if (!opened && mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Could not open this recording.'),
+                                  ),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.play_circle_outline_rounded),
+                            label: const Text('Play recording'),
+                          ),
+                        ),
                       const SizedBox(height: 8),
                       Text(
                         '${post['created_at'] ?? ''}',
