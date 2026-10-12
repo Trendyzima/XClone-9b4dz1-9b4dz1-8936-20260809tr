@@ -52,6 +52,7 @@ class _FediversePageState extends State<FediversePage> {
   String? get _uid => _db.auth.currentUser?.id;
   List<Map<String, dynamic>> _posts = [], _instances = [];
   List<Map<String, dynamic>> _pendingPosts = [];
+  final ScrollController _feedScrollController = ScrollController();
   List<Map<String, dynamic>> _surfaceRows = [];
   Map<String, int> _surfaceMetrics = {};
   String? _surfaceMessage;
@@ -147,7 +148,20 @@ class _FediversePageState extends State<FediversePage> {
           } else {
             final result = reconcileFediverseFeed(_posts, posts);
             _posts = result.visible;
-            _pendingPosts = result.pending;
+            final staged = <String, Map<String, dynamic>>{
+              for (final post in _pendingPosts)
+                '${post['uri'] ?? post['object_url'] ?? post['id'] ?? ''}': post,
+              for (final post in result.pending)
+                '${post['uri'] ?? post['object_url'] ?? post['id'] ?? ''}': post,
+            }..remove('');
+            _pendingPosts = staged.values.toList()
+              ..sort((a, b) {
+                final aTime = DateTime.tryParse('${a['published_at'] ?? a['created_at'] ?? ''}') ??
+                    DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+                final bTime = DateTime.tryParse('${b['published_at'] ?? b['created_at'] ?? ''}') ??
+                    DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+                return bTime.compareTo(aTime);
+              });
           }
         });
       }
@@ -548,13 +562,19 @@ class _FediversePageState extends State<FediversePage> {
   }
 
   @override
+  void dispose() {
+    _feedScrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     if (widget.instancesOnly ||
         widget.section == 'discover' ||
         widget.section == 'organic-discovery') {
       return RefreshIndicator(
           onRefresh: _load,
-          child: ListView(padding: const EdgeInsets.all(14), children: [
+          child: ListView(controller: _feedScrollController, padding: const EdgeInsets.all(14), children: [
             Row(children: [
               IconButton(
                   onPressed: () => context.go('/fediverse'),
@@ -738,12 +758,11 @@ class _FediversePageState extends State<FediversePage> {
                       _posts = applyPendingFediversePosts(_posts, _pendingPosts);
                       _pendingPosts = [];
                     });
-                    // Scroll to the top only when the reader explicitly asks
-                    // to reveal new posts, never during background refresh.
-                    Scrollable.ensureVisible(
-                      context,
-                      duration: const Duration(milliseconds: 180),
-                      alignment: 0,
+                    // Scroll to the top only after explicit user intent.
+                    _feedScrollController.animateTo(
+                      0,
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOut,
                     );
                   },
                   icon: const Icon(Icons.arrow_upward_rounded),
