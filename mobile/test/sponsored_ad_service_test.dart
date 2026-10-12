@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui' show Rect, Size;
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -73,6 +74,54 @@ void main() {
       expect(ad, isNotNull);
       expect(ad!.imageUrl, isNull);
       expect(ad.clickThroughUrl, isNull);
+    });
+  });
+
+  group('sponsoredAdVisibleFraction', () {
+    const viewport = Size(400, 800);
+
+    test('counts a fully visible creative as fully visible', () {
+      expect(
+        sponsoredAdVisibleFraction(
+          const Rect.fromLTWH(20, 100, 100, 100),
+          viewport,
+        ),
+        1,
+      );
+    });
+
+    test('reports the actual fraction when clipped at the viewport edge', () {
+      expect(
+        sponsoredAdVisibleFraction(
+          const Rect.fromLTWH(-50, 100, 100, 100),
+          viewport,
+        ),
+        0.5,
+      );
+      expect(
+        sponsoredAdVisibleFraction(
+          const Rect.fromLTWH(-60, 100, 100, 100),
+          viewport,
+        ),
+        closeTo(0.4, 0.0001),
+      );
+    });
+
+    test('returns zero for an offscreen creative or empty viewport', () {
+      expect(
+        sponsoredAdVisibleFraction(
+          const Rect.fromLTWH(0, -120, 100, 100),
+          viewport,
+        ),
+        0,
+      );
+      expect(
+        sponsoredAdVisibleFraction(
+          const Rect.fromLTWH(0, 0, 100, 100),
+          Size.zero,
+        ),
+        0,
+      );
     });
   });
 

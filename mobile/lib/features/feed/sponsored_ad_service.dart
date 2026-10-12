@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -188,6 +189,16 @@ class SponsoredAdService {
   void close() => _http.close();
 }
 
+/// Fraction of the creative's area intersecting the visible screen viewport.
+/// A viewable event must not be inferred merely because a lazy-list item mounted.
+double sponsoredAdVisibleFraction(Rect creativeRect, Size viewport) {
+  if (creativeRect.isEmpty || viewport.isEmpty) return 0;
+  final visibleRect = creativeRect.intersect(Offset.zero & viewport);
+  if (visibleRect.isEmpty) return 0;
+  return (visibleRect.width * visibleRect.height) /
+      (creativeRect.width * creativeRect.height);
+}
+
 /// Compact but clearly labelled native sponsored unit; organic feed remains
 /// usable when the ad has no fill, fails to load, or cannot open its destination.
 class SponsoredAdCard extends StatefulWidget {
@@ -206,21 +217,83 @@ class SponsoredAdCard extends StatefulWidget {
   State<SponsoredAdCard> createState() => _SponsoredAdCardState();
 }
 
-class _SponsoredAdCardState extends State<SponsoredAdCard> {
+class _SponsoredAdCardState extends State<SponsoredAdCard>
+    with WidgetsBindingObserver {
+  static const _viewabilityThreshold = 0.5;
+  static const _viewabilityDuration = Duration(seconds: 1);
+  static const _sampleInterval = Duration(milliseconds: 250);
+
+  Timer? _viewabilityTimer;
+  DateTime? _visibleSince;
   bool _eventSent = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || _eventSent) return;
-      _eventSent = true;
+    WidgetsBinding.instance.addObserver(this);
+    // A lazy-list item can mount before it is actually visible. Sample the
+    // rendered geometry instead of treating widget construction as an impression.
+    _viewabilityTimer = Timer.periodic(_sampleInterval, (_) {
+      _checkViewability();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant SponsoredAdCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.ad.impressionId != widget.ad.impressionId) {
+      _eventSent = false;
+      _visibleSince = null;
+    }
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed) _visibleSince = null;
+  }
+
+  void _checkViewability() {
+    if (!mounted || _eventSent) return;
+    if (WidgetsBinding.instance.lifecycleState != AppLifecycleState.resumed) {
+      _visibleSince = null;
+      return;
+    }
+
+    final renderObject = context.findRenderObject();
+    if (renderObject is! RenderBox || !renderObject.hasSize) return;
+
+    final viewport = MediaQuery.sizeOf(context);
+    final creativeRect =
+        renderObject.localToGlobal(Offset.zero) & renderObject.size;
+    final visibleFraction = sponsoredAdVisibleFraction(creativeRect, viewport);
+    if (visibleFraction < _viewabilityThreshold) {
+      _visibleSince = null;
+      return;
+    }
+
+    final now = DateTime.now();
+    _visibleSince ??= now;
+    if (now.difference(_visibleSince!) < _viewabilityDuration) return;
+
+    _eventSent = true;
+    unawaited(
       widget.service.recordEvent(
         ad: widget.ad,
         eventType: 'viewable',
-        metadata: {'surface': widget.compact ? 'iptv_vertical' : 'social_feed'},
-      );
-    });
+        metadata: {
+          'surface': widget.compact ? 'iptv_vertical' : 'social_feed',
+          'visibleFraction': visibleFraction,
+          'continuousVisibleMs': now.difference(_visibleSince!).inMilliseconds,
+        },
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _viewabilityTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _openDestination() async {
