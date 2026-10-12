@@ -128,13 +128,100 @@ class _ProfilePageState extends State<ProfilePage> {
           );
         }
       }
+      // Load each profile section from its canonical data source. Do not
+      // silently show the ordinary timeline for a different section.
+      var sectionItems = (results[0] as List)
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .toList();
+      switch (widget.section) {
+        case 'threads':
+          final rows = await _client
+              .from('threads')
+              .select('*')
+              .eq('owner_id', targetId)
+              .isFilter('deleted_at', null)
+              .order('created_at', ascending: false)
+              .limit(30)
+              .timeout(const Duration(seconds: 15));
+          sectionItems = rows.map((row) {
+            final item = Map<String, dynamic>.from(row as Map);
+            item['content'] = item['content'] ?? item['body'] ?? '';
+            return item;
+          }).toList();
+          break;
+        case 'replies':
+          final rows = await _client
+              .from('replies')
+              .select('*')
+              .eq('user_id', targetId)
+              .order('created_at', ascending: false)
+              .limit(30)
+              .timeout(const Duration(seconds: 15));
+          sectionItems = rows.map((row) {
+            final item = Map<String, dynamic>.from(row as Map);
+            item['content'] = item['content'] ?? item['body'] ?? '';
+            return item;
+          }).toList();
+          break;
+        case 'likes':
+          final rows = await _client
+              .from('post_reactions')
+              .select('post_id')
+              .eq('user_id', targetId)
+              .order('created_at', ascending: false)
+              .limit(30)
+              .timeout(const Duration(seconds: 15));
+          final postIds = rows
+              .map((row) => '${row['post_id']}')
+              .where((id) => id.isNotEmpty)
+              .toSet()
+              .toList();
+          if (postIds.isEmpty) {
+            sectionItems = [];
+          } else {
+            final likedPosts = await _client
+                .from('posts')
+                .select('*')
+                .inFilter('id', postIds)
+                .isFilter('deleted_at', null)
+                .limit(30)
+                .timeout(const Duration(seconds: 15));
+            sectionItems = likedPosts
+                .map((row) => Map<String, dynamic>.from(row as Map))
+                .toList()
+              ..sort((a, b) => '${b['created_at'] ?? ''}'
+                  .compareTo('${a['created_at'] ?? ''}'));
+          }
+          break;
+        case 'media':
+          sectionItems = sectionItems.where((item) {
+            final mediaUrls = item['media_urls'];
+            return '${item['image_url'] ?? ''}'.isNotEmpty ||
+                '${item['video_url'] ?? ''}'.isNotEmpty ||
+                '${item['media_url'] ?? ''}'.isNotEmpty ||
+                (mediaUrls is List && mediaUrls.isNotEmpty) ||
+                (int.tryParse('${item['media_count'] ?? 0}') ?? 0) > 0;
+          }).toList();
+          break;
+        case 'videos':
+          sectionItems = sectionItems.where((item) {
+            final videoUrl = '${item['video_url'] ?? ''}';
+            return item['is_video'] == true || videoUrl.isNotEmpty;
+          }).toList();
+          break;
+        case 'podcasts':
+        case 'series':
+        case 'tips':
+        case 'gifts':
+        case 'analytics':
+          sectionItems = [];
+          break;
+      }
       if (!mounted) return;
       setState(() {
         _people = people;
         _profile = Map<String, dynamic>.from(profile);
-        _posts = (results[0] as List)
-            .map((row) => Map<String, dynamic>.from(row as Map))
-            .toList();
+        _posts = sectionItems;
         _followers = (results[1] as List).length;
         _following = (results[2] as List).length;
         _isFollowing = following;
@@ -147,6 +234,36 @@ class _ProfilePageState extends State<ProfilePage> {
       }
     } finally {
       if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String get _sectionHeading {
+    final owner = _isOwnProfile ? 'Your' : 'Their';
+    switch (widget.section) {
+      case 'posts':
+        return '$owner posts';
+      case 'threads':
+        return '$owner threads';
+      case 'replies':
+        return '$owner replies';
+      case 'media':
+        return '$owner media';
+      case 'videos':
+        return '$owner videos';
+      case 'likes':
+        return '${_isOwnProfile ? 'Posts you liked' : 'Liked posts'}';
+      case 'podcasts':
+        return '$owner podcasts';
+      case 'series':
+        return '$owner series';
+      case 'tips':
+        return '$owner tips';
+      case 'gifts':
+        return 'Gifts';
+      case 'analytics':
+        return 'Profile analytics';
+      default:
+        return '$owner posts';
     }
   }
 
@@ -700,12 +817,23 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ] else ...[
             Text(
-              '${_isOwnProfile ? 'Your' : 'Their'} posts',
+              _sectionHeading,
               style: Theme.of(context)
                   .textTheme
                   .titleMedium
                   ?.copyWith(fontWeight: FontWeight.w800),
             ),
+            if (const {'podcasts', 'series', 'tips', 'gifts', 'analytics'}
+                .contains(widget.section))
+              const Padding(
+                padding: EdgeInsets.all(20),
+                child: Center(
+                  child: Text(
+                    'This profile section is not yet connected to its native data view.',
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
             if (_loading && _posts.isEmpty)
               const Padding(
                 padding: EdgeInsets.all(24),
