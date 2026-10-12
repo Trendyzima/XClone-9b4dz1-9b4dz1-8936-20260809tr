@@ -1,0 +1,26 @@
+name: Temporary native Dart formatter diff
+on:
+  pull_request:
+    paths:
+      - 'mobile/lib/features/fediverse/fediverse_page.dart'
+      - 'mobile/lib/features/tv/tv_studio_page.dart'
+      - '.github/workflows/format-native-diff.yml'
+permissions:
+  contents: read
+jobs:
+  formatter-diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Resolve Flutter dependencies
+        working-directory: mobile
+        run: flutter pub get
+      - name: Format and print exact patch
+        working-directory: mobile
+        run: |
+          dart format lib/features/fediverse/fediverse_page.dart lib/features/tv/tv_studio_page.dart
+          git diff -- lib/features/fediverse/fediverse_page.dart lib/features/tv/tv_studio_page.dart
