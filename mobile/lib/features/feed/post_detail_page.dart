@@ -285,6 +285,11 @@ class _PostDetailPageState extends State<PostDetailPage> {
     }
   }
 
+  Future<void> _sharePost() async {
+    final body = _post?['content']?.toString() ?? 'Check out this post on Testagram';
+    await Share.share('$body\nhttps://testagram.site/post/${widget.postId}', subject: 'Testagram post');
+  }
+
   void _showMessage(String message) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
@@ -452,10 +457,7 @@ class _PostDetailPageState extends State<PostDetailPage> {
                         ),
                         IconButton(
                           tooltip: 'Share post',
-                          onPressed: () => Share.share(
-                            '${body.isEmpty ? 'Check out this post on Testagram' : body}\n${Uri.parse('https://testagram.site/post/${widget.postId}') }',
-                            subject: 'Testagram post',
-                          ),
+                          onPressed: _sharePost,
                           icon: const Icon(Icons.share_outlined),
                         ),
                       ],
