@@ -151,11 +151,17 @@ class SponsoredAdService {
     }
   }
 
+  // Guard each impression/event pair in this service instance. The server remains
+  // the authoritative idempotency boundary; this avoids duplicate client posts
+  // caused by repeated taps, widget rebuilds, and concurrent visibility callbacks.
+  final Set<String> _recordedEvents = <String>{};
+  final Map<String, Future<bool>> _eventsInFlight = <String, Future<bool>>{};
+
   Future<bool> recordEvent({
     required SponsoredAd ad,
     required String eventType,
     Map<String, dynamic> metadata = const {},
-  }) async {
+  }) {
     if (!const {
       'viewable',
       'click',
@@ -165,8 +171,33 @@ class SponsoredAdService {
       'video_third_quartile',
       'video_complete'
     }.contains(eventType)) {
-      return false;
+      return Future.value(false);
     }
+
+    final key = '${ad.impressionId}:$eventType';
+    if (_recordedEvents.contains(key)) return Future.value(true);
+    final pending = _eventsInFlight[key];
+    if (pending != null) return pending;
+
+    final request = _sendEvent(
+      ad: ad,
+      eventType: eventType,
+      metadata: metadata,
+    ).then((success) {
+      if (success) _recordedEvents.add(key);
+      return success;
+    }).whenComplete(() {
+      _eventsInFlight.remove(key);
+    });
+    _eventsInFlight[key] = request;
+    return request;
+  }
+
+  Future<bool> _sendEvent({
+    required SponsoredAd ad,
+    required String eventType,
+    required Map<String, dynamic> metadata,
+  }) async {
     try {
       final response = await _http
           .post(

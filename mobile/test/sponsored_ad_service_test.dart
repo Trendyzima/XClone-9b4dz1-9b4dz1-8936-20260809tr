@@ -173,13 +173,13 @@ void main() {
       service.close();
     });
 
-    test('posts signed viewable and click events to event endpoint', () async {
-      late http.Request captured;
+    test('posts signed events once per impression and event type', () async {
+      final requests = <http.Request>[];
       final service = SponsoredAdService(
         supabaseUrl: 'https://project.supabase.co',
         publishableKey: 'public-key',
         httpClient: MockClient((request) async {
-          captured = request;
+          requests.add(request);
           return http.Response('{"ok":true}', 200);
         }),
       );
@@ -195,13 +195,81 @@ void main() {
         await service.recordEvent(ad: ad, eventType: 'viewable'),
         isTrue,
       );
-      expect(captured.url.path, '/functions/v1/zenad-event');
-      expect(jsonDecode(captured.body)['eventToken'], 'signed-token');
+      expect(
+        await service.recordEvent(ad: ad, eventType: 'viewable'),
+        isTrue,
+      );
+      expect(requests, hasLength(1));
+      expect(requests.single.url.path, '/functions/v1/zenad-event');
+      expect(jsonDecode(requests.single.body)['eventToken'], 'signed-token');
+
       expect(
         await service.recordEvent(ad: ad, eventType: 'click'),
         isTrue,
       );
-      expect(jsonDecode(captured.body)['eventType'], 'click');
+      expect(requests, hasLength(2));
+      expect(jsonDecode(requests.last.body)['eventType'], 'click');
+      service.close();
+    });
+
+    test('coalesces concurrent duplicate events into one request', () async {
+      var requestCount = 0;
+      final service = SponsoredAdService(
+        supabaseUrl: 'https://project.supabase.co',
+        publishableKey: 'public-key',
+        httpClient: MockClient((request) async {
+          requestCount++;
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+          return http.Response('{"ok":true}', 200);
+        }),
+      );
+      const ad = SponsoredAd(
+        requestId: 'req-1',
+        impressionId: 'imp-concurrent',
+        eventToken: 'signed-token',
+        headline: 'Sponsored',
+        body: '',
+        sponsored: true,
+      );
+
+      final results = await Future.wait([
+        service.recordEvent(ad: ad, eventType: 'viewable'),
+        service.recordEvent(ad: ad, eventType: 'viewable'),
+        service.recordEvent(ad: ad, eventType: 'viewable'),
+      ]);
+      expect(results, everyElement(isTrue));
+      expect(requestCount, 1);
+      service.close();
+    });
+
+    test('allows retry after an event request fails', () async {
+      var requestCount = 0;
+      final service = SponsoredAdService(
+        supabaseUrl: 'https://project.supabase.co',
+        publishableKey: 'public-key',
+        httpClient: MockClient((request) async {
+          requestCount++;
+          return http.Response('{"ok":true}', requestCount == 1 ? 503 : 200);
+        }),
+      );
+      const ad = SponsoredAd(
+        requestId: 'req-1',
+        impressionId: 'imp-retry',
+        eventToken: 'signed-token',
+        headline: 'Sponsored',
+        body: '',
+        sponsored: true,
+      );
+
+      expect(
+        await service.recordEvent(ad: ad, eventType: 'viewable'),
+        isFalse,
+      );
+      expect(
+        await service.recordEvent(ad: ad, eventType: 'viewable'),
+        isTrue,
+      );
+      expect(requestCount, 2);
       service.close();
     });
   });
