@@ -103,7 +103,9 @@ class _TestagramAppState extends State<TestagramApp> {
             path == '/tv/channels' ||
             path == '/tv/reels' ||
             path == '/shop' ||
-            path.startsWith('/fediverse/') ||
+            path == '/fediverse/feed' ||
+            path == '/fediverse/discover' ||
+            path == '/fediverse/organic-discovery' ||
             path == '/videos' ||
             path == '/shorts' ||
             path == '/videos/watchlater' ||
