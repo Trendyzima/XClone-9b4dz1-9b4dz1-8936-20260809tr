@@ -236,9 +236,9 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                                   : null,
                               child: avatar.startsWith('http')
                                   ? null
-                                  : Text(name.isEmpty
-                                      ? 'T'
-                                      : name[0].toUpperCase()),
+                                  : Text(
+                                      name.isEmpty ? 'T' : name[0].toUpperCase(),
+                                    ),
                             ),
                             title: Text(
                               name,
