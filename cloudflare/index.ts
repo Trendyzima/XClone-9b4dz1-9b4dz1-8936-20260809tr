@@ -1,5 +1,6 @@
 import { DEPLOYED_COMMIT_SHA } from './deployment-meta';
 import homeFeed from '../api/home-feed';
+import liveControl from '../api/live';
 import sitemapIndex from '../api/sitemap-index';
 import sitemapUsers from '../api/sitemap-users';
 import sitemapCommunity from '../api/sitemap-community';
@@ -241,6 +242,13 @@ async function invokeEdge(pathname: string, request: Request, env: Env) {
   if (pathname === '/api/home-feed') {
     setRuntimeEnv(env, (env as any).TESTAGRAM_COMMIT_SHA);
     return homeFeed(request);
+  }
+
+  // The TV control route must be statically bundled: runtime variable imports
+  // can fail in the deployed Worker isolate and surface only as HTTP 500.
+  if (pathname === '/api/live') {
+    setRuntimeEnv(env, (env as any).TESTAGRAM_COMMIT_SHA);
+    return liveControl(request);
   }
 
   // Keep sitemap handlers statically bundled: runtime variable imports can compile
