@@ -123,7 +123,7 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Request M-Pesa payment'),
         content: Text(
-          'Request KES \${amount.toStringAsFixed(0)} from $phone. Confirm the payment prompt on your phone. Funds are added only after the provider callback is verified.',
+          'Request KES ${amount.toStringAsFixed(0)} from $phone. Confirm the payment prompt on your phone. Funds are added only after the provider callback is verified.',
         ),
         actions: [
           TextButton(
@@ -174,7 +174,7 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
       setState(() {
         _submitting = false;
         _status = 'failed';
-        _message = 'Could not confirm the M-Pesa request: \${error.toString().replaceFirst('Bad state: ', '')}';
+        _message = 'Could not confirm the M-Pesa request: ${error.toString().replaceFirst('Bad state: ', '')}';
       });
     }
   }
