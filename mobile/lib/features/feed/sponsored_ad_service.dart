@@ -99,8 +99,10 @@ class SponsoredAdService {
   final String? Function()? accessTokenProvider;
   final http.Client _http;
 
-  Uri _endpoint(String name) => Uri.parse(
-      '${supabaseUrl.replaceFirst(RegExp(r'/+
+  Uri _endpoint(String name) {
+    final base = supabaseUrl.replaceFirst(RegExp(r'/+$'), '');
+    return Uri.parse('${base}/functions/v1/${name}');
+  }
 
   String _requestId() {
     final random = Random.secure().nextInt(1 << 32);
