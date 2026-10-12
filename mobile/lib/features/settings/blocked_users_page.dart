@@ -121,10 +121,11 @@ class _BlockedUsersPageState extends State<BlockedUsersPage> {
           content:
               Text(_tab == 0 ? 'Account unblocked.' : 'Account unmuted.')));
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error = _tab == 0
             ? 'Account was not unblocked.'
             : 'Account was not unmuted.');
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }
