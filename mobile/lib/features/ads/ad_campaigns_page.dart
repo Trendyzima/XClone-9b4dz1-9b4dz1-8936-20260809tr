@@ -240,7 +240,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
       _showMessage('Campaign draft created. Complete M-Pesa payment to activate it.');
     } catch (error) {
       if (mounted) setState(() => _error = error is StateError
-          ? error.message
+          ? '${error.message}'
           : 'Campaign could not be created. Check your connection and retry.');
     } finally {
       if (mounted) setState(() => _submitting = false);
