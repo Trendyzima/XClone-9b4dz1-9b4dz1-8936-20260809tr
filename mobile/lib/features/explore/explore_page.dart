@@ -49,9 +49,20 @@ class _ExplorePageState extends State<ExplorePage> {
     try {
       // Escape PostgREST filter syntax while keeping ordinary names and phrases.
       final safe = query
-          .replaceAll(RegExp(r'[(),%_*]'), ' ')
+          .replaceAll(RegExp(r'[^\p{L}\p{N}\s@-]', unicode: true), ' ')
           .replaceAll(RegExp(r'\s+'), ' ')
           .trim();
+      if (safe.length < 2) {
+        if (mounted && generation == _searchGeneration) {
+          setState(() {
+            _people = [];
+            _posts = [];
+            _following.clear();
+            _error = 'Search for at least two letters or numbers.';
+          });
+        }
+        return;
+      }
       final peopleQuery = viewerId == null
           ? _client
               .from('profiles')
