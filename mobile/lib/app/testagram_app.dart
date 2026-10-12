@@ -11,6 +11,7 @@ import '../features/auth/auth_page.dart';
 import '../features/explore/explore_page.dart';
 import '../features/feed/feed_page.dart';
 import '../features/feed/post_detail_page.dart';
+import '../features/feed/post_interaction_page.dart';
 import '../features/messages/messages_page.dart';
 import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_page.dart';
@@ -180,6 +181,34 @@ class _TestagramAppState extends State<TestagramApp> {
               builder: (_, state) => PostDetailPage(
                 postId: state.pathParameters['postId'] ?? '',
                 repliesOnly: true,
+              ),
+            ),
+            GoRoute(
+              path: '/post/:postId/likes',
+              builder: (_, state) => PostInteractionPage(
+                postId: state.pathParameters['postId'] ?? '',
+                kind: PostInteractionKind.likes,
+              ),
+            ),
+            GoRoute(
+              path: '/post/:postId/reposts',
+              builder: (_, state) => PostInteractionPage(
+                postId: state.pathParameters['postId'] ?? '',
+                kind: PostInteractionKind.reposts,
+              ),
+            ),
+            GoRoute(
+              path: '/post/:postId/quotes',
+              builder: (_, state) => PostInteractionPage(
+                postId: state.pathParameters['postId'] ?? '',
+                kind: PostInteractionKind.quotes,
+              ),
+            ),
+            GoRoute(
+              path: '/post/:postId/quote-likes',
+              builder: (_, state) => PostInteractionPage(
+                postId: state.pathParameters['postId'] ?? '',
+                kind: PostInteractionKind.quoteLikes,
               ),
             ),
             GoRoute(
