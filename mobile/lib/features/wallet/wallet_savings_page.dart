@@ -96,7 +96,9 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
       final userId = _client.auth.currentUser!.id;
       final goalsResponse = await _client
           .from('wallet_savings_goals')
-          .select('id,name,emoji,color,target_amount,current_amount,deadline,is_completed,created_at')
+          .select(
+            'id,name,emoji,color,target_amount,current_amount,deadline,is_completed,created_at',
+          )
           .eq('user_id', userId)
           .order('created_at', ascending: false)
           .limit(50);
@@ -119,10 +121,12 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
 
   String _friendlyError(Object error) {
     final message = error.toString().toLowerCase();
-    if (message.contains('permission') || message.contains('row-level security')) {
+    if (message.contains('permission') ||
+        message.contains('row-level security')) {
       return 'Your account is not permitted to access savings.';
     }
-    if (message.contains('get_user_wallet_summary') || message.contains('function')) {
+    if (message.contains('get_user_wallet_summary') ||
+        message.contains('function')) {
       return 'Savings services are not available on this backend yet. Please try again later.';
     }
     return 'Savings could not be loaded. Check your connection and retry.';
@@ -145,7 +149,9 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
       return;
     }
     if (deposit && amount > summary.remainingCapacity) {
-      _message('This deposit exceeds your remaining KES 20,000 savings capacity.');
+      _message(
+        'This deposit exceeds your remaining KES 20,000 savings capacity.',
+      );
       return;
     }
     if (!deposit && amount > summary.savingsBalance) {
@@ -156,7 +162,9 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
     final approved = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: Text(deposit ? 'Confirm savings deposit' : 'Confirm savings withdrawal'),
+        title: Text(
+          deposit ? 'Confirm savings deposit' : 'Confirm savings withdrawal',
+        ),
         content: Text('Move KES ${amount.toStringAsFixed(2)} $action?'),
         actions: [
           TextButton(
@@ -175,16 +183,15 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
     try {
       await _client.rpc(
         deposit ? 'save_to_wallet_savings' : 'withdraw_from_wallet_savings',
-        params: {
-          'p_amount': amount,
-          'p_idempotency_key': _idempotencyKey(),
-        },
+        params: {'p_amount': amount, 'p_idempotency_key': _idempotencyKey()},
       );
       if (!mounted) return;
       _amountController.clear();
-      _message(deposit
-          ? 'Funds moved to savings successfully.'
-          : 'Funds returned to your wallet successfully.');
+      _message(
+        deposit
+            ? 'Funds moved to savings successfully.'
+            : 'Funds returned to your wallet successfully.',
+      );
       await _load();
     } catch (error) {
       if (mounted) {
@@ -197,17 +204,23 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
 
   String _financialError(Object error) {
     final message = error.toString().toLowerCase();
-    if (message.contains('insufficient')) return 'Insufficient balance for this operation.';
-    if (message.contains('limit')) return 'The savings limit would be exceeded.';
-    if (message.contains('authentication')) return 'Your session expired. Sign in again.';
+    if (message.contains('insufficient'))
+      return 'Insufficient balance for this operation.';
+    if (message.contains('limit'))
+      return 'The savings limit would be exceeded.';
+    if (message.contains('authentication'))
+      return 'Your session expired. Sign in again.';
     return 'The savings operation was not confirmed. Refresh balances before retrying.';
   }
 
   Future<void> _createGoal() async {
     final name = _goalNameController.text.trim();
     final target = double.tryParse(_goalTargetController.text.trim());
-    if (name.isEmpty || name.length > 60 || target == null ||
-        !target.isFinite || target <= 0) {
+    if (name.isEmpty ||
+        name.length > 60 ||
+        target == null ||
+        !target.isFinite ||
+        target <= 0) {
       _message('Enter a goal name and a valid target amount.');
       return;
     }
@@ -253,7 +266,9 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Delete savings goal?'),
-        content: Text('Remove “${goal['name']}”? This does not move any money.'),
+        content: Text(
+          'Remove “${goal['name']}”? This does not move any money.',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -306,7 +321,12 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
           Row(
             children: [
               Expanded(
-                child: Text('Savings', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
+                child: Text(
+                  'Savings',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
               ),
               IconButton(
                 tooltip: 'Refresh savings',
@@ -327,12 +347,19 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
             const SizedBox(height: 12),
             _limitsCard(theme, summary),
             const SizedBox(height: 16),
-            Text('Move money', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800)),
+            Text(
+              'Move money',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+            ),
             const SizedBox(height: 8),
             TextField(
               controller: _amountController,
               enabled: !_busy,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               decoration: const InputDecoration(
                 labelText: 'Amount (KES)',
                 hintText: '0.00',
@@ -362,9 +389,18 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
             const SizedBox(height: 24),
             Row(
               children: [
-                Expanded(child: Text('Savings goals', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800))),
+                Expanded(
+                  child: Text(
+                    'Savings goals',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ),
                 TextButton.icon(
-                  onPressed: _busy ? null : () => setState(() => _showGoalForm = !_showGoalForm),
+                  onPressed: _busy
+                      ? null
+                      : () => setState(() => _showGoalForm = !_showGoalForm),
                   icon: Icon(_showGoalForm ? Icons.close : Icons.add),
                   label: Text(_showGoalForm ? 'Cancel' : 'New goal'),
                 ),
@@ -378,7 +414,9 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
             const SizedBox(height: 16),
             Text(
               'Savings transfers use server-side ledger RPCs. Goal tracking is separate; this screen does not claim a goal contribution unless the backend records one.',
-              style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ],
@@ -387,63 +425,74 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
   }
 
   Widget _errorCard(ThemeData theme) => Card(
-        color: theme.colorScheme.errorContainer,
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Icon(Icons.error_outline),
-              const SizedBox(height: 8),
-              Text(_error!),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: _loading || _busy ? null : _load,
-                  icon: const Icon(Icons.refresh),
-                  label: const Text('Retry'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-
-  Widget _balanceCard(ThemeData theme, WalletSavingsSummary summary) => Card(
-        clipBehavior: Clip.antiAlias,
-        child: Container(
-          padding: const EdgeInsets.all(22),
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [theme.colorScheme.primary, theme.colorScheme.primary.withValues(alpha: 0.72)],
+    color: theme.colorScheme.errorContainer,
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.error_outline),
+          const SizedBox(height: 8),
+          Text(_error!),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              onPressed: _loading || _busy ? null : _load,
+              icon: const Icon(Icons.refresh),
+              label: const Text('Retry'),
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+        ],
+      ),
+    ),
+  );
+
+  Widget _balanceCard(ThemeData theme, WalletSavingsSummary summary) => Card(
+    clipBehavior: Clip.antiAlias,
+    child: Container(
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            theme.colorScheme.primary,
+            theme.colorScheme.primary.withValues(alpha: 0.72),
+          ],
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
             children: [
-              const Row(
-                children: [
-                  Icon(Icons.savings_outlined, color: Colors.white),
-                  SizedBox(width: 8),
-                  Text('Savings balance', style: TextStyle(color: Colors.white70)),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                _money(summary.savingsBalance),
-                style: theme.textTheme.headlineMedium?.copyWith(color: Colors.white, fontWeight: FontWeight.w900),
-              ),
-              const SizedBox(height: 6),
-              Text('Wallet available: ${_money(summary.walletBalance)}', style: const TextStyle(color: Colors.white70)),
+              Icon(Icons.savings_outlined, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Savings balance', style: TextStyle(color: Colors.white70)),
             ],
           ),
-        ),
-      );
+          const SizedBox(height: 12),
+          Text(
+            _money(summary.savingsBalance),
+            style: theme.textTheme.headlineMedium?.copyWith(
+              color: Colors.white,
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Wallet available: ${_money(summary.walletBalance)}',
+            style: const TextStyle(color: Colors.white70),
+          ),
+        ],
+      ),
+    ),
+  );
 
   Widget _limitsCard(ThemeData theme, WalletSavingsSummary summary) {
     final progress = summary.savingsLimit <= 0
         ? 0.0
-        : (summary.savingsBalance / summary.savingsLimit).clamp(0.0, 1.0).toDouble();
+        : (summary.savingsBalance / summary.savingsLimit)
+              .clamp(0.0, 1.0)
+              .toDouble();
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -453,13 +502,18 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
             Row(
               children: [
                 const Expanded(child: Text('Savings limit')),
-                Text('${_money(summary.savingsBalance)} / ${_money(summary.savingsLimit)}'),
+                Text(
+                  '${_money(summary.savingsBalance)} / ${_money(summary.savingsLimit)}',
+                ),
               ],
             ),
             const SizedBox(height: 10),
             LinearProgressIndicator(value: progress),
             const SizedBox(height: 6),
-            Text('${_money(summary.remainingCapacity)} remaining', style: theme.textTheme.bodySmall),
+            Text(
+              '${_money(summary.remainingCapacity)} remaining',
+              style: theme.textTheme.bodySmall,
+            ),
           ],
         ),
       ),
@@ -467,40 +521,48 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
   }
 
   Widget _goalForm(ThemeData theme) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            children: [
-              TextField(
-                controller: _goalNameController,
-                maxLength: 60,
-                enabled: !_busy,
-                decoration: const InputDecoration(labelText: 'Goal name', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 10),
-              TextField(
-                controller: _goalTargetController,
-                enabled: !_busy,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(labelText: 'Target amount (KES)', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: _busy ? null : _createGoal,
-                  child: const Text('Create goal'),
-                ),
-              ),
-            ],
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          TextField(
+            controller: _goalNameController,
+            maxLength: 60,
+            enabled: !_busy,
+            decoration: const InputDecoration(
+              labelText: 'Goal name',
+              border: OutlineInputBorder(),
+            ),
           ),
-        ),
-      );
+          const SizedBox(height: 10),
+          TextField(
+            controller: _goalTargetController,
+            enabled: !_busy,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: const InputDecoration(
+              labelText: 'Target amount (KES)',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton(
+              onPressed: _busy ? null : _createGoal,
+              child: const Text('Create goal'),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 
   Widget _goalCard(ThemeData theme, Map<String, dynamic> goal) {
     final target = _readAmount(goal['target_amount']);
     final current = _readAmount(goal['current_amount']);
-    final progress = target <= 0 ? 0.0 : (current / target).clamp(0.0, 1.0).toDouble();
+    final progress = target <= 0
+        ? 0.0
+        : (current / target).clamp(0.0, 1.0).toDouble();
     return Card(
       child: ListTile(
         leading: CircleAvatar(child: Text((goal['emoji'] ?? '🎯').toString())),
@@ -513,7 +575,8 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
               LinearProgressIndicator(value: progress),
               const SizedBox(height: 6),
               Text('${_money(current)} of ${_money(target)}'),
-              if (goal['deadline'] != null) Text('Deadline: ${goal['deadline']}'),
+              if (goal['deadline'] != null)
+                Text('Deadline: ${goal['deadline']}'),
             ],
           ),
         ),
@@ -528,19 +591,19 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
   }
 
   Widget _emptyGoals(ThemeData theme) => Card(
-        child: Padding(
-          padding: const EdgeInsets.all(22),
-          child: Column(
-            children: [
-              const Icon(Icons.flag_outlined, size: 36),
-              const SizedBox(height: 8),
-              Text('No savings goals yet', style: theme.textTheme.titleMedium),
-              const SizedBox(height: 4),
-              const Text('Create a goal to track a financial milestone.'),
-            ],
-          ),
-        ),
-      );
+    child: Padding(
+      padding: const EdgeInsets.all(22),
+      child: Column(
+        children: [
+          const Icon(Icons.flag_outlined, size: 36),
+          const SizedBox(height: 8),
+          Text('No savings goals yet', style: theme.textTheme.titleMedium),
+          const SizedBox(height: 4),
+          const Text('Create a goal to track a financial milestone.'),
+        ],
+      ),
+    ),
+  );
 
   double _readAmount(Object? value) {
     if (value is num && value.isFinite) return value.toDouble();
