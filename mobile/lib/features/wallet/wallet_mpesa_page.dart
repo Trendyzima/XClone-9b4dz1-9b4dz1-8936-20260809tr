@@ -368,7 +368,8 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
                       onPressed: () {
                         _pollTimer?.cancel();
                         setState(() {
-                          _message = 'Automatic checks paused. Check this same request again before starting another payment.';
+                          _message =
+                              'Automatic checks paused. Check this same request again before starting another payment.';
                         });
                       },
                       child: const Text('Pause auto-checks'),
@@ -412,6 +413,3 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
     );
   }
 }
-
-
-
