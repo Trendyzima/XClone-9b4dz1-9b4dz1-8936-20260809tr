@@ -73,6 +73,11 @@ jobs:
       - name: Resolve Flutter dependencies
         working-directory: mobile
         run: flutter pub get
+      - name: Diagnose TV Dart formatter diff
+        shell: bash
+        run: |
+          dart format --output=show lib/features/tv/tv_page.dart > /tmp/tv_page.formatted.dart
+          diff -u lib/features/tv/tv_page.dart /tmp/tv_page.formatted.dart || true
       - name: Enforce formatting
         working-directory: mobile
         run: dart format --output=none --set-exit-if-changed lib test
