@@ -364,13 +364,10 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
                       onPressed: () {
                         _pollTimer?.cancel();
                         setState(() {
-                          _status = 'idle';
-                          _checkoutId = null;
-                          _message =
-                              'Previous request remains in history. Check wallet history if you completed payment.';
+                          _message = 'Automatic checks paused. Check this same request again before starting another payment.';
                         });
                       },
-                      child: const Text('Stop waiting'),
+                      child: const Text('Pause auto-checks'),
                     ),
                   ],
                 ],
