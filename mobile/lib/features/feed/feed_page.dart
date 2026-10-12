@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -8,6 +10,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../core/media/media_upload_policy.dart';
+import 'feed_load_policy.dart';
+import 'sponsored_ad_service.dart';
 
 class FeedPage extends StatefulWidget {
   const FeedPage({super.key});
@@ -27,6 +31,10 @@ class _FeedPageState extends State<FeedPage> {
   String _feedTab = 'For you';
   String? _error;
   int _page = 0;
+  int _loadGeneration = 0;
+  SponsoredAd? _sponsoredAd;
+  late final SponsoredAdService _adService =
+      SponsoredAdService.forClient(_client);
   static const _pageSize = 15;
 
   SupabaseClient get _client => Supabase.instance.client;
@@ -43,6 +51,7 @@ class _FeedPageState extends State<FeedPage> {
   void dispose() {
     _scroll.removeListener(_onScroll);
     _scroll.dispose();
+    _adService.close();
     super.dispose();
   }
 
@@ -53,11 +62,15 @@ class _FeedPageState extends State<FeedPage> {
   }
 
   Future<void> _load({bool reset = false}) async {
-    if (_loading || (!reset && !_hasMore)) return;
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
+    if (!FeedLoadPolicy.shouldStart(
+      loading: _loading,
+      hasMore: _hasMore,
+      reset: reset,
+    )) {
+      return;
+    }
+    _loadGeneration = FeedLoadPolicy.nextGeneration(_loadGeneration);
+    final generation = _loadGeneration;
     if (reset) {
       _page = 0;
       _hasMore = true;
@@ -65,6 +78,11 @@ class _FeedPageState extends State<FeedPage> {
       _bookmarked.clear();
       _reposted.clear();
     }
+    setState(() {
+      _loading = true;
+      _error = null;
+      if (reset) _sponsoredAd = null;
+    });
     try {
       final start = _page * _pageSize;
       List<String> followingIds = [];
@@ -75,6 +93,10 @@ class _FeedPageState extends State<FeedPage> {
             .select('following_id')
             .eq('follower_id', viewerId)
             .timeout(const Duration(seconds: 12));
+        if (!FeedLoadPolicy.isCurrent(
+          requestGeneration: generation,
+          currentGeneration: _loadGeneration,
+        )) return;
         followingIds = follows
             .map((row) => '${row['following_id']}')
             .where((id) => id.isNotEmpty)
@@ -90,6 +112,10 @@ class _FeedPageState extends State<FeedPage> {
                   .order('created_at', ascending: false)
                   .range(start, start + _pageSize - 1)
                   .timeout(const Duration(seconds: 15));
+      if (!FeedLoadPolicy.isCurrent(
+        requestGeneration: generation,
+        currentGeneration: _loadGeneration,
+      )) return;
       final rows = response
           .map((row) => Map<String, dynamic>.from(row as Map))
           .where((row) => row['deleted_at'] == null)
@@ -106,6 +132,10 @@ class _FeedPageState extends State<FeedPage> {
               .select(
                   'id,username,display_name,avatar_url,verified,verified_tier')
               .inFilter('id', ids);
+      if (!FeedLoadPolicy.isCurrent(
+        requestGeneration: generation,
+        currentGeneration: _loadGeneration,
+      )) return;
       final byId = <String, Map<String, dynamic>>{};
       for (final profile in profiles) {
         final value = Map<String, dynamic>.from(profile as Map);
@@ -115,40 +145,104 @@ class _FeedPageState extends State<FeedPage> {
         row['profile'] = byId['${row['author_id'] ?? row['user_id']}'];
       }
       final postIds = rows.map((row) => '${row['id']}').toList();
+      final loadedLikes = <String>{};
+      final loadedBookmarks = <String>{};
+      final loadedReposts = <String>{};
       if (postIds.isNotEmpty && viewerId != null) {
         final likeRows = await _client
             .from('post_reactions')
             .select('post_id')
-            .eq('user_id', _userId)
+            .eq('user_id', viewerId)
             .eq('emoji', '❤️')
             .inFilter('post_id', postIds);
+        if (!FeedLoadPolicy.isCurrent(
+          requestGeneration: generation,
+          currentGeneration: _loadGeneration,
+        )) return;
         final bookmarkRows = await _client
             .from('bookmarks')
             .select('post_id')
-            .eq('user_id', _userId)
+            .eq('user_id', viewerId)
             .inFilter('post_id', postIds);
+        if (!FeedLoadPolicy.isCurrent(
+          requestGeneration: generation,
+          currentGeneration: _loadGeneration,
+        )) return;
         final repostRows = await _client
             .from('reposts')
             .select('post_id')
-            .eq('user_id', _userId)
+            .eq('user_id', viewerId)
             .inFilter('post_id', postIds);
-        _liked.addAll(likeRows.map((row) => '${row['post_id']}'));
-        _bookmarked.addAll(bookmarkRows.map((row) => '${row['post_id']}'));
-        _reposted.addAll(repostRows.map((row) => '${row['post_id']}'));
+        if (!FeedLoadPolicy.isCurrent(
+          requestGeneration: generation,
+          currentGeneration: _loadGeneration,
+        )) return;
+        loadedLikes.addAll(likeRows.map((row) => '${row['post_id']}'));
+        loadedBookmarks.addAll(bookmarkRows.map((row) => '${row['post_id']}'));
+        loadedReposts.addAll(repostRows.map((row) => '${row['post_id']}'));
       }
-      if (!mounted) return;
+      if (!mounted ||
+          !FeedLoadPolicy.isCurrent(
+            requestGeneration: generation,
+            currentGeneration: _loadGeneration,
+          )) return;
       setState(() {
         if (reset) _posts.clear();
         final known = _posts.map((post) => '${post['id']}').toSet();
         _posts.addAll(rows.where((row) => !known.contains('${row['id']}')));
-        _page++;
+        if (reset) {
+          _liked
+            ..clear()
+            ..addAll(loadedLikes);
+          _bookmarked
+            ..clear()
+            ..addAll(loadedBookmarks);
+          _reposted
+            ..clear()
+            ..addAll(loadedReposts);
+        } else {
+          _liked.addAll(loadedLikes);
+          _bookmarked.addAll(loadedBookmarks);
+          _reposted.addAll(loadedReposts);
+        }
+        _page = start ~/ _pageSize + 1;
         _hasMore = rows.length == _pageSize;
       });
+      if (reset && _posts.length >= 5) {
+        unawaited(_loadSponsoredAd(generation));
+      }
     } catch (error) {
-      if (mounted) setState(() => _error = _friendlyError(error));
+      if (mounted &&
+          FeedLoadPolicy.isCurrent(
+            requestGeneration: generation,
+            currentGeneration: _loadGeneration,
+          )) {
+        setState(() => _error = _friendlyError(error));
+      }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted &&
+          FeedLoadPolicy.isCurrent(
+            requestGeneration: generation,
+            currentGeneration: _loadGeneration,
+          )) {
+        setState(() => _loading = false);
+      }
     }
+  }
+
+  Future<void> _loadSponsoredAd(int generation) async {
+    final ad = await _adService.requestAd(
+      slotCode: 'feed-inline',
+      content: const {'genres': ['social', 'community']},
+    );
+    if (!mounted ||
+        !FeedLoadPolicy.isCurrent(
+          requestGeneration: generation,
+          currentGeneration: _loadGeneration,
+        )) {
+      return;
+    }
+    setState(() => _sponsoredAd = ad);
   }
 
   void _promptSignIn(String message) {
@@ -749,10 +843,24 @@ class _FeedPageState extends State<FeedPage> {
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
               sliver: SliverList.separated(
-                itemCount: _posts.length,
+                itemCount: _posts.length +
+                    (_sponsoredAd != null && _posts.length >= 5 ? 1 : 0),
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
-                  final post = _posts[index];
+                  if (_sponsoredAd != null &&
+                      _posts.length >= 5 &&
+                      index == 5) {
+                    return SponsoredAdCard(
+                      ad: _sponsoredAd!,
+                      service: _adService,
+                    );
+                  }
+                  final postIndex = _sponsoredAd != null &&
+                          _posts.length >= 5 &&
+                          index > 5
+                      ? index - 1
+                      : index;
+                  final post = _posts[postIndex];
                   return _PostCard(
                     post: post,
                     liked: _liked.contains('${post['id']}'),
