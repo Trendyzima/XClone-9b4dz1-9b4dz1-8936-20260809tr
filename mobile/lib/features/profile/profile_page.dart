@@ -85,11 +85,11 @@ class _ProfilePageState extends State<ProfilePage> {
             .limit(1000),
       ]);
       var following = false;
-      if (targetId != _uid) {
+      if (uid != null && targetId != uid) {
         final relation = await _client
             .from('follows')
             .select('id')
-            .eq('follower_id', _uid)
+            .eq('follower_id', uid)
             .eq('following_id', targetId)
             .eq('status', 'accepted')
             .maybeSingle();
