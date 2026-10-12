@@ -579,7 +579,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 overflow: TextOverflow.ellipsis,
               ),
               trailing: Text(
-                '$ ${amount.toStringAsFixed(2)}',
+                '\$ ${amount.toStringAsFixed(2)}',
                 style: const TextStyle(fontWeight: FontWeight.w800),
               ),
             ),
@@ -616,7 +616,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 overflow: TextOverflow.ellipsis,
               ),
               trailing: Text(
-                '$ ${amount.toStringAsFixed(2)}',
+                '\$ ${amount.toStringAsFixed(2)}',
                 style: const TextStyle(fontWeight: FontWeight.w800),
               ),
             ),
@@ -665,7 +665,7 @@ class _ProfilePageState extends State<ProfilePage> {
               _metricCard(
                 context,
                 'Tips this month',
-                '$ ${_tipsThisMonth.toStringAsFixed(2)}',
+                '\$ ${_tipsThisMonth.toStringAsFixed(2)}',
                 Icons.volunteer_activism_outlined,
               ),
             ],
