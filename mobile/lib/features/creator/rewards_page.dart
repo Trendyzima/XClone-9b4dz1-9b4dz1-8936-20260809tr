@@ -97,9 +97,8 @@ class _RewardsPageState extends State<RewardsPage> {
     });
     try {
       final response = await _client.rpc('claim_daily_reward');
-      final data = response is List && response.isNotEmpty
-          ? response.first
-          : response;
+      final data =
+          response is List && response.isNotEmpty ? response.first : response;
       if (data is Map && data['ok'] == false)
         throw StateError('The daily reward was not accepted.');
       if (mounted)
@@ -172,9 +171,8 @@ class _RewardsPageState extends State<RewardsPage> {
                   SizedBox(
                     width: double.infinity,
                     child: FilledButton.icon(
-                      onPressed: _loading || _claiming || !_canClaim
-                          ? null
-                          : _claim,
+                      onPressed:
+                          _loading || _claiming || !_canClaim ? null : _claim,
                       icon: _claiming
                           ? const SizedBox(
                               width: 18,
