@@ -75,7 +75,7 @@ class _AdConfigPageState extends State<AdConfigPage> {
           _slots = [];
           _creatives = [];
           _error = error is StateError
-              ? '${error.message}'
+              ? error.message
               : 'Ads administration could not load. Retry when online.';
         });
       }
