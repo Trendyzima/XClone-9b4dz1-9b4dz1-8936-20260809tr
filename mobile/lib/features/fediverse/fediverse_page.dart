@@ -215,36 +215,36 @@ class _FediversePageState extends State<FediversePage> {
 
     switch (widget.section) {
       case 'inbox':
-        final rows = await _db
+        final inboxRows = await _db
             .from('activitypub_inbox')
             .select('id,activity_type,actor_url,object_url,payload,processed,created_at')
             .eq('local_user_id', uid)
             .order('created_at', ascending: false)
             .limit(100)
             .timeout(const Duration(seconds: 15));
-        _surfaceRows = rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+        _surfaceRows = inboxRows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
         return;
       case 'identity':
-        final rows = await _db
+        final identityRows = await _db
             .from('activitypub_actors')
             .select('id,actor_id,username,domain,inbox_url,outbox_url,followers_url,following_url,public_key_pem,created_at,updated_at')
             .eq('user_id', uid)
             .limit(10)
             .timeout(const Duration(seconds: 15));
-        _surfaceRows = rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+        _surfaceRows = identityRows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
         if (_surfaceRows.isEmpty) {
           _surfaceMessage = 'No local ActivityPub identity is registered for this account yet.';
         }
         return;
       case 'relay':
-        final rows = await _db
+        final relayRows = await _db
             .from('activitypub_outbox')
             .select('id,activity_type,activity_id,payload,delivered,created_at')
             .eq('local_user_id', uid)
             .order('created_at', ascending: false)
             .limit(100)
             .timeout(const Duration(seconds: 15));
-        _surfaceRows = rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+        _surfaceRows = relayRows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
         return;
       case 'controls':
         final results = await Future.wait([
@@ -275,25 +275,25 @@ class _FediversePageState extends State<FediversePage> {
           _db.from('activitypub_outbox').select('id').eq('local_user_id', uid).limit(1000),
         ]);
         _surfaceMetrics = {
-          'Cached posts': (results[0] as List).length,
-          'Known actors': (results[1] as List).length,
+          'Cached posts (sample)': (results[0] as List).length,
+          'Known actors (sample)': (results[1] as List).length,
           'Your reactions': (results[2] as List).length,
-          'Known instances': (results[3] as List).length,
+          'Known instances (sample)': (results[3] as List).length,
           'Your activities': (results[4] as List).length,
         };
         return;
       case 'following':
-        final rows = await _db
+        final followingRows = await _db
             .from('federated_following')
             .select('id,remote_actor_url,remote_username,remote_domain,created_at')
             .eq('local_user_id', uid)
             .order('created_at', ascending: false)
             .limit(200)
             .timeout(const Duration(seconds: 15));
-        _surfaceRows = rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+        _surfaceRows = followingRows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
         return;
       case 'followers':
-        final rows = await _db
+        final followerRows = await _db
             .from('activitypub_inbox')
             .select('id,activity_type,actor_url,object_url,payload,processed,created_at')
             .eq('local_user_id', uid)
@@ -301,7 +301,7 @@ class _FediversePageState extends State<FediversePage> {
             .order('created_at', ascending: false)
             .limit(200)
             .timeout(const Duration(seconds: 15));
-        _surfaceRows = rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+        _surfaceRows = followerRows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
         return;
       case 'likes':
         final reactions = await _db
@@ -317,7 +317,7 @@ class _FediversePageState extends State<FediversePage> {
             .where((uri) => uri.isNotEmpty)
             .toList();
         if (uris.isEmpty) return;
-        final rows = await _db
+        final likedRows = await _db
             .from('federated_objects')
             .select('id,uri,object_type,actor_uri,url,content,summary,published_at,attachments,tags,like_count,announce_count,reply_count,content_warning')
             .inFilter('uri', uris)
@@ -325,7 +325,7 @@ class _FediversePageState extends State<FediversePage> {
             .eq('tombstone', false)
             .limit(100)
             .timeout(const Duration(seconds: 15));
-        _surfaceRows = rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+        _surfaceRows = likedRows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
         return;
       case 'tips':
       case 'gifts':
@@ -347,7 +347,7 @@ class _FediversePageState extends State<FediversePage> {
           _surfaceMessage = 'The local Fediverse identity has no canonical actor URI.';
           return;
         }
-        final rows = await _db
+        final profileRows = await _db
             .from('federated_objects')
             .select('id,uri,object_type,actor_uri,url,content,summary,published_at,in_reply_to_uri,attachments,tags,like_count,announce_count,reply_count,content_warning')
             .eq('actor_uri', actorUri)
@@ -356,7 +356,7 @@ class _FediversePageState extends State<FediversePage> {
             .order('published_at', ascending: false)
             .limit(200)
             .timeout(const Duration(seconds: 15));
-        var items = rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+        var items = profileRows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
         if (widget.section == 'replies') {
           items = items.where((row) => row['in_reply_to_uri'] != null).toList();
         } else if (widget.section == 'threads') {
