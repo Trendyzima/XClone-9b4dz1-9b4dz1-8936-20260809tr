@@ -47,13 +47,15 @@ class _TvStudioPageState extends State<TvStudioPage> {
           .from('live_streams')
           .select(
               'id,title,description,category,is_live,started_at,ended_at,viewer_count,created_at')
-          .eq('user_id', uid)
-          .order('created_at', ascending: false);
+          .eq('user_id', uid);
       final requestedStreamId = widget.streamId;
       if (requestedStreamId != null && requestedStreamId.isNotEmpty) {
         query = query.eq('id', requestedStreamId);
       }
-      final rows = await query.limit(30).timeout(const Duration(seconds: 15));
+      final rows = await query
+          .order('created_at', ascending: false)
+          .limit(30)
+          .timeout(const Duration(seconds: 15));
       if (!mounted) return;
       setState(() => _streams =
           rows.map((r) => Map<String, dynamic>.from(r as Map)).toList());
