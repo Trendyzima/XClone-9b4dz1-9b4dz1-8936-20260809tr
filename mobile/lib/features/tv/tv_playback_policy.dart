@@ -1,3 +1,5 @@
+import 'package:flutter/widgets.dart';
+
 /// Returns whether the currently selected TV item has a real playback surface.
 ///
 /// A web HLS URL is a playback surface even though Flutter's native
@@ -22,3 +24,14 @@ bool tvCanRequestSponsoredAd({
   required bool isCurrentGeneration,
 }) =>
     hasPlaybackStarted && !alreadyRequested && isCurrentGeneration;
+
+/// Native TV playback should pause whenever the app is not foregrounded.
+bool tvShouldPauseForLifecycle(AppLifecycleState state) =>
+    state != AppLifecycleState.resumed;
+
+/// Resume only when the same controller had been playing before backgrounding.
+bool tvShouldResumeAfterLifecycle({
+  required AppLifecycleState state,
+  required bool wasPlayingBeforePause,
+}) =>
+    state == AppLifecycleState.resumed && wasPlayingBeforePause;

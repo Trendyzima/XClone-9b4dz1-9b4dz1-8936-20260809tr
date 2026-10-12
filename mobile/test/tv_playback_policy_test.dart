@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:testagram/features/tv/tv_playback_policy.dart';
 
@@ -60,6 +61,44 @@ void main() {
           hasInitializedNativePlayer: true,
         ),
         isTrue,
+      );
+    });
+  });
+
+  group('TV app lifecycle playback policy', () {
+    test('pauses when the app is inactive, hidden, paused, or detached', () {
+      for (final state in [
+        AppLifecycleState.inactive,
+        AppLifecycleState.hidden,
+        AppLifecycleState.paused,
+        AppLifecycleState.detached,
+      ]) {
+        expect(tvShouldPauseForLifecycle(state), isTrue, reason: '$state');
+      }
+      expect(tvShouldPauseForLifecycle(AppLifecycleState.resumed), isFalse);
+    });
+
+    test('resumes only on foreground when playback was previously active', () {
+      expect(
+        tvShouldResumeAfterLifecycle(
+          state: AppLifecycleState.resumed,
+          wasPlayingBeforePause: true,
+        ),
+        isTrue,
+      );
+      expect(
+        tvShouldResumeAfterLifecycle(
+          state: AppLifecycleState.resumed,
+          wasPlayingBeforePause: false,
+        ),
+        isFalse,
+      );
+      expect(
+        tvShouldResumeAfterLifecycle(
+          state: AppLifecycleState.paused,
+          wasPlayingBeforePause: true,
+        ),
+        isFalse,
       );
     });
   });
