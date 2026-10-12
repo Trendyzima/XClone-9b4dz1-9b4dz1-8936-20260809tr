@@ -169,7 +169,8 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/discover/fediverse',
-              builder: (_, __) => const FediversePage(surface: 'discover', instancesOnly: true),
+              builder: (_, __) =>
+                  const FediversePage(surface: 'discover', instancesOnly: true),
             ),
             GoRoute(path: '/threads', builder: (_, __) => const ThreadsPage()),
             GoRoute(
@@ -335,11 +336,13 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/fediverse/discover',
-              builder: (_, __) => const FediversePage(surface: 'discover', instancesOnly: true),
+              builder: (_, __) =>
+                  const FediversePage(surface: 'discover', instancesOnly: true),
             ),
             GoRoute(
               path: '/fediverse/organic-discovery',
-              builder: (_, __) => const FediversePage(surface: 'organic-discovery', instancesOnly: true),
+              builder: (_, __) => const FediversePage(
+                  surface: 'organic-discovery', instancesOnly: true),
             ),
             GoRoute(
               path: '/fediverse/instances',
@@ -379,11 +382,13 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/fediverse/profile/threads',
-              builder: (_, __) => const FediversePage(surface: 'profile-threads'),
+              builder: (_, __) =>
+                  const FediversePage(surface: 'profile-threads'),
             ),
             GoRoute(
               path: '/fediverse/profile/replies',
-              builder: (_, __) => const FediversePage(surface: 'profile-replies'),
+              builder: (_, __) =>
+                  const FediversePage(surface: 'profile-replies'),
             ),
             GoRoute(
               path: '/fediverse/profile/media',
@@ -391,15 +396,18 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/fediverse/profile/videos',
-              builder: (_, __) => const FediversePage(surface: 'profile-videos'),
+              builder: (_, __) =>
+                  const FediversePage(surface: 'profile-videos'),
             ),
             GoRoute(
               path: '/fediverse/profile/podcasts',
-              builder: (_, __) => const FediversePage(surface: 'profile-podcasts'),
+              builder: (_, __) =>
+                  const FediversePage(surface: 'profile-podcasts'),
             ),
             GoRoute(
               path: '/fediverse/profile/series',
-              builder: (_, __) => const FediversePage(surface: 'profile-series'),
+              builder: (_, __) =>
+                  const FediversePage(surface: 'profile-series'),
             ),
             GoRoute(
               path: '/fediverse/profile/likes',
@@ -415,15 +423,18 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/fediverse/profile/followers',
-              builder: (_, __) => const FediversePage(surface: 'profile-followers'),
+              builder: (_, __) =>
+                  const FediversePage(surface: 'profile-followers'),
             ),
             GoRoute(
               path: '/fediverse/profile/following',
-              builder: (_, __) => const FediversePage(surface: 'profile-following'),
+              builder: (_, __) =>
+                  const FediversePage(surface: 'profile-following'),
             ),
             GoRoute(
               path: '/fediverse/profile/analytics',
-              builder: (_, __) => const FediversePage(surface: 'profile-analytics'),
+              builder: (_, __) =>
+                  const FediversePage(surface: 'profile-analytics'),
             ),
             GoRoute(path: '/spaces', builder: (_, __) => const SpacesPage()),
             GoRoute(

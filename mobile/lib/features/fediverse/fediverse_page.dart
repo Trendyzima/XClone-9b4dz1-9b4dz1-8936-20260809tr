@@ -36,6 +36,9 @@ class _FediversePageState extends State<FediversePage> {
     setState(() {
       _loading = true;
       _error = null;
+      _surfaceRows = [];
+      _surfaceMetrics = {};
+      _surfaceMessage = null;
     });
     try {
       if (!widget.instancesOnly &&
@@ -124,23 +127,28 @@ class _FediversePageState extends State<FediversePage> {
       case 'inbox':
         final inbox = await _db
             .from('activitypub_inbox')
-            .select('id,activity_type,actor_url,object_url,payload,processed,created_at')
+            .select(
+                'id,activity_type,actor_url,object_url,payload,processed,created_at')
             .eq('local_user_id', uid)
             .order('created_at', ascending: false)
             .limit(100)
             .timeout(const Duration(seconds: 15));
-        _surfaceRows = inbox.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+        _surfaceRows =
+            inbox.map((row) => Map<String, dynamic>.from(row as Map)).toList();
         return;
       case 'identity':
         final actors = await _db
             .from('activitypub_actors')
-            .select('id,actor_id,username,domain,inbox_url,outbox_url,followers_url,following_url,public_key_pem,created_at,updated_at')
+            .select(
+                'id,actor_id,username,domain,inbox_url,outbox_url,followers_url,following_url,public_key_pem,created_at,updated_at')
             .eq('user_id', uid)
             .limit(10)
             .timeout(const Duration(seconds: 15));
-        _surfaceRows = actors.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+        _surfaceRows =
+            actors.map((row) => Map<String, dynamic>.from(row as Map)).toList();
         if (_surfaceRows.isEmpty) {
-          _surfaceMessage = 'No local ActivityPub identity is registered for this account yet.';
+          _surfaceMessage =
+              'No local ActivityPub identity is registered for this account yet.';
         }
         return;
       case 'relay':
@@ -151,27 +159,53 @@ class _FediversePageState extends State<FediversePage> {
             .order('created_at', ascending: false)
             .limit(100)
             .timeout(const Duration(seconds: 15));
-        _surfaceRows = outbox.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+        _surfaceRows =
+            outbox.map((row) => Map<String, dynamic>.from(row as Map)).toList();
         return;
       case 'controls':
         final results = await Future.wait([
-          _db.from('fediverse_domain_blocks').select('id,domain,created_at').eq('user_id', uid).limit(100),
-          _db.from('fediverse_content_filters').select('id,name,phrase,action,contexts,expires_at,created_at').eq('user_id', uid).limit(100),
+          _db
+              .from('fediverse_domain_blocks')
+              .select('id,domain,created_at')
+              .eq('user_id', uid)
+              .limit(100),
+          _db
+              .from('fediverse_content_filters')
+              .select('id,name,phrase,action,contexts,expires_at,created_at')
+              .eq('user_id', uid)
+              .limit(100),
         ]);
         _surfaceRows = [
-          ...(results[0] as List).map((row) => {'kind': 'Blocked domain', ...Map<String, dynamic>.from(row as Map)}),
-          ...(results[1] as List).map((row) => {'kind': 'Content filter', ...Map<String, dynamic>.from(row as Map)}),
+          ...(results[0] as List).map((row) => {
+                'kind': 'Blocked domain',
+                ...Map<String, dynamic>.from(row as Map)
+              }),
+          ...(results[1] as List).map((row) => {
+                'kind': 'Content filter',
+                ...Map<String, dynamic>.from(row as Map)
+              }),
         ];
-        if (_surfaceRows.isEmpty) _surfaceMessage = 'No domain blocks or content filters are configured.';
+        if (_surfaceRows.isEmpty) {
+          _surfaceMessage =
+              'No domain blocks or content filters are configured.';
+        }
         return;
       case 'analytics':
       case 'profile-analytics':
         final results = await Future.wait([
           _db.from('federated_objects').select('id').limit(1000),
           _db.from('federated_actors').select('id').limit(1000),
-          _db.from('federated_reactions').select('id').eq('user_id', uid).limit(1000),
+          _db
+              .from('federated_reactions')
+              .select('id')
+              .eq('user_id', uid)
+              .limit(1000),
           _db.from('federated_instances').select('id').limit(1000),
-          _db.from('activitypub_outbox').select('id').eq('local_user_id', uid).limit(1000),
+          _db
+              .from('activitypub_outbox')
+              .select('id')
+              .eq('local_user_id', uid)
+              .limit(1000),
         ]);
         _surfaceMetrics = {
           'Cached posts': (results[0] as List).length,
@@ -184,23 +218,29 @@ class _FediversePageState extends State<FediversePage> {
       case 'profile-following':
         final following = await _db
             .from('federated_following')
-            .select('id,remote_actor_url,remote_username,remote_domain,created_at')
+            .select(
+                'id,remote_actor_url,remote_username,remote_domain,created_at')
             .eq('local_user_id', uid)
             .order('created_at', ascending: false)
             .limit(200)
             .timeout(const Duration(seconds: 15));
-        _surfaceRows = following.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+        _surfaceRows = following
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
         return;
       case 'profile-followers':
         final followers = await _db
             .from('activitypub_inbox')
-            .select('id,activity_type,actor_url,object_url,payload,processed,created_at')
+            .select(
+                'id,activity_type,actor_url,object_url,payload,processed,created_at')
             .eq('local_user_id', uid)
             .ilike('activity_type', '%Follow%')
             .order('created_at', ascending: false)
             .limit(200)
             .timeout(const Duration(seconds: 15));
-        _surfaceRows = followers.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+        _surfaceRows = followers
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
         return;
       case 'profile-likes':
         final reactions = await _db
@@ -211,24 +251,30 @@ class _FediversePageState extends State<FediversePage> {
             .order('created_at', ascending: false)
             .limit(100)
             .timeout(const Duration(seconds: 15));
-        final uris = reactions.map((row) => '${row['object_uri'] ?? ''}').where((uri) => uri.isNotEmpty).toList();
+        final uris = reactions
+            .map((row) => '${row['object_uri'] ?? ''}')
+            .where((uri) => uri.isNotEmpty)
+            .toList();
         if (uris.isEmpty) {
           _surfaceRows = [];
           return;
         }
         final liked = await _db
             .from('federated_objects')
-            .select('id,uri,object_type,actor_uri,url,content,summary,published_at,attachments,tags,like_count,announce_count,reply_count,content_warning')
+            .select(
+                'id,uri,object_type,actor_uri,url,content,summary,published_at,attachments,tags,like_count,announce_count,reply_count,content_warning')
             .inFilter('uri', uris)
             .isFilter('deleted_at', null)
             .eq('tombstone', false)
             .limit(100)
             .timeout(const Duration(seconds: 15));
-        _surfaceRows = liked.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+        _surfaceRows =
+            liked.map((row) => Map<String, dynamic>.from(row as Map)).toList();
         return;
       case 'profile-tips':
       case 'profile-gifts':
-        _surfaceMessage = 'Tips and gifts are not stored in the ActivityPub data model yet.';
+        _surfaceMessage =
+            'Tips and gifts are not stored in the ActivityPub data model yet.';
         return;
       default:
         final actors = await _db
@@ -238,36 +284,58 @@ class _FediversePageState extends State<FediversePage> {
             .limit(1)
             .timeout(const Duration(seconds: 15));
         if (actors.isEmpty) {
-          _surfaceMessage = 'Create a local Fediverse identity before viewing this profile surface.';
+          _surfaceMessage =
+              'Create a local Fediverse identity before viewing this profile surface.';
           return;
         }
         final actorUri = '${actors.first['actor_id'] ?? ''}';
         if (actorUri.isEmpty) {
-          _surfaceMessage = 'The local Fediverse identity has no canonical actor URI.';
+          _surfaceMessage =
+              'The local Fediverse identity has no canonical actor URI.';
           return;
         }
         final objects = await _db
             .from('federated_objects')
-            .select('id,uri,object_type,actor_uri,url,content,summary,published_at,in_reply_to_uri,attachments,tags,like_count,announce_count,reply_count,content_warning')
+            .select(
+                'id,uri,object_type,actor_uri,url,content,summary,published_at,in_reply_to_uri,attachments,tags,like_count,announce_count,reply_count,content_warning')
             .eq('actor_uri', actorUri)
             .isFilter('deleted_at', null)
             .eq('tombstone', false)
             .order('published_at', ascending: false)
             .limit(200)
             .timeout(const Duration(seconds: 15));
-        var rows = objects.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+        var rows = objects
+            .map((row) => Map<String, dynamic>.from(row as Map))
+            .toList();
         if (widget.surface == 'profile-replies') {
           rows = rows.where((row) => row['in_reply_to_uri'] != null).toList();
         } else if (widget.surface == 'profile-threads') {
           rows = rows.where((row) => row['in_reply_to_uri'] == null).toList();
         } else if (widget.surface == 'profile-media') {
-          rows = rows.where((row) => row['attachments'] is List && (row['attachments'] as List).isNotEmpty).toList();
+          rows = rows
+              .where((row) =>
+                  row['attachments'] is List &&
+                  (row['attachments'] as List).isNotEmpty)
+              .toList();
         } else if (widget.surface == 'profile-videos') {
-          rows = rows.where((row) => row['object_type'] == 'Video' || (row['attachments'] is List && (row['attachments'] as List).any((item) => item is Map && '${item['mediaType'] ?? item['media_type'] ?? ''}'.startsWith('video/')))).toList();
+          rows = rows
+              .where((row) =>
+                  row['object_type'] == 'Video' ||
+                  (row['attachments'] is List &&
+                      (row['attachments'] as List).any((item) =>
+                          item is Map &&
+                          '${item['mediaType'] ?? item['media_type'] ?? ''}'
+                              .startsWith('video/'))))
+              .toList();
         } else if (widget.surface == 'profile-podcasts') {
-          rows = rows.where((row) => '${row['object_type']}'.toLowerCase() == 'podcast').toList();
+          rows = rows
+              .where(
+                  (row) => '${row['object_type']}'.toLowerCase() == 'podcast')
+              .toList();
         } else if (widget.surface == 'profile-series') {
-          rows = rows.where((row) => '${row['object_type']}'.toLowerCase() == 'series').toList();
+          rows = rows
+              .where((row) => '${row['object_type']}'.toLowerCase() == 'series')
+              .toList();
         }
         _surfaceRows = rows;
         return;
@@ -334,10 +402,14 @@ class _FediversePageState extends State<FediversePage> {
             Expanded(
               child: Text(
                 _surfaceTitle,
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineSmall
+                    ?.copyWith(fontWeight: FontWeight.w900),
               ),
             ),
-            IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded)),
+            IconButton(
+                onPressed: _load, icon: const Icon(Icons.refresh_rounded)),
           ]),
           Wrap(
             spacing: 6,
@@ -350,14 +422,18 @@ class _FediversePageState extends State<FediversePage> {
               ('Relay', '/fediverse/relay'),
               ('Controls', '/fediverse/controls'),
               ('Analytics', '/fediverse/analytics'),
-            ].map((item) => ActionChip(
-              label: Text(item.$1),
-              onPressed: () => context.go(item.$2),
-            )).toList(),
+            ]
+                .map((item) => ActionChip(
+                      label: Text(item.$1),
+                      onPressed: () => context.go(item.$2),
+                    ))
+                .toList(),
           ),
           const SizedBox(height: 10),
           if (_loading)
-            const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator())),
+            const Padding(
+                padding: EdgeInsets.all(20),
+                child: Center(child: CircularProgressIndicator())),
           if (_error != null)
             Padding(
               padding: const EdgeInsets.all(12),
@@ -373,34 +449,53 @@ class _FediversePageState extends State<FediversePage> {
             ),
           if (_surfaceMetrics.isNotEmpty)
             ..._surfaceMetrics.entries.map((entry) => Card(
-              child: ListTile(
-                leading: const CircleAvatar(child: Icon(Icons.insights_rounded)),
-                title: Text(entry.key),
-                trailing: Text('${entry.value}', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
-              ),
-            )),
-          if (!_loading && _error == null && _surfaceMessage == null && rows.isEmpty && _surfaceMetrics.isEmpty)
+                  child: ListTile(
+                    leading:
+                        const CircleAvatar(child: Icon(Icons.insights_rounded)),
+                    title: Text(entry.key),
+                    trailing: Text('${entry.value}',
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleLarge
+                            ?.copyWith(fontWeight: FontWeight.w900)),
+                  ),
+                )),
+          if (!_loading &&
+              _error == null &&
+              _surfaceMessage == null &&
+              rows.isEmpty &&
+              _surfaceMetrics.isEmpty)
             const Padding(
               padding: EdgeInsets.all(24),
               child: Center(child: Text('Nothing to show here yet.')),
             ),
           ...rows.map((row) {
-            final title = '${row['kind'] ?? row['display_name'] ?? row['remote_username'] ?? row['username'] ?? row['activity_type'] ?? row['name'] ?? row['domain'] ?? row['object_type'] ?? 'Activity'}';
-            final subtitle = '${row['domain'] ?? row['remote_domain'] ?? row['actor_url'] ?? row['actor_id'] ?? row['remote_actor_url'] ?? row['phrase'] ?? row['url'] ?? row['object_url'] ?? row['activity_id'] ?? row['created_at'] ?? ''}';
-            final detail = '${row['content'] ?? row['summary'] ?? row['payload'] ?? ''}';
+            final title =
+                '${row['kind'] ?? row['display_name'] ?? row['remote_username'] ?? row['username'] ?? row['activity_type'] ?? row['name'] ?? row['domain'] ?? row['object_type'] ?? 'Activity'}';
+            final subtitle =
+                '${row['domain'] ?? row['remote_domain'] ?? row['actor_url'] ?? row['actor_id'] ?? row['remote_actor_url'] ?? row['phrase'] ?? row['url'] ?? row['object_url'] ?? row['activity_id'] ?? row['created_at'] ?? ''}';
+            final detail =
+                '${row['content'] ?? row['summary'] ?? row['payload'] ?? ''}';
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
                 leading: Icon(
-                  widget.surface == 'inbox' ? Icons.inbox_rounded :
-                  widget.surface == 'relay' ? Icons.outbox_rounded :
-                  widget.surface == 'controls' ? Icons.shield_rounded :
-                  widget.surface.startsWith('profile-') ? Icons.person_outline_rounded :
-                  Icons.public_rounded,
+                  widget.surface == 'inbox'
+                      ? Icons.inbox_rounded
+                      : widget.surface == 'relay'
+                          ? Icons.outbox_rounded
+                          : widget.surface == 'controls'
+                              ? Icons.shield_rounded
+                              : widget.surface.startsWith('profile-')
+                                  ? Icons.person_outline_rounded
+                                  : Icons.public_rounded,
                 ),
-                title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+                title: Text(title,
+                    style: const TextStyle(fontWeight: FontWeight.w800)),
                 subtitle: Text(
-                  [subtitle, detail].where((value) => value.isNotEmpty && value != '{}').join('\n'),
+                  [subtitle, detail]
+                      .where((value) => value.isNotEmpty && value != '{}')
+                      .join('\n'),
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -411,7 +506,9 @@ class _FediversePageState extends State<FediversePage> {
                         icon: const Icon(Icons.check_circle_outline_rounded),
                       )
                     : widget.surface == 'relay'
-                        ? Icon(row['delivered'] == true ? Icons.check_circle_rounded : Icons.schedule_rounded)
+                        ? Icon(row['delivered'] == true
+                            ? Icons.check_circle_rounded
+                            : Icons.schedule_rounded)
                         : null,
               ),
             );
@@ -491,7 +588,12 @@ class _FediversePageState extends State<FediversePage> {
                   onPressed: () => context.go('/fediverse'),
                   icon: const Icon(Icons.arrow_back_rounded)),
               Expanded(
-                  child: Text(widget.surface == 'discover' ? 'Discover the Fediverse' : widget.surface == 'organic-discovery' ? 'Organic Fediverse discovery' : 'Fediverse instances',
+                  child: Text(
+                      widget.surface == 'discover'
+                          ? 'Discover the Fediverse'
+                          : widget.surface == 'organic-discovery'
+                              ? 'Organic Fediverse discovery'
+                              : 'Fediverse instances',
                       style: Theme.of(context)
                           .textTheme
                           .headlineSmall
@@ -527,7 +629,10 @@ class _FediversePageState extends State<FediversePage> {
         child: ListView(padding: const EdgeInsets.all(14), children: [
           Row(children: [
             Expanded(
-                child: Text(widget.surface == 'mastodon' ? 'Mastodon-compatible timeline' : 'Fediverse',
+                child: Text(
+                    widget.surface == 'mastodon'
+                        ? 'Mastodon-compatible timeline'
+                        : 'Fediverse',
                     style: Theme.of(context)
                         .textTheme
                         .headlineSmall
@@ -554,10 +659,12 @@ class _FediversePageState extends State<FediversePage> {
               ('Relay', '/fediverse/relay'),
               ('Controls', '/fediverse/controls'),
               ('Analytics', '/fediverse/analytics'),
-            ].map((item) => ActionChip(
-              label: Text(item.$1),
-              onPressed: () => context.go(item.$2),
-            )).toList(),
+            ]
+                .map((item) => ActionChip(
+                      label: Text(item.$1),
+                      onPressed: () => context.go(item.$2),
+                    ))
+                .toList(),
           ),
           if (_loading)
             const Padding(

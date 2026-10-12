@@ -53,12 +53,14 @@ class _ChannelProfilePageState extends State<ChannelProfilePage> {
       if (mounted) {
         setState(() {
           _profile = Map<String, dynamic>.from(profile);
-          _streams = rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+          _streams =
+              rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
         });
       }
     } catch (_) {
       if (mounted) {
-        setState(() => _error = 'Channel details could not load. Please retry.');
+        setState(
+            () => _error = 'Channel details could not load. Please retry.');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -68,7 +70,8 @@ class _ChannelProfilePageState extends State<ChannelProfilePage> {
   @override
   Widget build(BuildContext context) {
     final profile = _profile ?? const <String, dynamic>{};
-    final displayName = '${profile['display_name'] ?? profile['full_name'] ?? widget.handle}';
+    final displayName =
+        '${profile['display_name'] ?? profile['full_name'] ?? widget.handle}';
     final avatar = '${profile['avatar_url'] ?? ''}';
     return RefreshIndicator(
       onRefresh: _load,
@@ -89,7 +92,8 @@ class _ChannelProfilePageState extends State<ChannelProfilePage> {
                       ),
                 ),
               ),
-              IconButton(onPressed: _load, icon: const Icon(Icons.refresh_rounded)),
+              IconButton(
+                  onPressed: _load, icon: const Icon(Icons.refresh_rounded)),
             ],
           ),
           const SizedBox(height: 8),
@@ -100,12 +104,20 @@ class _ChannelProfilePageState extends State<ChannelProfilePage> {
                 children: [
                   CircleAvatar(
                     radius: 36,
-                    backgroundImage: avatar.startsWith('http') ? NetworkImage(avatar) : null,
-                    child: avatar.startsWith('http') ? null : const Icon(Icons.tv_rounded, size: 32),
+                    backgroundImage:
+                        avatar.startsWith('http') ? NetworkImage(avatar) : null,
+                    child: avatar.startsWith('http')
+                        ? null
+                        : const Icon(Icons.tv_rounded, size: 32),
                   ),
                   const SizedBox(height: 12),
-                  Text(displayName, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900)),
-                  Text('@${widget.handle}', style: Theme.of(context).textTheme.bodyMedium),
+                  Text(displayName,
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w900)),
+                  Text('@${widget.handle}',
+                      style: Theme.of(context).textTheme.bodyMedium),
                   if ('${profile['bio'] ?? ''}'.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     Text('${profile['bio']}', textAlign: TextAlign.center),
@@ -115,30 +127,43 @@ class _ChannelProfilePageState extends State<ChannelProfilePage> {
             ),
           ),
           const SizedBox(height: 16),
-          Text('Live now', style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-          if (_loading) const Padding(padding: EdgeInsets.all(24), child: Center(child: CircularProgressIndicator())),
-          if (_error != null) Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(children: [
-              Text(_error!, textAlign: TextAlign.center),
-              TextButton(onPressed: _load, child: const Text('Retry')),
-            ]),
-          ),
+          Text('Live now',
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
+                  ?.copyWith(fontWeight: FontWeight.w800)),
+          if (_loading)
+            const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator())),
+          if (_error != null)
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(children: [
+                Text(_error!, textAlign: TextAlign.center),
+                TextButton(onPressed: _load, child: const Text('Retry')),
+              ]),
+            ),
           if (!_loading && _error == null && _streams.isEmpty)
             const Padding(
               padding: EdgeInsets.all(20),
-              child: Center(child: Text('This channel has no live broadcast at the moment.')),
+              child: Center(
+                  child: Text(
+                      'This channel has no live broadcast at the moment.')),
             ),
           ..._streams.map((stream) => Card(
-            margin: const EdgeInsets.only(bottom: 10),
-            child: ListTile(
-              leading: const CircleAvatar(child: Icon(Icons.live_tv_rounded)),
-              title: Text('${stream['title'] ?? 'Live broadcast'}', style: const TextStyle(fontWeight: FontWeight.w800)),
-              subtitle: Text('${stream['description'] ?? stream['category'] ?? 'Live on Testagram'}'),
-              trailing: const Icon(Icons.play_circle_fill_rounded),
-              onTap: () => context.go('/stream/${stream['id']}'),
-            ),
-          )),
+                margin: const EdgeInsets.only(bottom: 10),
+                child: ListTile(
+                  leading:
+                      const CircleAvatar(child: Icon(Icons.live_tv_rounded)),
+                  title: Text('${stream['title'] ?? 'Live broadcast'}',
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: Text(
+                      '${stream['description'] ?? stream['category'] ?? 'Live on Testagram'}'),
+                  trailing: const Icon(Icons.play_circle_fill_rounded),
+                  onTap: () => context.go('/stream/${stream['id']}'),
+                ),
+              )),
         ],
       ),
     );

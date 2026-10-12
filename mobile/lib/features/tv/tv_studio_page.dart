@@ -183,16 +183,21 @@ class _TvStudioPageState extends State<TvStudioPage> {
                     child: const Text('Sign in'))
               ])));
     }
+    final visibleStreams = widget.streamId == null
+        ? _streams
+        : _streams.where((stream) => '${stream['id']}' == widget.streamId).toList();
     return RefreshIndicator(
         onRefresh: _load,
         child: ListView(padding: const EdgeInsets.all(16), children: [
-          Text('Testagram TV Studio',
+          Text(widget.section == 'guests' ? 'TV guest control' : widget.streamId != null ? 'Broadcast details' : 'Testagram TV Studio',
               style: Theme.of(context)
                   .textTheme
                   .headlineSmall
                   ?.copyWith(fontWeight: FontWeight.w900)),
           const SizedBox(height: 6),
-          const Text('Manage broadcast details and review your sessions.'),
+          Text(widget.section == 'guests'
+              ? 'Guest media is not enabled until the native WebRTC guest bridge passes device acceptance.'
+              : 'Manage broadcast details and review your sessions.'),
           const SizedBox(height: 12),
           Card(
               child: Padding(
@@ -209,10 +214,11 @@ class _TvStudioPageState extends State<TvStudioPage> {
                                 style: Theme.of(context).textTheme.bodyMedium))
                       ]))),
           const SizedBox(height: 12),
-          FilledButton.icon(
-              onPressed: _creating ? null : _createDraft,
-              icon: const Icon(Icons.add_circle_outline_rounded),
-              label: Text(_creating ? 'Preparing…' : 'Prepare broadcast')),
+          if (widget.streamId == null)
+            FilledButton.icon(
+                onPressed: _creating ? null : _createDraft,
+                icon: const Icon(Icons.add_circle_outline_rounded),
+                label: Text(_creating ? 'Preparing…' : 'Prepare broadcast')),
           if (_loading)
             const Padding(
                 padding: EdgeInsets.all(20),
@@ -224,13 +230,15 @@ class _TvStudioPageState extends State<TvStudioPage> {
                   Text(_error!),
                   TextButton(onPressed: _load, child: const Text('Retry'))
                 ])),
-          if (!_loading && _streams.isEmpty && _error == null)
+          if (!_loading && visibleStreams.isEmpty && _error == null)
             const Padding(
                 padding: EdgeInsets.all(24),
                 child: Center(
                     child: Text(
-                        'No broadcast sessions yet. Prepare your first broadcast.'))),
-          ..._streams.map((s) {
+                        widget.streamId == null
+                            ? 'No broadcast sessions yet. Prepare your first broadcast.'
+                            : 'This broadcast is not available in your studio.'))),
+          ...visibleStreams.map((s) {
             final live = s['is_live'] == true;
             final id = '${s['id']}';
             return Card(
