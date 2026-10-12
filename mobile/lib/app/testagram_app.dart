@@ -10,6 +10,7 @@ import '../core/theme/testagram_theme.dart';
 import '../features/auth/auth_page.dart';
 import '../features/explore/explore_page.dart';
 import '../features/feed/feed_page.dart';
+import '../features/feed/post_detail_page.dart';
 import '../features/messages/messages_page.dart';
 import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_page.dart';
@@ -120,6 +121,7 @@ class _TestagramAppState extends State<TestagramApp> {
             path == '/leaderboard' ||
             path == '/leaderboard/creators' ||
             path == '/news' ||
+            path.startsWith('/post/') ||
             path.startsWith('/news/') ||
             path == '/fediverse' ||
             path == '/fediverse/instances' ||
@@ -173,6 +175,19 @@ class _TestagramAppState extends State<TestagramApp> {
               builder: (_, __) => const FediversePage(),
             ),
             GoRoute(path: '/threads', builder: (_, __) => const ThreadsPage()),
+            GoRoute(
+              path: '/post/:postId/replies',
+              builder: (_, state) => PostDetailPage(
+                postId: state.pathParameters['postId'] ?? '',
+                repliesOnly: true,
+              ),
+            ),
+            GoRoute(
+              path: '/post/:postId',
+              builder: (_, state) => PostDetailPage(
+                postId: state.pathParameters['postId'] ?? '',
+              ),
+            ),
             GoRoute(
               path: '/communities',
               builder: (_, __) => const CommunitiesPage(),
