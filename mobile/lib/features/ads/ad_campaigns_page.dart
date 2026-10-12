@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Native Flutter campaign creation, advertiser campaign list and analytics.
 /// Payment activation is only shown after the server-side M-Pesa callback and
