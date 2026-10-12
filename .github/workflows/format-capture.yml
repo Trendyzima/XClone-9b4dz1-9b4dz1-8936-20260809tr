@@ -1,0 +1,27 @@
+name: Temporary Flutter formatter patch capture
+on:
+  pull_request:
+    paths:
+      - 'mobile/lib/app/testagram_app.dart'
+      - 'mobile/lib/features/settings/settings_page.dart'
+      - 'mobile/lib/features/profile/profile_page.dart'
+      - '.github/workflows/format-capture.yml'
+permissions:
+  contents: read
+jobs:
+  formatter-diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Resolve Flutter dependencies
+        working-directory: mobile
+        run: flutter pub get
+      - name: Print formatter patch
+        working-directory: mobile
+        run: |
+          dart format lib/app/testagram_app.dart lib/features/settings/settings_page.dart lib/features/profile/profile_page.dart
+          git diff --no-ext-diff -- lib/app/testagram_app.dart lib/features/settings/settings_page.dart lib/features/profile/profile_page.dart
