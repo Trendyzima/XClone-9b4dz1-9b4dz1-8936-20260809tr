@@ -149,7 +149,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
           _error = 'The amount exceeds your currently available balance.');
       return;
     }
-    if (!RegExp(r'^\d{4,6}$').hasMatch(pin)) {
+    if (!isValidWalletPin(pin)) {
       setState(() => _error = 'Enter your 4–6 digit wallet PIN.');
       return;
     }
