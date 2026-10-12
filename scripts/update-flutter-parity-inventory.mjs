@@ -92,15 +92,20 @@ const domains = [
 ];
 const previousDomains = new Map((existing.domains ?? []).map((domain) => [domain.id, domain]));
 const initialProgress = new Map([
+  // These statuses mean a native implementation has started, not that parity is accepted.
+  // Do not mark the external-ad domain in progress merely because creator monetization exists.
+  ['authentication_and_legal', 'in_progress'],
   ['social_feed', 'in_progress'],
-  ['iptv_and_tv_production', 'in_progress'],
-  ['camera_microphone_media', 'in_progress'],
+  ['profiles_and_graph', 'in_progress'],
   ['search_and_discovery', 'in_progress'],
+  ['stories_and_shorts', 'in_progress'],
+  ['iptv_and_tv_production', 'in_progress'],
+  ['notifications', 'in_progress'],
+  ['camera_microphone_media', 'in_progress'],
   ['communities_and_live_spaces', 'in_progress'],
   ['fediverse', 'in_progress'],
   ['commerce_and_wallet', 'in_progress'],
   ['creator_tools', 'in_progress'],
-  ['advertising_and_monetization', 'in_progress'],
 ]);
 const inventory = {
   schema_version: 1,
@@ -109,8 +114,13 @@ const inventory = {
   domains: domains.map(([id, scope]) => ({
     id,
     scope,
-    status: previousDomains.get(id)?.status ?? initialProgress.get(id) ?? 'not_started',
-    acceptance: previousDomains.get(id)?.acceptance ?? ['positive path', 'unauthenticated/permission path', 'offline/timeout recovery', 'accessibility and responsive layout', 'web and Android tests'],
+    status: previousDomains.get(id)?.status === 'not_started' && initialProgress.has(id)
+      ? 'in_progress'
+      : (previousDomains.get(id)?.status ?? initialProgress.get(id) ?? 'not_started'),
+    acceptance: [...new Set([
+      ...(previousDomains.get(id)?.acceptance ?? ['positive path', 'unauthenticated/permission path', 'offline/timeout recovery', 'accessibility and responsive layout', 'web and Android tests']),
+      ...(initialProgress.has(id) ? ['Flutter implementation exists; end-to-end production parity is not yet accepted'] : []),
+    ])],
   })),
   sources,
 };
