@@ -260,7 +260,7 @@
       "path": "/bookmarks",
       "domain": "social",
       "status": "native_partial",
-      "note": "Native Flutter saved-posts screen reads the authenticated user's bookmarks and posts, and supports removing saved posts. Feature-level and platform acceptance remain required."
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/boost-analytics/:postId",
