@@ -84,6 +84,7 @@
     "/spaces",
     "/spaces/:id",
     "/start-stream",
+    "/stream/:streamId",
     "/thread/:id",
     "/thread/:threadId/replies",
     "/threads",
@@ -100,8 +101,8 @@
   "counts": {
     "unique_source_routes_including_wildcard": 212,
     "source_routes_excluding_wildcard": 211,
-    "native_route_matches": 91,
-    "legacy_web_fallbacks": 120
+    "native_route_matches": 92,
+    "legacy_web_fallbacks": 119
   },
   "routes": [
     {
@@ -1145,8 +1146,8 @@
     {
       "path": "/stream/:streamId",
       "domain": "tv_and_live",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/team-chat",

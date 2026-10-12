@@ -239,6 +239,13 @@ class _TestagramAppState extends State<TestagramApp> {
               ),
             ),
             GoRoute(
+              path: '/stream/:streamId',
+              builder: (_, state) => TvPage(
+                title: 'Live broadcast',
+                streamId: state.pathParameters['streamId'],
+              ),
+            ),
+            GoRoute(
               path: '/tv/live/:streamId',
               builder: (_, state) => TvPage(
                 title: 'Live broadcast',
