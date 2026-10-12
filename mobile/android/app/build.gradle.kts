@@ -4,6 +4,17 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val releaseStorePath = System.getenv("TESTAGRAM_ANDROID_KEYSTORE_PATH")
+val releaseStorePassword = System.getenv("TESTAGRAM_ANDROID_KEYSTORE_PASSWORD")
+val releaseKeyAlias = System.getenv("TESTAGRAM_ANDROID_KEY_ALIAS")
+val releaseKeyPassword = System.getenv("TESTAGRAM_ANDROID_KEY_PASSWORD")
+val hasProductionSigning = listOf(
+    releaseStorePath,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).all { !it.isNullOrBlank() }
+
 android {
     namespace = "com.xclone.app"
     compileSdk = flutter.compileSdkVersion
@@ -29,10 +40,24 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasProductionSigning) {
+            create("production") {
+                storeFile = file(releaseStorePath!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // Deliberately do not sign production releases with the debug key.
-            // Configure the permanent production signing identity before release.
+            // Never silently fall back to the debug key. The dedicated release
+            // workflow fails closed unless the production signing secrets exist.
+            if (hasProductionSigning) {
+                signingConfig = signingConfigs.getByName("production")
+            }
         }
     }
 }
