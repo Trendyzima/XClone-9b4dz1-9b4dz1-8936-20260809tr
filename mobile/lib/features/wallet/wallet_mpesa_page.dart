@@ -24,6 +24,7 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
   String _status = 'idle';
   bool _loading = true;
   bool _submitting = false;
+  bool _checkingStatus = false;
   int _elapsedSeconds = 0;
 
   @override
@@ -148,7 +149,8 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
 
   Future<void> _checkStatus({bool silent = false}) async {
     final checkout = _checkoutId;
-    if (checkout == null || checkout.isEmpty) return;
+    if (checkout == null || checkout.isEmpty || _checkingStatus) return;
+    _checkingStatus = true;
     if (!silent && mounted) setState(() => _message = 'Checking provider status…');
     try {
       final response = await _client.functions.invoke(
@@ -182,6 +184,8 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
       }
     } catch (_) {
       if (!silent && mounted) setState(() => _message = 'Could not check payment status. The payment remains unconfirmed.');
+    } finally {
+      _checkingStatus = false;
     }
   }
 
