@@ -7,7 +7,16 @@ const source = fs.readFileSync(path.join(root, 'src/App.tsx'), 'utf8');
 const flutter = fs.readFileSync(path.join(root, 'mobile/lib/app/testagram_app.dart'), 'utf8');
 const declarations = [...source.matchAll(/<Route\b[^>]*\bpath\s*=\s*["']([^"']+)["'][^>]*>/g)].map((match) => match[1]);
 const unique = [...new Set(declarations)].sort();
-const native = new Set([...flutter.matchAll(/\bpath:\s*'([^']+)'/g)].map((match) => match[1]));
+const native = new Set([...flutter.matchAll(/\\bpath:\\s*'([^']+)'/g)].map((match) => match[1]));
+const nativeShells = new Set();
+const routeMatches = [...flutter.matchAll(/GoRoute\\(\\s*path:\\s*'([^']+)'/g)];
+for (let index = 0; index < routeMatches.length; index += 1) {
+  const start = routeMatches[index].index;
+  const next = routeMatches[index + 1]?.index ?? flutter.length;
+  if (flutter.slice(start, next).includes('NativeFeaturePage(')) {
+    nativeShells.add(routeMatches[index][1]);
+  }
+}
 const matchesRoute = (pattern, sourceRoute) => {
   const patternParts = pattern.split('/');
   const sourceParts = sourceRoute.split('/');
@@ -35,13 +44,16 @@ if (declarations.length < 100 || unique.length < 100 || native.size < 1) {
 }
 const routes = unique.filter((pathname) => pathname !== '*').map((pathname) => {
   const isNative = [...native].some((pattern) => matchesRoute(pattern, pathname));
+  const isShell = [...nativeShells].some((pattern) => matchesRoute(pattern, pathname));
   return {
     path: pathname,
     domain: routeDomain(pathname),
-    status: isNative ? 'native_partial' : 'legacy_web_fallback',
-    note: isNative
-      ? 'An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance.'
-      : 'No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated.'
+    status: isShell ? 'native_shell' : isNative ? 'native_partial' : 'legacy_web_fallback',
+    note: isShell
+      ? 'A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted.'
+      : isNative
+        ? 'An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance.'
+        : 'No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated.'
   };
 });
 const inventory = {
@@ -54,6 +66,7 @@ const inventory = {
     unique_source_routes_including_wildcard: unique.length,
     source_routes_excluding_wildcard: routes.length,
     native_route_matches: routes.filter((route) => route.status === 'native_partial').length,
+    native_shell_routes: routes.filter((route) => route.status === 'native_shell').length,
     legacy_web_fallbacks: routes.filter((route) => route.status === 'legacy_web_fallback').length
   },
   routes
