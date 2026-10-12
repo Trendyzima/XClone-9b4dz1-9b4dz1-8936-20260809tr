@@ -89,8 +89,25 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
       return;
     }
     final pin = _pinController.text;
-    if (!RegExp(r'^\d{4,6}
-
+    if (!RegExp(r'^\\d{4,6}$').hasMatch(pin)) {
+      setState(() => _message = 'Enter your 4–6 digit wallet PIN.');
+      return;
+    }
+    try {
+      final verification = await _client.rpc('verify_wallet_pin', params: {'p_pin': pin});
+      final result = Map<String, dynamic>.from(verification as Map);
+      if (result['success'] != true) {
+        final code = (result['code'] ?? 'INVALID_PIN').toString();
+        setState(() => _message = code == 'PIN_LOCKED'
+            ? 'Wallet PIN is temporarily locked.'
+            : 'Wallet PIN was not accepted.');
+        _pinController.clear();
+        return;
+      }
+    } catch (_) {
+      setState(() => _message = 'Wallet PIN could not be verified. No M-Pesa prompt was requested.');
+      return;
+    }
     final accepted = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -184,7 +201,7 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
           _status = 'completed';
           _message = 'M-Pesa payment confirmed by the server. Wallet balance refreshed.';
           _amountController.clear();
-        _pinController.clear();
+          _pinController.clear();
         });
       } else if (status == 'failed' || status == 'cancelled' || status == 'reversed') {
         _pollTimer?.cancel();
