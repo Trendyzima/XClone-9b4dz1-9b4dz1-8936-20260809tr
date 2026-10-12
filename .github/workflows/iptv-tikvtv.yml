@@ -8,6 +8,8 @@ on:
       - '.gitmodules'
       - 'vendor/TikVTV'
       - 'src/App.tsx'
+      - 'mobile/lib/app/testagram_app.dart'
+      - 'mobile/lib/features/tv/**'
       - 'src/pages/TikVTVPage.tsx'
       - 'src/components/features/ExternalAdEngine.tsx'
       - 'scripts/validate-ad-slot-contract.mjs'

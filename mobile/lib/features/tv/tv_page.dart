@@ -149,19 +149,28 @@ class _TvPageState extends State<TvPage> {
       _error = null;
     });
     try {
-      _loadedCatalogSourceCount = _initialSourceCount;
-      final catalogFuture = Future.wait(
-        _catalogSources.take(_initialSourceCount).map(_loadCatalogSource),
-      );
+      _loadedCatalogSourceCount =
+          widget.streamId == null ? _initialSourceCount : 0;
+      final catalogFuture = widget.streamId == null
+          ? Future.wait(
+              _catalogSources.take(_initialSourceCount).map(_loadCatalogSource),
+            )
+          : Future.value(<List<Map<String, dynamic>>>[]);
       final liveFuture = () async {
         try {
-          final rows = await _client
+          final query = _client
               .from('live_streams')
               .select('*')
-              .eq('is_live', true)
-              .order('started_at', ascending: false)
-              .limit(40)
-              .timeout(const Duration(seconds: 15));
+              .eq('is_live', true);
+          final rows = widget.streamId == null
+              ? await query
+                  .order('started_at', ascending: false)
+                  .limit(40)
+                  .timeout(const Duration(seconds: 15))
+              : await query
+                  .eq('id', widget.streamId!)
+                  .limit(1)
+                  .timeout(const Duration(seconds: 15));
           return rows
               .map((row) => Map<String, dynamic>.from(row as Map)
                 ..['_sourceType'] = 'testagram-live')
@@ -190,12 +199,22 @@ class _TvPageState extends State<TvPage> {
       }
 
       final live = await liveFuture;
-      final merged = _dedupeChannels(live, existing: catalogChannels);
+      final filteredCatalog = widget.streamId == null
+          ? catalogChannels
+          : catalogChannels
+              .where((channel) => '${channel['id'] ?? ''}' == widget.streamId)
+              .toList();
+      final merged = _dedupeChannels(
+        live,
+        existing: widget.streamId == null ? catalogChannels : filteredCatalog,
+      );
       if (mounted) {
         setState(() {
           _channels = merged;
           _error = merged.isEmpty
-              ? 'TV channels could not be loaded. Check your connection and retry.'
+              ? (widget.streamId == null
+                  ? 'TV channels could not be loaded. Check your connection and retry.'
+                  : 'That live stream is unavailable or has ended.')
               : null;
           if (_activeIndex >= merged.length) _activeIndex = 0;
         });
