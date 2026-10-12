@@ -19,13 +19,13 @@ class _SettingsPageState extends State<SettingsPage> {
   String? _error;
 
   String get _title => switch (widget.section) {
-    'account' => 'Account',
-    'appearance' => 'Appearance',
-    'connections' => 'Connections',
-    'notifications' => 'Notifications',
-    'privacy' => 'Privacy and safety',
-    _ => 'Settings',
-  };
+        'account' => 'Account',
+        'appearance' => 'Appearance',
+        'connections' => 'Connections',
+        'notifications' => 'Notifications',
+        'privacy' => 'Privacy and safety',
+        _ => 'Settings',
+      };
 
   Future<void> _openSite([String path = '']) async {
     final base = AppConfig.siteUrl.replaceFirst(RegExp(r'/$'), '');
@@ -47,8 +47,8 @@ class _SettingsPageState extends State<SettingsPage> {
     });
     try {
       await Supabase.instance.client.auth.signOut().timeout(
-        const Duration(seconds: 10),
-      );
+            const Duration(seconds: 10),
+          );
       if (mounted) context.go('/auth');
     } catch (_) {
       if (mounted) {
@@ -281,7 +281,9 @@ class _SettingsPageState extends State<SettingsPage> {
             Expanded(
               child: Text(
                 _title,
-                style: Theme.of(context).textTheme.headlineSmall
+                style: Theme.of(context)
+                    .textTheme
+                    .headlineSmall
                     ?.copyWith(fontWeight: FontWeight.w800),
               ),
             ),
