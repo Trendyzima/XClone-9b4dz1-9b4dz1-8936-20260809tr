@@ -67,6 +67,11 @@ jobs:
       - name: Resolve Flutter dependencies
         working-directory: mobile
         run: flutter pub get
+      - name: Temporary formatter patch capture
+        working-directory: mobile
+        run: |
+          dart format lib/features/fediverse/fediverse_page.dart
+          git diff --no-ext-diff -- lib/features/fediverse/fediverse_page.dart
       - name: Enforce formatting
         working-directory: mobile
         run: dart format --output=none --set-exit-if-changed lib test
