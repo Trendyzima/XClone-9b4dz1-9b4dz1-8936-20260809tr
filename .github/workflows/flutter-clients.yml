@@ -50,7 +50,7 @@ jobs:
       - name: Regenerate and verify Flutter route parity
         run: |
           node scripts/update-flutter-route-parity.mjs
-          node -e "const d = JSON.parse(require('node:fs').readFileSync('docs/flutter-route-parity.json', 'utf8')); if (d.routes.length < 200 || d.counts.legacy_web_fallbacks < 1) process.exit(1); console.log(JSON.stringify(d.counts));"
+          node -e "const d = JSON.parse(require('node:fs').readFileSync('docs/flutter-route-parity.json', 'utf8')); if (d.routes.length < 200 || d.counts.native_shell_routes < 1 || d.counts.legacy_web_fallbacks !== 0) process.exit(1); console.log(JSON.stringify(d.counts));"
           git diff --exit-code -- docs/flutter-route-parity.json
       - name: Prevent Flutter route coverage regressions
         run: node scripts/validate-flutter-route-progress.mjs
@@ -79,6 +79,15 @@ jobs:
         run: |
           dart format --output=show lib/features/tv/tv_page.dart > /tmp/tv_page.formatted.dart
           diff -u lib/features/tv/tv_page.dart /tmp/tv_page.formatted.dart || true
+      - name: Diagnose remaining Dart formatter diffs
+        working-directory: mobile
+        shell: bash
+        run: |
+          set +e
+          for file in lib/features/fediverse/fediverse_feed_policy.dart lib/features/fediverse/fediverse_page.dart test/features/fediverse/fediverse_feed_policy_test.dart lib/features/native_route/native_feature_page.dart; do
+            dart format --output=show "$file" > /tmp/formatted.dart
+            diff -u "$file" /tmp/formatted.dart || true
+          done
       - name: Enforce formatting
         working-directory: mobile
         run: dart format --output=none --set-exit-if-changed lib test

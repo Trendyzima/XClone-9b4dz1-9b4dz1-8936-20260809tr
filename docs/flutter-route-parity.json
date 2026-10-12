@@ -220,7 +220,8 @@
   "counts": {
     "unique_source_routes_including_wildcard": 212,
     "source_routes_excluding_wildcard": 211,
-    "native_route_matches": 211,
+    "native_route_matches": 113,
+    "native_shell_routes": 98,
     "legacy_web_fallbacks": 0
   },
   "routes": [
@@ -239,14 +240,14 @@
     {
       "path": "/ad-performance",
       "domain": "advertising",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/admin",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/admin/ads",
@@ -263,92 +264,92 @@
     {
       "path": "/admin/ads-review",
       "domain": "advertising",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/admin/fraud",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/admin/governance",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/admin/identity-verification",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/admin/overview",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/admin/platform-revenue",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/admin/revenue",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/admin/seo",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/admin/staff-recruitment",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/admin/users",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/admin/verifications",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/ai",
       "domain": "general",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/ai-bot-setup",
       "domain": "general",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/analytics",
       "domain": "general",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/appeals",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/auth",
@@ -359,8 +360,8 @@
     {
       "path": "/blocked",
       "domain": "settings",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/bookmarks",
@@ -371,14 +372,14 @@
     {
       "path": "/boost-analytics/:postId",
       "domain": "advertising",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/boost-create",
       "domain": "advertising",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/c/:name",
@@ -419,14 +420,14 @@
     {
       "path": "/call/:callId",
       "domain": "messaging",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/challenge/:id",
       "domain": "general",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/channel/:handle",
@@ -485,14 +486,14 @@
     {
       "path": "/credits",
       "domain": "commerce",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/daily-rewards",
       "domain": "creator",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/discover",
@@ -671,8 +672,8 @@
     {
       "path": "/fraud-detection",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/hashtag/:tag",
@@ -689,8 +690,8 @@
     {
       "path": "/help",
       "domain": "settings",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/history",
@@ -701,8 +702,8 @@
     {
       "path": "/interests",
       "domain": "general",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/iptv",
@@ -713,8 +714,8 @@
     {
       "path": "/jobs",
       "domain": "general",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/leaderboard",
@@ -725,8 +726,8 @@
     {
       "path": "/leaderboard/challenges",
       "domain": "creator",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/leaderboard/creators",
@@ -737,14 +738,14 @@
     {
       "path": "/lists",
       "domain": "social",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/lists/:id",
       "domain": "social",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/marketplace",
@@ -761,8 +762,8 @@
     {
       "path": "/monetization",
       "domain": "advertising",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/my-ads",
@@ -809,86 +810,86 @@
     {
       "path": "/payouts",
       "domain": "advertising",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/platform-inbox",
       "domain": "messaging",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/podcasts/analytics",
       "domain": "creator",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/podcasts/search",
       "domain": "creator",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/policy",
       "domain": "settings",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/polls",
       "domain": "social",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/post-analytics",
       "domain": "social",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/post-analytics/:postId",
       "domain": "social",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/post-remote",
       "domain": "social",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/post-remote/likes",
       "domain": "social",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/post-remote/quotes",
       "domain": "social",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/post-remote/replies",
       "domain": "social",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/post-remote/reply/:replyId",
       "domain": "social",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/post-remote/reposts",
       "domain": "social",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/post/:postId",
@@ -905,8 +906,8 @@
     {
       "path": "/post/:postId/quote",
       "domain": "social",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/post/:postId/quote-likes",
@@ -929,8 +930,8 @@
     {
       "path": "/post/:postId/reply/:replyId",
       "domain": "social",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/post/:postId/reposts",
@@ -941,14 +942,14 @@
     {
       "path": "/premium",
       "domain": "general",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/privacy",
       "domain": "settings",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/products",
@@ -959,8 +960,8 @@
     {
       "path": "/profile-features",
       "domain": "social",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/profile/:username",
@@ -1055,98 +1056,98 @@
     {
       "path": "/referral",
       "domain": "commerce",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/referrals",
       "domain": "commerce",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/regulator",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/regulator/analytics",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/regulator/announce",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/regulator/audit",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/regulator/employees",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/regulator/features",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/regulator/moderation",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/regulator/platform",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/regulator/reports",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/regulator/wallets",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/revenue-analytics",
       "domain": "advertising",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/rewards",
       "domain": "commerce",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/ride",
       "domain": "general",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/scheduled",
       "domain": "general",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/search",
@@ -1157,20 +1158,20 @@
     {
       "path": "/seller/:username",
       "domain": "commerce",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/series",
       "domain": "creator",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/sessions",
       "domain": "settings",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/settings",
@@ -1241,14 +1242,14 @@
     {
       "path": "/sports",
       "domain": "discovery",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/staff",
       "domain": "administration",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/start-stream",
@@ -1259,8 +1260,8 @@
     {
       "path": "/story-analytics",
       "domain": "media",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/stream/:streamId",
@@ -1271,14 +1272,14 @@
     {
       "path": "/team-chat",
       "domain": "messaging",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/terms",
       "domain": "settings",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/thread/:id",
@@ -1289,20 +1290,20 @@
     {
       "path": "/thread/:threadId/likes",
       "domain": "social",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/thread/:threadId/quote-likes/:quoteId",
       "domain": "social",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/thread/:threadId/quotes",
       "domain": "social",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/thread/:threadId/replies",
@@ -1313,14 +1314,14 @@
     {
       "path": "/thread/:threadId/reply-likes/:replyId",
       "domain": "social",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/thread/:threadId/reposts",
       "domain": "social",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/threads",
@@ -1331,14 +1332,14 @@
     {
       "path": "/threads/create",
       "domain": "social",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/trending/:topic",
       "domain": "discovery",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/tv",
@@ -1385,14 +1386,14 @@
     {
       "path": "/verify",
       "domain": "authentication",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/verify-identity",
       "domain": "authentication",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/videos",
@@ -1409,87 +1410,86 @@
     {
       "path": "/wallet",
       "domain": "commerce",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/wallet/analytics",
       "domain": "commerce",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/wallet/converter",
       "domain": "commerce",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/wallet/history",
       "domain": "commerce",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/wallet/mpesa",
       "domain": "commerce",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/wallet/pocket",
       "domain": "commerce",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/wallet/receive",
       "domain": "commerce",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/wallet/referrals",
       "domain": "commerce",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/wallet/reminders",
       "domain": "commerce",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/wallet/savings",
       "domain": "commerce",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/wallet/scheduled",
       "domain": "commerce",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/wallet/security",
       "domain": "commerce",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/wallet/send",
       "domain": "commerce",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/wishlist",
       "domain": "commerce",
-      "status": "native_partial",
-      "note": "An explicit Flutter route now resolves to a native Flutter migration surface. Dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android parity remain unaccepted."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     }
-  ],
-  "generated_at": "2026-10-12T16:34:24.274Z"
+  ]
 }
