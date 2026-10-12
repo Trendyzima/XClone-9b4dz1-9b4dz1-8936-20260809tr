@@ -158,10 +158,8 @@ class _TvPageState extends State<TvPage> {
           : Future.value(<List<Map<String, dynamic>>>[]);
       final liveFuture = () async {
         try {
-          final query = _client
-              .from('live_streams')
-              .select('*')
-              .eq('is_live', true);
+          final query =
+              _client.from('live_streams').select('*').eq('is_live', true);
           final rows = widget.streamId == null
               ? await query
                   .order('started_at', ascending: false)
