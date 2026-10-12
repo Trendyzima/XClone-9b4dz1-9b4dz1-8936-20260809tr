@@ -425,74 +425,75 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
   }
 
   Widget _errorCard(ThemeData theme) => Card(
-    color: theme.colorScheme.errorContainer,
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.error_outline),
-          const SizedBox(height: 8),
-          Text(_error!),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: _loading || _busy ? null : _load,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-
-  Widget _balanceCard(ThemeData theme, WalletSavingsSummary summary) => Card(
-    clipBehavior: Clip.antiAlias,
-    child: Container(
-      padding: const EdgeInsets.all(22),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            theme.colorScheme.primary,
-            theme.colorScheme.primary.withValues(alpha: 0.72),
-          ],
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Row(
+        color: theme.colorScheme.errorContainer,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.savings_outlined, color: Colors.white),
-              SizedBox(width: 8),
-              Text('Savings balance', style: TextStyle(color: Colors.white70)),
+              const Icon(Icons.error_outline),
+              const SizedBox(height: 8),
+              Text(_error!),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: _loading || _busy ? null : _load,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry'),
+                ),
+              ),
             ],
           ),
-          const SizedBox(height: 12),
-          Text(
-            _money(summary.savingsBalance),
-            style: theme.textTheme.headlineMedium?.copyWith(
-              color: Colors.white,
-              fontWeight: FontWeight.w900,
+        ),
+      );
+
+  Widget _balanceCard(ThemeData theme, WalletSavingsSummary summary) => Card(
+        clipBehavior: Clip.antiAlias,
+        child: Container(
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [
+                theme.colorScheme.primary,
+                theme.colorScheme.primary.withValues(alpha: 0.72),
+              ],
             ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Wallet available: ${_money(summary.walletBalance)}',
-            style: const TextStyle(color: Colors.white70),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Row(
+                children: [
+                  Icon(Icons.savings_outlined, color: Colors.white),
+                  SizedBox(width: 8),
+                  Text('Savings balance',
+                      style: TextStyle(color: Colors.white70)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                _money(summary.savingsBalance),
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Wallet available: ${_money(summary.walletBalance)}',
+                style: const TextStyle(color: Colors.white70),
+              ),
+            ],
           ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 
   Widget _limitsCard(ThemeData theme, WalletSavingsSummary summary) {
     final progress = summary.savingsLimit <= 0
         ? 0.0
         : (summary.savingsBalance / summary.savingsLimit)
-              .clamp(0.0, 1.0)
-              .toDouble();
+            .clamp(0.0, 1.0)
+            .toDouble();
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -521,48 +522,48 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
   }
 
   Widget _goalForm(ThemeData theme) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        children: [
-          TextField(
-            controller: _goalNameController,
-            maxLength: 60,
-            enabled: !_busy,
-            decoration: const InputDecoration(
-              labelText: 'Goal name',
-              border: OutlineInputBorder(),
-            ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              TextField(
+                controller: _goalNameController,
+                maxLength: 60,
+                enabled: !_busy,
+                decoration: const InputDecoration(
+                  labelText: 'Goal name',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: _goalTargetController,
+                enabled: !_busy,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(
+                  labelText: 'Target amount (KES)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: _busy ? null : _createGoal,
+                  child: const Text('Create goal'),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: _goalTargetController,
-            enabled: !_busy,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'Target amount (KES)',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: _busy ? null : _createGoal,
-              child: const Text('Create goal'),
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 
   Widget _goalCard(ThemeData theme, Map<String, dynamic> goal) {
     final target = _readAmount(goal['target_amount']);
     final current = _readAmount(goal['current_amount']);
-    final progress = target <= 0
-        ? 0.0
-        : (current / target).clamp(0.0, 1.0).toDouble();
+    final progress =
+        target <= 0 ? 0.0 : (current / target).clamp(0.0, 1.0).toDouble();
     return Card(
       child: ListTile(
         leading: CircleAvatar(child: Text((goal['emoji'] ?? '🎯').toString())),
@@ -591,19 +592,19 @@ class _WalletSavingsPageState extends State<WalletSavingsPage> {
   }
 
   Widget _emptyGoals(ThemeData theme) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(22),
-      child: Column(
-        children: [
-          const Icon(Icons.flag_outlined, size: 36),
-          const SizedBox(height: 8),
-          Text('No savings goals yet', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 4),
-          const Text('Create a goal to track a financial milestone.'),
-        ],
-      ),
-    ),
-  );
+        child: Padding(
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            children: [
+              const Icon(Icons.flag_outlined, size: 36),
+              const SizedBox(height: 8),
+              Text('No savings goals yet', style: theme.textTheme.titleMedium),
+              const SizedBox(height: 4),
+              const Text('Create a goal to track a financial milestone.'),
+            ],
+          ),
+        ),
+      );
 
   double _readAmount(Object? value) {
     if (value is num && value.isFinite) return value.toDouble();
