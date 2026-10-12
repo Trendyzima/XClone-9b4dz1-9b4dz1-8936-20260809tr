@@ -519,7 +519,13 @@ class _TvPageState extends State<TvPage> {
                             '${channel['description'] ?? channel['category'] ?? 'Live on Testagram'}';
                         final thumb = '${channel['thumbnail_url'] ?? ''}';
                         return GestureDetector(
-                          onTap: () async {
+                          // Let embedded browser/YouTube controls receive taps;
+                          // native video can still use the card tap to pause.
+                          onTap: isCurrent &&
+                                  ((kIsWeb && _webPlaybackUrl != null) ||
+                                      _youtubePlayer != null)
+                              ? null
+                              : () async {
                             if (isCurrent &&
                                 player?.value.isInitialized == true) {
                               if (player!.value.isPlaying) {
@@ -578,17 +584,19 @@ class _TvPageState extends State<TvPage> {
                                   const Center(
                                       child: Icon(Icons.live_tv_rounded,
                                           color: Colors.white54, size: 64)),
-                                const DecoratedBox(
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        Color(0x99000000),
-                                        Colors.transparent,
-                                        Color(0xE6000000)
-                                      ],
-                                      stops: [0, 0.35, 1],
+                                const IgnorePointer(
+                                  child: DecoratedBox(
+                                    decoration: BoxDecoration(
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          Color(0x99000000),
+                                          Colors.transparent,
+                                          Color(0xE6000000)
+                                        ],
+                                        stops: [0, 0.35, 1],
+                                      ),
                                     ),
                                   ),
                                 ),
