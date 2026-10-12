@@ -6,7 +6,10 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 /// WebRTC guest bridge and encoder hand-off are separate release gates; this
 /// page intentionally never marks a stream live without that media pipeline.
 class TvStudioPage extends StatefulWidget {
-  const TvStudioPage({super.key});
+  const TvStudioPage({super.key, this.streamId, this.guestsOnly = false});
+
+  final String? streamId;
+  final bool guestsOnly;
   @override
   State<TvStudioPage> createState() => _TvStudioPageState();
 }
@@ -40,11 +43,16 @@ class _TvStudioPageState extends State<TvStudioPage> {
       _error = null;
     });
     try {
-      final rows = await _db
+      var query = _db
           .from('live_streams')
           .select(
               'id,title,description,category,is_live,started_at,ended_at,viewer_count,created_at')
-          .eq('user_id', uid)
+          .eq('user_id', uid);
+      final requestedStreamId = widget.streamId;
+      if (requestedStreamId != null && requestedStreamId.isNotEmpty) {
+        query = query.eq('id', requestedStreamId);
+      }
+      final rows = await query
           .order('created_at', ascending: false)
           .limit(30)
           .timeout(const Duration(seconds: 15));
@@ -215,6 +223,15 @@ class _TvStudioPageState extends State<TvStudioPage> {
             const Padding(
                 padding: EdgeInsets.all(20),
                 child: Center(child: CircularProgressIndicator())),
+          if (widget.guestsOnly)
+            const Card(
+              child: Padding(
+                padding: EdgeInsets.all(14),
+                child: Text(
+                  'This route is scoped to the selected broadcast. Guest invitation and moderation controls still need their dedicated backend contract; no guest state is fabricated here.',
+                ),
+              ),
+            ),
           if (_error != null)
             Padding(
                 padding: const EdgeInsets.all(12),
