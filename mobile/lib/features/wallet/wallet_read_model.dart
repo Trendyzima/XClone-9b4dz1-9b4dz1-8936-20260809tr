@@ -78,6 +78,19 @@ class WalletTransactionReadModel {
           (type == 'deposit' || type == 'earnings' || type == 'credit'));
 }
 
+bool isValidWalletPin(String pin) => RegExp(r'^\\d{4,6}
+  final safeCurrency = WalletReadModel._safeCurrency(currency);
+  final fixed = amount.abs().toStringAsFixed(2);
+  final parts = fixed.split('.');
+  final whole = parts.first;
+  final grouped = whole.replaceAllMapped(
+    RegExp(r'\B(?=(\d{3})+(?!\d))'),
+    (_) => ',',
+  );
+  return '$safeCurrency $grouped.${parts.last}';
+}
+).hasMatch(pin);
+
 String formatWalletAmount(double amount, String currency) {
   final safeCurrency = WalletReadModel._safeCurrency(currency);
   final fixed = amount.abs().toStringAsFixed(2);
