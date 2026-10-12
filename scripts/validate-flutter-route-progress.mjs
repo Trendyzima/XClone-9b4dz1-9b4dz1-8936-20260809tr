@@ -14,8 +14,8 @@ const failures = [];
 // Ratchet baseline from the audited main-branch snapshot on 2026-10-12.
 // When native routes are added, raise MIN_NATIVE_MATCHES and lower MAX_LEGACY_FALLBACKS
 // in the same PR. Never lower the bar just to make CI green.
-const MIN_NATIVE_MATCHES = 93;
-const MAX_LEGACY_FALLBACKS = 118;
+const MIN_NATIVE_MATCHES = 104;
+const MAX_LEGACY_FALLBACKS = 107;
 
 if (!Number.isInteger(native) || !Number.isInteger(fallback) || !Number.isInteger(unique)) {
   failures.push('Route inventory is missing integer route counts.');
