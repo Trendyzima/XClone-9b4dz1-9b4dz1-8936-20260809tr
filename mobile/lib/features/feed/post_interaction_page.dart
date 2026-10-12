@@ -206,16 +206,18 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                           final item = _items[index];
                           final profile =
                               item['profile'] as Map<String, dynamic>?;
-                          final name = '${profile?['display_name'] ?? profile?['username'] ?? 'Testagram user'}';
+                          final name =
+                              '${profile?['display_name'] ?? profile?['username'] ?? 'Testagram user'}';
                           final username = '${profile?['username'] ?? ''}';
                           final avatar = '${profile?['avatar_url'] ?? ''}';
-                          final detail = widget.kind == PostInteractionKind.quotes
-                              ? '${item['content'] ?? 'Quoted this post'}'
-                              : widget.kind == PostInteractionKind.quoteLikes
-                                  ? 'Liked a quote: ${item['quote_content'] ?? ''}'
-                                  : widget.kind == PostInteractionKind.reposts
-                                      ? 'Reposted this post'
-                                      : 'Liked this post';
+                          final detail = switch (widget.kind) {
+                            PostInteractionKind.quotes =>
+                              '${item['content'] ?? 'Quoted this post'}',
+                            PostInteractionKind.quoteLikes =>
+                              'Liked a quote: ${item['quote_content'] ?? ''}',
+                            PostInteractionKind.reposts => 'Reposted this post',
+                            PostInteractionKind.likes => 'Liked this post',
+                          };
                           return ListTile(
                             leading: CircleAvatar(
                               backgroundImage: avatar.startsWith('http')
@@ -227,15 +229,20 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                                       ? 'T'
                                       : name[0].toUpperCase()),
                             ),
-                            title: Text(name,
-                                maxLines: 1, overflow: TextOverflow.ellipsis),
+                            title: Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 if (username.isNotEmpty) Text('@$username'),
-                                Text(detail,
-                                    maxLines: 3,
-                                    overflow: TextOverflow.ellipsis),
+                                Text(
+                                  detail,
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
                               ],
                             ),
                             isThreeLine: username.isNotEmpty,
