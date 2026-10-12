@@ -68,7 +68,11 @@
     "/orders",
     "/p/:productId",
     "/post/:postId",
+    "/post/:postId/likes",
+    "/post/:postId/quote-likes",
+    "/post/:postId/quotes",
     "/post/:postId/replies",
+    "/post/:postId/reposts",
     "/products",
     "/profile",
     "/profile/:username",
@@ -118,8 +122,8 @@
   "counts": {
     "unique_source_routes_including_wildcard": 212,
     "source_routes_excluding_wildcard": 211,
-    "native_route_matches": 109,
-    "legacy_web_fallbacks": 102
+    "native_route_matches": 113,
+    "legacy_web_fallbacks": 98
   },
   "routes": [
     {
@@ -797,8 +801,8 @@
     {
       "path": "/post/:postId/likes",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/post/:postId/quote",
@@ -809,14 +813,14 @@
     {
       "path": "/post/:postId/quote-likes",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/post/:postId/quotes",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/post/:postId/replies",
@@ -833,8 +837,8 @@
     {
       "path": "/post/:postId/reposts",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/premium",
