@@ -77,10 +77,11 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
 
     final pausedPlayer = _lifecyclePausedPlayer;
     _lifecyclePausedPlayer = null;
-    if (tvShouldResumeAfterLifecycle(
+    final shouldResume = tvShouldResumeAfterLifecycle(
       state: state,
       wasPlayingBeforePause: pausedPlayer != null,
-    ) &&
+    );
+    if (shouldResume &&
         pausedPlayer != null &&
         identical(_player, pausedPlayer) &&
         pausedPlayer.value.isInitialized) {
