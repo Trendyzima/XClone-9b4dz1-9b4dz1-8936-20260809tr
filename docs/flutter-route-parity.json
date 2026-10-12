@@ -67,6 +67,8 @@
     "/notifications",
     "/orders",
     "/p/:productId",
+    "/post/:postId",
+    "/post/:postId/replies",
     "/products",
     "/profile",
     "/profile/:username",
@@ -116,8 +118,8 @@
   "counts": {
     "unique_source_routes_including_wildcard": 212,
     "source_routes_excluding_wildcard": 211,
-    "native_route_matches": 107,
-    "legacy_web_fallbacks": 104
+    "native_route_matches": 109,
+    "legacy_web_fallbacks": 102
   },
   "routes": [
     {
@@ -789,8 +791,8 @@
     {
       "path": "/post/:postId",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/post/:postId/likes",
@@ -819,8 +821,8 @@
     {
       "path": "/post/:postId/replies",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/post/:postId/reply/:replyId",
