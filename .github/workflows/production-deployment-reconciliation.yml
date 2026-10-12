@@ -1064,6 +1064,72 @@ jobs:
           NODE
 
 
+      - name: Verify Testagram Ads decision and event contracts
+        if: steps.supabase-auth.outputs.available == 'true'
+        shell: bash
+        env:
+          SUPABASE_URL: https://ffrhglgkukgsuhxenena.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+        run: |
+          set -euo pipefail
+          key="${SUPABASE_SERVICE_ROLE_KEY:-${SUPABASE_SECRET_KEY:-}}"
+          [[ -n "$key" ]] || {
+            echo "::error::A server-side Supabase credential is required for the non-billable ads runtime smoke test."
+            exit 1
+          }
+
+          # A deliberately unknown slot must return no-fill before any impression
+          # claim. This validates the deployed decision route without spending a
+          # campaign budget or creating a billable impression.
+          request_id="production-smoke-$(date +%s)-$RANDOM"
+          status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            -H "apikey: $key" \
+            -H "Authorization: Bearer $key" \
+            -H 'Content-Type: application/json' \
+            -o /tmp/testagram-ad-decision.json -w '%{http_code}' \
+            --data "{\"slotCode\":\"__testagram_production_smoke_disabled__\",\"id\":\"$request_id\",\"user\":{\"device\":\"ci\"},\"privacy\":{\"personalized\":false}}" \
+            "$SUPABASE_URL/functions/v1/zenad-decision")"
+          [[ "$status" == "200" ]] || {
+            echo "::error::ZenAd decision smoke test returned HTTP $status; expected a valid no-fill response."
+            head -c 1000 /tmp/testagram-ad-decision.json || true
+            exit 1
+          }
+          EXPECTED_REQUEST_ID="$request_id" node - <<'NODE'
+          const fs = require("node:fs");
+          const body = JSON.parse(fs.readFileSync("/tmp/testagram-ad-decision.json", "utf8"));
+          if (body?.kind !== "no_fill" ||
+              body?.requestId !== process.env.EXPECTED_REQUEST_ID ||
+              body?.reason !== "slot not found or disabled") {
+            throw new Error("ZenAd decision smoke test did not return the expected non-billable no-fill contract.");
+          }
+          console.log("ZenAd decision contract passed: disabled smoke slot returned no-fill without claiming an impression.");
+          NODE
+
+          # A forged event token must be rejected before any impression lookup or
+          # event write. This checks the live event route without manufacturing a
+          # valid impression or counting an event.
+          status="$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+            -H "apikey: $key" \
+            -H "Authorization: Bearer $key" \
+            -H 'Content-Type: application/json' \
+            -o /tmp/testagram-ad-event.json -w '%{http_code}' \
+            --data '{"impressionId":"production-smoke-invalid-impression","eventType":"viewable","eventToken":"invalid"}' \
+            "$SUPABASE_URL/functions/v1/zenad-event")"
+          [[ "$status" == "401" ]] || {
+            echo "::error::ZenAd event smoke test returned HTTP $status; expected rejection of a forged token."
+            head -c 1000 /tmp/testagram-ad-event.json || true
+            exit 1
+          }
+          node - <<'NODE'
+          const fs = require("node:fs");
+          const body = JSON.parse(fs.readFileSync("/tmp/testagram-ad-event.json", "utf8"));
+          if (!String(body?.error ?? "").includes("Invalid or expired event token")) {
+            throw new Error("ZenAd event route did not reject the forged token as expected.");
+          }
+          console.log("ZenAd event contract passed: forged event token rejected without writing an event.");
+          NODE
+
       - name: Verify production SEO and sitemap contracts
         shell: bash
         run: |
