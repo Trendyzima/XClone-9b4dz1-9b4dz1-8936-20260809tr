@@ -37,6 +37,7 @@ import '../features/fediverse/fediverse_page.dart';
 import '../features/spaces/spaces_page.dart';
 import '../features/native_route/native_feature_page.dart';
 import '../features/wallet/wallet_page.dart';
+import '../features/wallet/wallet_savings_page.dart';
 import '../features/wallet/wallet_send_page.dart';
 import '../features/wallet/wallet_security_page.dart';
 import '../features/wallet/wallet_mpesa_page.dart';
@@ -1388,11 +1389,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/wallet/savings',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Savings',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const WalletSavingsPage(),
             ),
             GoRoute(
               path: '/wallet/scheduled',
