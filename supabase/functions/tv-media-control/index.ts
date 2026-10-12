@@ -126,7 +126,12 @@ Deno.serve(async req=>{
  if(action==="start"){
   if(!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can start this TV broadcast."}},403);
   if(s.is_live)return json({ok:false,error:{code:"STREAM_ALREADY_LIVE",message:"This TV broadcast is already live."}},409);
-  const requestedProvider=b.provider==="testagram"?"testagram":"youtube";
+  // TV broadcasts are live-only. Do not create third-party YouTube broadcasts,
+  // because external platforms may retain an archive beyond the live session.
+  if(b.provider && b.provider!=="testagram"){
+   return json({ok:false,error:{code:"LIVE_ONLY_PROVIDER_REQUIRED",message:"Testagram TV supports live-only delivery. External video destinations and cloud archives are disabled; use REC to device for a local copy."}},410);
+  }
+  const requestedProvider="testagram";
   if(requestedProvider==="testagram"){
    const {data:claim,error:claimError}=await adminClient.from("live_streams").update({tv_connection_state:"starting",youtube_status:"disabled",youtube_error:null,tv_last_heartbeat_at:new Date().toISOString()}).eq("id",id).eq("user_id",s.user_id).eq("is_live",false).eq("tv_connection_state","offline").select("id").maybeSingle();
    if(claimError)return json({ok:false,error:{code:"TV_START_CLAIM_FAILED",message:"Could not reserve this Testagram TV broadcast for startup."}},409);
