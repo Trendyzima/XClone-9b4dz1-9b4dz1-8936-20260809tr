@@ -40,12 +40,11 @@ class SponsoredAd {
     final eventToken = _string(map['eventToken']);
     final headline = _string(map['headline']);
     final body = _string(map['body']);
+    final imageUrl = _safeHttpUrl(map['imageUrl']);
     if (requestId.isEmpty ||
         impressionId.isEmpty ||
         eventToken.isEmpty ||
-        (headline.isEmpty &&
-            body.isEmpty &&
-            _string(map['imageUrl']).isEmpty)) {
+        (headline.isEmpty && body.isEmpty && imageUrl == null)) {
       return null;
     }
     return SponsoredAd(
@@ -55,7 +54,7 @@ class SponsoredAd {
       headline: headline,
       body: body,
       sponsored: true,
-      imageUrl: _safeHttpUrl(map['imageUrl']),
+      imageUrl: imageUrl,
       clickThroughUrl: _safeHttpUrl(map['clickThroughUrl']),
       cta: _string(map['cta']).isEmpty ? 'Learn more' : _string(map['cta']),
     );
@@ -232,7 +231,11 @@ class _SponsoredAdCardState extends State<SponsoredAdCard> {
       eventType: 'click',
       metadata: {'surface': widget.compact ? 'iptv_vertical' : 'social_feed'},
     );
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+    try {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      // Ad navigation failures must not interrupt feed or player controls.
+    }
   }
 
   @override
