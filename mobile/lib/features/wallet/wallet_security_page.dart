@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'wallet_read_model.dart';
+
 class WalletSecurityPage extends StatefulWidget {
   const WalletSecurityPage({super.key});
 
@@ -58,7 +60,7 @@ class _WalletSecurityPageState extends State<WalletSecurityPage> {
 
   Future<void> _savePin() async {
     final pin = _pinController.text;
-    if (!RegExp(r'^\d{4,6}$').hasMatch(pin)) {
+    if (!isValidWalletPin(pin)) {
       setState(() => _error = 'Your PIN must contain 4 to 6 digits.');
       return;
     }
