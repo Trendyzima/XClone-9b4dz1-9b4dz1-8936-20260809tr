@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/api/testagram_capability_client.dart';
+
 /// The conversation index uses the existing membership table. Message send/read
 /// is deliberately not implemented by writing plaintext to the messages table:
 /// Testagram's production communication path is capability-based and encrypted.
@@ -14,46 +16,66 @@ class _MessagesPageState extends State<MessagesPage> {
   List<Map<String, dynamic>> _conversations = [];
   bool _loading = false;
   String? _error;
+  int _loadGeneration = 0;
   SupabaseClient get _client => Supabase.instance.client;
-  String get _uid => _client.auth.currentUser!.id;
+  late final TestagramCapabilityClient _capabilities;
 
   @override
   void initState() {
     super.initState();
+    _capabilities = TestagramCapabilityClient.fromAppConfig();
     _load();
   }
 
+  @override
+  void dispose() {
+    _loadGeneration++;
+    _capabilities.close();
+    super.dispose();
+  }
+
   Future<void> _load() async {
+    final generation = ++_loadGeneration;
+    if (_client.auth.currentUser == null) {
+      setState(() {
+        _conversations = [];
+        _loading = false;
+        _error = 'Sign in to access your encrypted conversations.';
+      });
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
     });
     try {
-      final rows = await _client
-          .from('conversation_members')
-          .select(
-              'conversation_id,joined_at,left_at,conversations(id,title,kind,updated_at,created_by)')
-          .eq('user_id', _uid)
-          .order('joined_at', ascending: false)
-          .limit(80);
-      final values = <Map<String, dynamic>>[];
-      for (final row in rows) {
-        final value = Map<String, dynamic>.from(row as Map);
-        if (value['left_at'] != null || value['conversations'] == null) {
-          continue;
-        }
-        value['conversation'] =
-            Map<String, dynamic>.from(value['conversations'] as Map);
-        values.add(value);
+      final response = await _capabilities.call<Map<String, dynamic>>(
+        'testagram.conversations.list',
+        input: const {'limit': 80},
+      );
+      final rows = response['items'];
+      if (rows is! List) {
+        throw const TestagramCapabilityException(
+          'The conversation service returned an invalid list.',
+          code: 'INVALID_RESPONSE',
+        );
       }
-      if (mounted) setState(() => _conversations = values);
+      final values = rows
+          .whereType<Map>()
+          .map((row) => Map<String, dynamic>.from(row))
+          .toList();
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() => _conversations = values);
     } catch (error) {
-      if (mounted) {
-        setState(() => _error =
-            'Your encrypted conversation list could not be loaded. Retry when online.');
+      if (mounted && generation == _loadGeneration) {
+        setState(() => _error = error is TestagramCapabilityException
+            ? error.message
+            : 'Your encrypted conversation list could not be loaded. Retry when online.');
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && generation == _loadGeneration) {
+        setState(() => _loading = false);
+      }
     }
   }
 
@@ -86,7 +108,9 @@ class _MessagesPageState extends State<MessagesPage> {
                 padding: EdgeInsets.all(28),
                 child: Center(child: Text('No conversations yet.'))),
           ..._conversations.map((item) {
-            final conversation = item['conversation'] as Map<String, dynamic>;
+            final conversation = item['conversation'] is Map
+                ? Map<String, dynamic>.from(item['conversation'] as Map)
+                : item;
             final kind = '${conversation['kind'] ?? 'direct'}';
             final title =
                 '${conversation['title'] ?? (kind == 'group' ? 'Group conversation' : 'Private conversation')}';
