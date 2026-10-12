@@ -26,9 +26,16 @@ async function resolveUser(req: Request) {
   if (!auth || !ANON) return null;
   const token = auth.replace(/^Bearer\s+/i, "");
   if (!token) return null;
-  const client = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: auth } }, auth: { persistSession: false, autoRefreshToken: false } });
-  const { data: { user } } = await client.auth.getUser(token);
-  return user ?? null;
+  try {
+    const client = createClient(SUPABASE_URL, ANON, { global: { headers: { Authorization: auth } }, auth: { persistSession: false, autoRefreshToken: false } });
+    const { data: { user }, error } = await client.auth.getUser(token);
+    if (error) return null;
+    return user ?? null;
+  } catch {
+    // Invalid or expired client credentials must not turn a contextual ad
+    // request into a 500; it is treated as an anonymous request instead.
+    return null;
+  }
 }
 
 function matchesTargeting(target: Targeting, user: any, content: any) {
