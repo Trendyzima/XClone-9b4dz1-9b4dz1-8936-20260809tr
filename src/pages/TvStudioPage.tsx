@@ -1439,32 +1439,72 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       setBroadcastStage('connecting');
       const { data: auth } = await supabase.auth.getSession();
       const headers = { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: `Bearer ${auth.session.access_token}` } : {}) };
-      const outputProvider = youtubeEnabled ? 'youtube' : 'testagram';
-      const startResponse = await fetch('/api/live', {
+      let outputProvider: 'youtube' | 'testagram' = youtubeEnabled ? 'youtube' : 'testagram';
+      let startResponse = await fetch('/api/live', {
         method: 'POST',
         headers,
         body: JSON.stringify({ action: 'start', provider: outputProvider, stream_id: id }),
       });
-      const startPayload = await startResponse.json().catch(() => null);
-      if (!startResponse.ok) {
-        throw new Error(String(startPayload?.error?.message || (youtubeEnabled ? 'YouTube setup failed. Turn off optional YouTube delivery to continue on Testagram.' : 'Testagram TV could not be started.')));
+      let startPayload = await startResponse.json().catch(() => null);
+
+      if (outputProvider === 'youtube') {
+        let youtubeFailure: string | null = null;
+        if (!startResponse.ok) {
+          youtubeFailure = String(startPayload?.error?.message || 'YouTube setup failed.');
+        } else {
+          const youtubeStart = startPayload?.data?.youtube;
+          const youtubeToken = typeof youtubeStart?.encoder_token === 'string' ? youtubeStart.encoder_token : '';
+          if (!youtubeToken) {
+            youtubeFailure = 'YouTube did not issue an encoder token.';
+          } else {
+            try {
+              session = await TestagramTvYouTubeSession.connect({
+                streamId: id,
+                encoderToken: youtubeToken,
+                program,
+                quality,
+                videoBitsPerSecond: VIDEO_PRESETS[quality].bitrate,
+                onStatus: (next, detail) => {
+                  setBroadcastDiagnostics(prev => ({ ...(prev || {}), provider: 'youtube', encoder_status: next, youtube_status: next, detail: detail || null }));
+                  if (next === 'reconnecting') setBroadcastStage('connecting');
+                },
+              });
+            } catch (youtubeError) {
+              youtubeFailure = youtubeError instanceof Error ? youtubeError.message : String(youtubeError);
+            }
+          }
+        }
+
+        // Optional YouTube failure must never cancel the Testagram broadcast.
+        if (youtubeFailure) {
+          setBroadcastDiagnostics(prev => ({ ...(prev || {}), youtube_status: 'unavailable', youtube_error: youtubeFailure, fallback: 'testagram' }));
+          if (startResponse.ok) {
+            await fetch('/api/live', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ action: 'stop', stream_id: id }),
+            }).catch(() => undefined);
+          }
+          session = null;
+          roomRef.current = null;
+          outputProvider = 'testagram';
+          startResponse = await fetch('/api/live', {
+            method: 'POST',
+            headers,
+            body: JSON.stringify({ action: 'start', provider: 'testagram', stream_id: id }),
+          });
+          startPayload = await startResponse.json().catch(() => null);
+          if (!startResponse.ok) {
+            throw new Error('YouTube delivery failed (' + youtubeFailure + ') and Testagram fallback failed: ' + String(startPayload?.error?.message || 'unknown startup error'));
+          }
+          toast.warning('YouTube delivery is unavailable. Continuing live on Testagram only.');
+        }
+      } else if (!startResponse.ok) {
+        throw new Error(String(startPayload?.error?.message || 'Testagram TV could not be started.'));
       }
 
-      if (youtubeEnabled) {
-        const youtubeStart = startPayload?.data?.youtube;
-        const youtubeToken = typeof youtubeStart?.encoder_token === 'string' ? youtubeStart.encoder_token : '';
-        if (!youtubeToken) throw new Error(String(startPayload?.error?.message || 'YouTube did not issue an encoder token. Turn off optional YouTube delivery to broadcast on Testagram only.'));
-        session = await TestagramTvYouTubeSession.connect({
-          streamId: id,
-          encoderToken: youtubeToken,
-          program,
-          quality,
-          videoBitsPerSecond: VIDEO_PRESETS[quality].bitrate,
-          onStatus: (next, detail) => {
-            setBroadcastDiagnostics(prev => ({ ...(prev || {}), provider: 'youtube', encoder_status: next, youtube_status: next, detail: detail || null }));
-            if (next === 'reconnecting') setBroadcastStage('connecting');
-          },
-        });
+      if (outputProvider === 'youtube') {
+        if (!session) throw new Error('YouTube encoder did not establish a session.');
         roomRef.current = session;
         // Native Testagram viewing is an additional low-latency path when YouTube is also enabled.
         try {
@@ -1476,7 +1516,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
           setBroadcastDiagnostics(prev => ({ ...(prev || {}), native_public_media: 'degraded', native_public_media_error: nativeError instanceof Error ? nativeError.message : String(nativeError) }));
         }
       } else {
-        // Testagram-only delivery is the primary path; YouTube is never contacted.
+        // Testagram-only delivery is the primary path; YouTube is never contacted unless requested.
         session = await TestagramTvMediaSession.connectHostExisting(id, program);
         session.setViewerCountHandler?.((count) => setViewerCount(count));
         roomRef.current = session;
