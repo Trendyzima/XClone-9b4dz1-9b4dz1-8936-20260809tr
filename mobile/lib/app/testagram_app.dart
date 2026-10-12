@@ -39,6 +39,7 @@ import '../features/native_route/native_feature_page.dart';
 import '../features/wallet/wallet_page.dart';
 import '../features/wallet/wallet_send_page.dart';
 import '../features/wallet/wallet_security_page.dart';
+import '../features/wallet/wallet_mpesa_page.dart';
 import 'testagram_shell.dart';
 
 class TestagramApp extends StatefulWidget {
@@ -1351,11 +1352,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/wallet/mpesa',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'M-Pesa',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const WalletMpesaPage(),
             ),
             GoRoute(
               path: '/wallet/pocket',
