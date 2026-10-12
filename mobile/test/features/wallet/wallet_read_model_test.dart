@@ -39,7 +39,8 @@ void main() {
       final incoming = WalletTransactionReadModel.fromJson({
         'id': 'txn-1',
         'amount': '500.00',
-        'type': 'earnings',
+        'type': 'transfer',
+        'direction': 'in',
         'status': 'POSTED',
         'reference': 'ref-1',
         'created_at': '2026-10-12T10:00:00Z',
@@ -47,7 +48,8 @@ void main() {
       final outgoing = WalletTransactionReadModel.fromJson({
         'id': 'txn-2',
         'amount': 50,
-        'type': 'withdrawal',
+        'type': 'transfer',
+        'direction': 'out',
         'status': 'pending',
       });
 
