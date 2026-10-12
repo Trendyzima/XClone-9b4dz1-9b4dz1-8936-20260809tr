@@ -46,6 +46,7 @@ class _TvPageState extends State<TvPage> {
   String? _playbackError;
   String? _webPlaybackUrl;
   SponsoredAd? _tvSponsoredAd;
+  bool _tvAdRequestedForGeneration = false;
   late final SponsoredAdService _adService =
       SponsoredAdService.forClient(_client);
   SupabaseClient get _client => Supabase.instance.client;
@@ -319,6 +320,7 @@ class _TvPageState extends State<TvPage> {
       _youtubePlayer = null;
       _webPlaybackUrl = null;
       _tvSponsoredAd = null;
+      _tvAdRequestedForGeneration = false;
       _playerLoading = true;
       _playbackError = null;
     });
@@ -336,7 +338,6 @@ class _TvPageState extends State<TvPage> {
         if (kIsWeb) {
           _webPlaybackUrl = url;
           if (mounted) setState(() {});
-          unawaited(_loadTvSponsoredAd(channel, generation));
           return;
         }
         final player = VideoPlayerController.networkUrl(Uri.parse(url));
@@ -404,7 +405,6 @@ class _TvPageState extends State<TvPage> {
       if (kIsWeb) {
         _webPlaybackUrl = url;
         if (mounted) setState(() {});
-        unawaited(_loadTvSponsoredAd(channel, generation));
         return;
       }
       final player = VideoPlayerController.networkUrl(Uri.parse(url));
@@ -445,6 +445,12 @@ class _TvPageState extends State<TvPage> {
     Map<String, dynamic> channel,
     int playGeneration,
   ) async {
+    if (!mounted ||
+        playGeneration != _playGeneration ||
+        _tvAdRequestedForGeneration) {
+      return;
+    }
+    _tvAdRequestedForGeneration = true;
     final ad = await _adService.requestAd(
       slotCode: 'iptv-overlay',
       content: {
@@ -544,6 +550,7 @@ class _TvPageState extends State<TvPage> {
                         final description =
                             '${channel['description'] ?? channel['category'] ?? 'Live on Testagram'}';
                         final thumb = '${channel['thumbnail_url'] ?? ''}';
+                        final playbackGeneration = _playGeneration;
                         return GestureDetector(
                           // Let embedded browser/YouTube controls receive taps;
                           // native video can still use the card tap to pause.
@@ -578,6 +585,12 @@ class _TvPageState extends State<TvPage> {
                                     _webPlaybackUrl != null)
                                   TvWebPlayer(
                                     url: _webPlaybackUrl!,
+                                    onPlaybackReady: () => unawaited(
+                                      _loadTvSponsoredAd(
+                                        channel,
+                                        playbackGeneration,
+                                      ),
+                                    ),
                                     onError: (message) {
                                       if (mounted) {
                                         setState(
