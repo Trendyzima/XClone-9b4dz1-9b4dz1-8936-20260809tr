@@ -446,8 +446,11 @@ class _TvPageState extends State<TvPage> {
     int playGeneration,
   ) async {
     if (!mounted ||
-        playGeneration != _playGeneration ||
-        _tvAdRequestedForGeneration) {
+        !tvCanRequestSponsoredAd(
+          hasPlaybackStarted: true,
+          alreadyRequested: _tvAdRequestedForGeneration,
+          isCurrentGeneration: playGeneration == _playGeneration,
+        )) {
       return;
     }
     _tvAdRequestedForGeneration = true;
