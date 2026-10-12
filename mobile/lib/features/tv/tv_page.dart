@@ -30,7 +30,7 @@ class TvPage extends StatefulWidget {
   State<TvPage> createState() => _TvPageState();
 }
 
-class _TvPageState extends State<TvPage> {
+class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
   List<Map<String, dynamic>> _channels = [];
   Map<String, dynamic>? _selected;
   bool _loading = false;
@@ -47,6 +47,7 @@ class _TvPageState extends State<TvPage> {
   String? _webPlaybackUrl;
   SponsoredAd? _tvSponsoredAd;
   bool _tvAdRequestedForGeneration = false;
+  VideoPlayerController? _lifecyclePausedPlayer;
   late final SponsoredAdService _adService =
       SponsoredAdService.forClient(_client);
   SupabaseClient get _client => Supabase.instance.client;
@@ -55,11 +56,58 @@ class _TvPageState extends State<TvPage> {
   void initState() {
     super.initState();
     _verticalMode = widget.initialVerticalMode;
+    WidgetsBinding.instance.addObserver(this);
     _load();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (kIsWeb) return;
+
+    if (tvShouldPauseForLifecycle(state)) {
+      final player = _player;
+      if (player != null && player.value.isInitialized && player.value.isPlaying) {
+        _lifecyclePausedPlayer = player;
+        unawaited(_pauseNativePlayer(player));
+      }
+      return;
+    }
+
+    final pausedPlayer = _lifecyclePausedPlayer;
+    _lifecyclePausedPlayer = null;
+    if (tvShouldResumeAfterLifecycle(
+      state: state,
+      wasPlayingBeforePause: pausedPlayer != null,
+    ) &&
+        pausedPlayer != null &&
+        identical(_player, pausedPlayer) &&
+        pausedPlayer.value.isInitialized) {
+      unawaited(_resumeNativePlayer(pausedPlayer));
+    }
+  }
+
+  Future<void> _pauseNativePlayer(VideoPlayerController player) async {
+    try {
+      await player.pause();
+    } catch (_) {
+      // Lifecycle transitions must not crash the channel feed.
+    }
+  }
+
+  Future<void> _resumeNativePlayer(VideoPlayerController player) async {
+    try {
+      if (mounted && identical(_player, player) && player.value.isInitialized) {
+        await player.play();
+      }
+    } catch (_) {
+      // Playback can require a fresh user gesture after an OS interruption.
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _lifecyclePausedPlayer = null;
     _player?.dispose();
     _youtubePlayer?.close();
     _adService.close();
