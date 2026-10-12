@@ -45,6 +45,20 @@ void main() {
       );
     });
 
+    test('rejects an image-only creative when its image URL is unsafe', () {
+      expect(
+        SponsoredAd.tryParse({
+          'kind': 'display',
+          'sponsored': true,
+          'requestId': 'req-1',
+          'impressionId': 'imp-1',
+          'eventToken': 'signed-token',
+          'imageUrl': 'javascript:alert(1)',
+        }),
+        isNull,
+      );
+    });
+
     test('rejects non-http creative and click URLs', () {
       final ad = SponsoredAd.tryParse({
         'kind': 'display',
@@ -133,6 +147,11 @@ void main() {
       );
       expect(captured.url.path, '/functions/v1/zenad-event');
       expect(jsonDecode(captured.body)['eventToken'], 'signed-token');
+      expect(
+        await service.recordEvent(ad: ad, eventType: 'click'),
+        isTrue,
+      );
+      expect(jsonDecode(captured.body)['eventType'], 'click');
       service.close();
     });
   });
