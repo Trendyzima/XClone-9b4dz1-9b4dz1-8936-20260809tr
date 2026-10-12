@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -36,6 +35,7 @@ import '../features/news/news_page.dart';
 import '../features/news/news_article_page.dart';
 import '../features/fediverse/fediverse_page.dart';
 import '../features/spaces/spaces_page.dart';
+import '../features/native_route/native_feature_page.dart';
 import 'testagram_shell.dart';
 
 class TestagramApp extends StatefulWidget {
@@ -64,35 +64,10 @@ class _TestagramAppState extends State<TestagramApp> {
     }
     _router = GoRouter(
       initialLocation: '/',
-      errorBuilder: (context, state) => Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.construction_rounded, size: 48),
-                const SizedBox(height: 12),
-                const Text('This screen is still being migrated.'),
-                const SizedBox(height: 12),
-                FilledButton(
-                  onPressed: () async {
-                    final uri = Uri.parse('https://testagram.site').replace(
-                      path: state.uri.path,
-                      query: state.uri.query.isEmpty ? null : state.uri.query,
-                    );
-                    await launchUrl(uri, mode: LaunchMode.externalApplication);
-                  },
-                  child: const Text('Open the existing Testagram screen'),
-                ),
-                TextButton(
-                  onPressed: () => context.go('/'),
-                  child: const Text('Back to Flutter home'),
-                ),
-              ],
-            ),
-          ),
-        ),
+      errorBuilder: (context, state) => NativeFeaturePage(
+        title: 'Page not found',
+        routePath: state.uri.path,
+        pathParameters: state.pathParameters,
       ),
       refreshListenable: _authRefresh,
       redirect: (context, state) {
@@ -674,6 +649,790 @@ class _TestagramAppState extends State<TestagramApp> {
             GoRoute(
               path: '/notification-preferences',
               builder: (_, __) => const SettingsPage(section: 'notifications'),
+            ),
+            GoRoute(
+              path: '/ad-performance',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Ad Performance',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/admin',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Administration',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/admin/ads-review',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Ad Review',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/admin/fraud',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Fraud Detection',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/admin/governance',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Governance',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/admin/identity-verification',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Identity Verification',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/admin/overview',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Admin Overview',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/admin/platform-revenue',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Platform Revenue',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/admin/revenue',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Revenue Management',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/admin/seo',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'SEO Management',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/admin/staff-recruitment',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Staff Recruitment',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/admin/users',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'User Management',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/admin/verifications',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Verifications',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/ai',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'AI Assistant',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/ai-bot-setup',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'AI Bot Setup',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/analytics',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Analytics',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/appeals',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Appeals',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/blocked',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Blocked Accounts',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/boost-analytics/:postId',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Boost Analytics',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/boost-create',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Boost a Post',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/call/:callId',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Call',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/challenge/:id',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Challenge',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/credits',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Credits',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/daily-rewards',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Daily Rewards',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/fraud-detection',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Fraud Detection',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/help',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Help Center',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/interests',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Interests',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/jobs',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Jobs',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/leaderboard/challenges',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Challenge Leaderboard',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/lists',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Lists',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/lists/:id',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'List Details',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/monetization',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Monetization',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/payouts',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Payouts',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/platform-inbox',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Platform Inbox',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/podcasts/analytics',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Podcast Analytics',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/podcasts/search',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Podcast Search',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/policy',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Policies',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/polls',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Polls',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/post-analytics',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Post Analytics',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/post-analytics/:postId',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Post Analytics',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/post-remote',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Federated Post',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/post-remote/likes',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Federated Post Likes',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/post-remote/quotes',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Federated Post Quotes',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/post-remote/replies',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Federated Post Replies',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/post-remote/reply/:replyId',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Federated Reply',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/post-remote/reposts',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Federated Post Reposts',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/post/:postId/quote',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Quote Post',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/post/:postId/reply/:replyId',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Post Reply',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/premium',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Premium',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/privacy',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Privacy',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/profile-features',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Profile Features',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/referral',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Referral',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/referrals',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Referrals',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/regulator',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Regulator Console',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/regulator/analytics',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Regulator Analytics',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/regulator/announce',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Announcements',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/regulator/audit',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Audit Logs',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/regulator/employees',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Employees',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/regulator/features',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Feature Controls',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/regulator/moderation',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Moderation',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/regulator/platform',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Platform Controls',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/regulator/reports',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Regulatory Reports',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/regulator/wallets',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Wallet Oversight',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/revenue-analytics',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Revenue Analytics',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/rewards',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Rewards',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/ride',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Ride',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/scheduled',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Scheduled Posts',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/seller/:username',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Seller Store',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/series',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Creator Series',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/sessions',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Active Sessions',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/sports',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Sports',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/staff',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Staff Console',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/story-analytics',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Story Analytics',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/team-chat',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Team Chat',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/terms',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Terms of Service',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/thread/:threadId/likes',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Thread Likes',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/thread/:threadId/quote-likes/:quoteId',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Quote Likes',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/thread/:threadId/quotes',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Thread Quotes',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/thread/:threadId/reply-likes/:replyId',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Reply Likes',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/thread/:threadId/reposts',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Thread Reposts',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/threads/create',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Create Thread',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/trending/:topic',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Trending Topic',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/verify',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Verify Account',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/verify-identity',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Verify Identity',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/wallet',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Wallet',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/wallet/analytics',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Wallet Analytics',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/wallet/converter',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Currency Converter',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/wallet/history',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Wallet History',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/wallet/mpesa',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'M-Pesa',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/wallet/pocket',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Wallet Pocket',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/wallet/receive',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Receive Money',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/wallet/referrals',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Wallet Referrals',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/wallet/reminders',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Payment Reminders',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/wallet/savings',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Savings',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/wallet/scheduled',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Scheduled Transfers',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/wallet/security',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Wallet Security',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/wallet/send',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Send Money',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
+            GoRoute(
+              path: '/wishlist',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Wishlist',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
             ),
           ],
         ),
