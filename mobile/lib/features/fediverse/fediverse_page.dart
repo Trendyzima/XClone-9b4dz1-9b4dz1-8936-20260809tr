@@ -574,7 +574,7 @@ class _FediversePageState extends State<FediversePage> {
         widget.section == 'organic-discovery') {
       return RefreshIndicator(
           onRefresh: _load,
-          child: ListView(controller: _feedScrollController, padding: const EdgeInsets.all(14), children: [
+          child: ListView(padding: const EdgeInsets.all(14), children: [
             Row(children: [
               IconButton(
                   onPressed: () => context.go('/fediverse'),
@@ -613,7 +613,7 @@ class _FediversePageState extends State<FediversePage> {
     }
     return RefreshIndicator(
         onRefresh: _load,
-        child: ListView(padding: const EdgeInsets.all(14), children: [
+        child: ListView(controller: _feedScrollController, padding: const EdgeInsets.all(14), children: [
           Row(children: [
             Expanded(
                 child: Text(widget.title,
