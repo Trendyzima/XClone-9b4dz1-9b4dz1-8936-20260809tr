@@ -90,10 +90,12 @@ class _WalletPageState extends State<WalletPage> {
   }
 
   List<WalletTransactionReadModel> get _visibleTransactions {
-    if (_filter == 'incoming')
+    if (_filter == 'incoming') {
       return _transactions.where((t) => t.isIncoming).toList();
-    if (_filter == 'outgoing')
+    }
+    if (_filter == 'outgoing') {
       return _transactions.where((t) => !t.isIncoming).toList();
+    }
     return _transactions;
   }
 
