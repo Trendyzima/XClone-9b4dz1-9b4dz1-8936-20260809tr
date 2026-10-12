@@ -315,8 +315,13 @@ class _TestagramAppState extends State<TestagramApp> {
                 path: '/profile/:username',
                 builder: (_, state) =>
                     ProfilePage(username: state.pathParameters['username'])),
-            GoRoute(
-                path: '/settings', builder: (_, __) => const SettingsPage()),
+            GoRoute(path: '/settings', builder: (_, __) => const SettingsPage()),
+            GoRoute(path: '/settings/account', builder: (_, __) => const SettingsPage(section: 'account')),
+            GoRoute(path: '/settings/appearance', builder: (_, __) => const SettingsPage(section: 'appearance')),
+            GoRoute(path: '/settings/connections', builder: (_, __) => const SettingsPage(section: 'connections')),
+            GoRoute(path: '/settings/notifications', builder: (_, __) => const SettingsPage(section: 'notifications')),
+            GoRoute(path: '/settings/privacy', builder: (_, __) => const SettingsPage(section: 'privacy')),
+            GoRoute(path: '/notification-preferences', builder: (_, __) => const SettingsPage(section: 'notifications')),
           ],
         ),
       ],
