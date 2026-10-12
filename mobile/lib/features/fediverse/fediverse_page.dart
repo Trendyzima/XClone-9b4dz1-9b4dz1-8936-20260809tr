@@ -562,7 +562,7 @@ class _FediversePageState extends State<FediversePage> {
               padding: EdgeInsets.all(24),
               child: Center(child: Text('Nothing to show here yet.')),
             ),
-          if (_sectionNeedsDedicatedBackend)
+          if (_sectionNeedsDedicatedBackend) ...[
             ..._surfaceRows.map((row) {
               final title = '${row['kind'] ?? row['display_name'] ?? row['remote_username'] ?? row['username'] ?? row['activity_type'] ?? row['name'] ?? row['domain'] ?? row['object_type'] ?? 'Activity'}';
               final subtitle = '${row['domain'] ?? row['remote_domain'] ?? row['actor_url'] ?? row['actor_id'] ?? row['remote_actor_url'] ?? row['phrase'] ?? row['url'] ?? row['object_url'] ?? row['activity_id'] ?? row['created_at'] ?? ''}';
@@ -591,7 +591,7 @@ class _FediversePageState extends State<FediversePage> {
                 ),
               );
             }),
-          else if (widget.section == 'discover' ||
+          ] else if (widget.section == 'discover' ||
               widget.section == 'organic-discovery')
             const Text('Discover public instances and open social communities.')
           else
