@@ -176,6 +176,10 @@ class _FeedPageState extends State<FeedPage> {
   }
 
   Future<void> _toggleLike(Map<String, dynamic> post) async {
+    if (_client.auth.currentUser == null) {
+      _promptSignIn('Sign in to like posts.');
+      return;
+    }
     final id = '${post['id']}';
     final wasLiked = _liked.contains(id);
     setState(() {
@@ -211,6 +215,10 @@ class _FeedPageState extends State<FeedPage> {
   }
 
   Future<void> _toggleBookmark(Map<String, dynamic> post) async {
+    if (_client.auth.currentUser == null) {
+      _promptSignIn('Sign in to bookmark posts.');
+      return;
+    }
     final id = '${post['id']}';
     final wasSaved = _bookmarked.contains(id);
     setState(() {
@@ -240,6 +248,10 @@ class _FeedPageState extends State<FeedPage> {
   }
 
   Future<void> _toggleRepost(Map<String, dynamic> post) async {
+    if (_client.auth.currentUser == null) {
+      _promptSignIn('Sign in to repost.');
+      return;
+    }
     final id = '${post['id']}';
     final wasReposted = _reposted.contains(id);
     setState(() {
