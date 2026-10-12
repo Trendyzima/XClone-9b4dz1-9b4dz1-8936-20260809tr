@@ -95,7 +95,15 @@ class _TestagramAppState extends State<TestagramApp> {
         final path = state.matchedLocation;
         final publicRoute = path == '/' ||
             path == '/explore' ||
+            path == '/search' ||
+            path == '/discover' ||
+            path.startsWith('/discover/') ||
             path == '/tv' ||
+            path == '/iptv' ||
+            path == '/tv/channels' ||
+            path == '/tv/reels' ||
+            path == '/shop' ||
+            path.startsWith('/fediverse/') ||
             path == '/videos' ||
             path == '/shorts' ||
             path == '/videos/watchlater' ||
