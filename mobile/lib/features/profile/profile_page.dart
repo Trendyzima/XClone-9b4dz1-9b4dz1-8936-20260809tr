@@ -52,15 +52,15 @@ class _ProfilePageState extends State<ProfilePage> {
       }
       final profile = widget.username == null
           ? await _client
-              .from('profiles')
-              .select('*')
-              .eq('id', uid!)
-              .maybeSingle()
+                .from('profiles')
+                .select('*')
+                .eq('id', uid!)
+                .maybeSingle()
           : await _client
-              .from('profiles')
-              .select('*')
-              .eq('username', widget.username!)
-              .maybeSingle();
+                .from('profiles')
+                .select('*')
+                .eq('username', widget.username!)
+                .maybeSingle();
       if (profile == null) throw Exception('This profile could not be found.');
       final targetId = '${profile['id']}';
       final results = await Future.wait([
@@ -97,10 +97,12 @@ class _ProfilePageState extends State<ProfilePage> {
       }
       final people = <Map<String, dynamic>>[];
       if (widget.section == 'followers' || widget.section == 'following') {
-        final relationColumn =
-            widget.section == 'followers' ? 'following_id' : 'follower_id';
-        final personColumn =
-            widget.section == 'followers' ? 'follower_id' : 'following_id';
+        final relationColumn = widget.section == 'followers'
+            ? 'following_id'
+            : 'follower_id';
+        final personColumn = widget.section == 'followers'
+            ? 'follower_id'
+            : 'following_id';
         final relationships = await _client
             .from('follows')
             .select('follower_id,following_id')
@@ -123,7 +125,9 @@ class _ProfilePageState extends State<ProfilePage> {
             for (final row in profiles)
               '${row['id']}': Map<String, dynamic>.from(row as Map),
           };
-          people.addAll(ids.map((id) => byId[id]).whereType<Map<String, dynamic>>());
+          people.addAll(
+            ids.map((id) => byId[id]).whereType<Map<String, dynamic>>(),
+          );
         }
       }
       if (!mounted) return;
@@ -140,7 +144,8 @@ class _ProfilePageState extends State<ProfilePage> {
     } catch (error) {
       if (mounted) {
         setState(
-            () => _error = 'Unable to load this profile. Pull down to retry.');
+          () => _error = 'Unable to load this profile. Pull down to retry.',
+        );
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -171,7 +176,7 @@ class _ProfilePageState extends State<ProfilePage> {
         await _client.from('follows').insert({
           'follower_id': uid,
           'following_id': _targetId,
-          'status': 'accepted'
+          'status': 'accepted',
         });
       }
     } catch (error) {
@@ -180,8 +185,9 @@ class _ProfilePageState extends State<ProfilePage> {
           _isFollowing = previous;
           _followers += previous ? 1 : -1;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Follow update failed: $error')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Follow update failed: $error')));
       }
     } finally {
       if (mounted) setState(() => _followBusy = false);
@@ -193,8 +199,9 @@ class _ProfilePageState extends State<ProfilePage> {
     if (session == null) {
       throw Exception('Sign in again before uploading profile media.');
     }
-    final extension =
-        file.name.contains('.') ? file.name.split('.').last.toLowerCase() : '';
+    final extension = file.name.contains('.')
+        ? file.name.split('.').last.toLowerCase()
+        : '';
     const mimeByExtension = <String, String>{
       'jpg': 'image/jpeg',
       'jpeg': 'image/jpeg',
@@ -210,9 +217,11 @@ class _ProfilePageState extends State<ProfilePage> {
     final bytes = await file.readAsBytes();
     final limit = kind == 'avatar' ? 2 * 1024 * 1024 : 5 * 1024 * 1024;
     if (bytes.isEmpty || bytes.length > limit) {
-      throw Exception(kind == 'avatar'
-          ? 'Avatar must be a non-empty image no larger than 2 MB.'
-          : 'Cover image must be a non-empty image no larger than 5 MB.');
+      throw Exception(
+        kind == 'avatar'
+            ? 'Avatar must be a non-empty image no larger than 2 MB.'
+            : 'Cover image must be a non-empty image no larger than 5 MB.',
+      );
     }
     final uri = Uri.parse(AppConfig.supabaseUrl)
         .resolve('/functions/v1/profile-media-upload');
@@ -223,12 +232,14 @@ class _ProfilePageState extends State<ProfilePage> {
         'Accept': 'application/json',
       })
       ..fields['kind'] = kind
-      ..files.add(http.MultipartFile.fromBytes(
-        'file',
-        bytes,
-        filename: file.name,
-        contentType: MediaType.parse(mime),
-      ));
+      ..files.add(
+        http.MultipartFile.fromBytes(
+          'file',
+          bytes,
+          filename: file.name,
+          contentType: MediaType.parse(mime),
+        ),
+      );
     final streamed = await request.send().timeout(const Duration(seconds: 35));
     final response = await http.Response.fromStream(streamed);
     final payload = jsonDecode(response.body);
@@ -248,12 +259,15 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Future<void> _editProfile() async {
     final name = TextEditingController(
-        text: '${_profile?['display_name'] ?? _profile?['full_name'] ?? ''}');
+      text: '${_profile?['display_name'] ?? _profile?['full_name'] ?? ''}',
+    );
     final bio = TextEditingController(text: '${_profile?['bio'] ?? ''}');
     final website = TextEditingController(
-        text: '${_profile?['website'] ?? _profile?['website_url'] ?? ''}');
-    final location =
-        TextEditingController(text: '${_profile?['location'] ?? ''}');
+      text: '${_profile?['website'] ?? _profile?['website_url'] ?? ''}',
+    );
+    final location = TextEditingController(
+      text: '${_profile?['location'] ?? ''}',
+    );
     final picker = ImagePicker();
     XFile? avatarFile;
     XFile? coverFile;
@@ -273,8 +287,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   TextField(
                     controller: name,
                     maxLength: 80,
-                    decoration:
-                        const InputDecoration(labelText: 'Display name'),
+                    decoration: const InputDecoration(
+                      labelText: 'Display name',
+                    ),
                   ),
                   TextField(
                     controller: bio,
@@ -313,11 +328,14 @@ class _ProfilePageState extends State<ProfilePage> {
                                   if (file != null) {
                                     if (await file.length() > 2 * 1024 * 1024) {
                                       if (dialogContext.mounted) {
-                                        ScaffoldMessenger.of(dialogContext)
-                                            .showSnackBar(
+                                        ScaffoldMessenger.of(
+                                          dialogContext,
+                                        ).showSnackBar(
                                           const SnackBar(
-                                              content: Text(
-                                                  'Avatar must be 2 MB or smaller.')),
+                                            content: Text(
+                                              'Avatar must be 2 MB or smaller.',
+                                            ),
+                                          ),
                                         );
                                       }
                                     } else {
@@ -328,10 +346,12 @@ class _ProfilePageState extends State<ProfilePage> {
                                   if (dialogContext.mounted) {
                                     ScaffoldMessenger.of(dialogContext)
                                         .showSnackBar(
-                                      const SnackBar(
-                                          content: Text(
-                                              'Camera access failed. Check permission and retry.')),
-                                    );
+                                          const SnackBar(
+                                            content: Text(
+                                              'Camera access failed. Check permission and retry.',
+                                            ),
+                                          ),
+                                        );
                                   }
                                 } finally {
                                   if (dialogContext.mounted) {
@@ -356,11 +376,14 @@ class _ProfilePageState extends State<ProfilePage> {
                                   if (file != null) {
                                     if (await file.length() > 2 * 1024 * 1024) {
                                       if (dialogContext.mounted) {
-                                        ScaffoldMessenger.of(dialogContext)
-                                            .showSnackBar(
+                                        ScaffoldMessenger.of(
+                                          dialogContext,
+                                        ).showSnackBar(
                                           const SnackBar(
-                                              content: Text(
-                                                  'Avatar must be 2 MB or smaller.')),
+                                            content: Text(
+                                              'Avatar must be 2 MB or smaller.',
+                                            ),
+                                          ),
                                         );
                                       }
                                     } else {
@@ -371,10 +394,12 @@ class _ProfilePageState extends State<ProfilePage> {
                                   if (dialogContext.mounted) {
                                     ScaffoldMessenger.of(dialogContext)
                                         .showSnackBar(
-                                      const SnackBar(
-                                          content: Text(
-                                              'Photo selection failed. Check media permissions and retry.')),
-                                    );
+                                          const SnackBar(
+                                            content: Text(
+                                              'Photo selection failed. Check media permissions and retry.',
+                                            ),
+                                          ),
+                                        );
                                   }
                                 } finally {
                                   if (dialogContext.mounted) {
@@ -401,10 +426,12 @@ class _ProfilePageState extends State<ProfilePage> {
                                       if (dialogContext.mounted) {
                                         ScaffoldMessenger.of(dialogContext)
                                             .showSnackBar(
-                                          const SnackBar(
-                                              content: Text(
-                                                  'Cover image must be 5 MB or smaller.')),
-                                        );
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Cover image must be 5 MB or smaller.',
+                                                ),
+                                              ),
+                                            );
                                       }
                                     } else {
                                       setDialogState(() => coverFile = file);
@@ -414,10 +441,12 @@ class _ProfilePageState extends State<ProfilePage> {
                                   if (dialogContext.mounted) {
                                     ScaffoldMessenger.of(dialogContext)
                                         .showSnackBar(
-                                      const SnackBar(
-                                          content: Text(
-                                              'Cover selection failed. Check media permissions and retry.')),
-                                    );
+                                          const SnackBar(
+                                            content: Text(
+                                              'Cover selection failed. Check media permissions and retry.',
+                                            ),
+                                          ),
+                                        );
                                   }
                                 } finally {
                                   if (dialogContext.mounted) {
@@ -433,11 +462,17 @@ class _ProfilePageState extends State<ProfilePage> {
                   if (avatarFile != null || coverFile != null) ...[
                     const SizedBox(height: 8),
                     if (avatarFile != null)
-                      Text('Avatar: ${avatarFile!.name}',
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text(
+                        'Avatar: ${avatarFile!.name}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     if (coverFile != null)
-                      Text('Cover: ${coverFile!.name}',
-                          maxLines: 1, overflow: TextOverflow.ellipsis),
+                      Text(
+                        'Cover: ${coverFile!.name}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                   ],
                   if (picking)
                     const Padding(
@@ -457,13 +492,13 @@ class _ProfilePageState extends State<ProfilePage> {
               onPressed: picking
                   ? null
                   : () => Navigator.pop(dialogContext, {
-                        'display_name': name.text.trim(),
-                        'bio': bio.text.trim(),
-                        'website': website.text.trim(),
-                        'location': location.text.trim(),
-                        'avatar': avatarFile,
-                        'cover': coverFile,
-                      }),
+                      'display_name': name.text.trim(),
+                      'bio': bio.text.trim(),
+                      'website': website.text.trim(),
+                      'location': location.text.trim(),
+                      'avatar': avatarFile,
+                      'cover': coverFile,
+                    }),
               child: const Text('Save'),
             ),
           ],
@@ -491,10 +526,9 @@ class _ProfilePageState extends State<ProfilePage> {
       if (cover != null) {
         update['cover_url'] = await _uploadProfileMedia(cover, 'cover');
       }
-      final result = await _client.rpc(
-        'profile_update',
-        params: {'p_input': update},
-      ).timeout(const Duration(seconds: 20));
+      final result = await _client
+          .rpc('profile_update', params: {'p_input': update})
+          .timeout(const Duration(seconds: 20));
       if (result is! Map || result['updated'] != true) {
         throw Exception('The server did not confirm the profile update.');
       }
@@ -509,8 +543,10 @@ class _ProfilePageState extends State<ProfilePage> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text(
-                  'Profile update failed: ${error.toString().replaceFirst('Exception: ', '')}')),
+            content: Text(
+              'Profile update failed: ${error.toString().replaceFirst('Exception: ', '')}',
+            ),
+          ),
         );
       }
     }
@@ -525,13 +561,16 @@ class _ProfilePageState extends State<ProfilePage> {
     final cover = profile['cover_url']?.toString() ?? '';
     return RefreshIndicator(
       onRefresh: _load,
-      child: ListView(padding: const EdgeInsets.all(14), children: [
-        if (_error != null)
-          Padding(padding: const EdgeInsets.all(12), child: Text(_error!)),
-        Card(
+      child: ListView(
+        padding: const EdgeInsets.all(14),
+        children: [
+          if (_error != null)
+            Padding(padding: const EdgeInsets.all(12), child: Text(_error!)),
+          Card(
             child: Padding(
-                padding: const EdgeInsets.all(18),
-                child: Column(children: [
+              padding: const EdgeInsets.all(18),
+              child: Column(
+                children: [
                   if (cover.startsWith('http'))
                     ClipRRect(
                       borderRadius: BorderRadius.circular(12),
@@ -545,116 +584,158 @@ class _ProfilePageState extends State<ProfilePage> {
                     ),
                   if (cover.startsWith('http')) const SizedBox(height: 12),
                   CircleAvatar(
-                      radius: 42,
-                      backgroundImage: avatar.startsWith('http')
-                          ? CachedNetworkImageProvider(avatar)
-                          : null,
-                      child: avatar.startsWith('http')
-                          ? null
-                          : Text(name.isEmpty ? 'T' : name[0].toUpperCase(),
-                              style: const TextStyle(fontSize: 28))),
+                    radius: 42,
+                    backgroundImage: avatar.startsWith('http')
+                        ? CachedNetworkImageProvider(avatar)
+                        : null,
+                    child: avatar.startsWith('http')
+                        ? null
+                        : Text(
+                            name.isEmpty ? 'T' : name[0].toUpperCase(),
+                            style: const TextStyle(fontSize: 28),
+                          ),
+                  ),
                   const SizedBox(height: 12),
-                  Text(name,
-                      style: Theme.of(context)
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w800)),
-                  Text('@${profile['username'] ?? 'testagram'}',
-                      style: Theme.of(context).textTheme.bodyMedium),
+                  Text(
+                    name,
+                    style: Theme.of(context).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                  Text(
+                    '@${profile['username'] ?? 'testagram'}',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
                   if ('${profile['bio'] ?? ''}'.isNotEmpty)
                     Padding(
-                        padding: const EdgeInsets.only(top: 8),
-                        child: Text('${profile['bio']}',
-                            textAlign: TextAlign.center)),
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Text(
+                        '${profile['bio']}',
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
                   const SizedBox(height: 16),
                   Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        _Stat(value: '${_posts.length}', label: 'Posts'),
-                        _Stat(value: '$_followers', label: 'Followers'),
-                        _Stat(value: '$_following', label: 'Following'),
-                      ]),
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _Stat(value: '${_posts.length}', label: 'Posts'),
+                      _Stat(value: '$_followers', label: 'Followers'),
+                      _Stat(value: '$_following', label: 'Following'),
+                    ],
+                  ),
                   const SizedBox(height: 12),
                   if (_isOwnProfile)
                     OutlinedButton.icon(
-                        onPressed: _editProfile,
-                        icon: const Icon(Icons.edit_outlined),
-                        label: const Text('Edit profile'))
+                      onPressed: _editProfile,
+                      icon: const Icon(Icons.edit_outlined),
+                      label: const Text('Edit profile'),
+                    )
                   else
                     FilledButton.tonalIcon(
-                        onPressed: _followBusy ? null : _toggleFollow,
-                        icon: _followBusy
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child:
-                                    CircularProgressIndicator(strokeWidth: 2))
-                            : Icon(_isFollowing
-                                ? Icons.person_remove_alt_1_rounded
-                                : Icons.person_add_alt_1_rounded),
-                        label: Text(_isFollowing ? 'Following' : 'Follow')),
-                ]))),
-        const SizedBox(height: 12),
-        if (widget.section == 'followers' || widget.section == 'following') ...[
-          Text(widget.section == 'followers' ? 'Followers' : 'Following',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w800)),
-          if (_loading && _people.isEmpty)
-            const Padding(
+                      onPressed: _followBusy ? null : _toggleFollow,
+                      icon: _followBusy
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(
+                              _isFollowing
+                                  ? Icons.person_remove_alt_1_rounded
+                                  : Icons.person_add_alt_1_rounded,
+                            ),
+                      label: Text(_isFollowing ? 'Following' : 'Follow'),
+                    ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (widget.section == 'followers' ||
+              widget.section == 'following') ...[
+            Text(
+              widget.section == 'followers' ? 'Followers' : 'Following',
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            if (_loading && _people.isEmpty)
+              const Padding(
                 padding: EdgeInsets.all(24),
-                child: Center(child: CircularProgressIndicator())),
-          if (!_loading && _people.isEmpty && _error == null)
-            Padding(
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            if (!_loading && _people.isEmpty && _error == null)
+              Padding(
                 padding: const EdgeInsets.all(24),
                 child: Center(
-                    child: Text(widget.section == 'followers'
+                  child: Text(
+                    widget.section == 'followers'
                         ? 'No followers to show yet.'
-                        : 'Not following anyone yet.'))),
-          ..._people.map((person) => Card(
-              margin: const EdgeInsets.only(top: 8),
-              child: ListTile(
+                        : 'Not following anyone yet.',
+                  ),
+                ),
+              ),
+            ..._people.map(
+              (person) => Card(
+                margin: const EdgeInsets.only(top: 8),
+                child: ListTile(
                   leading: CircleAvatar(
-                      backgroundImage: '${person['avatar_url'] ?? ''}'.startsWith('http')
-                          ? CachedNetworkImageProvider('${person['avatar_url']}')
-                          : null,
-                      child: '${person['avatar_url'] ?? ''}'.startsWith('http')
-                          ? null
-                          : const Icon(Icons.person_outline_rounded)),
-                  title: Text('${person['display_name'] ?? person['full_name'] ?? person['username'] ?? 'Testagram user'}'),
+                    backgroundImage:
+                        '${person['avatar_url'] ?? ''}'.startsWith('http')
+                        ? CachedNetworkImageProvider('${person['avatar_url']}')
+                        : null,
+                    child: '${person['avatar_url'] ?? ''}'.startsWith('http')
+                        ? null
+                        : const Icon(Icons.person_outline_rounded),
+                  ),
+                  title: Text(
+                    '${person['display_name'] ?? person['full_name'] ?? person['username'] ?? 'Testagram user'}',
+                  ),
                   subtitle: Text('@${person['username'] ?? 'testagram'}'),
                   onTap: '${person['username'] ?? ''}'.isEmpty
                       ? null
-                      : () => context.go('/profile/${Uri.encodeComponent('${person['username']}')}')))),
-        ] else ...[
-          Text('${_isOwnProfile ? 'Your' : 'Their'} posts',
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w800)),
-        if (_loading && _posts.isEmpty)
-          const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(child: CircularProgressIndicator())),
-        if (!_loading && _posts.isEmpty && _error == null)
-          const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(child: Text('No posts yet.'))),
-          ..._posts.map((post) => Card(
-              margin: const EdgeInsets.only(top: 8),
-              child: Padding(
+                      : () => context.go(
+                          '/profile/${Uri.encodeComponent('${person['username']}')}',
+                        ),
+                ),
+              ),
+            ),
+          ] else ...[
+            Text(
+              '${_isOwnProfile ? 'Your' : 'Their'} posts',
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w800),
+            ),
+            if (_loading && _posts.isEmpty)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            if (!_loading && _posts.isEmpty && _error == null)
+              const Padding(
+                padding: EdgeInsets.all(24),
+                child: Center(child: Text('No posts yet.')),
+              ),
+            ..._posts.map(
+              (post) => Card(
+                margin: const EdgeInsets.only(top: 8),
+                child: Padding(
                   padding: const EdgeInsets.all(14),
                   child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('${post['content'] ?? ''}'),
-                        const SizedBox(height: 8),
-                        Text('${post['created_at'] ?? ''}',
-                            style: Theme.of(context).textTheme.bodySmall)
-                      ])))),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('${post['content'] ?? ''}'),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${post['created_at'] ?? ''}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ],
-      ]),
+      ),
     );
   }
 }
@@ -664,12 +745,14 @@ class _Stat extends StatelessWidget {
   final String value;
   final String label;
   @override
-  Widget build(BuildContext context) => Column(children: [
-        Text(value,
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w800)),
-        Text(label, style: Theme.of(context).textTheme.bodySmall)
-      ]);
+  Widget build(BuildContext context) => Column(
+    children: [
+      Text(
+        value,
+        style: Theme.of(context).textTheme.titleMedium
+            ?.copyWith(fontWeight: FontWeight.w800),
+      ),
+      Text(label, style: Theme.of(context).textTheme.bodySmall),
+    ],
+  );
 }
