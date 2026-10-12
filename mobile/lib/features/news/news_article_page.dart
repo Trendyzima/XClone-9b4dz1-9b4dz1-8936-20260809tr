@@ -46,13 +46,18 @@ class _NewsArticlePageState extends State<NewsArticlePage> {
           .resolve('/functions/v1/testagram-rss-feed')
           .replace(queryParameters: {'id': widget.articleId});
       final response = await http
-          .get(endpoint, headers: const {'Accept': 'application/json'})
+          .get(endpoint, headers: {
+            'Accept': 'application/json',
+            'apikey': AppConfig.supabasePublishableKey,
+          })
           .timeout(const Duration(seconds: 15));
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw Exception('The publisher feed returned ${response.statusCode}.');
       }
       final decoded = jsonDecode(response.body);
-      if (decoded is! Map) throw const FormatException('Invalid news response.');
+      if (decoded is! Map) {
+        throw const FormatException('Invalid news response.');
+      }
       final items = decoded['items'];
       final item = items is List && items.isNotEmpty && items.first is Map
           ? Map<String, dynamic>.from(items.first as Map)
@@ -219,7 +224,10 @@ class _NewsArticlePageState extends State<NewsArticlePage> {
                         const SizedBox(height: 18),
                         Text(
                           excerpt.isEmpty
-                              ? 'The publisher did not provide an article excerpt in its RSS feed.'
+                              ? [
+                                  'The publisher did not provide an article excerpt',
+                                  'in its RSS feed.',
+                                ].join(' ')
                               : excerpt,
                           style: Theme.of(context)
                               .textTheme
@@ -230,7 +238,10 @@ class _NewsArticlePageState extends State<NewsArticlePage> {
                         const Divider(),
                         const SizedBox(height: 8),
                         Text(
-                          'This story is provided by its publisher. Testagram shows the available feed excerpt and links to the original article.',
+                          [
+                            'This story is provided by its publisher.',
+                            'Testagram shows the available feed excerpt and links to the original article.',
+                          ].join(' '),
                           style: Theme.of(context).textTheme.bodySmall,
                         ),
                         const SizedBox(height: 12),
