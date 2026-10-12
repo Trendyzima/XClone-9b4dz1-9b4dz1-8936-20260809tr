@@ -61,6 +61,15 @@ void main() {
     });
   });
 
+  test('accepts only 4 to 6 digit wallet PINs', () {
+    expect(isValidWalletPin('1234'), isTrue);
+    expect(isValidWalletPin('123456'), isTrue);
+    expect(isValidWalletPin('123'), isFalse);
+    expect(isValidWalletPin('1234567'), isFalse);
+    expect(isValidWalletPin('12a4'), isFalse);
+    expect(isValidWalletPin(r'\\1234'), isFalse);
+  });
+
   test('formats grouped amounts and rejects malformed currency codes', () {
     expect(formatWalletAmount(12345.6, 'KES'), 'KES 12,345.60');
     expect(formatWalletAmount(-1, 'bad-code'), 'KES 1.00');

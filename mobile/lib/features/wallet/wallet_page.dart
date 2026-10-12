@@ -52,7 +52,8 @@ class _WalletPageState extends State<WalletPage> {
       final walletJson = Map<String, dynamic>.from(walletResponse);
       final response = await _client
           .from('wallet_transactions')
-          .select('id,amount,type,status,reference,created_at,direction')
+          .select(
+              'id,amount,type,status,reference,created_at,direction,provider_reference')
           .eq('user_id', user.id)
           .order('created_at', ascending: false)
           .limit(100);

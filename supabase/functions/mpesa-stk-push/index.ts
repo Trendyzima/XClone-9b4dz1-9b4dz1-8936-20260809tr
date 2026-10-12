@@ -200,7 +200,13 @@ Deno.serve(async req => {
     if (payment.error || !payment.data?.id) {
       console.error("[mpesa] payment persistence failed after provider acceptance", provider.CheckoutRequestID, payment.error?.message);
       await admin.from("wallet_transactions").update({ provider_status: "PAYMENT_RECORD_PENDING", metadata: { mpesa_checkout_request_id: provider.CheckoutRequestID, mpesa_merchant_request_id: provider.MerchantRequestID, amount_kes: amountKes, phone: userPhone, fx_rate: walletCurrency === "USD" ? RATE : 1, persistence_error: payment.error?.message || "unknown" } }).eq("id", tx.data.id).eq("status", "pending");
-      return json({ error: "M-Pesa request accepted but payment recording is still being reconciled. Do not retry immediately." }, 202);
+      return json({
+        error: "M-Pesa request was accepted but payment recording is being reconciled. Do not retry; this request will be checked for settlement.",
+        status: "pending",
+        checkout_request_id: provider.CheckoutRequestID,
+        merchant_request_id: provider.MerchantRequestID,
+        reconciliation_required: true,
+      }, 202);
     }
 
     await admin.from("wallets").update({ mpesa_phone: userPhone }).eq("id", wallet.id).eq("user_id", user.id);

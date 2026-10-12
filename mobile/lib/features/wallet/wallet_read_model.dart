@@ -2,6 +2,7 @@
 /// Monetary actions must remain on the server-side wallet RPC/Edge Function path.
 class WalletReadModel {
   const WalletReadModel({
+    this.id = '',
     required this.balance,
     required this.totalDeposited,
     required this.totalWithdrawn,
@@ -9,6 +10,7 @@ class WalletReadModel {
     required this.status,
   });
 
+  final String id;
   final double balance;
   final double totalDeposited;
   final double totalWithdrawn;
@@ -17,6 +19,7 @@ class WalletReadModel {
 
   factory WalletReadModel.fromJson(Map<String, dynamic> json) {
     return WalletReadModel(
+      id: (json['id'] ?? json['wallet_id'] ?? '').toString(),
       balance: _asAmount(json['balance']),
       totalDeposited: _asAmount(json['total_deposited']),
       totalWithdrawn: _asAmount(json['total_withdrawn']),
@@ -64,7 +67,7 @@ class WalletTransactionReadModel {
       type: (json['type'] ?? 'transaction').toString().toLowerCase(),
       direction: json['direction']?.toString().toLowerCase(),
       status: (json['status'] ?? 'unknown').toString().toLowerCase(),
-      reference: json['reference']?.toString(),
+      reference: (json['reference'] ?? json['provider_reference'])?.toString(),
       createdAt: rawDate == null ? null : DateTime.tryParse(rawDate),
     );
   }
@@ -74,6 +77,8 @@ class WalletTransactionReadModel {
       (direction == null &&
           (type == 'deposit' || type == 'earnings' || type == 'credit'));
 }
+
+bool isValidWalletPin(String pin) => RegExp(r'^\d{4,6}$').hasMatch(pin);
 
 String formatWalletAmount(double amount, String currency) {
   final safeCurrency = WalletReadModel._safeCurrency(currency);
