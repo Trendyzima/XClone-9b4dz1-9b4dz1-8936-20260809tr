@@ -239,6 +239,15 @@ class _SponsoredAdCardState extends State<SponsoredAdCard>
   }
 
   @override
+  void didUpdateWidget(covariant SponsoredAdCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.ad.impressionId != widget.ad.impressionId) {
+      _eventSent = false;
+      _visibleSince = null;
+    }
+  }
+
+  @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state != AppLifecycleState.resumed) _visibleSince = null;
   }
@@ -267,7 +276,6 @@ class _SponsoredAdCardState extends State<SponsoredAdCard>
     if (now.difference(_visibleSince!) < _viewabilityDuration) return;
 
     _eventSent = true;
-    _viewabilityTimer?.cancel();
     unawaited(
       widget.service.recordEvent(
         ad: widget.ad,
