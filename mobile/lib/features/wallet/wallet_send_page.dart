@@ -25,6 +25,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
   bool _loading = true;
   bool _searching = false;
   bool _sending = false;
+  bool _needsPin = false;
   String? _error;
   String? _receipt;
 
@@ -59,6 +60,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
         setState(() {
           _wallet = wallet;
           _loading = false;
+          _needsPin = true;
           _error = 'Set a wallet PIN before sending money.';
         });
         return;
@@ -67,6 +69,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
       setState(() {
         _wallet = wallet;
         _loading = false;
+        _needsPin = false;
       });
     } catch (_) {
       if (!mounted) return;
@@ -242,6 +245,12 @@ class _WalletSendPageState extends State<WalletSendPage> {
               ),
             ),
           if (_error != null) _message(_error!, theme.colorScheme.errorContainer, theme.colorScheme.onErrorContainer),
+          if (_needsPin)
+            FilledButton.icon(
+              onPressed: () => context.go('/wallet/security'),
+              icon: const Icon(Icons.shield_outlined),
+              label: const Text('Set wallet PIN'),
+            ),
           if (_receipt != null) _message(_receipt!, theme.colorScheme.primaryContainer, theme.colorScheme.onPrimaryContainer),
           const SizedBox(height: 8),
           Text('Recipient', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
