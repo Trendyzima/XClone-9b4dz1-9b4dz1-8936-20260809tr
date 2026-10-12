@@ -34,6 +34,7 @@ import '../features/marketplace/products_page.dart';
 import '../features/marketplace/orders_page.dart';
 import '../features/marketplace/wishlist_page.dart';
 import '../features/ads/ad_campaigns_page.dart';
+import '../features/admin/governance_page.dart';
 import '../features/ads/ad_config_page.dart';
 import '../features/news/news_page.dart';
 import '../features/news/news_article_page.dart';
@@ -688,13 +689,8 @@ class _TestagramAppState extends State<TestagramApp> {
               ),
             ),
             GoRoute(
-              path: '/admin/governance',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Governance',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
-            ),
+                path: '/admin/governance',
+                builder: (_, __) => const GovernancePage()),
             GoRoute(
               path: '/admin/identity-verification',
               builder: (_, state) => NativeFeaturePage(
