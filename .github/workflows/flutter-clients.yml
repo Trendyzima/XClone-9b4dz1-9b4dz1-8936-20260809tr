@@ -73,6 +73,12 @@ jobs:
       - name: Resolve Flutter dependencies
         working-directory: mobile
         run: flutter pub get
+      - name: Formatting diagnostics for feed race patch
+        working-directory: mobile
+        run: |
+          cp lib/features/feed/feed_page.dart /tmp/feed_page.dart.original
+          dart format lib/features/feed/feed_page.dart
+          diff -u /tmp/feed_page.dart.original lib/features/feed/feed_page.dart || true
       - name: Enforce formatting
         working-directory: mobile
         run: dart format --output=none --set-exit-if-changed lib test
