@@ -58,16 +58,9 @@ jobs:
       - name: Resolve Flutter dependencies
         working-directory: mobile
         run: flutter pub get
-      - name: Format new native ads screens for review
+      - name: Enforce formatting
         working-directory: mobile
-        run: |
-          dart format lib/app/testagram_app.dart lib/features/ads/ad_campaigns_page.dart lib/features/ads/ad_config_page.dart
-          for file in lib/app/testagram_app.dart lib/features/ads/ad_campaigns_page.dart lib/features/ads/ad_config_page.dart; do
-            echo "FORMAT_BEGIN:$file"
-            base64 -w0 "$file"
-            echo
-            echo "FORMAT_END:$file"
-          done
+        run: dart format --output=none --set-exit-if-changed lib test
       - name: Analyze Flutter source
         working-directory: mobile
         run: flutter analyze --fatal-infos --fatal-warnings
