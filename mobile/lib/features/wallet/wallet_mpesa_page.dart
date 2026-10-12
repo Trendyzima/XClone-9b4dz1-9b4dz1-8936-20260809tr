@@ -164,7 +164,8 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
         _status = 'pending';
         _submitting = false;
         _elapsedSeconds = 0;
-        _message = (data['customer_message'] ??
+        _message = (data['error'] ??
+                data['customer_message'] ??
                 'Payment prompt sent. Enter your M-Pesa PIN on your phone.')
             .toString();
       });
