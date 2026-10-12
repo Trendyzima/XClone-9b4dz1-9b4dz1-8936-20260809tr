@@ -526,18 +526,18 @@ class _TvPageState extends State<TvPage> {
                                       _youtubePlayer != null)
                               ? null
                               : () async {
-                            if (isCurrent &&
-                                player?.value.isInitialized == true) {
-                              if (player!.value.isPlaying) {
-                                await player.pause();
-                              } else {
-                                await player.play();
-                              }
-                              if (mounted) setState(() {});
-                            } else {
-                              await _play(channel);
-                            }
-                          },
+                                  if (isCurrent &&
+                                      player?.value.isInitialized == true) {
+                                    if (player!.value.isPlaying) {
+                                      await player.pause();
+                                    } else {
+                                      await player.play();
+                                    }
+                                    if (mounted) setState(() {});
+                                  } else {
+                                    await _play(channel);
+                                  }
+                                },
                           child: Container(
                             color: Colors.black,
                             child: Stack(
