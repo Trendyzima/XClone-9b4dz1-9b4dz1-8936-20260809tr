@@ -78,7 +78,7 @@ class WalletTransactionReadModel {
           (type == 'deposit' || type == 'earnings' || type == 'credit'));
 }
 
-bool isValidWalletPin(String pin) => RegExp(r'^\\d{4,6}
+bool isValidWalletPin(String pin) => RegExp(r'^\d{4,6}$').hasMatch(pin);
   final safeCurrency = WalletReadModel._safeCurrency(currency);
   final fixed = amount.abs().toStringAsFixed(2);
   final parts = fixed.split('.');
