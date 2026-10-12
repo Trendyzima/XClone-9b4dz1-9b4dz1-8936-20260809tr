@@ -17,7 +17,7 @@ class _ExplorePageState extends State<ExplorePage> {
   bool _loading = false;
   String? _error;
   SupabaseClient get _client => Supabase.instance.client;
-  String get _uid => _client.auth.currentUser!.id;
+  int _searchGeneration = 0;
 
   @override
   void dispose() {
@@ -26,52 +26,81 @@ class _ExplorePageState extends State<ExplorePage> {
   }
 
   Future<void> _runSearch(String raw) async {
+    final generation = ++_searchGeneration;
     final query = raw.trim();
     if (query.length < 2) {
+      if (!mounted) return;
       setState(() {
         _people = [];
         _posts = [];
+        _following.clear();
+        _loading = false;
         _error = null;
       });
       return;
     }
+    if (!mounted) return;
     setState(() {
       _loading = true;
       _error = null;
     });
+
+    final viewerId = _client.auth.currentUser?.id;
     try {
-      final safe =
-          query.replaceAll(',', ' ').replaceAll('%', '').replaceAll('_', ' ');
+      // Escape PostgREST filter syntax while keeping ordinary names and phrases.
+      final safe = query
+          .replaceAll(RegExp(r'[(),%_*]'), ' ')
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+      final peopleQuery = viewerId == null
+          ? _client
+              .from('profiles')
+              .select(
+                  'id,username,display_name,avatar_url,verified,verified_tier')
+              .or('username.ilike.%$safe%,display_name.ilike.%$safe%')
+              .limit(20)
+          : _client
+              .from('profiles')
+              .select(
+                  'id,username,display_name,avatar_url,verified,verified_tier')
+              .or('username.ilike.%$safe%,display_name.ilike.%$safe%')
+              .neq('id', viewerId)
+              .limit(20);
+      final postsQuery = _client
+          .from('posts')
+          .select('id,content,created_at,user_id,author_id,likes_count')
+          .ilike('content', '%$safe%')
+          .isFilter('deleted_at', null)
+          .order('created_at', ascending: false)
+          .limit(15);
       final results = await Future.wait([
-        _client
-            .from('profiles')
-            .select(
-                'id,username,display_name,avatar_url,verified,verified_tier')
-            .or('username.ilike.%$safe%,display_name.ilike.%$safe%')
-            .neq('id', _uid)
-            .limit(20),
-        _client
-            .from('posts')
-            .select('id,content,created_at,user_id,author_id,likes_count')
-            .ilike('content', '%$safe%')
-            .isFilter('deleted_at', null)
-            .order('created_at', ascending: false)
-            .limit(15),
+        peopleQuery.timeout(const Duration(seconds: 12)),
+        postsQuery.timeout(const Duration(seconds: 12)),
       ]);
+      if (!mounted || generation != _searchGeneration) return;
+
       final people = (results[0] as List)
           .map((row) => Map<String, dynamic>.from(row as Map))
           .toList();
       final posts = (results[1] as List)
           .map((row) => Map<String, dynamic>.from(row as Map))
           .toList();
-      if (people.isNotEmpty) {
+
+      if (viewerId != null && people.isNotEmpty) {
         final followRows = await _client
             .from('follows')
             .select('following_id')
-            .eq('follower_id', _uid)
-            .inFilter('following_id', people.map((p) => '${p['id']}').toList());
-        _following.addAll(followRows.map((row) => '${row['following_id']}'));
+            .eq('follower_id', viewerId)
+            .inFilter('following_id', people.map((p) => '${p['id']}').toList())
+            .timeout(const Duration(seconds: 12));
+        if (!mounted || generation != _searchGeneration) return;
+        _following
+          ..clear()
+          ..addAll(followRows.map((row) => '${row['following_id']}'));
+      } else {
+        _following.clear();
       }
+
       if (posts.isNotEmpty) {
         final ids = posts
             .map((p) => '${p['author_id'] ?? p['user_id']}')
@@ -80,7 +109,9 @@ class _ExplorePageState extends State<ExplorePage> {
         final profiles = await _client
             .from('profiles')
             .select('id,username,display_name')
-            .inFilter('id', ids);
+            .inFilter('id', ids)
+            .timeout(const Duration(seconds: 12));
+        if (!mounted || generation != _searchGeneration) return;
         final byId = {
           for (final p in profiles)
             '${p['id']}': Map<String, dynamic>.from(p as Map)
@@ -89,23 +120,30 @@ class _ExplorePageState extends State<ExplorePage> {
           post['profile'] = byId['${post['author_id'] ?? post['user_id']}'];
         }
       }
-      if (mounted) {
-        setState(() {
-          _people = people;
-          _posts = posts;
-        });
-      }
-    } catch (error) {
-      if (mounted) {
+
+      if (!mounted || generation != _searchGeneration) return;
+      setState(() {
+        _people = people;
+        _posts = posts;
+      });
+    } catch (_) {
+      if (mounted && generation == _searchGeneration) {
         setState(
             () => _error = 'Search failed. Check your connection and retry.');
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && generation == _searchGeneration) {
+        setState(() => _loading = false);
+      }
     }
   }
 
   Future<void> _toggleFollow(Map<String, dynamic> person) async {
+    final viewerId = _client.auth.currentUser?.id;
+    if (viewerId == null) {
+      if (mounted) context.go('/auth');
+      return;
+    }
     final id = '${person['id']}';
     final wasFollowing = _following.contains(id);
     setState(() {
@@ -116,11 +154,11 @@ class _ExplorePageState extends State<ExplorePage> {
         await _client
             .from('follows')
             .delete()
-            .eq('follower_id', _uid)
+            .eq('follower_id', viewerId)
             .eq('following_id', id);
       } else {
         await _client.from('follows').insert(
-            {'follower_id': _uid, 'following_id': id, 'status': 'accepted'});
+            {'follower_id': viewerId, 'following_id': id, 'status': 'accepted'});
       }
     } catch (error) {
       if (mounted) {
@@ -181,9 +219,11 @@ class _ExplorePageState extends State<ExplorePage> {
                         : Text(name.isEmpty ? 'T' : name[0].toUpperCase())),
                 title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis),
                 subtitle: Text('@${person['username'] ?? 'testagram'}'),
-                trailing: OutlinedButton(
-                    onPressed: () => _toggleFollow(person),
-                    child: Text(isFollowing ? 'Following' : 'Follow')),
+                trailing: _client.auth.currentUser == null
+                    ? null
+                    : OutlinedButton(
+                        onPressed: () => _toggleFollow(person),
+                        child: Text(isFollowing ? 'Following' : 'Follow')),
                 onTap: () {
                   final username = '${person['username'] ?? ''}';
                   if (username.isNotEmpty) {
