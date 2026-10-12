@@ -67,6 +67,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
   const productionVideoTrackRef = useRef<MediaStreamTrack | null>(null);
   const screenVideoRef = useRef<HTMLVideoElement | null>(null);
   const productionAudioTrackRef = useRef<MediaStreamTrack | null>(null);
+  const productionCommentarySourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const productionMasterGainRef = useRef<GainNode | null>(null);
   const productionGuestGainRef = useRef<GainNode | null>(null);
   const productionGuestSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
@@ -157,6 +158,9 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
   const [activeStreamId, setActiveStreamId] = useState<string | null>(streamId ?? null);
   const [mode, setMode] = useState<Mode>('studio');
   const [recording, setRecording] = useState(false);
+  const [youtubeEnabled, setYoutubeEnabled] = useState(false);
+  const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
+  const [audioInputId, setAudioInputId] = useState('');
   const [live, setLive] = useState(false);
   const [muted, setMuted] = useState(false);
   const [camera, setCamera] = useState(true);
@@ -353,13 +357,13 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       try {
         s = await navigator.mediaDevices.getUserMedia({
           video: { ...CAMERA_CONSTRAINTS[quality], facingMode: { ideal: requestedFacing === 'front' ? 'user' : 'environment' } },
-          audio: { channelCount: { ideal: 1 }, sampleRate: { ideal: 48000 }, sampleSize: { ideal: 24 }, echoCancellation: true, noiseSuppression: true, autoGainControl: false },
+          audio: { ...(audioInputId ? { deviceId: { exact: audioInputId } } : {}), channelCount: { ideal: 1 }, sampleRate: { ideal: 48000 }, sampleSize: { ideal: 24 }, echoCancellation: true, noiseSuppression: true, autoGainControl: false },
         });
       } catch (error) {
         if ((error as DOMException)?.name !== 'OverconstrainedError') throw error;
         s = await navigator.mediaDevices.getUserMedia({
           video: { width: { ideal: preset.width }, height: { ideal: preset.height }, aspectRatio: { ideal: 16 / 9 }, frameRate: { ideal: preset.fps, max: preset.fps }, facingMode: { ideal: requestedFacing === 'front' ? 'user' : 'environment' } },
-          audio: { channelCount: { ideal: 1 }, sampleRate: { ideal: 48000 }, sampleSize: { ideal: 24 }, echoCancellation: true, noiseSuppression: true, autoGainControl: false },
+          audio: { ...(audioInputId ? { deviceId: { exact: audioInputId } } : {}), channelCount: { ideal: 1 }, sampleRate: { ideal: 48000 }, sampleSize: { ideal: 24 }, echoCancellation: true, noiseSuppression: true, autoGainControl: false },
         });
       }
       const track = s.getVideoTracks()[0];
@@ -392,6 +396,11 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       };
       setDeviceReady(true);
       setPermissionError(null);
+      void navigator.mediaDevices.enumerateDevices().then(devices => {
+        const inputs = devices.filter(device => device.kind === 'audioinput');
+        setAudioInputs(inputs);
+        if (!audioInputId && inputs[0]?.deviceId) setAudioInputId(inputs[0].deviceId);
+      }).catch(() => undefined);
       return s;
     } catch (error) {
       setDeviceReady(false);
@@ -982,6 +991,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       const analyser = audioContext.createAnalyser();
       analyser.fftSize = 512;
       commentary.connect(analyser).connect(commentaryGain).connect(productionMasterGainRef.current);
+      productionCommentarySourceRef.current = commentary;
       productionCommentaryGainRef.current = commentaryGain;
       productionCommentaryAnalyserRef.current = analyser;
       productionCommentaryMeterRef.current = analyser;
@@ -1406,7 +1416,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
           description: broadcastDescription,
           category: broadcastCategory,
           is_live: false,
-          tv_provider: 'youtube',
+          tv_provider: youtubeEnabled ? 'youtube' : 'testagram',
         }).select('id,title,description,category,is_live,tv_provider').single();
         if (error || !data) throw new Error(error?.message || 'Could not create broadcast.');
         id = data.id;
@@ -1418,50 +1428,48 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       setBroadcastStage('connecting');
       const { data: auth } = await supabase.auth.getSession();
       const headers = { 'Content-Type': 'application/json', ...(auth.session?.access_token ? { Authorization: `Bearer ${auth.session.access_token}` } : {}) };
+      const outputProvider = youtubeEnabled ? 'youtube' : 'testagram';
       const startResponse = await fetch('/api/live', {
         method: 'POST',
         headers,
-        body: JSON.stringify({ action: 'start', provider: 'youtube', stream_id: id }),
+        body: JSON.stringify({ action: 'start', provider: outputProvider, stream_id: id }),
       });
       const startPayload = await startResponse.json().catch(() => null);
-      const provider = 'youtube' as const;
-      const youtubeStart = startPayload?.data?.youtube;
-      const youtubeToken = typeof youtubeStart?.encoder_token === 'string' ? youtubeStart.encoder_token : '';
-      if (!startResponse.ok || !youtubeToken) {
-        throw new Error(String(startPayload?.error?.message || 'YouTube live delivery could not be started.'));
+      if (!startResponse.ok) {
+        throw new Error(String(startPayload?.error?.message || (youtubeEnabled ? 'YouTube setup failed. Turn off optional YouTube delivery to continue on Testagram.' : 'Testagram TV could not be started.')));
       }
 
-      session = await TestagramTvYouTubeSession.connect({
-        streamId: id,
-        encoderToken: youtubeToken,
-        program,
-        quality,
-
-        videoBitsPerSecond: VIDEO_PRESETS[quality].bitrate,
-        onStatus: (next, detail) => {
-          setBroadcastDiagnostics(prev => ({
-            ...(prev || {}),
-            provider: 'youtube',
-            encoder_status: next,
-            youtube_status: next,
-            detail: detail || null,
-          }));
-          if (next === 'reconnecting') setBroadcastStage('connecting');
-        },
-      });
-
-      roomRef.current = session;
-
-      // Testagram-native public delivery runs alongside YouTube. It is deliberately
-      // capped to a small host-fanout ceiling; larger audiences use the CDN-backed
-      // YouTube path instead of turning one broadcaster's browser into a media CDN.
-      try {
-        const nativeSession = await TestagramTvMediaSession.connectHostExisting(id, program);
-        nativeSession.setViewerCountHandler?.((count) => setViewerCount(count));
-        nativeViewerRoomRef.current = nativeSession;
-        setBroadcastDiagnostics(prev => ({ ...(prev || {}), native_public_media: 'ready', native_viewer_limit: 20 }));
-      } catch (nativeError) {
-        setBroadcastDiagnostics(prev => ({ ...(prev || {}), native_public_media: 'degraded', native_public_media_error: nativeError instanceof Error ? nativeError.message : String(nativeError) }));
+      if (youtubeEnabled) {
+        const youtubeStart = startPayload?.data?.youtube;
+        const youtubeToken = typeof youtubeStart?.encoder_token === 'string' ? youtubeStart.encoder_token : '';
+        if (!youtubeToken) throw new Error(String(startPayload?.error?.message || 'YouTube did not issue an encoder token. Turn off optional YouTube delivery to broadcast on Testagram only.'));
+        session = await TestagramTvYouTubeSession.connect({
+          streamId: id,
+          encoderToken: youtubeToken,
+          program,
+          quality,
+          videoBitsPerSecond: VIDEO_PRESETS[quality].bitrate,
+          onStatus: (next, detail) => {
+            setBroadcastDiagnostics(prev => ({ ...(prev || {}), provider: 'youtube', encoder_status: next, youtube_status: next, detail: detail || null }));
+            if (next === 'reconnecting') setBroadcastStage('connecting');
+          },
+        });
+        roomRef.current = session;
+        // Native Testagram viewing is an additional low-latency path when YouTube is also enabled.
+        try {
+          const nativeSession = await TestagramTvMediaSession.connectHostExisting(id, program);
+          nativeSession.setViewerCountHandler?.((count) => setViewerCount(count));
+          nativeViewerRoomRef.current = nativeSession;
+          setBroadcastDiagnostics(prev => ({ ...(prev || {}), native_public_media: 'ready', native_viewer_limit: 20 }));
+        } catch (nativeError) {
+          setBroadcastDiagnostics(prev => ({ ...(prev || {}), native_public_media: 'degraded', native_public_media_error: nativeError instanceof Error ? nativeError.message : String(nativeError) }));
+        }
+      } else {
+        // Testagram-only delivery is the primary path; YouTube is never contacted.
+        session = await TestagramTvMediaSession.connectHostExisting(id, program);
+        session.setViewerCountHandler?.((count) => setViewerCount(count));
+        roomRef.current = session;
+        setBroadcastDiagnostics(prev => ({ ...(prev || {}), provider: 'testagram', native_public_media: 'ready', native_viewer_limit: 20, youtube_status: 'disabled' }));
       }
 
       // Guest WebRTC is an optional interactive feature. It must never block
@@ -1566,12 +1574,12 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
           setYoutubeStatus(String(youtube.status || 'disabled'));
           setBroadcastDiagnostics(prev => ({
             ...(prev || {}),
-            provider: 'youtube',
+            provider: outputProvider,
             encoder_status: roomRef.current?.getStatus?.() || 'encoding',
-            youtube_status: youtube.status || 'disabled',
-            youtube_stream_status: verifyPayload.data.youtube_stream_status || youtube.stream_status || null,
-            youtube_broadcast_status: verifyPayload.data.youtube_broadcast_status || youtube.broadcast_status || null,
-            youtube_error: youtube.error || null,
+            youtube_status: outputProvider === 'youtube' ? (youtube.status || 'disabled') : 'disabled',
+            youtube_stream_status: outputProvider === 'youtube' ? (verifyPayload.data.youtube_stream_status || youtube.stream_status || null) : null,
+            youtube_broadcast_status: outputProvider === 'youtube' ? (verifyPayload.data.youtube_broadcast_status || youtube.broadcast_status || null) : null,
+            youtube_error: outputProvider === 'youtube' ? (youtube.error || null) : null,
             on_air: Boolean(verifyPayload.data.on_air),
           }));
           if (verifyPayload.data.on_air) {
@@ -1595,7 +1603,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       setStatus('live');
       setElapsed(0);
       setBroadcastError(null);
-      toast.success(`Testagram TV is ON AIR · YouTube: ${youtubeStatus}`);
+      toast.success(outputProvider === 'youtube' ? `Testagram TV is ON AIR · YouTube: ${youtubeStatus}` : 'Testagram TV is ON AIR · YouTube delivery is disabled.');
     } catch (e: any) {
       if (guestSession) await guestSession.close().catch(() => undefined);
       if (nativeViewerRoomRef.current) { await nativeViewerRoomRef.current.close().catch(() => undefined); nativeViewerRoomRef.current = null; }
@@ -1784,6 +1792,9 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
     try {
       await ensureStudio();
       const program = await createProductionProgram();
+      const programVideo = program.getVideoTracks().find(track => track.readyState === 'live');
+      const programAudio = program.getAudioTracks().find(track => track.readyState === 'live');
+      if (!programVideo || !programAudio) throw new Error('The local recording bus needs live Program video and mixed audio. Start Preview and select an active microphone/soundcard input first.');
       const preset = VIDEO_PRESETS[quality];
       const mime = [
         'video/webm;codecs=vp9,opus',
@@ -2556,6 +2567,17 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
               <select value={quality} disabled={live || recording} onChange={e => setQuality(e.target.value as Quality)} className="w-full mt-1 rounded-lg bg-zinc-800 p-2">
                 <option value="4k">4K UHD (local capture)</option><option value="1440p">1440p QHD (local capture)</option><option value="1080p">1080p Full HD · live output</option><option value="720p">720p HD</option><option value="480p">480p</option>
               </select>
+              <label className="mt-3 flex items-start gap-2 rounded-lg border border-white/10 bg-black/20 p-3 text-sm">
+                <input type="checkbox" checked={youtubeEnabled} disabled={live || broadcastStage !== 'idle'} onChange={e => setYoutubeEnabled(e.target.checked)} className="mt-1 accent-red-500" />
+                <span><span className="block font-semibold">Also deliver to YouTube (optional)</span><span className="block text-xs text-zinc-400">Off by default. Testagram live and local recording work without YouTube credentials or availability.</span></span>
+              </label>
+              <label className="mt-3 block text-xs text-zinc-400">Audio input / soundcard
+                <select value={audioInputId} disabled={live || recording} onChange={e => { void switchAudioInput(e.target.value); }} className="mt-1 w-full rounded-lg bg-zinc-800 p-2 text-sm text-white">
+                  <option value="">System default input</option>
+                  {audioInputs.map(device => <option key={device.deviceId} value={device.deviceId}>{device.label || `Audio input ${device.deviceId.slice(0, 6)}`}</option>)}
+                </select>
+                <span className="mt-1 block text-[10px] text-zinc-500">Choose the soundcard/mixer input carrying your voice. Browser permission is required; system playback capture is not automatic.</span>
+              </label>
               <div className="mt-4 grid grid-cols-2 gap-2 text-xs">
                 <div className="rounded-lg bg-black/30 p-2"><Activity className="w-3.5 h-3.5 mb-1 text-emerald-400" /><span>{quality === '4k' ? '4K UHD' : quality}</span><p className="text-zinc-500">{quality === '4k' || quality === '1440p' ? 'capture · live capped at 1080p' : 'capture + live output'}</p></div>
                 <div className="rounded-lg bg-black/30 p-2"><Mic className="w-3.5 h-3.5 mb-1 text-emerald-400" /><span>48 kHz</span><p className="text-zinc-500">processed audio</p></div>
