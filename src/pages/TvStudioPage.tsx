@@ -158,7 +158,8 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
   const [activeStreamId, setActiveStreamId] = useState<string | null>(streamId ?? null);
   const [mode, setMode] = useState<Mode>('studio');
   const [recording, setRecording] = useState(false);
-  const [youtubeEnabled, setYoutubeEnabled] = useState(false);
+  // Testagram TV is live-only. External delivery is disabled to avoid third-party archives.
+  const youtubeEnabled = false;
   const [audioInputs, setAudioInputs] = useState<MediaDeviceInfo[]>([]);
   const [audioInputId, setAudioInputId] = useState('');
   const [live, setLive] = useState(false);
@@ -1429,7 +1430,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
           description: broadcastDescription,
           category: broadcastCategory,
           is_live: false,
-          tv_provider: youtubeEnabled ? 'youtube' : 'testagram',
+          tv_provider: 'testagram',
         }).select('id,title,description,category,is_live,tv_provider').single();
         if (error || !data) throw new Error(error?.message || 'Could not create broadcast.');
         id = data.id;
@@ -1765,7 +1766,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
       let streamId = activeStreamId || stream?.id || null;
       if (!streamId) {
         if (!user) { toast.info('Sign in to invite a guest.'); return; }
-        const { data, error } = await supabase.from('live_streams').insert({ user_id: user.id, title: broadcastTitle, description: broadcastDescription, category: broadcastCategory, is_live: false, tv_provider: 'youtube' }).select('id,title,description,category,is_live,tv_provider').single();
+        const { data, error } = await supabase.from('live_streams').insert({ user_id: user.id, title: broadcastTitle, description: broadcastDescription, category: broadcastCategory, is_live: false, tv_provider: 'testagram' }).select('id,title,description,category,is_live,tv_provider').single();
         if (error || !data) throw new Error(error?.message || 'Could not prepare a TV preview session.');
         streamId = data.id; setActiveStreamId(streamId); setStream(data);
       }
@@ -2305,7 +2306,7 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
               {live && <span className="px-2 py-1 rounded-full bg-red-600 text-xs font-bold animate-pulse">LIVE</span>}{live && <Button size="sm" variant="outline" onClick={() => void shareLiveLink()}><Radio className="w-4 h-4 mr-1" />Share TV</Button>}
               {recording && <span className="px-2 py-1 rounded-full bg-zinc-700/50 text-xs font-bold">REC {fmt(elapsed)}</span>}
             </div>
-            <p className="text-sm text-zinc-400 mt-1">Broadcast live to Testagram. Finished recordings stay on your phone/computer — never in Testagram storage.</p>
+            <p className="text-sm text-zinc-400 mt-1">Live video is not saved by Testagram. Only use REC to device to save a recording on this device; no cloud replay or automatic archive is created.</p>
           </div>
           <div className="flex items-center gap-2"><Button size="sm" variant="outline" onClick={() => void toggleLandscape()}>Landscape</Button><Button variant="outline" onClick={() => nav('/spaces')}>Exit</Button></div>
         </header>
@@ -2623,8 +2624,8 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
                 <option value="4k">4K UHD (local capture)</option><option value="1440p">1440p QHD (local capture)</option><option value="1080p">1080p Full HD · live output</option><option value="720p">720p HD</option><option value="480p">480p</option>
               </select>
               <label className="mt-3 flex items-start gap-2 rounded-lg border border-white/10 bg-black/20 p-3 text-sm">
-                <input type="checkbox" checked={youtubeEnabled} disabled={live || broadcastStage !== 'idle'} onChange={e => setYoutubeEnabled(e.target.checked)} className="mt-1 accent-red-500" />
-                <span><span className="block font-semibold">Also deliver to YouTube (optional)</span><span className="block text-xs text-zinc-400">Off by default. Testagram live and local recording work without YouTube credentials or availability.</span></span>
+                <span className="mt-1 inline-flex h-4 w-4 items-center justify-center rounded border border-emerald-500 text-emerald-400">✓</span>
+                <span><span className="block font-semibold">Live-only delivery</span><span className="block text-xs text-zinc-400">Broadcast is watched live on Testagram. No cloud replay or automatic archive. Use REC to device to keep a local copy.</span></span>
               </label>
               <label className="mt-3 block text-xs text-zinc-400">Audio input / soundcard
                 <select value={audioInputId} disabled={live || recording} onChange={e => { void switchAudioInput(e.target.value); }} className="mt-1 w-full rounded-lg bg-zinc-800 p-2 text-sm text-white">
