@@ -117,16 +117,13 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
           'Wallet PIN could not be verified. No M-Pesa prompt was requested.');
       return;
     }
+    if (!mounted) return;
     final accepted = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Request M-Pesa payment'),
         content: Text(
-          'Request KES ' +
-              amount.toStringAsFixed(0) +
-              ' from ' +
-              phone +
-              '. Confirm the payment prompt on your phone. Funds are added only after the provider callback is verified.',
+          'Request KES \${amount.toStringAsFixed(0)} from $phone. Confirm the payment prompt on your phone. Funds are added only after the provider callback is verified.',
         ),
         actions: [
           TextButton(
@@ -177,8 +174,7 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
       setState(() {
         _submitting = false;
         _status = 'failed';
-        _message = 'Could not confirm the M-Pesa request: ' +
-            error.toString().replaceFirst('Bad state: ', '');
+        _message = 'Could not confirm the M-Pesa request: \${error.toString().replaceFirst('Bad state: ', '')}';
       });
     }
   }
@@ -203,8 +199,9 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
     final checkout = _checkoutId;
     if (checkout == null || checkout.isEmpty || _checkingStatus) return;
     _checkingStatus = true;
-    if (!silent && mounted)
+    if (!silent && mounted) {
       setState(() => _message = 'Checking provider status…');
+    }
     try {
       final response = await _client.functions.invoke(
         'mpesa-stk-status',
@@ -212,9 +209,9 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
       );
       final data = response.data;
       if (response.status >= 400 || data is! Map || data['ok'] != true) {
-        if (!silent && mounted)
-          setState(() => _message =
-              'Status is not confirmed yet. Retry the status check.');
+        if (!silent && mounted) {
+          setState(() => _message = 'Status is not confirmed yet. Retry the status check.');
+        }
         return;
       }
       final status = (data['status'] ?? 'pending').toString().toLowerCase();
@@ -236,17 +233,16 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
         _pollTimer?.cancel();
         setState(() {
           _status = 'failed';
-          _message =
-              'Payment status: ' + status + '. No successful top-up is shown.';
+          _message = 'Payment status: $status. No successful top-up is shown.';
         });
       } else if (!silent) {
         setState(() => _message =
             'Payment is still pending. Complete the prompt on your phone and check again.');
       }
     } catch (_) {
-      if (!silent && mounted)
-        setState(() => _message =
-            'Could not check payment status. The payment remains unconfirmed.');
+      if (!silent && mounted) {
+        setState(() => _message = 'Could not check payment status. The payment remains unconfirmed.');
+      }
     } finally {
       _checkingStatus = false;
     }
@@ -403,7 +399,7 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
               ),
             ),
           if (_checkoutId != null)
-            SelectableText('Checkout request: ' + _checkoutId!,
+            SelectableText('Checkout request: $_checkoutId',
                 style: theme.textTheme.bodySmall),
           const SizedBox(height: 12),
           const Text(
