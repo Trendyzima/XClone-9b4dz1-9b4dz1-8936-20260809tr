@@ -139,6 +139,19 @@ class _TestagramAppState extends State<TestagramApp> {
           routes: [
             GoRoute(path: '/', builder: (_, __) => const FeedPage()),
             GoRoute(path: '/explore', builder: (_, __) => const ExplorePage()),
+            // Historical discovery URLs resolve to native Flutter search.
+            // Route-specific filters remain partial until separately ported.
+            GoRoute(path: '/search', builder: (_, __) => const ExplorePage()),
+            GoRoute(path: '/discover', builder: (_, __) => const ExplorePage()),
+            GoRoute(
+                path: '/discover/suggested',
+                builder: (_, __) => const ExplorePage()),
+            GoRoute(
+                path: '/discover/popular',
+                builder: (_, __) => const ExplorePage()),
+            GoRoute(
+                path: '/discover/fediverse',
+                builder: (_, __) => const FediversePage()),
             GoRoute(path: '/threads', builder: (_, __) => const ThreadsPage()),
             GoRoute(
                 path: '/communities',
@@ -177,6 +190,11 @@ class _TestagramAppState extends State<TestagramApp> {
                     threadId: state.pathParameters['threadId'] ?? '',
                     repliesOnly: true)),
             GoRoute(path: '/tv', builder: (_, __) => const TvPage()),
+            // Legacy IPTV/channel entry points share the native TV catalogue
+            // and player while provider-specific parity is verified.
+            GoRoute(path: '/iptv', builder: (_, __) => const TvPage()),
+            GoRoute(path: '/tv/channels', builder: (_, __) => const TvPage()),
+            GoRoute(path: '/tv/reels', builder: (_, __) => const TvPage()),
             GoRoute(path: '/videos', builder: (_, __) => const VideosPage()),
             GoRoute(
                 path: '/shorts',
@@ -204,6 +222,7 @@ class _TestagramAppState extends State<TestagramApp> {
                 path: '/p/:productId',
                 builder: (_, state) =>
                     ProductsPage(productId: state.pathParameters['productId'])),
+            GoRoute(path: '/shop', builder: (_, __) => const ProductsPage()),
             GoRoute(path: '/orders', builder: (_, __) => const OrdersPage()),
             GoRoute(
                 path: '/create-ad',
@@ -228,6 +247,15 @@ class _TestagramAppState extends State<TestagramApp> {
             GoRoute(path: '/news', builder: (_, __) => const NewsPage()),
             GoRoute(
                 path: '/fediverse', builder: (_, __) => const FediversePage()),
+            GoRoute(
+                path: '/fediverse/feed',
+                builder: (_, __) => const FediversePage()),
+            GoRoute(
+                path: '/fediverse/discover',
+                builder: (_, __) => const FediversePage()),
+            GoRoute(
+                path: '/fediverse/organic-discovery',
+                builder: (_, __) => const FediversePage()),
             GoRoute(
                 path: '/fediverse/instances',
                 builder: (_, __) => const FediversePage(instancesOnly: true)),
