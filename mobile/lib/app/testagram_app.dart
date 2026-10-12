@@ -36,6 +36,7 @@ import '../features/news/news_article_page.dart';
 import '../features/fediverse/fediverse_page.dart';
 import '../features/spaces/spaces_page.dart';
 import '../features/native_route/native_feature_page.dart';
+import '../features/wallet/wallet_page.dart';
 import 'testagram_shell.dart';
 
 class TestagramApp extends StatefulWidget {
@@ -1324,11 +1325,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/wallet',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Wallet',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const WalletPage(),
             ),
             GoRoute(
               path: '/wallet/analytics',
@@ -1348,11 +1345,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/wallet/history',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Wallet History',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const WalletPage(showHistory: true),
             ),
             GoRoute(
               path: '/wallet/mpesa',
