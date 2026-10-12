@@ -45,6 +45,8 @@
     "/products",
     "/profile",
     "/profile/:username",
+    "/profile/:username/followers",
+    "/profile/:username/following",
     "/search",
     "/settings",
     "/setup",
@@ -68,8 +70,8 @@
   "counts": {
     "unique_source_routes_including_wildcard": 212,
     "source_routes_excluding_wildcard": 211,
-    "native_route_matches": 59,
-    "legacy_web_fallbacks": 152
+    "native_route_matches": 61,
+    "legacy_web_fallbacks": 150
   },
   "routes": [
     {
@@ -825,14 +827,14 @@
     {
       "path": "/profile/:username/followers",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/profile/:username/following",
       "domain": "social",
-      "status": "legacy_web_fallback",
-      "note": "No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/profile/:username/gifts",

@@ -302,6 +302,16 @@ class _TestagramAppState extends State<TestagramApp> {
                 path: '/messages', builder: (_, __) => const MessagesPage()),
             GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
             GoRoute(
+                path: '/profile/:username/followers',
+                builder: (_, state) => ProfilePage(
+                    username: state.pathParameters['username'],
+                    section: 'followers')),
+            GoRoute(
+                path: '/profile/:username/following',
+                builder: (_, state) => ProfilePage(
+                    username: state.pathParameters['username'],
+                    section: 'following')),
+            GoRoute(
                 path: '/profile/:username',
                 builder: (_, state) =>
                     ProfilePage(username: state.pathParameters['username'])),
