@@ -5,6 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'session_policy.dart';
+import 'session_envelope_policy.dart';
 
 /// Secure session persistence on Android; browser localStorage on Flutter Web.
 /// The original sign-in timestamp is preserved across refresh-token writes so
@@ -91,9 +92,10 @@ class TestagramSessionStorage extends LocalStorage {
   @override
   Future<void> persistSession(String persistSessionString) async {
     final now = DateTime.now();
-    var startedAt = now;
     final incoming = jsonDecode(persistSessionString);
     final incomingUserId = _userIdOf(incoming);
+    DateTime? previousStartedAt;
+    Object? previousUserId;
     final existingRaw = await _read();
     if (existingRaw != null) {
       try {
@@ -102,18 +104,20 @@ class TestagramSessionStorage extends LocalStorage {
         final previous = previousSession is String
             ? jsonDecode(previousSession)
             : previousSession;
-        final previousUserId = _userIdOf(previous);
-        final previousStartedAt = DateTime.fromMillisecondsSinceEpoch(
+        previousUserId = _userIdOf(previous);
+        previousStartedAt = DateTime.fromMillisecondsSinceEpoch(
           (existing['started_at_ms'] as num).toInt(),
         );
-        if (incomingUserId == previousUserId &&
-            !SessionPolicy.isExpired(startedAt: previousStartedAt, now: now)) {
-          startedAt = previousStartedAt;
-        }
       } catch (_) {
         // A malformed previous envelope starts a clean, new session clock.
       }
     }
+    final startedAt = SessionEnvelopePolicy.resolveStartedAt(
+      now: now,
+      previousStartedAt: previousStartedAt,
+      previousUserId: previousUserId,
+      incomingUserId: incomingUserId,
+    );
     if (SessionPolicy.isExpired(startedAt: startedAt, now: now)) {
       await removePersistedSession();
       return;
