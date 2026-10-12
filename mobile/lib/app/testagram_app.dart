@@ -503,6 +503,86 @@ class _TestagramAppState extends State<TestagramApp> {
                 section: 'following',
               ),
             ),
+            // Preserve the web client's distinct profile section deep links.
+            // These use the native profile data layer rather than falling
+            // through to the generic "screen still being migrated" handler.
+            GoRoute(
+              path: '/profile/:username/posts',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'posts',
+              ),
+            ),
+            GoRoute(
+              path: '/profile/:username/threads',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'threads',
+              ),
+            ),
+            GoRoute(
+              path: '/profile/:username/replies',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'replies',
+              ),
+            ),
+            GoRoute(
+              path: '/profile/:username/media',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'media',
+              ),
+            ),
+            GoRoute(
+              path: '/profile/:username/videos',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'videos',
+              ),
+            ),
+            GoRoute(
+              path: '/profile/:username/likes',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'likes',
+              ),
+            ),
+            GoRoute(
+              path: '/profile/:username/podcasts',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'podcasts',
+              ),
+            ),
+            GoRoute(
+              path: '/profile/:username/series',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'series',
+              ),
+            ),
+            GoRoute(
+              path: '/profile/:username/tips',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'tips',
+              ),
+            ),
+            GoRoute(
+              path: '/profile/:username/gifts',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'gifts',
+              ),
+            ),
+            GoRoute(
+              path: '/profile/:username/analytics',
+              builder: (_, state) => ProfilePage(
+                username: state.pathParameters['username'],
+                section: 'analytics',
+              ),
+            ),
             GoRoute(
               path: '/profile/:username',
               builder: (_, state) =>
