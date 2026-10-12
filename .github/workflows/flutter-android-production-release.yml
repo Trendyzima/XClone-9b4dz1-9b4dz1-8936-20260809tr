@@ -1,0 +1,127 @@
+name: Flutter Android Production-Signed Release Gate
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flutter-android-production-release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and verify production-signed Flutter APK and AAB
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Check out exact release commit
+        uses: actions/checkout@v4
+
+      - name: Require production signing material and pinned certificate
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.TESTAGRAM_ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.TESTAGRAM_ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.TESTAGRAM_ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.TESTAGRAM_ANDROID_KEY_PASSWORD }}
+          EXPECTED_CERT_SHA256: ${{ vars.TESTAGRAM_ANDROID_CERT_SHA256 }}
+        run: |
+          set -euo pipefail
+          for name in KEYSTORE_BASE64 KEYSTORE_PASSWORD KEY_ALIAS KEY_PASSWORD EXPECTED_CERT_SHA256; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing ${name}. Configure the production Android signing secret/variable before running this release gate."
+              exit 1
+            fi
+          done
+          mkdir -p "${RUNNER_TEMP}/testagram-signing"
+          printf '%s' "${KEYSTORE_BASE64}" | base64 --decode > "${RUNNER_TEMP}/testagram-signing/release.jks"
+          test -s "${RUNNER_TEMP}/testagram-signing/release.jks"
+          echo "TESTAGRAM_ANDROID_KEYSTORE_PATH=${RUNNER_TEMP}/testagram-signing/release.jks" >> "${GITHUB_ENV}"
+          echo "Production signing material is present; secret values will not be logged."
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Resolve dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Enforce format, analyze and test
+        working-directory: mobile
+        run: |
+          set -euo pipefail
+          dart format --output=none --set-exit-if-changed lib test
+          flutter analyze --fatal-infos --fatal-warnings
+          flutter test --coverage
+
+      - name: Build production-signed APK and App Bundle
+        working-directory: mobile
+        env:
+          TESTAGRAM_ANDROID_KEYSTORE_PASSWORD: ${{ secrets.TESTAGRAM_ANDROID_KEYSTORE_PASSWORD }}
+          TESTAGRAM_ANDROID_KEY_ALIAS: ${{ secrets.TESTAGRAM_ANDROID_KEY_ALIAS }}
+          TESTAGRAM_ANDROID_KEY_PASSWORD: ${{ secrets.TESTAGRAM_ANDROID_KEY_PASSWORD }}
+          SUPABASE_URL: ${{ vars.TESTAGRAM_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co' }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.TESTAGRAM_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya' }}
+        run: |
+          set -euo pipefail
+          flutter build apk --release \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define=TESTAGRAM_SITE_URL=https://testagram.site
+          flutter build appbundle --release \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define=TESTAGRAM_SITE_URL=https://testagram.site
+
+      - name: Verify signatures, package identity and pinned production certificate
+        working-directory: mobile
+        env:
+          EXPECTED_CERT_SHA256: ${{ vars.TESTAGRAM_ANDROID_CERT_SHA256 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          AAB="build/app/outputs/bundle/release/app-release.aab"
+          test -s "$APK"
+          test -s "$AAB"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          test -x "$APKSIGNER"
+          "$APKSIGNER" verify --verbose "$APK"
+          ACTUAL_CERT="$( "$APKSIGNER" verify --print-certs "$APK" | sed -n 's/.*certificate SHA-256 digest: //p' | head -n 1 | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]' )"
+          EXPECTED_CERT="$(printf '%s' "$EXPECTED_CERT_SHA256" | tr -d ':[:space:]' | tr '[:lower:]' '[:upper:]')"
+          test -n "$ACTUAL_CERT"
+          if [ "$ACTUAL_CERT" != "$EXPECTED_CERT" ]; then
+            echo "::error::APK certificate fingerprint does not match TESTAGRAM_ANDROID_CERT_SHA256."
+            exit 1
+          fi
+          jarsigner -verify -certs "$AAB"
+          APKANALYZER="$(find "$ANDROID_HOME" -type f -name apkanalyzer | head -n 1)"
+          test -x "$APKANALYZER"
+          "$APKANALYZER" manifest application-id "$APK" | grep -Fx 'com.xclone.app'
+          sha256sum "$APK" "$AAB"
+          echo "APK and AAB signatures, package ID and pinned production certificate verified."
+
+      - name: Upload verified production-signed release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: testagram-flutter-android-release-${{ github.sha }}
+          path: |
+            mobile/build/app/outputs/flutter-apk/app-release.apk
+            mobile/build/app/outputs/bundle/release/app-release.aab
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Remove signing material
+        if: always()
+        run: rm -rf "${RUNNER_TEMP}/testagram-signing"
