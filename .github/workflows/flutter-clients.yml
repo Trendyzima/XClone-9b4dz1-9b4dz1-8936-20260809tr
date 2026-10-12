@@ -73,23 +73,9 @@ jobs:
       - name: Resolve Flutter dependencies
         working-directory: mobile
         run: flutter pub get
-      - name: Enforce formatting and capture formatter output for changed native screens
+      - name: Enforce formatting
         working-directory: mobile
-        run: |
-          dart format --output=write lib test
-          echo 'FORMAT_DUMP_POST_BEGIN'
-          cat lib/features/feed/post_detail_page.dart
-          echo 'FORMAT_DUMP_POST_END'
-          echo 'FORMAT_DUMP_NEWS_BEGIN'
-          cat lib/features/news/news_article_page.dart
-          echo 'FORMAT_DUMP_NEWS_END'
-          echo 'FORMAT_DUMP_HISTORY_BEGIN'
-          cat lib/features/profile/history_page.dart
-          echo 'FORMAT_DUMP_HISTORY_END'
-          echo 'FORMAT_DUMP_BOOKMARKS_BEGIN'
-          cat lib/features/profile/bookmarks_page.dart
-          echo 'FORMAT_DUMP_BOOKMARKS_END'
-          dart format --output=none --set-exit-if-changed lib test
+        run: dart format --output=none --set-exit-if-changed lib test
       - name: Analyze Flutter source
         working-directory: mobile
         run: flutter analyze --fatal-infos --fatal-warnings

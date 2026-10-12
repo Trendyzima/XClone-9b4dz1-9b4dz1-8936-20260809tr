@@ -45,12 +45,10 @@ class _NewsArticlePageState extends State<NewsArticlePage> {
       final endpoint = Uri.parse(AppConfig.supabaseUrl)
           .resolve('/functions/v1/testagram-rss-feed')
           .replace(queryParameters: {'id': widget.articleId});
-      final response = await http
-          .get(endpoint, headers: {
-            'Accept': 'application/json',
-            'apikey': AppConfig.supabasePublishableKey,
-          })
-          .timeout(const Duration(seconds: 15));
+      final response = await http.get(endpoint, headers: {
+        'Accept': 'application/json',
+        'apikey': AppConfig.supabasePublishableKey,
+      }).timeout(const Duration(seconds: 15));
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw Exception('The publisher feed returned ${response.statusCode}.');
       }

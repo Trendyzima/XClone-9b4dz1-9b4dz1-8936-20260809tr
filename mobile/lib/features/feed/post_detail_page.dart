@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -66,14 +65,17 @@ class _PostDetailPageState extends State<PostDetailPage> {
           .isFilter('deleted_at', null)
           .maybeSingle()
           .timeout(const Duration(seconds: 15));
-      if (post == null) throw StateError('This post was deleted or is unavailable.');
+      if (post == null) {
+        throw StateError('This post was deleted or is unavailable.');
+      }
 
       final authorId = '${post['author_id'] ?? post['user_id'] ?? ''}';
       final profile = authorId.isEmpty
           ? null
           : await _db
               .from('profiles')
-              .select('id,username,display_name,avatar_url,verified,verified_tier')
+              .select(
+                  'id,username,display_name,avatar_url,verified,verified_tier')
               .eq('id', authorId)
               .maybeSingle()
               .timeout(const Duration(seconds: 12));
@@ -113,12 +115,25 @@ class _PostDetailPageState extends State<PostDetailPage> {
       var reposted = false;
       if (uid != null) {
         final interactions = await Future.wait([
-          _db.from('post_reactions').select('id').eq('user_id', uid)
-              .eq('post_id', widget.postId).eq('emoji', '❤️').limit(1),
-          _db.from('bookmarks').select('post_id').eq('user_id', uid)
-              .eq('post_id', widget.postId).limit(1),
-          _db.from('reposts').select('post_id').eq('user_id', uid)
-              .eq('post_id', widget.postId).limit(1),
+          _db
+              .from('post_reactions')
+              .select('id')
+              .eq('user_id', uid)
+              .eq('post_id', widget.postId)
+              .eq('emoji', '❤️')
+              .limit(1),
+          _db
+              .from('bookmarks')
+              .select('post_id')
+              .eq('user_id', uid)
+              .eq('post_id', widget.postId)
+              .limit(1),
+          _db
+              .from('reposts')
+              .select('post_id')
+              .eq('user_id', uid)
+              .eq('post_id', widget.postId)
+              .limit(1),
         ]);
         liked = (interactions[0] as List).isNotEmpty;
         bookmarked = (interactions[1] as List).isNotEmpty;
@@ -138,7 +153,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
       setState(() {
         _post = {
           ...Map<String, dynamic>.from(post),
-          'profile': profile == null ? null : Map<String, dynamic>.from(profile),
+          'profile':
+              profile == null ? null : Map<String, dynamic>.from(profile),
         };
         _replies = replies;
         _liked = liked;
@@ -174,8 +190,12 @@ class _PostDetailPageState extends State<PostDetailPage> {
     });
     try {
       if (previous) {
-        await _db.from('post_reactions').delete().eq('user_id', uid)
-            .eq('post_id', widget.postId).eq('emoji', '❤️');
+        await _db
+            .from('post_reactions')
+            .delete()
+            .eq('user_id', uid)
+            .eq('post_id', widget.postId)
+            .eq('emoji', '❤️');
       } else {
         await _db.from('post_reactions').upsert(
           {'user_id': uid, 'post_id': widget.postId, 'emoji': '❤️'},
@@ -186,8 +206,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
       if (mounted) {
         setState(() {
           _liked = previous;
-          post['likes_count'] =
-              ((post['likes_count'] as num?)?.toInt() ?? 0) + (previous ? 1 : -1);
+          post['likes_count'] = ((post['likes_count'] as num?)?.toInt() ?? 0) +
+              (previous ? 1 : -1);
         });
         _showMessage('Could not update like. Please retry.');
       }
@@ -208,11 +228,15 @@ class _PostDetailPageState extends State<PostDetailPage> {
     });
     try {
       if (previous) {
-        await _db.from('bookmarks').delete().eq('user_id', uid)
+        await _db
+            .from('bookmarks')
+            .delete()
+            .eq('user_id', uid)
             .eq('post_id', widget.postId);
       } else {
-        await _db.from('bookmarks').insert(
-            {'user_id': uid, 'post_id': widget.postId});
+        await _db
+            .from('bookmarks')
+            .insert({'user_id': uid, 'post_id': widget.postId});
       }
     } catch (_) {
       if (mounted) {
@@ -236,23 +260,28 @@ class _PostDetailPageState extends State<PostDetailPage> {
     setState(() {
       _busy = true;
       _reposted = !previous;
-      post['reposts_count'] = ((post['reposts_count'] as num?)?.toInt() ?? 0) +
-          (previous ? -1 : 1);
+      post['reposts_count'] =
+          ((post['reposts_count'] as num?)?.toInt() ?? 0) + (previous ? -1 : 1);
     });
     try {
       if (previous) {
-        await _db.from('reposts').delete().eq('user_id', uid)
+        await _db
+            .from('reposts')
+            .delete()
+            .eq('user_id', uid)
             .eq('post_id', widget.postId);
       } else {
-        await _db.from('reposts').insert(
-            {'user_id': uid, 'post_id': widget.postId});
+        await _db
+            .from('reposts')
+            .insert({'user_id': uid, 'post_id': widget.postId});
       }
     } catch (_) {
       if (mounted) {
         setState(() {
           _reposted = previous;
           post['reposts_count'] =
-              ((post['reposts_count'] as num?)?.toInt() ?? 0) + (previous ? 1 : -1);
+              ((post['reposts_count'] as num?)?.toInt() ?? 0) +
+                  (previous ? 1 : -1);
         });
         _showMessage('Could not update repost. Please retry.');
       }
@@ -286,12 +315,15 @@ class _PostDetailPageState extends State<PostDetailPage> {
   }
 
   Future<void> _sharePost() async {
-    final body = _post?['content']?.toString() ?? 'Check out this post on Testagram';
-    await Share.share('$body\nhttps://testagram.site/post/${widget.postId}', subject: 'Testagram post');
+    final body =
+        _post?['content']?.toString() ?? 'Check out this post on Testagram';
+    await Share.share('$body\nhttps://testagram.site/post/${widget.postId}',
+        subject: 'Testagram post');
   }
 
   void _showMessage(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _initial(String value) =>
@@ -299,7 +331,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
 
   Future<void> _openMedia(String raw) async {
     final uri = Uri.tryParse(raw);
-    if (uri == null || !{'https', 'http'}.contains(uri.scheme) || uri.host.isEmpty) {
+    if (uri == null ||
+        !{'https', 'http'}.contains(uri.scheme) ||
+        uri.host.isEmpty) {
       _showMessage('This media link is invalid.');
       return;
     }
@@ -311,14 +345,18 @@ class _PostDetailPageState extends State<PostDetailPage> {
   Widget build(BuildContext context) {
     final post = _post;
     final profile = post?['profile'] as Map<String, dynamic>? ?? {};
-    final name = '${profile['display_name'] ?? profile['username'] ?? 'Testagram user'}';
+    final name =
+        '${profile['display_name'] ?? profile['username'] ?? 'Testagram user'}';
     final avatar = '${profile['avatar_url'] ?? ''}';
     final body = '${post?['content'] ?? post?['body'] ?? ''}';
     final image = '${post?['image_url'] ?? ''}';
     final video = '${post?['video_url'] ?? ''}';
     final mediaUrls = post?['media_urls'];
     final media = mediaUrls is List
-        ? mediaUrls.map((value) => '$value').where((value) => value.startsWith('https://')).toList()
+        ? mediaUrls
+            .map((value) => '$value')
+            .where((value) => value.startsWith('https://'))
+            .toList()
         : <String>[];
 
     return RefreshIndicator(
@@ -334,7 +372,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
             ),
             Expanded(
               child: Text(widget.repliesOnly ? 'Post replies' : 'Post',
-                  style: Theme.of(context).textTheme.headlineSmall
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
                       ?.copyWith(fontWeight: FontWeight.w900)),
             ),
           ]),
@@ -386,7 +426,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(name, style: const TextStyle(fontWeight: FontWeight.w800)),
+                            Text(name,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800)),
                             if ('${profile['username'] ?? ''}'.isNotEmpty)
                               Text('@${profile['username']}',
                                   style: Theme.of(context).textTheme.bodySmall),
@@ -400,15 +442,19 @@ class _PostDetailPageState extends State<PostDetailPage> {
                       Padding(
                         padding: const EdgeInsets.only(top: 14),
                         child: SelectableText(body,
-                            style: Theme.of(context).textTheme.bodyLarge
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyLarge
                                 ?.copyWith(height: 1.5)),
                       ),
                     if (image.startsWith('https://'))
                       Padding(
                         padding: const EdgeInsets.only(top: 12),
-                        child: Image.network(image, width: double.infinity,
+                        child: Image.network(image,
+                            width: double.infinity,
                             fit: BoxFit.cover,
-                            errorBuilder: (_, __, ___) => const SizedBox.shrink()),
+                            errorBuilder: (_, __, ___) =>
+                                const SizedBox.shrink()),
                       ),
                     if (video.startsWith('https://'))
                       Padding(
@@ -435,25 +481,33 @@ class _PostDetailPageState extends State<PostDetailPage> {
                       children: [
                         TextButton.icon(
                           onPressed: _toggleLike,
-                          icon: Icon(_liked ? Icons.favorite : Icons.favorite_border,
+                          icon: Icon(
+                              _liked ? Icons.favorite : Icons.favorite_border,
                               color: _liked ? Colors.red : null),
                           label: Text('${post['likes_count'] ?? 0}'),
                         ),
                         TextButton.icon(
-                          onPressed: () => context.push('/post/${widget.postId}/replies'),
+                          onPressed: () =>
+                              context.push('/post/${widget.postId}/replies'),
                           icon: const Icon(Icons.mode_comment_outlined),
-                          label: Text('${post['replies_count'] ?? _replies.length}'),
+                          label: Text(
+                              '${post['replies_count'] ?? _replies.length}'),
                         ),
                         TextButton.icon(
                           onPressed: _toggleRepost,
                           icon: Icon(Icons.repeat_rounded,
-                              color: _reposted ? Theme.of(context).colorScheme.primary : null),
+                              color: _reposted
+                                  ? Theme.of(context).colorScheme.primary
+                                  : null),
                           label: Text('${post['reposts_count'] ?? 0}'),
                         ),
                         IconButton(
-                          tooltip: _bookmarked ? 'Remove bookmark' : 'Save post',
+                          tooltip:
+                              _bookmarked ? 'Remove bookmark' : 'Save post',
                           onPressed: _toggleBookmark,
-                          icon: Icon(_bookmarked ? Icons.bookmark : Icons.bookmark_border),
+                          icon: Icon(_bookmarked
+                              ? Icons.bookmark
+                              : Icons.bookmark_border),
                         ),
                         IconButton(
                           tooltip: 'Share post',
@@ -468,7 +522,9 @@ class _PostDetailPageState extends State<PostDetailPage> {
             ),
             const SizedBox(height: 16),
             Text('Replies (${_replies.length})',
-                style: Theme.of(context).textTheme.titleLarge
+                style: Theme.of(context)
+                    .textTheme
+                    .titleLarge
                     ?.copyWith(fontWeight: FontWeight.w900)),
             const SizedBox(height: 8),
             if (_uid != null)
@@ -493,8 +549,11 @@ class _PostDetailPageState extends State<PostDetailPage> {
                         child: FilledButton.icon(
                           onPressed: _sending ? null : _sendReply,
                           icon: _sending
-                              ? const SizedBox(width: 16, height: 16,
-                                  child: CircularProgressIndicator(strokeWidth: 2))
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child:
+                                      CircularProgressIndicator(strokeWidth: 2))
                               : const Icon(Icons.send_rounded),
                           label: Text(_sending ? 'Sending…' : 'Reply'),
                         ),
@@ -518,7 +577,8 @@ class _PostDetailPageState extends State<PostDetailPage> {
               ),
             ..._replies.map((reply) {
               final person = reply['profile'] as Map<String, dynamic>? ?? {};
-              final replyName = '${person['display_name'] ?? person['username'] ?? 'Testagram user'}';
+              final replyName =
+                  '${person['display_name'] ?? person['username'] ?? 'Testagram user'}';
               final replyAvatar = '${person['avatar_url'] ?? ''}';
               return Card(
                 margin: const EdgeInsets.only(top: 6),

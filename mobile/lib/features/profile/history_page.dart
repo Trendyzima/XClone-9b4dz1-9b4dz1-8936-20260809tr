@@ -319,7 +319,8 @@ class _HistoryPageState extends State<HistoryPage> {
                             ),
                           ),
                           TextButton.icon(
-                            onPressed: () => context.push('/post/${post['id']}'),
+                            onPressed: () =>
+                                context.push('/post/${post['id']}'),
                             icon: const Icon(Icons.open_in_new_rounded),
                             label: const Text('Open'),
                           ),

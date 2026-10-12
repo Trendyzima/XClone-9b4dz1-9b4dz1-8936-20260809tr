@@ -38,9 +38,8 @@ class _BookmarksPageState extends State<BookmarksPage> {
           .order('created_at', ascending: false)
           .limit(100)
           .timeout(const Duration(seconds: 15));
-      final bookmarkRows = saved
-          .map((row) => Map<String, dynamic>.from(row as Map))
-          .toList();
+      final bookmarkRows =
+          saved.map((row) => Map<String, dynamic>.from(row as Map)).toList();
       final ids = bookmarkRows
           .map((row) => '${row['post_id'] ?? ''}')
           .where((id) => id.isNotEmpty)

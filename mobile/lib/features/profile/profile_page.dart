@@ -268,7 +268,7 @@ class _ProfilePageState extends State<ProfilePage> {
       case 'videos':
         return '$owner videos';
       case 'likes':
-        return '${_isOwnProfile ? 'Posts you liked' : 'Liked posts'}';
+        return _isOwnProfile ? 'Posts you liked' : 'Liked posts';
       case 'podcasts':
         return '$owner podcasts';
       case 'series':
