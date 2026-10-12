@@ -28,6 +28,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
   bool _needsPin = false;
   String? _error;
   String? _receipt;
+  String? _pendingIdempotencyKey;
 
   @override
   void initState() {
@@ -192,7 +193,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
             ? null
             : _noteController.text.trim(),
         'p_pin': pin,
-        'p_idempotency_key': _idempotencyKey(),
+        'p_idempotency_key': _pendingIdempotencyKey ??= _idempotencyKey(),
       });
       final result = Map<String, dynamic>.from(raw as Map);
       if (result['success'] != true) {
@@ -217,6 +218,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
       setState(() {
         _sending = false;
         _receipt = 'Transfer confirmed by server. Reference: ' + reference;
+        _pendingIdempotencyKey = null;
         _pinController.clear();
         _amountController.clear();
         _noteController.clear();
@@ -295,7 +297,10 @@ class _WalletSendPageState extends State<WalletSendPage> {
             controller: _searchController,
             enabled: !_sending,
             textInputAction: TextInputAction.search,
-            onChanged: _searchUsers,
+            onChanged: (value) {
+              _pendingIdempotencyKey = null;
+              _searchUsers(value);
+            },
             decoration: InputDecoration(
               labelText: 'Search by username',
               prefixIcon: const Icon(Icons.search),
@@ -345,6 +350,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
           TextField(
             controller: _amountController,
             enabled: !_sending,
+            onChanged: (_) => _pendingIdempotencyKey = null,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
                 labelText: 'Amount (' + (_wallet?.currency ?? 'KES') + ')',
@@ -354,6 +360,7 @@ class _WalletSendPageState extends State<WalletSendPage> {
           TextField(
             controller: _noteController,
             enabled: !_sending,
+            onChanged: (_) => _pendingIdempotencyKey = null,
             maxLength: 240,
             decoration: const InputDecoration(
                 labelText: 'Note (optional)', border: OutlineInputBorder()),
