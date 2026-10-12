@@ -1503,7 +1503,8 @@ export default function TvStudioPage({ persistentDock = false }: { persistentDoc
           toast.warning('YouTube delivery is unavailable. Continuing live on Testagram only.');
         }
       } else if (!startResponse.ok) {
-        throw new Error(String(startPayload?.error?.message || 'Testagram TV could not be started.'));
+        const startError = String(startPayload?.error?.message || startPayload?.message || `HTTP ${startResponse.status} from the TV control service (no structured error returned)`);
+        throw new Error(`Testagram TV start failed: ${startError}`);
       }
 
       if (outputProvider === 'youtube') {
