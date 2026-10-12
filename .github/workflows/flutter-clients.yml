@@ -5,12 +5,14 @@ on:
     paths:
       - 'mobile/**'
       - 'docs/flutter-migration-plan.md'
+      - 'docs/flutter-migration-release-gates.md'
       - 'docs/flutter-parity-inventory.json'
       - 'docs/flutter-route-parity.json'
       - 'docs/mobile-architecture.md'
       - 'scripts/update-flutter-route-parity.mjs'
       - 'scripts/update-flutter-parity-inventory.mjs'
       - 'scripts/validate-flutter-parity-inventory.mjs'
+      - 'scripts/validate-flutter-route-progress.mjs'
       - '.github/workflows/flutter-clients.yml'
   push:
     branches: [main]
@@ -48,6 +50,8 @@ jobs:
           node scripts/update-flutter-route-parity.mjs
           node -e "const d = JSON.parse(require('node:fs').readFileSync('docs/flutter-route-parity.json', 'utf8')); if (d.routes.length < 200 || d.counts.legacy_web_fallbacks < 1) process.exit(1); console.log(JSON.stringify(d.counts));"
           git diff --exit-code -- docs/flutter-route-parity.json
+      - name: Prevent Flutter route coverage regressions
+        run: node scripts/validate-flutter-route-progress.mjs
 
   flutter:
     name: Analyze, test and build both targets
