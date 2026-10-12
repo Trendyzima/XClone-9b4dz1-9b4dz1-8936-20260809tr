@@ -14,6 +14,7 @@ import '../features/messages/messages_page.dart';
 import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/profile/bookmarks_page.dart';
+import '../features/profile/history_page.dart';
 import '../features/settings/settings_page.dart';
 import '../features/tv/tv_page.dart';
 import '../features/tv/tv_channel_profile_page.dart';
@@ -30,6 +31,7 @@ import '../features/marketplace/orders_page.dart';
 import '../features/ads/ad_campaigns_page.dart';
 import '../features/ads/ad_config_page.dart';
 import '../features/news/news_page.dart';
+import '../features/news/news_article_page.dart';
 import '../features/fediverse/fediverse_page.dart';
 import '../features/spaces/spaces_page.dart';
 import 'testagram_shell.dart';
@@ -118,6 +120,7 @@ class _TestagramAppState extends State<TestagramApp> {
             path == '/leaderboard' ||
             path == '/leaderboard/creators' ||
             path == '/news' ||
+            path.startsWith('/news/') ||
             path == '/fediverse' ||
             path == '/fediverse/instances' ||
             path == '/spaces' ||
@@ -327,6 +330,13 @@ class _TestagramAppState extends State<TestagramApp> {
               builder: (_, __) => const AdConfigPage(),
             ),
             GoRoute(path: '/news', builder: (_, __) => const NewsPage()),
+            GoRoute(
+              path: '/news/:id',
+              builder: (_, state) => NewsArticlePage(
+                articleId: state.pathParameters['id'] ?? '',
+              ),
+            ),
+            GoRoute(path: '/history', builder: (_, __) => const HistoryPage()),
             GoRoute(
               path: '/fediverse',
               builder: (_, __) => const FediversePage(),
