@@ -25,6 +25,8 @@ on:
       - 'docs/mobile-architecture.md'
       - 'scripts/update-flutter-parity-inventory.mjs'
       - 'scripts/validate-flutter-parity-inventory.mjs'
+      - 'scripts/validate-flutter-route-progress.mjs'
+      - 'docs/flutter-migration-release-gates.md'
       - '.github/workflows/flutter-clients.yml'
   workflow_dispatch:
 
