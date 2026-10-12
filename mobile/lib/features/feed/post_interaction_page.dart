@@ -32,6 +32,18 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
         PostInteractionKind.quoteLikes => 'Likes on quotes',
       };
 
+  String _displayName(Map<String, dynamic>? profile) {
+    final displayName = profile?['display_name'];
+    if (displayName != null && displayName.toString().trim().isNotEmpty) {
+      return displayName.toString();
+    }
+    final username = profile?['username'];
+    if (username != null && username.toString().trim().isNotEmpty) {
+      return username.toString();
+    }
+    return 'Testagram user';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -206,10 +218,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                           final item = _items[index];
                           final profile =
                               item['profile'] as Map<String, dynamic>?;
-                          final name = (profile?['display_name'] ??
-                                  profile?['username'] ??
-                                  'Testagram user')
-                              .toString();
+                          final name = _displayName(profile);
                           final username = '${profile?['username'] ?? ''}';
                           final avatar = '${profile?['avatar_url'] ?? ''}';
                           final detail = switch (widget.kind) {
