@@ -20,7 +20,7 @@ class FediversePage extends StatefulWidget {
       'organic-discovery' => 'Organic discovery',
       'mastodon' => 'Mastodon timeline',
       'inbox' => 'Fediverse inbox',
-      'relay' => 'Fediverse relays',
+      'relay' => 'Federation delivery',
       'analytics' => 'Fediverse analytics',
       'identity' => 'Federated identity',
       'profile' => 'Federated profile',
@@ -190,6 +190,14 @@ class _FediversePageState extends State<FediversePage> {
         'analytics',
         'identity',
         'profile',
+        'posts',
+        'threads',
+        'replies',
+        'media',
+        'videos',
+        'podcasts',
+        'series',
+        'likes',
         'tips',
         'gifts',
         'followers',
@@ -367,6 +375,33 @@ class _FediversePageState extends State<FediversePage> {
     }
   }
 
+  Future<void> _removeSafetyControl(Map<String, dynamic> row) async {
+    final uid = _uid;
+    if (uid == null || row['id'] == null) return;
+    try {
+      if (row['kind'] == 'Blocked domain') {
+        await _db
+            .from('fediverse_domain_blocks')
+            .delete()
+            .eq('id', row['id'])
+            .eq('user_id', uid);
+      } else {
+        await _db
+            .from('fediverse_content_filters')
+            .delete()
+            .eq('id', row['id'])
+            .eq('user_id', uid);
+      }
+      await _load();
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Could not remove this Fediverse safety control.'),
+        ));
+      }
+    }
+  }
+
   Future<void> _markInboxProcessed(Map<String, dynamic> row) async {
     final uid = _uid;
     if (uid == null || row['id'] == null) return;
@@ -539,10 +574,20 @@ class _FediversePageState extends State<FediversePage> {
                   title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
                   subtitle: Text([subtitle, detail].where((value) => value.isNotEmpty && value != '{}').join('\\n'), maxLines: 4, overflow: TextOverflow.ellipsis),
                   trailing: widget.section == 'inbox' && row['processed'] != true
-                      ? IconButton(tooltip: 'Mark processed', onPressed: () => _markInboxProcessed(row), icon: const Icon(Icons.check_circle_outline_rounded))
+                      ? IconButton(
+                          tooltip: 'Mark processed',
+                          onPressed: () => _markInboxProcessed(row),
+                          icon: const Icon(Icons.check_circle_outline_rounded),
+                        )
                       : widget.section == 'relay'
                           ? Icon(row['delivered'] == true ? Icons.check_circle_rounded : Icons.schedule_rounded)
-                          : null,
+                          : widget.section == 'controls'
+                              ? IconButton(
+                                  tooltip: 'Remove safety control',
+                                  onPressed: () => _removeSafetyControl(row),
+                                  icon: const Icon(Icons.delete_outline_rounded),
+                                )
+                              : null,
                 ),
               );
             }),
