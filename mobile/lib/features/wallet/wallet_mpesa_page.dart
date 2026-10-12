@@ -96,7 +96,7 @@ class _WalletMpesaPageState extends State<WalletMpesaPage> {
       return;
     }
     final pin = _pinController.text;
-    if (!RegExp(r'^\d{4,6}$').hasMatch(pin)) {
+    if (!isValidWalletPin(pin)) {
       setState(() => _message = 'Enter your 4–6 digit wallet PIN.');
       return;
     }
