@@ -25,6 +25,8 @@ import '../features/videos/videos_page.dart';
 import '../features/discovery/discovery_pages.dart';
 import '../features/marketplace/products_page.dart';
 import '../features/marketplace/orders_page.dart';
+import '../features/ads/ad_campaigns_page.dart';
+import '../features/ads/ad_config_page.dart';
 import '../features/news/news_page.dart';
 import '../features/fediverse/fediverse_page.dart';
 import '../features/spaces/spaces_page.dart';
@@ -203,6 +205,24 @@ class _TestagramAppState extends State<TestagramApp> {
                 builder: (_, state) =>
                     ProductsPage(productId: state.pathParameters['productId'])),
             GoRoute(path: '/orders', builder: (_, __) => const OrdersPage()),
+            GoRoute(
+                path: '/create-ad',
+                builder: (_, __) => const AdCampaignsPage(mode: AdCampaignsMode.create)),
+            GoRoute(
+                path: '/my-ads',
+                builder: (_, __) => const AdCampaignsPage(mode: AdCampaignsMode.list)),
+            GoRoute(
+                path: '/ad-analytics',
+                builder: (_, __) => const AdCampaignsPage(mode: AdCampaignsMode.analytics)),
+            GoRoute(
+                path: '/admin/ad-config',
+                builder: (_, __) => const AdConfigPage()),
+            GoRoute(
+                path: '/admin/ads',
+                builder: (_, __) => const AdConfigPage()),
+            GoRoute(
+                path: '/admin/ads-management',
+                builder: (_, __) => const AdConfigPage()),
             GoRoute(path: '/news', builder: (_, __) => const NewsPage()),
             GoRoute(
                 path: '/fediverse', builder: (_, __) => const FediversePage()),
