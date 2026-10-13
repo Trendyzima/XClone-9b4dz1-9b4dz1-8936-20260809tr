@@ -4,11 +4,13 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/config/app_config.dart';
+import '../../core/auth/auth_redirect_policy.dart';
 import '../../core/widgets/testagram_background.dart';
 
 class AuthPage extends StatefulWidget {
-  const AuthPage({this.recovery = false, super.key});
+  const AuthPage({this.recovery = false, this.returnTo = '/', super.key});
   final bool recovery;
+  final String returnTo;
 
   @override
   State<AuthPage> createState() => _AuthPageState();
@@ -124,7 +126,9 @@ class _AuthPageState extends State<AuthPage> {
         });
         return;
       }
-      if (mounted) context.go('/');
+      if (mounted) {
+        context.go(AuthRedirectPolicy.safeReturnPath(widget.returnTo));
+      }
     } catch (error) {
       if (mounted) setState(() => _error = _friendlyError(error));
     }
@@ -160,7 +164,9 @@ class _AuthPageState extends State<AuthPage> {
       if (response == null || response == false) {
         // Some Postgres functions return void (null) on success.
       }
-      if (mounted) context.go('/');
+      if (mounted) {
+        context.go(AuthRedirectPolicy.safeReturnPath(widget.returnTo));
+      }
     } catch (error) {
       if (mounted) setState(() => _error = _friendlyError(error));
     } finally {
