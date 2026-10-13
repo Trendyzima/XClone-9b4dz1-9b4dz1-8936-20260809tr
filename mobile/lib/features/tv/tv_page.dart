@@ -962,9 +962,10 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                                                   fontWeight: FontWeight.w600)),
                                         if (!hasPlaybackSurface)
                                           FilledButton.icon(
-                                            onPressed: _playerLoading && isCurrent
-                                                ? null
-                                                : () => _play(channel),
+                                            onPressed:
+                                                _playerLoading && isCurrent
+                                                    ? null
+                                                    : () => _play(channel),
                                             icon: _playerLoading && isCurrent
                                                 ? const SizedBox(
                                                     width: 16,
@@ -1004,8 +1005,10 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                                           radius: 25,
                                           backgroundColor: Colors.white
                                               .withValues(alpha: 0.14),
-                                          child: const Icon(Icons.live_tv_rounded,
-                                              color: Colors.white, size: 28),
+                                          child: const Icon(
+                                              Icons.live_tv_rounded,
+                                              color: Colors.white,
+                                              size: 28),
                                         ),
                                         const SizedBox(height: 7),
                                         const Text('Channel',
@@ -1024,7 +1027,8 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                                         IconButton.filledTonal(
                                           tooltip: 'Retry playback',
                                           onPressed: () => _play(channel),
-                                          icon: const Icon(Icons.replay_rounded),
+                                          icon:
+                                              const Icon(Icons.replay_rounded),
                                         ),
                                       ],
                                     ),
