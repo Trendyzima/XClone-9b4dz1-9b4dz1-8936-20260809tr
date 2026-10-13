@@ -29,6 +29,7 @@ import '../features/communities/communities_page.dart';
 import '../features/communities/community_detail_page.dart';
 import '../features/creator/creator_studio_page.dart';
 import '../features/creator/analytics_pages.dart';
+import '../features/creator/podcast_analytics_page.dart';
 import '../features/creator/referral_page.dart';
 import '../features/creator/rewards_page.dart';
 import '../features/tv/tv_studio_page.dart';
@@ -937,11 +938,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/podcasts/analytics',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Podcast Analytics',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const PodcastAnalyticsPage(),
             ),
             GoRoute(
               path: '/podcasts/search',
