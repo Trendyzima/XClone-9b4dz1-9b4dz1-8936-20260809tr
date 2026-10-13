@@ -82,7 +82,18 @@ class _PodcastAnalyticsPageState extends State<PodcastAnalyticsPage> {
             .maybeSingle()
             .timeout(const Duration(seconds: 12));
       } catch (_) {
-        // Match the established web behavior: only an explicit lock closes it.
+        // A missing row is the documented unlocked default; a failed lookup is
+        // not equivalent to a missing row. Fail closed until access is known.
+        if (mounted && generation == _generation) {
+          setState(() {
+            _featureResolved = true;
+            _recordings = const [];
+            _tipsEarned = 0;
+            _error =
+                'Podcast analytics access could not be verified. Retry when connected.';
+          });
+        }
+        return;
       }
       final locked = !owner && PodcastAnalyticsPolicy.isLocked(unlockRecord);
       if (locked) {
