@@ -1,6 +1,7 @@
 // Temporary formatter diagnostic trigger.
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:http/http.dart' as http;
@@ -213,6 +214,42 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
     }
   }
 
+
+  /// Return a fresh randomized order for each feed load/refresh.
+  ///
+  /// Fisher-Yates gives every channel a fair position within this loaded set.
+  /// If randomization happens to reproduce the previous order, rotate once so
+  /// a refresh visibly changes the feed instead of appearing to do nothing.
+  List<Map<String, dynamic>> _shuffleChannels(
+    List<Map<String, dynamic>> channels, {
+    List<Map<String, dynamic>> previous = const [],
+  }) {
+    final shuffled = List<Map<String, dynamic>>.of(channels);
+    final random = math.Random();
+    for (var i = shuffled.length - 1; i > 0; i--) {
+      final j = random.nextInt(i + 1);
+      final item = shuffled[i];
+      shuffled[i] = shuffled[j];
+      shuffled[j] = item;
+    }
+
+    bool sameOrder(List<Map<String, dynamic>> a, List<Map<String, dynamic>> b) {
+      if (a.length != b.length) return false;
+      for (var i = 0; i < a.length; i++) {
+        if ('${a[i]['id'] ?? _streamUrl(a[i])}' !=
+            '${b[i]['id'] ?? _streamUrl(b[i])}') {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    if (shuffled.length > 1 && sameOrder(shuffled, previous)) {
+      shuffled.insert(0, shuffled.removeLast());
+    }
+    return shuffled;
+  }
+
   Future<void> _load() async {
     setState(() {
       _loading = true;
@@ -251,8 +288,9 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
       // Render the public catalog as soon as it is ready instead of waiting on
       // the separate Testagram community-live query.
       final catalogGroups = await catalogFuture;
-      final catalogChannels = _dedupeChannels(
-        catalogGroups.expand((group) => group).toList(),
+      final catalogChannels = _shuffleChannels(
+        _dedupeChannels(catalogGroups.expand((group) => group).toList()),
+        previous: _channels,
       );
       if (mounted) {
         setState(() {
@@ -272,9 +310,12 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
           : catalogChannels
               .where((channel) => '${channel['id'] ?? ''}' == widget.streamId)
               .toList();
-      final merged = _dedupeChannels(
-        live,
-        existing: widget.streamId == null ? catalogChannels : filteredCatalog,
+      final merged = _shuffleChannels(
+        _dedupeChannels(
+          live,
+          existing: widget.streamId == null ? catalogChannels : filteredCatalog,
+        ),
+        previous: _channels,
       );
       if (mounted) {
         setState(() {
