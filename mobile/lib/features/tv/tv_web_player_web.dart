@@ -142,7 +142,10 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
   }
 
   Future<void> _attach(
-      web.HTMLVideoElement video, String url, int generation) async {
+    web.HTMLVideoElement video,
+    String url,
+    int generation,
+  ) async {
     _destroyHls();
     _error = null;
     _recoveryAttempts = 0;
