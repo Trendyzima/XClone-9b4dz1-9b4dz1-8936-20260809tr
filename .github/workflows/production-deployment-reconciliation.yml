@@ -628,15 +628,16 @@ jobs:
           [[ -n "$SUPABASE_ACCESS_TOKEN" ]] || { echo "::error::SUPABASE_ACCESS_TOKEN is required for TV control-plane deployment."; exit 1; }
           [[ "$PROJECT_REF" =~ ^[a-z0-9]{20}$ ]] || { echo "::error::Invalid Supabase project ref for TV control-plane deployment."; exit 1; }
 
-          # Supabase is the authenticated control plane only. Video transport is handled
-          # by Testagram's self-hosted Go CDN; no YouTube or Cloudflare streaming
-          # credentials are required for this deployment gate.
-          if ! supabase functions deploy tv-cdn-playback --use-api --project-ref "$PROJECT_REF"; then
-            echo "::error::tv-cdn-playback deployment failed."
+          # The control handler performs explicit broadcaster-JWT, guest-invite, and
+          # encoder-token checks. Gateway JWT verification must be disabled so anonymous
+          # public viewer lookups can reach that handler; host actions still require a
+          # valid authenticated owner/platform-owner identity inside the function.
+          if ! supabase functions deploy tv-media-control --use-api --project-ref "$PROJECT_REF" --no-verify-jwt; then
+            echo "::error::tv-media-control deployment failed."
             exit 1
           fi
 
-          echo "Testagram TV control-plane Edge Function (tv-cdn-playback) deployed."
+          echo "Testagram TV control-plane Edge Function (tv-media-control) deployed."
       - name: Reconcile Cloudflare DNS for Worker Custom Domains
         shell: bash
         env:

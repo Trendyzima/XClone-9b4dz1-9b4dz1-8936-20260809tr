@@ -1,6 +1,12 @@
 export const config={runtime:"edge"};
+// This route also runs as a statically bundled Cloudflare Worker module. Worker
+// bindings are not copied into process.env, and module-level env reads happen
+// before a request handler can receive the Worker env object. Keep safe public
+// Supabase connection values available when deployment env injection is absent.
+const CANONICAL_SUPABASE_URL="https://ffrhglgkukgsuhxenena.supabase.co";
+const CANONICAL_SUPABASE_PUBLISHABLE_KEY="sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya";
 const env=(n:string,f="")=>{const g=globalThis as any;return g.process?.env?.[n]||f};
-const url=(env("SUPABASE_URL",env("VITE_SUPABASE_URL"))).replace(/\/$/,""),key=env("SUPABASE_PUBLISHABLE_KEY",env("SUPABASE_ANON_KEY",env("VITE_SUPABASE_PUBLISHABLE_KEY",env("VITE_SUPABASE_ANON_KEY"))));
+const url=(env("SUPABASE_URL",env("VITE_SUPABASE_URL",CANONICAL_SUPABASE_URL))).replace(/\/$/,""),key=env("SUPABASE_PUBLISHABLE_KEY",env("SUPABASE_ANON_KEY",env("VITE_SUPABASE_PUBLISHABLE_KEY",env("VITE_SUPABASE_ANON_KEY",CANONICAL_SUPABASE_PUBLISHABLE_KEY))));
 const json=(b:unknown,s=200,cacheControl="no-store")=>new Response(JSON.stringify(b),{status:s,headers:{"Content-Type":"application/json","Cache-Control":cacheControl,"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, content-type, x-client-info, x-request-id","Access-Control-Allow-Methods":"GET, POST, OPTIONS","Vary":"Origin"}});
 export default async function handler(req:Request){
  if(req.method==="OPTIONS")return json({ok:true});
@@ -18,6 +24,11 @@ export default async function handler(req:Request){
  if(isGet&&action!=="viewer")return json({ok:false,error:{code:"METHOD_NOT_ALLOWED",message:"GET is only supported for public viewer lookup."}},405);
  if(!id)return json({ok:false,error:{code:"STREAM_ID_REQUIRED",message:"stream_id is required."}},400);
  const isPublicViewer=action==="viewer";
- const r=await fetch(url+"/functions/v1/tv-media-control",{method:"POST",headers:{"Content-Type":"application/json",apikey:key,...(req.headers.get("authorization")?{Authorization:req.headers.get("authorization")!}:{})},body:JSON.stringify({action,stream_id:id,provider:typeof b?.provider==="string"?b.provider:undefined,invite_token:typeof b?.invite_token==="string"?b.invite_token:undefined,encoder_token:typeof b?.encoder_token==="string"?b.encoder_token:undefined,diagnostics:b?.diagnostics,guest_slot:b?.guest_slot,control:typeof b?.control==="string"?b.control:undefined})});
+ let r:Response;
+ try{
+  r=await fetch(url+"/functions/v1/tv-media-control",{method:"POST",headers:{"Content-Type":"application/json",apikey:key,...(req.headers.get("authorization")?{Authorization:req.headers.get("authorization")!}:{})},body:JSON.stringify({action,stream_id:id,provider:typeof b?.provider==="string"?b.provider:undefined,invite_token:typeof b?.invite_token==="string"?b.invite_token:undefined,encoder_token:typeof b?.encoder_token==="string"?b.encoder_token:undefined,diagnostics:b?.diagnostics,guest_slot:b?.guest_slot,control:typeof b?.control==="string"?b.control:undefined})});
+ }catch{
+  return json({ok:false,error:{code:"TV_CONTROL_UNREACHABLE",message:"Testagram TV control service could not be reached. Please retry."}},502);
+ }
  const p=await r.json().catch(()=>({ok:false,error:{code:"TV_CONTROL_INVALID_RESPONSE",message:"TV control returned invalid JSON."}}));return json(p,r.status,isPublicViewer&&r.ok?"public, s-maxage=3, stale-while-revalidate=15":"no-store");
 }

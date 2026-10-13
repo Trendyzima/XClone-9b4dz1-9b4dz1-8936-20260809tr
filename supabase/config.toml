@@ -27,8 +27,10 @@ verify_jwt = false
 [functions.tv-stream-proxy]
 verify_jwt = false
 
+# TV supports anonymous public viewer lookup, invite-token guest joins, and authenticated
+# host actions. The handler validates host JWTs and guest invite/encoder tokens itself.
 [functions.tv-media-control]
-verify_jwt = true
+verify_jwt = false
 
 [functions.register-push-token]
 verify_jwt = true
