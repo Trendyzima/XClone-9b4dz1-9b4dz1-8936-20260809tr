@@ -164,7 +164,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/discover/fediverse',
-              builder: (_, __) => const FediversePage(),
+              builder: (_, __) => const FediversePage(section: 'discover'),
             ),
             GoRoute(path: '/threads', builder: (_, __) => const ThreadsPage()),
             GoRoute(
@@ -415,35 +415,67 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/fediverse/profile',
-              builder: (_, __) => const FediversePage(section: 'profile'),
+              builder: (_, state) => FediversePage(
+                section: 'profile',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/posts',
-              builder: (_, __) => const FediversePage(section: 'posts'),
+              builder: (_, state) => FediversePage(
+                section: 'posts',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/threads',
-              builder: (_, __) => const FediversePage(section: 'threads'),
+              builder: (_, state) => FediversePage(
+                section: 'threads',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/replies',
-              builder: (_, __) => const FediversePage(section: 'replies'),
+              builder: (_, state) => FediversePage(
+                section: 'replies',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/media',
-              builder: (_, __) => const FediversePage(section: 'media'),
+              builder: (_, state) => FediversePage(
+                section: 'media',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/videos',
-              builder: (_, __) => const FediversePage(section: 'videos'),
+              builder: (_, state) => FediversePage(
+                section: 'videos',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/podcasts',
-              builder: (_, __) => const FediversePage(section: 'podcasts'),
+              builder: (_, state) => FediversePage(
+                section: 'podcasts',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/series',
-              builder: (_, __) => const FediversePage(section: 'series'),
+              builder: (_, state) => FediversePage(
+                section: 'series',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/likes',
