@@ -5325,6 +5325,11 @@
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20261013090000_tv_testagram_provider_compat.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Compatibility migration for the Testagram TV provider contract. Keep the backend contract authoritative and verify Flutter TV clients against the deployed schema."
     }
   }
 }

@@ -18,6 +18,8 @@ import '../features/profile/bookmarks_page.dart';
 import '../features/profile/history_page.dart';
 import '../features/settings/settings_page.dart';
 import '../features/settings/blocked_users_page.dart';
+import '../features/settings/active_sessions_page.dart';
+import '../features/settings/legal_pages.dart';
 import '../features/tv/tv_page.dart';
 import '../features/tv/tv_channel_profile_page.dart';
 import '../features/threads/threads_page.dart';
@@ -33,6 +35,8 @@ import '../features/discovery/discovery_pages.dart';
 import '../features/marketplace/products_page.dart';
 import '../features/marketplace/orders_page.dart';
 import '../features/marketplace/wishlist_page.dart';
+import '../features/social/lists_pages.dart';
+import '../features/social/polls_page.dart';
 import '../features/ads/ad_campaigns_page.dart';
 import '../features/admin/governance_page.dart';
 import '../features/ads/ad_config_page.dart';
@@ -689,8 +693,9 @@ class _TestagramAppState extends State<TestagramApp> {
               ),
             ),
             GoRoute(
-                path: '/admin/governance',
-                builder: (_, __) => const GovernancePage()),
+              path: '/admin/governance',
+              builder: (_, __) => const GovernancePage(),
+            ),
             GoRoute(
               path: '/admin/identity-verification',
               builder: (_, state) => NativeFeaturePage(
@@ -788,7 +793,9 @@ class _TestagramAppState extends State<TestagramApp> {
               ),
             ),
             GoRoute(
-                path: '/blocked', builder: (_, __) => const BlockedUsersPage()),
+              path: '/blocked',
+              builder: (_, __) => const BlockedUsersPage(),
+            ),
             GoRoute(
               path: '/boost-analytics/:postId',
               builder: (_, state) => NativeFeaturePage(
@@ -841,14 +848,7 @@ class _TestagramAppState extends State<TestagramApp> {
                 pathParameters: state.pathParameters,
               ),
             ),
-            GoRoute(
-              path: '/help',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Help Center',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
-            ),
+            GoRoute(path: '/help', builder: (_, __) => const HelpPage()),
             GoRoute(
               path: '/interests',
               builder: (_, state) => NativeFeaturePage(
@@ -873,21 +873,11 @@ class _TestagramAppState extends State<TestagramApp> {
                 pathParameters: state.pathParameters,
               ),
             ),
-            GoRoute(
-              path: '/lists',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Lists',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
-            ),
+            GoRoute(path: '/lists', builder: (_, __) => const ListsPage()),
             GoRoute(
               path: '/lists/:id',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'List Details',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, state) =>
+                  ListDetailPage(listId: state.pathParameters['id']!),
             ),
             GoRoute(
               path: '/monetization',
@@ -931,20 +921,9 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/policy',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Policies',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const ContentPolicyPage(),
             ),
-            GoRoute(
-              path: '/polls',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Polls',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
-            ),
+            GoRoute(path: '/polls', builder: (_, __) => const PollsPage()),
             GoRoute(
               path: '/post-analytics',
               builder: (_, state) => NativeFeaturePage(
@@ -1035,11 +1014,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/privacy',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Privacy',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const PrivacyPolicyPage(),
             ),
             GoRoute(
               path: '/profile-features',
@@ -1180,11 +1155,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/sessions',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Active Sessions',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const ActiveSessionsPage(),
             ),
             GoRoute(
               path: '/sports',
@@ -1220,11 +1191,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/terms',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Terms of Service',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const TermsOfServicePage(),
             ),
             GoRoute(
               path: '/thread/:threadId/likes',

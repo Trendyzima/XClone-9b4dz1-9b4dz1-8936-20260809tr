@@ -2,12 +2,12 @@
 
 ## Current audited baseline
 
-This plan is based on the checked-in route inventory and feature-domain inventory as of 2026-10-12. Re-run the route inventory generator and CI before treating these counts as current.
+This plan is based on the checked-in route inventory and feature-domain inventory as of 2026-10-13. Re-run the route inventory generator and CI before treating these counts as current.
 
 - Unique source routes including wildcard: 212
 - Source routes excluding wildcard: 211
-- Explicit Flutter feature-native/partial route matches: 132
-- Native migration-shell routes: 79
+- Explicit Flutter feature-native/partial route matches: 140
+- Native migration-shell routes: 71
 - Legacy website fallbacks: 0
 - Product domains tracked: 22
 
@@ -84,4 +84,4 @@ A domain is complete only when all are true:
 
 ## Progress guard
 
-`scripts/validate-flutter-route-progress.mjs` prevents route coverage from regressing below the audited baseline of 132 native matches / 79 migration shells / 0 legacy fallbacks. When coverage improves, update its thresholds in the same pull request to ratchet the baseline forward. This guard measures route accounting only; it must never be presented as proof that all features work.
+`scripts/validate-flutter-route-progress.mjs` prevents route coverage from regressing below the audited baseline of 140 native matches / 71 migration shells / 0 legacy fallbacks. When coverage improves, update its thresholds in the same pull request to ratchet the baseline forward. This guard measures route accounting only; it must never be presented as proof that all features work.
