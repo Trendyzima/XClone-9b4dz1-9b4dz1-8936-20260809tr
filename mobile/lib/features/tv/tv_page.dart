@@ -214,7 +214,6 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
     }
   }
 
-
   /// Return a fresh randomized order for each feed load/refresh.
   ///
   /// Fisher-Yates gives every channel a fair position within this loaded set.
