@@ -12,7 +12,7 @@ assert.ok(cache.includes('const CACHE_LIMIT = 8'), 'segment cache must stay boun
 assert.ok(cache.includes('const MAX_SEGMENT_BYTES = 4 * 1024 * 1024'), 'individual cached segments must be size bounded');
 assert.ok(cache.includes("url.protocol !== 'https:' || signed(url)"), 'only public HTTPS streams can be warmed');
 assert.ok(cache.includes("credentials: 'omit'"), 'prefetch must not send ambient credentials');
-assert.ok(cache.includes('context?.type !== \\'fragment\\''), 'manifests, keys and other non-fragment requests must bypass segment cache');
+assert.ok(cache.includes("context?.type !== 'fragment'"), 'manifests, keys and other non-fragment requests must bypass segment cache');
 assert.ok(cache.includes('context?.rangeStart != null'), 'byte-range fragments must bypass cache');
 assert.ok(cache.includes('Date.now() - savedAt > CACHE_TTL_MS'), 'expired live segments must be evicted');
 assert.ok(cache.includes('MAX_MANIFEST_BYTES = 512 * 1024'), 'manifest parsing must be bounded');
