@@ -61,7 +61,7 @@ class _FediversePageState extends State<FediversePage> {
   final ScrollController _feedScrollController = ScrollController();
   final TextEditingController _mastodonSearchController =
       TextEditingController();
-  String _mastodonInstance = 'https://mastodon.social';
+  final String _mastodonInstance = 'https://mastodon.social';
   bool _searchingMastodon = false;
   List<Map<String, dynamic>> _surfaceRows = [];
   Map<String, int> _surfaceMetrics = {};
@@ -412,17 +412,19 @@ class _FediversePageState extends State<FediversePage> {
     try {
       await _loadMastodonTimeline(query: query);
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _error =
               'Mastodon search failed. Check the instance or try again.',
         );
+      }
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _searchingMastodon = false;
           _loading = false;
         });
+      }
     }
   }
 
@@ -464,7 +466,9 @@ class _FediversePageState extends State<FediversePage> {
       final uri = '${object['id'] ?? object['url'] ?? ''}';
       if (!uri.startsWith('https://') ||
           object['type'] == 'Tombstone' ||
-          object['type'] == 'Delete') continue;
+          object['type'] == 'Delete') {
+        continue;
+      }
       final attachments = object['attachment'] is List
           ? object['attachment'] as List
           : object['attachment'] == null
