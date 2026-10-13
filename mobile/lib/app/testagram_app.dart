@@ -12,6 +12,7 @@ import '../features/feed/feed_page.dart';
 import '../features/feed/post_detail_page.dart';
 import '../features/feed/post_interaction_page.dart';
 import '../features/messages/messages_page.dart';
+import '../features/messages/team_chat_page.dart';
 import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/profile/bookmarks_page.dart';
@@ -93,8 +94,7 @@ class _TestagramAppState extends State<TestagramApp> {
         final onAuth = state.matchedLocation == '/auth';
         final onSetup = state.matchedLocation == '/setup';
         final path = state.matchedLocation;
-        final publicRoute =
-            path == '/' ||
+        final publicRoute = path == '/' ||
             path == '/explore' ||
             path == '/search' ||
             path == '/discover' ||
@@ -138,8 +138,7 @@ class _TestagramAppState extends State<TestagramApp> {
         GoRoute(
           path: '/auth',
           builder: (_, state) => AuthPage(
-            recovery:
-                state.uri.queryParameters['reset'] == '1' ||
+            recovery: state.uri.queryParameters['reset'] == '1' ||
                 state.uri.queryParameters['type'] == 'recovery',
           ),
         ),
@@ -1182,11 +1181,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/team-chat',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Team Chat',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const TeamChatPage(),
             ),
             GoRoute(
               path: '/terms',
