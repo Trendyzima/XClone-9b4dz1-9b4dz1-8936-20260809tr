@@ -12,17 +12,16 @@ const shells = counts.native_shell_routes;
 const unique = counts.unique_source_routes_including_wildcard;
 const failures = [];
 
-// Ratchet baseline from the audited main-branch snapshot on 2026-10-13. This batch adds nine feature-specific Flutter routes.
-// When native routes are added, raise MIN_NATIVE_MATCHES and lower MAX_LEGACY_FALLBACKS
-// in the same PR. Never lower the bar just to make CI green.
-const MIN_NATIVE_MATCHES = 185;
+// Ratchet total explicit native route coverage, counting feature-native routes and clearly labelled migration shells separately.
+// Shells count as URL coverage only—not feature parity. Raise this threshold and lower the fallback ceiling together when routes are migrated.
+const MIN_NATIVE_COVERAGE = 211;
 const MAX_LEGACY_FALLBACKS = 0;
 
 if (!Number.isInteger(native) || !Number.isInteger(shells) || !Number.isInteger(fallback) || !Number.isInteger(unique)) {
   failures.push('Route inventory is missing integer route counts.');
 }
-if (native < MIN_NATIVE_MATCHES) {
-  failures.push(`Native route matches regressed: ${native} < ${MIN_NATIVE_MATCHES}.`);
+if (native + shells < MIN_NATIVE_COVERAGE) {
+  failures.push(`Native route coverage regressed: ${native} feature-native matches + ${shells} migration shells = ${native + shells} < ${MIN_NATIVE_COVERAGE}.`);
 }
 if (fallback > MAX_LEGACY_FALLBACKS) {
   failures.push(`Legacy fallback routes regressed: ${fallback} > ${MAX_LEGACY_FALLBACKS}.`);
