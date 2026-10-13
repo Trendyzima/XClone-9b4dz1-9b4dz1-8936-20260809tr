@@ -12,6 +12,9 @@ external JSFunction? get _hlsConstructor;
 @JS('Hls.isSupported')
 external JSBoolean _hlsIsSupported();
 
+@JS('testagramInstallIptvHlsCache')
+external JSFunction? get _installIptvHlsCache;
+
 @JS('Hls.Events')
 external JSObject? get _hlsEvents;
 
@@ -179,6 +182,13 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
       return;
     }
     try {
+      // Install the bounded Cache-API fragment loader before Hls.js is created.
+      // It bypasses manifests, keys, signed URLs and byte-range requests.
+      try {
+        _installIptvHlsCache?.callAsFunction<JSAny?>(null, constructor);
+      } catch (_) {
+        // Cache availability is an optimization, never a playback requirement.
+      }
       final instance = _HlsInstance(
         constructor.callAsConstructorVarArgs<JSObject>(const []),
       );
