@@ -19,6 +19,8 @@ class _ExplorePageState extends State<ExplorePage> {
   String? _error;
   SupabaseClient get _client => Supabase.instance.client;
   int _searchGeneration = 0;
+  String _resultFilter = 'All';
+  String _postSort = 'Recent';
 
   @override
   void dispose() {
@@ -195,6 +197,28 @@ class _ExplorePageState extends State<ExplorePage> {
 
   @override
   Widget build(BuildContext context) {
+    final visiblePeople = _resultFilter == 'Posts'
+        ? const <Map<String, dynamic>>[]
+        : _people;
+    final visiblePosts = _resultFilter == 'People'
+        ? const <Map<String, dynamic>>[]
+        : List<Map<String, dynamic>>.of(_posts);
+    if (_postSort == 'Most liked') {
+      visiblePosts.sort((a, b) {
+        final aLikes = int.tryParse('${a['likes_count'] ?? 0}') ?? 0;
+        final bLikes = int.tryParse('${b['likes_count'] ?? 0}') ?? 0;
+        return bLikes.compareTo(aLikes);
+      });
+    } else {
+      visiblePosts.sort((a, b) {
+        final aDate = DateTime.tryParse('${a['created_at'] ?? ''}');
+        final bDate = DateTime.tryParse('${b['created_at'] ?? ''}');
+        if (aDate == null && bDate == null) return 0;
+        if (aDate == null) return 1;
+        if (bDate == null) return -1;
+        return bDate.compareTo(aDate);
+      });
+    }
     return ListView(
       padding: const EdgeInsets.all(14),
       children: [
@@ -220,13 +244,39 @@ class _ExplorePageState extends State<ExplorePage> {
           ),
         ),
         const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 4,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            for (final filter in const ['All', 'People', 'Posts'])
+              FilterChip(
+                label: Text(filter),
+                selected: _resultFilter == filter,
+                onSelected: (_) => setState(() => _resultFilter = filter),
+              ),
+            if (_resultFilter != 'People')
+              DropdownButton<String>(
+                value: _postSort,
+                isDense: true,
+                underline: const SizedBox.shrink(),
+                items: const [
+                  DropdownMenuItem(value: 'Recent', child: Text('Recent posts')),
+                  DropdownMenuItem(value: 'Most liked', child: Text('Most liked')),
+                ],
+                onChanged: (value) {
+                  if (value != null) setState(() => _postSort = value);
+                },
+              ),
+          ],
+        ),
         if (_loading) const LinearProgressIndicator(),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.all(12),
             child: Text(_error!),
           ),
-        if (_people.isNotEmpty) ...[
+        if (visiblePeople.isNotEmpty) ...[
           const SizedBox(height: 16),
           Text(
             'People',
@@ -236,7 +286,7 @@ class _ExplorePageState extends State<ExplorePage> {
                 ?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
-          ..._people.map((person) {
+          ...visiblePeople.map((person) {
             final name =
                 '${person['display_name'] ?? person['username'] ?? 'Testagram user'}';
             final avatar = '${person['avatar_url'] ?? ''}';
@@ -274,7 +324,7 @@ class _ExplorePageState extends State<ExplorePage> {
             );
           }),
         ],
-        if (_posts.isNotEmpty) ...[
+        if (visiblePosts.isNotEmpty) ...[
           const SizedBox(height: 14),
           Text(
             'Posts',
@@ -284,7 +334,7 @@ class _ExplorePageState extends State<ExplorePage> {
                 ?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 8),
-          ..._posts.map(
+          ...visiblePosts.map(
             (post) => Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: Padding(
@@ -310,8 +360,8 @@ class _ExplorePageState extends State<ExplorePage> {
           ),
         ],
         if (!_loading &&
-            _people.isEmpty &&
-            _posts.isEmpty &&
+            visiblePeople.isEmpty &&
+            visiblePosts.isEmpty &&
             _search.text.trim().length >= 2 &&
             _error == null)
           const Padding(
