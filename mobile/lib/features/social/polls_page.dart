@@ -78,11 +78,12 @@ class _PollsPageState extends State<PollsPage> {
         _loading = false;
       });
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
           _error = 'Polls could not be loaded. Refresh to retry.';
         });
+      }
     }
   }
 
@@ -90,15 +91,14 @@ class _PollsPageState extends State<PollsPage> {
     if (_db.auth.currentUser == null || _busy) {
       return;
     }
-    final options = _options
-        .map((c) => c.text.trim())
-        .where((v) => v.isNotEmpty)
-        .toList();
+    final options =
+        _options.map((c) => c.text.trim()).where((v) => v.isNotEmpty).toList();
     if (_question.text.trim().length < 5 ||
         options.length < 2 ||
         options.length > 8) {
       setState(
-        () => _error = 'Enter a question of at least 5 characters and 2–8 non-empty options.',
+        () => _error =
+            'Enter a question of at least 5 characters and 2–8 non-empty options.',
       );
       return;
     }
@@ -135,13 +135,15 @@ class _PollsPageState extends State<PollsPage> {
         ..addAll([TextEditingController(), TextEditingController()]);
       _endsAt = null;
       await _load();
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('Poll published.')));
+      }
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error = 'Poll could not be published. Confirm your session and try again.',
+          () => _error =
+              'Poll could not be published. Confirm your session and try again.',
         );
       }
     } finally {
@@ -170,13 +172,15 @@ class _PollsPageState extends State<PollsPage> {
         },
       );
       await _load();
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('Vote recorded.')));
+      }
     } catch (_) {
       if (mounted) {
         setState(
-          () => _error = 'Your vote was not recorded. You may already have voted, or the poll may have closed.',
+          () => _error =
+              'Your vote was not recorded. You may already have voted, or the poll may have closed.',
         );
       }
     } finally {
@@ -203,7 +207,7 @@ class _PollsPageState extends State<PollsPage> {
         _endsAt ?? now.add(const Duration(days: 1)),
       ),
     );
-    if (time != null && mounted)
+    if (time != null && mounted) {
       setState(
         () => _endsAt = DateTime(
           date.year,
@@ -213,6 +217,7 @@ class _PollsPageState extends State<PollsPage> {
           time.minute,
         ),
       );
+    }
   }
 
   @override
@@ -288,8 +293,8 @@ class _PollsPageState extends State<PollsPage> {
                                 onPressed: _busy
                                     ? null
                                     : () => setState(() {
-                                        _options.removeAt(i).dispose();
-                                      }),
+                                          _options.removeAt(i).dispose();
+                                        }),
                                 icon: const Icon(Icons.remove_circle_outline),
                               ),
                           ],
@@ -300,8 +305,8 @@ class _PollsPageState extends State<PollsPage> {
                         onPressed: _busy
                             ? null
                             : () => setState(
-                                () => _options.add(TextEditingController()),
-                              ),
+                                  () => _options.add(TextEditingController()),
+                                ),
                         icon: const Icon(Icons.add),
                         label: const Text('Add option'),
                       ),
@@ -359,8 +364,7 @@ class _PollsPageState extends State<PollsPage> {
         .whereType<Map<String, dynamic>>()
         .toList();
     final total = int.tryParse('${poll['total_votes'] ?? 0}') ?? 0;
-    final open =
-        '${poll['effective_status']}' == 'open' &&
+    final open = '${poll['effective_status']}' == 'open' &&
         (poll['ends_at'] == null ||
             DateTime.tryParse('${poll['ends_at']}')?.isAfter(DateTime.now()) ==
                 true);
