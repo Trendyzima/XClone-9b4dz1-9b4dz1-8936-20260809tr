@@ -50,6 +50,9 @@ import '../features/admin/governance_page.dart';
 import '../features/admin/admin_overview_page.dart';
 import '../features/admin/admin_users_page.dart';
 import '../features/admin/admin_fraud_page.dart';
+import '../features/admin/identity_verification_review_page.dart';
+import '../features/admin/verification_requests_page.dart';
+import '../features/admin/regulator_console_page.dart';
 import '../features/ads/ad_config_page.dart';
 import '../features/news/news_page.dart';
 import '../features/news/news_article_page.dart';
@@ -729,11 +732,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/admin/identity-verification',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Identity Verification',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const IdentityVerificationReviewPage(),
             ),
             GoRoute(
               path: '/admin/overview',
@@ -777,11 +776,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/admin/verifications',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Verifications',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const VerificationRequestsPage(),
             ),
             GoRoute(
               path: '/ai',
@@ -865,11 +860,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/fraud-detection',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Fraud Detection',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const AdminFraudPage(),
             ),
             GoRoute(path: '/help', builder: (_, __) => const HelpPage()),
             GoRoute(
@@ -1049,19 +1040,13 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/regulator',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Regulator Console',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, state) =>
+                  RegulatorConsolePage(routePath: state.matchedLocation),
             ),
             GoRoute(
               path: '/regulator/analytics',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Regulator Analytics',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, state) =>
+                  RegulatorConsolePage(routePath: state.matchedLocation),
             ),
             GoRoute(
               path: '/regulator/announce',
@@ -1073,43 +1058,27 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/regulator/audit',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Audit Logs',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, state) =>
+                  RegulatorConsolePage(routePath: state.matchedLocation),
             ),
             GoRoute(
               path: '/regulator/employees',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Employees',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, state) =>
+                  RegulatorConsolePage(routePath: state.matchedLocation),
             ),
             GoRoute(
               path: '/regulator/features',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Feature Controls',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, state) =>
+                  RegulatorConsolePage(routePath: state.matchedLocation),
             ),
             GoRoute(
               path: '/regulator/moderation',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Moderation',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const AdminFraudPage(),
             ),
             GoRoute(
               path: '/regulator/platform',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Platform Controls',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, state) =>
+                  RegulatorConsolePage(routePath: state.matchedLocation),
             ),
             GoRoute(
               path: '/regulator/reports',
@@ -1121,11 +1090,8 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/regulator/wallets',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Wallet Oversight',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, state) =>
+                  RegulatorConsolePage(routePath: state.matchedLocation),
             ),
             GoRoute(
               path: '/revenue-analytics',
@@ -1259,11 +1225,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/verify-identity',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Verify Identity',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const IdentityVerificationStatusPage(),
             ),
             GoRoute(path: '/wallet', builder: (_, __) => const WalletPage()),
             GoRoute(

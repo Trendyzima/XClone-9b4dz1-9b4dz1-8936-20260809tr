@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-12T00:00:00.000Z",
+  "generated_at": "2026-10-13T13:47:22.422Z",
   "rule": "A feature is not complete until its Flutter web and Android behavior, backend contract, permissions, failure recovery, and tests are verified. Existing web routes remain available until parity is accepted.",
   "domains": [
     {
@@ -146,7 +146,7 @@
     },
     {
       "id": "fediverse",
-      "scope": "Federated identities, local and remote timelines, Mastodon public timeline/search, remote profiles, inbox, delivery ledger, follows, reactions, media, moderation controls, privacy authorization, ActivityPub SSRF/redirect safety and Flutter web/Android parity.",
+      "scope": "Federated identities, timelines, inbox, relays, follows, media, profiles, analytics and federation safety",
       "status": "in_progress",
       "acceptance": [
         "positive path",
@@ -5342,6 +5342,11 @@
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Shared Mastodon status-visibility policy with unit tests; keep authorization decisions centralized and fail closed."
+    },
+    "supabase/migrations/20261013090000_flutter_verification_owner_review.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     }
   }
 }
