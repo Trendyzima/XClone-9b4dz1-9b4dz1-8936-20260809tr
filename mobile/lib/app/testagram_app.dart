@@ -91,7 +91,8 @@ class _TestagramAppState extends State<TestagramApp> {
         final onAuth = state.matchedLocation == '/auth';
         final onSetup = state.matchedLocation == '/setup';
         final path = state.matchedLocation;
-        final publicRoute = path == '/' ||
+        final publicRoute =
+            path == '/' ||
             path == '/explore' ||
             path == '/search' ||
             path == '/discover' ||
@@ -135,7 +136,8 @@ class _TestagramAppState extends State<TestagramApp> {
         GoRoute(
           path: '/auth',
           builder: (_, state) => AuthPage(
-            recovery: state.uri.queryParameters['reset'] == '1' ||
+            recovery:
+                state.uri.queryParameters['reset'] == '1' ||
                 state.uri.queryParameters['type'] == 'recovery',
           ),
         ),
@@ -414,35 +416,67 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/fediverse/profile',
-              builder: (_, state) => FediversePage(section: 'profile', actorUri: state.uri.queryParameters['actor'], handle: state.uri.queryParameters['handle']),
+              builder: (_, state) => FediversePage(
+                section: 'profile',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/posts',
-              builder: (_, state) => FediversePage(section: 'posts', actorUri: state.uri.queryParameters['actor'], handle: state.uri.queryParameters['handle']),
+              builder: (_, state) => FediversePage(
+                section: 'posts',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/threads',
-              builder: (_, state) => FediversePage(section: 'threads', actorUri: state.uri.queryParameters['actor'], handle: state.uri.queryParameters['handle']),
+              builder: (_, state) => FediversePage(
+                section: 'threads',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/replies',
-              builder: (_, state) => FediversePage(section: 'replies', actorUri: state.uri.queryParameters['actor'], handle: state.uri.queryParameters['handle']),
+              builder: (_, state) => FediversePage(
+                section: 'replies',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/media',
-              builder: (_, state) => FediversePage(section: 'media', actorUri: state.uri.queryParameters['actor'], handle: state.uri.queryParameters['handle']),
+              builder: (_, state) => FediversePage(
+                section: 'media',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/videos',
-              builder: (_, state) => FediversePage(section: 'videos', actorUri: state.uri.queryParameters['actor'], handle: state.uri.queryParameters['handle']),
+              builder: (_, state) => FediversePage(
+                section: 'videos',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/podcasts',
-              builder: (_, state) => FediversePage(section: 'podcasts', actorUri: state.uri.queryParameters['actor'], handle: state.uri.queryParameters['handle']),
+              builder: (_, state) => FediversePage(
+                section: 'podcasts',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/series',
-              builder: (_, state) => FediversePage(section: 'series', actorUri: state.uri.queryParameters['actor'], handle: state.uri.queryParameters['handle']),
+              builder: (_, state) => FediversePage(
+                section: 'series',
+                actorUri: state.uri.queryParameters['actor'],
+                handle: state.uri.queryParameters['handle'],
+              ),
             ),
             GoRoute(
               path: '/fediverse/profile/likes',
