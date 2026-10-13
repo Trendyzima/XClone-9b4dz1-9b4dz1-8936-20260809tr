@@ -15,7 +15,7 @@ const failures = [];
 // Ratchet baseline from the audited main-branch snapshot on 2026-10-13. Social list and poll routes are now feature-native/partial.
 // When native routes are added, raise MIN_NATIVE_MATCHES and lower MAX_LEGACY_FALLBACKS
 // in the same PR. Never lower the bar just to make CI green.
-const MIN_NATIVE_MATCHES = 148;
+const MIN_NATIVE_MATCHES = 155;
 const MAX_LEGACY_FALLBACKS = 0;
 
 if (!Number.isInteger(native) || !Number.isInteger(shells) || !Number.isInteger(fallback) || !Number.isInteger(unique)) {

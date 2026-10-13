@@ -12,6 +12,7 @@ import '../features/feed/feed_page.dart';
 import '../features/feed/post_detail_page.dart';
 import '../features/feed/post_interaction_page.dart';
 import '../features/messages/messages_page.dart';
+import '../features/messages/team_chat_page.dart';
 import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_page.dart';
 import '../features/profile/bookmarks_page.dart';
@@ -28,6 +29,7 @@ import '../features/communities/communities_page.dart';
 import '../features/communities/community_detail_page.dart';
 import '../features/creator/creator_studio_page.dart';
 import '../features/creator/analytics_pages.dart';
+import '../features/creator/podcast_analytics_page.dart';
 import '../features/creator/referral_page.dart';
 import '../features/creator/rewards_page.dart';
 import '../features/tv/tv_studio_page.dart';
@@ -41,6 +43,9 @@ import '../features/social/polls_page.dart';
 import '../features/social/thread_interaction_page.dart';
 import '../features/ads/ad_campaigns_page.dart';
 import '../features/admin/governance_page.dart';
+import '../features/admin/admin_overview_page.dart';
+import '../features/admin/admin_users_page.dart';
+import '../features/admin/admin_fraud_page.dart';
 import '../features/ads/ad_config_page.dart';
 import '../features/news/news_page.dart';
 import '../features/news/news_article_page.dart';
@@ -704,11 +709,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/admin',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Administration',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const AdminOverviewPage(),
             ),
             GoRoute(
               path: '/admin/ads-review',
@@ -720,11 +721,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/admin/fraud',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Fraud Detection',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const AdminFraudPage(),
             ),
             GoRoute(
               path: '/admin/governance',
@@ -740,11 +737,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/admin/overview',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Admin Overview',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const AdminOverviewPage(),
             ),
             GoRoute(
               path: '/admin/platform-revenue',
@@ -780,11 +773,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/admin/users',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'User Management',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const AdminUsersPage(),
             ),
             GoRoute(
               path: '/admin/verifications',
@@ -939,11 +928,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/podcasts/analytics',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Podcast Analytics',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const PodcastAnalyticsPage(),
             ),
             GoRoute(
               path: '/podcasts/search',
@@ -969,19 +954,11 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/post-remote',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Federated Post',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const FediversePage(section: 'posts'),
             ),
             GoRoute(
               path: '/post-remote/likes',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Federated Post Likes',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const FediversePage(section: 'likes'),
             ),
             GoRoute(
               path: '/post-remote/quotes',
@@ -993,11 +970,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/post-remote/replies',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Federated Post Replies',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const FediversePage(section: 'replies'),
             ),
             GoRoute(
               path: '/post-remote/reply/:replyId',
@@ -1206,11 +1179,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/team-chat',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Team Chat',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const TeamChatPage(),
             ),
             GoRoute(
               path: '/terms',
@@ -1255,11 +1224,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/threads/create',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Create Thread',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const ThreadsPage(),
             ),
             GoRoute(
               path: '/trending/:topic',
