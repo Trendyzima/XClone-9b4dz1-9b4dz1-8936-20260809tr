@@ -540,6 +540,7 @@ export default function TikVTVPage() {
   const handlePullRefresh = useCallback(() => {
     const frame = iframeRef.current;
     if (frame) shuffleStoredIptvChannels(frame);
+    setFailed(false);
     setReady(false);
     setIframeUrl(`/iptv-app/entry.html?refresh=${Date.now()}`);
   }, []);
