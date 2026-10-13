@@ -49,6 +49,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
   bool _verticalMode = true;
   bool _loadingMore = false;
   int _activeIndex = 0;
+  final PageController _feedPageController = PageController();
   int _loadedCatalogSourceCount = 0;
   int _playGeneration = 0;
   String? _playbackError;
@@ -117,6 +118,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _feedPageController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _lifecyclePausedPlayer = null;
     _player?.dispose();
@@ -348,6 +350,31 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+
+  /// Refresh the vertical feed and return the viewer to its newly shuffled top.
+  Future<void> _refreshVerticalFeed() async {
+    if (_loading) return;
+
+    setState(() {
+      _activeIndex = 0;
+      _playbackError = null;
+    });
+    if (_feedPageController.hasClients) {
+      _feedPageController.jumpToPage(0);
+    }
+
+    await _load();
+    if (!mounted || _channels.isEmpty || widget.streamId != null) return;
+
+    if (_feedPageController.hasClients) {
+      _feedPageController.jumpToPage(0);
+    }
+    setState(() => _activeIndex = 0);
+    // PageController won't emit onPageChanged when it was already at page 0.
+    // Explicitly start the new first channel so the refreshed order is visible.
+    unawaited(_play(_channels.first));
   }
 
   List<Map<String, dynamic>> _dedupeChannels(
@@ -698,7 +725,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
             ),
             IconButton(
               tooltip: 'Refresh live channels',
-              onPressed: _load,
+              onPressed: _refreshVerticalFeed,
               icon: const Icon(Icons.refresh_rounded),
             ),
             IconButton.filledTonal(
@@ -739,7 +766,17 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                         ),
                       ),
                     )
-                  : PageView.builder(
+                  : RefreshIndicator(
+                      onRefresh: _refreshVerticalFeed,
+                      triggerMode: RefreshIndicatorTriggerMode.onEdge,
+                      notificationPredicate: (notification) =>
+                          notification.depth == 0 &&
+                          notification.metrics.axis == Axis.vertical,
+                      child: PageView.builder(
+                      controller: _feedPageController,
+                      physics: const PageScrollPhysics(
+                        parent: AlwaysScrollableScrollPhysics(),
+                      ),
                       scrollDirection: Axis.vertical,
                       itemCount: _channels.length,
                       allowImplicitScrolling: true,
@@ -1011,6 +1048,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                           ),
                         );
                       },
+                    ),
                     ),
         ),
       ],
