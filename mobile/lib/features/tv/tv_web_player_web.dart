@@ -189,7 +189,7 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
       // It bypasses manifests, keys, signed URLs and byte-range requests.
       try {
         _installIptvHlsCache
-            ?.callAsFunctionVarArgs<JSAny?>(null, [constructor]);
+            ?.callAsFunction<JSAny?>(null, constructor);
       } catch (_) {
         // Cache availability is an optimization, never a playback requirement.
       }
