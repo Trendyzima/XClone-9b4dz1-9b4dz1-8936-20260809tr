@@ -14,6 +14,7 @@ import 'package:video_player/video_player.dart';
 import '../../core/config/app_config.dart';
 import 'tv_web_player.dart';
 import 'tv_playback_policy.dart';
+import 'tv_stream_prefetch.dart';
 import '../feed/sponsored_ad_service.dart';
 
 class TvPage extends StatefulWidget {
@@ -392,12 +393,16 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
       }
     }
 
-    if (kIsWeb || index + 1 >= _channels.length) return;
+    if (index + 1 >= _channels.length) return;
     final next = _channels[index + 1];
     if (next['_sourceType'] != 'catalog') return;
     final url = _streamUrl(next);
     final parsed = Uri.tryParse(url);
     if (parsed == null || parsed.scheme != 'https' || parsed.host.isEmpty) {
+      return;
+    }
+    if (kIsWeb) {
+      warmIptvStream(url);
       return;
     }
     if (_preloadedStreamUrl == url && _preloadedPlayer != null) return;
