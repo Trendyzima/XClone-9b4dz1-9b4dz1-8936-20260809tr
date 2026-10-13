@@ -126,7 +126,8 @@ class _AuthPageState extends State<AuthPage> {
         });
         return;
       }
-      if (mounted) context.go(AuthRedirectPolicy.safeReturnPath(widget.returnTo));
+      if (mounted)
+        context.go(AuthRedirectPolicy.safeReturnPath(widget.returnTo));
     } catch (error) {
       if (mounted) setState(() => _error = _friendlyError(error));
     }
@@ -162,7 +163,8 @@ class _AuthPageState extends State<AuthPage> {
       if (response == null || response == false) {
         // Some Postgres functions return void (null) on success.
       }
-      if (mounted) context.go(AuthRedirectPolicy.safeReturnPath(widget.returnTo));
+      if (mounted)
+        context.go(AuthRedirectPolicy.safeReturnPath(widget.returnTo));
     } catch (error) {
       if (mounted) setState(() => _error = _friendlyError(error));
     } finally {
