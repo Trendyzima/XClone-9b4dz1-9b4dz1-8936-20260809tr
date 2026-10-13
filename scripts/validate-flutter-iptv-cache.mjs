@@ -24,6 +24,6 @@ assert.ok(cache.includes('saveCache(url, response.data'), 'successful full HLS f
 assert.ok(cache.includes("url.protocol !== 'https:'"), 'HTTP streams must not enter the cache');
 assert.ok(tvPage.includes('warmIptvStream(url)'), 'the Flutter vertical feed must warm the next Web HLS stream');
 assert.ok(tvPage.includes('CachedNetworkImageProvider(thumbnail)'), 'adjacent channel artwork must use the shared image cache');
-assert.ok(webPlayer.includes('callAsFunction<JSAny?>'), 'Flutter Web player must install the cache-aware loader using supported Dart JS interop');
+assert.ok(webPlayer.includes('callAsFunction(null, constructor)'), 'Flutter Web player must install the cache-aware loader using supported Dart JS interop');
 assert.ok(html.includes('<script src="iptv_hls_cache.js"></script>'), 'the browser cache helper must load before Flutter bootstraps');
 console.log('PASS Flutter IPTV cache contract: bounded HTTPS-only HLS fragment cache, signed URL exclusion, TTL, warm-up timeout, and Web/Android feed wiring.');
