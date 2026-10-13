@@ -1,24 +1,15 @@
-import 'dart:convert';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-import 'session_policy.dart';
-import 'session_envelope_policy.dart';
+import 'session_persistence_policy.dart';
 
-/// Secure session persistence on Android; browser localStorage on Flutter Web.
-/// The original sign-in timestamp is preserved across refresh-token writes so
-/// auto-refresh cannot silently extend the app session past the 24-hour limit.
+/// Persistent Supabase session storage shared by Flutter Web and Android.
+/// Web uses browser storage; Android uses encrypted platform-backed storage.
+/// Legacy session envelopes are migrated in-place to the canonical Supabase
+/// session JSON format. This adapter never expires a session because a page
+/// was refreshed; Supabase remains responsible for token refresh/revocation.
 class TestagramSessionStorage extends LocalStorage {
-  static Object? _userIdOf(Object? session) {
-    if (session is Map) {
-      final user = session['user'];
-      if (user is Map) return user['id'];
-    }
-    return null;
-  }
-
   TestagramSessionStorage({FlutterSecureStorage? secureStorage})
       : _secure = secureStorage ?? const FlutterSecureStorage();
 
@@ -50,82 +41,29 @@ class TestagramSessionStorage extends LocalStorage {
 
   @override
   Future<String?> accessToken() async {
-    final raw = await _read();
-    if (raw == null || raw.isEmpty) return null;
-    try {
-      final envelope = jsonDecode(raw) as Map<String, dynamic>;
-      final startedAt = DateTime.fromMillisecondsSinceEpoch(
-        (envelope['started_at_ms'] as num).toInt(),
-      );
-      if (SessionPolicy.isExpired(startedAt: startedAt)) {
-        await removePersistedSession();
-        return null;
-      }
-      final session = envelope['session'];
-      return session is String ? session : jsonEncode(session);
-    } catch (_) {
-      // Remove corrupt/legacy values instead of repeatedly failing startup.
+    final persisted = await _read();
+    if (persisted == null || persisted.isEmpty) return null;
+    final normalized = SessionPersistencePolicy.normalize(persisted);
+    if (normalized == null) {
       await removePersistedSession();
       return null;
     }
-  }
-
-  Future<DateTime?> sessionStartedAt() async {
-    final raw = await _read();
-    if (raw == null || raw.isEmpty) return null;
-    try {
-      final envelope = jsonDecode(raw) as Map<String, dynamic>;
-      final startedAt = DateTime.fromMillisecondsSinceEpoch(
-        (envelope['started_at_ms'] as num).toInt(),
-      );
-      if (SessionPolicy.isExpired(startedAt: startedAt)) {
-        await removePersistedSession();
-        return null;
-      }
-      return startedAt;
-    } catch (_) {
-      await removePersistedSession();
-      return null;
+    if (SessionPersistencePolicy.isLegacyEnvelope(persisted)) {
+      // One-time migration: retain existing users' sessions rather than
+      // forcing everyone to authenticate again after this app upgrade.
+      await _write(normalized);
     }
+    return normalized;
   }
 
   @override
   Future<void> persistSession(String persistSessionString) async {
-    final now = DateTime.now();
-    final incoming = jsonDecode(persistSessionString);
-    final incomingUserId = _userIdOf(incoming);
-    DateTime? previousStartedAt;
-    Object? previousUserId;
-    final existingRaw = await _read();
-    if (existingRaw != null) {
-      try {
-        final existing = jsonDecode(existingRaw) as Map<String, dynamic>;
-        final previousSession = existing['session'];
-        final previous = previousSession is String
-            ? jsonDecode(previousSession)
-            : previousSession;
-        previousUserId = _userIdOf(previous);
-        previousStartedAt = DateTime.fromMillisecondsSinceEpoch(
-          (existing['started_at_ms'] as num).toInt(),
-        );
-      } catch (_) {
-        // A malformed previous envelope starts a clean, new session clock.
-      }
+    final normalized = SessionPersistencePolicy.normalize(persistSessionString);
+    if (normalized == null) {
+      throw const FormatException(
+          'Refusing to persist an invalid auth session.');
     }
-    final startedAt = SessionEnvelopePolicy.resolveStartedAt(
-      now: now,
-      previousStartedAt: previousStartedAt,
-      previousUserId: previousUserId,
-      incomingUserId: incomingUserId,
-    );
-    if (SessionPolicy.isExpired(startedAt: startedAt, now: now)) {
-      await removePersistedSession();
-      return;
-    }
-    await _write(jsonEncode({
-      'started_at_ms': startedAt.millisecondsSinceEpoch,
-      'session': persistSessionString,
-    }));
+    await _write(normalized);
   }
 
   @override
