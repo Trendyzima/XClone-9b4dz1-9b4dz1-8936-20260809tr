@@ -343,7 +343,7 @@
       "path": "/analytics",
       "domain": "general",
       "status": "native_partial",
-      "note": "Route now connects to an existing feature-specific Flutter workflow; complete feature parity, authorization, backend behavior, web/Android runtime and failure-recovery acceptance remain required."
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/appeals",
@@ -373,13 +373,13 @@
       "path": "/boost-analytics/:postId",
       "domain": "advertising",
       "status": "native_partial",
-      "note": "Route now connects to an existing feature-specific Flutter workflow; complete feature parity, authorization, backend behavior, web/Android runtime and failure-recovery acceptance remain required."
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/boost-create",
       "domain": "advertising",
       "status": "native_partial",
-      "note": "Route now connects to an existing feature-specific Flutter workflow; complete feature parity, authorization, backend behavior, web/Android runtime and failure-recovery acceptance remain required."
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/c/:name",
