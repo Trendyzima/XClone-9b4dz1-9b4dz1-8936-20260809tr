@@ -16,6 +16,7 @@ assert.ok(cache.includes("context?.type !== 'fragment'"), 'manifests, keys and o
 assert.ok(cache.includes('context?.rangeStart != null'), 'byte-range fragments must bypass cache');
 assert.ok(cache.includes('Date.now() - savedAt > CACHE_TTL_MS'), 'expired live segments must be evicted');
 assert.ok(cache.includes('MAX_MANIFEST_BYTES = 512 * 1024'), 'manifest parsing must be bounded');
+assert.ok(cache.includes('async function readBoundedSegment(response)'), 'prefetch must stream and cap segment bytes before buffering in memory');
 assert.ok(cache.includes('WARM_TIMEOUT_MS = 2_200'), 'prefetch requests must time out');
 assert.ok(cache.includes('WARM_COOLDOWN_MS = 90_000'), 'repeated prefetch must be throttled');
 assert.ok(cache.includes('Hls.DefaultConfig.loader = Loader'), 'Flutter Web HLS playback must use the cache-aware loader');
