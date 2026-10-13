@@ -93,7 +93,8 @@ class _TestagramAppState extends State<TestagramApp> {
         final onAuth = state.matchedLocation == '/auth';
         final onSetup = state.matchedLocation == '/setup';
         final path = state.matchedLocation;
-        final publicRoute = path == '/' ||
+        final publicRoute =
+            path == '/' ||
             path == '/explore' ||
             path == '/search' ||
             path == '/discover' ||
@@ -137,7 +138,8 @@ class _TestagramAppState extends State<TestagramApp> {
         GoRoute(
           path: '/auth',
           builder: (_, state) => AuthPage(
-            recovery: state.uri.queryParameters['reset'] == '1' ||
+            recovery:
+                state.uri.queryParameters['reset'] == '1' ||
                 state.uri.queryParameters['type'] == 'recovery',
           ),
         ),
@@ -696,20 +698,10 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/ad-performance',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Ad Performance',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) =>
+                  const AdCampaignsPage(mode: AdCampaignsMode.analytics),
             ),
-            GoRoute(
-              path: '/admin',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Administration',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
-            ),
+            GoRoute(path: '/admin', builder: (_, __) => const GovernancePage()),
             GoRoute(
               path: '/admin/ads-review',
               builder: (_, state) => NativeFeaturePage(
@@ -740,11 +732,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/admin/overview',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Admin Overview',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const GovernancePage(),
             ),
             GoRoute(
               path: '/admin/platform-revenue',
@@ -969,19 +957,11 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/post-remote',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Federated Post',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const FediversePage(section: 'posts'),
             ),
             GoRoute(
               path: '/post-remote/likes',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Federated Post Likes',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const FediversePage(section: 'likes'),
             ),
             GoRoute(
               path: '/post-remote/quotes',
@@ -993,11 +973,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/post-remote/replies',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Federated Post Replies',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const FediversePage(section: 'replies'),
             ),
             GoRoute(
               path: '/post-remote/reply/:replyId',
