@@ -79,10 +79,9 @@ class _TeamChatPageState extends State<TeamChatPage> {
         // If governance is unavailable, the active employee assignment below
         // can still grant ordinary staff access; privileged status stays false.
       }
-      final role = '${governance['role'] ?? ''}'.toLowerCase();
-      final regulator = role == 'regulator' ||
-          role == 'super_admin' ||
-          governance['is_regulator'] == true;
+      // Do not infer regulator privileges from a role label. Only an explicit
+      // server authorization flag can supplement owner status.
+      final regulator = governance['is_regulator'] == true;
 
       Map<String, dynamic>? job;
       if (!owner && !regulator) {
