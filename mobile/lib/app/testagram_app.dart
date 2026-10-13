@@ -17,6 +17,15 @@ import '../features/messages/messages_page.dart';
 import '../features/messages/team_chat_page.dart';
 import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_page.dart';
+import '../features/discovery/trending_topic_page.dart';
+import '../features/commerce/seller_storefront_page.dart';
+import '../features/commerce/premium_page.dart';
+import '../features/commerce/credits_page.dart';
+import '../features/profile/profile_features_page.dart';
+import '../features/discovery/interests_page.dart';
+import '../features/posts/scheduled_posts_page.dart';
+import '../features/creator/podcast_search_page.dart';
+import '../features/creator/series_page.dart';
 import '../features/profile/bookmarks_page.dart';
 import '../features/profile/history_page.dart';
 import '../features/settings/settings_page.dart';
@@ -845,14 +854,7 @@ class _TestagramAppState extends State<TestagramApp> {
                 pathParameters: state.pathParameters,
               ),
             ),
-            GoRoute(
-              path: '/credits',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Credits',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
-            ),
+            GoRoute(path: '/credits', builder: (_, __) => const CreditsPage()),
             GoRoute(
               path: '/daily-rewards',
               builder: (_, __) => const RewardsPage(),
@@ -864,11 +866,7 @@ class _TestagramAppState extends State<TestagramApp> {
             GoRoute(path: '/help', builder: (_, __) => const HelpPage()),
             GoRoute(
               path: '/interests',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Interests',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const InterestsPage(),
             ),
             GoRoute(
               path: '/jobs',
@@ -922,11 +920,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/podcasts/search',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Podcast Search',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const PodcastSearchPage(),
             ),
             GoRoute(
               path: '/policy',
@@ -1011,10 +1005,10 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/premium',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Premium',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, state) => PremiumPage(
+                returnToken: state.uri.queryParameters['paypal'] == 'return'
+                    ? state.uri.queryParameters['token']
+                    : null,
               ),
             ),
             GoRoute(
@@ -1023,11 +1017,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/profile-features',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Profile Features',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const ProfileFeaturesPage(),
             ),
             GoRoute(
               path: '/referral',
@@ -1111,27 +1101,17 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/scheduled',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Scheduled Posts',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const ScheduledPostsPage(),
             ),
             GoRoute(
               path: '/seller/:username',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Seller Store',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, state) => SellerStorefrontPage(
+                username: state.pathParameters['username'] ?? '',
               ),
             ),
             GoRoute(
               path: '/series',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Creator Series',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const CreatorSeriesPage(),
             ),
             GoRoute(
               path: '/sessions',
@@ -1208,11 +1188,8 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/trending/:topic',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Trending Topic',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, state) =>
+                  TrendingTopicPage(topic: state.pathParameters['topic'] ?? ''),
             ),
             GoRoute(
               path: '/verify',
