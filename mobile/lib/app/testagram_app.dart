@@ -1191,13 +1191,11 @@ class _TestagramAppState extends State<TestagramApp> {
               builder: (_, state) =>
                   TrendingTopicPage(topic: state.pathParameters['topic'] ?? ''),
             ),
+            // Keep the legacy /verify deep link on the real native
+            // verification status flow instead of the generic migration shell.
             GoRoute(
               path: '/verify',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Verify Account',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const IdentityVerificationStatusPage(),
             ),
             GoRoute(
               path: '/verify-identity',
