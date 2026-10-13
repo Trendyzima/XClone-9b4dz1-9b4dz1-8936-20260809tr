@@ -28,6 +28,7 @@ import '../features/communities/communities_page.dart';
 import '../features/communities/community_detail_page.dart';
 import '../features/creator/creator_studio_page.dart';
 import '../features/creator/analytics_pages.dart';
+import '../features/creator/boost_analytics_page.dart';
 import '../features/creator/referral_page.dart';
 import '../features/creator/rewards_page.dart';
 import '../features/tv/tv_studio_page.dart';
@@ -39,6 +40,7 @@ import '../features/marketplace/wishlist_page.dart';
 import '../features/social/lists_pages.dart';
 import '../features/social/polls_page.dart';
 import '../features/ads/ad_campaigns_page.dart';
+import '../features/ads/ad_performance_page.dart';
 import '../features/admin/governance_page.dart';
 import '../features/ads/ad_config_page.dart';
 import '../features/news/news_page.dart';
@@ -662,13 +664,8 @@ class _TestagramAppState extends State<TestagramApp> {
               builder: (_, __) => const SettingsPage(section: 'notifications'),
             ),
             GoRoute(
-              path: '/ad-performance',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Ad Performance',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
-            ),
+                path: '/ad-performance',
+                builder: (_, __) => const AdPerformancePage()),
             GoRoute(
               path: '/admin',
               builder: (_, state) => NativeFeaturePage(
@@ -799,11 +796,8 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/boost-analytics/:postId',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Boost Analytics',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, state) =>
+                  BoostAnalyticsPage(postId: state.pathParameters['postId']!),
             ),
             GoRoute(
               path: '/boost-create',
