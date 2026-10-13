@@ -220,8 +220,8 @@
   "counts": {
     "unique_source_routes_including_wildcard": 212,
     "source_routes_excluding_wildcard": 211,
-    "native_route_matches": 190,
-    "native_shell_routes": 21,
+    "native_route_matches": 191,
+    "native_shell_routes": 20,
     "legacy_web_fallbacks": 0
   },
   "routes": [
