@@ -699,8 +699,11 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/ad-performance',
-              builder: (_, __) =>
-                  const AdCampaignsPage(mode: AdCampaignsMode.analytics),
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Ad Performance',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
             ),
             GoRoute(
               path: '/admin',
