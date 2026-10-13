@@ -84,4 +84,4 @@ A domain is complete only when all are true:
 
 ## Progress guard
 
-`scripts/validate-flutter-route-progress.mjs` prevents route coverage from regressing below the audited baseline of 143 native matches / 68 migration shells / 0 legacy fallbacks. When coverage improves, update its thresholds in the same pull request to ratchet the baseline forward. This guard measures route accounting only; it must never be presented as proof that all features work.
+`scripts/validate-flutter-route-progress.mjs` prevents route coverage from regressing below the audited baseline of 143 native matches / 68 migration shells / 0 legacy fallbacks. When coverage improves, update its thresholds in the same pull request to ratchet the baseline forward. This guard measures route accounting only; it must never be presented as proof that all features work. Feature-native/partial classifications still require independent backend, authorization, empty/error-state, and web/Android acceptance tests.
