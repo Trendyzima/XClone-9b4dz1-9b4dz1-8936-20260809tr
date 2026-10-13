@@ -49,6 +49,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
   bool _verticalMode = true;
   bool _loadingMore = false;
   int _activeIndex = 0;
+  final PageController _feedPageController = PageController();
   int _loadedCatalogSourceCount = 0;
   int _playGeneration = 0;
   String? _playbackError;
@@ -117,6 +118,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _feedPageController.dispose();
     WidgetsBinding.instance.removeObserver(this);
     _lifecyclePausedPlayer = null;
     _player?.dispose();
@@ -350,6 +352,30 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
     }
   }
 
+  /// Refresh the vertical feed and return the viewer to its newly shuffled top.
+  Future<void> _refreshVerticalFeed() async {
+    if (_loading) return;
+
+    setState(() {
+      _activeIndex = 0;
+      _playbackError = null;
+    });
+    if (_feedPageController.hasClients) {
+      _feedPageController.jumpToPage(0);
+    }
+
+    await _load();
+    if (!mounted || _channels.isEmpty || widget.streamId != null) return;
+
+    if (_feedPageController.hasClients) {
+      _feedPageController.jumpToPage(0);
+    }
+    setState(() => _activeIndex = 0);
+    // PageController won't emit onPageChanged when it was already at page 0.
+    // Explicitly start the new first channel so the refreshed order is visible.
+    unawaited(_play(_channels.first));
+  }
+
   List<Map<String, dynamic>> _dedupeChannels(
     List<Map<String, dynamic>> rows, {
     List<Map<String, dynamic>> existing = const [],
@@ -385,9 +411,12 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
       );
       if (!mounted) return;
       setState(() {
-        _channels = _dedupeChannels(
-          groups.expand((group) => group).toList(),
-          existing: _channels,
+        _channels = _shuffleChannels(
+          _dedupeChannels(
+            groups.expand((group) => group).toList(),
+            existing: _channels,
+          ),
+          previous: _channels,
         );
       });
     } finally {
@@ -698,7 +727,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
             ),
             IconButton(
               tooltip: 'Refresh live channels',
-              onPressed: _load,
+              onPressed: _refreshVerticalFeed,
               icon: const Icon(Icons.refresh_rounded),
             ),
             IconButton.filledTonal(
@@ -739,278 +768,293 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                         ),
                       ),
                     )
-                  : PageView.builder(
-                      scrollDirection: Axis.vertical,
-                      itemCount: _channels.length,
-                      allowImplicitScrolling: true,
-                      onPageChanged: (index) {
-                        setState(() => _activeIndex = index);
-                        unawaited(_play(_channels[index]));
-                        unawaited(_prepareAdjacent(index));
-                        if (index >= _channels.length - 8) {
-                          unawaited(_loadMoreCatalogSources());
-                        }
-                      },
-                      itemBuilder: (context, index) {
-                        final channel = _channels[index];
-                        final isCurrent =
-                            index == _activeIndex && selectedIsActive;
-                        final hasPlaybackSurface = isCurrent &&
-                            tvHasPlaybackSurface(
-                              isWeb: kIsWeb,
-                              webPlaybackUrl: _webPlaybackUrl,
-                              hasYoutubePlayer: _youtubePlayer != null,
-                              hasInitializedNativePlayer:
-                                  player?.value.isInitialized == true,
-                            );
-                        final title = '${channel['title'] ?? 'Live channel'}';
-                        final description =
-                            '${channel['description'] ?? channel['category'] ?? 'Live on Testagram'}';
-                        final thumb = '${channel['thumbnail_url'] ?? ''}';
-                        final playbackGeneration = _playGeneration;
-                        return GestureDetector(
-                          // Let embedded browser/YouTube controls receive taps;
-                          // native video can still use the card tap to pause.
-                          onTap: isCurrent &&
-                                  ((kIsWeb && _webPlaybackUrl != null) ||
-                                      _youtubePlayer != null)
-                              ? null
-                              : () async {
-                                  if (isCurrent &&
-                                      player?.value.isInitialized == true) {
-                                    if (player!.value.isPlaying) {
-                                      await player.pause();
-                                    } else {
-                                      await player.play();
-                                    }
-                                    if (mounted) setState(() {});
-                                  } else {
-                                    await _play(channel);
-                                  }
-                                },
-                          child: Container(
-                            color: Colors.black,
-                            child: Stack(
-                              fit: StackFit.expand,
-                              children: [
-                                if (isCurrent && _youtubePlayer != null)
-                                  YoutubePlayer(
-                                      controller: _youtubePlayer!,
-                                      aspectRatio: 9 / 16)
-                                else if (isCurrent &&
-                                    kIsWeb &&
-                                    _webPlaybackUrl != null)
-                                  TvWebPlayer(
-                                    url: _webPlaybackUrl!,
-                                    onPlaybackReady: () => unawaited(
-                                      _loadTvSponsoredAd(
-                                        channel,
-                                        playbackGeneration,
-                                      ),
-                                    ),
-                                    onError: (message) {
-                                      if (mounted) {
-                                        setState(
-                                            () => _playbackError = message);
+                  : RefreshIndicator(
+                      onRefresh: _refreshVerticalFeed,
+                      triggerMode: RefreshIndicatorTriggerMode.onEdge,
+                      notificationPredicate: (notification) =>
+                          notification.depth == 0 &&
+                          notification.metrics.axis == Axis.vertical,
+                      child: PageView.builder(
+                        controller: _feedPageController,
+                        physics: const PageScrollPhysics(
+                          parent: AlwaysScrollableScrollPhysics(),
+                        ),
+                        scrollDirection: Axis.vertical,
+                        itemCount: _channels.length,
+                        allowImplicitScrolling: true,
+                        onPageChanged: (index) {
+                          setState(() => _activeIndex = index);
+                          unawaited(_play(_channels[index]));
+                          unawaited(_prepareAdjacent(index));
+                          if (index >= _channels.length - 8) {
+                            unawaited(_loadMoreCatalogSources());
+                          }
+                        },
+                        itemBuilder: (context, index) {
+                          final channel = _channels[index];
+                          final isCurrent =
+                              index == _activeIndex && selectedIsActive;
+                          final hasPlaybackSurface = isCurrent &&
+                              tvHasPlaybackSurface(
+                                isWeb: kIsWeb,
+                                webPlaybackUrl: _webPlaybackUrl,
+                                hasYoutubePlayer: _youtubePlayer != null,
+                                hasInitializedNativePlayer:
+                                    player?.value.isInitialized == true,
+                              );
+                          final title = '${channel['title'] ?? 'Live channel'}';
+                          final description =
+                              '${channel['description'] ?? channel['category'] ?? 'Live on Testagram'}';
+                          final thumb = '${channel['thumbnail_url'] ?? ''}';
+                          final playbackGeneration = _playGeneration;
+                          return GestureDetector(
+                            // Let embedded browser/YouTube controls receive taps;
+                            // native video can still use the card tap to pause.
+                            onTap: isCurrent &&
+                                    ((kIsWeb && _webPlaybackUrl != null) ||
+                                        _youtubePlayer != null)
+                                ? null
+                                : () async {
+                                    if (isCurrent &&
+                                        player?.value.isInitialized == true) {
+                                      if (player!.value.isPlaying) {
+                                        await player.pause();
+                                      } else {
+                                        await player.play();
                                       }
-                                    },
-                                  )
-                                else if (isCurrent &&
-                                    player?.value.isInitialized == true)
-                                  FittedBox(
-                                    fit: BoxFit.cover,
-                                    child: SizedBox(
-                                      width: player!.value.size.width,
-                                      height: player.value.size.height,
-                                      child: VideoPlayer(player),
-                                    ),
-                                  )
-                                else if (thumb.startsWith('http'))
-                                  CachedNetworkImage(
-                                    imageUrl: thumb,
-                                    fit: BoxFit.cover,
-                                    placeholder: (_, __) => const Center(
+                                      if (mounted) setState(() {});
+                                    } else {
+                                      await _play(channel);
+                                    }
+                                  },
+                            child: Container(
+                              color: Colors.black,
+                              child: Stack(
+                                fit: StackFit.expand,
+                                children: [
+                                  if (isCurrent && _youtubePlayer != null)
+                                    YoutubePlayer(
+                                        controller: _youtubePlayer!,
+                                        aspectRatio: 9 / 16)
+                                  else if (isCurrent &&
+                                      kIsWeb &&
+                                      _webPlaybackUrl != null)
+                                    TvWebPlayer(
+                                      url: _webPlaybackUrl!,
+                                      onPlaybackReady: () => unawaited(
+                                        _loadTvSponsoredAd(
+                                          channel,
+                                          playbackGeneration,
+                                        ),
+                                      ),
+                                      onError: (message) {
+                                        if (mounted) {
+                                          setState(
+                                              () => _playbackError = message);
+                                        }
+                                      },
+                                    )
+                                  else if (isCurrent &&
+                                      player?.value.isInitialized == true)
+                                    FittedBox(
+                                      fit: BoxFit.cover,
+                                      child: SizedBox(
+                                        width: player!.value.size.width,
+                                        height: player.value.size.height,
+                                        child: VideoPlayer(player),
+                                      ),
+                                    )
+                                  else if (thumb.startsWith('http'))
+                                    CachedNetworkImage(
+                                      imageUrl: thumb,
+                                      fit: BoxFit.cover,
+                                      placeholder: (_, __) => const Center(
+                                          child: Icon(Icons.live_tv_rounded,
+                                              color: Colors.white54, size: 54)),
+                                      errorWidget: (_, __, ___) => const Center(
+                                          child: Icon(Icons.live_tv_rounded,
+                                              color: Colors.white54, size: 54)),
+                                    )
+                                  else
+                                    const Center(
                                         child: Icon(Icons.live_tv_rounded,
-                                            color: Colors.white54, size: 54)),
-                                    errorWidget: (_, __, ___) => const Center(
-                                        child: Icon(Icons.live_tv_rounded,
-                                            color: Colors.white54, size: 54)),
-                                  )
-                                else
-                                  const Center(
-                                      child: Icon(Icons.live_tv_rounded,
-                                          color: Colors.white54, size: 64)),
-                                const IgnorePointer(
-                                  child: DecoratedBox(
-                                    decoration: BoxDecoration(
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                        colors: [
-                                          Color(0x99000000),
-                                          Colors.transparent,
-                                          Color(0xE6000000)
-                                        ],
-                                        stops: [0, 0.35, 1],
+                                            color: Colors.white54, size: 64)),
+                                  const IgnorePointer(
+                                    child: DecoratedBox(
+                                      decoration: BoxDecoration(
+                                        gradient: LinearGradient(
+                                          begin: Alignment.topCenter,
+                                          end: Alignment.bottomCenter,
+                                          colors: [
+                                            Color(0x99000000),
+                                            Colors.transparent,
+                                            Color(0xE6000000)
+                                          ],
+                                          stops: [0, 0.35, 1],
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
-                                if (isCurrent && _tvSponsoredAd != null)
+                                  if (isCurrent && _tvSponsoredAd != null)
+                                    Positioned(
+                                      top: 52,
+                                      left: 12,
+                                      right: 72,
+                                      child: SponsoredAdCard(
+                                        key: ValueKey(
+                                            _tvSponsoredAd!.impressionId),
+                                        ad: _tvSponsoredAd!,
+                                        service: _adService,
+                                        compact: true,
+                                      ),
+                                    ),
                                   Positioned(
-                                    top: 52,
-                                    left: 12,
-                                    right: 72,
-                                    child: SponsoredAdCard(
-                                      key: ValueKey(
-                                          _tvSponsoredAd!.impressionId),
-                                      ad: _tvSponsoredAd!,
-                                      service: _adService,
-                                      compact: true,
+                                    left: 16,
+                                    right: 88,
+                                    bottom: 26,
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 10, vertical: 5),
+                                          decoration: BoxDecoration(
+                                              color: Theme.of(context)
+                                                  .colorScheme
+                                                  .primary,
+                                              borderRadius:
+                                                  BorderRadius.circular(99)),
+                                          child: const Text('LIVE',
+                                              style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w900,
+                                                  fontSize: 11,
+                                                  letterSpacing: 1.1)),
+                                        ),
+                                        const SizedBox(height: 10),
+                                        Text(title,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 23,
+                                                fontWeight: FontWeight.w900,
+                                                shadows: [
+                                                  Shadow(
+                                                      color: Colors.black87,
+                                                      blurRadius: 12)
+                                                ])),
+                                        const SizedBox(height: 5),
+                                        Text(description,
+                                            maxLines: 3,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: const TextStyle(
+                                                color: Colors.white,
+                                                fontSize: 13,
+                                                height: 1.35)),
+                                        const SizedBox(height: 12),
+                                        if (_playbackError != null && isCurrent)
+                                          Text(_playbackError!,
+                                              style: const TextStyle(
+                                                  color: Color(0xFFFFB4AB),
+                                                  fontWeight: FontWeight.w600)),
+                                        if (!hasPlaybackSurface)
+                                          FilledButton.icon(
+                                            onPressed:
+                                                _playerLoading && isCurrent
+                                                    ? null
+                                                    : () => _play(channel),
+                                            icon: _playerLoading && isCurrent
+                                                ? const SizedBox(
+                                                    width: 16,
+                                                    height: 16,
+                                                    child:
+                                                        CircularProgressIndicator(
+                                                            strokeWidth: 2))
+                                                : const Icon(
+                                                    Icons.play_arrow_rounded),
+                                            label: Text(
+                                                _playerLoading && isCurrent
+                                                    ? 'Connecting…'
+                                                    : 'Watch channel'),
+                                          )
+                                        else
+                                          Text(
+                                              (kIsWeb &&
+                                                          _webPlaybackUrl !=
+                                                              null) ||
+                                                      _youtubePlayer != null
+                                                  ? 'Use player controls to pause or resume'
+                                                  : player!.value.isPlaying
+                                                      ? 'Tap video to pause'
+                                                      : 'Tap video to resume',
+                                              style: const TextStyle(
+                                                  color: Colors.white70,
+                                                  fontSize: 12)),
+                                      ],
                                     ),
                                   ),
-                                Positioned(
-                                  left: 16,
-                                  right: 88,
-                                  bottom: 26,
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                            horizontal: 10, vertical: 5),
-                                        decoration: BoxDecoration(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .primary,
-                                            borderRadius:
-                                                BorderRadius.circular(99)),
-                                        child: const Text('LIVE',
+                                  Positioned(
+                                    right: 14,
+                                    bottom: 34,
+                                    child: Column(
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 25,
+                                          backgroundColor: Colors.white
+                                              .withValues(alpha: 0.14),
+                                          child: const Icon(
+                                              Icons.live_tv_rounded,
+                                              color: Colors.white,
+                                              size: 28),
+                                        ),
+                                        const SizedBox(height: 7),
+                                        const Text('Channel',
                                             style: TextStyle(
                                                 color: Colors.white,
-                                                fontWeight: FontWeight.w900,
                                                 fontSize: 11,
-                                                letterSpacing: 1.1)),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      Text(title,
-                                          maxLines: 2,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 23,
-                                              fontWeight: FontWeight.w900,
-                                              shadows: [
-                                                Shadow(
-                                                    color: Colors.black87,
-                                                    blurRadius: 12)
-                                              ])),
-                                      const SizedBox(height: 5),
-                                      Text(description,
-                                          maxLines: 3,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 13,
-                                              height: 1.35)),
-                                      const SizedBox(height: 12),
-                                      if (_playbackError != null && isCurrent)
-                                        Text(_playbackError!,
-                                            style: const TextStyle(
-                                                color: Color(0xFFFFB4AB),
-                                                fontWeight: FontWeight.w600)),
-                                      if (!hasPlaybackSurface)
-                                        FilledButton.icon(
-                                          onPressed: _playerLoading && isCurrent
-                                              ? null
-                                              : () => _play(channel),
-                                          icon: _playerLoading && isCurrent
-                                              ? const SizedBox(
-                                                  width: 16,
-                                                  height: 16,
-                                                  child:
-                                                      CircularProgressIndicator(
-                                                          strokeWidth: 2))
-                                              : const Icon(
-                                                  Icons.play_arrow_rounded),
-                                          label: Text(
-                                              _playerLoading && isCurrent
-                                                  ? 'Connecting…'
-                                                  : 'Watch channel'),
-                                        )
-                                      else
-                                        Text(
-                                            (kIsWeb &&
-                                                        _webPlaybackUrl !=
-                                                            null) ||
-                                                    _youtubePlayer != null
-                                                ? 'Use player controls to pause or resume'
-                                                : player!.value.isPlaying
-                                                    ? 'Tap video to pause'
-                                                    : 'Tap video to resume',
-                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w700)),
+                                        const SizedBox(height: 18),
+                                        IconButton.filledTonal(
+                                          tooltip: 'Share channel',
+                                          onPressed: () => Share.share(
+                                              '$title · Watch on Testagram TV\nhttps://testagram.site/iptv'),
+                                          icon: const Icon(Icons.share_rounded),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        IconButton.filledTonal(
+                                          tooltip: 'Retry playback',
+                                          onPressed: () => _play(channel),
+                                          icon:
+                                              const Icon(Icons.replay_rounded),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  if (_playerLoading && isCurrent)
+                                    const Positioned(
+                                        top: 12,
+                                        left: 0,
+                                        right: 0,
+                                        child: LinearProgressIndicator(
+                                            minHeight: 3)),
+                                  if (index == 0)
+                                    const Positioned(
+                                        top: 18,
+                                        left: 16,
+                                        child: Text('Swipe up for next channel',
+                                            style: TextStyle(
                                                 color: Colors.white70,
-                                                fontSize: 12)),
-                                    ],
-                                  ),
-                                ),
-                                Positioned(
-                                  right: 14,
-                                  bottom: 34,
-                                  child: Column(
-                                    children: [
-                                      CircleAvatar(
-                                        radius: 25,
-                                        backgroundColor: Colors.white
-                                            .withValues(alpha: 0.14),
-                                        child: const Icon(Icons.live_tv_rounded,
-                                            color: Colors.white, size: 28),
-                                      ),
-                                      const SizedBox(height: 7),
-                                      const Text('Channel',
-                                          style: TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 11,
-                                              fontWeight: FontWeight.w700)),
-                                      const SizedBox(height: 18),
-                                      IconButton.filledTonal(
-                                        tooltip: 'Share channel',
-                                        onPressed: () => Share.share(
-                                            '$title · Watch on Testagram TV\nhttps://testagram.site/iptv'),
-                                        icon: const Icon(Icons.share_rounded),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      IconButton.filledTonal(
-                                        tooltip: 'Retry playback',
-                                        onPressed: () => _play(channel),
-                                        icon: const Icon(Icons.replay_rounded),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                if (_playerLoading && isCurrent)
-                                  const Positioned(
-                                      top: 12,
-                                      left: 0,
-                                      right: 0,
-                                      child: LinearProgressIndicator(
-                                          minHeight: 3)),
-                                if (index == 0)
-                                  const Positioned(
-                                      top: 18,
-                                      left: 16,
-                                      child: Text('Swipe up for next channel',
-                                          style: TextStyle(
-                                              color: Colors.white70,
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600))),
-                              ],
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.w600))),
+                                ],
+                              ),
                             ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
         ),
       ],
