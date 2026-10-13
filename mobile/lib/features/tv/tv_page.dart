@@ -505,7 +505,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
               player = null;
             }
           } catch (_) {
-            await player.dispose();
+            await player?.dispose();
             player = null;
           }
         }
