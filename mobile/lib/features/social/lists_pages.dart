@@ -42,17 +42,19 @@ class _ListsPageState extends State<ListsPage> {
           )
           .order('updated_at', ascending: false)
           .limit(100);
-      if (mounted)
+      if (mounted) {
         setState(() {
           _lists = rows.map((r) => Map<String, dynamic>.from(r)).toList();
           _loading = false;
         });
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
           _error = 'Lists could not be loaded. Refresh to retry.';
         });
+      }
     }
   }
 
@@ -142,11 +144,12 @@ class _ListsPageState extends State<ListsPage> {
         context.push('/lists/${row['id']}');
       }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () =>
               _error = 'List was not created. Check your connection and retry.',
         );
+      }
     } finally {
       if (mounted) {
         setState(() => _busy = false);
@@ -312,7 +315,7 @@ class _ListDetailPageState extends State<ListDetailPage> {
         for (final p in profiles) '${p['id']}': Map<String, dynamic>.from(p),
       };
       final timeline = result[2] is List ? result[2] as List : <dynamic>[];
-      if (mounted)
+      if (mounted) {
         setState(() {
           _list = list;
           _members = ids
@@ -324,15 +327,18 @@ class _ListDetailPageState extends State<ListDetailPage> {
               .map((r) => Map<String, dynamic>.from(r))
               .toList();
           _loading = false;
-          if (list == null)
+          if (list == null) {
             _error = 'List is unavailable or access is restricted.';
+          }
         });
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
           _error = 'List details could not be loaded. Refresh to retry.';
         });
+      }
     }
   }
 
@@ -353,13 +359,14 @@ class _ListDetailPageState extends State<ListDetailPage> {
           .ilike('username', '%$q%')
           .limit(20);
       final existing = _members.map((m) => '${m['id']}').toSet();
-      if (mounted)
+      if (mounted) {
         setState(
           () => _matches = rows
               .map((r) => Map<String, dynamic>.from(r))
               .where((r) => !existing.contains('${r['id']}'))
               .toList(),
         );
+      }
     } catch (_) {
       if (mounted) {
         setState(() => _error = 'User search failed. Retry.');
@@ -400,12 +407,13 @@ class _ListDetailPageState extends State<ListDetailPage> {
         await _load();
       }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _error = add
               ? 'Account could not be added.'
               : 'Account could not be removed.',
         );
+      }
     } finally {
       if (mounted) {
         setState(() => _busy = false);

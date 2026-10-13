@@ -25,9 +25,10 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage> {
         utf8.decode(base64Url.decode(base64Url.normalize(token.split('.')[1]))),
       ) as Map<String, dynamic>;
       final exp = payload['exp'];
-      if (exp is num)
+      if (exp is num) {
         return DateTime.fromMillisecondsSinceEpoch(exp.toInt() * 1000)
             .toLocal();
+      }
     } catch (_) {
       return null;
     }
@@ -76,11 +77,12 @@ class _ActiveSessionsPageState extends State<ActiveSessionsPage> {
         context.go('/auth');
       }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _error =
               'Sign-out was not confirmed. Check your connection and retry.',
         );
+      }
     } finally {
       if (mounted) {
         setState(() => _busy = false);

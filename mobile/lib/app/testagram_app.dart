@@ -27,6 +27,7 @@ import '../features/threads/thread_detail_page.dart';
 import '../features/communities/communities_page.dart';
 import '../features/communities/community_detail_page.dart';
 import '../features/creator/creator_studio_page.dart';
+import '../features/creator/analytics_pages.dart';
 import '../features/creator/referral_page.dart';
 import '../features/creator/rewards_page.dart';
 import '../features/tv/tv_studio_page.dart';
@@ -926,19 +927,12 @@ class _TestagramAppState extends State<TestagramApp> {
             GoRoute(path: '/polls', builder: (_, __) => const PollsPage()),
             GoRoute(
               path: '/post-analytics',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Post Analytics',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const PostAnalyticsPage(),
             ),
             GoRoute(
               path: '/post-analytics/:postId',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Post Analytics',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, state) =>
+                  PostAnalyticsPage(postId: state.pathParameters['postId']),
             ),
             GoRoute(
               path: '/post-remote',
@@ -1175,11 +1169,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/story-analytics',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Story Analytics',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const StoryAnalyticsPage(),
             ),
             GoRoute(
               path: '/team-chat',

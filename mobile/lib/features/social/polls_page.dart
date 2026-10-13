@@ -78,11 +78,12 @@ class _PollsPageState extends State<PollsPage> {
         _loading = false;
       });
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
           _error = 'Polls could not be loaded. Refresh to retry.';
         });
+      }
     }
   }
 
@@ -134,9 +135,10 @@ class _PollsPageState extends State<PollsPage> {
         ..addAll([TextEditingController(), TextEditingController()]);
       _endsAt = null;
       await _load();
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('Poll published.')));
+      }
     } catch (_) {
       if (mounted) {
         setState(
@@ -170,9 +172,10 @@ class _PollsPageState extends State<PollsPage> {
         },
       );
       await _load();
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(const SnackBar(content: Text('Vote recorded.')));
+      }
     } catch (_) {
       if (mounted) {
         setState(
@@ -204,7 +207,7 @@ class _PollsPageState extends State<PollsPage> {
         _endsAt ?? now.add(const Duration(days: 1)),
       ),
     );
-    if (time != null && mounted)
+    if (time != null && mounted) {
       setState(
         () => _endsAt = DateTime(
           date.year,
@@ -214,6 +217,7 @@ class _PollsPageState extends State<PollsPage> {
           time.minute,
         ),
       );
+    }
   }
 
   @override
@@ -289,8 +293,8 @@ class _PollsPageState extends State<PollsPage> {
                                 onPressed: _busy
                                     ? null
                                     : () => setState(() {
-                                        _options.removeAt(i).dispose();
-                                      }),
+                                          _options.removeAt(i).dispose();
+                                        }),
                                 icon: const Icon(Icons.remove_circle_outline),
                               ),
                           ],
