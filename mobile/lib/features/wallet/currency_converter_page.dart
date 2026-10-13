@@ -99,8 +99,7 @@ class _CurrencyConverterPageState extends State<CurrencyConverterPage> {
         throw const FormatException('Exchange-rate service unavailable');
       }
       final payload = jsonDecode(response.body);
-      if (payload is! Map<String, dynamic> ||
-          payload['result'] != 'success') {
+      if (payload is! Map<String, dynamic> || payload['result'] != 'success') {
         throw const FormatException('Exchange-rate response was invalid');
       }
       final rawRates = payload['rates'];
