@@ -3,6 +3,27 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+/// Pure conversion arithmetic, separated for deterministic unit testing.
+class CurrencyConversion {
+  static double? convert({
+    required double amount,
+    required double? fromRate,
+    required double? toRate,
+  }) {
+    if (!amount.isFinite ||
+        amount < 0 ||
+        fromRate == null ||
+        toRate == null ||
+        !fromRate.isFinite ||
+        !toRate.isFinite ||
+        fromRate <= 0 ||
+        toRate <= 0) {
+      return null;
+    }
+    return amount / fromRate * toRate;
+  }
+}
+
 /// Currency conversion is informational only; it never initiates a wallet transfer.
 class CurrencyConverterPage extends StatefulWidget {
   const CurrencyConverterPage({super.key});
@@ -55,12 +76,12 @@ class _CurrencyConverterPageState extends State<CurrencyConverterPage> {
 
   double? get _converted {
     final amount = _amount;
-    final fromRate = _rates[_from];
-    final toRate = _rates[_to];
-    if (amount == null || fromRate == null || toRate == null || fromRate <= 0) {
-      return null;
-    }
-    return amount / fromRate * toRate;
+    if (amount == null) return null;
+    return CurrencyConversion.convert(
+      amount: amount,
+      fromRate: _rates[_from],
+      toRate: _rates[_to],
+    );
   }
 
   Future<void> _loadRates() async {
