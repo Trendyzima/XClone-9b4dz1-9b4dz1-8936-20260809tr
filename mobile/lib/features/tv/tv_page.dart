@@ -412,9 +412,12 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
       );
       if (!mounted) return;
       setState(() {
-        _channels = _dedupeChannels(
-          groups.expand((group) => group).toList(),
-          existing: _channels,
+        _channels = _shuffleChannels(
+          _dedupeChannels(
+            groups.expand((group) => group).toList(),
+            existing: _channels,
+          ),
+          previous: _channels,
         );
       });
     } finally {
