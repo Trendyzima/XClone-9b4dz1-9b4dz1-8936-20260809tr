@@ -802,13 +802,11 @@ class _TestagramAppState extends State<TestagramApp> {
                 pathParameters: state.pathParameters,
               ),
             ),
+            // Analytics uses the existing authenticated, data-backed post
+            // analytics flow rather than a generic migration shell.
             GoRoute(
               path: '/analytics',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Analytics',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const PostAnalyticsPage(),
             ),
             GoRoute(
               path: '/appeals',
@@ -824,18 +822,16 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/boost-analytics/:postId',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Boost Analytics',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, state) => PostAnalyticsPage(
+                postId: state.pathParameters['postId'],
               ),
             ),
+            // Reuse the audited server-backed campaign creation workflow;
+            // payment state is still confirmed by the backend callback.
             GoRoute(
               path: '/boost-create',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Boost a Post',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, __) => const AdCampaignsPage(
+                mode: AdCampaignsMode.create,
               ),
             ),
             GoRoute(
