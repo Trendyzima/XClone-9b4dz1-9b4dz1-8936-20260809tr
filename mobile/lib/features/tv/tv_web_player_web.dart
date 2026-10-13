@@ -27,6 +27,8 @@ extension type _HlsInstance(JSObject _) implements JSObject {
   external void attachMedia(web.HTMLMediaElement media);
   external void destroy();
   external void on(JSAny? event, JSFunction listener);
+  external void startLoad();
+  external void recoverMediaError();
 }
 
 class TvWebPlayer extends StatefulWidget {
@@ -53,6 +55,7 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
   String? _error;
   int _generation = 0;
   int _readyGeneration = -1;
+  int _recoveryAttempts = 0;
 
   @override
   void initState() {
@@ -64,7 +67,8 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
       final video = web.HTMLVideoElement()
         ..controls = true
         ..autoplay = true
-        ..muted = true;
+        ..muted = true
+        ..preload = 'auto';
       video.setAttribute('playsinline', 'true');
       video.setAttribute('webkit-playsinline', 'true');
       video.style.setProperty('width', '100%');
@@ -81,7 +85,9 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
       video.addEventListener(
           'playing',
           ((web.Event event) {
-            if (!mounted || _readyGeneration == _generation) return;
+            if (!mounted) return;
+            _recoveryAttempts = 0;
+            if (_readyGeneration == _generation) return;
             _readyGeneration = _generation;
             widget.onPlaybackReady?.call();
           }).toJS);
@@ -136,6 +142,7 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
       web.HTMLVideoElement video, String url, int generation) async {
     _destroyHls();
     _error = null;
+    _recoveryAttempts = 0;
     video.pause();
     video.removeAttribute('src');
     video.load();
@@ -187,8 +194,24 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
               if (!mounted || generation != _generation) return;
               final details = data?.dartify();
               if (details is Map && details['fatal'] == true) {
+                // Recover transient HLS network/media faults before surfacing
+                // an error. Cap retries so an offline broadcaster cannot loop.
+                if (_recoveryAttempts < 2) {
+                  _recoveryAttempts++;
+                  final type = '${details['type'] ?? ''}';
+                  try {
+                    if (type.toLowerCase().contains('media')) {
+                      instance.recoverMediaError();
+                    } else {
+                      instance.startLoad();
+                    }
+                    return;
+                  } catch (_) {
+                    // Fall through to a visible, actionable playback error.
+                  }
+                }
                 _reportError(
-                    'This HLS stream is unavailable or its provider rejected playback.');
+                    'This HLS stream could not recover after two attempts. Try another channel or retry.');
               }
             }).toJS);
       }
