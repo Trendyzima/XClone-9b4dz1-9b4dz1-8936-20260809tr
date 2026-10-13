@@ -10,6 +10,8 @@ import '../features/auth/auth_page.dart';
 import '../features/explore/explore_page.dart';
 import '../features/feed/feed_page.dart';
 import '../features/feed/post_detail_page.dart';
+import '../features/feed/post_quote_composer_page.dart';
+import '../features/feed/post_reply_chain_page.dart';
 import '../features/feed/post_interaction_page.dart';
 import '../features/messages/messages_page.dart';
 import '../features/messages/team_chat_page.dart';
@@ -176,9 +178,9 @@ class _TestagramAppState extends State<TestagramApp> {
             GoRoute(path: '/threads', builder: (_, __) => const ThreadsPage()),
             GoRoute(
               path: '/post/:postId/replies',
-              builder: (_, state) => PostDetailPage(
+              builder: (_, state) => PostInteractionPage(
                 postId: state.pathParameters['postId'] ?? '',
-                repliesOnly: true,
+                kind: PostInteractionKind.replies,
               ),
             ),
             GoRoute(
@@ -955,50 +957,50 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/post-remote/likes',
-              builder: (_, __) => const FediversePage(section: 'likes'),
+              builder: (_, state) => PostInteractionPage(
+                postId: state.uri.queryParameters['postId'] ?? '',
+                kind: PostInteractionKind.likes,
+              ),
             ),
             GoRoute(
               path: '/post-remote/quotes',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Federated Post Quotes',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, state) => PostInteractionPage(
+                postId: state.uri.queryParameters['postId'] ?? '',
+                kind: PostInteractionKind.quotes,
               ),
             ),
             GoRoute(
               path: '/post-remote/replies',
-              builder: (_, __) => const FediversePage(section: 'replies'),
+              builder: (_, state) => PostInteractionPage(
+                postId: state.uri.queryParameters['postId'] ?? '',
+                kind: PostInteractionKind.replies,
+              ),
             ),
             GoRoute(
               path: '/post-remote/reply/:replyId',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Federated Reply',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, state) => PostReplyChainPage(
+                postId: state.uri.queryParameters['postId'] ?? '',
+                replyId: state.pathParameters['replyId'] ?? '',
               ),
             ),
             GoRoute(
               path: '/post-remote/reposts',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Federated Post Reposts',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, state) => PostInteractionPage(
+                postId: state.uri.queryParameters['postId'] ?? '',
+                kind: PostInteractionKind.reposts,
               ),
             ),
             GoRoute(
               path: '/post/:postId/quote',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Quote Post',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, state) => PostQuoteComposerPage(
+                postId: state.pathParameters['postId'] ?? '',
               ),
             ),
             GoRoute(
               path: '/post/:postId/reply/:replyId',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Post Reply',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, state) => PostReplyChainPage(
+                postId: state.pathParameters['postId'] ?? '',
+                replyId: state.pathParameters['replyId'] ?? '',
               ),
             ),
             GoRoute(
