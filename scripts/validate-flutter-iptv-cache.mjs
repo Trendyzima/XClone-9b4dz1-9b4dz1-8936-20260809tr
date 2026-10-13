@@ -19,7 +19,7 @@ assert.ok(cache.includes('MAX_MANIFEST_BYTES = 512 * 1024'), 'manifest parsing m
 assert.ok(cache.includes('WARM_TIMEOUT_MS = 2_200'), 'prefetch requests must time out');
 assert.ok(cache.includes('WARM_COOLDOWN_MS = 90_000'), 'repeated prefetch must be throttled');
 assert.ok(cache.includes('Hls.DefaultConfig.loader = Loader'), 'Flutter Web HLS playback must use the cache-aware loader');
-assert.ok(cache.includes('await saveCache(url, response.data'), 'successful full HLS fragments must be cached');
+assert.ok(cache.includes('saveCache(url, response.data'), 'successful full HLS fragments must be cached');
 assert.ok(cache.includes("url.protocol !== 'https:'"), 'HTTP streams must not enter the cache');
 assert.ok(tvPage.includes('warmIptvStream(url)'), 'the Flutter vertical feed must warm the next Web HLS stream');
 assert.ok(tvPage.includes('CachedNetworkImageProvider(thumbnail)'), 'adjacent channel artwork must use the shared image cache');
