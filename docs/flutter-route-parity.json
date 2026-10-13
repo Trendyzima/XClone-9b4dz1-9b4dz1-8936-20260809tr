@@ -220,8 +220,8 @@
   "counts": {
     "unique_source_routes_including_wildcard": 212,
     "source_routes_excluding_wildcard": 211,
-    "native_route_matches": 157,
-    "native_shell_routes": 54,
+    "native_route_matches": 156,
+    "native_shell_routes": 55,
     "legacy_web_fallbacks": 0
   },
   "routes": [
@@ -240,8 +240,8 @@
     {
       "path": "/ad-performance",
       "domain": "advertising",
-      "status": "native_partial",
-      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
+      "status": "native_shell",
+      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
     },
     {
       "path": "/admin",
