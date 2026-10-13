@@ -443,13 +443,12 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
 
   Future<void> _play(Map<String, dynamic> channel) async {
     final generation = ++_playGeneration;
-    final requestedUrl = channel['_sourceType'] == 'catalog'
-        ? _streamUrl(channel)
-        : '';
-    final warmPlayer = requestedUrl.isNotEmpty &&
-            _preloadedStreamUrl == requestedUrl
-        ? _preloadedPlayer
-        : null;
+    final requestedUrl =
+        channel['_sourceType'] == 'catalog' ? _streamUrl(channel) : '';
+    final warmPlayer =
+        requestedUrl.isNotEmpty && _preloadedStreamUrl == requestedUrl
+            ? _preloadedPlayer
+            : null;
     final warmInitialization =
         warmPlayer == null ? null : _preloadedInitialization;
     if (warmPlayer != null) {
