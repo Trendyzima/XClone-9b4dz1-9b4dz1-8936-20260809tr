@@ -3,8 +3,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/config/app_config.dart';
-import '../core/auth/session_guard.dart';
-import '../core/auth/testagram_session_storage.dart';
+import '../core/auth/auth_redirect_policy.dart';
 import '../core/theme/testagram_theme.dart';
 import '../features/auth/auth_page.dart';
 import '../features/explore/explore_page.dart';
@@ -86,7 +85,6 @@ class TestagramApp extends StatefulWidget {
 class _TestagramAppState extends State<TestagramApp> {
   late final GoRouter _router;
   late final _AuthRefresh _authRefresh;
-  SessionGuard? _sessionGuard;
   ThemeMode _themeMode = ThemeMode.system;
 
   @override
@@ -95,10 +93,6 @@ class _TestagramAppState extends State<TestagramApp> {
     _authRefresh = _AuthRefresh();
     if (AppConfig.isConfigured) {
       _authRefresh.bind(Supabase.instance.client.auth.onAuthStateChange);
-      _sessionGuard = SessionGuard(
-        Supabase.instance.client,
-        TestagramSessionStorage(),
-      )..start();
     }
     _router = GoRouter(
       initialLocation: '/',
@@ -150,7 +144,9 @@ class _TestagramAppState extends State<TestagramApp> {
             path.startsWith('/thread/') ||
             path.startsWith('/c/') ||
             path.startsWith('/profile/');
-        if (!signedIn && !onAuth && !onSetup && !publicRoute) return '/auth';
+        if (!signedIn && !onAuth && !onSetup && !publicRoute) {
+          return '/auth?returnTo=${Uri.encodeComponent(state.uri.toString())}';
+        }
         return null;
       },
       routes: [
@@ -160,6 +156,9 @@ class _TestagramAppState extends State<TestagramApp> {
           builder: (_, state) => AuthPage(
             recovery: state.uri.queryParameters['reset'] == '1' ||
                 state.uri.queryParameters['type'] == 'recovery',
+            returnTo: AuthRedirectPolicy.safeReturnPath(
+              state.uri.queryParameters['returnTo'],
+            ),
           ),
         ),
         ShellRoute(
@@ -1281,7 +1280,6 @@ class _TestagramAppState extends State<TestagramApp> {
   void dispose() {
     _router.dispose();
     _authRefresh.dispose();
-    _sessionGuard?.dispose();
     super.dispose();
   }
 
