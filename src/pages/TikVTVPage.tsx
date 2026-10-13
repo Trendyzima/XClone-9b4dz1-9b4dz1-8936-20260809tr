@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { UserRound, LogIn } from 'lucide-react';
+import { UserRound, LogIn, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { usePremium } from '@/hooks/usePremium';
 
@@ -10,11 +10,33 @@ type IptvAdWindow = Window & {
 };
 
 /** Apply strict, TikTok-style snapping to the real same-origin IPTV feed shell. */
-function installRigidIptvScrollShell(frame: HTMLIFrameElement): () => void {
+function installRigidIptvScrollShell(frame: HTMLIFrameElement, onPullRefresh: () => void): () => void {
   let doc: Document | null = null;
   try { doc = frame.contentDocument; } catch { return () => {}; }
   if (!doc?.defaultView) return () => {};
   const win = doc.defaultView;
+  let scrollShell: HTMLElement | null = null;
+  let pullStartY: number | null = null;
+  let lastPullRefreshAt = 0;
+  const onTouchStart = (event: TouchEvent) => {
+    const touch = event.touches[0];
+    if (!touch || !scrollShell || scrollShell.scrollTop > 2) {
+      pullStartY = null;
+      return;
+    }
+    pullStartY = touch.clientY;
+  };
+  const onTouchEnd = (event: TouchEvent) => {
+    const startY = pullStartY;
+    pullStartY = null;
+    const touch = event.changedTouches[0];
+    if (!touch || startY === null || touch.clientY - startY < 76 ||
+        !scrollShell || scrollShell.scrollTop > 2 || Date.now() - lastPullRefreshAt < 1800) return;
+    lastPullRefreshAt = Date.now();
+    onPullRefresh();
+  };
+  doc.addEventListener('touchstart', onTouchStart, { passive: true });
+  doc.addEventListener('touchend', onTouchEnd, { passive: true });
   const style = doc.createElement('style');
   style.dataset.testagramRigidScroll = '1';
   style.textContent = 'html,body{overscroll-behavior-y:none} [data-testagram-scroll-shell="1"]{scroll-snap-type:y mandatory!important;overscroll-behavior-y:contain!important;-webkit-overflow-scrolling:touch;touch-action:pan-y;scrollbar-width:none} [data-testagram-scroll-shell="1"]::-webkit-scrollbar{display:none} [data-testagram-channel-shell="1"]{scroll-snap-align:start!important;scroll-snap-stop:always!important;flex-shrink:0!important;box-sizing:border-box!important;backface-visibility:hidden}';
@@ -45,7 +67,7 @@ function installRigidIptvScrollShell(frame: HTMLIFrameElement): () => void {
   const observer = win.MutationObserver ? new win.MutationObserver(markShells) : null;
   if (observer && doc.body) observer.observe(doc.body, { childList: true, subtree: true });
   win.addEventListener('resize', markShells, { passive: true });
-  return () => { observer?.disconnect(); win.removeEventListener('resize', markShells); style.remove(); doc!.querySelectorAll('[data-testagram-scroll-shell="1"]').forEach(el => delete (el as HTMLElement).dataset.testagramScrollShell); doc!.querySelectorAll('[data-testagram-channel-shell="1"]').forEach(el => delete (el as HTMLElement).dataset.testagramChannelShell); };
+  return () => { observer?.disconnect(); win.removeEventListener('resize', markShells); doc!.removeEventListener('touchstart', onTouchStart); doc!.removeEventListener('touchend', onTouchEnd); style.remove(); doc!.querySelectorAll('[data-testagram-scroll-shell="1"]').forEach(el => delete (el as HTMLElement).dataset.testagramScrollShell); doc!.querySelectorAll('[data-testagram-channel-shell="1"]').forEach(el => delete (el as HTMLElement).dataset.testagramChannelShell); };
 }
 function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
   let childWindow: (Window & { google?: any; __testagramImaPromise?: Promise<void> }) | null = null;
@@ -475,6 +497,36 @@ function installIptvChannelAds(frame: HTMLIFrameElement): () => void {
   };
 }
 
+
+/** Shuffle the same-origin IPTV app's cached catalogue before its feed reloads. */
+function shuffleStoredIptvChannels(frame: HTMLIFrameElement): void {
+  const cacheKey = 'tikvtv_iptv_v9';
+  try {
+    const storage = frame.contentWindow?.localStorage;
+    if (!storage) return;
+    const raw = storage.getItem(cacheKey);
+    if (!raw) return; // A cold load already shuffles its freshly fetched catalogue.
+    const cache = JSON.parse(raw) as { channels?: Array<{ id?: string }>; timestamp?: number };
+    if (!Array.isArray(cache.channels) || cache.channels.length < 2) {
+      storage.removeItem(cacheKey);
+      return;
+    }
+    const previousFirst = cache.channels[0]?.id;
+    for (let i = cache.channels.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [cache.channels[i], cache.channels[j]] = [cache.channels[j], cache.channels[i]];
+    }
+    // Guarantee that refresh changes the first visible channel.
+    if (cache.channels[0]?.id === previousFirst) {
+      cache.channels.push(cache.channels.shift()!);
+    }
+    storage.setItem(cacheKey, JSON.stringify(cache));
+  } catch {
+    // If cache access or parsing fails, force the IPTV app to fetch a fresh catalogue.
+    try { frame.contentWindow?.localStorage.removeItem(cacheKey); } catch { /* cross-origin or storage-disabled */ }
+  }
+}
+
 export default function TikVTVPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -482,21 +534,38 @@ export default function TikVTVPage() {
   const [ready, setReady] = useState(false);
   const [failed, setFailed] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+  const [iframeUrl, setIframeUrl] = useState('/iptv-app/entry.html');
+
+  const handlePullRefresh = useCallback(() => {
+    const frame = iframeRef.current;
+    if (frame) shuffleStoredIptvChannels(frame);
+    setReady(false);
+    setIframeUrl(`/iptv-app/entry.html?refresh=${Date.now()}`);
+  }, []);
 
   useEffect(() => {
     if (!ready || !iframeRef.current) return;
     const frame = iframeRef.current;
-    const removeRigidScroll = installRigidIptvScrollShell(frame);
+    const removeRigidScroll = installRigidIptvScrollShell(frame, handlePullRefresh);
     const removeAds = isPremium ? undefined : installIptvChannelAds(frame);
     return () => { removeAds?.(); removeRigidScroll(); };
-  }, [ready, isPremium]);
+  }, [ready, isPremium, handlePullRefresh]);
 
   return (
     <div className="fixed inset-0 z-[60] bg-black" data-testid="iptv-page">
       <div className="absolute right-3 top-3 z-[80] flex items-center gap-2 rounded-full border border-white/15 bg-black/75 p-1.5 shadow-lg backdrop-blur-md">
         <button
           type="button"
-          onClick={() => navigate(user?.username ? '/profile/' + encodeURIComponent(user.username) : '/auth?returnTo=/iptv')}
+          onClick={handlePullRefresh}
+          className="inline-flex h-9 w-9 items-center justify-center rounded-full text-white transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          aria-label="Refresh and mix IPTV channels"
+          title="Refresh and mix channels"
+        >
+          <RefreshCw className="h-4 w-4" />
+        </button>
+        <button
+          type="button"
+          onClick={() => navigate(user?.username ? '/profile/' + encodeURIComponent(user.username) : '/auth?returnTo=/iptv')
           className="inline-flex h-9 items-center gap-2 rounded-full px-3 text-xs font-semibold text-white transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           aria-label={user?.username ? 'Open your XClone profile' : 'Sign in to XClone'}
         >
@@ -523,7 +592,7 @@ export default function TikVTVPage() {
       <iframe
         ref={iframeRef}
         title="Testagram IPTV"
-        src="/iptv-app/entry.html"
+        src={iframeUrl}
         className="h-full w-full border-0 bg-black"
         allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
         allowFullScreen
