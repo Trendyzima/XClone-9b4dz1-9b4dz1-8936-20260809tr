@@ -85,6 +85,29 @@
     return text;
   }
 
+  async function readBoundedSegment(response) {
+    const reader = response.body && response.body.getReader();
+    if (!reader) return null;
+    const chunks = [];
+    let total = 0;
+    try {
+      while (true) {
+        const part = await reader.read();
+        if (part.done) break;
+        total += part.value.byteLength;
+        if (total > MAX_SEGMENT_BYTES) {
+          await reader.cancel();
+          return null;
+        }
+        chunks.push(part.value);
+      }
+    } finally { try { reader.releaseLock(); } catch (_) {} }
+    const bytes = new Uint8Array(total);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    return bytes.buffer;
+  }
+
   function resolveHttps(value, base) {
     try {
       const url = new URL(value, base);
@@ -141,8 +164,10 @@
           if (response.ok && response.status === 200) {
             const declared = Number(response.headers.get('content-length') || 0);
             if (declared <= MAX_SEGMENT_BYTES) {
-              const bytes = await response.arrayBuffer();
-              await saveCache(segment.href, bytes, response.headers.get('content-type') || 'application/octet-stream');
+              const bytes = await readBoundedSegment(response);
+              if (bytes) {
+                await saveCache(segment.href, bytes, response.headers.get('content-type') || 'application/octet-stream');
+              }
             } else {
               await response.body?.cancel();
             }
