@@ -220,8 +220,8 @@
   "counts": {
     "unique_source_routes_including_wildcard": 212,
     "source_routes_excluding_wildcard": 211,
-    "native_route_matches": 143,
-    "native_shell_routes": 68,
+    "native_route_matches": 148,
+    "native_shell_routes": 63,
     "legacy_web_fallbacks": 0
   },
   "routes": [
@@ -1290,20 +1290,20 @@
     {
       "path": "/thread/:threadId/likes",
       "domain": "social",
-      "status": "native_shell",
-      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/thread/:threadId/quote-likes/:quoteId",
       "domain": "social",
-      "status": "native_shell",
-      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/thread/:threadId/quotes",
       "domain": "social",
-      "status": "native_shell",
-      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/thread/:threadId/replies",
@@ -1314,14 +1314,14 @@
     {
       "path": "/thread/:threadId/reply-likes/:replyId",
       "domain": "social",
-      "status": "native_shell",
-      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/thread/:threadId/reposts",
       "domain": "social",
-      "status": "native_shell",
-      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/threads",
