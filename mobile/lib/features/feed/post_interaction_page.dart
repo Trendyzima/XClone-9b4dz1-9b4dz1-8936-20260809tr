@@ -134,6 +134,56 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
             .whereType<Map>()
             .map((row) => Map<String, dynamic>.from(row))
             .toList();
+        if (widget.kind == PostInteractionKind.replies ||
+            widget.kind == PostInteractionKind.quotes) {
+          final table = widget.kind == PostInteractionKind.quotes
+              ? 'federated_quotes'
+              : 'federated_replies';
+          final ownRows = await _db
+              .from(table)
+              .select('id,user_id,object_uri,content,delivery_state,created_at')
+              .eq('object_uri', widget.postId)
+              .order('created_at', ascending: false)
+              .limit(PostInteractionPolicy.boundedListLimit(100))
+              .timeout(const Duration(seconds: 15));
+          final own = ownRows
+              .whereType<Map>()
+              .map((row) => Map<String, dynamic>.from(row))
+              .toList();
+          final userIds = own
+              .map((row) => '${row['user_id'] ?? ''}')
+              .where((id) => id.isNotEmpty)
+              .toSet()
+              .toList();
+          final ownProfiles = userIds.isEmpty
+              ? <dynamic>[]
+              : await _db
+                  .from('profiles')
+                  .select('id,username,display_name,avatar_url')
+                  .inFilter('id', userIds)
+                  .timeout(const Duration(seconds: 12));
+          final ownProfileById = <String, Map<String, dynamic>>{
+            for (final profile in ownProfiles)
+              '${profile['id']}': Map<String, dynamic>.from(profile),
+          };
+          for (final row in own) {
+            remoteRows.add({
+              'uri': 'local-${widget.kind.name}:${row['id']}',
+              'actor_uri': '',
+              'content': row['content'],
+              'summary': null,
+              'published_at': row['created_at'],
+              'quote_uri': widget.kind == PostInteractionKind.quotes
+                  ? row['object_uri']
+                  : null,
+              'in_reply_to_uri': widget.kind == PostInteractionKind.replies
+                  ? row['object_uri']
+                  : null,
+              'delivery_state': row['delivery_state'],
+              'profile': ownProfileById['${row['user_id']}'],
+            });
+          }
+        }
         final actorUris = remoteRows
             .map((row) => '${row['actor_uri'] ?? ''}')
             .where((id) => id.isNotEmpty)
@@ -151,7 +201,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
             '${actor['actor_uri']}': Map<String, dynamic>.from(actor),
         };
         for (final row in remoteRows) {
-          row['profile'] = actorByUri['${row['actor_uri']}'];
+          row['profile'] ??= actorByUri['${row['actor_uri']}'];
         }
         if (!mounted || generation != _generation) return;
         setState(() {
@@ -308,7 +358,9 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
           'method': 'POST',
           'body': {'post_id': widget.postId, 'content': content},
         }).timeout(const Duration(seconds: 30));
-        if (response.data is Map && (response.data as Map)['error'] != null) {
+        if (response.data is Map &&
+            (response.data as Map)['error'] != null &&
+            (response.data as Map)['ok'] != true) {
           throw StateError('The federation service rejected this reply.');
         }
       } else {
@@ -472,9 +524,9 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                         final avatar = '${profile?['avatar_url'] ?? ''}';
                         final detail = switch (widget.kind) {
                           PostInteractionKind.replies =>
-                            '${item['content'] ?? 'Replied to this post'}',
+                            '${item['content'] ?? 'Replied to this post'}${item['delivery_state'] == null ? '' : ' · ${item['delivery_state']}'}',
                           PostInteractionKind.quotes =>
-                            '${item['content'] ?? 'Quoted this post'}',
+                            '${item['content'] ?? 'Quoted this post'}${item['delivery_state'] == null ? '' : ' · ${item['delivery_state']}'}',
                           PostInteractionKind.quoteLikes =>
                             'Liked a quote: ${item['quote_content'] ?? ''}',
                           PostInteractionKind.reposts => 'Reposted this post',
