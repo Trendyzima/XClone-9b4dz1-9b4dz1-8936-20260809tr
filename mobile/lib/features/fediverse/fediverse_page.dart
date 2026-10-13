@@ -4,15 +4,20 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart';
 import 'fediverse_feed_policy.dart';
+import 'fediverse_content.dart';
 
 class FediversePage extends StatefulWidget {
   const FediversePage({
     super.key,
     this.instancesOnly = false,
     this.section = 'feed',
+    this.actorUri,
+    this.handle,
   });
   final bool instancesOnly;
   final String section;
+  final String? actorUri;
+  final String? handle;
 
   String get title {
     if (instancesOnly) return 'Fediverse instances';
@@ -53,6 +58,9 @@ class _FediversePageState extends State<FediversePage> {
   List<Map<String, dynamic>> _posts = [], _instances = [];
   List<Map<String, dynamic>> _pendingPosts = [];
   final ScrollController _feedScrollController = ScrollController();
+  final TextEditingController _mastodonSearchController = TextEditingController();
+  String _mastodonInstance = 'https://mastodon.social';
+  bool _searchingMastodon = false;
   List<Map<String, dynamic>> _surfaceRows = [];
   Map<String, int> _surfaceMetrics = {};
   String? _surfaceMessage;
@@ -90,6 +98,14 @@ class _FediversePageState extends State<FediversePage> {
           setState(() => _instances =
               rows.map((r) => Map<String, dynamic>.from(r as Map)).toList());
         }
+        return;
+      }
+      if (widget.section == 'mastodon') {
+        await _loadMastodonTimeline();
+        return;
+      }
+      if (widget.actorUri != null && _isProfileSection) {
+        await _loadRemoteProfile();
         return;
       }
       if (_sectionNeedsDedicatedBackend) {
@@ -170,9 +186,10 @@ class _FediversePageState extends State<FediversePage> {
         });
       }
     } catch (_) {
-      if (mounted && _posts.isEmpty) {
-        setState(() => _error =
-            'Fediverse data could not load. Check your connection and retry.');
+      if (mounted) {
+        setState(() => _error = _posts.isEmpty
+            ? 'Fediverse data could not load. Check your connection and retry.'
+            : 'Could not refresh the Fediverse feed. Showing the last loaded posts; retry when connected.');
       }
     } finally {
       if (mounted && _loading) setState(() => _loading = false);
@@ -217,7 +234,12 @@ class _FediversePageState extends State<FediversePage> {
     }
   }
 
-  bool get _sectionNeedsDedicatedBackend => const {
+  bool get _isProfileSection => const {
+        'profile', 'posts', 'threads', 'replies', 'media', 'videos',
+        'podcasts', 'series', 'likes', 'followers', 'following',
+      }.contains(widget.section);
+
+  bool get _sectionNeedsDedicatedBackend => widget.actorUri == null && const {
         'inbox',
         'relay',
         'analytics',
@@ -238,6 +260,195 @@ class _FediversePageState extends State<FediversePage> {
         'profile-analytics',
         'controls',
       }.contains(widget.section);
+
+
+  String _plainRemoteContent(String value) => normalizeFederatedContent(value);
+
+  Map<String, dynamic> _normalizeMastodonStatus(dynamic value) {
+    final status = Map<String, dynamic>.from(value as Map);
+    final account = status['account'] is Map
+        ? Map<String, dynamic>.from(status['account'] as Map)
+        : <String, dynamic>{};
+    final acct = '${account['acct'] ?? account['username'] ?? 'remote'}';
+    final parts = acct.split('@');
+    final domain = parts.length > 1 ? parts.last : Uri.parse(_mastodonInstance).host;
+    final media = status['media_attachments'] is List
+        ? (status['media_attachments'] as List).whereType<Map>().map((item) {
+            final attachment = Map<String, dynamic>.from(item);
+            return <String, dynamic>{
+              'url': attachment['url'] ?? attachment['preview_url'],
+              'mediaType': switch ('${attachment['type'] ?? ''}') {
+                'video' => 'video/mp4',
+                'audio' => 'audio/mpeg',
+                _ => 'image/*',
+              },
+              'name': attachment['description'],
+            };
+          }).toList()
+        : <Map<String, dynamic>>[];
+    final uri = '${status['uri'] ?? status['url'] ?? ''}';
+    return <String, dynamic>{
+      'id': status['id'],
+      'uri': uri,
+      'url': status['url'] ?? uri,
+      'object_type': 'Note',
+      'content': _plainRemoteContent('${status['content'] ?? ''}'),
+      'summary': _plainRemoteContent('${status['spoiler_text'] ?? ''}'),
+      'content_warning': status['spoiler_text'] ?? '',
+      'sensitive': status['sensitive'] == true,
+      'published_at': status['created_at'],
+      'attachments': media,
+      'like_count': status['favourites_count'] ?? 0,
+      'announce_count': status['reblogs_count'] ?? 0,
+      'reply_count': status['replies_count'] ?? 0,
+      'actor': <String, dynamic>{
+        'username': parts.first,
+        'domain': domain,
+        'display_name': account['display_name'],
+        'avatar_url': account['avatar'],
+        'actor_uri': account['url'] ?? account['uri'],
+      },
+    };
+  }
+
+  Future<void> _loadMastodonTimeline({String? query}) async {
+    final action = query == null || query.trim().isEmpty
+        ? 'public_timeline'
+        : 'search';
+    final response = await _db.functions.invoke('megalodon-gateway', body: {
+      'action': action,
+      'instance': _mastodonInstance,
+      'limit': 30,
+      if (action == 'search') 'query': query!.trim(),
+      if (action == 'search') 'type': 'statuses',
+    }).timeout(const Duration(seconds: 15));
+    final data = response.data;
+    if (data is! Map || data['ok'] != true) {
+      throw StateError('Mastodon timeline service returned an invalid response.');
+    }
+    final result = data['result'];
+    final statuses = data['statuses'] ??
+        (result is Map ? result['statuses'] : null) ??
+        (result is List ? result : null);
+    if (statuses is! List) {
+      throw StateError('Mastodon timeline response did not contain statuses.');
+    }
+    final normalized = statuses
+        .whereType<Map>()
+        .map(_normalizeMastodonStatus)
+        .where((post) => '${post['uri'] ?? ''}'.startsWith('https://'))
+        .toList();
+    if (!mounted) return;
+    setState(() {
+      _posts = normalized;
+      _pendingPosts = [];
+      _liked
+        ..clear()
+        ..addAll(statuses.whereType<Map>()
+            .where((status) => status['favourited'] == true)
+            .map((status) => '${status['uri'] ?? ''}'));
+      _boosted
+        ..clear()
+        ..addAll(statuses.whereType<Map>()
+            .where((status) => status['reblogged'] == true)
+            .map((status) => '${status['uri'] ?? ''}'));
+    });
+  }
+
+  Future<void> _searchMastodon() async {
+    final query = _mastodonSearchController.text.trim();
+    if (query.isEmpty) {
+      await _load();
+      return;
+    }
+    setState(() {
+      _searchingMastodon = true;
+      _loading = true;
+      _error = null;
+    });
+    try {
+      await _loadMastodonTimeline(query: query);
+    } catch (_) {
+      if (mounted) setState(() => _error =
+          'Mastodon search failed. Check the instance or try again.');
+    } finally {
+      if (mounted) setState(() {
+        _searchingMastodon = false;
+        _loading = false;
+      });
+    }
+  }
+
+  Future<void> _loadRemoteProfile() async {
+    final actorUri = widget.actorUri?.trim() ?? '';
+    if (!actorUri.startsWith('https://') || Uri.tryParse(actorUri)?.host.isEmpty != false) {
+      _surfaceMessage = 'This profile has no valid HTTPS ActivityPub actor URL.';
+      return;
+    }
+    final response = await _db.functions.invoke('testagram-api', body: {
+      'path': '/federated-profile',
+      'method': 'GET',
+      'params': {'actor_uri': actorUri, 'limit': 80},
+    }).timeout(const Duration(seconds: 20));
+    final data = response.data;
+    if (data is! Map || data['ok'] != true) {
+      throw StateError('Remote profile service returned an invalid response.');
+    }
+    final actor = data['actor'] is Map
+        ? Map<String, dynamic>.from(data['actor'] as Map)
+        : <String, dynamic>{};
+    final domain = Uri.parse(actorUri).host;
+    final username = '${actor['preferredUsername'] ?? widget.handle ?? 'remote'}'
+        .replaceFirst(RegExp(r'^@'), '')
+        .split('@')
+        .first;
+    final items = data['items'] is List ? data['items'] as List : const [];
+    final posts = <Map<String, dynamic>>[];
+    for (final item in items.whereType<Map>()) {
+      final object = item['object'] is Map
+          ? Map<String, dynamic>.from(item['object'] as Map)
+          : Map<String, dynamic>.from(item);
+      final uri = '${object['id'] ?? object['url'] ?? ''}';
+      if (!uri.startsWith('https://') || object['type'] == 'Tombstone' ||
+          object['type'] == 'Delete') continue;
+      final attachments = object['attachment'] is List
+          ? object['attachment'] as List
+          : object['attachment'] == null ? const [] : [object['attachment']];
+      posts.add(<String, dynamic>{
+        'id': uri,
+        'uri': uri,
+        'url': object['url'] is String ? object['url'] : uri,
+        'object_type': object['type'] ?? 'Note',
+        'content': _plainRemoteContent('${object['content'] ?? object['summary'] ?? ''}'),
+        'summary': object['summary'] ?? '',
+        'content_warning': object['summary'] ?? '',
+        'sensitive': object['sensitive'] == true,
+        'published_at': object['published'] ?? object['updated'],
+        'in_reply_to_uri': object['inReplyTo'],
+        'attachments': attachments,
+        'tags': object['tag'] is List ? object['tag'] : const [],
+        'actor_uri': actorUri,
+        'actor': <String, dynamic>{
+          'username': username,
+          'domain': domain,
+          'display_name': actor['name'] ?? username,
+          'avatar_url': actor['icon'] is Map ? actor['icon']['url'] : null,
+          'actor_uri': actorUri,
+        },
+        'like_count': 0,
+        'announce_count': 0,
+        'reply_count': 0,
+      });
+    }
+    if (!mounted) return;
+    setState(() {
+      _posts = posts;
+      _pendingPosts = [];
+      _surfaceMessage = posts.isEmpty
+          ? 'No public posts were returned for this federated profile.'
+          : null;
+    });
+  }
 
   Future<void> _loadDedicatedSection() async {
     final uid = _uid;
@@ -568,6 +779,7 @@ class _FediversePageState extends State<FediversePage> {
   @override
   void dispose() {
     _feedScrollController.dispose();
+    _mastodonSearchController.dispose();
     super.dispose();
   }
 
@@ -638,6 +850,33 @@ class _FediversePageState extends State<FediversePage> {
                     icon: const Icon(Icons.refresh_rounded))
               ]),
               const SizedBox(height: 4),
+              if (widget.section == 'mastodon')
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(children: [
+                    Expanded(
+                      child: TextField(
+                        controller: _mastodonSearchController,
+                        textInputAction: TextInputAction.search,
+                        onSubmitted: (_) => _searchMastodon(),
+                        decoration: const InputDecoration(
+                          hintText: 'Search public Mastodon posts',
+                          prefixIcon: Icon(Icons.search_rounded),
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton.filled(
+                      tooltip: 'Search Mastodon',
+                      onPressed: _searchingMastodon ? null : _searchMastodon,
+                      icon: _searchingMastodon
+                          ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.search_rounded),
+                    ),
+                  ]),
+                ),
               if (_surfaceMessage != null)
                 Card(
                   child: Padding(
@@ -692,7 +931,7 @@ class _FediversePageState extends State<FediversePage> {
                           [subtitle, detail]
                               .where(
                                   (value) => value.isNotEmpty && value != '{}')
-                              .join('\\n'),
+                              .join('\n'),
                           maxLines: 4,
                           overflow: TextOverflow.ellipsis),
                       trailing:

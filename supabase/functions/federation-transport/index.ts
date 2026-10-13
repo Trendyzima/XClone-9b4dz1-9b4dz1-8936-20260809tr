@@ -1,4 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+import { assertCanonicalPublicUrl, assertSafeRemoteUrl, canonicalOrigin } from "../_shared/activitypub-security.ts";
 
 /** Shared ActivityPub interoperability primitives. Keep protocol parsing tolerant. */
 export const AP_CONTEXT = [
@@ -94,41 +95,6 @@ export function canonicalJson(value: unknown): string {
 export function pageUrl(base: string, page: number, cursor?: string | null): string {
   const u = new URL(base); u.searchParams.set("page", String(page)); if (cursor) u.searchParams.set("cursor", cursor); return u.toString();
 }
-
-
-const PRIVATE_HOSTS = new Set(["localhost", "127.0.0.1", "0.0.0.0", "::1"]);
-
-export function canonicalOrigin(): string {
-  const configured = "https://testagram.site";
-  return new URL(configured).origin;
-}
-
-export function canonicalUrl(path: string): string {
-  return new URL(path.startsWith("/") ? path : `/${path}`, canonicalOrigin()).toString();
-}
-
-export function assertCanonicalPublicUrl(value: string): URL {
-  const url = new URL(value);
-  const origin = new URL(canonicalOrigin());
-  if (url.protocol !== "https:") throw new Error("Federation URLs must use HTTPS");
-  if (url.hostname !== origin.hostname) throw new Error("Non-canonical federation hostname");
-  return url;
-}
-
-function isPrivateIpv4(host: string): boolean {
-  const parts = host.split(".").map(Number);
-  if (parts.length !== 4 || parts.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return false;
-  return parts[0] === 10 || parts[0] === 127 || (parts[0] === 192 && parts[1] === 168) || (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31);
-}
-
-export function assertSafeRemoteUrl(value: string): URL {
-  const url = new URL(value);
-  const host = url.hostname.toLowerCase();
-  if (url.protocol !== "https:") throw new Error("Remote federation URL must use HTTPS");
-  if (PRIVATE_HOSTS.has(host) || isPrivateIpv4(host) || host.endsWith(".local") || host.endsWith(".internal")) throw new Error("Blocked private federation host");
-  return url;
-}
-
 
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -283,18 +249,44 @@ class RemoteProtocolError extends Error {
 }
 
 async function remoteFetch(url: string, init: RequestInit = {}, timeoutMs = 12000): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { ...init, signal: controller.signal });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new RemoteFederationError(
-      "Remote federation host is unavailable: " + message.slice(0, 700)
-    );
-  } finally {
-    clearTimeout(timer);
+  let current = assertSafeRemoteUrl(url);
+  const method = String(init.method || "GET").toUpperCase();
+  const originalHeaders = new Headers(init.headers);
+  const signedRequest = originalHeaders.has("signature") || originalHeaders.has("signature-input") || originalHeaders.has("authorization");
+  const deadline = Date.now() + timeoutMs;
+  for (let hop = 0; hop <= 3; hop++) {
+    assertSafeRemoteUrl(current.toString());
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) throw new RemoteFederationError("Remote federation request timed out");
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), remaining);
+    let response: Response;
+    try {
+      response = await fetch(current.toString(), { ...init, headers: originalHeaders, redirect: "manual", signal: controller.signal });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new RemoteFederationError("Remote federation host is unavailable: " + message.slice(0, 700));
+    } finally {
+      clearTimeout(timer);
+    }
+    if (![301, 302, 303, 307, 308].includes(response.status)) return response;
+    const location = response.headers.get("location");
+    if (!location) return response;
+    if (signedRequest) throw new RemoteProtocolError("Signed federation endpoint returned a redirect; refusing to forward signed headers");
+    if (method !== "GET" && method !== "HEAD") throw new RemoteProtocolError("Remote federation writes may not be redirected");
+    if (hop === 3) throw new RemoteProtocolError("Remote federation redirect limit exceeded");
+    current = assertSafeRemoteUrl(new URL(location, current).toString());
+    if (current.origin !== new URL(url).origin) {
+      originalHeaders.delete("authorization");
+      originalHeaders.delete("signature");
+      originalHeaders.delete("signature-input");
+      originalHeaders.delete("host");
+      originalHeaders.delete("content-digest");
+      originalHeaders.delete("cookie");
+      originalHeaders.delete("proxy-authorization");
+    }
   }
+  throw new RemoteProtocolError("Remote federation redirect limit exceeded");
 }
 
 function remoteHttpFailure(operation: string, response: Response, body: string): never {
@@ -344,7 +336,9 @@ async function resolve(local: any, target: string) {
     const [username, domain] = parts;
     if (!/^[A-Za-z0-9.-]+$/.test(domain)) throw Error("Invalid federation domain");
     const resource = encodeURIComponent(`acct:${username}@${domain}`);
-    const webfinger = await remoteFetch(`https://${domain}/.well-known/webfinger?resource=${resource}`, {
+    // Validate before DNS/network access; the domain comes from untrusted user input.
+    const webfingerUrl = assertSafeRemoteUrl(`https://${domain}/.well-known/webfinger?resource=${resource}`);
+    const webfinger = await remoteFetch(webfingerUrl.toString(), {
       headers: { Accept: "application/jrd+json, application/json", "User-Agent": "Testagram-Federation/4.0" },
     });
     if (!webfinger.ok) remoteHttpFailure("WebFinger", webfinger, "");

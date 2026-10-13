@@ -146,7 +146,7 @@
     },
     {
       "id": "fediverse",
-      "scope": "Federated identities, timelines, inbox, relays, follows, media, profiles, analytics and federation safety",
+      "scope": "Federated identities, local and remote timelines, Mastodon public timeline/search, remote profiles, inbox, delivery ledger, follows, reactions, media, moderation controls, privacy authorization, ActivityPub SSRF/redirect safety and Flutter web/Android parity.",
       "status": "in_progress",
       "acceptance": [
         "positive path",
@@ -154,7 +154,14 @@
         "offline/timeout recovery",
         "accessibility and responsive layout",
         "web and Android tests",
-        "Flutter implementation exists; end-to-end production parity is not yet accepted"
+        "Flutter implementation exists; end-to-end production parity is not yet accepted",
+        "Remote URL validation rejects private IPv4/IPv6, embedded credentials, local names and unsafe redirects",
+        "Mastodon compatibility API enforces post visibility and per-owner list access for reads and writes",
+        "Flutter Mastodon timeline/search and query-driven remote profile routes use authenticated native data contracts",
+        "End-to-end federation signatures, inbox delivery, remote follow/reaction, web and Android journeys remain required before marking complete",
+        "Mastodon OAuth write/follow operations reject missing scopes before mutating data",
+        "Missing or malformed post visibility fails closed instead of becoming public",
+        "Untrusted remote HTML is rendered as normalized plain text and has Flutter unit tests"
       ]
     },
     {
@@ -5330,6 +5337,11 @@
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Compatibility migration for the Testagram TV provider contract. Keep the backend contract authoritative and verify Flutter TV clients against the deployed schema."
+    },
+    "supabase/functions/_shared/mastodon-visibility.ts": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Shared Mastodon status-visibility policy with unit tests; keep authorization decisions centralized and fail closed."
     }
   }
 }
