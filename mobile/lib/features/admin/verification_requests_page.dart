@@ -284,32 +284,11 @@ class _VerificationRequestsPageState extends State<VerificationRequestsPage> {
                                           Theme.of(context).textTheme.bodySmall,
                                     ),
                                     if (evidence.isNotEmpty)
-                                      ExpansionTile(
-                                        title: const Text('Evidence metadata'),
-                                        children: [
-                                          Padding(
-                                            padding: const EdgeInsets.all(8),
-                                            child: SelectableText(
-                                              evidence.entries
-                                                  .where(
-                                                    (e) =>
-                                                        !e.key
-                                                            .toLowerCase()
-                                                            .contains(
-                                                              'national',
-                                                            ) &&
-                                                        !e.key
-                                                            .toLowerCase()
-                                                            .contains(
-                                                              'document',
-                                                            ),
-                                                  )
-                                                  .map((e) =>
-                                                      '${e.key}: ${e.value}')
-                                                  .join('\n'),
-                                            ),
-                                          ),
-                                        ],
+                                      const ListTile(
+                                        dense: true,
+                                        leading: Icon(Icons.lock_outline),
+                                        title: Text(
+                                            'Evidence metadata attached; contents hidden in this review list.'),
                                       ),
                                     if ('${row['status']}' == 'pending')
                                       Wrap(
