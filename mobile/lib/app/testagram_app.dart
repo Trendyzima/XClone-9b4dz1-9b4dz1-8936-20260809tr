@@ -92,7 +92,8 @@ class _TestagramAppState extends State<TestagramApp> {
         final onAuth = state.matchedLocation == '/auth';
         final onSetup = state.matchedLocation == '/setup';
         final path = state.matchedLocation;
-        final publicRoute = path == '/' ||
+        final publicRoute =
+            path == '/' ||
             path == '/explore' ||
             path == '/search' ||
             path == '/discover' ||
@@ -136,7 +137,8 @@ class _TestagramAppState extends State<TestagramApp> {
         GoRoute(
           path: '/auth',
           builder: (_, state) => AuthPage(
-            recovery: state.uri.queryParameters['reset'] == '1' ||
+            recovery:
+                state.uri.queryParameters['reset'] == '1' ||
                 state.uri.queryParameters['type'] == 'recovery',
           ),
         ),
@@ -925,8 +927,15 @@ class _TestagramAppState extends State<TestagramApp> {
               builder: (_, __) => const ContentPolicyPage(),
             ),
             GoRoute(path: '/polls', builder: (_, __) => const PollsPage()),
-            GoRoute(path: '/post-analytics', builder: (_, __) => const PostAnalyticsPage()),
-            GoRoute(path: '/post-analytics/:postId', builder: (_, state) => PostAnalyticsPage(postId: state.pathParameters['postId'])),
+            GoRoute(
+              path: '/post-analytics',
+              builder: (_, __) => const PostAnalyticsPage(),
+            ),
+            GoRoute(
+              path: '/post-analytics/:postId',
+              builder: (_, state) =>
+                  PostAnalyticsPage(postId: state.pathParameters['postId']),
+            ),
             GoRoute(
               path: '/post-remote',
               builder: (_, state) => NativeFeaturePage(
@@ -1160,7 +1169,10 @@ class _TestagramAppState extends State<TestagramApp> {
                 pathParameters: state.pathParameters,
               ),
             ),
-            GoRoute(path: '/story-analytics', builder: (_, __) => const StoryAnalyticsPage()),
+            GoRoute(
+              path: '/story-analytics',
+              builder: (_, __) => const StoryAnalyticsPage(),
+            ),
             GoRoute(
               path: '/team-chat',
               builder: (_, state) => NativeFeaturePage(
