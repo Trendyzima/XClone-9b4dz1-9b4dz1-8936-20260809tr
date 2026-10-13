@@ -700,7 +700,14 @@ class _TestagramAppState extends State<TestagramApp> {
               builder: (_, __) =>
                   const AdCampaignsPage(mode: AdCampaignsMode.analytics),
             ),
-            GoRoute(path: '/admin', builder: (_, __) => const GovernancePage()),
+            GoRoute(
+              path: '/admin',
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Administration',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
+            ),
             GoRoute(
               path: '/admin/ads-review',
               builder: (_, state) => NativeFeaturePage(
@@ -731,7 +738,11 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/admin/overview',
-              builder: (_, __) => const GovernancePage(),
+              builder: (_, state) => NativeFeaturePage(
+                title: 'Admin Overview',
+                routePath: state.matchedLocation,
+                pathParameters: state.pathParameters,
+              ),
             ),
             GoRoute(
               path: '/admin/platform-revenue',
