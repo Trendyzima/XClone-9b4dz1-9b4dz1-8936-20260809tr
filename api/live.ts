@@ -24,6 +24,11 @@ export default async function handler(req:Request){
  if(isGet&&action!=="viewer")return json({ok:false,error:{code:"METHOD_NOT_ALLOWED",message:"GET is only supported for public viewer lookup."}},405);
  if(!id)return json({ok:false,error:{code:"STREAM_ID_REQUIRED",message:"stream_id is required."}},400);
  const isPublicViewer=action==="viewer";
- const r=await fetch(url+"/functions/v1/tv-media-control",{method:"POST",headers:{"Content-Type":"application/json",apikey:key,...(req.headers.get("authorization")?{Authorization:req.headers.get("authorization")!}:{})},body:JSON.stringify({action,stream_id:id,provider:typeof b?.provider==="string"?b.provider:undefined,invite_token:typeof b?.invite_token==="string"?b.invite_token:undefined,encoder_token:typeof b?.encoder_token==="string"?b.encoder_token:undefined,diagnostics:b?.diagnostics,guest_slot:b?.guest_slot,control:typeof b?.control==="string"?b.control:undefined})});
+ let r:Response;
+ try{
+  r=await fetch(url+"/functions/v1/tv-media-control",{method:"POST",headers:{"Content-Type":"application/json",apikey:key,...(req.headers.get("authorization")?{Authorization:req.headers.get("authorization")!}:{})},body:JSON.stringify({action,stream_id:id,provider:typeof b?.provider==="string"?b.provider:undefined,invite_token:typeof b?.invite_token==="string"?b.invite_token:undefined,encoder_token:typeof b?.encoder_token==="string"?b.encoder_token:undefined,diagnostics:b?.diagnostics,guest_slot:b?.guest_slot,control:typeof b?.control==="string"?b.control:undefined})});
+ }catch{
+  return json({ok:false,error:{code:"TV_CONTROL_UNREACHABLE",message:"Testagram TV control service could not be reached. Please retry."}},502);
+ }
  const p=await r.json().catch(()=>({ok:false,error:{code:"TV_CONTROL_INVALID_RESPONSE",message:"TV control returned invalid JSON."}}));return json(p,r.status,isPublicViewer&&r.ok?"public, s-maxage=3, stale-while-revalidate=15":"no-store");
 }
