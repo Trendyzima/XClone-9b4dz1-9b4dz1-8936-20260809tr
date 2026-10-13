@@ -43,6 +43,7 @@ import '../features/social/polls_page.dart';
 import '../features/social/thread_interaction_page.dart';
 import '../features/ads/ad_campaigns_page.dart';
 import '../features/admin/governance_page.dart';
+import '../features/admin/admin_overview_page.dart';
 import '../features/ads/ad_config_page.dart';
 import '../features/news/news_page.dart';
 import '../features/news/news_article_page.dart';
@@ -703,11 +704,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/admin',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Administration',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const AdminOverviewPage(),
             ),
             GoRoute(
               path: '/admin/ads-review',
@@ -739,11 +736,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/admin/overview',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Admin Overview',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const AdminOverviewPage(),
             ),
             GoRoute(
               path: '/admin/platform-revenue',
