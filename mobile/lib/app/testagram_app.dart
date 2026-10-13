@@ -890,13 +890,11 @@ class _TestagramAppState extends State<TestagramApp> {
               builder: (_, state) =>
                   ListDetailPage(listId: state.pathParameters['id']!),
             ),
+            // The native Creator Studio already owns the creator's
+            // monetization controls and earnings read model.
             GoRoute(
               path: '/monetization',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Monetization',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const CreatorStudioPage(),
             ),
             GoRoute(
               path: '/payouts',
