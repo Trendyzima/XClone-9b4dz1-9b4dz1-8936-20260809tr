@@ -44,6 +44,8 @@ import '../features/social/thread_interaction_page.dart';
 import '../features/ads/ad_campaigns_page.dart';
 import '../features/admin/governance_page.dart';
 import '../features/admin/admin_overview_page.dart';
+import '../features/admin/admin_users_page.dart';
+import '../features/admin/admin_fraud_page.dart';
 import '../features/ads/ad_config_page.dart';
 import '../features/news/news_page.dart';
 import '../features/news/news_article_page.dart';
@@ -719,11 +721,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/admin/fraud',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Fraud Detection',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const AdminFraudPage(),
             ),
             GoRoute(
               path: '/admin/governance',
@@ -775,11 +773,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/admin/users',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'User Management',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const AdminUsersPage(),
             ),
             GoRoute(
               path: '/admin/verifications',
