@@ -67,6 +67,7 @@ import '../features/news/news_article_page.dart';
 import '../features/fediverse/fediverse_page.dart';
 import '../features/spaces/spaces_page.dart';
 import '../features/native_route/native_feature_page.dart';
+import '../features/wallet/currency_converter_page.dart';
 import '../features/wallet/wallet_page.dart';
 import '../features/wallet/wallet_auxiliary_page.dart';
 import '../features/wallet/wallet_savings_page.dart';
@@ -1204,11 +1205,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/wallet/converter',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Currency Converter',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const CurrencyConverterPage(),
             ),
             GoRoute(
               path: '/wallet/history',
