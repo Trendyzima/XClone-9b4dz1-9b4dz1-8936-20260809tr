@@ -40,6 +40,7 @@ import '../features/marketplace/wishlist_page.dart';
 import '../features/social/lists_pages.dart';
 import '../features/social/polls_page.dart';
 import '../features/ads/ad_campaigns_page.dart';
+import '../features/ads/ad_performance_page.dart';
 import '../features/admin/governance_page.dart';
 import '../features/ads/ad_config_page.dart';
 import '../features/news/news_page.dart';
@@ -663,13 +664,8 @@ class _TestagramAppState extends State<TestagramApp> {
               builder: (_, __) => const SettingsPage(section: 'notifications'),
             ),
             GoRoute(
-              path: '/ad-performance',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Ad Performance',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
-            ),
+                path: '/ad-performance',
+                builder: (_, __) => const AdPerformancePage()),
             GoRoute(
               path: '/admin',
               builder: (_, state) => NativeFeaturePage(
