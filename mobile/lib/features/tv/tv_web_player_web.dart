@@ -188,7 +188,7 @@ class _TvWebPlayerState extends State<TvWebPlayer> {
       // Install the bounded Cache-API fragment loader before Hls.js is created.
       // It bypasses manifests, keys, signed URLs and byte-range requests.
       try {
-        _installIptvHlsCache?.callAsFunction<JSAny?>(null, constructor);
+        _installIptvHlsCache?.callAsFunction(null, constructor);
       } catch (_) {
         // Cache availability is an optimization, never a playback requirement.
       }
