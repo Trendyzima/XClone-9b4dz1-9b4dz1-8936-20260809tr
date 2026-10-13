@@ -45,6 +45,25 @@ export default [
     },
   },
   {
+    files: ["mobile/web/**/*.js"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "script",
+      globals: globals.browser,
+    },
+    rules: {
+      "no-unused-vars": [
+        "error",
+        {
+          argsIgnorePattern: "^_",
+          varsIgnorePattern: "^_$",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+      "no-empty": ["error", { allowEmptyCatch: true }],
+    },
+  },
+  {
     files: ["src/**/*.{js,jsx}"],
     languageOptions: {
       ecmaVersion: "latest",
