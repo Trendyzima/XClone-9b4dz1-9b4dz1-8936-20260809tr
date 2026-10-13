@@ -37,6 +37,11 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
   bool _loading = false;
   String? _error;
   VideoPlayerController? _player;
+  // Keep at most one adjacent native stream initialized, then reuse it on swipe.
+  VideoPlayerController? _preloadedPlayer;
+  String? _preloadedStreamUrl;
+  Future<void>? _preloadedInitialization;
+  int _preloadGeneration = 0;
   YoutubePlayerController? _youtubePlayer;
   bool _playerLoading = false;
   bool _verticalMode = true;
@@ -113,6 +118,11 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
     WidgetsBinding.instance.removeObserver(this);
     _lifecyclePausedPlayer = null;
     _player?.dispose();
+    _preloadGeneration++;
+    _preloadedPlayer?.dispose();
+    _preloadedPlayer = null;
+    _preloadedStreamUrl = null;
+    _preloadedInitialization = null;
     _youtubePlayer?.close();
     _adService.close();
     super.dispose();
@@ -362,8 +372,98 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
     return '';
   }
 
+  /// Warm the next native catalog stream and cache nearby channel artwork.
+  ///
+  /// Only one stream is initialized ahead, only on native clients, and it is
+  /// never played in the background. Artwork uses CachedNetworkImage's shared
+  /// cache on Web/Android.
+  Future<void> _prepareAdjacent(int index) async {
+    if (!mounted || index < 0 || index >= _channels.length) return;
+
+    for (final adjacentIndex in <int>[index - 1, index + 1]) {
+      if (adjacentIndex < 0 || adjacentIndex >= _channels.length) continue;
+      final thumbnail =
+          '${_channels[adjacentIndex]['thumbnail_url'] ?? ''}'.trim();
+      if (thumbnail.startsWith('https://') || thumbnail.startsWith('http://')) {
+        unawaited(precacheImage(
+          CachedNetworkImageProvider(thumbnail),
+          context,
+        ).catchError((_) {}));
+      }
+    }
+
+    if (kIsWeb || index + 1 >= _channels.length) return;
+    final next = _channels[index + 1];
+    if (next['_sourceType'] != 'catalog') return;
+    final url = _streamUrl(next);
+    final parsed = Uri.tryParse(url);
+    if (parsed == null || parsed.scheme != 'https' || parsed.host.isEmpty) {
+      return;
+    }
+    if (_preloadedStreamUrl == url && _preloadedPlayer != null) return;
+
+    final generation = ++_preloadGeneration;
+    final previous = _preloadedPlayer;
+    _preloadedPlayer = null;
+    _preloadedStreamUrl = null;
+    _preloadedInitialization = null;
+    try {
+      await previous?.dispose();
+    } catch (_) {
+      // Releasing an old warm player must not interrupt the active stream.
+    }
+    if (!mounted || generation != _preloadGeneration) return;
+
+    final player = VideoPlayerController.networkUrl(parsed);
+    _preloadedPlayer = player;
+    _preloadedStreamUrl = url;
+    final initialization =
+        player.initialize().timeout(const Duration(seconds: 10));
+    _preloadedInitialization = initialization;
+    try {
+      await initialization;
+      // If a swipe consumed this controller while initialize() was pending,
+      // ownership now belongs to _play and this task must not dispose it.
+      if (!mounted ||
+          generation != _preloadGeneration ||
+          !identical(_preloadedPlayer, player)) {
+        return;
+      }
+    } catch (_) {
+      if (identical(_preloadedPlayer, player)) {
+        _preloadedPlayer = null;
+        _preloadedStreamUrl = null;
+        _preloadedInitialization = null;
+        try {
+          await player.dispose();
+        } catch (_) {}
+      }
+    }
+  }
+
   Future<void> _play(Map<String, dynamic> channel) async {
     final generation = ++_playGeneration;
+    final requestedUrl = channel['_sourceType'] == 'catalog'
+        ? _streamUrl(channel)
+        : '';
+    final warmPlayer = requestedUrl.isNotEmpty &&
+            _preloadedStreamUrl == requestedUrl
+        ? _preloadedPlayer
+        : null;
+    final warmInitialization =
+        warmPlayer == null ? null : _preloadedInitialization;
+    if (warmPlayer != null) {
+      _preloadedPlayer = null;
+      _preloadedStreamUrl = null;
+      _preloadedInitialization = null;
+    } else {
+      _preloadGeneration++;
+      final stalePreload = _preloadedPlayer;
+      _preloadedPlayer = null;
+      _preloadedStreamUrl = null;
+      _preloadedInitialization = null;
+      if (stalePreload != null) unawaited(stalePreload.dispose());
+    }
     final previousPlayer = _player;
     final previousYoutube = _youtubePlayer;
     setState(() {
@@ -392,13 +492,28 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
           if (mounted) setState(() {});
           return;
         }
-        final player = VideoPlayerController.networkUrl(Uri.parse(url));
+        VideoPlayerController? player = warmPlayer;
+        if (player != null) {
+          try {
+            await warmInitialization?.timeout(const Duration(seconds: 10));
+            if (!player.value.isInitialized) {
+              await player.dispose();
+              player = null;
+            }
+          } catch (_) {
+            await player.dispose();
+            player = null;
+          }
+        }
+        player ??= VideoPlayerController.networkUrl(Uri.parse(url));
         if (generation != _playGeneration) {
           await player.dispose();
           return;
         }
         _player = player;
-        await player.initialize().timeout(const Duration(seconds: 20));
+        if (!player.value.isInitialized) {
+          await player.initialize().timeout(const Duration(seconds: 20));
+        }
         if (generation != _playGeneration) {
           await player.dispose();
           if (identical(_player, player)) {
@@ -407,6 +522,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
           return;
         }
         await player.setLooping(true);
+        await player.setVolume(1);
         await player.play();
         unawaited(_loadTvSponsoredAd(channel, generation));
         return;
@@ -582,9 +698,11 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                   : PageView.builder(
                       scrollDirection: Axis.vertical,
                       itemCount: _channels.length,
+                      allowImplicitScrolling: true,
                       onPageChanged: (index) {
                         setState(() => _activeIndex = index);
-                        _play(_channels[index]);
+                        unawaited(_play(_channels[index]));
+                        unawaited(_prepareAdjacent(index));
                         if (index >= _channels.length - 8) {
                           unawaited(_loadMoreCatalogSources());
                         }
