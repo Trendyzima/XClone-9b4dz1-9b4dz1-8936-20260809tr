@@ -98,7 +98,8 @@ class _CurrencyConverterPageState extends State<CurrencyConverterPage> {
         throw const FormatException('Exchange-rate service unavailable');
       }
       final payload = jsonDecode(response.body);
-      if (payload is! Map<String, dynamic> || payload['result'] != 'success') {
+      if (payload is! Map<String, dynamic> ||
+          payload['result'] != 'success') {
         throw const FormatException('Exchange-rate response was invalid');
       }
       final rawRates = payload['rates'];
@@ -113,7 +114,9 @@ class _CurrencyConverterPageState extends State<CurrencyConverterPage> {
         }
       }
       if (!_currencies.keys.every(rates.containsKey)) {
-        throw const FormatException('One or more selected currencies are unavailable');
+        throw const FormatException(
+          'One or more selected currencies are unavailable',
+        );
       }
       final timestamp = payload['time_last_update_utc']?.toString();
       if (!mounted) return;
