@@ -20,7 +20,9 @@ class _ListsPageState extends State<ListsPage> {
   }
 
   Future<void> _load() async {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -56,7 +58,9 @@ class _ListsPageState extends State<ListsPage> {
 
   Future<void> _create() async {
     final user = _db.auth.currentUser;
-    if (user == null || _busy) return;
+    if (user == null || _busy) {
+      return;
+    }
     final name = TextEditingController(), description = TextEditingController();
     var isPrivate = false;
     final valid = await showDialog<bool>(
@@ -134,7 +138,9 @@ class _ListsPageState extends State<ListsPage> {
       name.dispose();
       description.dispose();
       await _load();
-      if (mounted) context.push('/lists/${row['id']}');
+      if (mounted) {
+        context.push('/lists/${row['id']}');
+      }
     } catch (_) {
       if (mounted)
         setState(
@@ -142,7 +148,9 @@ class _ListsPageState extends State<ListsPage> {
               _error = 'List was not created. Check your connection and retry.',
         );
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 
@@ -261,7 +269,9 @@ class _ListDetailPageState extends State<ListDetailPage> {
   }
 
   Future<void> _load() async {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -351,9 +361,13 @@ class _ListDetailPageState extends State<ListDetailPage> {
               .toList(),
         );
     } catch (_) {
-      if (mounted) setState(() => _error = 'User search failed. Retry.');
+      if (mounted) {
+        setState(() => _error = 'User search failed. Retry.');
+      }
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 
@@ -361,7 +375,9 @@ class _ListDetailPageState extends State<ListDetailPage> {
     Map<String, dynamic> member, {
     required bool add,
   }) async {
-    if (!_isOwner || _busy) return;
+    if (!_isOwner || _busy) {
+      return;
+    }
     setState(() => _busy = true);
     try {
       if (add) {
@@ -391,12 +407,16 @@ class _ListDetailPageState extends State<ListDetailPage> {
               : 'Account could not be removed.',
         );
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 
   Future<void> _delete() async {
-    if (!_isOwner) return;
+    if (!_isOwner) {
+      return;
+    }
     final yes = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -416,16 +436,22 @@ class _ListDetailPageState extends State<ListDetailPage> {
         ],
       ),
     );
-    if (yes != true || !mounted) return;
+    if (yes != true || !mounted) {
+      return;
+    }
     try {
       await _db
           .from('lists')
           .delete()
           .eq('id', widget.listId)
           .eq('owner_id', _db.auth.currentUser!.id);
-      if (mounted) context.go('/lists');
+      if (mounted) {
+        context.go('/lists');
+      }
     } catch (_) {
-      if (mounted) setState(() => _error = 'List could not be deleted.');
+      if (mounted) {
+        setState(() => _error = 'List could not be deleted.');
+      }
     }
   }
 
