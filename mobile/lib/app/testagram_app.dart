@@ -802,13 +802,11 @@ class _TestagramAppState extends State<TestagramApp> {
                 pathParameters: state.pathParameters,
               ),
             ),
+            // Analytics uses the existing authenticated, data-backed post
+            // analytics flow rather than a generic migration shell.
             GoRoute(
               path: '/analytics',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Analytics',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const PostAnalyticsPage(),
             ),
             GoRoute(
               path: '/appeals',
@@ -824,18 +822,16 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/boost-analytics/:postId',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Boost Analytics',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, state) => PostAnalyticsPage(
+                postId: state.pathParameters['postId'],
               ),
             ),
+            // Reuse the audited server-backed campaign creation workflow;
+            // payment state is still confirmed by the backend callback.
             GoRoute(
               path: '/boost-create',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Boost a Post',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, __) => const AdCampaignsPage(
+                mode: AdCampaignsMode.create,
               ),
             ),
             GoRoute(
@@ -890,13 +886,11 @@ class _TestagramAppState extends State<TestagramApp> {
               builder: (_, state) =>
                   ListDetailPage(listId: state.pathParameters['id']!),
             ),
+            // The native Creator Studio already owns the creator's
+            // monetization controls and earnings read model.
             GoRoute(
               path: '/monetization',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Monetization',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const CreatorStudioPage(),
             ),
             GoRoute(
               path: '/payouts',
@@ -1191,13 +1185,11 @@ class _TestagramAppState extends State<TestagramApp> {
               builder: (_, state) =>
                   TrendingTopicPage(topic: state.pathParameters['topic'] ?? ''),
             ),
+            // Keep the legacy /verify deep link on the real native
+            // verification status flow instead of the generic migration shell.
             GoRoute(
               path: '/verify',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Verify Account',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const IdentityVerificationStatusPage(),
             ),
             GoRoute(
               path: '/verify-identity',
