@@ -24,7 +24,8 @@ class CurrencyConversion {
   }
 }
 
-/// Currency conversion is informational only; it never initiates a wallet transfer.
+/// Currency conversion is informational only; it never initiates a wallet
+/// transfer.
 class CurrencyConverterPage extends StatefulWidget {
   const CurrencyConverterPage({super.key});
 
