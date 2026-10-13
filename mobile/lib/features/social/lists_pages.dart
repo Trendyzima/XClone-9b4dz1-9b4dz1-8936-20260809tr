@@ -305,9 +305,9 @@ class _ListDetailPageState extends State<ListDetailPage> {
       final profiles = ids.isEmpty
           ? <dynamic>[]
           : await _db
-                .from('profiles')
-                .select('id,username,display_name,avatar_url,verified')
-                .inFilter('id', ids);
+              .from('profiles')
+              .select('id,username,display_name,avatar_url,verified')
+              .inFilter('id', ids);
       final byId = {
         for (final p in profiles) '${p['id']}': Map<String, dynamic>.from(p),
       };
