@@ -38,7 +38,9 @@ class _PollsPageState extends State<PollsPage> {
   }
 
   Future<void> _load() async {
-    if (!mounted) return;
+    if (!mounted) {
+      return;
+    }
     setState(() {
       _loading = true;
       _error = null;
@@ -68,7 +70,9 @@ class _PollsPageState extends State<PollsPage> {
           'effective_status': stats['status'] ?? row['status'],
         });
       }
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       setState(() {
         _polls = polls;
         _loading = false;
@@ -83,7 +87,9 @@ class _PollsPageState extends State<PollsPage> {
   }
 
   Future<void> _create() async {
-    if (_db.auth.currentUser == null || _busy) return;
+    if (_db.auth.currentUser == null || _busy) {
+      return;
+    }
     final options = _options
         .map((c) => c.text.trim())
         .where((v) => v.isNotEmpty)
@@ -138,7 +144,9 @@ class _PollsPageState extends State<PollsPage> {
           () => _error = 'Poll could not be published. Confirm your session and try again.',
         );
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 
@@ -169,7 +177,9 @@ class _PollsPageState extends State<PollsPage> {
           () => _error = 'Your vote was not recorded. You may already have voted, or the poll may have closed.',
         );
     } finally {
-      if (mounted) setState(() => _busy = false);
+      if (mounted) {
+        setState(() => _busy = false);
+      }
     }
   }
 
@@ -181,7 +191,9 @@ class _PollsPageState extends State<PollsPage> {
       firstDate: now,
       lastDate: now.add(const Duration(days: 365)),
     );
-    if (date == null || !mounted) return;
+    if (date == null || !mounted) {
+      return;
+    }
     final time = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(
