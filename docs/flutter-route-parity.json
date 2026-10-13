@@ -1422,8 +1422,8 @@
     {
       "path": "/wallet/converter",
       "domain": "commerce",
-      "status": "native_shell",
-      "note": "A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted."
+      "status": "native_partial",
+      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
     },
     {
       "path": "/wallet/history",
