@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-enum PostInteractionKind { likes, reposts, quotes, quoteLikes }
+enum PostInteractionKind { likes, replies, reposts, quotes, quoteLikes }
 
 class PostInteractionPage extends StatefulWidget {
   const PostInteractionPage({
@@ -27,6 +27,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
 
   String get _title => switch (widget.kind) {
         PostInteractionKind.likes => 'Likes',
+        PostInteractionKind.replies => 'Replies',
         PostInteractionKind.reposts => 'Reposts',
         PostInteractionKind.quotes => 'Quotes',
         PostInteractionKind.quoteLikes => 'Likes on quotes',
@@ -65,8 +66,57 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
       _error = null;
     });
     try {
+      if (widget.postId.toLowerCase().startsWith('https://')) {
+        final root = await _db
+            .from('federated_objects')
+            .select('uri,content,summary,deleted_at,tombstone')
+            .eq('uri', widget.postId)
+            .maybeSingle()
+            .timeout(const Duration(seconds: 15));
+        if (root == null || root['deleted_at'] != null || root['tombstone'] == true) {
+          throw StateError('This federated post is unavailable.');
+        }
+        dynamic remoteData;
+        switch (widget.kind) {
+          case PostInteractionKind.replies:
+            remoteData = await _db.from('federated_objects')
+                .select('uri,actor_uri,content,summary,published_at,in_reply_to_uri,deleted_at,tombstone')
+                .eq('in_reply_to_uri', widget.postId).isFilter('deleted_at', null)
+                .eq('tombstone', false).order('published_at', ascending: false).limit(100)
+                .timeout(const Duration(seconds: 15));
+            break;
+          case PostInteractionKind.quotes:
+            remoteData = await _db.from('federated_objects')
+                .select('uri,actor_uri,content,summary,published_at,quote_uri,deleted_at,tombstone')
+                .eq('quote_uri', widget.postId).isFilter('deleted_at', null)
+                .eq('tombstone', false).order('published_at', ascending: false).limit(100)
+                .timeout(const Duration(seconds: 15));
+            break;
+          case PostInteractionKind.likes:
+          case PostInteractionKind.reposts:
+          case PostInteractionKind.quoteLikes:
+            throw StateError('A complete public actor list is not available for this federated interaction. Open the original post to see its current counts and actions.');
+        }
+        final remoteRows = (remoteData as List).whereType<Map>()
+            .map((row) => Map<String, dynamic>.from(row)).toList();
+        final actorUris = remoteRows.map((row) => '${row['actor_uri'] ?? ''}')
+            .where((id) => id.isNotEmpty).toSet().toList();
+        final actors = actorUris.isEmpty ? <dynamic>[] : await _db
+            .from('federated_actors')
+            .select('actor_uri,username,domain,display_name,avatar_url')
+            .inFilter('actor_uri', actorUris)
+            .timeout(const Duration(seconds: 12));
+        final actorByUri = <String, Map<String, dynamic>>{
+          for (final actor in actors) '${actor['actor_uri']}': Map<String, dynamic>.from(actor),
+        };
+        for (final row in remoteRows) {
+          row['profile'] = actorByUri['${row['actor_uri']}'];
+        }
+        if (!mounted || generation != _generation) return;
+        setState(() { _items = remoteRows; _loading = false; });
+        return;
+      }
       final post = await _db
-          .from('posts')
           .select('id,content,created_at,user_id,author_id')
           .eq('id', widget.postId)
           .isFilter('deleted_at', null)
@@ -78,7 +128,16 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
 
       List<Map<String, dynamic>> rows;
       Map<String, String> quoteContentById = {};
-      if (widget.kind == PostInteractionKind.likes) {
+      if (widget.kind == PostInteractionKind.replies) {
+        final data = await _db
+            .from('replies')
+            .select('id,user_id,post_id,content,created_at,parent_reply_id')
+            .eq('post_id', widget.postId)
+            .order('created_at', ascending: false)
+            .limit(100)
+            .timeout(const Duration(seconds: 15));
+        rows = data.map((row) => Map<String, dynamic>.from(row)).toList();
+      } else if (widget.kind == PostInteractionKind.likes) {
         final data = await _db
             .from('post_reactions')
             .select('id,user_id,post_id,created_at')
@@ -221,6 +280,7 @@ class _PostInteractionPageState extends State<PostInteractionPage> {
                           final username = '${profile?['username'] ?? ''}';
                           final avatar = '${profile?['avatar_url'] ?? ''}';
                           final detail = switch (widget.kind) {
+                            PostInteractionKind.replies => '${item['content'] ?? 'Replied to this post'}',
                             PostInteractionKind.quotes =>
                               '${item['content'] ?? 'Quoted this post'}',
                             PostInteractionKind.quoteLikes =>
