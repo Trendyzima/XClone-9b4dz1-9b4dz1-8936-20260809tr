@@ -91,6 +91,8 @@ jobs:
       - name: Enforce formatting
         working-directory: mobile
         run: dart format --output=none --set-exit-if-changed lib test
+      - name: Validate Flutter IPTV preload and cache contract
+        run: node scripts/validate-flutter-iptv-cache.mjs
       - name: Analyze Flutter source
         working-directory: mobile
         run: flutter analyze --fatal-infos --fatal-warnings
