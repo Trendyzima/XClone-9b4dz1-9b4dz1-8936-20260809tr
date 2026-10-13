@@ -55,7 +55,8 @@ function installRigidIptvScrollShell(frame: HTMLIFrameElement, onPullRefresh: ()
       const score = el.scrollHeight / Math.max(1, el.clientHeight);
       if (score > bestScore) { best = el; bestScore = score; }
     }
-    if (!best) return;
+    if (!best) { scrollShell = null; return; }
+    scrollShell = best;
     best.dataset.testagramScrollShell = '1';
     for (const child of Array.from(best.children)) {
       if (!(child instanceof win.HTMLElement)) continue;
@@ -565,7 +566,7 @@ export default function TikVTVPage() {
         </button>
         <button
           type="button"
-          onClick={() => navigate(user?.username ? '/profile/' + encodeURIComponent(user.username) : '/auth?returnTo=/iptv')
+          onClick={() => navigate(user?.username ? '/profile/' + encodeURIComponent(user.username) : '/auth?returnTo=/iptv')}
           className="inline-flex h-9 items-center gap-2 rounded-full px-3 text-xs font-semibold text-white transition-colors hover:bg-white/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
           aria-label={user?.username ? 'Open your XClone profile' : 'Sign in to XClone'}
         >
