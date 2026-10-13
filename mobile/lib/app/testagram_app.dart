@@ -1255,11 +1255,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/threads/create',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Create Thread',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const ThreadsPage(),
             ),
             GoRoute(
               path: '/trending/:topic',
