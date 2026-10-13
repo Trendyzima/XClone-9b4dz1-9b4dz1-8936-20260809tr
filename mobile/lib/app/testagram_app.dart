@@ -37,6 +37,7 @@ import '../features/marketplace/orders_page.dart';
 import '../features/marketplace/wishlist_page.dart';
 import '../features/social/lists_pages.dart';
 import '../features/social/polls_page.dart';
+import '../features/social/thread_interaction_page.dart';
 import '../features/ads/ad_campaigns_page.dart';
 import '../features/admin/governance_page.dart';
 import '../features/ads/ad_config_page.dart';
@@ -91,7 +92,8 @@ class _TestagramAppState extends State<TestagramApp> {
         final onAuth = state.matchedLocation == '/auth';
         final onSetup = state.matchedLocation == '/setup';
         final path = state.matchedLocation;
-        final publicRoute = path == '/' ||
+        final publicRoute =
+            path == '/' ||
             path == '/explore' ||
             path == '/search' ||
             path == '/discover' ||
@@ -135,7 +137,8 @@ class _TestagramAppState extends State<TestagramApp> {
         GoRoute(
           path: '/auth',
           builder: (_, state) => AuthPage(
-            recovery: state.uri.queryParameters['reset'] == '1' ||
+            recovery:
+                state.uri.queryParameters['reset'] == '1' ||
                 state.uri.queryParameters['type'] == 'recovery',
           ),
         ),
@@ -1195,42 +1198,39 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/thread/:threadId/likes',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Thread Likes',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, state) => ThreadInteractionPage(
+                threadId: state.pathParameters['threadId']!,
+                mode: ThreadInteractionMode.likes,
               ),
             ),
             GoRoute(
               path: '/thread/:threadId/quote-likes/:quoteId',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Quote Likes',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, state) => ThreadInteractionPage(
+                threadId: state.pathParameters['threadId']!,
+                quoteId: state.pathParameters['quoteId'],
+                mode: ThreadInteractionMode.quoteLikes,
               ),
             ),
             GoRoute(
               path: '/thread/:threadId/quotes',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Thread Quotes',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, state) => ThreadInteractionPage(
+                threadId: state.pathParameters['threadId']!,
+                mode: ThreadInteractionMode.quotes,
               ),
             ),
             GoRoute(
               path: '/thread/:threadId/reply-likes/:replyId',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Reply Likes',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, state) => ThreadInteractionPage(
+                threadId: state.pathParameters['threadId']!,
+                replyId: state.pathParameters['replyId'],
+                mode: ThreadInteractionMode.replyLikes,
               ),
             ),
             GoRoute(
               path: '/thread/:threadId/reposts',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Thread Reposts',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
+              builder: (_, state) => ThreadInteractionPage(
+                threadId: state.pathParameters['threadId']!,
+                mode: ThreadInteractionMode.reposts,
               ),
             ),
             GoRoute(
