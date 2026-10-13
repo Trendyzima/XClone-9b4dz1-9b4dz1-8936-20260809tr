@@ -121,11 +121,20 @@ Deno.serve(async req=>{
  const {data:s,error}=await client.from("live_streams").select("id,user_id,is_live,title,description,viewer_count,tv_provider,tv_connection_state,tv_last_heartbeat_at,tv_host_peer_id,youtube_broadcast_id,youtube_stream_id,youtube_video_id,youtube_status,youtube_error").eq("id",id).maybeSingle();
  if(error||!s)return json({ok:false,error:{code:"STREAM_NOT_FOUND",message:"TV broadcast was not found."}},404);
  const user=auth.startsWith("Bearer ")?(await client.auth.getUser()).data.user:null,owner=Boolean(user&&user.id===s.user_id);
- const platformOwner=Boolean(user&&(await client.rpc("testagram_is_owner")).data===true);
+ // Stream ownership is sufficient for host controls; the governance RPC is only a fallback.
+ let platformOwner=false;
+ if(user&&!owner){try{platformOwner=(await client.rpc("testagram_is_owner")).data===true;}catch{platformOwner=false;}}
  const contract=async(role:string,extra:any={})=>({provider:s.tv_provider==="testagram"?"testagram":"youtube",output_mode:s.tv_provider==="testagram"?"testagram":"dual",native_p2p:{enabled:true,max_viewers:20,transport:"webrtc",signaling:"supabase-realtime"},room_id:id,room_type:"tv",role,signaling_topic:"tv:"+id,title:s.title,viewer_count:s.viewer_count??0,ice_servers:role==="viewer"?[]:await ice(),playback_id:s.youtube_video_id||s.youtube_broadcast_id||null,playback_url:s.youtube_video_id||s.youtube_broadcast_id?embed(s.youtube_video_id||s.youtube_broadcast_id):null,testagram:{status:s.tv_connection_state||"offline"},youtube:{enabled:s.tv_provider!=="testagram"&&ytApiReady(),status:s.tv_provider==="testagram"?"disabled":s.youtube_status||"disabled",broadcast_id:s.youtube_broadcast_id||null,stream_id:s.youtube_stream_id||null,video_id:s.youtube_video_id||s.youtube_broadcast_id||null,error:s.youtube_error||null},...extra});
  if(action==="start"){
-  if(!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can start this TV broadcast."}},403);
+  if(!owner&&!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can start this TV broadcast."}},403);
   if(s.is_live)return json({ok:false,error:{code:"STREAM_ALREADY_LIVE",message:"This TV broadcast is already live."}},409);
+  // Recover a previous startup that crashed after claiming the row but before
+  // setting is_live=true. Never reclaim a live row or a recent startup attempt.
+  if(s.tv_connection_state==="starting"&&!s.is_live){
+   const staleBefore=new Date(Date.now()-90_000).toISOString();
+   const {error:recoveryError}=await adminClient.from("live_streams").update({tv_connection_state:"offline",tv_last_heartbeat_at:null}).eq("id",id).eq("user_id",s.user_id).eq("is_live",false).eq("tv_connection_state","starting").or("tv_last_heartbeat_at.is.null,tv_last_heartbeat_at.lt."+staleBefore);
+   if(recoveryError)return json({ok:false,error:{code:"TV_START_RECOVERY_FAILED",message:"A previous TV startup appears stuck and could not be safely reset. Please retry in 90 seconds or contact support."}},409);
+  }
   // TV broadcasts are live-only. Do not create third-party YouTube broadcasts,
   // because external platforms may retain an archive beyond the live session.
   if(b.provider && b.provider!=="testagram"){
@@ -153,7 +162,7 @@ Deno.serve(async req=>{
   return json({ok:true,data:await contract("host",{on_air:false,output_mode:"youtube",youtube:{enabled:true,status:"prepared",broadcast_id:y.broadcastId,stream_id:y.streamId,video_id:y.videoId,encoder_token:enc}}),error:null});
  }
  if(action==="verify"){
-  if(!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can verify this TV broadcast."}},403);
+  if(!owner&&!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can verify this TV broadcast."}},403);
   if(!s.is_live)return json({ok:false,error:{code:"STREAM_NOT_LIVE",message:"TV broadcast is not live."}},409);
   if(s.tv_provider==="testagram"){
    const {error:e}=await adminClient.from("live_streams").update({tv_connection_state:"connected",tv_last_heartbeat_at:new Date().toISOString(),youtube_status:"disabled",youtube_error:null,stream_url:null}).eq("id",id).eq("user_id",s.user_id).eq("is_live",true);
@@ -170,7 +179,7 @@ Deno.serve(async req=>{
   }catch(e:any){const ye=e instanceof YouTubeStageError?e:new YouTubeStageError("verify",e?.message||"YouTube state verification failed.");return json({ok:false,error:{code:"YOUTUBE_VERIFY_FAILED",message:ye.message,phase:ye.phase,http_status:ye.httpStatus,reason:ye.reason}},502)}
  }
  if(action==="stop"){
-  if(!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can stop this TV broadcast."}},403);
+  if(!owner&&!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can stop this TV broadcast."}},403);
   if(s.tv_provider!=="testagram"&&s.youtube_broadcast_id&&ytApiReady())try{await ytTransitionComplete(s.youtube_broadcast_id)}catch{}
   await adminClient.from("tv_youtube_encoder_sessions").update({revoked_at:new Date().toISOString()}).eq("stream_id",id).is("revoked_at",null);
   const {error:e}=await adminClient.from("live_streams").update({is_live:false,ended_at:new Date().toISOString(),tv_connection_state:"offline",tv_last_heartbeat_at:null,tv_host_peer_id:null,viewer_count:0,youtube_status:s.tv_provider==="testagram"?"disabled":"stopped",youtube_error:null}).eq("id",id).eq("user_id",s.user_id);
@@ -178,7 +187,7 @@ Deno.serve(async req=>{
   return json({ok:true,data:await contract("host"),error:null});
  }
  if(action==="heartbeat"){
-  if(!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can send a TV heartbeat."}},403);
+  if(!owner&&!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can send a TV heartbeat."}},403);
   if(!s.is_live)return json({ok:false,error:{code:"STREAM_NOT_LIVE",message:"Broadcast is not live."}},409);
   const state=["starting","connected","degraded","stale"].includes(b.connection_state)?b.connection_state:"degraded",count=Math.max(0,Math.min(100000,Number(b.viewer_count)||0)),peer=typeof b.peer_id==="string"&&b.peer_id.length<=128?b.peer_id:"";
   const {error:e}=await adminClient.from("live_streams").update({tv_last_heartbeat_at:new Date().toISOString(),tv_connection_state:state,tv_host_peer_id:peer||null,viewer_count:count}).eq("id",id).eq("user_id",s.user_id).eq("is_live",true);
@@ -186,14 +195,14 @@ Deno.serve(async req=>{
   return json({ok:true,data:{heartbeat_ok:true,connection_state:state,viewer_count:count},error:null});
  }
  if(action==="guest-control-list"){
-  if(!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can manage TV guests."}},403);
+  if(!owner&&!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can manage TV guests."}},403);
   const now=new Date().toISOString();
   const {data:rows,error:e}=await adminClient.from("tv_guest_invites").select("id,slot_number,expires_at,claimed_by,claimed_at,muted,blocked,used_at").eq("stream_id",id).gt("expires_at",now).order("slot_number",{ascending:true});
   if(e)return json({ok:false,error:{code:"GUEST_CONTROL_LIST_FAILED",message:"Could not load TV guest slots."}},409);
   return json({ok:true,data:{capacity:6,slots:(rows||[]).map((g:any)=>({id:g.id,slot:Number(g.slot_number),label:"Guest "+Number(g.slot_number),status:g.used_at?"connected":"invited",expires_at:g.expires_at,claimed_by:g.claimed_by??null,muted:Boolean(g.muted),blocked:Boolean(g.blocked)}))},error:null});
  }
  if(action==="guest-control"){
-  if(!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can control TV guests."}},403);
+  if(!owner&&!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can control TV guests."}},403);
   const slot=Number(b.guest_slot||0),control=typeof b.control==="string"?b.control:"";
   if(!Number.isInteger(slot)||slot<1||slot>6)return json({ok:false,error:{code:"GUEST_SLOT_INVALID",message:"Guest slot must be between 1 and 6."}},400);
   if(!["mute","unmute","block","unblock"].includes(control))return json({ok:false,error:{code:"GUEST_CONTROL_INVALID",message:"Unsupported guest control."}},400);
@@ -205,7 +214,7 @@ Deno.serve(async req=>{
   return json({ok:true,data:{slot,control,...patch},error:null});
  }
  if(action==="create-guest"){
-  if(!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can create a guest invite."}},403);
+  if(!owner&&!platformOwner)return json({ok:false,error:{code:"HOST_REQUIRED",message:"Only the broadcaster can create a guest invite."}},403);
   const now=new Date().toISOString();
   const {data:activeInvites,error:listError}=await adminClient.from("tv_guest_invites").select("slot_number").eq("stream_id",id).gt("expires_at",now);
   if(listError)return json({ok:false,error:{code:"GUEST_CAPACITY_LOOKUP_FAILED",message:"Could not check guest slot capacity."}},409);
@@ -229,7 +238,7 @@ Deno.serve(async req=>{
   if(e||!claimed)return json({ok:false,error:{code:"INVITE_INVALID",message:"This TV guest invite is invalid, expired, or already claimed."}},401);
   return json({ok:true,data:{...(await contract("guest")),guest_token:invite,guest_slot:Number(claimed.slot_number||0),guest_label:"Guest "+Number(claimed.slot_number||0),muted:Boolean(claimed.muted),blocked:Boolean(claimed.blocked)},error:null});
  }
- if((action==="viewer"||action==="guest")&&platformOwner&&!s.is_live)return json({ok:true,data:await contract(action==="guest"?"guest":"host",{preview:true,on_air:false}),error:null});
+ if((action==="viewer"||action==="guest")&&(owner||platformOwner)&&!s.is_live)return json({ok:true,data:await contract(action==="guest"?"guest":"host",{preview:true,on_air:false}),error:null});
  if(!s.is_live)return json({ok:false,error:{code:"STREAM_ENDED",message:"Broadcast is no longer live."}},409);
  return json({ok:true,data:await contract(action==="viewer"?"viewer":"unknown"),error:null});
 });
