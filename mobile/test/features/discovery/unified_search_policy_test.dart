@@ -114,6 +114,40 @@ void main() {
       },
     );
 
+    test('sorts mixed local and Fediverse posts by recency, likes and views',
+        () {
+      final rows = <Map<String, dynamic>>[
+        {
+          'id': 'old',
+          'created_at': '2025-01-01T00:00:00Z',
+          'likes_count': 80,
+          'views_count': 100
+        },
+        {
+          'id': 'new',
+          'published_at': '2026-01-01T00:00:00Z',
+          'like_count': 2,
+          'view_count': 5
+        },
+        {
+          'id': 'popular',
+          'created_at': '2025-06-01T00:00:00Z',
+          'likes_count': 100,
+          'views_count': 500
+        },
+      ];
+
+      expect(UnifiedSearchPolicy.sortRows(rows, 'Latest').first['id'], 'new');
+      expect(UnifiedSearchPolicy.sortRows(rows, 'Most liked').first['id'],
+          'popular');
+      expect(UnifiedSearchPolicy.sortRows(rows, 'Most viewed').first['id'],
+          'popular');
+      expect(
+          UnifiedSearchPolicy.sortRows(rows, 'Relevance', forceLatest: true)
+              .first['id'],
+          'new');
+    });
+
     test('uses result names without assuming all fields are present', () {
       expect(
         UnifiedSearchPolicy.firstText(
