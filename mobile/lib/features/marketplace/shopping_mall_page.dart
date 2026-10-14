@@ -125,7 +125,10 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
       final cart = <String, int>{};
       decoded.forEach((key, value) {
         final quantity = int.tryParse('$value') ?? 0;
-        if (key is String && key.isNotEmpty && quantity > 0 && quantity <= 100) {
+        if (key is String &&
+            key.isNotEmpty &&
+            quantity > 0 &&
+            quantity <= 100) {
           cart[key] = quantity;
         }
       });
