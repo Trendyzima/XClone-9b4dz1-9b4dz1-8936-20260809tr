@@ -38,6 +38,7 @@ for (const file of roots.flatMap(walk).sort()) {
 
 const foundation = {
   'src/pages/AuthPage.tsx': ['foundation', 'Native email/password sign-in and legal acceptance flow are started; full auth parity still required.'],
+  'src/pages/AdminAdsDashboard.tsx': ['in_progress', 'Flutter uses the canonical Testagram-owned campaign moderation contract with owner/RBAC checks and payment-gated activation; legacy web admin remains until parity is accepted.'],
   'src/pages/HomePage.tsx': ['foundation', 'Native feed shell is started; full feed ranking, ads, replies, reposts and moderation parity still required.'],
   'src/pages/ExplorePage.tsx': ['foundation', 'Native profile/post search and follow toggle are started; discovery parity still required.'],
   'src/pages/NotificationsPage.tsx': ['foundation', 'Native notification list/read actions are started; capability API, push and category parity still required.'],

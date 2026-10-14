@@ -54,6 +54,7 @@ import '../features/social/lists_pages.dart';
 import '../features/social/polls_page.dart';
 import '../features/social/thread_interaction_page.dart';
 import '../features/ads/ad_campaigns_page.dart';
+import '../features/ads/ad_review_page.dart';
 import '../features/ads/ad_performance_page.dart';
 import '../features/admin/governance_page.dart';
 import '../features/admin/admin_overview_page.dart';
@@ -728,11 +729,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/admin/ads-review',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Ad Review',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const AdReviewPage(),
             ),
             GoRoute(
               path: '/admin/fraud',
