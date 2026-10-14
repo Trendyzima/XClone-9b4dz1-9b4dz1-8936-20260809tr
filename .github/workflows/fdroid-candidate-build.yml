@@ -43,6 +43,17 @@ jobs:
       - name: Verify lockfile is unchanged
         run: git diff --exit-code -- mobile/pubspec.lock
 
+      - name: Export formatter output for changed Dart files (temporary diagnostics)
+        run: |
+          set -euo pipefail
+          git diff --name-only origin/main "$GITHUB_SHA" -- mobile/lib mobile/test | grep -F '.dart' > /tmp/changed-dart-files || true
+          while IFS= read -r file; do
+            [[ -f "$file" ]] || continue
+            printf '\nFORMATTED_SOURCE_BEGIN:%s\n' "$file"
+            dart format --output=show "$file" | base64 -w0
+            printf '\nFORMATTED_SOURCE_END\n'
+          done < /tmp/changed-dart-files
+
       - name: Enforce formatting for changed Dart files
         run: |
           set -euo pipefail
