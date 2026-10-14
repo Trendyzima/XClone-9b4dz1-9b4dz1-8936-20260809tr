@@ -84,8 +84,10 @@ begin
   end if;
 
   if kind in ('all','posts','media','latest','top','fediverse') then
-    select coalesce(jsonb_agg(to_jsonb(x) order by case when kind='latest' then 0 else x.match_rank end desc,x.created_at desc,x.id desc),'[]') into vp
+    select coalesce(jsonb_agg((to_jsonb(x) - 'sort_value') order by x.sort_value desc,x.created_at desc nulls last,x.id desc),'[]') into vp
     from (
+      select y.*, case when kind='latest' then 0 else y.match_rank end sort_value
+      from (
       select p.id::text id,p.author_id::text author_id,p.content,p.created_at,p.updated_at,p.image_url,p.video_url,p.is_video,p.media_urls,
              p.likes_count,p.reposts_count,p.replies_count,p.views_count,
              jsonb_build_object('id',pr.id,'username',pr.username,'display_name',pr.display_name,'avatar_url',pr.avatar_url,'bio',pr.bio,'verified',pr.verified,'verified_tier',pr.verified_tier) user_profiles,
@@ -105,7 +107,8 @@ begin
       where f.deleted_at is null and f.tombstone=false
         and (term='' or lower(coalesce(f.content,'')) like '%'||term||'%' or lower(coalesce(f.summary,'')) like '%'||term||'%' or (left(q,1)='#' and exists(select 1 from jsonb_array_elements(coalesce(f.tags,'[]'::jsonb)) tag where lower(coalesce(tag->>'type',''))='hashtag' and lower(regexp_replace(coalesce(tag->>'name',''),'#','','g'))=term)) or (left(q,1)='#' and exists(select 1 from federated_hashtag_mentions m join hashtags h on h.id=m.hashtag_id where m.object_id=f.id and lower(regexp_replace(h.tag,'^#',''))=term)))
         and (kind<>'media' or jsonb_array_length(coalesce(f.attachments,'[]'))>0)
-      order by case when kind='latest' then 0 else match_rank end desc,created_at desc,id desc
+      ) y
+      order by sort_value desc,created_at desc nulls last,id desc
       limit n offset v_offset
     ) x;
   end if;
