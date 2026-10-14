@@ -131,7 +131,7 @@ jobs:
           SUPABASE_URL: ${{ vars.TESTAGRAM_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co' }}
           SUPABASE_PUBLISHABLE_KEY: ${{ vars.TESTAGRAM_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya' }}
         run: >-
-          flutter build apk --debug
+          flutter build apk --debug --flavor production
           --dart-define=SUPABASE_URL="$SUPABASE_URL"
           --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
           --dart-define=TESTAGRAM_SITE_URL=https://testagram.site
@@ -140,7 +140,7 @@ jobs:
         run: |
           set -euo pipefail
           test -s build/web/index.html
-          test -s build/app/outputs/flutter-apk/app-debug.apk
+          test -s build/app/outputs/flutter-apk/app-production-debug.apk
           grep -q 'applicationId = "com.xclone.app"' android/app/build.gradle.kts
           echo 'Flutter Web and Android debug artifacts exist; Android package identity is preserved.'
       - name: Upload Flutter Web preview (not production deployment)
@@ -154,6 +154,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: testagram-flutter-android-debug-${{ github.sha }}
-          path: mobile/build/app/outputs/flutter-apk/app-debug.apk
+          path: mobile/build/app/outputs/flutter-apk/app-production-debug.apk
           if-no-files-found: error
           retention-days: 14
