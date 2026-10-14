@@ -801,8 +801,9 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                     icon: const Icon(Icons.close_rounded),
                   ),
             filled: true,
-            fillColor: Theme.of(context).colorScheme.surfaceContainerHighest
-                .withValues(alpha: .5),
+            fillColor: Theme.of(
+              context,
+            ).colorScheme.surfaceContainerHighest.withValues(alpha: .5),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(16),
               borderSide: BorderSide.none,
@@ -987,8 +988,9 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                 subtitle,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.bodySmall
-                    ?.copyWith(fontSize: 10),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(fontSize: 10),
               ),
             ],
           ),
@@ -1002,8 +1004,9 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
     child: Container(
       padding: const EdgeInsets.all(15),
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primaryContainer
-            .withValues(alpha: .55),
+        color: Theme.of(
+          context,
+        ).colorScheme.primaryContainer.withValues(alpha: .55),
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: Theme.of(context).colorScheme.primary.withValues(alpha: .18),
@@ -1042,8 +1045,9 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                       : _walletBalance == null
                       ? 'Balance unavailable'
                       : '$_walletCurrency ${_walletBalance!.toStringAsFixed(2)}',
-                  style: Theme.of(context).textTheme.titleLarge
-                      ?.copyWith(fontWeight: FontWeight.w900),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                 ),
               ],
             ),
@@ -1094,8 +1098,9 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                         border: Border.all(
                           color: _category == category.id
                               ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context).dividerColor
-                                    .withValues(alpha: .45),
+                              : Theme.of(
+                                  context,
+                                ).dividerColor.withValues(alpha: .45),
                         ),
                       ),
                       child: Column(
@@ -1265,8 +1270,9 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
           children: [
             Text(
               title,
-              style: Theme.of(context).textTheme.titleMedium
-                  ?.copyWith(fontWeight: FontWeight.w900),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 2),
             Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
@@ -1350,8 +1356,9 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                 _category == 'all'
                     ? 'Explore the Mall'
                     : MallPolicy.category(_category).label,
-                style: Theme.of(context).textTheme.titleLarge
-                    ?.copyWith(fontWeight: FontWeight.w900),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
               ),
               Text(
                 '$count products · discover something good',
