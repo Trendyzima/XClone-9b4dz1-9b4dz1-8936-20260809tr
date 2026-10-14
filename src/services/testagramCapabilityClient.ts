@@ -187,29 +187,59 @@ export class TestagramCapabilityClient{
  searchHashtags(q:string,n=20,c?:string){return this.call<CapabilityPage<any>>("testagram.search.hashtags",{q,limit:limit(n),...cursor(c)})}
  async searchUnified(q:string,kind:"all"|"people"|"posts"|"hashtags"|"threads"|"communities"|"fediverse"|"media"|"latest"|"top"="all",n=40){
   const input={q,kind,limit:limit(n)};
-  const token=await this.token();
+  let token=await this.token();
   if(!token) throw new CapabilityClientError("Authentication required",{code:"AUTH_REQUIRED",status:401});
   const directUrl=`${supabaseUrl.replace(/\/$/,"")}/rest/v1/rpc/testagram_search_unified`;
-  const directHeaders={apikey:supabasePublishableKey,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Accept:"application/json"};
+  const searchPayload=(payload:any)=>({users:Array.isArray(payload?.users)?payload.users:[],hashtags:Array.isArray(payload?.hashtags)?payload.hashtags:[],posts:Array.isArray(payload?.posts)?payload.posts:[],threads:Array.isArray(payload?.threads)?payload.threads:[],communities:Array.isArray(payload?.communities)?payload.communities:[],replies:Array.isArray(payload?.replies)?payload.replies:[],fediverse:Array.isArray(payload?.fediverse)?payload.fediverse:[],next_cursor:payload?.next_cursor??null});
   let directFailure:unknown=null;
-  try{
-    const response=await fetch(directUrl,{method:"POST",headers:directHeaders,body:JSON.stringify({p_q:q,p_kind:kind,p_limit:limit(n)})});
+  for(let attempt=0;attempt<2;attempt++){
+   try{
+    const response=await fetch(directUrl,{method:"POST",headers:{apikey:supabasePublishableKey,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify({p_q:q,p_kind:kind,p_limit:limit(n)})});
     const raw=await response.text();
     let payload:any=null; try{payload=raw?JSON.parse(raw):null}catch{}
-    if(response.ok){
-      return {users:Array.isArray(payload?.users)?payload.users:[],hashtags:Array.isArray(payload?.hashtags)?payload.hashtags:[],posts:Array.isArray(payload?.posts)?payload.posts:[],threads:Array.isArray(payload?.threads)?payload.threads:[],communities:Array.isArray(payload?.communities)?payload.communities:[],replies:Array.isArray(payload?.replies)?payload.replies:[],fediverse:Array.isArray(payload?.fediverse)?payload.fediverse:[],next_cursor:payload?.next_cursor??null};
+    if(response.ok)return searchPayload(payload);
+    const message=payload&&typeof payload==="object"&&"message" in payload?String(payload.message):`Search request failed (${response.status})`;
+    directFailure=new CapabilityClientError(message,{code:response.status===401||response.status===403?"AUTH_REQUIRED":"SEARCH_RPC_FAILED",status:response.status});
+    if((response.status===401||response.status===403)&&attempt===0){
+     const refreshed=await supabase.auth.refreshSession();
+     const refreshedToken=refreshed.data.session?.access_token;
+     if(refreshed.error||!refreshedToken){
+      throw new CapabilityClientError("Your session has expired. Sign in again to search Testagram.",{code:"AUTH_REQUIRED",status:401});
+     }
+     token=refreshedToken;
+     continue;
     }
-    directFailure=new CapabilityClientError(payload&&typeof payload==="object"&&"message" in payload?String(payload.message):`Search request failed (${response.status})`,{code:response.status===401||response.status===403?"AUTH_REQUIRED":"SEARCH_RPC_FAILED",status:response.status});
-  }catch(e){directFailure=e;}
-  try{
-    const gateway=await this.call<any>("testagram.search.unified",input,token);
-    return {users:Array.isArray(gateway?.users)?gateway.users:[],hashtags:Array.isArray(gateway?.hashtags)?gateway.hashtags:[],posts:Array.isArray(gateway?.posts)?gateway.posts:[],threads:Array.isArray(gateway?.threads)?gateway.threads:[],communities:Array.isArray(gateway?.communities)?gateway.communities:[],replies:Array.isArray(gateway?.replies)?gateway.replies:[],fediverse:Array.isArray(gateway?.fediverse)?gateway.fediverse:[],next_cursor:gateway?.next_cursor??null};
-  }catch(gatewayError){
-    if(gatewayError instanceof CapabilityClientError) throw gatewayError;
-    if(directFailure instanceof CapabilityClientError) throw directFailure;
-    throw gatewayError;
+    break;
+   }catch(error){
+    if(error instanceof CapabilityClientError)throw error;
+    directFailure=error;
+    break;
+   }
   }
-}
+  if(directFailure instanceof CapabilityClientError&&directFailure.code==="AUTH_REQUIRED")throw directFailure;
+  try{
+   const gateway=await this.call<any>("testagram.search.unified",input,token);
+   return searchPayload(gateway);
+  }catch(gatewayError){
+   if(gatewayError instanceof CapabilityClientError&&gatewayError.code==="AUTH_REQUIRED")throw gatewayError;
+   const normalized=q.trim().replace(/^[@#]/,'');
+   const fallback=await Promise.allSettled([
+    this.searchUsers(normalized,limit(n)),
+    this.searchHashtags(normalized,limit(n)),
+    this.searchPosts(q,limit(n),undefined,{mediaOnly:kind==="media"}),
+    this.searchCommunities(normalized,limit(n)),
+   ]);
+   const users=fallback[0].status==="fulfilled"?fallback[0].value.items:[];
+   const hashtags=fallback[1].status==="fulfilled"?fallback[1].value.items:[];
+   const posts=fallback[2].status==="fulfilled"?fallback[2].value.items:[];
+   const communities=fallback[3].status==="fulfilled"?fallback[3].value.items:[];
+   if(fallback.some(result=>result.status==="fulfilled")){
+    return {users,hashtags,posts,threads:[],communities,replies:[],fediverse:[],next_cursor:fallback[2].status==="fulfilled"?fallback[2].value.next_cursor:null,partial:true};
+   }
+   if(directFailure instanceof CapabilityClientError)throw directFailure;
+   throw gatewayError;
+  }
+ }
  searchCommunities(q:string,n=20,c?:string){return this.call<CapabilityPage<any>>("testagram.search.communities",{q,limit:limit(n),...cursor(c)})}
  async searchDiscovery(_endpoint:string,q:string,mode:"search"|"suggest"="search",n=20,c?:string):Promise<SearchDiscoveryPage>{const size=limit(mode==="suggest"?Math.min(n,8):n);const normalized=q.trim().replace(/^[@#]/,'');const [users,hashtags,posts,communities]=await Promise.all([this.searchUsers(normalized,size,c),this.searchHashtags(normalized,size,c),this.searchPosts(q.trim(),size,c),this.searchCommunities(normalized,size,c)]);return{users:users.items,hashtags:hashtags.items,posts:posts.items,communities:communities.items,next_cursor:posts.next_cursor};}
  createPost(input:{body?:string;content?:string;communityId?:string;mediaUrl?:string;mediaType?:string;mediaUrls?:string[];imageUrl?:string;videoUrl?:string;isVideo?:boolean;mediaCount?:number;visibility?:string;replyToPostId?:string;quotedPostId?:string;quotePostId?:string;quoteOfPostId?:string;poll?:{question:string;options:string[];durationMinutes?:number;multipleChoice?:boolean};productIds?:string[]},accessToken?:string){return this.call<{post_id:string;poll_id?:string|null;created:boolean}>("testagram.posts.create",{body:input.body??input.content??"",content:input.content??input.body??"",...input.communityId?{community_id:input.communityId}:{},...input.mediaUrl?{media_url:input.mediaUrl}:{},...input.mediaType?{media_type:input.mediaType}:{},...input.mediaUrls?{media_urls:input.mediaUrls}:{},...input.imageUrl?{image_url:input.imageUrl}:{},...input.videoUrl?{video_url:input.videoUrl}:{},...(input.isVideo!==undefined?{is_video:input.isVideo}:{}),...(input.mediaCount!==undefined?{media_count:input.mediaCount}:{}),...input.visibility?{visibility:input.visibility}:{},...input.replyToPostId?{reply_to_post_id:input.replyToPostId}:{},...input.quotedPostId?{quoted_post_id:input.quotedPostId}:{},...input.quotePostId?{quote_post_id:input.quotePostId}:{},...input.quoteOfPostId?{quote_of_post_id:input.quoteOfPostId}:{},...input.poll?{poll:{question:input.poll.question,options:input.poll.options,...input.poll.durationMinutes!==undefined?{duration_minutes:input.poll.durationMinutes}:{},...(input.poll.multipleChoice!==undefined?{multiple_choice:input.poll.multipleChoice}:{})}}:{},...input.productIds?{product_ids:input.productIds}:{}},accessToken)}
