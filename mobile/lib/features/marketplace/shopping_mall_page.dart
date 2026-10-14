@@ -1840,4 +1840,3 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
     );
   }
 }
-
