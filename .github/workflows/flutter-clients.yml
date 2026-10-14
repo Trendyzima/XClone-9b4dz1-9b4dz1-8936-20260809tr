@@ -12,6 +12,7 @@ on:
       - 'scripts/update-flutter-route-parity.mjs'
       - 'scripts/update-flutter-parity-inventory.mjs'
       - 'scripts/validate-flutter-parity-inventory.mjs'
+      - 'scripts/validate-ad-review-contract.mjs'
       - 'scripts/validate-flutter-route-progress.mjs'
       - '.github/workflows/flutter-clients.yml'
   push:
@@ -25,6 +26,7 @@ on:
       - 'docs/mobile-architecture.md'
       - 'scripts/update-flutter-parity-inventory.mjs'
       - 'scripts/validate-flutter-parity-inventory.mjs'
+      - 'scripts/validate-ad-review-contract.mjs'
       - 'scripts/validate-flutter-route-progress.mjs'
       - 'docs/flutter-migration-release-gates.md'
       - '.github/workflows/flutter-clients.yml'
@@ -47,6 +49,7 @@ jobs:
         with:
           node-version: '22'
       - run: node scripts/validate-flutter-parity-inventory.mjs
+      - run: node scripts/validate-ad-review-contract.mjs
       - name: Regenerate and verify Flutter route parity
         run: |
           node scripts/update-flutter-route-parity.mjs
