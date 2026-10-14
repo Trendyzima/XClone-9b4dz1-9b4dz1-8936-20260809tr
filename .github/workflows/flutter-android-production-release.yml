@@ -75,11 +75,11 @@ jobs:
           SUPABASE_PUBLISHABLE_KEY: ${{ vars.TESTAGRAM_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya' }}
         run: |
           set -euo pipefail
-          flutter build apk --release \
+          flutter build apk --release --flavor production \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
             --dart-define=TESTAGRAM_SITE_URL=https://testagram.site
-          flutter build appbundle --release \
+          flutter build appbundle --release --flavor production \
             --dart-define=SUPABASE_URL="$SUPABASE_URL" \
             --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
             --dart-define=TESTAGRAM_SITE_URL=https://testagram.site
@@ -91,8 +91,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          APK="build/app/outputs/flutter-apk/app-release.apk"
-          AAB="build/app/outputs/bundle/release/app-release.aab"
+          APK="build/app/outputs/flutter-apk/app-production-release.apk"
+          AAB="build/app/outputs/bundle/productionRelease/app-production-release.aab"
           test -s "$APK"
           test -s "$AAB"
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
@@ -117,8 +117,8 @@ jobs:
         with:
           name: testagram-flutter-android-release-${{ github.sha }}
           path: |
-            mobile/build/app/outputs/flutter-apk/app-release.apk
-            mobile/build/app/outputs/bundle/release/app-release.aab
+            mobile/build/app/outputs/flutter-apk/app-production-release.apk
+            mobile/build/app/outputs/bundle/productionRelease/app-production-release.aab
           if-no-files-found: error
           retention-days: 90
 
