@@ -77,7 +77,7 @@ jobs:
         working-directory: mobile
         shell: bash
         run: |
-          for file in lib/features/tv/tv_page.dart lib/features/tv/tv_stream_prefetch_web.dart lib/features/tv/tv_web_player_web.dart; do
+          for file in lib/features/explore/explore_page.dart lib/features/tv/tv_page.dart lib/features/tv/tv_stream_prefetch_web.dart lib/features/tv/tv_web_player_web.dart; do
             dart format --output=show "$file" > /tmp/tv.formatted.dart
             diff -u "$file" /tmp/tv.formatted.dart || true
           done
