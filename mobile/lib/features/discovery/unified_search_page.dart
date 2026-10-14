@@ -520,21 +520,29 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
 
   String _groupForRow(Map<String, dynamic> row) {
     if (_tab != 'Top') return UnifiedSearchPolicy.groupForTab(_tab);
-    if (row.containsKey('tag') || row.containsKey('usage_count'))
+    if (row.containsKey('tag') || row.containsKey('usage_count')) {
       return 'hashtags';
-    if (row.containsKey('actor_uri') && row.containsKey('content'))
+    }
+    if (row.containsKey('actor_uri') && row.containsKey('content')) {
       return 'fediverse';
-    if (row.containsKey('remote_account') || row.containsKey('uri'))
+    }
+    if (row.containsKey('remote_account') || row.containsKey('uri')) {
       return 'fediverse';
-    if (row.containsKey('username') && !row.containsKey('content'))
+    }
+    if (row.containsKey('username') && !row.containsKey('content')) {
       return 'users';
-    if (row.containsKey('member_count') || row.containsKey('slug'))
+    }
+    if (row.containsKey('member_count') || row.containsKey('slug')) {
       return 'communities';
-    if (row.containsKey('owner_id') || row.containsKey('body'))
+    }
+    if (row.containsKey('owner_id') || row.containsKey('body')) {
       return 'threads';
+    }
     if (row.containsKey('parent_reply_id') ||
         row['type'] == 'reply' ||
-        row['type'] == 'thread_reply') return 'replies';
+        row['type'] == 'thread_reply') {
+      return 'replies';
+    }
     if (row.containsKey('content')) return 'posts';
     return 'all';
   }
@@ -577,8 +585,9 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         break;
       case 'posts':
         final id = '${row['id'] ?? ''}';
-        if (id.isNotEmpty && row['is_federated'] != true)
+        if (id.isNotEmpty && row['is_federated'] != true) {
           context.go('/post/${Uri.encodeComponent(id)}');
+        }
         break;
       case 'threads':
         final id = '${row['id'] ?? ''}';
