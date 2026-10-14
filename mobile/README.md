@@ -12,7 +12,7 @@ flutter pub get
 flutter analyze
 flutter test
 flutter run -d chrome --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-define=SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
-flutter run -d android --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-define=SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
+flutter run -d android --flavor production --dart-define=SUPABASE_URL=https://YOUR_PROJECT.supabase.co --dart-define=SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
 ```
 
 The app intentionally shows a setup screen if build-time configuration is absent. Never put service-role keys, database passwords, signing credentials, or other privileged secrets in Dart source, assets, `--dart-define` values committed to Git, or web bundles. A Supabase publishable key is public; authorization must be enforced by RLS and server-side capabilities.
@@ -65,6 +65,13 @@ A feature is accepted only after web and Android behavior, backend contract, per
 ## Web deployment rule
 
 `flutter build web --release` is a CI validation artifact only. It must **not** replace `testagram.site` until the route inventory, public-page SEO/metadata, canonical URLs, sitemap/robots, deep links, external ad provider behavior, authentication callbacks, accessibility, and production smoke tests pass. Flutter is well suited to app-like interactive surfaces, but public crawlable content and SEO need an explicit route-by-route strategy. The existing React site remains live during the migration.
+
+## Android distribution variants
+
+- Use `--flavor production` for normal developer/production builds.
+- Use `--flavor fdroid` only for the unsigned F-Droid candidate build. F-Droid must sign its own published APK.
+- The two variants intentionally use the same `com.xclone.app` application ID, so they cannot be installed side-by-side.
+- The F-Droid flavor is a packaging boundary, not proof of F-Droid compliance. Audit the full dependency tree, third-party assets, hosted services and embedded content before submission. Do not add proprietary advertising or tracking SDKs to this flavor.
 
 ## Android release rule
 
