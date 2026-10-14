@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-14T21:37:03.063Z",
+  "generated_at": "2026-10-14T21:53:48.017Z",
   "rule": "A feature is not complete until its Flutter web and Android behavior, backend contract, permissions, failure recovery, and tests are verified. Existing web routes remain available until parity is accepted.",
   "domains": [
     {
@@ -5367,6 +5367,11 @@
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     },
     "supabase/migrations/20261015120000_unified_search_cursor_pagination.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20261015140000_unified_search_server_sort.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
