@@ -79,20 +79,23 @@ class _SportsHubPageState extends State<SportsHubPage> {
         throw const FormatException('Scores are temporarily unavailable.');
       }
       final next = SportsHubPolicy.flattenMatches(payload['data']);
-      if (mounted && requestId == _scoresRequestId)
+      if (mounted && requestId == _scoresRequestId) {
         setState(() => _matches = next);
+      }
     } catch (_) {
-      if (mounted && requestId == _scoresRequestId)
+      if (mounted && requestId == _scoresRequestId) {
         setState(
           () => _scoresError =
               'Scores could not be refreshed. Your last loaded scores are kept; please retry.',
         );
+      }
     } finally {
-      if (mounted && requestId == _scoresRequestId)
+      if (mounted && requestId == _scoresRequestId) {
         setState(() {
           _scoresLoading = false;
           _refreshing = false;
         });
+      }
     }
   }
 
@@ -119,17 +122,20 @@ class _SportsHubPageState extends State<SportsHubPage> {
       final next = raw is List
           ? raw.whereType<Map>().map(Map<String, dynamic>.from).toList()
           : <Map<String, dynamic>>[];
-      if (mounted && requestId == _storiesRequestId)
+      if (mounted && requestId == _storiesRequestId) {
         setState(() => _stories = next);
+      }
     } catch (_) {
-      if (mounted && requestId == _storiesRequestId)
+      if (mounted && requestId == _storiesRequestId) {
         setState(
           () => _storiesError =
               'Sports headlines are temporarily unavailable. Please retry.',
         );
+      }
     } finally {
-      if (mounted && requestId == _storiesRequestId)
+      if (mounted && requestId == _storiesRequestId) {
         setState(() => _storiesLoading = false);
+      }
     }
   }
 
@@ -185,8 +191,9 @@ class _SportsHubPageState extends State<SportsHubPage> {
   List<Map<String, dynamic>> get _visibleStories => _stories.where((story) {
         final country = '${story['country_code'] ?? ''}';
         if (_storyFilter == 'kenya' && country != 'KE') return false;
-        if (_storyFilter == 'world' && (country == 'KE' || country.isEmpty))
+        if (_storyFilter == 'world' && (country == 'KE' || country.isEmpty)) {
           return false;
+        }
         final publisher = story['testagram_rss_source_profiles'];
         final publisherName =
             publisher is Map ? '${publisher['display_name'] ?? ''}' : '';
@@ -625,9 +632,10 @@ class _SportsHubPageState extends State<SportsHubPage> {
 
   Future<void> _openArticle(Uri uri) async {
     final opened = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (!opened && mounted)
+    if (!opened && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Could not open this publisher link.')),
       );
+    }
   }
 }
