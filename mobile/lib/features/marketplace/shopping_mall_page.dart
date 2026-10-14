@@ -125,8 +125,9 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
       final cart = <String, int>{};
       decoded.forEach((key, value) {
         final quantity = int.tryParse('$value') ?? 0;
-        if (key is String && key.isNotEmpty && quantity > 0 && quantity <= 100)
+        if (key is String && key.isNotEmpty && quantity > 0 && quantity <= 100) {
           cart[key] = quantity;
+        }
       });
       if (mounted) setState(() => _cart = cart);
     } catch (_) {
@@ -153,10 +154,11 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
           .eq('user_id', user.id)
           .limit(500)
           .timeout(const Duration(seconds: 12));
-      if (mounted)
+      if (mounted) {
         setState(
           () => _wishlist.addAll(rows.map((row) => '${row['product_id']}')),
         );
+      }
     } catch (_) {
       // Wishlist is optional; product browsing stays available.
     }
@@ -164,11 +166,12 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
 
   Future<void> _loadWallet() async {
     if (_db.auth.currentUser == null) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _walletBalance = null;
           _walletLoading = false;
         });
+      }
       return;
     }
     if (mounted) setState(() => _walletLoading = true);
@@ -178,11 +181,12 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
       dynamic wallet = result;
       if (wallet is List) wallet = wallet.isEmpty ? null : wallet.first;
       if (wallet is Map) {
-        if (mounted)
+        if (mounted) {
           setState(() {
             _walletBalance = double.tryParse('${wallet['balance'] ?? ''}');
             _walletCurrency = '${wallet['currency'] ?? 'KES'}';
           });
+        }
       }
     } catch (_) {
       if (mounted) setState(() => _walletBalance = null);
@@ -193,12 +197,13 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
 
   Future<void> _loadProducts({bool refresh = false}) async {
     final generation = ++_requestGeneration;
-    if (mounted)
+    if (mounted) {
       setState(() {
         _error = null;
         _loading = _products.isEmpty;
         _refreshing = refresh;
       });
+    }
     try {
       final term = _search.text.trim();
       final orderColumn = _sort == 'Newest'
@@ -244,11 +249,12 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
             'The Mall could not refresh. Check your connection and retry.',
       );
     } finally {
-      if (mounted && generation == _requestGeneration)
+      if (mounted && generation == _requestGeneration) {
         setState(() {
           _loading = false;
           _refreshing = false;
         });
+      }
     }
   }
 
@@ -287,18 +293,22 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
           ),
         )
         .toList();
-    if (_sort == 'Price: low to high')
+    if (_sort == 'Price: low to high') {
       products.sort((a, b) => a.priceMinor.compareTo(b.priceMinor));
-    if (_sort == 'Price: high to low')
+    }
+    if (_sort == 'Price: high to low') {
       products.sort((a, b) => b.priceMinor.compareTo(a.priceMinor));
-    if (_sort == 'Newest')
+    }
+    if (_sort == 'Newest') {
       products.sort(
         (a, b) => (b.createdAt ?? DateTime(1970)).compareTo(
           a.createdAt ?? DateTime(1970),
         ),
       );
-    if (_sort == 'Popular')
+    }
+    if (_sort == 'Popular') {
       products.sort((a, b) => b.salesCount.compareTo(a.salesCount));
+    }
     return products;
   }
 
@@ -563,28 +573,37 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
   }
 
   String _checkoutError(String error) {
-    if (error.contains('AUTH_REQUIRED'))
+    if (error.contains('AUTH_REQUIRED')) {
       return 'Please sign in before checkout.';
-    if (error.contains('INSUFFICIENT_WALLET_BALANCE'))
+    }
+    if (error.contains('INSUFFICIENT_WALLET_BALANCE')) {
       return 'Your wallet balance is insufficient.';
-    if (error.contains('INSUFFICIENT_STOCK'))
+    }
+    if (error.contains('INSUFFICIENT_STOCK')) {
       return 'Stock changed. Refresh and try again.';
-    if (error.contains('PRODUCT_UNAVAILABLE'))
+    }
+    if (error.contains('PRODUCT_UNAVAILABLE')) {
       return 'This product is no longer available.';
-    if (error.contains('WALLET_NOT_FOUND'))
+    }
+    if (error.contains('WALLET_NOT_FOUND')) {
       return 'Set up your Testagram Wallet before checkout.';
-    if (error.contains('SELF_PURCHASE_NOT_ALLOWED'))
+    }
+    if (error.contains('SELF_PURCHASE_NOT_ALLOWED')) {
       return 'You cannot buy your own listing.';
-    if (error.contains('DELIVERY_ADDRESS_REQUIRED'))
+    }
+    if (error.contains('DELIVERY_ADDRESS_REQUIRED')) {
       return 'A delivery address is required for this option.';
-    if (error.contains('UNSUPPORTED_CURRENCY'))
+    }
+    if (error.contains('UNSUPPORTED_CURRENCY')) {
       return 'This wallet or product currency is not supported.';
+    }
     return 'Checkout failed safely. Your wallet was not charged unless the server confirmed the order. Please refresh and check Orders.';
   }
 
   void _message(String text) {
-    if (mounted)
+    if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+    }
   }
 
   @override
@@ -1290,7 +1309,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : TextButton(
-                        onPressed: () => setState(() => _sort = 'Popular'),
+                        onPressed: _showAllProducts,
                         child: const Text('See all'),
                       ),
               ),
@@ -1671,7 +1690,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                   _MallProduct.fromRow(Map<String, dynamic>.from(row as Map)),
             )
             .toList();
-        if (mounted)
+        if (mounted) {
           setState(() {
             _products = [
               ..._products.where((p) => !loaded.any((item) => item.id == p.id)),
@@ -1682,10 +1701,12 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
               _cart.remove(id);
             }
           });
+        }
         unawaited(_persistCart());
       } catch (_) {
-        if (mounted)
+        if (mounted) {
           _message('Some cart items could not be refreshed. Please retry.');
+        }
       }
     }
     if (!mounted) return;
