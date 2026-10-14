@@ -3,7 +3,7 @@ import { TestagramEvent, trackTestagramEvent } from '@/lib/testagram-analytics';
 export type CapabilityError={code:string;message:string};
 export type CapabilityResponse<T>={ok:boolean;data:T|null;error:CapabilityError|null;request_id:string};
 export type CapabilityPage<T>={items:T[];next_cursor:string|null};
-export type SearchDiscoveryPage={users:any[];hashtags:any[];posts:any[];communities:any[];next_cursor:string|null};
+export type SearchDiscoveryPage={users:any[];hashtags:any[];posts:any[];communities:any[];instances?:any[];next_cursor:string|null};
 export type LikeState={is_liked:boolean;likes_count:number};
 export type RepostState={is_reposted:boolean;reposts_count:number};
 export type FollowState={following:boolean;requested:boolean;followed_by?:boolean;status?:string;following_id?:string};
@@ -201,7 +201,7 @@ export class TestagramCapabilityClient{
   }
   if(!token) throw new CapabilityClientError("Your session has expired. Sign in again to search Testagram.",{code:"AUTH_REQUIRED",status:401});
   const directUrl=`${supabaseUrl.replace(/\/$/,"")}/rest/v1/rpc/testagram_search_unified`;
-  const searchPayload=(payload:any)=>({users:Array.isArray(payload?.users)?payload.users:[],hashtags:Array.isArray(payload?.hashtags)?payload.hashtags:[],posts:Array.isArray(payload?.posts)?payload.posts:[],threads:Array.isArray(payload?.threads)?payload.threads:[],communities:Array.isArray(payload?.communities)?payload.communities:[],replies:Array.isArray(payload?.replies)?payload.replies:[],fediverse:Array.isArray(payload?.fediverse)?payload.fediverse:[],next_cursor:payload?.next_cursor??null});
+  const searchPayload=(payload:any)=>({users:Array.isArray(payload?.users)?payload.users:[],hashtags:Array.isArray(payload?.hashtags)?payload.hashtags:[],posts:Array.isArray(payload?.posts)?payload.posts:[],threads:Array.isArray(payload?.threads)?payload.threads:[],communities:Array.isArray(payload?.communities)?payload.communities:[],instances:Array.isArray(payload?.instances)?payload.instances:[],replies:Array.isArray(payload?.replies)?payload.replies:[],fediverse:Array.isArray(payload?.fediverse)?payload.fediverse:[],next_cursor:payload?.next_cursor??null});
   let directFailure:unknown=null;
   for(let attempt=0;attempt<2;attempt++){
    try{
@@ -246,7 +246,7 @@ export class TestagramCapabilityClient{
    const posts=fallback[2].status==="fulfilled"?fallback[2].value.items:[];
    const communities=fallback[3].status==="fulfilled"?fallback[3].value.items:[];
    if(fallback.some(result=>result.status==="fulfilled")){
-    return {users,hashtags,posts,threads:[],communities,replies:[],fediverse:[],next_cursor:fallback[2].status==="fulfilled"?fallback[2].value.next_cursor:null,partial:true};
+    return {users,hashtags,posts,threads:[],communities,instances:[],replies:[],fediverse:[],next_cursor:fallback[2].status==="fulfilled"?fallback[2].value.next_cursor:null,partial:true};
    }
    if(directFailure instanceof CapabilityClientError)throw directFailure;
    throw gatewayError;
