@@ -22,7 +22,8 @@ void main() {
       (await FeedOfflineCache.read(
         userId: 'user-a',
         tab: 'For you',
-      )).single['id'],
+      ))
+          .single['id'],
       'post-1',
     );
     expect(
@@ -48,7 +49,8 @@ void main() {
       (await FeedOfflineCache.read(
         userId: 'user-a',
         tab: 'For you',
-      )).single['id'],
+      ))
+          .single['id'],
       'post-1',
     );
   });
