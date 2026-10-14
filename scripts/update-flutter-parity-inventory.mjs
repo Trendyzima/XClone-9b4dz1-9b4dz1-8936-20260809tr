@@ -121,6 +121,7 @@ const inventory = {
     acceptance: [...new Set([
       ...(previousDomains.get(id)?.acceptance ?? ['positive path', 'unauthenticated/permission path', 'offline/timeout recovery', 'accessibility and responsive layout', 'web and Android tests']),
       ...(initialProgress.has(id) ? ['Flutter implementation exists; end-to-end production parity is not yet accepted'] : []),
+      ...(id === 'search_and_discovery' ? ['Native Flutter Sports Hub connects to the existing testagram-sports and testagram-rss-feed Edge Functions; route/contract/policy checks exist, but live provider smoke tests and Web/Android journey acceptance remain required'] : []),
     ])],
   })),
   sources,

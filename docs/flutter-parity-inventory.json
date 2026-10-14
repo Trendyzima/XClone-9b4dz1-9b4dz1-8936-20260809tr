@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-14T11:21:48.393Z",
+  "generated_at": "2026-10-14T11:48:18.936Z",
   "rule": "A feature is not complete until its Flutter web and Android behavior, backend contract, permissions, failure recovery, and tests are verified. Existing web routes remain available until parity is accepted.",
   "domains": [
     {
@@ -52,7 +52,8 @@
         "offline/timeout recovery",
         "accessibility and responsive layout",
         "web and Android tests",
-        "Flutter implementation exists; end-to-end production parity is not yet accepted"
+        "Flutter implementation exists; end-to-end production parity is not yet accepted",
+        "Native Flutter Sports Hub connects to the existing testagram-sports and testagram-rss-feed Edge Functions; route/contract/policy checks exist, but live provider smoke tests and Web/Android journey acceptance remain required"
       ]
     },
     {
