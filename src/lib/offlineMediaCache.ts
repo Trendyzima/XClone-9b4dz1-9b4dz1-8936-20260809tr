@@ -1,11 +1,14 @@
 const CACHE_NAME = 'testagram-offline-media-v1';
 const META_DB = 'testagram-offline-media-meta-v1';
 const META_STORE = 'entries';
-const MAX_VIDEOS = 8;
+const MAX_VIDEOS = 100;
 const MIN_VIDEOS = 5;
-const MAX_IMAGES = 24;
-const MAX_TOTAL_BYTES = 160 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 20 * 1024 * 1024;
+const MAX_IMAGES = 2000;
+// Requested offline library ceiling. Browsers/devices may grant less storage;
+// trimCache always respects the quota-derived budget rather than assuming 2 GB.
+export const OFFLINE_CACHE_CEILING_BYTES = 2 * 1024 * 1024 * 1024;
+const MIN_CACHE_BUDGET_BYTES = 8 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 250 * 1024 * 1024;
 
 type MediaKind = 'video' | 'image';
 type Meta = { url: string; kind: MediaKind; bytes: number; lastUsed: number };
@@ -78,10 +81,34 @@ async function deleteMeta(url: string) {
   } catch {}
 }
 
+async function cacheBudgetBytes(): Promise<number> {
+  try {
+    const storage = navigator.storage;
+    // Persistence is best-effort. A browser may reject it or expose a smaller
+    // quota; neither condition should break online browsing.
+    if (storage?.persist) await storage.persist().catch(() => false);
+    const estimate = await storage?.estimate?.();
+    const quota = Number(estimate?.quota ?? 0);
+    if (Number.isFinite(quota) && quota > 0) {
+      return Math.min(OFFLINE_CACHE_CEILING_BYTES,
+        Math.max(Math.min(MIN_CACHE_BUDGET_BYTES, quota), Math.floor(quota * 0.5)));
+    }
+  } catch { /* Storage estimates are unavailable in some private contexts. */ }
+  return MIN_CACHE_BUDGET_BYTES;
+}
+
+export async function getOfflineCacheStatus() {
+  const entries = await allMeta();
+  const usedBytes = entries.reduce((sum, entry) => sum + Math.max(0, entry.bytes), 0);
+  return { usedBytes, budgetBytes: await cacheBudgetBytes(), ceilingBytes: OFFLINE_CACHE_CEILING_BYTES,
+    itemCount: entries.length };
+}
+
 async function trimCache() {
   const cache = await caches.open(CACHE_NAME);
   const entries = await allMeta();
   let total = entries.reduce((sum, entry) => sum + Math.max(0, entry.bytes), 0);
+  const budget = await cacheBudgetBytes();
   const videos = entries.filter(e => e.kind === 'video').sort((a, b) => a.lastUsed - b.lastUsed);
   const images = entries.filter(e => e.kind === 'image').sort((a, b) => a.lastUsed - b.lastUsed);
   const remove: Meta[] = [];
@@ -90,7 +117,7 @@ async function trimCache() {
   while (images.length - remove.filter(e => e.kind === 'image').length > MAX_IMAGES) remove.push(images.shift()!);
 
   for (const entry of [...entries].sort((a, b) => a.lastUsed - b.lastUsed)) {
-    if (total <= MAX_TOTAL_BYTES) break;
+    if (total <= budget) break;
     if (remove.includes(entry)) continue;
     remove.push(entry);
     total -= Math.max(0, entry.bytes);

@@ -11,6 +11,7 @@ import 'package:video_player/video_player.dart';
 
 import '../../core/media/media_upload_policy.dart';
 import 'feed_load_policy.dart';
+import 'feed_offline_cache.dart';
 import 'sponsored_ad_service.dart';
 
 class FeedPage extends StatefulWidget {
@@ -86,8 +87,29 @@ class _FeedPageState extends State<FeedPage> {
       _error = null;
       if (reset) _sponsoredAd = null;
     });
+    // Show a user-scoped snapshot immediately while the live request runs. If
+    // the network is unavailable, the cached timeline remains readable.
+    if (reset && _posts.isEmpty) {
+      final cached = await FeedOfflineCache.read(
+        userId: _client.auth.currentUser?.id ?? 'anonymous',
+        tab: _feedTab,
+      );
+      if (mounted && cached.isNotEmpty &&
+          FeedLoadPolicy.isCurrent(
+            requestGeneration: generation,
+            currentGeneration: _loadGeneration,
+          )) {
+        setState(() {
+          _posts
+            ..clear()
+            ..addAll(cached);
+          _page = (_posts.length / _pageSize).ceil();
+          _hasMore = true;
+        });
+      }
+    }
     try {
-      final start = _page * _pageSize;
+      final start = reset ? 0 : _page * _pageSize;
       List<String> followingIds = [];
       final viewerId = _client.auth.currentUser?.id;
       if (_feedTab == 'Following' && viewerId != null) {
@@ -225,6 +247,11 @@ class _FeedPageState extends State<FeedPage> {
         _page = start ~/ _pageSize + 1;
         _hasMore = rows.length == _pageSize;
       });
+      unawaited(FeedOfflineCache.write(
+        userId: viewerId ?? 'anonymous',
+        tab: _feedTab,
+        posts: _posts,
+      ));
       if (reset && _posts.length >= 5) {
         unawaited(_loadSponsoredAd(refreshGeneration));
       }
@@ -836,16 +863,28 @@ class _FeedPageState extends State<FeedPage> {
           ),
           if (_error != null)
             SliverToBoxAdapter(
-                child: Padding(
-                    padding: const EdgeInsets.all(18),
-                    child: Column(children: [
-                      Text(_error!, textAlign: TextAlign.center),
-                      const SizedBox(height: 8),
-                      OutlinedButton.icon(
-                          onPressed: () => _load(reset: true),
-                          icon: const Icon(Icons.refresh_rounded),
-                          label: const Text('Retry'))
-                    ]))),
+              child: Padding(
+                padding: const EdgeInsets.all(18),
+                child: Column(
+                  children: [
+                    if (_posts.isNotEmpty)
+                      const Icon(Icons.cloud_off_rounded, size: 20),
+                    Text(
+                      _posts.isNotEmpty
+                          ? 'Live refresh failed — showing saved posts.'
+                          : _error!,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 8),
+                    OutlinedButton.icon(
+                      onPressed: () => _load(reset: true),
+                      icon: const Icon(Icons.refresh_rounded),
+                      label: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           if (_posts.isEmpty && _loading)
             const SliverFillRemaining(
                 hasScrollBody: false,
