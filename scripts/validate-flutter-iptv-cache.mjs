@@ -28,6 +28,7 @@ assert.ok(tvPage.includes('warmIptvStream(url)'), 'the Flutter vertical feed mus
 assert.ok(tvPage.includes('SharedPreferences.getInstance()'), 'the Flutter channel catalogue must restore/persist a local cache');
 assert.ok(tvPage.includes('_restoreCachedCatalog()'), 'cached channels must be restored before waiting for network catalogue calls');
 assert.ok(tvPage.includes('_persistCachedCatalog(merged)'), 'fresh catalogue results must update the persistent cache');
+assert.ok(tvPage.includes("unawaited(_play(merged.first))"), 'the first fresh channel must auto-start when no cached channel is selected');
 assert.ok(tvPage.includes('unawaited(_prepareAdjacent(0))'), 'first cached channel must prepare its neighbor immediately');
 assert.ok(/existing:\s*_channels\)/.test(tvPage), 'incremental catalogue loads must preserve existing vertical page ordering');
 assert.ok(channelCache.includes('maxAge = Duration(hours: 24)'), 'public channel metadata cache must have a 24-hour TTL');
