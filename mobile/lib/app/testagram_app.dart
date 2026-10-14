@@ -49,6 +49,7 @@ import '../features/videos/videos_page.dart';
 import '../features/discovery/discovery_pages.dart';
 import '../features/discovery/sports_hub_page.dart';
 import '../features/marketplace/products_page.dart';
+import '../features/marketplace/shopping_mall_page.dart';
 import '../features/marketplace/orders_page.dart';
 import '../features/marketplace/wishlist_page.dart';
 import '../features/social/lists_pages.dart';
@@ -116,7 +117,8 @@ class _TestagramAppState extends State<TestagramApp> {
         final onAuth = state.matchedLocation == '/auth';
         final onSetup = state.matchedLocation == '/setup';
         final path = state.matchedLocation;
-        final publicRoute = path == '/' ||
+        final publicRoute =
+            path == '/' ||
             path == '/explore' ||
             path == '/search' ||
             path == '/discover' ||
@@ -163,7 +165,8 @@ class _TestagramAppState extends State<TestagramApp> {
         GoRoute(
           path: '/auth',
           builder: (_, state) => AuthPage(
-            recovery: state.uri.queryParameters['reset'] == '1' ||
+            recovery:
+                state.uri.queryParameters['reset'] == '1' ||
                 state.uri.queryParameters['type'] == 'recovery',
             returnTo: AuthRedirectPolicy.safeReturnPath(
               state.uri.queryParameters['returnTo'],
@@ -362,7 +365,14 @@ class _TestagramAppState extends State<TestagramApp> {
               builder: (_, state) =>
                   ProductsPage(productId: state.pathParameters['productId']),
             ),
-            GoRoute(path: '/shop', builder: (_, __) => const ProductsPage()),
+            GoRoute(
+              path: '/shop',
+              builder: (_, __) => const ShoppingMallPage(),
+            ),
+            GoRoute(
+              path: '/mall',
+              builder: (_, __) => const ShoppingMallPage(),
+            ),
             GoRoute(path: '/orders', builder: (_, __) => const OrdersPage()),
             GoRoute(
               path: '/create-ad',
