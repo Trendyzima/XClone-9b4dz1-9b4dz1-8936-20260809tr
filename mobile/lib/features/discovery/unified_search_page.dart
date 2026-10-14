@@ -67,7 +67,8 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
   }
 
   void _onScroll() {
-    if (!_scrollController.hasClients || _loading || _loadingMore || !_hasMore) return;
+    if (!_scrollController.hasClients || _loading || _loadingMore || !_hasMore)
+      return;
     if (_scrollController.position.extentAfter < 420) {
       _search(append: true);
     }
@@ -269,7 +270,8 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
     ]) {
       for (final row
           in (_results[group] as List<Map<String, dynamic>>?) ?? const []) {
-        final canonical = row['uri'] ?? row['remote_status_uri'] ??
+        final canonical = row['uri'] ??
+            row['remote_status_uri'] ??
             (_groupForRow(row) == 'users' ? row['actor_uri'] : null);
         final identity = canonical != null
             ? 'remote:${'$canonical'.toLowerCase()}'
@@ -622,7 +624,8 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
 
   Future<void> _openExternalUrl(String value) async {
     final uri = Uri.tryParse(value);
-    if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https'))) return;
+    if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https')))
+      return;
     await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
@@ -681,14 +684,17 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         break;
       case 'fediverse':
         final objectUrl = '${row['url'] ?? row['uri'] ?? ''}';
-        if (objectUrl.startsWith('http://') || objectUrl.startsWith('https://')) {
+        if (objectUrl.startsWith('http://') ||
+            objectUrl.startsWith('https://')) {
           unawaited(_openExternalUrl(objectUrl));
           break;
         }
         final remoteAccount = row['remote_account'];
-        final actor = '${row['actor_uri'] ?? (remoteAccount is Map ? remoteAccount['actor_uri'] : null) ?? ''}';
+        final actor =
+            '${row['actor_uri'] ?? (remoteAccount is Map ? remoteAccount['actor_uri'] : null) ?? ''}';
         if (actor.startsWith('http://') || actor.startsWith('https://')) {
-          context.go('/fediverse/profile?actor=${Uri.encodeQueryComponent(actor)}');
+          context.go(
+              '/fediverse/profile?actor=${Uri.encodeQueryComponent(actor)}');
         }
         break;
       default:
