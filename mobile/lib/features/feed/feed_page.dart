@@ -35,8 +35,9 @@ class _FeedPageState extends State<FeedPage> {
   int _loadGeneration = 0;
   int _refreshGeneration = 0;
   SponsoredAd? _sponsoredAd;
-  late final SponsoredAdService _adService =
-      SponsoredAdService.forClient(_client);
+  late final SponsoredAdService _adService = SponsoredAdService.forClient(
+    _client,
+  );
   static const _pageSize = 15;
 
   SupabaseClient get _client => Supabase.instance.client;
@@ -94,7 +95,8 @@ class _FeedPageState extends State<FeedPage> {
         userId: _client.auth.currentUser?.id ?? 'anonymous',
         tab: _feedTab,
       );
-      if (mounted && cached.isNotEmpty &&
+      if (mounted &&
+          cached.isNotEmpty &&
           FeedLoadPolicy.isCurrent(
             requestGeneration: generation,
             currentGeneration: _loadGeneration,
@@ -132,13 +134,13 @@ class _FeedPageState extends State<FeedPage> {
       final postQuery = _client.from('posts').select('*');
       final response =
           _feedTab == 'Following' && (viewerId == null || followingIds.isEmpty)
-              ? <dynamic>[]
-              : await (_feedTab == 'Following'
-                      ? postQuery.inFilter('author_id', followingIds)
-                      : postQuery)
-                  .order('created_at', ascending: false)
-                  .range(start, start + _pageSize - 1)
-                  .timeout(const Duration(seconds: 15));
+          ? <dynamic>[]
+          : await (_feedTab == 'Following'
+                    ? postQuery.inFilter('author_id', followingIds)
+                    : postQuery)
+                .order('created_at', ascending: false)
+                .range(start, start + _pageSize - 1)
+                .timeout(const Duration(seconds: 15));
       if (!FeedLoadPolicy.isCurrent(
         requestGeneration: generation,
         currentGeneration: _loadGeneration,
@@ -157,10 +159,11 @@ class _FeedPageState extends State<FeedPage> {
       final profiles = ids.isEmpty
           ? <dynamic>[]
           : await _client
-              .from('profiles')
-              .select(
-                  'id,username,display_name,avatar_url,verified,verified_tier')
-              .inFilter('id', ids);
+                .from('profiles')
+                .select(
+                  'id,username,display_name,avatar_url,verified,verified_tier',
+                )
+                .inFilter('id', ids);
       if (!FeedLoadPolicy.isCurrent(
         requestGeneration: generation,
         currentGeneration: _loadGeneration,
@@ -247,11 +250,13 @@ class _FeedPageState extends State<FeedPage> {
         _page = start ~/ _pageSize + 1;
         _hasMore = rows.length == _pageSize;
       });
-      unawaited(FeedOfflineCache.write(
-        userId: viewerId ?? 'anonymous',
-        tab: _feedTab,
-        posts: _posts,
-      ));
+      unawaited(
+        FeedOfflineCache.write(
+          userId: viewerId ?? 'anonymous',
+          tab: _feedTab,
+          posts: _posts,
+        ),
+      );
       if (reset && _posts.length >= 5) {
         unawaited(_loadSponsoredAd(refreshGeneration));
       }
@@ -278,7 +283,7 @@ class _FeedPageState extends State<FeedPage> {
     final ad = await _adService.requestAd(
       slotCode: 'feed-inline',
       content: const {
-        'genres': ['social', 'community']
+        'genres': ['social', 'community'],
       },
     );
     if (!mounted ||
@@ -334,14 +339,18 @@ class _FeedPageState extends State<FeedPage> {
             .eq('post_id', id)
             .eq('emoji', '❤️');
       } else {
-        await _client.from('post_reactions').upsert(
-            {'user_id': _userId, 'post_id': id, 'emoji': '❤️'},
-            onConflict: 'post_id,user_id');
+        await _client.from('post_reactions').upsert({
+          'user_id': _userId,
+          'post_id': id,
+          'emoji': '❤️',
+        }, onConflict: 'post_id,user_id');
       }
       if (mounted) {
-        setState(() => post['likes_count'] =
-            ((post['likes_count'] as num?)?.toInt() ?? 0) +
-                (wasLiked ? -1 : 1));
+        setState(
+          () => post['likes_count'] =
+              ((post['likes_count'] as num?)?.toInt() ?? 0) +
+              (wasLiked ? -1 : 1),
+        );
       }
     } catch (error) {
       if (mounted) {
@@ -349,7 +358,8 @@ class _FeedPageState extends State<FeedPage> {
           wasLiked ? _liked.add(id) : _liked.remove(id);
         });
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not update like: $error')));
+          SnackBar(content: Text('Could not update like: $error')),
+        );
       }
     }
   }
@@ -372,9 +382,10 @@ class _FeedPageState extends State<FeedPage> {
             .eq('user_id', _userId)
             .eq('post_id', id);
       } else {
-        await _client
-            .from('bookmarks')
-            .insert({'user_id': _userId, 'post_id': id});
+        await _client.from('bookmarks').insert({
+          'user_id': _userId,
+          'post_id': id,
+        });
       }
     } catch (error) {
       if (mounted) {
@@ -382,7 +393,8 @@ class _FeedPageState extends State<FeedPage> {
           wasSaved ? _bookmarked.add(id) : _bookmarked.remove(id);
         });
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not update bookmark: $error')));
+          SnackBar(content: Text('Could not update bookmark: $error')),
+        );
       }
     }
   }
@@ -405,14 +417,17 @@ class _FeedPageState extends State<FeedPage> {
             .eq('user_id', _userId)
             .eq('post_id', id);
       } else {
-        await _client
-            .from('reposts')
-            .insert({'user_id': _userId, 'post_id': id});
+        await _client.from('reposts').insert({
+          'user_id': _userId,
+          'post_id': id,
+        });
       }
       if (mounted) {
-        setState(() => post['reposts_count'] =
-            ((post['reposts_count'] as num?)?.toInt() ?? 0) +
-                (wasReposted ? -1 : 1));
+        setState(
+          () => post['reposts_count'] =
+              ((post['reposts_count'] as num?)?.toInt() ?? 0) +
+              (wasReposted ? -1 : 1),
+        );
       }
     } catch (error) {
       if (mounted) {
@@ -420,7 +435,8 @@ class _FeedPageState extends State<FeedPage> {
           wasReposted ? _reposted.add(id) : _reposted.remove(id);
         });
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not update repost: $error')));
+          SnackBar(content: Text('Could not update repost: $error')),
+        );
       }
     }
   }
@@ -443,7 +459,8 @@ class _FeedPageState extends State<FeedPage> {
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Could not open the share sheet: $error')));
+          SnackBar(content: Text('Could not open the share sheet: $error')),
+        );
       }
     }
   }
@@ -466,16 +483,21 @@ class _FeedPageState extends State<FeedPage> {
       builder: (context) => AlertDialog(
         title: const Text('Report post'),
         content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: reasons.entries
-                .map((entry) => ListTile(
-                    title: Text(entry.value),
-                    onTap: () => Navigator.pop(context, entry.key)))
-                .toList()),
+          mainAxisSize: MainAxisSize.min,
+          children: reasons.entries
+              .map(
+                (entry) => ListTile(
+                  title: Text(entry.value),
+                  onTap: () => Navigator.pop(context, entry.key),
+                ),
+              )
+              .toList(),
+        ),
         actions: [
           TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel'))
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
         ],
       ),
     );
@@ -485,16 +507,20 @@ class _FeedPageState extends State<FeedPage> {
         'reporter_id': _userId,
         'target_type': 'post',
         'target_id': post['id'],
-        'reason': reason
+        'reason': reason,
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Report submitted to Testagram moderation.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Report submitted to Testagram moderation.'),
+          ),
+        );
       }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Report could not be submitted: $error')));
+          SnackBar(content: Text('Report could not be submitted: $error')),
+        );
       }
     }
   }
@@ -509,7 +535,10 @@ class _FeedPageState extends State<FeedPage> {
       isScrollControlled: true,
       showDragHandle: true,
       builder: (context) => _CommentsSheet(
-          postId: '${post['id']}', client: _client, userId: _userId),
+        postId: '${post['id']}',
+        client: _client,
+        userId: _userId,
+      ),
     );
   }
 
@@ -540,11 +569,11 @@ class _FeedPageState extends State<FeedPage> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Create a post',
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w800)),
+                Text(
+                  'Create a post',
+                  style: Theme.of(context).textTheme.titleLarge
+                      ?.copyWith(fontWeight: FontWeight.w800),
+                ),
                 const SizedBox(height: 14),
                 TextField(
                   controller: controller,
@@ -562,27 +591,36 @@ class _FeedPageState extends State<FeedPage> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color:
-                          Theme.of(context).colorScheme.surfaceContainerHighest,
+                      color: Theme.of(context)
+                          .colorScheme
+                          .surfaceContainerHighest,
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Row(children: [
-                      Icon(selectedIsVideo
-                          ? Icons.video_file_rounded
-                          : Icons.image_rounded),
-                      const SizedBox(width: 10),
-                      Expanded(
-                          child: Text(selectedMedia!.name,
-                              maxLines: 2, overflow: TextOverflow.ellipsis)),
-                      IconButton(
-                        tooltip: 'Remove attachment',
-                        onPressed: () => setSheetState(() {
-                          selectedMedia = null;
-                          selectedIsVideo = false;
-                        }),
-                        icon: const Icon(Icons.close_rounded),
-                      ),
-                    ]),
+                    child: Row(
+                      children: [
+                        Icon(
+                          selectedIsVideo
+                              ? Icons.video_file_rounded
+                              : Icons.image_rounded,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            selectedMedia!.name,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        IconButton(
+                          tooltip: 'Remove attachment',
+                          onPressed: () => setSheetState(() {
+                            selectedMedia = null;
+                            selectedIsVideo = false;
+                          }),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                      ],
+                    ),
                   ),
                 ],
                 const SizedBox(height: 8),
@@ -597,9 +635,10 @@ class _FeedPageState extends State<FeedPage> {
                               setSheetState(() => choosingMedia = true);
                               try {
                                 final file = await picker.pickImage(
-                                    source: ImageSource.camera,
-                                    imageQuality: 88,
-                                    maxWidth: 2560);
+                                  source: ImageSource.camera,
+                                  imageQuality: 88,
+                                  maxWidth: 2560,
+                                );
                                 if (file != null) {
                                   setSheetState(() {
                                     selectedMedia = file;
@@ -609,9 +648,13 @@ class _FeedPageState extends State<FeedPage> {
                               } catch (_) {
                                 if (sheetContext.mounted) {
                                   ScaffoldMessenger.of(sheetContext)
-                                      .showSnackBar(const SnackBar(
+                                      .showSnackBar(
+                                        const SnackBar(
                                           content: Text(
-                                              'Camera is unavailable or permission was denied.')));
+                                            'Camera is unavailable or permission was denied.',
+                                          ),
+                                        ),
+                                      );
                                 }
                               } finally {
                                 if (sheetContext.mounted) {
@@ -629,9 +672,10 @@ class _FeedPageState extends State<FeedPage> {
                               setSheetState(() => choosingMedia = true);
                               try {
                                 final file = await picker.pickImage(
-                                    source: ImageSource.gallery,
-                                    imageQuality: 88,
-                                    maxWidth: 2560);
+                                  source: ImageSource.gallery,
+                                  imageQuality: 88,
+                                  maxWidth: 2560,
+                                );
                                 if (file != null) {
                                   setSheetState(() {
                                     selectedMedia = file;
@@ -641,9 +685,13 @@ class _FeedPageState extends State<FeedPage> {
                               } catch (_) {
                                 if (sheetContext.mounted) {
                                   ScaffoldMessenger.of(sheetContext)
-                                      .showSnackBar(const SnackBar(
+                                      .showSnackBar(
+                                        const SnackBar(
                                           content: Text(
-                                              'Photo selection failed. Check media permissions and retry.')));
+                                            'Photo selection failed. Check media permissions and retry.',
+                                          ),
+                                        ),
+                                      );
                                 }
                               } finally {
                                 if (sheetContext.mounted) {
@@ -661,8 +709,9 @@ class _FeedPageState extends State<FeedPage> {
                               setSheetState(() => choosingMedia = true);
                               try {
                                 final file = await picker.pickVideo(
-                                    source: ImageSource.gallery,
-                                    maxDuration: const Duration(minutes: 5));
+                                  source: ImageSource.gallery,
+                                  maxDuration: const Duration(minutes: 5),
+                                );
                                 if (file != null) {
                                   setSheetState(() {
                                     selectedMedia = file;
@@ -672,9 +721,13 @@ class _FeedPageState extends State<FeedPage> {
                               } catch (_) {
                                 if (sheetContext.mounted) {
                                   ScaffoldMessenger.of(sheetContext)
-                                      .showSnackBar(const SnackBar(
+                                      .showSnackBar(
+                                        const SnackBar(
                                           content: Text(
-                                              'Video selection failed. Check media permissions and retry.')));
+                                            'Video selection failed. Check media permissions and retry.',
+                                          ),
+                                        ),
+                                      );
                                 }
                               } finally {
                                 if (sheetContext.mounted) {
@@ -690,15 +743,16 @@ class _FeedPageState extends State<FeedPage> {
                 if (choosingMedia) const LinearProgressIndicator(),
                 const SizedBox(height: 14),
                 FilledButton(
-                  onPressed: choosingMedia ||
+                  onPressed:
+                      choosingMedia ||
                           (controller.text.trim().isEmpty &&
                               selectedMedia == null)
                       ? null
                       : () => Navigator.pop(sheetContext, {
-                            'content': controller.text.trim(),
-                            'media': selectedMedia,
-                            'isVideo': selectedIsVideo,
-                          }),
+                          'content': controller.text.trim(),
+                          'media': selectedMedia,
+                          'isVideo': selectedIsVideo,
+                        }),
                   child: const Text('Publish post'),
                 ),
               ],
@@ -727,7 +781,9 @@ class _FeedPageState extends State<FeedPage> {
         MediaUploadPolicy.validateSize(bytes.length, isVideo: isVideo);
         final path =
             '$_userId/${DateTime.now().microsecondsSinceEpoch}.$extension';
-        await _client.storage.from('posts').uploadBinary(
+        await _client.storage
+            .from('posts')
+            .uploadBinary(
               path,
               bytes,
               fileOptions: FileOptions(
@@ -763,9 +819,8 @@ class _FeedPageState extends State<FeedPage> {
       }
       if (mounted) {
         final message = error.toString().replaceFirst('Exception: ', '');
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Post failed: $message')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Post failed: $message')));
       }
     } finally {
       if (mounted) setState(() => _publishing = false);
@@ -783,8 +838,7 @@ class _FeedPageState extends State<FeedPage> {
           SliverToBoxAdapter(
             child: Container(
               decoration: BoxDecoration(
-                color: Theme.of(context)
-                    .scaffoldBackgroundColor
+                color: Theme.of(context).scaffoldBackgroundColor
                     .withValues(alpha: 0.94),
                 border: Border(
                   bottom: BorderSide(color: Theme.of(context).dividerColor),
@@ -822,9 +876,9 @@ class _FeedPageState extends State<FeedPage> {
                               color: _feedTab == tab
                                   ? Theme.of(context).colorScheme.onSurface
                                   : Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
-                                      ?.color,
+                                        .textTheme
+                                        .bodySmall
+                                        ?.color,
                             ),
                           ),
                         ),
@@ -843,19 +897,25 @@ class _FeedPageState extends State<FeedPage> {
                   onTap: _publishing ? null : _compose,
                   child: Padding(
                     padding: const EdgeInsets.all(14),
-                    child: Row(children: [
-                      CircleAvatar(
-                          backgroundColor:
-                              Theme.of(context).colorScheme.primaryContainer,
-                          child: const Icon(Icons.edit_rounded)),
-                      const SizedBox(width: 12),
-                      const Expanded(
-                          child: Text('Share something with your community…')),
-                      IconButton(
+                    child: Row(
+                      children: [
+                        CircleAvatar(
+                          backgroundColor: Theme.of(context)
+                              .colorScheme
+                              .primaryContainer,
+                          child: const Icon(Icons.edit_rounded),
+                        ),
+                        const SizedBox(width: 12),
+                        const Expanded(
+                          child: Text('Share something with your community…'),
+                        ),
+                        IconButton(
                           tooltip: 'Create post',
                           onPressed: _compose,
-                          icon: const Icon(Icons.add_circle_rounded)),
-                    ]),
+                          icon: const Icon(Icons.add_circle_rounded),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -887,21 +947,26 @@ class _FeedPageState extends State<FeedPage> {
             ),
           if (_posts.isEmpty && _loading)
             const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(child: CircularProgressIndicator()))
+              hasScrollBody: false,
+              child: Center(child: CircularProgressIndicator()),
+            )
           else if (_posts.isEmpty && _error == null)
             SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(
-                    child: Text(_feedTab == 'Following' &&
-                            _client.auth.currentUser == null
-                        ? 'Sign in to see posts from people you follow.'
-                        : 'No posts yet. Be the first to share something.')))
+              hasScrollBody: false,
+              child: Center(
+                child: Text(
+                  _feedTab == 'Following' && _client.auth.currentUser == null
+                      ? 'Sign in to see posts from people you follow.'
+                      : 'No posts yet. Be the first to share something.',
+                ),
+              ),
+            )
           else
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 14),
               sliver: SliverList.separated(
-                itemCount: _posts.length +
+                itemCount:
+                    _posts.length +
                     (_sponsoredAd != null && _posts.length >= 5 ? 1 : 0),
                 separatorBuilder: (_, __) => const SizedBox(height: 10),
                 itemBuilder: (context, index) {
@@ -916,8 +981,8 @@ class _FeedPageState extends State<FeedPage> {
                   }
                   final postIndex =
                       _sponsoredAd != null && _posts.length >= 5 && index > 5
-                          ? index - 1
-                          : index;
+                      ? index - 1
+                      : index;
                   final post = _posts[postIndex];
                   return _PostCard(
                     post: post,
@@ -937,16 +1002,23 @@ class _FeedPageState extends State<FeedPage> {
             ),
           if (_loading && _posts.isNotEmpty)
             const SliverToBoxAdapter(
-                child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Center(child: CircularProgressIndicator()))),
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: Center(child: CircularProgressIndicator()),
+              ),
+            ),
           if (!_hasMore && _posts.isNotEmpty)
             const SliverToBoxAdapter(
-                child: Padding(
-                    padding: EdgeInsets.fromLTRB(20, 10, 20, 24),
-                    child: Center(
-                        child: Text('You’re all caught up.',
-                            style: TextStyle(fontSize: 12))))),
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(20, 10, 20, 24),
+                child: Center(
+                  child: Text(
+                    'You’re all caught up.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -954,18 +1026,19 @@ class _FeedPageState extends State<FeedPage> {
 }
 
 class _PostCard extends StatelessWidget {
-  const _PostCard(
-      {required this.post,
-      required this.liked,
-      required this.bookmarked,
-      required this.reposted,
-      required this.onLike,
-      required this.onBookmark,
-      required this.onRepost,
-      required this.onReply,
-      required this.onShare,
-      required this.onCopyLink,
-      required this.onReport});
+  const _PostCard({
+    required this.post,
+    required this.liked,
+    required this.bookmarked,
+    required this.reposted,
+    required this.onLike,
+    required this.onBookmark,
+    required this.onRepost,
+    required this.onReply,
+    required this.onShare,
+    required this.onCopyLink,
+    required this.onReport,
+  });
   final Map<String, dynamic> post;
   final bool liked;
   final bool bookmarked;
@@ -980,7 +1053,8 @@ class _PostCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final profile = (post['profile'] as Map?)?.cast<String, dynamic>() ??
+    final profile =
+        (post['profile'] as Map?)?.cast<String, dynamic>() ??
         <String, dynamic>{};
     final name =
         '${profile['display_name'] ?? profile['username'] ?? 'Testagram user'}';
@@ -988,7 +1062,8 @@ class _PostCard extends StatelessWidget {
     final content = '${post['content'] ?? ''}';
     final media = '${post['image_url'] ?? ''}';
     final video = '${post['video_url'] ?? ''}';
-    final verified = profile['verified'] == true ||
+    final verified =
+        profile['verified'] == true ||
         (profile['verified_tier'] != null &&
             profile['verified_tier'] != 'none');
     final date = DateTime.tryParse('${post['created_at'] ?? ''}');
@@ -996,128 +1071,166 @@ class _PostCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(14, 13, 14, 8),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            CircleAvatar(
-                radius: 21,
-                backgroundImage: avatar.startsWith('http')
-                    ? CachedNetworkImageProvider(avatar)
-                    : null,
-                child: avatar.startsWith('http')
-                    ? null
-                    : Text(name.isNotEmpty ? name[0].toUpperCase() : 'T')),
-            const SizedBox(width: 10),
-            Expanded(
-                child: Column(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 21,
+                  backgroundImage: avatar.startsWith('http')
+                      ? CachedNetworkImageProvider(avatar)
+                      : null,
+                  child: avatar.startsWith('http')
+                      ? null
+                      : Text(name.isNotEmpty ? name[0].toUpperCase() : 'T'),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                  Row(children: [
-                    Flexible(
-                        child: Text(name,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style:
-                                const TextStyle(fontWeight: FontWeight.w800))),
-                    if (verified)
-                      const Padding(
-                          padding: EdgeInsets.only(left: 4),
-                          child: Icon(Icons.verified_rounded,
-                              size: 15, color: Color(0xFF148F44)))
-                  ]),
-                  Text(
-                      '@${profile['username'] ?? 'testagram'} · ${date == null ? '' : _relativeDate(date)}',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color:
-                              Theme.of(context).colorScheme.onSurfaceVariant)),
-                ])),
-            IconButton(
-                tooltip: 'More options',
-                onPressed: () => showModalBottomSheet<void>(
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ),
+                          if (verified)
+                            const Padding(
+                              padding: EdgeInsets.only(left: 4),
+                              child: Icon(
+                                Icons.verified_rounded,
+                                size: 15,
+                                color: Color(0xFF148F44),
+                              ),
+                            ),
+                        ],
+                      ),
+                      Text(
+                        '@${profile['username'] ?? 'testagram'} · ${date == null ? '' : _relativeDate(date)}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'More options',
+                  onPressed: () => showModalBottomSheet<void>(
                     context: context,
                     showDragHandle: true,
                     builder: (context) => SafeArea(
-                            child: Wrap(children: [
+                      child: Wrap(
+                        children: [
                           ListTile(
-                              leading: const Icon(Icons.link_rounded),
-                              title: const Text('Copy post link'),
-                              onTap: () {
-                                Navigator.pop(context);
-                                onCopyLink();
-                              }),
+                            leading: const Icon(Icons.link_rounded),
+                            title: const Text('Copy post link'),
+                            onTap: () {
+                              Navigator.pop(context);
+                              onCopyLink();
+                            },
+                          ),
                           ListTile(
-                              leading: const Icon(Icons.flag_outlined),
-                              title: const Text('Report post'),
-                              onTap: () {
-                                Navigator.pop(context);
-                                onReport();
-                              })
-                        ]))),
-                icon: const Icon(Icons.more_horiz_rounded)),
-          ]),
-          if (content.isNotEmpty)
-            Padding(
-                padding: const EdgeInsets.only(top: 10, bottom: 8),
-                child: SelectableText(content,
-                    style: const TextStyle(fontSize: 15, height: 1.4))),
-          if (video.startsWith('http'))
-            Padding(
-                padding: const EdgeInsets.only(top: 6, bottom: 8),
-                child: _InlineVideo(url: video)),
-          if (media.startsWith('http'))
-            Padding(
-              padding: const EdgeInsets.only(top: 6, bottom: 8),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(14),
-                child: CachedNetworkImage(
-                  imageUrl: media,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
-                  placeholder: (_, __) => const SizedBox(
-                    height: 160,
-                    child: Center(child: CircularProgressIndicator()),
+                            leading: const Icon(Icons.flag_outlined),
+                            title: const Text('Report post'),
+                            onTap: () {
+                              Navigator.pop(context);
+                              onReport();
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
-                  errorWidget: (_, __, ___) => const SizedBox(
-                    height: 100,
-                    child: Center(child: Icon(Icons.broken_image_outlined)),
+                  icon: const Icon(Icons.more_horiz_rounded),
+                ),
+              ],
+            ),
+            if (content.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 10, bottom: 8),
+                child: SelectableText(
+                  content,
+                  style: const TextStyle(fontSize: 15, height: 1.4),
+                ),
+              ),
+            if (video.startsWith('http'))
+              Padding(
+                padding: const EdgeInsets.only(top: 6, bottom: 8),
+                child: _InlineVideo(url: video),
+              ),
+            if (media.startsWith('http'))
+              Padding(
+                padding: const EdgeInsets.only(top: 6, bottom: 8),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: CachedNetworkImage(
+                    imageUrl: media,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => const SizedBox(
+                      height: 160,
+                      child: Center(child: CircularProgressIndicator()),
+                    ),
+                    errorWidget: (_, __, ___) => const SizedBox(
+                      height: 100,
+                      child: Center(child: Icon(Icons.broken_image_outlined)),
+                    ),
                   ),
                 ),
               ),
-            ),
-          const Divider(height: 12),
-          Row(children: [
-            _PostAction(
-                icon: liked
-                    ? Icons.favorite_rounded
-                    : Icons.favorite_border_rounded,
-                label: '${post['likes_count'] ?? 0}',
-                active: liked,
-                onTap: onLike),
-            _PostAction(
-                icon: Icons.mode_comment_outlined,
-                label: '${post['replies_count'] ?? 0}',
-                onTap: onReply),
-            _PostAction(
-                icon: Icons.repeat_rounded,
-                label: '${post['reposts_count'] ?? 0}',
-                active: reposted,
-                onTap: onRepost),
-            IconButton(
-                tooltip: 'Share post',
-                onPressed: onShare,
-                icon: const Icon(Icons.share_outlined)),
-            const Spacer(),
-            IconButton(
-                tooltip: bookmarked ? 'Remove bookmark' : 'Bookmark',
-                onPressed: onBookmark,
-                icon: Icon(
+            const Divider(height: 12),
+            Row(
+              children: [
+                _PostAction(
+                  icon: liked
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                  label: '${post['likes_count'] ?? 0}',
+                  active: liked,
+                  onTap: onLike,
+                ),
+                _PostAction(
+                  icon: Icons.mode_comment_outlined,
+                  label: '${post['replies_count'] ?? 0}',
+                  onTap: onReply,
+                ),
+                _PostAction(
+                  icon: Icons.repeat_rounded,
+                  label: '${post['reposts_count'] ?? 0}',
+                  active: reposted,
+                  onTap: onRepost,
+                ),
+                IconButton(
+                  tooltip: 'Share post',
+                  onPressed: onShare,
+                  icon: const Icon(Icons.share_outlined),
+                ),
+                const Spacer(),
+                IconButton(
+                  tooltip: bookmarked ? 'Remove bookmark' : 'Bookmark',
+                  onPressed: onBookmark,
+                  icon: Icon(
                     bookmarked
                         ? Icons.bookmark_rounded
                         : Icons.bookmark_border_rounded,
                     color: bookmarked
                         ? Theme.of(context).colorScheme.primary
-                        : null)),
-          ]),
-        ]),
+                        : null,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1133,20 +1246,22 @@ class _PostCard extends StatelessWidget {
 }
 
 class _PostAction extends StatelessWidget {
-  const _PostAction(
-      {required this.icon,
-      required this.label,
-      required this.onTap,
-      this.active = false});
+  const _PostAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.active = false,
+  });
   final IconData icon;
   final String label;
   final VoidCallback onTap;
   final bool active;
   @override
   Widget build(BuildContext context) => TextButton.icon(
-      onPressed: onTap,
-      icon: Icon(icon, size: 19, color: active ? Colors.redAccent : null),
-      label: Text(label, style: const TextStyle(fontSize: 12)));
+    onPressed: onTap,
+    icon: Icon(icon, size: 19, color: active ? Colors.redAccent : null),
+    label: Text(label, style: const TextStyle(fontSize: 12)),
+  );
 }
 
 class _InlineVideo extends StatefulWidget {
@@ -1168,8 +1283,9 @@ class _InlineVideoState extends State<_InlineVideo> {
         _error = null;
       });
       try {
-        final controller =
-            VideoPlayerController.networkUrl(Uri.parse(widget.url));
+        final controller = VideoPlayerController.networkUrl(
+          Uri.parse(widget.url),
+        );
         _controller = controller;
         await controller.initialize().timeout(const Duration(seconds: 18));
         if (!mounted) {
@@ -1210,44 +1326,67 @@ class _InlineVideoState extends State<_InlineVideo> {
         aspectRatio: controller?.value.isInitialized == true
             ? controller!.value.aspectRatio
             : 16 / 9,
-        child: Stack(fit: StackFit.expand, children: [
-          if (controller?.value.isInitialized == true)
-            VideoPlayer(controller!)
-          else
-            Container(
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (controller?.value.isInitialized == true)
+              VideoPlayer(controller!)
+            else
+              Container(
                 color: Colors.black87,
                 child: Center(
-                    child: Icon(Icons.play_circle_outline_rounded,
-                        size: 54, color: Colors.white.withValues(alpha: 0.9)))),
-          Material(
+                  child: Icon(
+                    Icons.play_circle_outline_rounded,
+                    size: 54,
+                    color: Colors.white.withValues(alpha: 0.9),
+                  ),
+                ),
+              ),
+            Material(
               color: Colors.transparent,
               child: InkWell(
-                  onTap: _toggle,
-                  child: Center(
-                      child: _loading
-                          ? const CircularProgressIndicator()
-                          : controller?.value.isPlaying == true
-                              ? const Icon(Icons.pause_circle_outline_rounded,
-                                  size: 54, color: Colors.white)
-                              : const Icon(Icons.play_circle_outline_rounded,
-                                  size: 54, color: Colors.white)))),
-          if (_error != null)
-            Positioned(
+                onTap: _toggle,
+                child: Center(
+                  child: _loading
+                      ? const CircularProgressIndicator()
+                      : controller?.value.isPlaying == true
+                      ? const Icon(
+                          Icons.pause_circle_outline_rounded,
+                          size: 54,
+                          color: Colors.white,
+                        )
+                      : const Icon(
+                          Icons.play_circle_outline_rounded,
+                          size: 54,
+                          color: Colors.white,
+                        ),
+                ),
+              ),
+            ),
+            if (_error != null)
+              Positioned(
                 left: 8,
                 right: 8,
                 bottom: 8,
-                child: Text(_error!,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.white, fontSize: 12))),
-        ]),
+                child: Text(
+                  _error!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
 }
 
 class _CommentsSheet extends StatefulWidget {
-  const _CommentsSheet(
-      {required this.postId, required this.client, required this.userId});
+  const _CommentsSheet({
+    required this.postId,
+    required this.client,
+    required this.userId,
+  });
   final String postId;
   final SupabaseClient client;
   final String userId;
@@ -1286,8 +1425,9 @@ class _CommentsSheetState extends State<_CommentsSheet> {
           .eq('post_id', widget.postId)
           .order('created_at', ascending: true)
           .limit(100);
-      final replies =
-          rows.map((row) => Map<String, dynamic>.from(row as Map)).toList();
+      final replies = rows
+          .map((row) => Map<String, dynamic>.from(row as Map))
+          .toList();
       final ids = replies.map((row) => '${row['user_id']}').toSet().toList();
       if (ids.isNotEmpty) {
         final profiles = await widget.client
@@ -1296,7 +1436,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
             .inFilter('id', ids);
         final byId = {
           for (final row in profiles)
-            '${row['id']}': Map<String, dynamic>.from(row as Map)
+            '${row['id']}': Map<String, dynamic>.from(row as Map),
         };
         for (final reply in replies) {
           reply['profile'] = byId['${reply['user_id']}'];
@@ -1320,7 +1460,7 @@ class _CommentsSheetState extends State<_CommentsSheet> {
       await widget.client.from('replies').insert({
         'post_id': widget.postId,
         'user_id': widget.userId,
-        'content': text
+        'content': text,
       });
       _composer.clear();
       await _load();
@@ -1336,79 +1476,105 @@ class _CommentsSheetState extends State<_CommentsSheet> {
 
   @override
   Widget build(BuildContext context) => SafeArea(
-        child: SizedBox(
-          height: MediaQuery.sizeOf(context).height * 0.78,
-          child: Column(children: [
-            Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-                child: Row(children: [
-                  Expanded(
-                      child: Text('Replies (${_replies.length})',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w800))),
-                  IconButton(
-                      onPressed: _load, icon: const Icon(Icons.refresh_rounded))
-                ])),
-            if (_error != null)
-              Padding(padding: const EdgeInsets.all(8), child: Text(_error!)),
-            if (_loading && _replies.isEmpty)
-              const Expanded(child: Center(child: CircularProgressIndicator()))
-            else
-              Expanded(
-                  child: _replies.isEmpty
-                      ? const Center(child: Text('Be the first to reply.'))
-                      : ListView.builder(
-                          itemCount: _replies.length,
-                          itemBuilder: (context, index) {
-                            final reply = _replies[index];
-                            final profile = (reply['profile'] as Map?)
-                                    ?.cast<String, dynamic>() ??
-                                <String, dynamic>{};
-                            final name =
-                                '${profile['display_name'] ?? profile['username'] ?? 'Testagram user'}';
-                            final avatar = '${profile['avatar_url'] ?? ''}';
-                            return ListTile(
-                                leading: CircleAvatar(
-                                    backgroundImage: avatar.startsWith('http')
-                                        ? CachedNetworkImageProvider(avatar)
-                                        : null,
-                                    child: avatar.startsWith('http')
-                                        ? null
-                                        : Text(name.isEmpty
-                                            ? 'T'
-                                            : name[0].toUpperCase())),
-                                title: Text(name,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.w700)),
-                                subtitle: Text('${reply['content'] ?? ''}'));
-                          })),
-            Padding(
-                padding: EdgeInsets.fromLTRB(
-                    12, 8, 12, MediaQuery.viewInsetsOf(context).bottom + 12),
-                child:
-                    Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                  Expanded(
-                      child: TextField(
-                          controller: _composer,
-                          minLines: 1,
-                          maxLines: 4,
-                          maxLength: 2000,
-                          decoration: const InputDecoration(
-                              hintText: 'Write a reply…', counterText: ''))),
-                  const SizedBox(width: 8),
-                  IconButton.filled(
-                      onPressed: _sending ? null : _send,
-                      icon: _sending
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2))
-                          : const Icon(Icons.send_rounded))
-                ])),
-          ]),
-        ),
-      );
+    child: SizedBox(
+      height: MediaQuery.sizeOf(context).height * 0.78,
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Replies (${_replies.length})',
+                    style: Theme.of(context).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                ),
+                IconButton(
+                  onPressed: _load,
+                  icon: const Icon(Icons.refresh_rounded),
+                ),
+              ],
+            ),
+          ),
+          if (_error != null)
+            Padding(padding: const EdgeInsets.all(8), child: Text(_error!)),
+          if (_loading && _replies.isEmpty)
+            const Expanded(child: Center(child: CircularProgressIndicator()))
+          else
+            Expanded(
+              child: _replies.isEmpty
+                  ? const Center(child: Text('Be the first to reply.'))
+                  : ListView.builder(
+                      itemCount: _replies.length,
+                      itemBuilder: (context, index) {
+                        final reply = _replies[index];
+                        final profile =
+                            (reply['profile'] as Map?)
+                                ?.cast<String, dynamic>() ??
+                            <String, dynamic>{};
+                        final name =
+                            '${profile['display_name'] ?? profile['username'] ?? 'Testagram user'}';
+                        final avatar = '${profile['avatar_url'] ?? ''}';
+                        return ListTile(
+                          leading: CircleAvatar(
+                            backgroundImage: avatar.startsWith('http')
+                                ? CachedNetworkImageProvider(avatar)
+                                : null,
+                            child: avatar.startsWith('http')
+                                ? null
+                                : Text(
+                                    name.isEmpty ? 'T' : name[0].toUpperCase(),
+                                  ),
+                          ),
+                          title: Text(
+                            name,
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          subtitle: Text('${reply['content'] ?? ''}'),
+                        );
+                      },
+                    ),
+            ),
+          Padding(
+            padding: EdgeInsets.fromLTRB(
+              12,
+              8,
+              12,
+              MediaQuery.viewInsetsOf(context).bottom + 12,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _composer,
+                    minLines: 1,
+                    maxLines: 4,
+                    maxLength: 2000,
+                    decoration: const InputDecoration(
+                      hintText: 'Write a reply…',
+                      counterText: '',
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.filled(
+                  onPressed: _sending ? null : _send,
+                  icon: _sending
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.send_rounded),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
 }
