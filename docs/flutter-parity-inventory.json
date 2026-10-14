@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-10-14T11:48:18.936Z",
+  "generated_at": "2026-10-14T12:15:03.917Z",
   "rule": "A feature is not complete until its Flutter web and Android behavior, backend contract, permissions, failure recovery, and tests are verified. Existing web routes remain available until parity is accepted.",
   "domains": [
     {
@@ -194,13 +194,15 @@
     {
       "id": "administration_and_safety",
       "scope": "Owner/admin routes, governance, moderation, reports, appeals, bans, identity verification, audit and fraud detection",
-      "status": "not_started",
+      "status": "in_progress",
       "acceptance": [
         "positive path",
         "unauthenticated/permission path",
         "offline/timeout recovery",
         "accessibility and responsive layout",
-        "web and Android tests"
+        "web and Android tests",
+        "Flutter implementation exists; end-to-end production parity is not yet accepted",
+        "Native Flutter appeal submission/history and owner-only platform report review now use server-side authorization RPCs with audit logging; migration must be applied and live authorization/rollback plus Web/Android acceptance remain required"
       ]
     },
     {
@@ -5350,6 +5352,11 @@
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
     },
     "supabase/migrations/20261014120000_testagram_admin_ad_review_v1.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20261014130000_flutter_appeals_reports_secure_workflows.sql": {
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."

@@ -14,6 +14,7 @@ on:
       - 'scripts/validate-flutter-parity-inventory.mjs'
       - 'scripts/validate-ad-review-contract.mjs'
       - 'scripts/validate-sports-hub-contract.mjs'
+      - 'scripts/validate-appeals-reports-contract.mjs'
       - 'scripts/validate-flutter-route-progress.mjs'
       - '.github/workflows/flutter-clients.yml'
   push:
@@ -29,6 +30,7 @@ on:
       - 'scripts/validate-flutter-parity-inventory.mjs'
       - 'scripts/validate-ad-review-contract.mjs'
       - 'scripts/validate-sports-hub-contract.mjs'
+      - 'scripts/validate-appeals-reports-contract.mjs'
       - 'scripts/validate-flutter-route-progress.mjs'
       - 'docs/flutter-migration-release-gates.md'
       - '.github/workflows/flutter-clients.yml'
@@ -53,6 +55,7 @@ jobs:
       - run: node scripts/validate-flutter-parity-inventory.mjs
       - run: node scripts/validate-ad-review-contract.mjs
       - run: node scripts/validate-sports-hub-contract.mjs
+      - run: node scripts/validate-appeals-reports-contract.mjs
       - name: Regenerate and verify Flutter route parity
         run: |
           node scripts/update-flutter-route-parity.mjs

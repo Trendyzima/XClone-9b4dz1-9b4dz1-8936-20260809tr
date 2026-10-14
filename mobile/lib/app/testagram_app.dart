@@ -63,6 +63,8 @@ import '../features/admin/admin_users_page.dart';
 import '../features/admin/admin_fraud_page.dart';
 import '../features/admin/identity_verification_review_page.dart';
 import '../features/admin/verification_requests_page.dart';
+import '../features/moderation/appeals_page.dart';
+import '../features/moderation/regulator_reports_page.dart';
 import '../features/admin/regulator_console_page.dart';
 import '../features/admin/staff_recruitment_page.dart';
 import '../features/admin/seo_audit_page.dart';
@@ -114,7 +116,8 @@ class _TestagramAppState extends State<TestagramApp> {
         final onAuth = state.matchedLocation == '/auth';
         final onSetup = state.matchedLocation == '/setup';
         final path = state.matchedLocation;
-        final publicRoute = path == '/' ||
+        final publicRoute =
+            path == '/' ||
             path == '/explore' ||
             path == '/search' ||
             path == '/discover' ||
@@ -161,7 +164,8 @@ class _TestagramAppState extends State<TestagramApp> {
         GoRoute(
           path: '/auth',
           builder: (_, state) => AuthPage(
-            recovery: state.uri.queryParameters['reset'] == '1' ||
+            recovery:
+                state.uri.queryParameters['reset'] == '1' ||
                 state.uri.queryParameters['type'] == 'recovery',
             returnTo: AuthRedirectPolicy.safeReturnPath(
               state.uri.queryParameters['returnTo'],
@@ -803,14 +807,7 @@ class _TestagramAppState extends State<TestagramApp> {
               path: '/analytics',
               builder: (_, __) => const PostAnalyticsPage(),
             ),
-            GoRoute(
-              path: '/appeals',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Appeals',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
-            ),
+            GoRoute(path: '/appeals', builder: (_, __) => const AppealsPage()),
             GoRoute(
               path: '/blocked',
               builder: (_, __) => const BlockedUsersPage(),
@@ -1054,11 +1051,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/regulator/reports',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Regulatory Reports',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const RegulatorReportsPage(),
             ),
             GoRoute(
               path: '/regulator/wallets',
