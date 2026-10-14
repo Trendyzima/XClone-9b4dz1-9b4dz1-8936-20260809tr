@@ -197,9 +197,8 @@ class _ExplorePageState extends State<ExplorePage> {
 
   @override
   Widget build(BuildContext context) {
-    final visiblePeople = _resultFilter == 'Posts'
-        ? const <Map<String, dynamic>>[]
-        : _people;
+    final visiblePeople =
+        _resultFilter == 'Posts' ? const <Map<String, dynamic>>[] : _people;
     final visiblePosts = _resultFilter == 'People'
         ? const <Map<String, dynamic>>[]
         : List<Map<String, dynamic>>.of(_posts);
@@ -349,9 +348,7 @@ class _ExplorePageState extends State<ExplorePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${post['profile']?['display_name'] ??
-                          post['profile']?['username'] ??
-                          'Testagram user'}',
+                      '${post['profile']?['display_name'] ?? post['profile']?['username'] ?? 'Testagram user'}',
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 6),
