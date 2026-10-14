@@ -41,21 +41,23 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
       _error = null;
     });
     try {
-      if (_db.auth.currentUser == null)
+      if (_db.auth.currentUser == null) {
         throw const _AccessException(
           'Sign in with an authorized owner account to access platform reports.',
         );
+      }
       final owner = await _db
               .rpc('testagram_is_owner')
               .timeout(const Duration(seconds: 12)) ==
           true;
       if (!owner) {
-        if (mounted && generation == _generation)
+        if (mounted && generation == _generation) {
           setState(() {
             _authorized = false;
             _reports = [];
             _error = 'This console is restricted to the platform owner.';
           });
+        }
         return;
       }
       final raw = await _db.rpc(
@@ -65,23 +67,27 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
       final rows = raw is List
           ? raw.whereType<Map>().map(Map<String, dynamic>.from).toList()
           : <Map<String, dynamic>>[];
-      if (!mounted || generation != _generation) return;
+      if (!mounted || generation != _generation) {
+        return;
+      }
       setState(() {
         _authorized = true;
         _reports = rows;
       });
     } on _AccessException catch (error) {
-      if (mounted && generation == _generation)
+      if (mounted && generation == _generation) {
         setState(() {
           _authorized = false;
           _error = error.message;
         });
+      }
     } catch (_) {
-      if (mounted && generation == _generation)
+      if (mounted && generation == _generation) {
         setState(
           () => _error =
               'Reports could not be loaded. Verify the owner session, backend migration, and connection, then retry.',
         );
+      }
     } finally {
       if (mounted && generation == _generation)
         setState(() => _loading = false);
@@ -97,7 +103,9 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
           busy: _busy.contains(id),
         ) ||
         id.isEmpty ||
-        !ModerationWorkflowPolicy.validAuditNote(_note.text)) return;
+        !ModerationWorkflowPolicy.validAuditNote(_note.text)) {
+      return;
+    }
     setState(() {
       _busy.add(id);
       _error = null;
@@ -111,7 +119,9 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
           'p_note': _note.text.trim().isEmpty ? null : _note.text.trim(),
         },
       ).timeout(const Duration(seconds: 20));
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -122,16 +132,18 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
       _note.clear();
       await _load();
     } on PostgrestException catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _error = 'Decision rejected by the server: ${error.message}',
         );
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () =>
               _error = 'Could not update this report. Refresh before retrying.',
         );
+      }
     } finally {
       if (mounted) setState(() => _busy.remove(id));
     }
@@ -167,7 +179,7 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: _filter,
+                    initialValue: _filter,
                     decoration: const InputDecoration(
                       labelText: 'Report status',
                       border: OutlineInputBorder(),

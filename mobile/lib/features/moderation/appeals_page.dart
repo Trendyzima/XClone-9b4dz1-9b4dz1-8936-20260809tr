@@ -76,23 +76,27 @@ class _AppealsPageState extends State<AppealsPage> {
       final ban = results[1] is Map
           ? Map<String, dynamic>.from(results[1] as Map)
           : null;
-      if (!mounted || generation != _generation) return;
+      if (!mounted || generation != _generation) {
+        return;
+      }
       setState(() {
         _appeals = rows;
         _activeBan = ban;
       });
     } catch (_) {
-      if (mounted && generation == _generation)
+      if (mounted && generation == _generation) {
         setState(
           () => _error =
               'Appeal history could not be loaded. Check your connection and retry.',
         );
+      }
     } finally {
-      if (mounted && generation == _generation)
+      if (mounted && generation == _generation) {
         setState(() {
           _loading = false;
           _refreshing = false;
         });
+      }
     }
   }
 
@@ -100,7 +104,9 @@ class _AppealsPageState extends State<AppealsPage> {
     final reason = _reason.text.trim();
     if (_db.auth.currentUser == null ||
         _submitting ||
-        !ModerationWorkflowPolicy.validAppealReason(reason)) return;
+        !ModerationWorkflowPolicy.validAppealReason(reason)) {
+      return;
+    }
     setState(() {
       _submitting = true;
       _error = null;
@@ -121,18 +127,20 @@ class _AppealsPageState extends State<AppealsPage> {
       );
       await _load(manual: true);
     } on PostgrestException catch (error) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _error = error.message.contains('pending appeal already exists')
               ? 'You already have an appeal under review.'
               : 'Appeal was not submitted: ${error.message}',
         );
+      }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(
           () => _error =
               'Appeal submission failed. Retry when your connection is stable.',
         );
+      }
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
@@ -273,7 +281,7 @@ class _AppealsPageState extends State<AppealsPage> {
                           child: FilledButton.icon(
                             onPressed:
                                 !ModerationWorkflowPolicy.canSubmitAppeal(
-                              authenticated: user != null,
+                              authenticated: true,
                               submitting: _submitting,
                               hasPendingAppeal: pending,
                               reason: _reason.text,

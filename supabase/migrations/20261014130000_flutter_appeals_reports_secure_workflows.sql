@@ -43,6 +43,7 @@ begin
   if p_reason is null or char_length(btrim(p_reason)) < 20 or char_length(btrim(p_reason)) > 800 then
     raise exception using errcode='22023', message='Appeal reason must contain 20 to 800 characters';
   end if;
+  perform pg_advisory_xact_lock(hashtextextended(v_user::text, 0));
   if exists(select 1 from public.moderation_appeals a where a.user_id=v_user and a.status='pending') then
     raise exception using errcode='23505', message='A pending appeal already exists';
   end if;
