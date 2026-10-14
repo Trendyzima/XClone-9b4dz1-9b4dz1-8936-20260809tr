@@ -28,7 +28,7 @@ requireText(policy, /'next_cursor': raw\['next_cursor'\] is String \|\| raw\['ne
 requireText(tests, /normalizes all unified result groups[\s\S]*maps every tab[\s\S]*actionable auth/s, 'Flutter search policy tests must cover payloads, kinds and failures.');
 requireText(sql, /CREATE OR REPLACE FUNCTION public\.testagram_search_unified[\s\S]*return jsonb_build_object\('users',vu,'hashtags',vh,'posts',vp,'threads',vt,'communities',vc,'replies',vr,'fediverse',vf,'next_cursor',null\)/, 'The server migration must expose all unified-search result groups.');
 requireText(sql, /grant execute on function public\.testagram_search_unified\(text,text,integer\) to authenticated/, 'Base unified-search RPC must retain authenticated-only execute grants.');
-requireText(paginationSql, /p_offset integer DEFAULT 0[\s\S]*limit n offset v_offset[\s\S]*'next_cursor',next_offset::text/, 'Unified search must provide server-backed offset pagination and a continuation cursor.');
+requireText(paginationSql, /p_offset integer DEFAULT 0[\s\S]*limit n offset v_offset[\s\S]*'instances',vi,'next_cursor',next_offset::text/, 'Unified search must provide server-backed offset pagination, instances, and a continuation cursor.');
 requireText(paginationSql, /grant execute on function public\.testagram_search_unified\(text,text,integer,integer\) to authenticated/, 'Paginated unified-search RPC must retain authenticated-only execute grants.');
 requireText(web, /code==='AUTH_REQUIRED'[\s\S]*Sign in again to search Testagram/, 'Web search must show an actionable authentication error instead of a generic failure.');
 requireText(webClient, /Promise\.allSettled/, 'Web unified search must tolerate partial success from fallback capabilities.');
