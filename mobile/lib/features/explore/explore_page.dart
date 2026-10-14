@@ -265,7 +265,10 @@ class _ExplorePageState extends State<ExplorePage> {
                     value: 'Recent',
                     child: Text('Recent posts'),
                   ),
-                  DropdownMenuItem(value: 'Most liked', child: Text('Most liked')),
+                  DropdownMenuItem(
+                    value: 'Most liked',
+                    child: Text('Most liked'),
+                  ),
                 ],
                 onChanged: (value) {
                   if (value != null) setState(() => _postSort = value);
