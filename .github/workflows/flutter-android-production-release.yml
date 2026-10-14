@@ -17,7 +17,7 @@ jobs:
     timeout-minutes: 45
     steps:
       - name: Check out exact release commit
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Require production signing material and pinned certificate
         shell: bash

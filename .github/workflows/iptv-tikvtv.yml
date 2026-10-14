@@ -45,7 +45,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Checkout with TikVTV submodule
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           submodules: recursive
           fetch-depth: 1
@@ -57,7 +57,7 @@ jobs:
           test "$(git -C vendor/TikVTV rev-parse HEAD)" = "410391f8aaae92b3644bfde08fff50fa4a6afc08"
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
