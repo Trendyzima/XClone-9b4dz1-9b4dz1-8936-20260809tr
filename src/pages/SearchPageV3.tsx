@@ -53,6 +53,7 @@ const run=async(q=query,nextTab=tab,append=false)=>{if(!q.trim())return;const cl
   try{
    const kindMap:any={Top:'all',Latest:'latest',People:'people',Media:'media',Hashtags:'hashtags',Replies:'replies',Threads:'threads',Communities:'communities',Fediverse:'fediverse',Instances:'people'};
    const unified:any=await api.searchUnified(clean,kindMap[nextTab]??'all',50);
+   if(unified.partial&&!append)toast.message('Unified search is recovering. Showing available local results; some categories may be temporarily unavailable.');
    const r={users:unified.users??[],hashtags:unified.hashtags??[],posts:unified.posts??[],communities:unified.communities??[],next_cursor:unified.next_cursor??null};
    setThreadResults(unified.threads??[]); setReplyResults(unified.replies??[]);
    const remoteRows=unified.fediverse??[];

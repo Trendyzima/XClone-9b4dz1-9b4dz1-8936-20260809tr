@@ -9,11 +9,15 @@ const policy = read('mobile/lib/features/discovery/unified_search_policy.dart');
 const tests = read('mobile/test/features/discovery/unified_search_policy_test.dart');
 const sql = read('supabase/migrations/20260925250000_unified_search_everything_fediverse_v3.sql');
 const web = read('src/pages/SearchPageV3.tsx');
+const webClient = read('src/services/testagramCapabilityClient.ts');
 const failures = [];
 const requireText = (source, regex, message) => { if (!regex.test(source)) failures.push(message); };
 requireText(app, /path:\s*'\/search'[\s\S]{0,220}UnifiedSearchPage\([\s\S]{0,120}initialQuery:/, 'Flutter /search route must render UnifiedSearchPage and preserve query parameters.');
 requireText(page, /rpc\([\s\S]{0,100}'testagram_search_unified'[\s\S]{0,300}'p_q':\s*query[\s\S]{0,160}'p_kind':\s*UnifiedSearchPolicy\.kinds/, 'Flutter must call the canonical unified-search RPC with q, kind and limit.');
 requireText(page, /refreshSession\(\)/, 'Flutter search must attempt one session refresh on JWT expiry.');
+requireText(page, /_fallbackSearch/, 'Flutter must include a recovery path when the unified RPC is unavailable.');
+requireText(page, /testagram\.search\.users/, 'Flutter recovery must use the existing user-search capability.');
+requireText(page, /testagram\.search\.posts/, 'Flutter recovery must use the existing post-search capability.');
 requireText(page, /_requestGeneration/, 'Flutter search must discard stale responses.');
 requireText(page, /case 'replies':[\s\S]{0,260}post_id[\s\S]{0,180}thread_id/, 'Reply search results must navigate to their parent post or thread.');
 requireText(policy, /'next_cursor': raw\['next_cursor'\] is String/, 'Search payload normalization must validate cursor type.');
@@ -21,5 +25,8 @@ requireText(tests, /normalizes all unified result groups[\s\S]*maps every tab[\s
 requireText(sql, /CREATE OR REPLACE FUNCTION public\.testagram_search_unified[\s\S]*return jsonb_build_object\('users',vu,'hashtags',vh,'posts',vp,'threads',vt,'communities',vc,'replies',vr,'fediverse',vf,'next_cursor',null\)/, 'The server migration must expose all unified-search result groups.');
 requireText(sql, /grant execute on function public\.testagram_search_unified\(text,text,integer\) to authenticated/, 'Unified-search RPC must retain authenticated-only execute grants.');
 requireText(web, /code==='AUTH_REQUIRED'[\s\S]*Sign in again to search Testagram/, 'Web search must show an actionable authentication error instead of a generic failure.');
+requireText(webClient, /Promise\.allSettled/, 'Web unified search must tolerate partial success from fallback capabilities.');
+requireText(webClient, /this\.searchUsers/, 'Web fallback must call the existing user-search capability.');
+requireText(webClient, /this\.searchPosts/, 'Web fallback must call the existing post-search capability.');
 if (failures.length) { console.error('Unified-search contract failed:\n- ' + failures.join('\n- ')); process.exitCode = 1; }
 else console.log('Unified-search contract passed: Flutter route, RPC shape, auth retry, stale-response guard, SQL result contract and web error mapping are aligned.');

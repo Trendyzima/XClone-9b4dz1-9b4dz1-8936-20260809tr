@@ -1154,7 +1154,7 @@
       "path": "/search",
       "domain": "discovery",
       "status": "native_partial",
-      "note": "Dedicated Flutter unified search calls public.testagram_search_unified with the signed-in session and supports people, posts, hashtags, threads, communities, replies, and Fediverse results. It refreshes expired sessions once, ignores stale responses, normalizes partial payloads, and displays actionable failure states. Contract and policy tests exist; live RPC/RLS and Web/Android journey acceptance remain required."
+      "note": "Dedicated Flutter unified search calls public.testagram_search_unified with the signed-in session and supports people, posts, hashtags, threads, communities, replies, and Fediverse results. It refreshes expired sessions once, ignores stale responses, normalizes partial payloads, and falls back to existing safe search capabilities for partial local results if the unified RPC is unavailable. Contract and policy tests exist; live RPC/RLS and Web/Android journey acceptance remain required."
     },
     {
       "path": "/seller/:username",

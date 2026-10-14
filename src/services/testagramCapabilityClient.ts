@@ -222,6 +222,20 @@ export class TestagramCapabilityClient{
    return searchPayload(gateway);
   }catch(gatewayError){
    if(gatewayError instanceof CapabilityClientError&&gatewayError.code==="AUTH_REQUIRED")throw gatewayError;
+   const normalized=q.trim().replace(/^[@#]/,'');
+   const fallback=await Promise.allSettled([
+    this.searchUsers(normalized,limit(n)),
+    this.searchHashtags(normalized,limit(n)),
+    this.searchPosts(q,limit(n),undefined,{mediaOnly:kind==="media"}),
+    this.searchCommunities(normalized,limit(n)),
+   ]);
+   const users=fallback[0].status==="fulfilled"?fallback[0].value.items:[];
+   const hashtags=fallback[1].status==="fulfilled"?fallback[1].value.items:[];
+   const posts=fallback[2].status==="fulfilled"?fallback[2].value.items:[];
+   const communities=fallback[3].status==="fulfilled"?fallback[3].value.items:[];
+   if(fallback.some(result=>result.status==="fulfilled")){
+    return {users,hashtags,posts,threads:[],communities,replies:[],fediverse:[],next_cursor:fallback[2].status==="fulfilled"?fallback[2].value.next_cursor:null,partial:true};
+   }
    if(directFailure instanceof CapabilityClientError)throw directFailure;
    throw gatewayError;
   }

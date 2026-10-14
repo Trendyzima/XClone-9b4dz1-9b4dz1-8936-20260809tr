@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../core/api/testagram_capability_client.dart';
 import 'unified_search_policy.dart';
 
 class UnifiedSearchPage extends StatefulWidget {
@@ -31,6 +32,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
   Map<String, dynamic> _results = UnifiedSearchPolicy.normalize(null);
   bool _loading = false;
   String? _error;
+  String? _notice;
   int _requestGeneration = 0;
   Timer? _debounce;
 
@@ -65,6 +67,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         _results = UnifiedSearchPolicy.normalize(null);
         _loading = false;
         _error = null;
+        _notice = null;
       });
       return;
     }
@@ -73,6 +76,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         _query = query;
         _loading = false;
         _error = 'Sign in to search Testagram.';
+        _notice = null;
         _results = UnifiedSearchPolicy.normalize(null);
       });
       return;
@@ -82,6 +86,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
       _query = query;
       _loading = true;
       _error = null;
+      _notice = null;
     });
     try {
       // Call the same canonical RPC as the web client. Supabase supplies the
@@ -116,13 +121,83 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
           // Render the actionable auth error below rather than masking it.
         }
       }
-      if (mounted && generation == _requestGeneration) {
+      if (authFailure) {
+        if (mounted && generation == _requestGeneration) {
+          setState(() => _error = UnifiedSearchPolicy.errorMessage(error));
+        }
+        return;
+      }
+      final recovered = await _fallbackSearch(query, generation);
+      if (!recovered && mounted && generation == _requestGeneration) {
         setState(() => _error = UnifiedSearchPolicy.errorMessage(error));
       }
     } finally {
       if (mounted && generation == _requestGeneration) {
         setState(() => _loading = false);
       }
+    }
+  }
+
+  Future<bool> _fallbackSearch(String query, int generation) async {
+    final client = TestagramCapabilityClient.fromAppConfig(
+      supabaseClient: _db,
+      timeout: const Duration(seconds: 12),
+    );
+    Future<Map<String, dynamic>?> load(
+      String capability,
+      String term, {
+      bool mediaOnly = false,
+    }) async {
+      try {
+        return await client.call<Map<String, dynamic>>(
+          capability,
+          input: <String, Object?>{
+            'q': term,
+            'limit': 40,
+            if (mediaOnly) 'media_only': true,
+          },
+        );
+      } catch (_) {
+        return null;
+      }
+    }
+
+    List<Map<String, dynamic>> items(Map<String, dynamic>? payload) {
+      final value = payload?['items'];
+      if (value is! List) return <Map<String, dynamic>>[];
+      return value
+          .whereType<Map>()
+          .map((row) => Map<String, dynamic>.from(row))
+          .toList(growable: false);
+    }
+
+    try {
+      final normalizedTerm = query.replaceFirst(RegExp(r'^[@#]'), '');
+      final responses = await Future.wait([
+        load('testagram.search.users', normalizedTerm),
+        load('testagram.search.hashtags', normalizedTerm),
+        load('testagram.search.posts', query, mediaOnly: _tab == 'Media'),
+        load('testagram.search.communities', normalizedTerm),
+      ]);
+      if (responses.every((response) => response == null)) return false;
+      if (!mounted || generation != _requestGeneration) return true;
+      setState(() {
+        _results = UnifiedSearchPolicy.normalize(<String, dynamic>{
+          'users': items(responses[0]),
+          'hashtags': items(responses[1]),
+          'posts': items(responses[2]),
+          'communities': items(responses[3]),
+          'threads': <dynamic>[],
+          'replies': <dynamic>[],
+          'fediverse': <dynamic>[],
+        });
+        _notice =
+            'Unified search is recovering. Showing available local results; some categories may be temporarily unavailable.';
+        _error = null;
+      });
+      return true;
+    } finally {
+      client.close();
     }
   }
 
@@ -223,6 +298,17 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
           ),
         ),
         if (_loading) const LinearProgressIndicator(minHeight: 2),
+        if (_notice != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 8, 14, 0),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _notice!,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ),
         if (_error != null)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
