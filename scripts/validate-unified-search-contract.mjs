@@ -9,6 +9,7 @@ const policy = read('mobile/lib/features/discovery/unified_search_policy.dart');
 const tests = read('mobile/test/features/discovery/unified_search_policy_test.dart');
 const sql = read('supabase/migrations/20260925250000_unified_search_everything_fediverse_v3.sql');
 const paginationSql = read('supabase/migrations/20261015120000_unified_search_cursor_pagination.sql');
+const sortingSql = read('supabase/migrations/20261015140000_unified_search_server_sort.sql');
 const web = read('src/pages/SearchPageV3.tsx');
 const webClient = read('src/services/testagramCapabilityClient.ts');
 const failures = [];
@@ -21,6 +22,8 @@ requireText(page, /testagram\.search\.users/, 'Flutter recovery must use the exi
 requireText(page, /testagram\.search\.posts/, 'Flutter recovery must use the existing post-search capability.');
 requireText(page, /_requestGeneration/, 'Flutter search must discard stale responses.');
 requireText(page, /'p_offset': append \? _offset : 0/, 'Flutter must send a real server pagination offset.');
+requireText(page, /'p_sort': _sort\.toLowerCase\(\)\.replaceAll/, 'Flutter sort controls must affect the server-side result ordering.');
+requireText(policy, /static List<Map<String, dynamic>> sortRows[\s\S]*Most liked[\s\S]*Most viewed/, 'Flutter must sort mixed local and Fediverse results for each supported sort mode.');
 requireText(page, /_search\(append: true\)/, 'Flutter must load additional pages as the result list approaches its end.');
 requireText(policy, /static Map<String, dynamic> mergePage[\s\S]*next_cursor/, 'Flutter must merge pages and preserve the continuation cursor.');
 requireText(page, /case 'replies':[\s\S]{0,260}post_id[\s\S]{0,180}thread_id/, 'Reply search results must navigate to their parent post or thread.');
@@ -32,7 +35,8 @@ requireText(paginationSql, /p_offset integer DEFAULT 0[\s\S]*limit n offset v_of
 requireText(paginationSql, /grant execute on function public\.testagram_search_unified\(text,text,integer,integer\) to authenticated/, 'Paginated unified-search RPC must retain authenticated-only execute grants.');
 requireText(web, /code==='AUTH_REQUIRED'[\s\S]*Sign in again to search Testagram/, 'Web search must show an actionable authentication error instead of a generic failure.');
 requireText(webClient, /Promise\.allSettled/, 'Web unified search must tolerate partial success from fallback capabilities.');
-requireText(webClient, /p_offset:input\.offset/, 'Web unified search must send pagination offsets to the canonical RPC.');
+requireText(webClient, /p_offset:input\.offset,p_sort:input\.sort/, 'Web unified search must send pagination offsets and sort mode to the canonical RPC.');
+requireText(sortingSql, /p_sort text DEFAULT 'relevance'[\s\S]*sort_mode='most_liked'[\s\S]*sort_mode='most_viewed'[\s\S]*grant execute on function public\.testagram_search_unified\(text,text,integer,integer,text\) to authenticated/, 'Server-side sort modes must use stable pagination and authenticated-only grants.');
 requireText(web, /append&&Number\.isFinite\(Number\(data\.next_cursor\)\)/, 'Web pagination must safely consume server continuation cursors.');
 requireText(webClient, /this\.searchUsers/, 'Web fallback must call the existing user-search capability.');
 requireText(webClient, /this\.searchPosts/, 'Web fallback must call the existing post-search capability.');
