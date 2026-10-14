@@ -1,0 +1,22 @@
+Testagram is a social app for sharing posts, conversations, photos and videos, discovering people, and keeping up with communities.
+
+Features in the Flutter client include:
+- Browse a paginated social feed and refresh for new posts
+- Create text, photo and video posts
+- Like, comment, reply, repost and bookmark posts
+- Search for people and posts
+- Follow people and view public profiles
+- Edit your profile and choose an avatar or cover image
+- View notifications and mark them as read
+- Sign in with email and recover your account
+- Choose light, dark or system appearance
+
+Feature availability depends on the current client implementation, account permissions and the connected Testagram service. Some areas of the wider Testagram platform are still being migrated and may not yet be available in the Flutter client.
+
+Testagram connects to its configured online backend and may display user-generated content or content hosted by third parties. Review the application's privacy information and the service's terms before use.
+
+Project source code:
+https://github.com/Trendyzima/XClone-9b4dz1-9b4dz1-8936-20260809tr
+
+Website:
+https://testagram.site/
