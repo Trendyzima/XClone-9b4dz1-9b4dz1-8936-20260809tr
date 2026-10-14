@@ -86,24 +86,21 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
     try {
       // Call the same canonical RPC as the web client. Supabase supplies the
       // current JWT; the function's grants and RLS remain authoritative.
-      final response = await _db
-          .rpc(
-            'testagram_search_unified',
-            params: {
-              'p_q': query,
-              'p_kind': UnifiedSearchPolicy.kinds[_tab] ?? 'all',
-              'p_limit': 40,
-            },
-          )
-          .timeout(const Duration(seconds: 18));
+      final response = await _db.rpc(
+        'testagram_search_unified',
+        params: {
+          'p_q': query,
+          'p_kind': UnifiedSearchPolicy.kinds[_tab] ?? 'all',
+          'p_limit': 40,
+        },
+      ).timeout(const Duration(seconds: 18));
       if (!mounted || generation != _requestGeneration) return;
       final normalized = UnifiedSearchPolicy.normalize(response);
       setState(() => _results = normalized);
     } catch (error) {
       if (!mounted || generation != _requestGeneration) return;
       final message = error.toString().toLowerCase();
-      final authFailure =
-          message.contains('jwt') ||
+      final authFailure = message.contains('jwt') ||
           message.contains('401') ||
           message.contains('unauthorized') ||
           message.contains('not authenticated');
@@ -330,41 +327,64 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
   Widget _resultCard(Map<String, dynamic> row) {
     final group = _groupForRow(row);
     final title = switch (group) {
-      'users' => UnifiedSearchPolicy.firstText(row, [
-        'display_name',
-        'username',
-      ], fallback: 'Testagram user'),
-      'hashtags' =>
-        '#${UnifiedSearchPolicy.firstText(row, ['tag', 'name'], fallback: 'topic').replaceFirst(RegExp(r'^#'), '')}',
-      'posts' => UnifiedSearchPolicy.firstText(row, [
-        'content',
-        'summary',
-        'title',
-      ], fallback: 'Post'),
-      'threads' => UnifiedSearchPolicy.firstText(row, [
-        'title',
-        'body',
-      ], fallback: 'Thread'),
-      'communities' => UnifiedSearchPolicy.firstText(row, [
-        'display_name',
-        'name',
-        'slug',
-      ], fallback: 'Community'),
-      'replies' => UnifiedSearchPolicy.firstText(row, [
-        'content',
-      ], fallback: 'Reply'),
-      'fediverse' => UnifiedSearchPolicy.firstText(row, [
-        'content',
-        'summary',
-        'display_name',
-        'username',
-      ], fallback: 'Fediverse item'),
-      _ => UnifiedSearchPolicy.firstText(row, [
-        'title',
-        'name',
-        'content',
-        'username',
-      ], fallback: 'Search result'),
+      'users' => UnifiedSearchPolicy.firstText(
+          row,
+          [
+            'display_name',
+            'username',
+          ],
+          fallback: 'Testagram user'),
+      'hashtags' => '#${UnifiedSearchPolicy.firstText(row, [
+            'tag',
+            'name'
+          ], fallback: 'topic').replaceFirst(RegExp(r'^#'), '')}',
+      'posts' => UnifiedSearchPolicy.firstText(
+          row,
+          [
+            'content',
+            'summary',
+            'title',
+          ],
+          fallback: 'Post'),
+      'threads' => UnifiedSearchPolicy.firstText(
+          row,
+          [
+            'title',
+            'body',
+          ],
+          fallback: 'Thread'),
+      'communities' => UnifiedSearchPolicy.firstText(
+          row,
+          [
+            'display_name',
+            'name',
+            'slug',
+          ],
+          fallback: 'Community'),
+      'replies' => UnifiedSearchPolicy.firstText(
+          row,
+          [
+            'content',
+          ],
+          fallback: 'Reply'),
+      'fediverse' => UnifiedSearchPolicy.firstText(
+          row,
+          [
+            'content',
+            'summary',
+            'display_name',
+            'username',
+          ],
+          fallback: 'Fediverse item'),
+      _ => UnifiedSearchPolicy.firstText(
+          row,
+          [
+            'title',
+            'name',
+            'content',
+            'username',
+          ],
+          fallback: 'Search result'),
     };
     final subtitle = switch (group) {
       'users' =>
@@ -386,10 +406,10 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
     final avatar = group == 'users'
         ? '${row['avatar_url'] ?? ''}'
         : group == 'posts' && row['user_profiles'] is Map
-        ? '${(row['user_profiles'] as Map)['avatar_url'] ?? ''}'
-        : group == 'threads' && row['profiles'] is Map
-        ? '${(row['profiles'] as Map)['avatar_url'] ?? ''}'
-        : '';
+            ? '${(row['user_profiles'] as Map)['avatar_url'] ?? ''}'
+            : group == 'threads' && row['profiles'] is Map
+                ? '${(row['profiles'] as Map)['avatar_url'] ?? ''}'
+                : '';
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
@@ -428,22 +448,21 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
       return 'threads';
     if (row.containsKey('parent_reply_id') ||
         row['type'] == 'reply' ||
-        row['type'] == 'thread_reply')
-      return 'replies';
+        row['type'] == 'thread_reply') return 'replies';
     if (row.containsKey('content')) return 'posts';
     return 'all';
   }
 
   IconData _iconFor(String group) => switch (group) {
-    'users' => Icons.person_outline_rounded,
-    'hashtags' => Icons.tag_rounded,
-    'posts' => Icons.article_outlined,
-    'threads' => Icons.forum_outlined,
-    'communities' => Icons.groups_2_outlined,
-    'replies' => Icons.reply_rounded,
-    'fediverse' => Icons.public_rounded,
-    _ => Icons.search_rounded,
-  };
+        'users' => Icons.person_outline_rounded,
+        'hashtags' => Icons.tag_rounded,
+        'posts' => Icons.article_outlined,
+        'threads' => Icons.forum_outlined,
+        'communities' => Icons.groups_2_outlined,
+        'replies' => Icons.reply_rounded,
+        'fediverse' => Icons.public_rounded,
+        _ => Icons.search_rounded,
+      };
 
   void _openResult(String group, Map<String, dynamic> row) {
     switch (group) {
