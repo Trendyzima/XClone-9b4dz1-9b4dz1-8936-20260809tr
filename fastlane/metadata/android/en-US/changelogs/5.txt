@@ -1,0 +1,3 @@
+Initial Flutter Android metadata draft.
+Includes feed browsing, post creation, profile and people search, notifications, and authentication foundations.
+This changelog must be reconciled with the exact immutable release tag before F-Droid submission.
