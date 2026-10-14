@@ -20,22 +20,42 @@ void main() {
   });
 
   test('counts unread only', () {
-    expect(PlatformInboxPolicy.unreadCount([
-      {'read': false}, {'read': true}, {},
-    ]), 2);
+    expect(
+      PlatformInboxPolicy.unreadCount([
+        {'read': false},
+        {'read': true},
+        {},
+      ]),
+      2,
+    );
   });
 
   group('safeInternalPath', () {
     test('accepts safe same-origin app routes and query strings', () {
       expect(PlatformInboxPolicy.safeInternalPath('/wallet'), '/wallet');
-      expect(PlatformInboxPolicy.safeInternalPath('/profile/alex?tab=posts'), '/profile/alex?tab=posts');
+      expect(
+        PlatformInboxPolicy.safeInternalPath('/profile/alex?tab=posts'),
+        '/profile/alex?tab=posts',
+      );
     });
 
-    test('rejects absolute, protocol-relative and malformed external paths', () {
-      expect(PlatformInboxPolicy.safeInternalPath('https://attacker.example'), isNull);
-      expect(PlatformInboxPolicy.safeInternalPath('//attacker.example/path'), isNull);
-      expect(PlatformInboxPolicy.safeInternalPath('/\\\\attacker.example'), isNull);
-      expect(PlatformInboxPolicy.safeInternalPath(null), isNull);
-    });
+    test(
+      'rejects absolute, protocol-relative and malformed external paths',
+      () {
+        expect(
+          PlatformInboxPolicy.safeInternalPath('https://attacker.example'),
+          isNull,
+        );
+        expect(
+          PlatformInboxPolicy.safeInternalPath('//attacker.example/path'),
+          isNull,
+        );
+        expect(
+          PlatformInboxPolicy.safeInternalPath('/\\\\attacker.example'),
+          isNull,
+        );
+        expect(PlatformInboxPolicy.safeInternalPath(null), isNull);
+      },
+    );
   });
 }
