@@ -198,7 +198,7 @@ class _PostAnalyticsPageState extends State<PostAnalyticsPage> {
             ),
           if (_posts.isNotEmpty) ...[
             DropdownButtonFormField<String>(
-              initialValue: post == null ? null : '${post['id']}',
+              value: post == null ? null : '${post['id']}',
               decoration: const InputDecoration(
                 labelText: 'Choose a post',
                 border: OutlineInputBorder(),

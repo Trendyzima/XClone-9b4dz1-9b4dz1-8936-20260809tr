@@ -504,7 +504,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
           ]),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            initialValue: _objective,
+            value: _objective,
             decoration: const InputDecoration(
                 labelText: 'Campaign objective', border: OutlineInputBorder()),
             items: const [
@@ -519,7 +519,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            initialValue: _cta,
+            value: _cta,
             decoration: const InputDecoration(
                 labelText: 'Call to action', border: OutlineInputBorder()),
             items: const [
@@ -536,7 +536,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-            initialValue: _format,
+            value: _format,
             decoration: const InputDecoration(
                 labelText: 'Ad format', border: OutlineInputBorder()),
             items: const [

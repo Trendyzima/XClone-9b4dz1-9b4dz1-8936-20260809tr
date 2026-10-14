@@ -422,7 +422,9 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
   Future<void> _restoreCachedCatalog() async {
     if (_cacheRestoreAttempted ||
         widget.streamId != null ||
-        _channels.isNotEmpty) return;
+        _channels.isNotEmpty) {
+      return;
+    }
     _cacheRestoreAttempted = true;
     try {
       final preferences = await SharedPreferences.getInstance().timeout(
