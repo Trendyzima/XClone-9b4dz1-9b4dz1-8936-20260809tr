@@ -52,14 +52,15 @@ export default function SearchPageV3(){
 const run=async(q=query,nextTab=tab,append=false)=>{if(!q.trim())return;const clean=q.trim();if(!append){saveRecent(clean);setLoading(true);setHasMore(true);setData({users:[],hashtags:[],posts:[],communities:[],next_cursor:null});setFediverse([]);setFediversePosts([]);setThreadResults([]);setReplyResults([]);setParams({q:clean,tab:nextTab})}else setLoadingMore(true);
   try{
    const kindMap:any={Top:'all',Latest:'latest',People:'people',Media:'media',Hashtags:'hashtags',Replies:'replies',Threads:'threads',Communities:'communities',Fediverse:'fediverse',Instances:'people'};
-   const unified:any=await api.searchUnified(clean,kindMap[nextTab]??'all',50);
+   const unified:any=await api.searchUnified(clean,kindMap[nextTab]??'all',50,append&&Number.isFinite(Number(data.next_cursor))?Number(data.next_cursor):0);
    if(unified.partial&&!append)toast.message('Unified search is recovering. Showing available local results; some categories may be temporarily unavailable.');
    const r={users:unified.users??[],hashtags:unified.hashtags??[],posts:unified.posts??[],communities:unified.communities??[],next_cursor:unified.next_cursor??null};
-   setThreadResults(unified.threads??[]); setReplyResults(unified.replies??[]);
+   const mergeRows=(oldRows:any[],newRows:any[],key:(row:any)=>string)=>{const seen=new Set(oldRows.map(key));return [...oldRows,...newRows.filter(row=>{const k=key(row);return !!k&&!seen.has(k)&&seen.add(k);})]};
+   setThreadResults(prev=>append?mergeRows(prev,unified.threads??[],(row:any)=>String(row.id??row.uri??'')):(unified.threads??[])); setReplyResults(prev=>append?mergeRows(prev,unified.replies??[],(row:any)=>String(row.id??row.uri??'')):(unified.replies??[]));
    const remoteRows=unified.fediverse??[];
    const cachedFedPosts=remoteRows.map((p:any)=>({...p,id:p.id??p.uri,uri:p.uri,user_id:p.actor_uri,author_id:p.actor_uri,created_at:p.published_at??p.updated_at,content:p.content??p.summary??'',remote_status_uri:p.uri,user_profiles:p.remote_account??{actor_uri:p.actor_uri,username:'unknown',display_name:p.remote_account?.display_name??p.remote_account?.name??p.remote_account?.preferredUsername??p.remote_account?.username??p.actor_uri,avatar_url:null},is_federated:true}));
-   setData(r);
-   setFediversePosts(cachedFedPosts);
+   setData(prev=>append?{...prev,users:mergeRows(prev.users??[],r.users,(row:any)=>String(row.actor_uri??row.id??row.username??'')),hashtags:mergeRows(prev.hashtags??[],r.hashtags,(row:any)=>String(row.tag??row.name??row.id??'').toLowerCase()),posts:mergeRows(prev.posts??[],r.posts,(row:any)=>String(row.uri??row.remote_status_uri??row.id??'')),communities:mergeRows(prev.communities??[],r.communities,(row:any)=>String(row.id??row.slug??'')),next_cursor:r.next_cursor}:r);
+   setFediversePosts(prev=>append?mergeRows(prev,cachedFedPosts,(row:any)=>String(row.uri??row.remote_status_uri??row.url??row.id??'')):cachedFedPosts);
    setHasMore(Boolean(unified.next_cursor));
    {
     try{
