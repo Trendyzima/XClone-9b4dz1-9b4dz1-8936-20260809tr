@@ -52,46 +52,7 @@ jobs:
           if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
             BASE_SHA="$(git rev-parse HEAD^)"
           fi
-          git diff --name-only "$BASE_SHA" "$GITHUB_SHA" -- mobile/lib mobile/test | grep -E '\\.dart
-        working-directory: mobile
-        run: |
-          set -euo pipefail
-          flutter analyze --fatal-infos --fatal-warnings
-          flutter test --coverage
-
-      - name: Build F-Droid flavor without production signing secrets
-        working-directory: mobile
-        env:
-          SUPABASE_URL: ${{ vars.TESTAGRAM_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co' }}
-          SUPABASE_PUBLISHABLE_KEY: ${{ vars.TESTAGRAM_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya' }}
-        run: |
-          set -euo pipefail
-          flutter build apk --release --flavor fdroid \
-            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
-            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
-            --dart-define=TESTAGRAM_SITE_URL=https://testagram.site
-          find build/app/outputs/flutter-apk -maxdepth 1 -type f -name '*fdroid*release*.apk' -print -quit | grep -q .
-
-      - name: Verify package identity and report artifact hash
-        working-directory: mobile
-        run: |
-          set -euo pipefail
-          APK="$(find build/app/outputs/flutter-apk -maxdepth 1 -type f -name '*fdroid*release*.apk' -print -quit)"
-          test -s "$APK"
-          APKANALYZER="$(find "$ANDROID_HOME" -type f -name apkanalyzer | head -n 1)"
-          test -x "$APKANALYZER"
-          "$APKANALYZER" manifest application-id "$APK" | grep -Fx 'com.xclone.app'
-          sha256sum "$APK"
-          echo "F-Droid candidate built from source. This CI build is not an approval or final policy audit."
-
-      - name: Upload unsigned F-Droid candidate for inspection
-        uses: actions/upload-artifact@v4
-        with:
-          name: testagram-fdroid-candidate-${{ github.sha }}
-          path: mobile/build/app/outputs/flutter-apk/*fdroid*release*.apk
-          if-no-files-found: error
-          retention-days: 14
- > /tmp/changed-dart-files || true
+          git diff --name-only "$BASE_SHA" "$GITHUB_SHA" -- mobile/lib mobile/test | grep -E '\\.dart$' > /tmp/changed-dart-files || true
           if [[ ! -s /tmp/changed-dart-files ]]; then
             echo "No Dart source or test files changed; skipping formatter check for unrelated legacy files."
           else
