@@ -117,7 +117,118 @@ jobs:
           if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
             BASE_SHA="$(git rev-parse HEAD^)"
           fi
-          mapfile -t DART_FILES < <(git diff --name-only "$BASE_SHA" "$GITHUB_SHA" -- mobile/lib mobile/test | grep -E '\.dart
+          git diff --name-only "$BASE_SHA" "$GITHUB_SHA" -- mobile/lib mobile/test | grep -E '\\.dart
+        run: node scripts/validate-flutter-iptv-cache.mjs
+      - name: Analyze Flutter source
+        working-directory: mobile
+        run: flutter analyze --fatal-infos --fatal-warnings
+      - name: Run widget and session policy tests
+        working-directory: mobile
+        run: flutter test --coverage
+      - name: Build Flutter Web preview
+        working-directory: mobile
+        env:
+          SUPABASE_URL: ${{ vars.TESTAGRAM_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co' }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.TESTAGRAM_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya' }}
+        run: >-
+          flutter build web --release
+          --dart-define=SUPABASE_URL="$SUPABASE_URL"
+          --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
+          --dart-define=TESTAGRAM_SITE_URL=https://testagram.site
+      - name: Build native Android debug APK
+        working-directory: mobile
+        env:
+          SUPABASE_URL: ${{ vars.TESTAGRAM_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co' }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.TESTAGRAM_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya' }}
+        run: >-
+          flutter build apk --debug --flavor production
+          --dart-define=SUPABASE_URL="$SUPABASE_URL"
+          --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
+          --dart-define=TESTAGRAM_SITE_URL=https://testagram.site
+      - name: Verify artifacts and package identity
+        working-directory: mobile
+        run: |
+          set -euo pipefail
+          test -s build/web/index.html
+          test -s build/app/outputs/flutter-apk/app-production-debug.apk
+          grep -q 'applicationId = "com.xclone.app"' android/app/build.gradle.kts
+          echo 'Flutter Web and Android debug artifacts exist; Android package identity is preserved.'
+      - name: Upload Flutter Web preview (not production deployment)
+        uses: actions/upload-artifact@v4
+        with:
+          name: testagram-flutter-web-${{ github.sha }}
+          path: mobile/build/web/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload Flutter Android debug APK (not a production release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: testagram-flutter-android-debug-${{ github.sha }}
+          path: mobile/build/app/outputs/flutter-apk/app-production-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+ || true)
+          if (( ${#DART_FILES[@]} == 0 )); then
+            echo "No Dart source or test files changed; skipping formatter check for unrelated legacy files."
+            exit 0
+          fi
+          dart format --output=none --set-exit-if-changed "${DART_FILES[@]}"
+      - name: Validate Flutter IPTV preload and cache contract
+        run: node scripts/validate-flutter-iptv-cache.mjs
+      - name: Analyze Flutter source
+        working-directory: mobile
+        run: flutter analyze --fatal-infos --fatal-warnings
+      - name: Run widget and session policy tests
+        working-directory: mobile
+        run: flutter test --coverage
+      - name: Build Flutter Web preview
+        working-directory: mobile
+        env:
+          SUPABASE_URL: ${{ vars.TESTAGRAM_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co' }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.TESTAGRAM_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya' }}
+        run: >-
+          flutter build web --release
+          --dart-define=SUPABASE_URL="$SUPABASE_URL"
+          --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
+          --dart-define=TESTAGRAM_SITE_URL=https://testagram.site
+      - name: Build native Android debug APK
+        working-directory: mobile
+        env:
+          SUPABASE_URL: ${{ vars.TESTAGRAM_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co' }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.TESTAGRAM_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya' }}
+        run: >-
+          flutter build apk --debug --flavor production
+          --dart-define=SUPABASE_URL="$SUPABASE_URL"
+          --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
+          --dart-define=TESTAGRAM_SITE_URL=https://testagram.site
+      - name: Verify artifacts and package identity
+        working-directory: mobile
+        run: |
+          set -euo pipefail
+          test -s build/web/index.html
+          test -s build/app/outputs/flutter-apk/app-production-debug.apk
+          grep -q 'applicationId = "com.xclone.app"' android/app/build.gradle.kts
+          echo 'Flutter Web and Android debug artifacts exist; Android package identity is preserved.'
+      - name: Upload Flutter Web preview (not production deployment)
+        uses: actions/upload-artifact@v4
+        with:
+          name: testagram-flutter-web-${{ github.sha }}
+          path: mobile/build/web/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload Flutter Android debug APK (not a production release)
+        uses: actions/upload-artifact@v4
+        with:
+          name: testagram-flutter-android-debug-${{ github.sha }}
+          path: mobile/build/app/outputs/flutter-apk/app-production-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+ > /tmp/changed-dart-files || true
+          if [[ ! -s /tmp/changed-dart-files ]]; then
+            echo "No Dart source or test files changed; skipping formatter check for unrelated legacy files."
+          else
+            xargs -r dart format --output=none --set-exit-if-changed < /tmp/changed-dart-files
+          fi
       - name: Validate Flutter IPTV preload and cache contract
         run: node scripts/validate-flutter-iptv-cache.mjs
       - name: Analyze Flutter source
