@@ -129,4 +129,3 @@ class MallPolicy {
     return uri.toString();
   }
 }
-
