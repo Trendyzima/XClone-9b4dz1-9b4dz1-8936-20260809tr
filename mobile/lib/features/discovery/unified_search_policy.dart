@@ -55,6 +55,7 @@ class UnifiedSearchPolicy {
     if (lower.contains('testagram_search_unified') &&
         (lower.contains('not found') ||
             lower.contains('could not find the function') ||
+            lower.contains('could not find function') ||
             lower.contains('does not exist') ||
             lower.contains('404'))) {
       return 'Unified search is not available on the server yet. The search database migration must be applied.';
