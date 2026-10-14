@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -88,6 +89,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
   Timer? _searchDebounce;
   List<_MallProduct> _products = [];
   final Set<String> _wishlist = {};
+  final Set<String> _checkoutBusyProducts = {};
   Map<String, int> _cart = {};
   String _category = 'all';
   String _sort = 'Popular';
@@ -417,6 +419,42 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
     }
   }
 
+  String _newCheckoutToken() {
+    final random = math.Random.secure();
+    final bytes = List<int>.generate(24, (_) => random.nextInt(256));
+    return 'mall-${bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join()}';
+  }
+
+  String _pendingCheckoutPreferenceKey(String userId, String productId) =>
+      'testagram.mall.pending_checkout.v1.$userId.$productId';
+
+  Future<String> _loadOrCreatePendingCheckoutKey(
+    String userId,
+    String productId,
+  ) async {
+    final prefs = await SharedPreferences.getInstance();
+    final preferenceKey = _pendingCheckoutPreferenceKey(userId, productId);
+    final existing = prefs.getString(preferenceKey)?.trim();
+    if (existing != null && existing.length >= 16) return existing;
+    final key = _newCheckoutToken();
+    final saved = await prefs.setString(preferenceKey, key);
+    if (!saved) {
+      throw StateError('CHECKOUT_RECOVERY_KEY_NOT_PERSISTED');
+    }
+    return key;
+  }
+
+  Future<bool> _clearPendingCheckoutKey(String userId, String productId) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      return await prefs.remove(
+        _pendingCheckoutPreferenceKey(userId, productId),
+      );
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> _buy(_MallProduct product, {int initialQuantity = 1}) async {
     final user = _db.auth.currentUser;
     if (user == null) {
@@ -546,10 +584,33 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
       _message('Enter a delivery address or choose pickup.');
       return;
     }
-    setState(() => _refreshing = true);
+    if (_checkoutBusyProducts.contains(product.id)) {
+      _message('Checkout for this product is already in progress.');
+      return;
+    }
+    setState(() {
+      _checkoutBusyProducts.add(product.id);
+      _refreshing = true;
+    });
     try {
-      final idempotency =
-          '${user.id}-${product.id}-${DateTime.now().microsecondsSinceEpoch}';
+      // Persist one idempotency key per signed-in buyer/product until the
+      // server confirms an order. If the response is lost after commit, a
+      // retry reuses the key and the database returns the original order
+      // instead of charging the wallet twice.
+      final idempotency = await _loadOrCreatePendingCheckoutKey(
+        user.id,
+        product.id,
+      );
+      final reservationKey = _newCheckoutToken();
+      await _db.rpc(
+        'reserve_marketplace_inventory',
+        params: {
+          'p_product_id': product.id,
+          'p_quantity': qty,
+          'p_reservation_key': reservationKey,
+          'p_ttl_seconds': 600,
+        },
+      ).timeout(const Duration(seconds: 15));
       final orderId = await _db.rpc(
         'place_marketplace_order',
         params: {
@@ -561,17 +622,30 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
               (result['address'] as String).isEmpty ? null : result['address'],
           'p_delivery_note':
               (result['note'] as String).isEmpty ? null : result['note'],
+          'p_reservation_key': reservationKey,
         },
       ).timeout(const Duration(seconds: 25));
       if (!mounted) return;
+      final cleared = await _clearPendingCheckoutKey(user.id, product.id);
       _changeCart(product, -qty);
       await _loadWallet();
       await _loadProducts(refresh: true);
-      if (mounted) _message('Order placed securely. Reference: $orderId');
+      if (mounted) {
+        _message(
+          cleared
+              ? 'Order placed securely. Reference: $orderId'
+              : 'Order placed securely. Reference: $orderId. Check Orders before retrying this item.',
+        );
+      }
     } catch (error) {
       if (mounted) _message(_checkoutError('$error'));
     } finally {
-      if (mounted) setState(() => _refreshing = false);
+      if (mounted) {
+        setState(() {
+          _checkoutBusyProducts.remove(product.id);
+          _refreshing = false;
+        });
+      }
     }
   }
 
@@ -1610,7 +1684,8 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                       const SizedBox(width: 5),
                       Expanded(
                         child: FilledButton(
-                          onPressed: product.inventory < 1
+                          onPressed: product.inventory < 1 ||
+                                  _checkoutBusyProducts.contains(product.id)
                               ? null
                               : () => _buy(product),
                           style: FilledButton.styleFrom(
