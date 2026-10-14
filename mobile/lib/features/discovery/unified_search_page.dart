@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api/testagram_capability_client.dart';
 import 'unified_search_policy.dart';
@@ -25,6 +26,7 @@ class UnifiedSearchPage extends StatefulWidget {
 class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
+  final _scrollController = ScrollController();
   SupabaseClient get _db => Supabase.instance.client;
 
   String _tab = 'Top';
@@ -34,11 +36,15 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
   String? _error;
   String? _notice;
   int _requestGeneration = 0;
+  int _offset = 0;
+  bool _hasMore = false;
+  bool _loadingMore = false;
   Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _controller.text = widget.initialQuery;
     _query = widget.initialQuery;
     _tab = UnifiedSearchPolicy.kinds.containsKey(widget.initialTab)
@@ -55,10 +61,19 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
     _debounce?.cancel();
     _controller.dispose();
     _focusNode.dispose();
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     super.dispose();
   }
 
-  Future<void> _search({bool retryAuth = true}) async {
+  void _onScroll() {
+    if (!_scrollController.hasClients || _loading || _loadingMore || !_hasMore) return;
+    if (_scrollController.position.extentAfter < 420) {
+      _search(append: true);
+    }
+  }
+
+  Future<void> _search({bool retryAuth = true, bool append = false}) async {
     final query = UnifiedSearchPolicy.normalizeQuery(_controller.text);
     final generation = ++_requestGeneration;
     if (query.isEmpty) {
@@ -68,6 +83,9 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         _loading = false;
         _error = null;
         _notice = null;
+        _offset = 0;
+        _hasMore = false;
+        _loadingMore = false;
       });
       return;
     }
@@ -78,15 +96,23 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         _error = 'Sign in to search Testagram.';
         _notice = null;
         _results = UnifiedSearchPolicy.normalize(null);
+        _hasMore = false;
+        _loadingMore = false;
       });
       return;
     }
 
     setState(() {
       _query = query;
-      _loading = true;
+      _loading = !append;
+      _loadingMore = append;
       _error = null;
-      _notice = null;
+      if (!append) {
+        _notice = null;
+        _results = UnifiedSearchPolicy.normalize(null);
+        _offset = 0;
+        _hasMore = false;
+      }
     });
     try {
       // Call the same canonical RPC as the web client. Supabase supplies the
@@ -97,11 +123,18 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
           'p_q': query,
           'p_kind': UnifiedSearchPolicy.kinds[_tab] ?? 'all',
           'p_limit': 40,
+          'p_offset': append ? _offset : 0,
         },
       ).timeout(const Duration(seconds: 18));
       if (!mounted || generation != _requestGeneration) return;
       final normalized = UnifiedSearchPolicy.normalize(response);
-      setState(() => _results = normalized);
+      setState(() {
+        _results = append
+            ? UnifiedSearchPolicy.mergePage(_results, normalized)
+            : normalized;
+        _offset = int.tryParse('${normalized['next_cursor']}') ?? 0;
+        _hasMore = normalized['next_cursor'] != null;
+      });
     } catch (error) {
       if (!mounted || generation != _requestGeneration) return;
       final message = error.toString().toLowerCase();
@@ -115,7 +148,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
           if (_db.auth.currentSession != null &&
               mounted &&
               generation == _requestGeneration) {
-            return _search(retryAuth: false);
+            return _search(retryAuth: false, append: append);
           }
         } catch (_) {
           // Render the actionable auth error below rather than masking it.
@@ -127,13 +160,22 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         }
         return;
       }
+      if (append) {
+        if (mounted && generation == _requestGeneration) {
+          setState(() => _error = UnifiedSearchPolicy.errorMessage(error));
+        }
+        return;
+      }
       final recovered = await _fallbackSearch(query, generation);
       if (!recovered && mounted && generation == _requestGeneration) {
         setState(() => _error = UnifiedSearchPolicy.errorMessage(error));
       }
     } finally {
       if (mounted && generation == _requestGeneration) {
-        setState(() => _loading = false);
+        setState(() {
+          _loading = false;
+          _loadingMore = false;
+        });
       }
     }
   }
@@ -194,6 +236,8 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         _notice =
             'Unified search is recovering. Showing available local results; some categories may be temporarily unavailable.';
         _error = null;
+        _offset = 0;
+        _hasMore = false;
       });
       return true;
     } finally {
@@ -225,7 +269,11 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
     ]) {
       for (final row
           in (_results[group] as List<Map<String, dynamic>>?) ?? const []) {
-        final identity = '${row['uri'] ?? row['id'] ?? row.hashCode}';
+        final canonical = row['uri'] ?? row['remote_status_uri'] ??
+            (_groupForRow(row) == 'users' ? row['actor_uri'] : null);
+        final identity = canonical != null
+            ? 'remote:${'$canonical'.toLowerCase()}'
+            : '$group:${row['id'] ?? row.hashCode}';
         if (seen.add(identity)) combined.add(row);
       }
     }
@@ -347,6 +395,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
           child: RefreshIndicator(
             onRefresh: _search,
             child: ListView(
+              controller: _scrollController,
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 24),
               children: [
@@ -402,6 +451,19 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
                   )
                 else
                   ...rows.map(_resultCard),
+                if (_hasMore && !_loadingMore)
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: () => _search(append: true),
+                      icon: const Icon(Icons.expand_more_rounded),
+                      label: const Text('Load more results'),
+                    ),
+                  ),
+                if (_loadingMore)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 16),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
               ],
             ),
           ),
@@ -558,6 +620,12 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         _ => Icons.search_rounded,
       };
 
+  Future<void> _openExternalUrl(String value) async {
+    final uri = Uri.tryParse(value);
+    if (uri == null || (!uri.isScheme('http') && !uri.isScheme('https'))) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
+  }
+
   void _openResult(String group, Map<String, dynamic> row) {
     switch (group) {
       case 'users':
@@ -585,7 +653,12 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         break;
       case 'posts':
         final id = '${row['id'] ?? ''}';
-        if (id.isNotEmpty && row['is_federated'] != true) {
+        if (row['is_federated'] == true) {
+          final target = '${row['url'] ?? row['uri'] ?? id}';
+          if (target.startsWith('https://') || target.startsWith('http://')) {
+            unawaited(_openExternalUrl(target));
+          }
+        } else if (id.isNotEmpty) {
           context.go('/post/${Uri.encodeComponent(id)}');
         }
         break;
@@ -607,11 +680,15 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         }
         break;
       case 'fediverse':
-        final actor = '${row['actor_uri'] ?? ''}';
+        final objectUrl = '${row['url'] ?? row['uri'] ?? ''}';
+        if (objectUrl.startsWith('http://') || objectUrl.startsWith('https://')) {
+          unawaited(_openExternalUrl(objectUrl));
+          break;
+        }
+        final remoteAccount = row['remote_account'];
+        final actor = '${row['actor_uri'] ?? (remoteAccount is Map ? remoteAccount['actor_uri'] : null) ?? ''}';
         if (actor.startsWith('http://') || actor.startsWith('https://')) {
-          context.go(
-            '/fediverse/profile?actor=${Uri.encodeQueryComponent(actor)}',
-          );
+          context.go('/fediverse/profile?actor=${Uri.encodeQueryComponent(actor)}');
         }
         break;
       default:
