@@ -19,7 +19,52 @@ void main() {
       expect(result['posts'], hasLength(1));
       expect(result['hashtags'], isEmpty);
       expect(result['threads'], isEmpty);
+      expect(result['instances'], isEmpty);
       expect(result['next_cursor'], isNull);
+    });
+
+    test('preserves server pagination cursors returned as numbers or strings',
+        () {
+      expect(UnifiedSearchPolicy.normalize({'next_cursor': 40})['next_cursor'],
+          '40');
+      expect(
+          UnifiedSearchPolicy.normalize({'next_cursor': '80'})['next_cursor'],
+          '80');
+      expect(
+          UnifiedSearchPolicy.normalize({
+            'next_cursor': {'bad': true}
+          })['next_cursor'],
+          isNull);
+    });
+
+    test('merges search pages without duplicating canonical remote objects',
+        () {
+      final first = UnifiedSearchPolicy.normalize({
+        'posts': [
+          {'id': 'local-1', 'content': 'Local post'},
+          {
+            'id': 'remote-1',
+            'uri': 'https://social.example/@a/1',
+            'content': 'Remote post'
+          },
+        ],
+        'next_cursor': '40',
+      });
+      final second = UnifiedSearchPolicy.normalize({
+        'posts': [
+          {
+            'id': 'remote-duplicate',
+            'uri': 'https://social.example/@a/1',
+            'content': 'Duplicate'
+          },
+          {'id': 'local-2', 'content': 'Second local post'},
+        ],
+        'next_cursor': null,
+      });
+
+      final merged = UnifiedSearchPolicy.mergePage(first, second);
+      expect(merged['posts'], hasLength(3));
+      expect(merged['next_cursor'], isNull);
     });
 
     test('maps every tab to the server supported kind', () {
@@ -28,6 +73,8 @@ void main() {
       expect(UnifiedSearchPolicy.kinds['Latest'], 'latest');
       expect(UnifiedSearchPolicy.kinds['Replies'], 'replies');
       expect(UnifiedSearchPolicy.kinds['Fediverse'], 'fediverse');
+      expect(UnifiedSearchPolicy.kinds['Instances'], 'instances');
+      expect(UnifiedSearchPolicy.groupForTab('Instances'), 'instances');
       expect(UnifiedSearchPolicy.groupForTab('Communities'), 'communities');
     });
 

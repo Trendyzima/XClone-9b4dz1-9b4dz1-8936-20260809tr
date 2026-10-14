@@ -185,8 +185,8 @@ export class TestagramCapabilityClient{
  searchPosts(q:string,n=20,c?:string,options:{mediaOnly?:boolean;verifiedOnly?:boolean}={}){return this.call<CapabilityPage<any>>("testagram.search.posts",{q,limit:limit(n),...options.mediaOnly?{media_only:true}:{},...options.verifiedOnly?{verified_only:true}:{},...cursor(c)})}
  searchUsers(q:string,n=20,c?:string){return this.call<CapabilityPage<any>>("testagram.search.users",{q,limit:limit(n),...cursor(c)})}
  searchHashtags(q:string,n=20,c?:string){return this.call<CapabilityPage<any>>("testagram.search.hashtags",{q,limit:limit(n),...cursor(c)})}
- async searchUnified(q:string,kind:"all"|"people"|"posts"|"hashtags"|"threads"|"communities"|"fediverse"|"media"|"latest"|"top"="all",n=40){
-  const input={q,kind,limit:limit(n)};
+ async searchUnified(q:string,kind:"all"|"people"|"posts"|"hashtags"|"threads"|"communities"|"fediverse"|"media"|"latest"|"top"="all",n=40,offset=0){
+  const input={q,kind,limit:limit(n),offset:Number.isFinite(offset)?Math.max(0,Math.trunc(offset)):0};
   let token=await this.token();
   // Auth can still be hydrating after a hard refresh. Ask Supabase to restore
   // the persisted session before declaring the user signed out; do not make a
@@ -205,7 +205,7 @@ export class TestagramCapabilityClient{
   let directFailure:unknown=null;
   for(let attempt=0;attempt<2;attempt++){
    try{
-    const response=await fetch(directUrl,{method:"POST",headers:{apikey:supabasePublishableKey,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify({p_q:q,p_kind:kind,p_limit:limit(n)})});
+    const response=await fetch(directUrl,{method:"POST",headers:{apikey:supabasePublishableKey,Authorization:`Bearer ${token}`,"Content-Type":"application/json",Accept:"application/json"},body:JSON.stringify({p_q:q,p_kind:kind,p_limit:limit(n),p_offset:input.offset})});
     const raw=await response.text();
     let payload:any=null; try{payload=raw?JSON.parse(raw):null}catch{}
     if(response.ok)return searchPayload(payload);
@@ -228,6 +228,7 @@ export class TestagramCapabilityClient{
    }
   }
   if(directFailure instanceof CapabilityClientError&&directFailure.code==="AUTH_REQUIRED")throw directFailure;
+  if(input.offset>0) throw directFailure instanceof Error?directFailure:new CapabilityClientError("Search pagination is temporarily unavailable. Retry the current search.",{code:"SEARCH_PAGINATION_FAILED"});
   try{
    const gateway=await this.call<any>("testagram.search.unified",input,token);
    return searchPayload(gateway);
