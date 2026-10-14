@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import { useIsRegulator } from '@/hooks/useFeatureUnlock';
 import { backendCapabilities } from '@/services/testagramCapabilityClient';
+import { toast } from 'sonner';
 
 export function BottomNav() {
   const navigate = useNavigate();
@@ -209,12 +210,10 @@ export function BottomNav() {
         // Show in-app toast for the new message
         const msg = payload.new;
         if (msg?.subject) {
-          import('sonner').then(({ toast }) => {
-            toast(msg.icon_emoji ? `${msg.icon_emoji} ${msg.subject}` : msg.subject, {
-              description: msg.body?.slice(0, 100),
-              action: msg.cta_url ? { label: msg.cta_label ?? 'View', onClick: () => window.location.href = msg.cta_url } : undefined,
-              duration: 6000,
-            });
+          toast(msg.icon_emoji ? `${msg.icon_emoji} ${msg.subject}` : msg.subject, {
+            description: msg.body?.slice(0, 100),
+            action: msg.cta_url ? { label: msg.cta_label ?? 'View', onClick: () => window.location.href = msg.cta_url } : undefined,
+            duration: 6000,
           });
         }
       })

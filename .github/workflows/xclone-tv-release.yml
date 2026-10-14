@@ -36,7 +36,7 @@ jobs:
       ORG_GRADLE_PROJECT_XCLONE_TV_KEY_PASSWORD: ${{ secrets.XCLONE_TV_KEY_PASSWORD }}
     steps:
       - name: Check out release source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Require stable signing identity
         shell: bash

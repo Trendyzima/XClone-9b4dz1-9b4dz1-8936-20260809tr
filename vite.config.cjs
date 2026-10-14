@@ -182,6 +182,14 @@ module.exports = defineConfig({
       ],
       output: {
         interop: 'auto',
+        manualChunks(id) {
+          if (!id.includes('/node_modules/')) return undefined;
+          if (/\/node_modules\/(d3-[^/]+|victory-vendor)\//.test(id)) return 'vendor-chart-engine';
+          if (id.includes('/node_modules/recharts/')) return 'vendor-recharts';
+          if (id.includes('/node_modules/@supabase/')) return 'vendor-supabase';
+          if (id.includes('/node_modules/@react-three/') || id.includes('/node_modules/three/')) return 'vendor-3d';
+          if (id.includes('/node_modules/framer-motion/')) return 'vendor-motion';
+        },
         // Keep the SPA code-split in production. The previous monolithic build
         // hid stale-chunk failures by shipping the entire application as one
         // JavaScript payload, which made the homepage unnecessarily huge.
