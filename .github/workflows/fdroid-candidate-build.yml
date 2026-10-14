@@ -1,0 +1,83 @@
+name: F-Droid Flutter Android candidate build
+
+on:
+  pull_request:
+    paths:
+      - "mobile/**"
+      - "fastlane/metadata/android/**"
+      - "docs/fdroid-readiness.md"
+      - ".github/workflows/fdroid-candidate-build.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fdroid-candidate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build unsigned F-Droid candidate APK from source
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.27.4"
+          cache: true
+
+      - name: Resolve locked Flutter dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Verify lockfile is unchanged
+        run: git diff --exit-code -- mobile/pubspec.lock
+
+      - name: Analyze and test candidate source
+        working-directory: mobile
+        run: |
+          set -euo pipefail
+          dart format --output=none --set-exit-if-changed lib test
+          flutter analyze --fatal-infos --fatal-warnings
+          flutter test --coverage
+
+      - name: Build F-Droid flavor without production signing secrets
+        working-directory: mobile
+        env:
+          SUPABASE_URL: ${{ vars.TESTAGRAM_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co' }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ vars.TESTAGRAM_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya' }}
+        run: |
+          set -euo pipefail
+          flutter build apk --release --flavor fdroid \
+            --dart-define=SUPABASE_URL="$SUPABASE_URL" \
+            --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY" \
+            --dart-define=TESTAGRAM_SITE_URL=https://testagram.site
+          find build/app/outputs/flutter-apk -maxdepth 1 -type f -name '*fdroid*release*.apk' -print -quit | grep -q .
+
+      - name: Verify package identity and report artifact hash
+        working-directory: mobile
+        run: |
+          set -euo pipefail
+          APK="$(find build/app/outputs/flutter-apk -maxdepth 1 -type f -name '*fdroid*release*.apk' -print -quit)"
+          test -s "$APK"
+          APKANALYZER="$(find "$ANDROID_HOME" -type f -name apkanalyzer | head -n 1)"
+          test -x "$APKANALYZER"
+          "$APKANALYZER" manifest application-id "$APK" | grep -Fx 'com.xclone.app'
+          sha256sum "$APK"
+          echo "F-Droid candidate built from source. This CI build is not an approval or final policy audit."
+
+      - name: Upload unsigned F-Droid candidate for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: testagram-fdroid-candidate-${{ github.sha }}
+          path: mobile/build/app/outputs/flutter-apk/*fdroid*release*.apk
+          if-no-files-found: error
+          retention-days: 14
