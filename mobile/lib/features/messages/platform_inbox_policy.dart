@@ -41,8 +41,7 @@ class PlatformInboxPolicy {
     if (uri == null ||
         uri.hasScheme ||
         uri.hasAuthority ||
-        !uri.path.startsWith('/'))
-      return null;
+        !uri.path.startsWith('/')) return null;
     return uri.toString();
   }
 }
