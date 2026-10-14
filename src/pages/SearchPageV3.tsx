@@ -102,7 +102,14 @@ const run=async(q=query,nextTab=tab,append=false)=>{if(!q.trim())return;const cl
      console.debug('[fediverse-live-search]',e);
     }
    }
-  }catch(e){toast.error(e instanceof CapabilityClientError&&e.code==='RATE_LIMITED'?'Search is rate limited briefly. Try again in a moment.':'Search could not be completed')}finally{setLoading(false);setLoadingMore(false)}};
+  }catch(e){
+   const code=e instanceof CapabilityClientError?e.code:'';
+   if(code==='RATE_LIMITED') toast.error('Search is rate limited briefly. Try again in a moment.');
+   else if(code==='AUTH_REQUIRED') toast.error('Your session is missing or expired. Sign in again to search Testagram.');
+   else if(code==='TIMEOUT') toast.error('Search took too long. Check your connection and retry.');
+   else if(code==='NETWORK_ERROR') toast.error('Could not reach Testagram search. Check your connection and retry.');
+   else toast.error('Search could not be completed. Please retry. If this continues, the search service needs investigation.');
+  }finally{setLoading(false);setLoadingMore(false)}};
  useEffect(()=>{if(initial)run(initial,tab)},[initial]);
  useEffect(()=>{const node=sentinel.current;if(!node||!hasMore)return;const io=new IntersectionObserver(es=>{if(es[0]?.isIntersecting&&!loading&&!loadingMore&&data.next_cursor)run(query,tab,true)},{rootMargin:'700px'});io.observe(node);return()=>io.disconnect()},[data.next_cursor,loading,loadingMore,query,tab]);
  const choose=(value:string,nextTab='Top')=>{setQuery(value);setShowSuggest(false);setTab(nextTab);run(value,nextTab)};

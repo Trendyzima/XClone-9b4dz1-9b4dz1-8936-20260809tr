@@ -6,7 +6,6 @@ import '../core/config/app_config.dart';
 import '../core/auth/auth_redirect_policy.dart';
 import '../core/theme/testagram_theme.dart';
 import '../features/auth/auth_page.dart';
-import '../features/explore/explore_page.dart';
 import '../features/feed/feed_page.dart';
 import '../features/feed/post_detail_page.dart';
 import '../features/feed/post_interaction_page.dart';
@@ -47,6 +46,7 @@ import '../features/creator/rewards_page.dart';
 import '../features/tv/tv_studio_page.dart';
 import '../features/videos/videos_page.dart';
 import '../features/discovery/discovery_pages.dart';
+import '../features/discovery/unified_search_page.dart';
 import '../features/discovery/sports_hub_page.dart';
 import '../features/marketplace/products_page.dart';
 import '../features/marketplace/shopping_mall_page.dart';
@@ -117,7 +117,8 @@ class _TestagramAppState extends State<TestagramApp> {
         final onAuth = state.matchedLocation == '/auth';
         final onSetup = state.matchedLocation == '/setup';
         final path = state.matchedLocation;
-        final publicRoute = path == '/' ||
+        final publicRoute =
+            path == '/' ||
             path == '/explore' ||
             path == '/search' ||
             path == '/discover' ||
@@ -164,7 +165,8 @@ class _TestagramAppState extends State<TestagramApp> {
         GoRoute(
           path: '/auth',
           builder: (_, state) => AuthPage(
-            recovery: state.uri.queryParameters['reset'] == '1' ||
+            recovery:
+                state.uri.queryParameters['reset'] == '1' ||
                 state.uri.queryParameters['type'] == 'recovery',
             returnTo: AuthRedirectPolicy.safeReturnPath(
               state.uri.queryParameters['returnTo'],
@@ -183,7 +185,13 @@ class _TestagramAppState extends State<TestagramApp> {
             GoRoute(path: '/explore', builder: (_, __) => const ExplorePage()),
             // Historical discovery URLs resolve to native Flutter search.
             // Route-specific filters remain partial until separately ported.
-            GoRoute(path: '/search', builder: (_, __) => const ExplorePage()),
+            GoRoute(
+              path: '/search',
+              builder: (_, state) => UnifiedSearchPage(
+                initialQuery: state.uri.queryParameters['q'] ?? '',
+                initialTab: state.uri.queryParameters['tab'] ?? 'Top',
+              ),
+            ),
             GoRoute(path: '/discover', builder: (_, __) => const ExplorePage()),
             GoRoute(
               path: '/discover/suggested',
