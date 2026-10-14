@@ -349,7 +349,9 @@ class _ExplorePageState extends State<ExplorePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${post['profile']?['display_name'] ?? post['profile']?['username'] ?? 'Testagram user'}',
+                      '${post['profile']?['display_name'] ??
+                          post['profile']?['username'] ??
+                          'Testagram user'}',
                       style: const TextStyle(fontWeight: FontWeight.w700),
                     ),
                     const SizedBox(height: 6),
