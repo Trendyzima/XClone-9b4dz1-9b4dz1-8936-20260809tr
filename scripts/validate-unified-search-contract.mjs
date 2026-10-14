@@ -28,5 +28,9 @@ requireText(web, /code==='AUTH_REQUIRED'[\s\S]*Sign in again to search Testagram
 requireText(webClient, /Promise\.allSettled/, 'Web unified search must tolerate partial success from fallback capabilities.');
 requireText(webClient, /this\.searchUsers/, 'Web fallback must call the existing user-search capability.');
 requireText(webClient, /this\.searchPosts/, 'Web fallback must call the existing post-search capability.');
+requireText(webClient, /if\(!token\)\s*\{[\s\S]{0,220}supabase\.auth\.refreshSession\(\)/, 'Unified search must restore a persisted session before reporting an authentication failure.');
+requireText(web, /id:'unified-search-auth-required'/, 'Repeated auth failures must share one stable toast identity.');
+requireText(web, /seen\.add\(name\)/, 'Federated hashtag and account suggestions must deduplicate within each remote response.');
+requireText(web, /remote_status_uri\?\?p\.url\?\?p\.id/, 'Federated search results must deduplicate by canonical remote object URI before display.');
 if (failures.length) { console.error('Unified-search contract failed:\n- ' + failures.join('\n- ')); process.exitCode = 1; }
 else console.log('Unified-search contract passed: Flutter route, RPC shape, auth retry, stale-response guard, SQL result contract and web error mapping are aligned.');
