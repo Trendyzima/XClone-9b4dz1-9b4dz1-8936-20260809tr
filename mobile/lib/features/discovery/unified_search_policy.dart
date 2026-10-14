@@ -38,7 +38,6 @@ class UnifiedSearchPolicy {
     };
   }
 
-
   /// Merge a paginated response without repeating rows already rendered.
   /// Remote objects prefer their canonical URI; local rows fall back to IDs.
   static Map<String, dynamic> mergePage(
@@ -58,7 +57,8 @@ class UnifiedSearchPolicy {
         if (username.isNotEmpty) return '$group:${username.toLowerCase()}';
       }
       if (group == 'hashtags') {
-        final tag = firstText(row, ['tag', 'name']).replaceFirst(RegExp(r'^#'), '');
+        final tag =
+            firstText(row, ['tag', 'name']).replaceFirst(RegExp(r'^#'), '');
         if (tag.isNotEmpty) return '$group:${tag.toLowerCase()}';
       }
       final id = firstText(row, ['id']);
@@ -67,7 +67,13 @@ class UnifiedSearchPolicy {
 
     final merged = <String, dynamic>{};
     for (final group in const [
-      'users', 'hashtags', 'posts', 'threads', 'communities', 'replies', 'fediverse',
+      'users',
+      'hashtags',
+      'posts',
+      'threads',
+      'communities',
+      'replies',
+      'fediverse',
     ]) {
       final rows = <Map<String, dynamic>>[];
       final seen = <String>{};
