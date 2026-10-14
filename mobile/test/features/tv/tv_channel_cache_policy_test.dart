@@ -10,14 +10,15 @@ void main() {
     String url = 'https://streams.example/live.m3u8',
     String id = 'channel-1',
     String sourceType = 'catalog',
-  }) => {
-    'id': id,
-    'title': 'Test channel',
-    'description': 'Public channel',
-    'playback_url': url,
-    'thumbnail_url': 'https://images.example/logo.png',
-    '_sourceType': sourceType,
-  };
+  }) =>
+      {
+        'id': id,
+        'title': 'Test channel',
+        'description': 'Public channel',
+        'playback_url': url,
+        'thumbnail_url': 'https://images.example/logo.png',
+        '_sourceType': sourceType,
+      };
 
   test(
     'persists only public HTTPS catalogue URLs without signed credentials',
