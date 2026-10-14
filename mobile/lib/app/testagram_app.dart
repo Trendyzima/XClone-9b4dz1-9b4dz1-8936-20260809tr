@@ -136,6 +136,7 @@ class _TestagramAppState extends State<TestagramApp> {
             path == '/leaderboard' ||
             path == '/leaderboard/creators' ||
             path == '/news' ||
+            path == '/sports' ||
             path.startsWith('/post/') ||
             path.startsWith('/news/') ||
             path == '/fediverse' ||
