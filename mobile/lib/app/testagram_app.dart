@@ -1317,4 +1317,3 @@ class _SetupPage extends StatelessWidget {
     );
   }
 }
-
