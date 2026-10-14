@@ -22,6 +22,33 @@ void main() {
       expect(result['next_cursor'], isNull);
     });
 
+    test('preserves server pagination cursors returned as numbers or strings', () {
+      expect(UnifiedSearchPolicy.normalize({'next_cursor': 40})['next_cursor'], '40');
+      expect(UnifiedSearchPolicy.normalize({'next_cursor': '80'})['next_cursor'], '80');
+      expect(UnifiedSearchPolicy.normalize({'next_cursor': {'bad': true}})['next_cursor'], isNull);
+    });
+
+    test('merges search pages without duplicating canonical remote objects', () {
+      final first = UnifiedSearchPolicy.normalize({
+        'posts': [
+          {'id': 'local-1', 'content': 'Local post'},
+          {'id': 'remote-1', 'uri': 'https://social.example/@a/1', 'content': 'Remote post'},
+        ],
+        'next_cursor': '40',
+      });
+      final second = UnifiedSearchPolicy.normalize({
+        'posts': [
+          {'id': 'remote-duplicate', 'uri': 'https://social.example/@a/1', 'content': 'Duplicate'},
+          {'id': 'local-2', 'content': 'Second local post'},
+        ],
+        'next_cursor': null,
+      });
+
+      final merged = UnifiedSearchPolicy.mergePage(first, second);
+      expect(merged['posts'], hasLength(3));
+      expect(merged['next_cursor'], isNull);
+    });
+
     test('maps every tab to the server supported kind', () {
       expect(UnifiedSearchPolicy.kinds['Top'], 'all');
       expect(UnifiedSearchPolicy.kinds['People'], 'people');
