@@ -40,8 +40,8 @@ class SportsHubPolicy {
           .expand(
             (league) => league['matches'] is List
                 ? (league['matches'] as List)
-                      .map(_record)
-                      .whereType<Map<String, dynamic>>()
+                    .map(_record)
+                    .whereType<Map<String, dynamic>>()
                 : const <Map<String, dynamic>>[],
           )
           .toList();
@@ -92,14 +92,14 @@ class SportsHubPolicy {
   }
 
   static bool isLive(String status) => RegExp(
-    r'live|in.?play|half.?time|\bht\b|1st half|2nd half|\b[12]h\b|quarter|\bq[1-4]\b|set [1-5]|innings',
-    caseSensitive: false,
-  ).hasMatch(status);
+        r'live|in.?play|half.?time|\bht\b|1st half|2nd half|\b[12]h\b|quarter|\bq[1-4]\b|set [1-5]|innings',
+        caseSensitive: false,
+      ).hasMatch(status);
 
   static bool isFinished(String status) => RegExp(
-    r'^(ft|aet|pen|finished|full.?time|completed|ended|final|after extra time|after penalties)$',
-    caseSensitive: false,
-  ).hasMatch(status.trim());
+        r'^(ft|aet|pen|finished|full.?time|completed|ended|final|after extra time|after penalties)$',
+        caseSensitive: false,
+      ).hasMatch(status.trim());
 
   static bool isUpcoming(Map<String, dynamic> match, DateTime now) {
     final current = status(match);
@@ -107,8 +107,7 @@ class SportsHubPolicy {
     if (RegExp(
       r'scheduled|fixture|upcoming|not started|kick.?off|\btbd\b|^ns$|pre.?match|time to start',
       caseSensitive: false,
-    ).hasMatch(current))
-      return true;
+    ).hasMatch(current)) return true;
     for (final key in [
       'startTime',
       'start_time',
@@ -132,8 +131,7 @@ class SportsHubPolicy {
     if (uri == null ||
         !{'http', 'https'}.contains(uri.scheme.toLowerCase()) ||
         uri.host.isEmpty ||
-        uri.userInfo.isNotEmpty)
-      return null;
+        uri.userInfo.isNotEmpty) return null;
     final host = uri.host.toLowerCase();
     if (host == 'localhost' ||
         host.endsWith('.localhost') ||
@@ -142,8 +140,7 @@ class SportsHubPolicy {
         host.startsWith('127.') ||
         host.startsWith('10.') ||
         host.startsWith('192.168.') ||
-        RegExp(r'^172\.(1[6-9]|2[0-9]|3[01])\.').hasMatch(host))
-      return null;
+        RegExp(r'^172\.(1[6-9]|2[0-9]|3[01])\.').hasMatch(host)) return null;
     return uri;
   }
 }

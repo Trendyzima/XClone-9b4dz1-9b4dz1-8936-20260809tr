@@ -62,17 +62,15 @@ class _SportsHubPageState extends State<SportsHubPage> {
       _refreshing = manual;
     });
     try {
-      final response = await _db.functions
-          .invoke(
-            'testagram-sports',
-            method: HttpMethod.get,
-            queryParameters: {
-              'kind': 'matches',
-              'sport': _sport,
-              'limit': '30',
-            },
-          )
-          .timeout(const Duration(seconds: 12));
+      final response = await _db.functions.invoke(
+        'testagram-sports',
+        method: HttpMethod.get,
+        queryParameters: {
+          'kind': 'matches',
+          'sport': _sport,
+          'limit': '30',
+        },
+      ).timeout(const Duration(seconds: 12));
       final payload = response.data;
       if (response.status < 200 ||
           response.status >= 300 ||
@@ -86,7 +84,8 @@ class _SportsHubPageState extends State<SportsHubPage> {
     } catch (_) {
       if (mounted && requestId == _scoresRequestId)
         setState(
-          () => _scoresError = 'Scores could not be refreshed. Your last loaded scores are kept; please retry.',
+          () => _scoresError =
+              'Scores could not be refreshed. Your last loaded scores are kept; please retry.',
         );
     } finally {
       if (mounted && requestId == _scoresRequestId)
@@ -105,13 +104,11 @@ class _SportsHubPageState extends State<SportsHubPage> {
       _storiesLoading = _stories.isEmpty;
     });
     try {
-      final response = await _db.functions
-          .invoke(
-            'testagram-rss-feed',
-            method: HttpMethod.get,
-            queryParameters: {'limit': '20', 'category': 'sports'},
-          )
-          .timeout(const Duration(seconds: 15));
+      final response = await _db.functions.invoke(
+        'testagram-rss-feed',
+        method: HttpMethod.get,
+        queryParameters: {'limit': '20', 'category': 'sports'},
+      ).timeout(const Duration(seconds: 15));
       final payload = response.data;
       if (response.status < 200 || response.status >= 300 || payload is! Map) {
         throw const FormatException(
@@ -145,14 +142,14 @@ class _SportsHubPageState extends State<SportsHubPage> {
     final live = _matches
         .where((m) => SportsHubPolicy.isLive(SportsHubPolicy.status(m)))
         .toList();
-    final upcoming =
-        _matches.where((m) => SportsHubPolicy.isUpcoming(m, now)).toList()
-          ..sort((a, b) => _date(a).compareTo(_date(b)));
-    final results =
-        _matches
-            .where((m) => SportsHubPolicy.isFinished(SportsHubPolicy.status(m)))
-            .toList()
-          ..sort((a, b) => _date(b).compareTo(_date(a)));
+    final upcoming = _matches
+        .where((m) => SportsHubPolicy.isUpcoming(m, now))
+        .toList()
+      ..sort((a, b) => _date(a).compareTo(_date(b)));
+    final results = _matches
+        .where((m) => SportsHubPolicy.isFinished(SportsHubPolicy.status(m)))
+        .toList()
+      ..sort((a, b) => _date(b).compareTo(_date(a)));
     if (_matchFilter == 'upcoming') return upcoming;
     if (_matchFilter == 'results') return results;
     return [
@@ -186,19 +183,18 @@ class _SportsHubPageState extends State<SportsHubPage> {
   }
 
   List<Map<String, dynamic>> get _visibleStories => _stories.where((story) {
-    final country = '${story['country_code'] ?? ''}';
-    if (_storyFilter == 'kenya' && country != 'KE') return false;
-    if (_storyFilter == 'world' && (country == 'KE' || country.isEmpty))
-      return false;
-    final publisher = story['testagram_rss_source_profiles'];
-    final publisherName = publisher is Map
-        ? '${publisher['display_name'] ?? ''}'
-        : '';
-    final haystack =
-        '${story['title'] ?? ''} ${story['excerpt'] ?? ''} $publisherName'
-            .toLowerCase();
-    return haystack.contains(_query.trim().toLowerCase());
-  }).toList();
+        final country = '${story['country_code'] ?? ''}';
+        if (_storyFilter == 'kenya' && country != 'KE') return false;
+        if (_storyFilter == 'world' && (country == 'KE' || country.isEmpty))
+          return false;
+        final publisher = story['testagram_rss_source_profiles'];
+        final publisherName =
+            publisher is Map ? '${publisher['display_name'] ?? ''}' : '';
+        final haystack =
+            '${story['title'] ?? ''} ${story['excerpt'] ?? ''} $publisherName'
+                .toLowerCase();
+        return haystack.contains(_query.trim().toLowerCase());
+      }).toList();
 
   @override
   Widget build(BuildContext context) {
@@ -240,7 +236,9 @@ class _SportsHubPageState extends State<SportsHubPage> {
                   const SizedBox(height: 12),
                   Text(
                     'Every game has a story.',
-                    style: Theme.of(context).textTheme.headlineMedium
+                    style: Theme.of(context)
+                        .textTheme
+                        .headlineMedium
                         ?.copyWith(fontWeight: FontWeight.w900),
                   ),
                   const SizedBox(height: 8),
@@ -471,7 +469,9 @@ class _SportsHubPageState extends State<SportsHubPage> {
           Expanded(
             child: Text(
               title,
-              style: Theme.of(context).textTheme.titleLarge
+              style: Theme.of(context)
+                  .textTheme
+                  .titleLarge
                   ?.copyWith(fontWeight: FontWeight.w900),
             ),
           ),
@@ -479,26 +479,26 @@ class _SportsHubPageState extends State<SportsHubPage> {
       );
 
   Widget _errorPanel(String message, Future<void> Function() retry) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Icon(Icons.cloud_off_outlined),
-          const SizedBox(height: 8),
-          Text(message),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton.icon(
-              onPressed: retry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Try again'),
-            ),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(Icons.cloud_off_outlined),
+              const SizedBox(height: 8),
+              Text(message),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: retry,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Try again'),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-    ),
-  );
+        ),
+      );
 
   Widget _matchCard(Map<String, dynamic> match) {
     final status = SportsHubPolicy.status(match);
@@ -591,7 +591,9 @@ class _SportsHubPageState extends State<SportsHubPage> {
             const SizedBox(height: 6),
             Text(
               title,
-              style: Theme.of(context).textTheme.titleMedium
+              style: Theme.of(context)
+                  .textTheme
+                  .titleMedium
                   ?.copyWith(fontWeight: FontWeight.w800),
             ),
             if (excerpt.isNotEmpty) ...[
