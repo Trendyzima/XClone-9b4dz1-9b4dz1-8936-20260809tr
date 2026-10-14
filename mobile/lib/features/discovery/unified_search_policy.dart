@@ -32,8 +32,55 @@ class UnifiedSearchPolicy {
                 .map((row) => Map<String, dynamic>.from(row))
                 .toList(growable: false)
             : <Map<String, dynamic>>[],
-      'next_cursor': raw['next_cursor'] is String ? raw['next_cursor'] : null,
+      'next_cursor': raw['next_cursor'] is String || raw['next_cursor'] is num
+          ? '${raw['next_cursor']}'
+          : null,
     };
+  }
+
+
+  /// Merge a paginated response without repeating rows already rendered.
+  /// Remote objects prefer their canonical URI; local rows fall back to IDs.
+  static Map<String, dynamic> mergePage(
+    Map<String, dynamic> current,
+    Map<String, dynamic> page,
+  ) {
+    String identity(String group, Map<String, dynamic> row) {
+      final canonical = firstText(row, [
+        'uri',
+        'remote_status_uri',
+        if (group == 'users') 'actor_uri',
+        if (group == 'users') 'actor_url',
+      ]);
+      if (canonical.isNotEmpty) return '$group:$canonical'.toLowerCase();
+      if (group == 'users') {
+        final username = firstText(row, ['username', 'preferredUsername']);
+        if (username.isNotEmpty) return '$group:${username.toLowerCase()}';
+      }
+      if (group == 'hashtags') {
+        final tag = firstText(row, ['tag', 'name']).replaceFirst(RegExp(r'^#'), '');
+        if (tag.isNotEmpty) return '$group:${tag.toLowerCase()}';
+      }
+      final id = firstText(row, ['id']);
+      return id.isEmpty ? '$group:${row.hashCode}' : '$group:$id';
+    }
+
+    final merged = <String, dynamic>{};
+    for (final group in const [
+      'users', 'hashtags', 'posts', 'threads', 'communities', 'replies', 'fediverse',
+    ]) {
+      final rows = <Map<String, dynamic>>[];
+      final seen = <String>{};
+      for (final row in [
+        ...((current[group] as List<Map<String, dynamic>>?) ?? const []),
+        ...((page[group] as List<Map<String, dynamic>>?) ?? const []),
+      ]) {
+        if (seen.add(identity(group, row))) rows.add(row);
+      }
+      merged[group] = rows;
+    }
+    merged['next_cursor'] = page['next_cursor'];
+    return merged;
   }
 
   static String normalizeQuery(String raw) =>
