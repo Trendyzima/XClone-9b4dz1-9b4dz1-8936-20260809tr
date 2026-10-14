@@ -89,6 +89,7 @@
     "/leaderboard/creators",
     "/lists",
     "/lists/:id",
+    "/mall",
     "/marketplace",
     "/messages",
     "/monetization",
@@ -1213,7 +1214,7 @@
       "path": "/shop",
       "domain": "commerce",
       "status": "native_partial",
-      "note": "An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance."
+      "note": "Dedicated native Flutter Testagram Mall uses the safe marketplace_public_products projection, horizontal category/promotion/deal/trending shelves with a vertical product catalog, persistent local cart, wishlist, wallet display, and the existing atomic server-side place_marketplace_order RPC. Web/Android UI journeys and live database migration/RPC acceptance remain required."
     },
     {
       "path": "/shorts",
