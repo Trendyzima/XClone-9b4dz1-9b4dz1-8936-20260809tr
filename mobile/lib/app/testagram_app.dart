@@ -62,6 +62,7 @@ import '../features/admin/admin_fraud_page.dart';
 import '../features/admin/identity_verification_review_page.dart';
 import '../features/admin/verification_requests_page.dart';
 import '../features/admin/regulator_console_page.dart';
+import '../features/admin/staff_recruitment_page.dart';
 import '../features/ads/ad_config_page.dart';
 import '../features/news/news_page.dart';
 import '../features/news/news_article_page.dart';
@@ -774,11 +775,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/admin/staff-recruitment',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Staff Recruitment',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const StaffRecruitmentPage(),
             ),
             GoRoute(
               path: '/admin/users',

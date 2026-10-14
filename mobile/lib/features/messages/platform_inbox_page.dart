@@ -40,11 +40,12 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
   Future<void> _load({bool append = false}) async {
     final userId = _userId;
     if (userId == null) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
           _error = 'Sign in to access your platform inbox.';
         });
+      }
       return;
     }
     if (append && (_loadingMore || !_hasMore)) return;
@@ -124,12 +125,13 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
         }
       }
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('That inbox action failed. Please retry.'),
           ),
         );
+      }
     } finally {
       if (mounted) setState(() => _actionId = null);
     }
@@ -171,30 +173,24 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
       await _db
           .rpc('generate_platform_inbox_digest')
           .timeout(const Duration(seconds: 20));
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Wise Brain digest refreshed.')),
         );
+      }
       await _load();
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Digest generation is unavailable. Retry later.'),
           ),
         );
+      }
     } finally {
       if (mounted) setState(() => _actionId = null);
     }
   }
-
-  IconData _icon(String type) => switch (type) {
-        'trending' => Icons.local_fire_department_outlined,
-        'payment' => Icons.account_balance_wallet_outlined,
-        'news' => Icons.newspaper_outlined,
-        'tip' => Icons.lightbulb_outline_rounded,
-        _ => Icons.insights_outlined,
-      };
 
   @override
   Widget build(BuildContext context) {
@@ -359,13 +355,13 @@ class _PlatformInboxPageState extends State<PlatformInboxPage> {
                 child: ListTile(
                   isThreeLine: true,
                   leading: CircleAvatar(
+                    foregroundColor: Theme.of(context).colorScheme.primary,
                     child: Text(
                       '${message['icon_emoji'] ?? ''}'.isNotEmpty
                           ? '${message['icon_emoji']}'
-                          : '',
+                          : '🦉',
                       style: const TextStyle(fontSize: 18),
                     ),
-                    foregroundColor: Theme.of(context).colorScheme.primary,
                   ),
                   title: Text(
                     '${message['subject'] ?? 'Testagram update'}',
