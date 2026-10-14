@@ -19,6 +19,7 @@ void main() {
       expect(result['posts'], hasLength(1));
       expect(result['hashtags'], isEmpty);
       expect(result['threads'], isEmpty);
+      expect(result['instances'], isEmpty);
       expect(result['next_cursor'], isNull);
     });
 
@@ -72,6 +73,8 @@ void main() {
       expect(UnifiedSearchPolicy.kinds['Latest'], 'latest');
       expect(UnifiedSearchPolicy.kinds['Replies'], 'replies');
       expect(UnifiedSearchPolicy.kinds['Fediverse'], 'fediverse');
+      expect(UnifiedSearchPolicy.kinds['Instances'], 'instances');
+      expect(UnifiedSearchPolicy.groupForTab('Instances'), 'instances');
       expect(UnifiedSearchPolicy.groupForTab('Communities'), 'communities');
     });
 
