@@ -45,14 +45,9 @@ class _CommunitiesPageState extends State<CommunitiesPage> {
     try {
       var query = _db.from('communities').select(
           'id,name,display_name,description,icon_url,banner_url,is_private,member_count,post_count,created_at');
-      final q = _search.text
-          .trim()
-          .replaceAll(',', ' ')
-          .replaceAll('%', '')
-          .replaceAll('_', ' ');
+      final q = _search.text.trim().replaceAll(',', ' ').replaceAll('%', '').replaceAll('_', ' ');
       final filtered = q.isNotEmpty
-          ? query.or(
-              'display_name.ilike.%$q%,name.ilike.%$q%,description.ilike.%$q%')
+          ? query.or('display_name.ilike.%$q%,name.ilike.%$q%,description.ilike.%$q%')
           : query;
       final rows = await filtered
           .order(
@@ -64,8 +59,7 @@ class _CommunitiesPageState extends State<CommunitiesPage> {
               ascending: false)
           .limit(50)
           .timeout(const Duration(seconds: 15));
-      final data =
-          rows.map((r) => Map<String, dynamic>.from(r as Map)).toList();
+      final data = rows.map((r) => Map<String, dynamic>.from(r as Map)).toList();
       if (_uid != null && data.isNotEmpty) {
         final memberships = await _db
             .from('community_members')
@@ -83,8 +77,7 @@ class _CommunitiesPageState extends State<CommunitiesPage> {
               : data);
     } catch (_) {
       if (mounted) {
-        setState(() => _error =
-            'Communities could not load. Check your connection and retry.');
+        setState(() => _error = 'Communities could not load. Check your connection and retry.');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -103,16 +96,15 @@ class _CommunitiesPageState extends State<CommunitiesPage> {
       joining ? _joined.add(id) : _joined.remove(id);
     });
     try {
-      await _db.rpc(joining ? 'join_community' : 'leave_community',
-          params: {'p_community_id': id});
+      await _db.rpc(joining ? 'join_community' : 'leave_community', params: {'p_community_id': id});
       await _load();
     } catch (_) {
       if (mounted) {
         setState(() {
           joining ? _joined.remove(id) : _joined.add(id);
         });
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Membership update failed. Please retry.')));
+        ScaffoldMessenger.of(context)
+            .showSnackBar(const SnackBar(content: Text('Membership update failed. Please retry.')));
       }
     }
   }
@@ -133,33 +125,28 @@ class _CommunitiesPageState extends State<CommunitiesPage> {
                     child: Column(mainAxisSize: MainAxisSize.min, children: [
                   TextField(
                       controller: name,
-                      decoration: const InputDecoration(
-                          labelText: 'URL name', hintText: 'technology')),
+                      decoration:
+                          const InputDecoration(labelText: 'URL name', hintText: 'technology')),
                   TextField(
                       controller: title,
-                      decoration:
-                          const InputDecoration(labelText: 'Display name')),
+                      decoration: const InputDecoration(labelText: 'Display name')),
                   TextField(
                       controller: description,
                       maxLines: 3,
-                      decoration:
-                          const InputDecoration(labelText: 'Description'))
+                      decoration: const InputDecoration(labelText: 'Description'))
                 ])),
                 actions: [
                   TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('Cancel')),
+                      onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
                   FilledButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text('Create'))
+                      onPressed: () => Navigator.pop(ctx, true), child: const Text('Create'))
                 ]));
     if (ok != true) return;
-    final slug =
-        name.text.trim().toLowerCase().replaceAll(RegExp('[^a-z0-9]'), '');
+    final slug = name.text.trim().toLowerCase().replaceAll(RegExp('[^a-z0-9]'), '');
     if (!mounted) return;
     if (slug.isEmpty || title.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('A URL name and display name are required.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('A URL name and display name are required.')));
       return;
     }
     setState(() => _creating = true);
@@ -181,8 +168,7 @@ class _CommunitiesPageState extends State<CommunitiesPage> {
     } catch (_) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text(
-                'Could not create community. Check the name and permissions.')));
+            content: Text('Could not create community. Check the name and permissions.')));
       }
     } finally {
       name.dispose();
@@ -251,9 +237,7 @@ class _CommunitiesPageState extends State<CommunitiesPage> {
                 _load();
               }
             }),
-        if (_loading)
-          const Padding(
-              padding: EdgeInsets.all(18), child: LinearProgressIndicator()),
+        if (_loading) const Padding(padding: EdgeInsets.all(18), child: LinearProgressIndicator()),
         if (_error != null)
           Padding(
               padding: const EdgeInsets.all(16),
@@ -273,69 +257,48 @@ class _CommunitiesPageState extends State<CommunitiesPage> {
               clipBehavior: Clip.antiAlias,
               child: InkWell(
                   onTap: () => context.go('/c/${Uri.encodeComponent(slug)}'),
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        if (banner.startsWith('http'))
-                          SizedBox(
-                              height: 92,
-                              width: double.infinity,
-                              child: CachedNetworkImage(
-                                  imageUrl: banner,
-                                  fit: BoxFit.cover,
-                                  errorWidget: (_, __, ___) =>
-                                      const SizedBox.shrink())),
-                        Padding(
-                            padding: const EdgeInsets.all(14),
-                            child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  CircleAvatar(
-                                      radius: 25,
-                                      backgroundImage: icon.startsWith('http')
-                                          ? CachedNetworkImageProvider(icon)
-                                          : null,
-                                      child: icon.startsWith('http')
-                                          ? null
-                                          : Text(title.isEmpty
-                                              ? 'T'
-                                              : title[0].toUpperCase())),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                      child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                        Text(title,
-                                            style: const TextStyle(
-                                                fontWeight: FontWeight.w900,
-                                                fontSize: 16)),
-                                        Text('c/$slug',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall),
-                                        if ('${c['description'] ?? ''}'
-                                            .isNotEmpty)
-                                          Padding(
-                                              padding:
-                                                  const EdgeInsets.only(top: 6),
-                                              child: Text('${c['description']}',
-                                                  maxLines: 3,
-                                                  overflow:
-                                                      TextOverflow.ellipsis)),
-                                        const SizedBox(height: 8),
-                                        Text(
-                                            '${c['member_count'] ?? 0} members · ${c['post_count'] ?? 0} posts',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .bodySmall)
-                                      ])),
-                                  if (_uid != null)
-                                    OutlinedButton(
-                                        onPressed: () => _membership(c),
-                                        child: Text(joined ? 'Joined' : 'Join'))
-                                ]))
-                      ])));
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    if (banner.startsWith('http'))
+                      SizedBox(
+                          height: 92,
+                          width: double.infinity,
+                          child: CachedNetworkImage(
+                              imageUrl: banner,
+                              fit: BoxFit.cover,
+                              errorWidget: (_, __, ___) => const SizedBox.shrink())),
+                    Padding(
+                        padding: const EdgeInsets.all(14),
+                        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          CircleAvatar(
+                              radius: 25,
+                              backgroundImage:
+                                  icon.startsWith('http') ? CachedNetworkImageProvider(icon) : null,
+                              child: icon.startsWith('http')
+                                  ? null
+                                  : Text(title.isEmpty ? 'T' : title[0].toUpperCase())),
+                          const SizedBox(width: 12),
+                          Expanded(
+                              child:
+                                  Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                            Text(title,
+                                style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                            Text('c/$slug', style: Theme.of(context).textTheme.bodySmall),
+                            if ('${c['description'] ?? ''}'.isNotEmpty)
+                              Padding(
+                                  padding: const EdgeInsets.only(top: 6),
+                                  child: Text('${c['description']}',
+                                      maxLines: 3, overflow: TextOverflow.ellipsis)),
+                            const SizedBox(height: 8),
+                            Text(
+                                '${c['member_count'] ?? 0} members · ${c['post_count'] ?? 0} posts',
+                                style: Theme.of(context).textTheme.bodySmall)
+                          ])),
+                          if (_uid != null)
+                            OutlinedButton(
+                                onPressed: () => _membership(c),
+                                child: Text(joined ? 'Joined' : 'Join'))
+                        ]))
+                  ])));
         }),
         if (!_loading && _communities.isEmpty && _error == null)
           Padding(

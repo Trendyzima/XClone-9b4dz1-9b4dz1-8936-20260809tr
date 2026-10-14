@@ -123,8 +123,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
           .inFilter('advertiser_id', advertiserIds)
           .order('created_at', ascending: false)
           .timeout(const Duration(seconds: 15));
-      final campaigns =
-          rows.map((r) => Map<String, dynamic>.from(r as Map)).toList();
+      final campaigns = rows.map((r) => Map<String, dynamic>.from(r as Map)).toList();
       final ids = campaigns.map((r) => '${r['id']}').toList();
       final creativeRows = ids.isEmpty
           ? <dynamic>[]
@@ -143,9 +142,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
       for (final id in ids) {
         final result = await _db.rpc('get_my_ad_campaign_metrics',
             params: {'p_campaign_id': id}).timeout(const Duration(seconds: 15));
-        metrics[id] = result is Map
-            ? Map<String, dynamic>.from(result)
-            : <String, dynamic>{};
+        metrics[id] = result is Map ? Map<String, dynamic>.from(result) : <String, dynamic>{};
       }
       if (!mounted || generation != _loadGeneration) return;
       setState(() {
@@ -161,8 +158,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
       });
     } catch (_) {
       if (mounted && generation == _loadGeneration) {
-        setState(() => _error =
-            'Campaigns could not load. Check your connection and retry.');
+        setState(() => _error = 'Campaigns could not load. Check your connection and retry.');
       }
     } finally {
       if (mounted && generation == _loadGeneration) {
@@ -186,8 +182,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
         budget == null ||
         !budget.isFinite ||
         budget < _minimumBudgetKes) {
-      _showMessage(
-          'Complete all required fields. Minimum budget is KES $_minimumBudgetKes.');
+      _showMessage('Complete all required fields. Minimum budget is KES $_minimumBudgetKes.');
       return;
     }
     if (_dailyBudget.text.trim().isNotEmpty &&
@@ -195,8 +190,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
             !dailyBudget.isFinite ||
             dailyBudget <= 0 ||
             dailyBudget > budget)) {
-      _showMessage(
-          'Daily budget must be positive and cannot exceed total budget.');
+      _showMessage('Daily budget must be positive and cannot exceed total budget.');
       return;
     }
     final start = _startsAt ?? DateTime.now();
@@ -219,8 +213,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
       _error = null;
     });
     try {
-      final result = await _db.functions
-          .invoke('testagram-ad-campaign', body: <String, dynamic>{
+      final result = await _db.functions.invoke('testagram-ad-campaign', body: <String, dynamic>{
         'name': title,
         'headline': title,
         'description': description,
@@ -261,8 +254,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
         _paymentFailed = false;
         _paymentVerified = false;
       });
-      _showMessage(
-          'Campaign draft created. Complete M-Pesa payment to activate it.');
+      _showMessage('Campaign draft created. Complete M-Pesa payment to activate it.');
     } catch (error) {
       if (mounted) {
         setState(() => _error = error is StateError
@@ -282,8 +274,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
     if (digits.startsWith('0') && digits.length == 10) {
       return '254${digits.substring(1)}';
     }
-    if ((digits.startsWith('7') || digits.startsWith('1')) &&
-        digits.length == 9) {
+    if ((digits.startsWith('7') || digits.startsWith('1')) && digits.length == 9) {
       return '254$digits';
     }
     return null;
@@ -380,16 +371,13 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
               payment['user_id'] == uid &&
               payment['mpesa_receipt_number'] != null &&
               '${payment['result_code']}' == '0' &&
-              (double.tryParse('${payment['amount_kes']}') ?? -1) ==
-                  amount.ceilToDouble() &&
+              (double.tryParse('${payment['amount_kes']}') ?? -1) == amount.ceilToDouble() &&
               campaign != null &&
               campaign['payment_status'] == 'funded' &&
-              campaign['payment_reference'] ==
-                  payment['mpesa_receipt_number'] &&
+              campaign['payment_reference'] == payment['mpesa_receipt_number'] &&
               campaign['status'] == 'active';
           if (!valid) {
-            throw StateError(
-                'Payment has not yet been verified against the campaign ledger.');
+            throw StateError('Payment has not yet been verified against the campaign ledger.');
           }
           if (!mounted) return;
           setState(() {
@@ -428,8 +416,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
   }
 
   String _money(dynamic micros, [String currency = 'KES']) {
@@ -457,8 +444,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
         padding: const EdgeInsets.all(16),
         children: [
           Text('Reach Testagram audiences',
-              style: theme.textTheme.headlineSmall
-                  ?.copyWith(fontWeight: FontWeight.w800)),
+              style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 6),
           const Text(
               'Campaigns remain inactive until the server confirms M-Pesa settlement. Minimum budget: KES 500.'),
@@ -466,15 +452,15 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
           TextField(
               controller: _title,
               maxLength: 100,
-              decoration: const InputDecoration(
-                  labelText: 'Campaign title', border: OutlineInputBorder())),
+              decoration:
+                  const InputDecoration(labelText: 'Campaign title', border: OutlineInputBorder())),
           const SizedBox(height: 12),
           TextField(
               controller: _description,
               maxLength: 1000,
               maxLines: 4,
-              decoration: const InputDecoration(
-                  labelText: 'Description', border: OutlineInputBorder())),
+              decoration:
+                  const InputDecoration(labelText: 'Description', border: OutlineInputBorder())),
           const SizedBox(height: 12),
           TextField(
               controller: _targetUrl,
@@ -486,17 +472,14 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
             Expanded(
                 child: TextField(
                     controller: _budget,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
-                        labelText: 'Total budget (KES)',
-                        border: OutlineInputBorder()))),
+                        labelText: 'Total budget (KES)', border: OutlineInputBorder()))),
             const SizedBox(width: 12),
             Expanded(
                 child: TextField(
                     controller: _dailyBudget,
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(
                         labelText: 'Daily budget (KES)',
                         border: OutlineInputBorder(),
@@ -508,37 +491,26 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
             decoration: const InputDecoration(
                 labelText: 'Campaign objective', border: OutlineInputBorder()),
             items: const [
-              DropdownMenuItem(
-                  value: 'traffic', child: Text('Website traffic')),
+              DropdownMenuItem(value: 'traffic', child: Text('Website traffic')),
               DropdownMenuItem(value: 'engagement', child: Text('Engagement')),
-              DropdownMenuItem(
-                  value: 'awareness', child: Text('Brand awareness')),
+              DropdownMenuItem(value: 'awareness', child: Text('Brand awareness')),
             ],
-            onChanged: (value) =>
-                setState(() => _objective = value ?? _objective),
+            onChanged: (value) => setState(() => _objective = value ?? _objective),
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             initialValue: _cta,
-            decoration: const InputDecoration(
-                labelText: 'Call to action', border: OutlineInputBorder()),
-            items: const [
-              'Learn more',
-              'Shop now',
-              'Sign up',
-              'Download',
-              'Contact us'
-            ]
-                .map((value) =>
-                    DropdownMenuItem(value: value, child: Text(value)))
+            decoration:
+                const InputDecoration(labelText: 'Call to action', border: OutlineInputBorder()),
+            items: const ['Learn more', 'Shop now', 'Sign up', 'Download', 'Contact us']
+                .map((value) => DropdownMenuItem(value: value, child: Text(value)))
                 .toList(),
             onChanged: (value) => setState(() => _cta = value ?? _cta),
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
             initialValue: _format,
-            decoration: const InputDecoration(
-                labelText: 'Ad format', border: OutlineInputBorder()),
+            decoration: const InputDecoration(labelText: 'Ad format', border: OutlineInputBorder()),
             items: const [
               DropdownMenuItem(value: 'display', child: Text('Feed / display')),
               DropdownMenuItem(value: 'story', child: Text('Story placement')),
@@ -576,8 +548,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
           ),
           OutlinedButton.icon(
             onPressed: () async {
-              final initial =
-                  _endsAt ?? DateTime.now().add(const Duration(days: 30));
+              final initial = _endsAt ?? DateTime.now().add(const Duration(days: 30));
               final picked = await showDatePicker(
                   context: context,
                   initialDate: initial,
@@ -593,25 +564,18 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
           if (_error != null)
             Padding(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                child: Text(_error!,
-                    style: TextStyle(color: theme.colorScheme.error))),
+                child: Text(_error!, style: TextStyle(color: theme.colorScheme.error))),
           const SizedBox(height: 12),
           FilledButton.icon(
-              onPressed:
-                  _submitting || _campaignId != null ? null : _createCampaign,
+              onPressed: _submitting || _campaignId != null ? null : _createCampaign,
               icon: _submitting
                   ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2))
+                      width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
                   : const Icon(Icons.campaign_outlined),
-              label: Text(_submitting
-                  ? 'Creating campaign…'
-                  : 'Create campaign draft')),
+              label: Text(_submitting ? 'Creating campaign…' : 'Create campaign draft')),
           if (_campaignId != null) ...[
             const Divider(height: 32),
-            Text('Campaign ready for payment',
-                style: theme.textTheme.titleLarge),
+            Text('Campaign ready for payment', style: theme.textTheme.titleLarge),
             Text('Reference: $_campaignId'),
             const SizedBox(height: 8),
             TextField(
@@ -626,20 +590,17 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
             if (_checkingPayment)
               const Padding(
                   padding: EdgeInsets.symmetric(vertical: 8),
-                  child:
-                      Text('Waiting for server-confirmed M-Pesa settlement…')),
+                  child: Text('Waiting for server-confirmed M-Pesa settlement…')),
             if (_paymentVerified)
               const ListTile(
                   leading: Icon(Icons.check_circle, color: Colors.green),
                   title: Text('Payment verified'),
-                  subtitle: Text(
-                      'The campaign ledger confirms settlement and activation.')),
+                  subtitle: Text('The campaign ledger confirms settlement and activation.')),
             if (_error != null && !_checkingPayment)
               Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
             FilledButton.icon(
-                onPressed: _submitting || _checkingPayment || _paymentVerified
-                    ? null
-                    : _requestPayment,
+                onPressed:
+                    _submitting || _checkingPayment || _paymentVerified ? null : _requestPayment,
                 icon: const Icon(Icons.phone_android),
                 label: Text(_paymentVerified
                     ? 'Campaign activated'
@@ -648,8 +609,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
                         : 'Pay with M-Pesa')),
             if (_paymentVerified)
               OutlinedButton(
-                  onPressed: () => context.go('/my-ads'),
-                  child: const Text('View my campaigns')),
+                  onPressed: () => context.go('/my-ads'), child: const Text('View my campaigns')),
           ],
         ],
       ),
@@ -659,8 +619,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
   Widget _buildList({required bool analytics}) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar:
-          AppBar(title: Text(analytics ? 'Ad analytics' : 'My ads'), actions: [
+      appBar: AppBar(title: Text(analytics ? 'Ad analytics' : 'My ads'), actions: [
         IconButton(
             tooltip: 'Refresh',
             onPressed: _loading ? null : _loadCampaigns,
@@ -679,22 +638,16 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
                         Text(_error!, textAlign: TextAlign.center),
                         const SizedBox(height: 12),
-                        FilledButton(
-                            onPressed: _loadCampaigns,
-                            child: const Text('Retry')),
+                        FilledButton(onPressed: _loadCampaigns, child: const Text('Retry')),
                       ])))
               : _campaigns.isEmpty
                   ? Center(
                       child: Padding(
                           padding: const EdgeInsets.all(24),
-                          child:
-                              Column(mainAxisSize: MainAxisSize.min, children: [
+                          child: Column(mainAxisSize: MainAxisSize.min, children: [
                             const Icon(Icons.campaign_outlined, size: 48),
                             const SizedBox(height: 12),
-                            Text(
-                                analytics
-                                    ? 'No campaign analytics yet'
-                                    : 'No campaigns yet',
+                            Text(analytics ? 'No campaign analytics yet' : 'No campaigns yet',
                                 style: theme.textTheme.titleLarge),
                             const SizedBox(height: 8),
                             const Text(
@@ -714,130 +667,86 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
                             Padding(
                                 padding: const EdgeInsets.all(8),
                                 child: Text(_error!,
-                                    style: TextStyle(
-                                        color: theme.colorScheme.error))),
+                                    style: TextStyle(color: theme.colorScheme.error))),
                           ..._campaigns.map((campaign) {
                             final id = '${campaign['id']}';
-                            final creative =
-                                _creatives[id] ?? const <String, dynamic>{};
-                            final metric =
-                                _metrics[id] ?? const <String, dynamic>{};
+                            final creative = _creatives[id] ?? const <String, dynamic>{};
+                            final metric = _metrics[id] ?? const <String, dynamic>{};
                             final currency = '${campaign['currency'] ?? 'KES'}';
-                            final payment =
-                                '${campaign['payment_status'] ?? 'pending'}';
+                            final payment = '${campaign['payment_status'] ?? 'pending'}';
                             final status = '${campaign['status'] ?? 'draft'}';
-                            final impressions =
-                                int.tryParse('${metric['impressions'] ?? 0}') ??
-                                    0;
-                            final clicks =
-                                int.tryParse('${metric['clicks'] ?? 0}') ?? 0;
-                            final ctr =
-                                double.tryParse('${metric['ctr'] ?? 0}') ?? 0;
+                            final impressions = int.tryParse('${metric['impressions'] ?? 0}') ?? 0;
+                            final clicks = int.tryParse('${metric['clicks'] ?? 0}') ?? 0;
+                            final ctr = double.tryParse('${metric['ctr'] ?? 0}') ?? 0;
                             final spend = metric['spend_micros'] ?? 0;
                             return Card(
                               margin: const EdgeInsets.only(bottom: 12),
                               clipBehavior: Clip.antiAlias,
                               child: Padding(
                                 padding: const EdgeInsets.all(16),
-                                child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            const CircleAvatar(
-                                                child: Icon(
-                                                    Icons.campaign_outlined)),
-                                            const SizedBox(width: 12),
-                                            Expanded(
-                                                child: Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                  Text(
-                                                      '${campaign['name'] ?? 'Untitled campaign'}',
-                                                      style: theme.textTheme
-                                                          .titleMedium),
-                                                  if (creative['headline'] !=
-                                                      null)
-                                                    Text(
-                                                        '${creative['headline']}',
-                                                        style: theme.textTheme
-                                                            .bodyMedium),
-                                                ])),
-                                            Chip(
-                                                label: Text(payment != 'funded'
-                                                    ? 'Awaiting payment'
-                                                    : status.replaceAll(
-                                                        '_', ' '))),
-                                          ]),
-                                      const SizedBox(height: 12),
-                                      if (creative['asset_url'] != null &&
-                                          '${creative['asset_url']}'
-                                              .startsWith('https://'))
-                                        ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(8),
-                                            child: Image.network(
-                                                '${creative['asset_url']}',
-                                                height: 160,
-                                                width: double.infinity,
-                                                fit: BoxFit.cover,
-                                                errorBuilder: (_, __, ___) =>
-                                                    const SizedBox.shrink())),
-                                      if (analytics) ...[
-                                        const Divider(height: 24),
-                                        Wrap(
-                                            spacing: 10,
-                                            runSpacing: 10,
+                                child:
+                                    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                                    const CircleAvatar(child: Icon(Icons.campaign_outlined)),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                        child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
                                             children: [
-                                              _metric(theme, 'Impressions',
-                                                  impressions.toString()),
-                                              _metric(theme, 'Clicks',
-                                                  clicks.toString()),
-                                              _metric(theme, 'CTR',
-                                                  '${ctr.toStringAsFixed(2)}%'),
-                                              _metric(theme, 'Spend',
-                                                  _money(spend, currency)),
-                                            ]),
-                                      ],
-                                      const SizedBox(height: 12),
-                                      Row(children: [
-                                        const Expanded(
-                                            child: Text('Lifetime budget')),
-                                        Text(
-                                            _money(
-                                                campaign[
-                                                    'lifetime_budget_micros'],
-                                                currency),
-                                            style: theme.textTheme.titleSmall),
-                                      ]),
-                                      if (creative['click_through_url'] != null)
-                                        Align(
-                                            alignment: Alignment.centerRight,
-                                            child: TextButton.icon(
-                                              onPressed: () async {
-                                                final uri = Uri.tryParse(
-                                                    '${creative['click_through_url']}');
-                                                if (uri != null &&
-                                                    {'https', 'http'}
-                                                        .contains(uri.scheme) &&
-                                                    uri.host.isNotEmpty) {
-                                                  await launchUrl(uri,
-                                                      mode: LaunchMode
-                                                          .externalApplication);
-                                                }
-                                              },
-                                              icon: const Icon(
-                                                  Icons.open_in_new,
-                                                  size: 16),
-                                              label: const Text(
-                                                  'Open landing page'),
-                                            )),
+                                          Text('${campaign['name'] ?? 'Untitled campaign'}',
+                                              style: theme.textTheme.titleMedium),
+                                          if (creative['headline'] != null)
+                                            Text('${creative['headline']}',
+                                                style: theme.textTheme.bodyMedium),
+                                        ])),
+                                    Chip(
+                                        label: Text(payment != 'funded'
+                                            ? 'Awaiting payment'
+                                            : status.replaceAll('_', ' '))),
+                                  ]),
+                                  const SizedBox(height: 12),
+                                  if (creative['asset_url'] != null &&
+                                      '${creative['asset_url']}'.startsWith('https://'))
+                                    ClipRRect(
+                                        borderRadius: BorderRadius.circular(8),
+                                        child: Image.network('${creative['asset_url']}',
+                                            height: 160,
+                                            width: double.infinity,
+                                            fit: BoxFit.cover,
+                                            errorBuilder: (_, __, ___) => const SizedBox.shrink())),
+                                  if (analytics) ...[
+                                    const Divider(height: 24),
+                                    Wrap(spacing: 10, runSpacing: 10, children: [
+                                      _metric(theme, 'Impressions', impressions.toString()),
+                                      _metric(theme, 'Clicks', clicks.toString()),
+                                      _metric(theme, 'CTR', '${ctr.toStringAsFixed(2)}%'),
+                                      _metric(theme, 'Spend', _money(spend, currency)),
                                     ]),
+                                  ],
+                                  const SizedBox(height: 12),
+                                  Row(children: [
+                                    const Expanded(child: Text('Lifetime budget')),
+                                    Text(_money(campaign['lifetime_budget_micros'], currency),
+                                        style: theme.textTheme.titleSmall),
+                                  ]),
+                                  if (creative['click_through_url'] != null)
+                                    Align(
+                                        alignment: Alignment.centerRight,
+                                        child: TextButton.icon(
+                                          onPressed: () async {
+                                            final uri =
+                                                Uri.tryParse('${creative['click_through_url']}');
+                                            if (uri != null &&
+                                                {'https', 'http'}.contains(uri.scheme) &&
+                                                uri.host.isNotEmpty) {
+                                              await launchUrl(uri,
+                                                  mode: LaunchMode.externalApplication);
+                                            }
+                                          },
+                                          icon: const Icon(Icons.open_in_new, size: 16),
+                                          label: const Text('Open landing page'),
+                                        )),
+                                ]),
                               ),
                             );
                           }),
@@ -855,9 +764,7 @@ class _AdCampaignsPageState extends State<AdCampaignsPage> {
           borderRadius: BorderRadius.circular(10),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(value,
-              style: theme.textTheme.titleLarge
-                  ?.copyWith(fontWeight: FontWeight.w800)),
+          Text(value, style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
           const SizedBox(height: 4),
           Text(label, style: theme.textTheme.bodySmall),
         ]),

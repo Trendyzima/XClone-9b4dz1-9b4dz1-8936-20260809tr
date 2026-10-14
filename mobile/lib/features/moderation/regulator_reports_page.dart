@@ -46,10 +46,8 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
           'Sign in with an authorized owner account to access platform reports.',
         );
       }
-      final owner = await _db
-              .rpc('testagram_is_owner')
-              .timeout(const Duration(seconds: 12)) ==
-          true;
+      final owner =
+          await _db.rpc('testagram_is_owner').timeout(const Duration(seconds: 12)) == true;
       if (!owner) {
         if (mounted && generation == _generation) {
           setState(() {
@@ -141,8 +139,7 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
     } catch (_) {
       if (mounted) {
         setState(
-          () =>
-              _error = 'Could not update this report. Refresh before retrying.',
+          () => _error = 'Could not update this report. Refresh before retrying.',
         );
       }
     } finally {
@@ -186,16 +183,13 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
                       border: OutlineInputBorder(),
                     ),
                     items: const [
-                      DropdownMenuItem(
-                          value: 'open', child: Text('Open queue')),
-                      DropdownMenuItem(
-                          value: 'resolved', child: Text('Resolved')),
+                      DropdownMenuItem(value: 'open', child: Text('Open queue')),
+                      DropdownMenuItem(value: 'resolved', child: Text('Resolved')),
                       DropdownMenuItem(
                         value: 'dismissed',
                         child: Text('Dismissed'),
                       ),
-                      DropdownMenuItem(
-                          value: 'all', child: Text('All reports')),
+                      DropdownMenuItem(value: 'all', child: Text('All reports')),
                     ],
                     onChanged: _loading
                         ? null
@@ -233,8 +227,7 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
                         const Icon(Icons.warning_amber),
                         const SizedBox(width: 8),
                         Expanded(child: Text(_error!)),
-                        TextButton(
-                            onPressed: _load, child: const Text('Retry')),
+                        TextButton(onPressed: _load, child: const Text('Retry')),
                       ],
                     ),
                   ),
@@ -244,8 +237,7 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
               child: _loading
                   ? const Center(child: CircularProgressIndicator())
                   : !_authorized
-                      ? const Center(
-                          child: Text('Owner authorization required.'))
+                      ? const Center(child: Text('Owner authorization required.'))
                       : _reports.isEmpty
                           ? const Center(
                               child: Padding(
@@ -268,8 +260,7 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
                                     child: Padding(
                                       padding: const EdgeInsets.all(14),
                                       child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
+                                        crossAxisAlignment: CrossAxisAlignment.start,
                                         children: [
                                           Row(
                                             children: [
@@ -280,8 +271,7 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
                                                       .textTheme
                                                       .titleMedium
                                                       ?.copyWith(
-                                                        fontWeight:
-                                                            FontWeight.w800,
+                                                        fontWeight: FontWeight.w800,
                                                       ),
                                                 ),
                                               ),
@@ -294,9 +284,7 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
                                           ),
                                           Text(
                                             'Reported ${_date(report['created_at'])}',
-                                            style: Theme.of(context)
-                                                .textTheme
-                                                .labelSmall,
+                                            style: Theme.of(context).textTheme.labelSmall,
                                           ),
                                           const SizedBox(height: 10),
                                           Text(
@@ -313,8 +301,7 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
                                               color: Theme.of(context)
                                                   .colorScheme
                                                   .surfaceContainerHighest,
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
+                                              borderRadius: BorderRadius.circular(8),
                                             ),
                                             child: Text(
                                               '${report['post_content'] ?? '[Post content unavailable]'}',
@@ -322,12 +309,9 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
                                               overflow: TextOverflow.ellipsis,
                                             ),
                                           ),
-                                          if ('${report['details'] ?? ''}'
-                                              .trim()
-                                              .isNotEmpty)
+                                          if ('${report['details'] ?? ''}'.trim().isNotEmpty)
                                             Padding(
-                                              padding:
-                                                  const EdgeInsets.only(top: 8),
+                                              padding: const EdgeInsets.only(top: 8),
                                               child: Text(
                                                 'Reporter details: ${report['details']}',
                                               ),
@@ -340,12 +324,9 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
                                                   child: OutlinedButton.icon(
                                                     onPressed: busy
                                                         ? null
-                                                        : () => _decide(report,
-                                                            'dismissed'),
-                                                    icon:
-                                                        const Icon(Icons.close),
-                                                    label:
-                                                        const Text('Dismiss'),
+                                                        : () => _decide(report, 'dismissed'),
+                                                    icon: const Icon(Icons.close),
+                                                    label: const Text('Dismiss'),
                                                   ),
                                                 ),
                                                 const SizedBox(width: 8),
@@ -353,21 +334,17 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
                                                   child: FilledButton.icon(
                                                     onPressed: busy
                                                         ? null
-                                                        : () => _decide(
-                                                            report, 'resolved'),
+                                                        : () => _decide(report, 'resolved'),
                                                     icon: busy
                                                         ? const SizedBox(
                                                             width: 16,
                                                             height: 16,
-                                                            child:
-                                                                CircularProgressIndicator(
+                                                            child: CircularProgressIndicator(
                                                               strokeWidth: 2,
                                                             ),
                                                           )
-                                                        : const Icon(
-                                                            Icons.done),
-                                                    label:
-                                                        const Text('Resolve'),
+                                                        : const Icon(Icons.done),
+                                                    label: const Text('Resolve'),
                                                   ),
                                                 ),
                                               ],

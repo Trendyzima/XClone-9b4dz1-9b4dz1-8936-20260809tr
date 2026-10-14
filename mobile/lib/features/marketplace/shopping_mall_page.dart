@@ -54,18 +54,15 @@ class _MallProduct {
         priceMinor: int.tryParse('${row['price_minor'] ?? 0}') ?? 0,
         currency: '${row['currency'] ?? 'KES'}',
         category: '${row['category'] ?? ''}',
-        inventory: (int.tryParse('${row['available_inventory'] ?? 0}') ?? 0)
-            .clamp(0, 1 << 30)
-            .toInt(),
+        inventory:
+            (int.tryParse('${row['available_inventory'] ?? 0}') ?? 0).clamp(0, 1 << 30).toInt(),
         localDelivery: row['local_delivery'] == true,
-        deliveryFeeMinor:
-            int.tryParse('${row['delivery_fee_minor'] ?? 0}') ?? 0,
+        deliveryFeeMinor: int.tryParse('${row['delivery_fee_minor'] ?? 0}') ?? 0,
         deliveryEta: '${row['delivery_eta'] ?? ''}',
         salesCount: int.tryParse('${row['sales_count'] ?? 0}') ?? 0,
         createdAt: DateTime.tryParse('${row['created_at'] ?? ''}'),
         imageUrl: MallPolicy.safeImageUrl(row['media_url']),
-        sellerName:
-            '${row['seller_display_name'] ?? row['seller_username'] ?? 'Testagram seller'}',
+        sellerName: '${row['seller_display_name'] ?? row['seller_username'] ?? 'Testagram seller'}',
         sellerUsername: '${row['seller_username'] ?? 'seller'}',
       );
 
@@ -127,10 +124,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
       final cart = <String, int>{};
       decoded.forEach((key, value) {
         final quantity = int.tryParse('$value') ?? 0;
-        if (key is String &&
-            key.isNotEmpty &&
-            quantity > 0 &&
-            quantity <= 100) {
+        if (key is String && key.isNotEmpty && quantity > 0 && quantity <= 100) {
           cart[key] = quantity;
         }
       });
@@ -181,8 +175,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
     }
     if (mounted) setState(() => _walletLoading = true);
     try {
-      final result =
-          await _db.rpc('get_my_wallet').timeout(const Duration(seconds: 12));
+      final result = await _db.rpc('get_my_wallet').timeout(const Duration(seconds: 12));
       dynamic wallet = result;
       if (wallet is List) wallet = wallet.isEmpty ? null : wallet.first;
       if (wallet is Map) {
@@ -240,8 +233,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
       }
       final products = rows
           .map(
-            (row) =>
-                _MallProduct.fromRow(Map<String, dynamic>.from(row as Map)),
+            (row) => _MallProduct.fromRow(Map<String, dynamic>.from(row as Map)),
           )
           .where((p) => p.id.isNotEmpty)
           .toList();
@@ -250,8 +242,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
     } catch (_) {
       if (!mounted || generation != _requestGeneration) return;
       setState(
-        () => _error =
-            'The Mall could not refresh. Check your connection and retry.',
+        () => _error = 'The Mall could not refresh. Check your connection and retry.',
       );
     } finally {
       if (mounted && generation == _requestGeneration) {
@@ -361,9 +352,8 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
       return;
     }
     setState(() {
-      _cart[product.id] = ((_cart[product.id] ?? 0) + 1)
-          .clamp(1, product.inventory.clamp(1, 100))
-          .toInt();
+      _cart[product.id] =
+          ((_cart[product.id] ?? 0) + 1).clamp(1, product.inventory.clamp(1, 100)).toInt();
     });
     unawaited(_persistCart());
     _message('Added to your cart');
@@ -371,9 +361,8 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
 
   void _changeCart(_MallProduct product, int delta) {
     setState(() {
-      final next = ((_cart[product.id] ?? 0) + delta)
-          .clamp(0, product.inventory.clamp(0, 100))
-          .toInt();
+      final next =
+          ((_cart[product.id] ?? 0) + delta).clamp(0, product.inventory.clamp(0, 100)).toInt();
       if (next == 0) {
         _cart.remove(product.id);
       } else {
@@ -402,17 +391,13 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
             .eq('product_id', product.id)
             .timeout(const Duration(seconds: 12));
       } else {
-        await _db
-            .from('wishlists')
-            .insert({'user_id': user.id, 'product_id': product.id}).timeout(
-                const Duration(seconds: 12));
+        await _db.from('wishlists').insert({'user_id': user.id, 'product_id': product.id}).timeout(
+            const Duration(seconds: 12));
       }
     } catch (_) {
       if (mounted) {
         setState(
-          () => existed
-              ? _wishlist.add(product.id)
-              : _wishlist.remove(product.id),
+          () => existed ? _wishlist.add(product.id) : _wishlist.remove(product.id),
         );
         _message('Wishlist update failed. Please retry.');
       }
@@ -579,8 +564,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
       _message('Enter a valid quantity within available stock.');
       return;
     }
-    if (result['delivery'] != 'pickup' &&
-        (result['address'] as String).isEmpty) {
+    if (result['delivery'] != 'pickup' && (result['address'] as String).isEmpty) {
       _message('Enter a delivery address or choose pickup.');
       return;
     }
@@ -618,10 +602,8 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
           'p_quantity': qty,
           'p_idempotency_key': idempotency,
           'p_delivery_mode': result['delivery'],
-          'p_delivery_address':
-              (result['address'] as String).isEmpty ? null : result['address'],
-          'p_delivery_note':
-              (result['note'] as String).isEmpty ? null : result['note'],
+          'p_delivery_address': (result['address'] as String).isEmpty ? null : result['address'],
+          'p_delivery_note': (result['note'] as String).isEmpty ? null : result['note'],
           'p_reservation_key': reservationKey,
         },
       ).timeout(const Duration(seconds: 25));
@@ -703,8 +685,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
           SliverToBoxAdapter(child: _topBar(context)),
           SliverToBoxAdapter(child: _hero(context)),
           SliverToBoxAdapter(child: _benefits(context)),
-          if (_db.auth.currentUser != null)
-            SliverToBoxAdapter(child: _walletCard(context)),
+          if (_db.auth.currentUser != null) SliverToBoxAdapter(child: _walletCard(context)),
           SliverToBoxAdapter(child: _categoryShelf(context)),
           SliverToBoxAdapter(child: _promoCarousel(context)),
           SliverToBoxAdapter(
@@ -721,8 +702,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
               context,
               title: 'Trending with the community',
               subtitle: 'Discover products from local creators and sellers',
-              products: [..._visibleProducts]
-                ..sort((a, b) => b.salesCount.compareTo(a.salesCount)),
+              products: [..._visibleProducts]..sort((a, b) => b.salesCount.compareTo(a.salesCount)),
               badge: 'TRENDING',
             ),
           ),
@@ -964,8 +944,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                           label: const Text('Explore deals'),
                           style: FilledButton.styleFrom(
                             backgroundColor: Colors.white,
-                            foregroundColor:
-                                Theme.of(context).colorScheme.primary,
+                            foregroundColor: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                         OutlinedButton.icon(
@@ -1080,8 +1059,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
             ).colorScheme.primaryContainer.withValues(alpha: .55),
             borderRadius: BorderRadius.circular(18),
             border: Border.all(
-              color:
-                  Theme.of(context).colorScheme.primary.withValues(alpha: .18),
+              color: Theme.of(context).colorScheme.primary.withValues(alpha: .18),
             ),
           ),
           child: Row(
@@ -1119,10 +1097,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                               : '$_walletCurrency ${_walletBalance!.toStringAsFixed(2)}',
                       style: Theme.of(
                         context,
-                      )
-                          .textTheme
-                          .titleLarge
-                          ?.copyWith(fontWeight: FontWeight.w900),
+                      ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                     ),
                   ],
                 ),
@@ -1349,10 +1324,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                   title,
                   style: Theme.of(
                     context,
-                  )
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.w900),
+                  ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 2),
                 Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
@@ -1397,9 +1369,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
               child: products.isEmpty
                   ? Center(
                       child: Text(
-                        _loading
-                            ? 'Loading products…'
-                            : 'New products are arriving soon.',
+                        _loading ? 'Loading products…' : 'New products are arriving soon.',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     )
@@ -1434,15 +1404,10 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _category == 'all'
-                        ? 'Explore the Mall'
-                        : MallPolicy.category(_category).label,
+                    _category == 'all' ? 'Explore the Mall' : MallPolicy.category(_category).label,
                     style: Theme.of(
                       context,
-                    )
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(fontWeight: FontWeight.w900),
+                    ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                   ),
                   Text(
                     '$count products · discover something good',
@@ -1526,14 +1491,13 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                                 ),
                               ),
                             ),
-                            loadingBuilder: (context, child, progress) =>
-                                progress == null
-                                    ? child
-                                    : const Center(
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
-                                        ),
-                                      ),
+                            loadingBuilder: (context, child, progress) => progress == null
+                                ? child
+                                : const Center(
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  ),
                           ),
                   ),
                 ),
@@ -1598,15 +1562,11 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                       padding: EdgeInsets.zero,
                       onPressed: () => _toggleWishlist(product),
                       icon: Icon(
-                        wished
-                            ? Icons.favorite_rounded
-                            : Icons.favorite_border_rounded,
+                        wished ? Icons.favorite_rounded : Icons.favorite_border_rounded,
                         size: 17,
-                        color:
-                            wished ? Colors.red : theme.colorScheme.onSurface,
+                        color: wished ? Colors.red : theme.colorScheme.onSurface,
                       ),
-                      tooltip:
-                          wished ? 'Remove from wishlist' : 'Add to wishlist',
+                      tooltip: wished ? 'Remove from wishlist' : 'Add to wishlist',
                     ),
                   ),
                 ),
@@ -1667,9 +1627,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                     children: [
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: product.inventory < 1
-                              ? null
-                              : () => _addToCart(product),
+                          onPressed: product.inventory < 1 ? null : () => _addToCart(product),
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(horizontal: 4),
                             minimumSize: const Size(0, 32),
@@ -1684,10 +1642,10 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                       const SizedBox(width: 5),
                       Expanded(
                         child: FilledButton(
-                          onPressed: product.inventory < 1 ||
-                                  _checkoutBusyProducts.contains(product.id)
-                              ? null
-                              : () => _buy(product),
+                          onPressed:
+                              product.inventory < 1 || _checkoutBusyProducts.contains(product.id)
+                                  ? null
+                                  : () => _buy(product),
                           style: FilledButton.styleFrom(
                             padding: const EdgeInsets.symmetric(horizontal: 4),
                             minimumSize: const Size(0, 32),
@@ -1754,8 +1712,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
       );
 
   Future<void> _openCart() async {
-    final missing =
-        _cart.keys.where((id) => !_products.any((p) => p.id == id)).toList();
+    final missing = _cart.keys.where((id) => !_products.any((p) => p.id == id)).toList();
     if (missing.isNotEmpty) {
       try {
         final rows = await _db
@@ -1767,8 +1724,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
             .timeout(const Duration(seconds: 15));
         final loaded = rows
             .map(
-              (row) =>
-                  _MallProduct.fromRow(Map<String, dynamic>.from(row as Map)),
+              (row) => _MallProduct.fromRow(Map<String, dynamic>.from(row as Map)),
             )
             .toList();
         if (mounted) {
@@ -1861,10 +1817,8 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                                           : Image.network(
                                               product.imageUrl!,
                                               fit: BoxFit.cover,
-                                              errorBuilder: (_, __, ___) =>
-                                                  const Icon(
-                                                Icons
-                                                    .image_not_supported_outlined,
+                                              errorBuilder: (_, __, ___) => const Icon(
+                                                Icons.image_not_supported_outlined,
                                               ),
                                             ),
                                     ),
@@ -1872,8 +1826,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                                   const SizedBox(width: 10),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
+                                      crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
                                           product.name,
@@ -1894,8 +1847,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                                               icon: const Icon(
                                                 Icons.remove_circle_outline,
                                               ),
-                                              visualDensity:
-                                                  VisualDensity.compact,
+                                              visualDensity: VisualDensity.compact,
                                             ),
                                             Text('$quantity'),
                                             IconButton(
@@ -1906,8 +1858,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                                               icon: const Icon(
                                                 Icons.add_circle_outline,
                                               ),
-                                              visualDensity:
-                                                  VisualDensity.compact,
+                                              visualDensity: VisualDensity.compact,
                                             ),
                                           ],
                                         ),

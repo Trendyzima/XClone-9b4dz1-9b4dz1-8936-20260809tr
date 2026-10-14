@@ -143,8 +143,7 @@ class _CurrencyConverterPageState extends State<CurrencyConverterPage> {
     });
   }
 
-  String _format(double value) =>
-      value.toStringAsFixed(value.abs() >= 1000 ? 2 : 4);
+  String _format(double value) => value.toStringAsFixed(value.abs() >= 1000 ? 2 : 4);
 
   @override
   Widget build(BuildContext context) {

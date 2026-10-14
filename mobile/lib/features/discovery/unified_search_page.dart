@@ -41,9 +41,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
     super.initState();
     _controller.text = widget.initialQuery;
     _query = widget.initialQuery;
-    _tab = UnifiedSearchPolicy.kinds.containsKey(widget.initialTab)
-        ? widget.initialTab
-        : 'Top';
+    _tab = UnifiedSearchPolicy.kinds.containsKey(widget.initialTab) ? widget.initialTab : 'Top';
     if (_query.trim().isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _search());
     }
@@ -112,9 +110,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
       if (authFailure && retryAuth) {
         try {
           await _db.auth.refreshSession().timeout(const Duration(seconds: 12));
-          if (_db.auth.currentSession != null &&
-              mounted &&
-              generation == _requestGeneration) {
+          if (_db.auth.currentSession != null && mounted && generation == _requestGeneration) {
             return await _search(retryAuth: false);
           }
         } catch (_) {
@@ -223,8 +219,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
       'replies',
       'fediverse',
     ]) {
-      for (final row
-          in (_results[group] as List<Map<String, dynamic>>?) ?? const []) {
+      for (final row in (_results[group] as List<Map<String, dynamic>>?) ?? const []) {
         final identity = '${row['uri'] ?? row['id'] ?? row.hashCode}';
         if (seen.add(identity)) combined.add(row);
       }
@@ -475,14 +470,12 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
     final subtitle = switch (group) {
       'users' =>
         '@${row['username'] ?? ''}${row['origin'] == 'fediverse' && row['domain'] != null ? '@${row['domain']}' : ''}',
-      'hashtags' =>
-        '${row['usage_count'] ?? 0} posts · ${row['follower_count'] ?? 0} followers',
+      'hashtags' => '${row['usage_count'] ?? 0} posts · ${row['follower_count'] ?? 0} followers',
       'posts' =>
         '${row['user_profiles'] is Map ? (row['user_profiles'] as Map)['username'] ?? '' : ''} · ${row['created_at'] ?? ''}',
       'threads' =>
         '${row['profiles'] is Map ? (row['profiles'] as Map)['username'] ?? '' : ''} · ${row['created_at'] ?? ''}',
-      'communities' =>
-        '${row['member_count'] ?? 0} members · ${row['post_count'] ?? 0} posts',
+      'communities' => '${row['member_count'] ?? 0} members · ${row['post_count'] ?? 0} posts',
       'replies' =>
         '${row['user_profiles'] is Map ? (row['user_profiles'] as Map)['username'] ?? '' : ''} · ${row['created_at'] ?? ''}',
       'fediverse' =>

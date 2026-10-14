@@ -72,9 +72,7 @@ class _SpacesPageState extends State<SpacesPage> {
         if (mounted) {
           setState(() {
             _detail = {...Map<String, dynamic>.from(row), 'host': host};
-            _recordings = recordings
-                .map((r) => Map<String, dynamic>.from(r as Map))
-                .toList();
+            _recordings = recordings.map((r) => Map<String, dynamic>.from(r as Map)).toList();
           });
         }
         return;
@@ -88,8 +86,8 @@ class _SpacesPageState extends State<SpacesPage> {
             .limit(50)
             .timeout(const Duration(seconds: 15));
         if (mounted) {
-          setState(() => _recordings =
-              rows.map((r) => Map<String, dynamic>.from(r as Map)).toList());
+          setState(
+              () => _recordings = rows.map((r) => Map<String, dynamic>.from(r as Map)).toList());
         }
       } else {
         var query = _db
@@ -103,12 +101,10 @@ class _SpacesPageState extends State<SpacesPage> {
           query = query.eq('is_live', false);
         }
         final rows = await query
-            .order(_tab == 'Live' ? 'started_at' : 'scheduled_for',
-                ascending: _tab != 'Live')
+            .order(_tab == 'Live' ? 'started_at' : 'scheduled_for', ascending: _tab != 'Live')
             .limit(50)
             .timeout(const Duration(seconds: 15));
-        final spaces =
-            rows.map((r) => Map<String, dynamic>.from(r as Map)).toList();
+        final spaces = rows.map((r) => Map<String, dynamic>.from(r as Map)).toList();
         final hosts = spaces.map((s) => '${s['host_id']}').toSet().toList();
         final profiles = hosts.isEmpty
             ? <dynamic>[]
@@ -116,10 +112,7 @@ class _SpacesPageState extends State<SpacesPage> {
                 .from('profiles')
                 .select('id,username,display_name,avatar_url,verified')
                 .inFilter('id', hosts);
-        final byId = {
-          for (final p in profiles)
-            '${p['id']}': Map<String, dynamic>.from(p as Map)
-        };
+        final byId = {for (final p in profiles) '${p['id']}': Map<String, dynamic>.from(p as Map)};
         for (final space in spaces) {
           space['host'] = byId['${space['host_id']}'];
         }
@@ -127,8 +120,7 @@ class _SpacesPageState extends State<SpacesPage> {
       }
     } catch (_) {
       if (mounted) {
-        setState(() =>
-            _error = 'Spaces could not load. Check your connection and retry.');
+        setState(() => _error = 'Spaces could not load. Check your connection and retry.');
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -153,39 +145,29 @@ class _SpacesPageState extends State<SpacesPage> {
             builder: (ctx, update) => AlertDialog(
                     title: const Text('Prepare a Live Space'),
                     content: SingleChildScrollView(
-                        child:
-                            Column(mainAxisSize: MainAxisSize.min, children: [
+                        child: Column(mainAxisSize: MainAxisSize.min, children: [
                       TextField(
                           controller: title,
                           maxLength: 100,
-                          decoration:
-                              const InputDecoration(labelText: 'Title')),
+                          decoration: const InputDecoration(labelText: 'Title')),
                       TextField(
                           controller: topic,
                           maxLength: 120,
-                          decoration:
-                              const InputDecoration(labelText: 'Topic')),
+                          decoration: const InputDecoration(labelText: 'Topic')),
                       TextField(
                           controller: description,
                           maxLength: 1000,
                           maxLines: 3,
-                          decoration:
-                              const InputDecoration(labelText: 'Description')),
+                          decoration: const InputDecoration(labelText: 'Description')),
                       DropdownButtonFormField<String>(
                           initialValue: category,
-                          decoration:
-                              const InputDecoration(labelText: 'Category'),
+                          decoration: const InputDecoration(labelText: 'Category'),
                           items: const [
-                            DropdownMenuItem(
-                                value: 'general', child: Text('General')),
-                            DropdownMenuItem(
-                                value: 'music', child: Text('Music')),
-                            DropdownMenuItem(
-                                value: 'education', child: Text('Education')),
-                            DropdownMenuItem(
-                                value: 'news', child: Text('News')),
-                            DropdownMenuItem(
-                                value: 'gaming', child: Text('Gaming'))
+                            DropdownMenuItem(value: 'general', child: Text('General')),
+                            DropdownMenuItem(value: 'music', child: Text('Music')),
+                            DropdownMenuItem(value: 'education', child: Text('Education')),
+                            DropdownMenuItem(value: 'news', child: Text('News')),
+                            DropdownMenuItem(value: 'gaming', child: Text('Gaming'))
                           ],
                           onChanged: (v) {
                             if (v != null) update(() => category = v);
@@ -207,23 +189,16 @@ class _SpacesPageState extends State<SpacesPage> {
                               onPressed: () async {
                                 final date = await showDatePicker(
                                     context: ctx,
-                                    initialDate: DateTime.now()
-                                        .add(const Duration(days: 1)),
+                                    initialDate: DateTime.now().add(const Duration(days: 1)),
                                     firstDate: DateTime.now(),
-                                    lastDate: DateTime.now()
-                                        .add(const Duration(days: 365)));
+                                    lastDate: DateTime.now().add(const Duration(days: 365)));
                                 if (date == null || !ctx.mounted) return;
                                 final time = await showTimePicker(
                                     context: ctx,
-                                    initialTime:
-                                        const TimeOfDay(hour: 18, minute: 0));
+                                    initialTime: const TimeOfDay(hour: 18, minute: 0));
                                 if (time != null) {
                                   update(() => scheduledFor = DateTime(
-                                          date.year,
-                                          date.month,
-                                          date.day,
-                                          time.hour,
-                                          time.minute)
+                                          date.year, date.month, date.day, time.hour, time.minute)
                                       .toUtc());
                                 }
                               })),
@@ -234,8 +209,7 @@ class _SpacesPageState extends State<SpacesPage> {
                     ])),
                     actions: [
                       TextButton(
-                          onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text('Cancel')),
+                          onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
                       FilledButton(
                           onPressed: () => Navigator.pop(ctx, true),
                           child: const Text('Prepare room'))
@@ -253,8 +227,8 @@ class _SpacesPageState extends State<SpacesPage> {
       return;
     }
     if (title.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('A space title is required.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('A space title is required.')));
       title.dispose();
       description.dispose();
       topic.dispose();
@@ -263,9 +237,7 @@ class _SpacesPageState extends State<SpacesPage> {
     setState(() => _creating = true);
     try {
       final capability = await _db.rpc('get_audio_space_host_capability');
-      if (capability is List &&
-          capability.isNotEmpty &&
-          capability.first['can_host'] != true) {
+      if (capability is List && capability.isNotEmpty && capability.first['can_host'] != true) {
         throw StateError('SPACE_HOST_NOT_ELIGIBLE');
       }
       final row = await _db.rpc('create_audio_space', params: {
@@ -280,8 +252,7 @@ class _SpacesPageState extends State<SpacesPage> {
         'p_recording_enabled': recording,
         'p_listener_requests_enabled': true
       });
-      final map =
-          row is Map ? Map<String, dynamic>.from(row) : <String, dynamic>{};
+      final map = row is Map ? Map<String, dynamic>.from(row) : <String, dynamic>{};
       await _load();
       if (mounted && map['id'] != null) context.go('/spaces/${map['id']}');
       if (mounted) {
@@ -307,17 +278,15 @@ class _SpacesPageState extends State<SpacesPage> {
   Future<void> _openRecording(Map<String, dynamic> recording) async {
     final raw = '${recording['video_url'] ?? recording['audio_url'] ?? ''}';
     final uri = Uri.tryParse(raw);
-    if (uri == null ||
-        !{'https', 'http'}.contains(uri.scheme) ||
-        uri.host.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Recording URL is unavailable.')));
+    if (uri == null || !{'https', 'http'}.contains(uri.scheme) || uri.host.isEmpty) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Recording URL is unavailable.')));
       return;
     }
     final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!ok && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not open this recording.')));
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Could not open this recording.')));
     }
   }
 
@@ -357,8 +326,7 @@ class _SpacesPageState extends State<SpacesPage> {
         ),
         if (_loading)
           const Padding(
-              padding: EdgeInsets.all(20),
-              child: Center(child: CircularProgressIndicator())),
+              padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator())),
         if (_error != null)
           Padding(
               padding: const EdgeInsets.all(12),
@@ -366,20 +334,14 @@ class _SpacesPageState extends State<SpacesPage> {
                 Text(_error!),
                 TextButton(onPressed: _load, child: const Text('Retry'))
               ])),
-        if (!_loading &&
-            _tab != 'Recordings' &&
-            _spaces.isEmpty &&
-            _error == null)
+        if (!_loading && _tab != 'Recordings' && _spaces.isEmpty && _error == null)
           Padding(
               padding: const EdgeInsets.all(24),
               child: Center(
                   child: Text(_tab == 'Live'
                       ? 'No spaces are live right now.'
                       : 'No upcoming rooms yet. Prepare one to get started.'))),
-        if (!_loading &&
-            _tab == 'Recordings' &&
-            _recordings.isEmpty &&
-            _error == null)
+        if (!_loading && _tab == 'Recordings' && _recordings.isEmpty && _error == null)
           const Padding(
               padding: EdgeInsets.all(24),
               child: Center(child: Text('No recordings are available.'))),
@@ -400,26 +362,18 @@ class _SpacesPageState extends State<SpacesPage> {
         onTap: () => context.go('/spaces/$id'),
         child: Padding(
           padding: const EdgeInsets.all(14),
-          child:
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               CircleAvatar(
-                  backgroundImage:
-                      avatar.startsWith('http') ? NetworkImage(avatar) : null,
-                  child: avatar.startsWith('http')
-                      ? null
-                      : const Icon(Icons.person_outline_rounded)),
+                  backgroundImage: avatar.startsWith('http') ? NetworkImage(avatar) : null,
+                  child:
+                      avatar.startsWith('http') ? null : const Icon(Icons.person_outline_rounded)),
               const SizedBox(width: 10),
               Expanded(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                    Text(title,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w900, fontSize: 16)),
-                    Text('@${host['username'] ?? 'host'}',
-                        style: Theme.of(context).textTheme.bodySmall)
-                  ])),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                Text('@${host['username'] ?? 'host'}', style: Theme.of(context).textTheme.bodySmall)
+              ])),
               Chip(
                   label: Text(s['is_live'] == true ? 'LIVE' : 'UPCOMING'),
                   visualDensity: VisualDensity.compact),
@@ -427,13 +381,12 @@ class _SpacesPageState extends State<SpacesPage> {
             if ('${s['topic'] ?? ''}'.isNotEmpty)
               Padding(
                   padding: const EdgeInsets.only(top: 8),
-                  child: Text('${s['topic']}',
-                      style: const TextStyle(fontWeight: FontWeight.w700))),
+                  child:
+                      Text('${s['topic']}', style: const TextStyle(fontWeight: FontWeight.w700))),
             if ('${s['description'] ?? ''}'.isNotEmpty)
               Padding(
                   padding: const EdgeInsets.only(top: 6),
-                  child: Text('${s['description']}',
-                      maxLines: 3, overflow: TextOverflow.ellipsis)),
+                  child: Text('${s['description']}', maxLines: 3, overflow: TextOverflow.ellipsis)),
             const SizedBox(height: 8),
             Text(
                 '${s['listener_count'] ?? 0} listeners · ${s['category'] ?? 'general'} · ${s['scheduled_for'] ?? s['started_at'] ?? 'Not scheduled'}',
@@ -442,8 +395,7 @@ class _SpacesPageState extends State<SpacesPage> {
             Align(
                 alignment: Alignment.centerRight,
                 child: OutlinedButton(
-                    onPressed: () => context.go('/spaces/$id'),
-                    child: const Text('Room details'))),
+                    onPressed: () => context.go('/spaces/$id'), child: const Text('Room details'))),
           ]),
         ),
       ),
@@ -458,8 +410,7 @@ class _SpacesPageState extends State<SpacesPage> {
               style: const TextStyle(fontWeight: FontWeight.w800)),
           subtitle: Text('${r['created_at'] ?? ''} · ${r['duration'] ?? 0}s'),
           trailing: IconButton(
-              onPressed: () => _openRecording(r),
-              icon: const Icon(Icons.play_arrow_rounded)),
+              onPressed: () => _openRecording(r), icon: const Icon(Icons.play_arrow_rounded)),
         ),
       );
 
@@ -479,8 +430,7 @@ class _SpacesPageState extends State<SpacesPage> {
       child: ListView(padding: const EdgeInsets.all(14), children: [
         Row(children: [
           IconButton(
-              onPressed: () => context.go('/spaces'),
-              icon: const Icon(Icons.arrow_back_rounded)),
+              onPressed: () => context.go('/spaces'), icon: const Icon(Icons.arrow_back_rounded)),
           Expanded(
               child: Text('Space details',
                   style: Theme.of(context)
@@ -491,42 +441,37 @@ class _SpacesPageState extends State<SpacesPage> {
         Card(
             child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('${s['title']}',
-                          style: Theme.of(context)
-                              .textTheme
-                              .titleLarge
-                              ?.copyWith(fontWeight: FontWeight.w900)),
-                      Text(
-                          'Hosted by ${host['display_name'] ?? host['username'] ?? 'Testagram creator'}'),
-                      const SizedBox(height: 10),
-                      Text('${s['description'] ?? ''}'),
-                      if ('${s['topic'] ?? ''}'.isNotEmpty)
-                        Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Text('Topic: ${s['topic']}')),
-                      const SizedBox(height: 10),
-                      Text(
-                          '${s['listener_count'] ?? 0} listeners · ${s['category'] ?? 'general'}'),
-                      const SizedBox(height: 8),
-                      Text(s['is_live'] == true
-                          ? 'This room is marked live by the server.'
-                          : 'Scheduled: ${s['scheduled_for'] ?? 'Not scheduled'}'),
-                      const SizedBox(height: 12),
-                      const Text(
-                          'Audio transport gate: Flutter has not yet completed WebRTC signaling, remote audio playback, microphone permission recovery, and speaker/host media readiness checks. Live audio controls remain disabled rather than pretending the room is connected.',
-                          style: TextStyle(fontWeight: FontWeight.w600)),
-                      if (s['is_live'] == true)
-                        const Padding(
-                            padding: EdgeInsets.only(top: 8),
-                            child: Text(
-                                'Do not rely on this screen to listen or speak until the media gate is cleared.',
-                                style: TextStyle(
-                                    color: Colors.orange,
-                                    fontWeight: FontWeight.w800))),
-                    ]))),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('${s['title']}',
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w900)),
+                  Text(
+                      'Hosted by ${host['display_name'] ?? host['username'] ?? 'Testagram creator'}'),
+                  const SizedBox(height: 10),
+                  Text('${s['description'] ?? ''}'),
+                  if ('${s['topic'] ?? ''}'.isNotEmpty)
+                    Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Text('Topic: ${s['topic']}')),
+                  const SizedBox(height: 10),
+                  Text('${s['listener_count'] ?? 0} listeners · ${s['category'] ?? 'general'}'),
+                  const SizedBox(height: 8),
+                  Text(s['is_live'] == true
+                      ? 'This room is marked live by the server.'
+                      : 'Scheduled: ${s['scheduled_for'] ?? 'Not scheduled'}'),
+                  const SizedBox(height: 12),
+                  const Text(
+                      'Audio transport gate: Flutter has not yet completed WebRTC signaling, remote audio playback, microphone permission recovery, and speaker/host media readiness checks. Live audio controls remain disabled rather than pretending the room is connected.',
+                      style: TextStyle(fontWeight: FontWeight.w600)),
+                  if (s['is_live'] == true)
+                    const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text(
+                            'Do not rely on this screen to listen or speak until the media gate is cleared.',
+                            style: TextStyle(color: Colors.orange, fontWeight: FontWeight.w800))),
+                ]))),
         if (_recordings.isNotEmpty)
           Padding(
               padding: const EdgeInsets.symmetric(vertical: 12),
@@ -553,8 +498,7 @@ class _SpacesPageState extends State<SpacesPage> {
     return ListView(padding: const EdgeInsets.all(14), children: [
       Row(children: [
         IconButton(
-            onPressed: () => context.go('/spaces'),
-            icon: const Icon(Icons.arrow_back_rounded)),
+            onPressed: () => context.go('/spaces'), icon: const Icon(Icons.arrow_back_rounded)),
         Expanded(
             child: Text('Space recording',
                 style: Theme.of(context)
@@ -565,27 +509,25 @@ class _SpacesPageState extends State<SpacesPage> {
       Card(
           child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(Icons.headphones_rounded, size: 48),
-                    const SizedBox(height: 12),
-                    Text('${recording['title'] ?? 'Space recording'}',
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleLarge
-                            ?.copyWith(fontWeight: FontWeight.w900)),
-                    const SizedBox(height: 8),
-                    Text('Created: ${recording['created_at'] ?? '—'}'),
-                    Text('Duration: ${recording['duration'] ?? 0} seconds'),
-                    if (recording['expires_at'] != null)
-                      Text('Available until: ${recording['expires_at']}'),
-                    const SizedBox(height: 14),
-                    FilledButton.icon(
-                        onPressed: () => _openRecording(recording),
-                        icon: const Icon(Icons.play_arrow_rounded),
-                        label: const Text('Open recording')),
-                  ]))),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Icon(Icons.headphones_rounded, size: 48),
+                const SizedBox(height: 12),
+                Text('${recording['title'] ?? 'Space recording'}',
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w900)),
+                const SizedBox(height: 8),
+                Text('Created: ${recording['created_at'] ?? '—'}'),
+                Text('Duration: ${recording['duration'] ?? 0} seconds'),
+                if (recording['expires_at'] != null)
+                  Text('Available until: ${recording['expires_at']}'),
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                    onPressed: () => _openRecording(recording),
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    label: const Text('Open recording')),
+              ]))),
     ]);
   }
 }

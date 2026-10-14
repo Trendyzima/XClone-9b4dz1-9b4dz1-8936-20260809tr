@@ -75,8 +75,7 @@ class _PostAnalyticsPageState extends State<PostAnalyticsPage> {
       }
       if (target == null) {
         setState(
-          () => _error =
-              'That post is unavailable or is not owned by this account.',
+          () => _error = 'That post is unavailable or is not owned by this account.',
         );
         return;
       }
@@ -124,20 +123,15 @@ class _PostAnalyticsPageState extends State<PostAnalyticsPage> {
         return;
       }
       setState(() {
-        _analytics = result[0] == null
-            ? null
-            : Map<String, dynamic>.from(result[0] as Map);
-        _earnings = (result[1] as List)
-            .map((r) => Map<String, dynamic>.from(r))
-            .toList();
+        _analytics = result[0] == null ? null : Map<String, dynamic>.from(result[0] as Map);
+        _earnings = (result[1] as List).map((r) => Map<String, dynamic>.from(r)).toList();
         _detailLoading = false;
       });
     } catch (_) {
       if (mounted) {
         setState(() {
           _detailLoading = false;
-          _error =
-              'Detailed metrics are unavailable. Basic post counters are still shown.';
+          _error = 'Detailed metrics are unavailable. Basic post counters are still shown.';
         });
       }
     }
@@ -393,10 +387,7 @@ class _StoryAnalyticsPageState extends State<StoryAnalyticsPage> {
       Map<String, int> recentCounts = {};
       if (ids.isNotEmpty) {
         try {
-          final since = DateTime.now()
-              .subtract(const Duration(days: 7))
-              .toUtc()
-              .toIso8601String();
+          final since = DateTime.now().subtract(const Duration(days: 7)).toUtc().toIso8601String();
           final views = await _db
               .from('story_views')
               .select('story_id,viewer_id,viewed_at')
@@ -417,8 +408,7 @@ class _StoryAnalyticsPageState extends State<StoryAnalyticsPage> {
       setState(() {
         _stories = stories.map((story) {
           final raw = story['metadata'];
-          final metadata =
-              raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
+          final metadata = raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
           return {
             ...story,
             'views_total': int.tryParse('${metadata['views_count'] ?? 0}') ?? 0,
@@ -446,10 +436,7 @@ class _StoryAnalyticsPageState extends State<StoryAnalyticsPage> {
     final theme = Theme.of(context);
     final active = _stories
         .where(
-          (s) =>
-              DateTime.tryParse('${s['expires_at'] ?? ''}')
-                  ?.isAfter(DateTime.now()) ==
-              true,
+          (s) => DateTime.tryParse('${s['expires_at'] ?? ''}')?.isAfter(DateTime.now()) == true,
         )
         .length;
     return RefreshIndicator(
@@ -547,8 +534,7 @@ class _StoryAnalyticsPageState extends State<StoryAnalyticsPage> {
               const SizedBox(height: 6),
               Text(
                 value,
-                style:
-                    const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+                style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
               ),
               Text(label, style: const TextStyle(fontSize: 12)),
             ],
