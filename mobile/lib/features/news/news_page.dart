@@ -88,7 +88,7 @@ class _NewsPageState extends State<NewsPage> {
         const Text('Trending stories from Testagram’s cached news feed.'),
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
-            value: _geo,
+            initialValue: _geo,
             decoration: const InputDecoration(labelText: 'Region'),
             items: const [
               DropdownMenuItem(value: 'KE', child: Text('Kenya')),

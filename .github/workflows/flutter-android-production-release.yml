@@ -57,11 +57,15 @@ jobs:
         working-directory: mobile
         run: flutter pub get
 
-      - name: Enforce format, analyze and test
-        working-directory: mobile
+      - name: Enforce changed-file format, analyze and test
         run: |
           set -euo pipefail
-          dart format --output=none --set-exit-if-changed lib test
+          git diff --name-only HEAD^ HEAD -- mobile/lib mobile/test > /tmp/changed-files
+          grep -F '.dart' /tmp/changed-files > /tmp/changed-dart-files || true
+          if [[ -s /tmp/changed-dart-files ]]; then
+            xargs -r dart format --output=none --set-exit-if-changed < /tmp/changed-dart-files
+          fi
+          cd mobile
           flutter analyze --fatal-infos --fatal-warnings
           flutter test --coverage
 

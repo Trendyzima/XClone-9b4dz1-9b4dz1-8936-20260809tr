@@ -507,7 +507,7 @@ class _ShoppingMallPageState extends State<ShoppingMallPage> {
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: delivery,
+                  initialValue: delivery,
                   decoration: const InputDecoration(
                     labelText: 'Delivery option',
                   ),

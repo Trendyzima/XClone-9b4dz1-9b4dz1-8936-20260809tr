@@ -68,10 +68,10 @@ A feature is accepted only after web and Android behavior, backend contract, per
 
 ## Android distribution variants
 
-- Use `--flavor production` for normal developer/production builds.
-- Use `--flavor fdroid` only for the unsigned F-Droid candidate build. F-Droid must sign its own published APK.
-- The two variants intentionally use the same `com.xclone.app` application ID, so they cannot be installed side-by-side.
-- The F-Droid flavor is a packaging boundary, not proof of F-Droid compliance. Audit the full dependency tree, third-party assets, hosted services and embedded content before submission. Do not add proprietary advertising or tracking SDKs to this flavor.
+- Use `--flavor production` for normal developer and production builds.
+- Use `--flavor fdroid` only for the unsigned F-Droid candidate build. F-Droid signs its own published APK.
+- Both variants preserve `com.xclone.app`, so they cannot be installed side-by-side.
+- A separate flavor is not proof of FOSS compliance; dependencies, assets, backend services and embedded content still require review.
 
 ## Android release rule
 

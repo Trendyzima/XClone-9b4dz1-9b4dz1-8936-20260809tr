@@ -139,7 +139,7 @@ class _ProductsPageState extends State<ProductsPage> {
                   decoration: const InputDecoration(labelText: 'Quantity')),
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
-                value: delivery,
+                initialValue: delivery,
                 decoration: const InputDecoration(labelText: 'Delivery'),
                 items: [
                   const DropdownMenuItem(
@@ -285,7 +285,7 @@ class _ProductsPageState extends State<ProductsPage> {
                         icon: const Icon(Icons.close_rounded)))),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-                value: _sort,
+                initialValue: _sort,
                 decoration: const InputDecoration(labelText: 'Sort'),
                 items: const [
                   DropdownMenuItem(

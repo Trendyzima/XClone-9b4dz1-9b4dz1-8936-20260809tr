@@ -44,21 +44,16 @@ jobs:
         run: git diff --exit-code -- mobile/pubspec.lock
 
       - name: Enforce formatting for changed Dart files
-        env:
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          if [[ -z "$PR_BASE_SHA" || "$PR_BASE_SHA" =~ ^0+$ ]]; then
-            PR_BASE_SHA="$(git rev-parse HEAD^)"
-          fi
-          git diff --name-only "$PR_BASE_SHA" "$PR_HEAD_SHA" -- mobile/lib mobile/test > /tmp/changed-files
+          git diff --name-only origin/main "$GITHUB_SHA" -- mobile/lib mobile/test > /tmp/changed-files
           grep -F '.dart' /tmp/changed-files > /tmp/changed-dart-files || true
           if [[ ! -s /tmp/changed-dart-files ]]; then
             echo "No Dart source or test files changed; skipping formatter check for unrelated legacy files."
           else
             xargs -r dart format --output=none --set-exit-if-changed < /tmp/changed-dart-files
           fi
+
       - name: Analyze and test candidate source
         working-directory: mobile
         run: |

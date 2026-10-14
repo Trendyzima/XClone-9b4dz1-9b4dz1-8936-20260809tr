@@ -17,6 +17,7 @@ on:
       - 'scripts/validate-shopping-mall-contract.mjs'
       - 'supabase/migrations/20261014125029_marketplace_public_category_projection.sql'
       - 'scripts/validate-appeals-reports-contract.mjs'
+      - 'scripts/validate-unified-search-contract.mjs'
       - 'scripts/validate-flutter-route-progress.mjs'
       - '.github/workflows/flutter-clients.yml'
   push:
@@ -35,6 +36,7 @@ on:
       - 'scripts/validate-shopping-mall-contract.mjs'
       - 'supabase/migrations/20261014125029_marketplace_public_category_projection.sql'
       - 'scripts/validate-appeals-reports-contract.mjs'
+      - 'scripts/validate-unified-search-contract.mjs'
       - 'scripts/validate-flutter-route-progress.mjs'
       - 'docs/flutter-migration-release-gates.md'
       - '.github/workflows/flutter-clients.yml'
@@ -53,8 +55,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
       - uses: actions/setup-node@v5
         with:
           node-version: '22'
@@ -63,6 +63,7 @@ jobs:
       - run: node scripts/validate-sports-hub-contract.mjs
       - run: node scripts/validate-shopping-mall-contract.mjs
       - run: node scripts/validate-appeals-reports-contract.mjs
+      - run: node scripts/validate-unified-search-contract.mjs
       - name: Regenerate and verify Flutter route parity
         run: |
           node scripts/update-flutter-route-parity.mjs
@@ -111,13 +112,9 @@ jobs:
       - name: Enforce formatting for Dart files changed in this PR
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
-          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          if [[ -z "$PR_BASE_SHA" || "$PR_BASE_SHA" =~ ^0+$ ]]; then
-            PR_BASE_SHA="$(git rev-parse HEAD^)"
-          fi
-          git diff --name-only "$PR_BASE_SHA" "$PR_HEAD_SHA" -- mobile/lib mobile/test > /tmp/changed-files
+          git diff --name-only origin/main "$GITHUB_SHA" -- mobile/lib mobile/test > /tmp/changed-files
           grep -F '.dart' /tmp/changed-files > /tmp/changed-dart-files || true
           if [[ ! -s /tmp/changed-dart-files ]]; then
             echo "No Dart source or test files changed; skipping formatter check for unrelated legacy files."
@@ -171,6 +168,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: testagram-flutter-android-debug-${{ github.sha }}
-          path: mobile/build/app/outputs/flutter-apk/app-production-debug.apk
+          path: mobile/build/app/outputs/flutter-apk/app-debug.apk
           if-no-files-found: error
           retention-days: 14
