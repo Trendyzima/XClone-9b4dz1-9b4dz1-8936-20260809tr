@@ -42,10 +42,10 @@ export default function SearchPageV3(){
   const remoteRows=raw.startsWith('#')?(remote.hashtags??[]):(remote.users??[]);
   if(raw.startsWith('#')){
    const seen=new Set((next.hashtags??[]).map((h:any)=>String(h.tag??h.name).replace(/^#/,'').toLowerCase()));
-   next.hashtags=[...(next.hashtags??[]),...remoteRows.filter((h:any)=>{const name=String(h.tag??h.name??'').replace(/^#/,'').toLowerCase();return name&&!seen.has(name)}).map((h:any)=>({...h,tag:String(h.tag??h.name).replace(/^#/,'').toLowerCase(),is_federated:true}))];
+   next.hashtags=[...(next.hashtags??[]),...remoteRows.filter((h:any)=>{const name=String(h.tag??h.name??'').replace(/^#/,'').toLowerCase();return !!name&&!seen.has(name)&&seen.add(name)}).map((h:any)=>({...h,tag:String(h.tag??h.name).replace(/^#/,'').toLowerCase(),is_federated:true}))];
   }else{
    const seen=new Set((next.users??[]).map((p:any)=>String(p.username??'').toLowerCase()));
-   next.users=[...(next.users??[]),...remoteRows.filter((a:any)=>{const name=String(a.username??a.preferredUsername??'').toLowerCase();return name&&!seen.has(name)}).map((a:any)=>({...a,origin:'fediverse'}))].slice(0,8);
+   next.users=[...(next.users??[]),...remoteRows.filter((a:any)=>{const name=String(a.username??a.preferredUsername??'').toLowerCase();return !!name&&!seen.has(name)&&seen.add(name)}).map((a:any)=>({...a,origin:'fediverse'}))].slice(0,8);
   }
  }catch(e){console.debug('[fediverse-suggest]',e)}
 }setSuggest(next)}catch(e){console.debug('[search-suggest]',e)}finally{setSuggestLoading(false)}};
@@ -60,7 +60,7 @@ const run=async(q=query,nextTab=tab,append=false)=>{if(!q.trim())return;const cl
    const cachedFedPosts=remoteRows.map((p:any)=>({...p,id:p.id??p.uri,uri:p.uri,user_id:p.actor_uri,author_id:p.actor_uri,created_at:p.published_at??p.updated_at,content:p.content??p.summary??'',remote_status_uri:p.uri,user_profiles:p.remote_account??{actor_uri:p.actor_uri,username:'unknown',display_name:p.remote_account?.display_name??p.remote_account?.name??p.remote_account?.preferredUsername??p.remote_account?.username??p.actor_uri,avatar_url:null},is_federated:true}));
    setData(r);
    setFediversePosts(cachedFedPosts);
-   setHasMore(false);
+   setHasMore(Boolean(unified.next_cursor));
    {
     try{
      const discoveryKind=clean.startsWith('#')?'hashtags':clean.startsWith('@')||nextTab==='People'?'people':nextTab==='Fediverse'?'posts':'all';
@@ -73,12 +73,12 @@ const run=async(q=query,nextTab=tab,append=false)=>{if(!q.trim())return;const cl
        return {...prev,hashtags:[...(prev.hashtags??[]),...liveHashtags.filter((h:any)=>{const k=String(h.tag??h.name??'').replace(/^#/,'').toLowerCase();return k&&!seen.has(k)&&seen.add(k);})]};
      });
      if(liveUsers.length) setFediverse(prev=>{
-       const seen=new Set(prev.map((a:any)=>String(a.actor_url??a.id??a.username??'').toLowerCase()));
+       const seen=new Set([...prev,...(data.users??[])].map((a:any)=>String(a.actor_url??a.actor_uri??a.id??a.username??'').toLowerCase()));
        const rows=liveUsers.map((a:any)=>({actor_url:a.actor_url??a.url??a.id,username:a.username??a.preferredUsername??a.name,domain:a.domain??a.acct?.split('@')[1],display_name:a.display_name??a.name,bio:a.bio??a.note??a.summary,avatar_url:a.avatar_url??a.avatar,origin:'fediverse'})).filter((a:any)=>a.username);
-       return [...prev,...rows.filter((a:any)=>{const k=String(a.actor_url??a.username).toLowerCase();return !seen.has(k)&&seen.add(k);})];
+       return [...prev,...rows.filter((a:any)=>{const k=String(a.actor_url??a.actor_uri??a.id??a.username).toLowerCase();return !!k&&!seen.has(k)&&seen.add(k);})];
      });
      if(livePosts.length) setFediversePosts(prev=>{
-       const seen=new Set(prev.map((p:any)=>String(p.uri??p.remote_status_uri??p.id)));
+       const seen=new Set([...prev,...(data.posts??[])].map((p:any)=>String(p.uri??p.remote_status_uri??p.id)));
        const rows=livePosts.map((p:any)=>({
         ...p,
         id:p.id??p.uri??p.url,
@@ -97,7 +97,7 @@ const run=async(q=query,nextTab=tab,append=false)=>{if(!q.trim())return;const cl
         is_federated:true,
         origin:'fediverse'
        }));
-       return [...prev,...rows.filter((p:any)=>{const k=String(p.uri??p.id);return !seen.has(k)&&seen.add(k);})];
+       return [...prev,...rows.filter((p:any)=>{const k=String(p.uri??p.remote_status_uri??p.url??p.id);return !!k&&!seen.has(k)&&seen.add(k);})];
      });
     }catch(e){
      console.debug('[fediverse-live-search]',e);
@@ -106,7 +106,7 @@ const run=async(q=query,nextTab=tab,append=false)=>{if(!q.trim())return;const cl
   }catch(e){
    const code=e instanceof CapabilityClientError?e.code:'';
    if(code==='RATE_LIMITED') toast.error('Search is rate limited briefly. Try again in a moment.');
-   else if(code==='AUTH_REQUIRED') toast.error('Your session is missing or expired. Sign in again to search Testagram.');
+   else if(code==='AUTH_REQUIRED') toast.error('Your session has expired. Sign in again to search Testagram.',{id:'unified-search-auth-required'});
    else if(code==='TIMEOUT') toast.error('Search took too long. Check your connection and retry.');
    else if(code==='NETWORK_ERROR') toast.error('Could not reach Testagram search. Check your connection and retry.');
    else toast.error('Search could not be completed. Please retry. If this continues, the search service needs investigation.');
