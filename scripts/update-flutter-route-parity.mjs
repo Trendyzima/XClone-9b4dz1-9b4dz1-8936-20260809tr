@@ -43,6 +43,9 @@ if (declarations.length < 100 || unique.length < 100 || native.size < 1) {
   throw new Error('Route extraction looks incomplete: ' + declarations.length + ' declarations, ' + unique.length + ' unique source routes, ' + native.size + ' Flutter routes.');
 }
 const routeNotes = {
+  '/appeals': "Dedicated Flutter appeal workflow reads only the signed-in user's appeal history and uses server-side RPCs for submission and owner-only review. Review decisions, restriction lifting, inbox response, and audit logging are atomic on the backend; Web/Android acceptance and live RLS/RPC smoke tests remain required.",
+  '/regulator/reports': 'Dedicated owner-only Flutter platform report queue reads post_reports through testagram_list_platform_reports and resolves/dismisses through a server-authorized, audited RPC; no direct client moderation mutations. Web/Android acceptance and live backend smoke tests remain required.',
+
   '/platform-inbox': 'Dedicated Flutter Wise Brain inbox uses the authenticated platform_inbox table and generate_platform_inbox_digest RPC, with pagination, filters, read/delete actions and internal-route CTA validation. Full web/Android and backend acceptance remains required.',
   '/admin/staff-recruitment': 'Dedicated Flutter owner-only recruitment console uses testagram_is_owner, testagram_list_job_applications, testagram_review_job_application, and testagram_invite_admin RPCs. Invitation is shown only for accepted applications; privileged session and all authorization remain server-enforced. Full Web/Android acceptance remains required.',
   '/admin/seo': 'Dedicated Flutter owner-only SEO audit mirrors the checked-in SEO coverage manifest and probes the live community-sitemap endpoint. The declared route score is explicitly not a live HTML crawl; full Web/Android acceptance remains required.',

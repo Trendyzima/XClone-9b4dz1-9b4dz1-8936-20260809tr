@@ -107,6 +107,7 @@ const initialProgress = new Map([
   ['fediverse', 'in_progress'],
   ['commerce_and_wallet', 'in_progress'],
   ['creator_tools', 'in_progress'],
+  ['administration_and_safety', 'in_progress'],
 ]);
 const inventory = {
   schema_version: 1,
@@ -122,6 +123,7 @@ const inventory = {
       ...(previousDomains.get(id)?.acceptance ?? ['positive path', 'unauthenticated/permission path', 'offline/timeout recovery', 'accessibility and responsive layout', 'web and Android tests']),
       ...(initialProgress.has(id) ? ['Flutter implementation exists; end-to-end production parity is not yet accepted'] : []),
       ...(id === 'search_and_discovery' ? ['Native Flutter Sports Hub connects to the existing testagram-sports and testagram-rss-feed Edge Functions; route/contract/policy checks exist, but live provider smoke tests and Web/Android journey acceptance remain required'] : []),
+      ...(id === 'administration_and_safety' ? ['Native Flutter appeal submission/history and owner-only platform report review now use server-side authorization RPCs with audit logging; migration must be applied and live authorization/rollback plus Web/Android acceptance remain required'] : []),
     ])],
   })),
   sources,
