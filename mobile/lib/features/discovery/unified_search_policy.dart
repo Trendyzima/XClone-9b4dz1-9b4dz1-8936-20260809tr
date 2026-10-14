@@ -12,6 +12,7 @@ class UnifiedSearchPolicy {
     'Threads': 'threads',
     'Communities': 'communities',
     'Fediverse': 'fediverse',
+    'Instances': 'instances',
   };
 
   static Map<String, dynamic> normalize(Object? value) {
@@ -25,6 +26,7 @@ class UnifiedSearchPolicy {
         'communities',
         'replies',
         'fediverse',
+        'instances',
       ])
         key: raw[key] is List
             ? (raw[key] as List)
@@ -74,6 +76,7 @@ class UnifiedSearchPolicy {
       'communities',
       'replies',
       'fediverse',
+      'instances',
     ]) {
       final rows = <Map<String, dynamic>>[];
       final seen = <String>{};
@@ -155,6 +158,8 @@ class UnifiedSearchPolicy {
         return 'communities';
       case 'Fediverse':
         return 'fediverse';
+      case 'Instances':
+        return 'instances';
       default:
         return 'all';
     }
