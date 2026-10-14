@@ -89,8 +89,9 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
         );
       }
     } finally {
-      if (mounted && generation == _generation)
+      if (mounted && generation == _generation) {
         setState(() => _loading = false);
+      }
     }
   }
 
