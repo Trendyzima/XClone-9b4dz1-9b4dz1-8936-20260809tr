@@ -6,6 +6,7 @@ import '../core/config/app_config.dart';
 import '../core/auth/auth_redirect_policy.dart';
 import '../core/theme/testagram_theme.dart';
 import '../features/auth/auth_page.dart';
+import '../features/explore/explore_page.dart';
 import '../features/feed/feed_page.dart';
 import '../features/feed/post_detail_page.dart';
 import '../features/feed/post_interaction_page.dart';
