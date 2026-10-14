@@ -25,7 +25,10 @@ class TvChannelCachePolicy {
   static bool isPublicCacheUrl(Object? raw) {
     if (raw is! String || raw.trim().isEmpty) return false;
     final uri = Uri.tryParse(raw.trim());
-    if (uri == null || uri.scheme != 'https' || uri.host.isEmpty || uri.userInfo.isNotEmpty) {
+    if (uri == null ||
+        uri.scheme != 'https' ||
+        uri.host.isEmpty ||
+        uri.userInfo.isNotEmpty) {
       return false;
     }
     for (final key in uri.queryParameters.keys) {
@@ -46,13 +49,15 @@ class TvChannelCachePolicy {
     return true;
   }
 
-  static List<Map<String, dynamic>> sanitizeChannels(Iterable<Map<String, dynamic>> channels) {
+  static List<Map<String, dynamic>> sanitizeChannels(
+      Iterable<Map<String, dynamic>> channels) {
     final output = <Map<String, dynamic>>[];
     final seen = <String>{};
     for (final channel in channels) {
       if (channel['_sourceType'] != 'catalog') continue;
-      final url = '${channel['playback_url'] ?? channel['stream_url'] ?? channel['url'] ?? ''}'
-          .trim();
+      final url =
+          '${channel['playback_url'] ?? channel['stream_url'] ?? channel['url'] ?? ''}'
+              .trim();
       if (!isPublicCacheUrl(url)) continue;
       final id = '${channel['id'] ?? url}';
       if (!seen.add(id)) continue;
@@ -61,7 +66,8 @@ class TvChannelCachePolicy {
         'id': id,
         'title': '${channel['title'] ?? channel['name'] ?? 'Live channel'}',
         'name': '${channel['name'] ?? channel['title'] ?? 'Live channel'}',
-        'description': '${channel['description'] ?? channel['category'] ?? 'Public live channel'}',
+        'description':
+            '${channel['description'] ?? channel['category'] ?? 'Public live channel'}',
         'thumbnail_url': isPublicCacheUrl(thumbnail) ? thumbnail : null,
         'playback_url': url,
         'stream_url': url,
@@ -75,7 +81,8 @@ class TvChannelCachePolicy {
     return output;
   }
 
-  static String? encode(Iterable<Map<String, dynamic>> channels, {DateTime? now}) {
+  static String? encode(Iterable<Map<String, dynamic>> channels,
+      {DateTime? now}) {
     final safe = sanitizeChannels(channels);
     if (safe.isEmpty) return null;
     final encoded = jsonEncode({
@@ -92,13 +99,16 @@ class TvChannelCachePolicy {
     }
     try {
       final decoded = jsonDecode(raw);
-      if (decoded is! Map || decoded['savedAt'] is! num || decoded['channels'] is! List) {
+      if (decoded is! Map ||
+          decoded['savedAt'] is! num ||
+          decoded['channels'] is! List) {
         return const [];
       }
       final current = (now ?? DateTime.now()).toUtc().millisecondsSinceEpoch;
       final savedAt = (decoded['savedAt'] as num).toInt();
       final age = current - savedAt;
-      if (age < -const Duration(minutes: 5).inMilliseconds || age > maxAge.inMilliseconds) {
+      if (age < -const Duration(minutes: 5).inMilliseconds ||
+          age > maxAge.inMilliseconds) {
         return const [];
       }
       final rows = (decoded['channels'] as List)
