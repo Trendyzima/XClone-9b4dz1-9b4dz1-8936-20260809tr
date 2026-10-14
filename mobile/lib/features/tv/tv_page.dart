@@ -21,12 +21,7 @@ import 'tv_stream_prefetch.dart';
 import '../feed/sponsored_ad_service.dart';
 
 class TvPage extends StatefulWidget {
-  const TvPage({
-    super.key,
-    this.title = 'TikVTV',
-    this.initialVerticalMode = true,
-    this.streamId,
-  });
+  const TvPage({super.key, this.title = 'TikVTV', this.initialVerticalMode = true, this.streamId});
 
   final String title;
   final bool initialVerticalMode;
@@ -61,9 +56,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
   SponsoredAd? _tvSponsoredAd;
   bool _tvAdRequestedForGeneration = false;
   VideoPlayerController? _lifecyclePausedPlayer;
-  late final SponsoredAdService _adService = SponsoredAdService.forClient(
-    _client,
-  );
+  late final SponsoredAdService _adService = SponsoredAdService.forClient(_client);
   SupabaseClient get _client => Supabase.instance.client;
 
   @override
@@ -80,9 +73,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
 
     if (tvShouldPauseForLifecycle(state)) {
       final player = _player;
-      if (player != null &&
-          player.value.isInitialized &&
-          player.value.isPlaying) {
+      if (player != null && player.value.isInitialized && player.value.isPlaying) {
         _lifecyclePausedPlayer = player;
         unawaited(_pauseNativePlayer(player));
       }
@@ -178,9 +169,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
   Future<List<Map<String, dynamic>>> _loadCatalogSource(String sourceId) async {
     try {
       final base = Uri.parse(AppConfig.supabaseUrl);
-      final uri = Uri.https(base.host, '/functions/v1/tv-catalog', {
-        'source': sourceId,
-      });
+      final uri = Uri.https(base.host, '/functions/v1/tv-catalog', {'source': sourceId});
       final response = await http
           .get(uri, headers: const {'Accept': 'application/json'})
           .timeout(const Duration(seconds: 18));
@@ -242,8 +231,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
     bool sameOrder(List<Map<String, dynamic>> a, List<Map<String, dynamic>> b) {
       if (a.length != b.length) return false;
       for (var i = 0; i < a.length; i++) {
-        if ('${a[i]['id'] ?? _streamUrl(a[i])}' !=
-            '${b[i]['id'] ?? _streamUrl(b[i])}') {
+        if ('${a[i]['id'] ?? _streamUrl(a[i])}' != '${b[i]['id'] ?? _streamUrl(b[i])}') {
           return false;
         }
       }
@@ -263,24 +251,17 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
       _error = null;
     });
     try {
-      _loadedCatalogSourceCount = widget.streamId == null
-          ? _initialSourceCount
-          : 0;
+      _loadedCatalogSourceCount = widget.streamId == null ? _initialSourceCount : 0;
       // Restore the last public catalogue before waiting for the network. This
       // makes the vertical feed useful immediately on repeat visits/offline.
       await _restoreCachedCatalog();
       if (!mounted || loadGeneration != _catalogLoadGeneration) return;
       final catalogFuture = widget.streamId == null
-          ? Future.wait(
-              _catalogSources.take(_initialSourceCount).map(_loadCatalogSource),
-            )
+          ? Future.wait(_catalogSources.take(_initialSourceCount).map(_loadCatalogSource))
           : Future.value(<List<Map<String, dynamic>>>[]);
       final liveFuture = () async {
         try {
-          final query = _client
-              .from('live_streams')
-              .select('*')
-              .eq('is_live', true);
+          final query = _client.from('live_streams').select('*').eq('is_live', true);
           final rows = widget.streamId == null
               ? await query
                     .order('started_at', ascending: false)
@@ -292,9 +273,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                     .timeout(const Duration(seconds: 15));
           return rows
               .map(
-                (row) =>
-                    Map<String, dynamic>.from(row as Map)
-                      ..['_sourceType'] = 'testagram-live',
+                (row) => Map<String, dynamic>.from(row as Map)..['_sourceType'] = 'testagram-live',
               )
               .toList();
         } catch (_) {
@@ -321,9 +300,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
           final selectedId = '${_selected?['id'] ?? ''}';
           final selectedIndex = selectedId.isEmpty
               ? -1
-              : catalogChannels.indexWhere(
-                  (channel) => '${channel['id'] ?? ''}' == selectedId,
-                );
+              : catalogChannels.indexWhere((channel) => '${channel['id'] ?? ''}' == selectedId);
           if (selectedIndex >= 0) {
             _activeIndex = selectedIndex;
           } else {
@@ -337,8 +314,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
         unawaited(_persistCachedCatalog(catalogChannels));
         if (_selected != null && _feedPageController.hasClients) {
           final selectedIndex = catalogChannels.indexWhere(
-            (channel) =>
-                '${channel['id'] ?? ''}' == '${_selected?['id'] ?? ''}',
+            (channel) => '${channel['id'] ?? ''}' == '${_selected?['id'] ?? ''}',
           );
           if (selectedIndex >= 0) _feedPageController.jumpToPage(selectedIndex);
         }
@@ -369,9 +345,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
           final selectedId = '${_selected?['id'] ?? ''}';
           final selectedIndex = selectedId.isEmpty
               ? -1
-              : merged.indexWhere(
-                  (channel) => '${channel['id'] ?? ''}' == selectedId,
-                );
+              : merged.indexWhere((channel) => '${channel['id'] ?? ''}' == selectedId);
           if (selectedIndex >= 0) {
             _activeIndex = selectedIndex;
           } else {
@@ -382,8 +356,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
         unawaited(_persistCachedCatalog(merged));
         if (_selected != null && _feedPageController.hasClients) {
           final selectedIndex = merged.indexWhere(
-            (channel) =>
-                '${channel['id'] ?? ''}' == '${_selected?['id'] ?? ''}',
+            (channel) => '${channel['id'] ?? ''}' == '${_selected?['id'] ?? ''}',
           );
           if (selectedIndex >= 0) _feedPageController.jumpToPage(selectedIndex);
         }
@@ -394,9 +367,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
         }
         final requestedId = widget.streamId;
         if (requestedId != null && requestedId.isNotEmpty) {
-          final index = merged.indexWhere(
-            (channel) => '${channel['id'] ?? ''}' == requestedId,
-          );
+          final index = merged.indexWhere((channel) => '${channel['id'] ?? ''}' == requestedId);
           if (index >= 0) {
             _activeIndex = index;
             unawaited(_play(merged[index]));
@@ -410,7 +381,9 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
     } catch (_) {
       if (mounted && loadGeneration == _catalogLoadGeneration) {
         setState(
-          () => _error = _channels.isNotEmpty ? null : 'TV channels could not be loaded. Check your connection and retry.',
+          () => _error = _channels.isNotEmpty
+              ? null
+              : 'TV channels could not be loaded. Check your connection and retry.',
         );
       }
     } finally {
@@ -421,15 +394,10 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
   }
 
   Future<void> _restoreCachedCatalog() async {
-    if (_cacheRestoreAttempted ||
-        widget.streamId != null ||
-        _channels.isNotEmpty)
-      return;
+    if (_cacheRestoreAttempted || widget.streamId != null || _channels.isNotEmpty) return;
     _cacheRestoreAttempted = true;
     try {
-      final preferences = await SharedPreferences.getInstance().timeout(
-        const Duration(seconds: 2),
-      );
+      final preferences = await SharedPreferences.getInstance().timeout(const Duration(seconds: 2));
       final cached = TvChannelCachePolicy.decode(
         preferences.getString(TvChannelCachePolicy.cacheKey),
       );
@@ -448,15 +416,11 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _persistCachedCatalog(
-    List<Map<String, dynamic>> channels,
-  ) async {
+  Future<void> _persistCachedCatalog(List<Map<String, dynamic>> channels) async {
     try {
       final encoded = TvChannelCachePolicy.encode(channels);
       if (encoded == null) return;
-      final preferences = await SharedPreferences.getInstance().timeout(
-        const Duration(seconds: 2),
-      );
+      final preferences = await SharedPreferences.getInstance().timeout(const Duration(seconds: 2));
       await preferences
           .setString(TvChannelCachePolicy.cacheKey, encoded)
           .timeout(const Duration(seconds: 2));
@@ -499,8 +463,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
     for (final row in [...existing, ...rows]) {
       final id = '${row['id'] ?? ''}';
       final url = _streamUrl(row).toLowerCase();
-      if ((id.isNotEmpty && !seenIds.add(id)) ||
-          (url.isNotEmpty && !seenUrls.add(url))) {
+      if ((id.isNotEmpty && !seenIds.add(id)) || (url.isNotEmpty && !seenUrls.add(url))) {
         continue;
       }
       merged.add(row);
@@ -526,16 +489,11 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
       setState(() {
         // Keep existing page indices stable: new catalogue sources append after
         // the current feed instead of reshuffling the page under the viewer.
-        _channels = _dedupeChannels(
-          groups.expand((group) => group).toList(),
-          existing: _channels,
-        );
+        _channels = _dedupeChannels(groups.expand((group) => group).toList(), existing: _channels);
         final selectedId = '${_selected?['id'] ?? ''}';
         final selectedIndex = selectedId.isEmpty
             ? -1
-            : _channels.indexWhere(
-                (channel) => '${channel['id'] ?? ''}' == selectedId,
-              );
+            : _channels.indexWhere((channel) => '${channel['id'] ?? ''}' == selectedId);
         if (selectedIndex >= 0) _activeIndex = selectedIndex;
       });
       unawaited(_persistCachedCatalog(_channels));
@@ -572,15 +530,9 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
 
     for (final adjacentIndex in <int>[index - 1, index + 1]) {
       if (adjacentIndex < 0 || adjacentIndex >= _channels.length) continue;
-      final thumbnail = '${_channels[adjacentIndex]['thumbnail_url'] ?? ''}'
-          .trim();
+      final thumbnail = '${_channels[adjacentIndex]['thumbnail_url'] ?? ''}'.trim();
       if (thumbnail.startsWith('https://') || thumbnail.startsWith('http://')) {
-        unawaited(
-          precacheImage(
-            CachedNetworkImageProvider(thumbnail),
-            context,
-          ).catchError((_) {}),
-        );
+        unawaited(precacheImage(CachedNetworkImageProvider(thumbnail), context).catchError((_) {}));
       }
     }
 
@@ -613,17 +565,13 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
     final player = VideoPlayerController.networkUrl(parsed);
     _preloadedPlayer = player;
     _preloadedStreamUrl = url;
-    final initialization = player.initialize().timeout(
-      const Duration(seconds: 10),
-    );
+    final initialization = player.initialize().timeout(const Duration(seconds: 10));
     _preloadedInitialization = initialization;
     try {
       await initialization;
       // If a swipe consumed this controller while initialize() was pending,
       // ownership now belongs to _play and this task must not dispose it.
-      if (!mounted ||
-          generation != _preloadGeneration ||
-          !identical(_preloadedPlayer, player)) {
+      if (!mounted || generation != _preloadGeneration || !identical(_preloadedPlayer, player)) {
         return;
       }
     } catch (_) {
@@ -640,16 +588,11 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
 
   Future<void> _play(Map<String, dynamic> channel) async {
     final generation = ++_playGeneration;
-    final requestedUrl = channel['_sourceType'] == 'catalog'
-        ? _streamUrl(channel)
-        : '';
-    final warmPlayer =
-        requestedUrl.isNotEmpty && _preloadedStreamUrl == requestedUrl
+    final requestedUrl = channel['_sourceType'] == 'catalog' ? _streamUrl(channel) : '';
+    final warmPlayer = requestedUrl.isNotEmpty && _preloadedStreamUrl == requestedUrl
         ? _preloadedPlayer
         : null;
-    final warmInitialization = warmPlayer == null
-        ? null
-        : _preloadedInitialization;
+    final warmInitialization = warmPlayer == null ? null : _preloadedInitialization;
     if (warmPlayer != null) {
       _preloadedPlayer = null;
       _preloadedStreamUrl = null;
@@ -682,9 +625,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
       if (channel['_sourceType'] == 'catalog') {
         final url = _streamUrl(channel);
         if (url.isEmpty) {
-          throw Exception(
-            'The TV catalog did not return a playable stream URL.',
-          );
+          throw Exception('The TV catalog did not return a playable stream URL.');
         }
         if (kIsWeb) {
           _webPlaybackUrl = url;
@@ -732,17 +673,13 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
         'action': 'viewer',
         'stream_id': '${channel['id']}',
       });
-      final response = await http
-          .get(resolverUri)
-          .timeout(const Duration(seconds: 12));
+      final response = await http.get(resolverUri).timeout(const Duration(seconds: 12));
       if (generation != _playGeneration) return;
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final payload = jsonDecode(response.body);
         final data = payload is Map ? payload['data'] : null;
         final provider = data is Map ? '${data['provider'] ?? ''}' : '';
-        final youtube = data is Map && data['youtube'] is Map
-            ? data['youtube'] as Map
-            : null;
+        final youtube = data is Map && data['youtube'] is Map ? data['youtube'] as Map : null;
         final videoId = '${youtube?['video_id'] ?? ''}'.trim();
         if (provider == 'youtube' && videoId.isNotEmpty) {
           final controller = YoutubePlayerController.fromVideoId(
@@ -767,9 +704,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
       }
       final url = _streamUrl(channel);
       if (url.isEmpty) {
-        throw Exception(
-          'No playable media URL was returned by the provider resolver.',
-        );
+        throw Exception('No playable media URL was returned by the provider resolver.');
       }
       if (kIsWeb) {
         _webPlaybackUrl = url;
@@ -809,10 +744,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
     }
   }
 
-  Future<void> _loadTvSponsoredAd(
-    Map<String, dynamic> channel,
-    int playGeneration,
-  ) async {
+  Future<void> _loadTvSponsoredAd(Map<String, dynamic> channel, int playGeneration) async {
     if (!mounted ||
         !tvCanRequestSponsoredAd(
           hasPlaybackStarted: true,
@@ -837,8 +769,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
     final active = _channels.isNotEmpty && _activeIndex < _channels.length
         ? _channels[_activeIndex]
         : null;
-    final selectedIsActive =
-        active != null && '${_selected?['id'] ?? ''}' == '${active['id']}';
+    final selectedIsActive = active != null && '${_selected?['id'] ?? ''}' == '${active['id']}';
     final player = selectedIsActive ? _player : null;
     return Column(
       children: [
@@ -849,10 +780,8 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
               Expanded(
                 child: Text(
                   widget.title,
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: -0.5,
-                  ),
+                  style: Theme.of(context).textTheme.headlineSmall
+                      ?.copyWith(fontWeight: FontWeight.w900, letterSpacing: -0.5),
                 ),
               ),
               IconButton(
@@ -871,10 +800,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
         if (_error != null && _channels.isNotEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            child: Text(
-              _error!,
-              style: TextStyle(color: Theme.of(context).colorScheme.error),
-            ),
+            child: Text(_error!, style: TextStyle(color: Theme.of(context).colorScheme.error)),
           ),
         Expanded(
           child: _loading && _channels.isEmpty
@@ -906,13 +832,10 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                   onRefresh: _refreshVerticalFeed,
                   triggerMode: RefreshIndicatorTriggerMode.onEdge,
                   notificationPredicate: (notification) =>
-                      notification.depth == 0 &&
-                      notification.metrics.axis == Axis.vertical,
+                      notification.depth == 0 && notification.metrics.axis == Axis.vertical,
                   child: PageView.builder(
                     controller: _feedPageController,
-                    physics: const PageScrollPhysics(
-                      parent: AlwaysScrollableScrollPhysics(),
-                    ),
+                    physics: const PageScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
                     scrollDirection: Axis.vertical,
                     itemCount: _channels.length,
                     allowImplicitScrolling: true,
@@ -926,16 +849,14 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                     },
                     itemBuilder: (context, index) {
                       final channel = _channels[index];
-                      final isCurrent =
-                          index == _activeIndex && selectedIsActive;
+                      final isCurrent = index == _activeIndex && selectedIsActive;
                       final hasPlaybackSurface =
                           isCurrent &&
                           tvHasPlaybackSurface(
                             isWeb: kIsWeb,
                             webPlaybackUrl: _webPlaybackUrl,
                             hasYoutubePlayer: _youtubePlayer != null,
-                            hasInitializedNativePlayer:
-                                player?.value.isInitialized == true,
+                            hasInitializedNativePlayer: player?.value.isInitialized == true,
                           );
                       final title = '${channel['title'] ?? 'Live channel'}';
                       final description =
@@ -947,12 +868,10 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                         // native video can still use the card tap to pause.
                         onTap:
                             isCurrent &&
-                                ((kIsWeb && _webPlaybackUrl != null) ||
-                                    _youtubePlayer != null)
+                                ((kIsWeb && _webPlaybackUrl != null) || _youtubePlayer != null)
                             ? null
                             : () async {
-                                if (isCurrent &&
-                                    player?.value.isInitialized == true) {
+                                if (isCurrent && player?.value.isInitialized == true) {
                                   if (player!.value.isPlaying) {
                                     await player.pause();
                                   } else {
@@ -969,29 +888,19 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                             fit: StackFit.expand,
                             children: [
                               if (isCurrent && _youtubePlayer != null)
-                                YoutubePlayer(
-                                  controller: _youtubePlayer!,
-                                  aspectRatio: 9 / 16,
-                                )
-                              else if (isCurrent &&
-                                  kIsWeb &&
-                                  _webPlaybackUrl != null)
+                                YoutubePlayer(controller: _youtubePlayer!, aspectRatio: 9 / 16)
+                              else if (isCurrent && kIsWeb && _webPlaybackUrl != null)
                                 TvWebPlayer(
                                   url: _webPlaybackUrl!,
-                                  onPlaybackReady: () => unawaited(
-                                    _loadTvSponsoredAd(
-                                      channel,
-                                      playbackGeneration,
-                                    ),
-                                  ),
+                                  onPlaybackReady: () =>
+                                      unawaited(_loadTvSponsoredAd(channel, playbackGeneration)),
                                   onError: (message) {
                                     if (mounted) {
                                       setState(() => _playbackError = message);
                                     }
                                   },
                                 )
-                              else if (isCurrent &&
-                                  player?.value.isInitialized == true)
+                              else if (isCurrent && player?.value.isInitialized == true)
                                 FittedBox(
                                   fit: BoxFit.cover,
                                   child: SizedBox(
@@ -1069,9 +978,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                                         vertical: 5,
                                       ),
                                       decoration: BoxDecoration(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primary,
+                                        color: Theme.of(context).colorScheme.primary,
                                         borderRadius: BorderRadius.circular(99),
                                       ),
                                       child: const Text(
@@ -1093,12 +1000,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                                         color: Colors.white,
                                         fontSize: 23,
                                         fontWeight: FontWeight.w900,
-                                        shadows: [
-                                          Shadow(
-                                            color: Colors.black87,
-                                            blurRadius: 12,
-                                          ),
-                                        ],
+                                        shadows: [Shadow(color: Colors.black87, blurRadius: 12)],
                                       ),
                                     ),
                                     const SizedBox(height: 5),
@@ -1130,14 +1032,9 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                                             ? const SizedBox(
                                                 width: 16,
                                                 height: 16,
-                                                child:
-                                                    CircularProgressIndicator(
-                                                      strokeWidth: 2,
-                                                    ),
+                                                child: CircularProgressIndicator(strokeWidth: 2),
                                               )
-                                            : const Icon(
-                                                Icons.play_arrow_rounded,
-                                              ),
+                                            : const Icon(Icons.play_arrow_rounded),
                                         label: Text(
                                           _playerLoading && isCurrent
                                               ? 'Connecting…'
@@ -1152,10 +1049,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                                             : player!.value.isPlaying
                                             ? 'Tap video to pause'
                                             : 'Tap video to resume',
-                                        style: const TextStyle(
-                                          color: Colors.white70,
-                                          fontSize: 12,
-                                        ),
+                                        style: const TextStyle(color: Colors.white70, fontSize: 12),
                                       ),
                                   ],
                                 ),
@@ -1167,9 +1061,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                                   children: [
                                     CircleAvatar(
                                       radius: 25,
-                                      backgroundColor: Colors.white.withValues(
-                                        alpha: 0.14,
-                                      ),
+                                      backgroundColor: Colors.white.withValues(alpha: 0.14),
                                       child: const Icon(
                                         Icons.live_tv_rounded,
                                         color: Colors.white,
@@ -1287,10 +1179,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                       ),
                     )
                   else if (_youtubePlayer != null)
-                    YoutubePlayer(
-                      controller: _youtubePlayer!,
-                      aspectRatio: 16 / 9,
-                    )
+                    YoutubePlayer(controller: _youtubePlayer!, aspectRatio: 16 / 9)
                   else
                     AspectRatio(
                       aspectRatio: player?.value.isInitialized == true
@@ -1305,14 +1194,9 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                               VideoPlayer(player!)
                             else
                               const Center(
-                                child: Icon(
-                                  Icons.live_tv_rounded,
-                                  size: 54,
-                                  color: Colors.white70,
-                                ),
+                                child: Icon(Icons.live_tv_rounded, size: 54, color: Colors.white70),
                               ),
-                            if (_playerLoading)
-                              const Center(child: CircularProgressIndicator()),
+                            if (_playerLoading) const Center(child: CircularProgressIndicator()),
                             if (player?.value.isInitialized == true)
                               Align(
                                 alignment: Alignment.bottomCenter,
@@ -1362,9 +1246,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                             padding: const EdgeInsets.only(top: 8),
                             child: Text(
                               _playbackError!,
-                              style: TextStyle(
-                                color: Theme.of(context).colorScheme.error,
-                              ),
+                              style: TextStyle(color: Theme.of(context).colorScheme.error),
                             ),
                           ),
                         TextButton.icon(
@@ -1421,9 +1303,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
           if (!_loading && _channels.isEmpty && _error == null)
             const Padding(
               padding: EdgeInsets.all(24),
-              child: Center(
-                child: Text('No live channels are available right now.'),
-              ),
+              child: Center(child: Text('No live channels are available right now.')),
             ),
           const SizedBox(height: 12),
           ..._channels.map((channel) {
@@ -1444,34 +1324,21 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                         ? CachedNetworkImage(
                             imageUrl: thumb,
                             fit: BoxFit.cover,
-                            errorWidget: (_, __, ___) =>
-                                const Icon(Icons.live_tv_rounded),
+                            errorWidget: (_, __, ___) => const Icon(Icons.live_tv_rounded),
                           )
                         : Container(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .surfaceContainerHighest,
+                            color: Theme.of(context).colorScheme.surfaceContainerHighest,
                             child: const Icon(Icons.live_tv_rounded),
                           ),
                   ),
                 ),
-                title: Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text(
-                  description,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
+                title: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text(description, maxLines: 2, overflow: TextOverflow.ellipsis),
                 trailing: IconButton(
                   tooltip: active ? 'Selected channel' : 'Play channel',
                   onPressed: () => _play(channel),
                   icon: Icon(
-                    active
-                        ? Icons.graphic_eq_rounded
-                        : Icons.play_circle_outline_rounded,
+                    active ? Icons.graphic_eq_rounded : Icons.play_circle_outline_rounded,
                     color: Theme.of(context).colorScheme.primary,
                   ),
                 ),

@@ -29,7 +29,7 @@ assert.ok(tvPage.includes('SharedPreferences.getInstance()'), 'the Flutter chann
 assert.ok(tvPage.includes('_restoreCachedCatalog()'), 'cached channels must be restored before waiting for network catalogue calls');
 assert.ok(tvPage.includes('_persistCachedCatalog(merged)'), 'fresh catalogue results must update the persistent cache');
 assert.ok(tvPage.includes('unawaited(_prepareAdjacent(0))'), 'first cached channel must prepare its neighbor immediately');
-assert.ok(tvPage.includes('existing: _channels,'), 'incremental catalogue loads must preserve existing vertical page ordering');
+assert.ok(/existing:\s*_channels\)/.test(tvPage), 'incremental catalogue loads must preserve existing vertical page ordering');
 assert.ok(channelCache.includes('maxAge = Duration(hours: 24)'), 'public channel metadata cache must have a 24-hour TTL');
 assert.ok(channelCache.includes('maxChannels = 250'), 'public channel metadata cache must have a bounded channel count');
 assert.ok(channelCache.includes('maxEncodedBytes = 1024 * 1024'), 'public channel metadata cache must be size bounded');
