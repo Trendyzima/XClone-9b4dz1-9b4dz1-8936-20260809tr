@@ -267,6 +267,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
       'communities',
       'replies',
       'fediverse',
+      'instances',
     ]) {
       for (final row
           in (_results[group] as List<Map<String, dynamic>>?) ?? const []) {
@@ -549,6 +550,8 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         '${row['member_count'] ?? 0} members · ${row['post_count'] ?? 0} posts',
       'replies' =>
         '${row['user_profiles'] is Map ? (row['user_profiles'] as Map)['username'] ?? '' : ''} · ${row['created_at'] ?? ''}',
+      'instances' =>
+        '${row['software'] ?? row['provider'] ?? 'Fediverse'} · ${row['account_count'] ?? 0} indexed accounts',
       'fediverse' =>
         '${row['remote_account'] is Map ? (row['remote_account'] as Map)['username'] ?? row['actor_uri'] ?? '' : row['actor_uri'] ?? ''} · Fediverse',
       _ => '${row['created_at'] ?? ''}',
@@ -584,6 +587,9 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
 
   String _groupForRow(Map<String, dynamic> row) {
     if (_tab != 'Top') return UnifiedSearchPolicy.groupForTab(_tab);
+    if (row.containsKey('domain') && row.containsKey('base_url')) {
+      return 'instances';
+    }
     if (row.containsKey('tag') || row.containsKey('usage_count')) {
       return 'hashtags';
     }
@@ -619,6 +625,7 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
         'communities' => Icons.groups_2_outlined,
         'replies' => Icons.reply_rounded,
         'fediverse' => Icons.public_rounded,
+        'instances' => Icons.dns_outlined,
         _ => Icons.search_rounded,
       };
 
@@ -680,6 +687,12 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
           context.go('/post/${Uri.encodeComponent(postId)}');
         } else if (threadId.isNotEmpty) {
           context.go('/thread/${Uri.encodeComponent(threadId)}');
+        }
+        break;
+      case 'instances':
+        final baseUrl = '${row['base_url'] ?? ''}';
+        if (baseUrl.startsWith('https://') || baseUrl.startsWith('http://')) {
+          unawaited(_openExternalUrl(baseUrl));
         }
         break;
       case 'fediverse':
