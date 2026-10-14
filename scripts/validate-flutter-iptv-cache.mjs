@@ -3,6 +3,8 @@ import fs from 'node:fs';
 
 const cache = fs.readFileSync('mobile/web/iptv_hls_cache.js', 'utf8');
 const tvPage = fs.readFileSync('mobile/lib/features/tv/tv_page.dart', 'utf8');
+const channelCache = fs.readFileSync('mobile/lib/features/tv/tv_channel_cache_policy.dart', 'utf8');
+const channelCacheTests = fs.readFileSync('mobile/test/features/tv/tv_channel_cache_policy_test.dart', 'utf8');
 const webPlayer = fs.readFileSync('mobile/lib/features/tv/tv_web_player_web.dart', 'utf8');
 const html = fs.readFileSync('mobile/web/index.html', 'utf8');
 
@@ -23,7 +25,20 @@ assert.ok(cache.includes('Hls.DefaultConfig.loader = Loader'), 'Flutter Web HLS 
 assert.ok(cache.includes('saveCache(url, response.data'), 'successful full HLS fragments must be cached');
 assert.ok(cache.includes("url.protocol !== 'https:'"), 'HTTP streams must not enter the cache');
 assert.ok(tvPage.includes('warmIptvStream(url)'), 'the Flutter vertical feed must warm the next Web HLS stream');
+assert.ok(tvPage.includes('SharedPreferences.getInstance()'), 'the Flutter channel catalogue must restore/persist a local cache');
+assert.ok(tvPage.includes('_restoreCachedCatalog()'), 'cached channels must be restored before waiting for network catalogue calls');
+assert.ok(tvPage.includes('_persistCachedCatalog(merged)'), 'fresh catalogue results must update the persistent cache');
+assert.ok(tvPage.includes("unawaited(_play(merged.first))"), 'the first fresh channel must auto-start when no cached channel is selected');
+assert.ok(tvPage.includes('unawaited(_prepareAdjacent(0))'), 'first cached channel must prepare its neighbor immediately');
+assert.ok(/_channels\s*=\s*_dedupeChannels\([\s\S]{0,180}existing:\s*_channels,\s*\)/.test(tvPage), 'incremental catalogue loads must preserve existing vertical page ordering');
+assert.ok(tvPage.includes('for (final row in [...existing, ...rows])'), 'catalogue deduplication must retain existing channels before appending newly loaded sources');
+assert.ok(channelCache.includes('maxAge = Duration(hours: 24)'), 'public channel metadata cache must have a 24-hour TTL');
+assert.ok(channelCache.includes('maxChannels = 250'), 'public channel metadata cache must have a bounded channel count');
+assert.ok(channelCache.includes('maxEncodedBytes = 1024 * 1024'), 'public channel metadata cache must be size bounded');
+assert.ok(channelCache.includes("uri.scheme != 'https'"), 'persisted stream URLs must use HTTPS');
+assert.ok(channelCache.includes("normalized.contains('token')") && channelCache.includes("normalized.startsWith('x-amz-')"), 'signed/tokenized URLs must never be persisted');
+assert.ok(channelCacheTests.includes('rejects expired, future-dated, malformed and oversized cache entries'), 'channel cache TTL and corruption behavior must be tested');
 assert.ok(tvPage.includes('CachedNetworkImageProvider(thumbnail)'), 'adjacent channel artwork must use the shared image cache');
 assert.ok(webPlayer.includes('callAsFunction(null, constructor)'), 'Flutter Web player must install the cache-aware loader using supported Dart JS interop');
 assert.ok(html.includes('<script src="iptv_hls_cache.js"></script>'), 'the browser cache helper must load before Flutter bootstraps');
-console.log('PASS Flutter IPTV cache contract: bounded HTTPS-only HLS fragment cache, signed URL exclusion, TTL, warm-up timeout, and Web/Android feed wiring.');
+console.log('PASS Flutter IPTV cache contract: persistent bounded public channel catalogue, signed URL exclusion, TTL, HLS fragment cache, adjacent preload, and Web/Android feed wiring.');

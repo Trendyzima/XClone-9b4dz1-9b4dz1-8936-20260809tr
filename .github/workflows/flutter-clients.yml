@@ -82,7 +82,7 @@ jobs:
           java-version: '17'
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: '3.27.4'
           cache: true
       - name: Resolve Flutter dependencies
         working-directory: mobile
@@ -121,7 +121,7 @@ jobs:
           SUPABASE_URL: ${{ vars.TESTAGRAM_SUPABASE_URL || 'https://ffrhglgkukgsuhxenena.supabase.co' }}
           SUPABASE_PUBLISHABLE_KEY: ${{ vars.TESTAGRAM_SUPABASE_PUBLISHABLE_KEY || 'sb_publishable_h51Z3EHP2LN5o7HdRAB3Og_uhUA3oya' }}
         run: >-
-          flutter build web --release --no-wasm-dry-run
+          flutter build web --release
           --dart-define=SUPABASE_URL="$SUPABASE_URL"
           --dart-define=SUPABASE_PUBLISHABLE_KEY="$SUPABASE_PUBLISHABLE_KEY"
           --dart-define=TESTAGRAM_SITE_URL=https://testagram.site

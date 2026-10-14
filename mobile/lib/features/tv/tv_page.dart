@@ -10,11 +10,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../core/config/app_config.dart';
 import 'tv_web_player.dart';
 import 'tv_playback_policy.dart';
+import 'tv_channel_cache_policy.dart';
 import 'tv_stream_prefetch.dart';
 import '../feed/sponsored_ad_service.dart';
 
@@ -51,14 +53,17 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
   int _activeIndex = 0;
   final PageController _feedPageController = PageController();
   int _loadedCatalogSourceCount = 0;
+  bool _cacheRestoreAttempted = false;
+  int _catalogLoadGeneration = 0;
   int _playGeneration = 0;
   String? _playbackError;
   String? _webPlaybackUrl;
   SponsoredAd? _tvSponsoredAd;
   bool _tvAdRequestedForGeneration = false;
   VideoPlayerController? _lifecyclePausedPlayer;
-  late final SponsoredAdService _adService =
-      SponsoredAdService.forClient(_client);
+  late final SponsoredAdService _adService = SponsoredAdService.forClient(
+    _client,
+  );
   SupabaseClient get _client => Supabase.instance.client;
 
   @override
@@ -252,6 +257,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
   }
 
   Future<void> _load() async {
+    final loadGeneration = ++_catalogLoadGeneration;
     setState(() {
       _loading = true;
       _error = null;
@@ -259,6 +265,10 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
     try {
       _loadedCatalogSourceCount =
           widget.streamId == null ? _initialSourceCount : 0;
+      // Restore the last public catalogue before waiting for the network. This
+      // makes the vertical feed useful immediately on repeat visits/offline.
+      await _restoreCachedCatalog();
+      if (!mounted || loadGeneration != _catalogLoadGeneration) return;
       final catalogFuture = widget.streamId == null
           ? Future.wait(
               _catalogSources.take(_initialSourceCount).map(_loadCatalogSource),
@@ -278,8 +288,10 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                   .limit(1)
                   .timeout(const Duration(seconds: 15));
           return rows
-              .map((row) => Map<String, dynamic>.from(row as Map)
-                ..['_sourceType'] = 'testagram-live')
+              .map(
+                (row) => Map<String, dynamic>.from(row as Map)
+                  ..['_sourceType'] = 'testagram-live',
+              )
               .toList();
         } catch (_) {
           return <Map<String, dynamic>>[];
@@ -289,23 +301,47 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
       // Render the public catalog as soon as it is ready instead of waiting on
       // the separate Testagram community-live query.
       final catalogGroups = await catalogFuture;
+      final cachedPublicChannels = _channels
+          .where((channel) => channel['_sourceType'] == 'catalog')
+          .toList(growable: false);
       final catalogChannels = _shuffleChannels(
-        _dedupeChannels(catalogGroups.expand((group) => group).toList()),
+        _dedupeChannels(
+          catalogGroups.expand((group) => group).toList(),
+          existing: cachedPublicChannels,
+        ),
         previous: _channels,
       );
-      if (mounted) {
+      if (mounted && loadGeneration == _catalogLoadGeneration) {
         setState(() {
           _channels = catalogChannels;
-          if (_activeIndex >= catalogChannels.length) {
+          final selectedId = '${_selected?['id'] ?? ''}';
+          final selectedIndex = selectedId.isEmpty
+              ? -1
+              : catalogChannels.indexWhere(
+                  (channel) => '${channel['id'] ?? ''}' == selectedId,
+                );
+          if (selectedIndex >= 0) {
+            _activeIndex = selectedIndex;
+          } else {
+            if (_selected != null) _selected = null;
             _activeIndex = 0;
           }
           if (catalogChannels.isEmpty) {
             _error = 'Loading community live channels…';
           }
         });
+        unawaited(_persistCachedCatalog(catalogChannels));
+        if (_selected != null && _feedPageController.hasClients) {
+          final selectedIndex = catalogChannels.indexWhere(
+            (channel) =>
+                '${channel['id'] ?? ''}' == '${_selected?['id'] ?? ''}',
+          );
+          if (selectedIndex >= 0) _feedPageController.jumpToPage(selectedIndex);
+        }
       }
 
       final live = await liveFuture;
+      if (!mounted || loadGeneration != _catalogLoadGeneration) return;
       final filteredCatalog = widget.streamId == null
           ? catalogChannels
           : catalogChannels
@@ -318,7 +354,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
         ),
         previous: _channels,
       );
-      if (mounted) {
+      if (mounted && loadGeneration == _catalogLoadGeneration) {
         setState(() {
           _channels = merged;
           _error = merged.isEmpty
@@ -326,8 +362,32 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                   ? 'TV channels could not be loaded. Check your connection and retry.'
                   : 'That live stream is unavailable or has ended.')
               : null;
-          if (_activeIndex >= merged.length) _activeIndex = 0;
+          final selectedId = '${_selected?['id'] ?? ''}';
+          final selectedIndex = selectedId.isEmpty
+              ? -1
+              : merged.indexWhere(
+                  (channel) => '${channel['id'] ?? ''}' == selectedId,
+                );
+          if (selectedIndex >= 0) {
+            _activeIndex = selectedIndex;
+          } else {
+            if (_selected != null) _selected = null;
+            _activeIndex = 0;
+          }
         });
+        unawaited(_persistCachedCatalog(merged));
+        if (_selected != null && _feedPageController.hasClients) {
+          final selectedIndex = merged.indexWhere(
+            (channel) =>
+                '${channel['id'] ?? ''}' == '${_selected?['id'] ?? ''}',
+          );
+          if (selectedIndex >= 0) _feedPageController.jumpToPage(selectedIndex);
+        }
+        if (widget.streamId == null && merged.isNotEmpty && _selected == null) {
+          _activeIndex = 0;
+          unawaited(_play(merged.first));
+          unawaited(_prepareAdjacent(0));
+        }
         final requestedId = widget.streamId;
         if (requestedId != null && requestedId.isNotEmpty) {
           final index = merged.indexWhere(
@@ -337,18 +397,71 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
             _activeIndex = index;
             unawaited(_play(merged[index]));
           } else if (merged.isNotEmpty) {
-            setState(() => _error =
-                'That stream is not in the current live catalogue. Refresh or open the TV catalogue.');
+            setState(
+              () => _error =
+                  'That stream is not in the current live catalogue. Refresh or open the TV catalogue.',
+            );
           }
         }
       }
     } catch (_) {
-      if (mounted) {
-        setState(() => _error =
-            'TV channels could not be loaded. Check your connection and retry.');
+      if (mounted && loadGeneration == _catalogLoadGeneration) {
+        setState(
+          () => _error = _channels.isNotEmpty
+              ? null
+              : 'TV channels could not be loaded. Check your connection and retry.',
+        );
       }
     } finally {
-      if (mounted) setState(() => _loading = false);
+      if (mounted && loadGeneration == _catalogLoadGeneration) {
+        setState(() => _loading = false);
+      }
+    }
+  }
+
+  Future<void> _restoreCachedCatalog() async {
+    if (_cacheRestoreAttempted ||
+        widget.streamId != null ||
+        _channels.isNotEmpty) {
+      return;
+    }
+    _cacheRestoreAttempted = true;
+    try {
+      final preferences = await SharedPreferences.getInstance().timeout(
+        const Duration(seconds: 2),
+      );
+      final cached = TvChannelCachePolicy.decode(
+        preferences.getString(TvChannelCachePolicy.cacheKey),
+      );
+      if (!mounted || _channels.isNotEmpty || cached.isEmpty) return;
+      setState(() {
+        _channels = cached;
+        _activeIndex = 0;
+        _error = null;
+      });
+      // Start the cached first item and prepare its neighbor while the fresh
+      // catalogue is fetched in parallel by _load.
+      unawaited(_play(cached.first));
+      unawaited(_prepareAdjacent(0));
+    } catch (_) {
+      // Persistence is best effort; always continue with the live catalogue.
+    }
+  }
+
+  Future<void> _persistCachedCatalog(
+    List<Map<String, dynamic>> channels,
+  ) async {
+    try {
+      final encoded = TvChannelCachePolicy.encode(channels);
+      if (encoded == null) return;
+      final preferences = await SharedPreferences.getInstance().timeout(
+        const Duration(seconds: 2),
+      );
+      await preferences
+          .setString(TvChannelCachePolicy.cacheKey, encoded)
+          .timeout(const Duration(seconds: 2));
+    } catch (_) {
+      // Quota/private mode must not affect live playback.
     }
   }
 
@@ -411,14 +524,21 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
       );
       if (!mounted) return;
       setState(() {
-        _channels = _shuffleChannels(
-          _dedupeChannels(
-            groups.expand((group) => group).toList(),
-            existing: _channels,
-          ),
-          previous: _channels,
+        // Keep existing page indices stable: new catalogue sources append after
+        // the current feed instead of reshuffling the page under the viewer.
+        _channels = _dedupeChannels(
+          groups.expand((group) => group).toList(),
+          existing: _channels,
         );
+        final selectedId = '${_selected?['id'] ?? ''}';
+        final selectedIndex = selectedId.isEmpty
+            ? -1
+            : _channels.indexWhere(
+                (channel) => '${channel['id'] ?? ''}' == selectedId,
+              );
+        if (selectedIndex >= 0) _activeIndex = selectedIndex;
       });
+      unawaited(_persistCachedCatalog(_channels));
     } finally {
       _loadingMore = false;
       if (mounted) setState(() {});
@@ -432,7 +552,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
       'hls_url',
       'video_url',
       'manifest_url',
-      'url'
+      'url',
     ]) {
       final value = '${channel[key] ?? ''}'.trim();
       if (value.startsWith('https://') || value.startsWith('http://')) {
@@ -455,10 +575,12 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
       final thumbnail =
           '${_channels[adjacentIndex]['thumbnail_url'] ?? ''}'.trim();
       if (thumbnail.startsWith('https://') || thumbnail.startsWith('http://')) {
-        unawaited(precacheImage(
-          CachedNetworkImageProvider(thumbnail),
-          context,
-        ).catchError((_) {}));
+        unawaited(
+          precacheImage(
+            CachedNetworkImageProvider(thumbnail),
+            context,
+          ).catchError((_) {}),
+        );
       }
     }
 
@@ -491,8 +613,9 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
     final player = VideoPlayerController.networkUrl(parsed);
     _preloadedPlayer = player;
     _preloadedStreamUrl = url;
-    final initialization =
-        player.initialize().timeout(const Duration(seconds: 10));
+    final initialization = player.initialize().timeout(
+          const Duration(seconds: 10),
+        );
     _preloadedInitialization = initialization;
     try {
       await initialization;
@@ -558,7 +681,8 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
         final url = _streamUrl(channel);
         if (url.isEmpty) {
           throw Exception(
-              'The TV catalog did not return a playable stream URL.');
+            'The TV catalog did not return a playable stream URL.',
+          );
         }
         if (kIsWeb) {
           _webPlaybackUrl = url;
@@ -641,7 +765,8 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
       final url = _streamUrl(channel);
       if (url.isEmpty) {
         throw Exception(
-            'No playable media URL was returned by the provider resolver.');
+          'No playable media URL was returned by the provider resolver.',
+        );
       }
       if (kIsWeb) {
         _webPlaybackUrl = url;
@@ -717,31 +842,37 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(14, 8, 14, 8),
-          child: Row(children: [
-            Expanded(
-              child: Text(widget.title,
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.title,
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         fontWeight: FontWeight.w900,
                         letterSpacing: -0.5,
-                      )),
-            ),
-            IconButton(
-              tooltip: 'Refresh live channels',
-              onPressed: _refreshVerticalFeed,
-              icon: const Icon(Icons.refresh_rounded),
-            ),
-            IconButton.filledTonal(
-              tooltip: 'Switch to channel list',
-              onPressed: () => setState(() => _verticalMode = false),
-              icon: const Icon(Icons.view_list_rounded),
-            ),
-          ]),
+                      ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Refresh live channels',
+                onPressed: _refreshVerticalFeed,
+                icon: const Icon(Icons.refresh_rounded),
+              ),
+              IconButton.filledTonal(
+                tooltip: 'Switch to channel list',
+                onPressed: () => setState(() => _verticalMode = false),
+                icon: const Icon(Icons.view_list_rounded),
+              ),
+            ],
+          ),
         ),
         if (_error != null && _channels.isNotEmpty)
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-            child: Text(_error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error)),
+            child: Text(
+              _error!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
           ),
         Expanded(
           child: _loading && _channels.isEmpty
@@ -756,14 +887,16 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                             const Icon(Icons.live_tv_rounded, size: 56),
                             const SizedBox(height: 12),
                             Text(
-                                _error ??
-                                    'No live channels are available right now.',
-                                textAlign: TextAlign.center),
+                              _error ??
+                                  'No live channels are available right now.',
+                              textAlign: TextAlign.center,
+                            ),
                             const SizedBox(height: 8),
                             FilledButton.icon(
-                                onPressed: _load,
-                                icon: const Icon(Icons.refresh_rounded),
-                                label: const Text('Retry')),
+                              onPressed: _load,
+                              icon: const Icon(Icons.refresh_rounded),
+                              label: const Text('Retry'),
+                            ),
                           ],
                         ),
                       ),
@@ -834,8 +967,9 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                                 children: [
                                   if (isCurrent && _youtubePlayer != null)
                                     YoutubePlayer(
-                                        controller: _youtubePlayer!,
-                                        aspectRatio: 9 / 16)
+                                      controller: _youtubePlayer!,
+                                      aspectRatio: 9 / 16,
+                                    )
                                   else if (isCurrent &&
                                       kIsWeb &&
                                       _webPlaybackUrl != null)
@@ -869,16 +1003,28 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                                       imageUrl: thumb,
                                       fit: BoxFit.cover,
                                       placeholder: (_, __) => const Center(
-                                          child: Icon(Icons.live_tv_rounded,
-                                              color: Colors.white54, size: 54)),
+                                        child: Icon(
+                                          Icons.live_tv_rounded,
+                                          color: Colors.white54,
+                                          size: 54,
+                                        ),
+                                      ),
                                       errorWidget: (_, __, ___) => const Center(
-                                          child: Icon(Icons.live_tv_rounded,
-                                              color: Colors.white54, size: 54)),
+                                        child: Icon(
+                                          Icons.live_tv_rounded,
+                                          color: Colors.white54,
+                                          size: 54,
+                                        ),
+                                      ),
                                     )
                                   else
                                     const Center(
-                                        child: Icon(Icons.live_tv_rounded,
-                                            color: Colors.white54, size: 64)),
+                                      child: Icon(
+                                        Icons.live_tv_rounded,
+                                        color: Colors.white54,
+                                        size: 64,
+                                      ),
+                                    ),
                                   const IgnorePointer(
                                     child: DecoratedBox(
                                       decoration: BoxDecoration(
@@ -888,7 +1034,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                                           colors: [
                                             Color(0x99000000),
                                             Colors.transparent,
-                                            Color(0xE6000000)
+                                            Color(0xE6000000),
                                           ],
                                           stops: [0, 0.35, 1],
                                         ),
@@ -919,47 +1065,63 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                                       children: [
                                         Container(
                                           padding: const EdgeInsets.symmetric(
-                                              horizontal: 10, vertical: 5),
+                                            horizontal: 10,
+                                            vertical: 5,
+                                          ),
                                           decoration: BoxDecoration(
-                                              color: Theme.of(context)
-                                                  .colorScheme
-                                                  .primary,
-                                              borderRadius:
-                                                  BorderRadius.circular(99)),
-                                          child: const Text('LIVE',
-                                              style: TextStyle(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.w900,
-                                                  fontSize: 11,
-                                                  letterSpacing: 1.1)),
+                                            color: Theme.of(context)
+                                                .colorScheme
+                                                .primary,
+                                            borderRadius:
+                                                BorderRadius.circular(99),
+                                          ),
+                                          child: const Text(
+                                            'LIVE',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.w900,
+                                              fontSize: 11,
+                                              letterSpacing: 1.1,
+                                            ),
+                                          ),
                                         ),
                                         const SizedBox(height: 10),
-                                        Text(title,
-                                            maxLines: 2,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 23,
-                                                fontWeight: FontWeight.w900,
-                                                shadows: [
-                                                  Shadow(
-                                                      color: Colors.black87,
-                                                      blurRadius: 12)
-                                                ])),
+                                        Text(
+                                          title,
+                                          maxLines: 2,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 23,
+                                            fontWeight: FontWeight.w900,
+                                            shadows: [
+                                              Shadow(
+                                                color: Colors.black87,
+                                                blurRadius: 12,
+                                              ),
+                                            ],
+                                          ),
+                                        ),
                                         const SizedBox(height: 5),
-                                        Text(description,
-                                            maxLines: 3,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 13,
-                                                height: 1.35)),
+                                        Text(
+                                          description,
+                                          maxLines: 3,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 13,
+                                            height: 1.35,
+                                          ),
+                                        ),
                                         const SizedBox(height: 12),
                                         if (_playbackError != null && isCurrent)
-                                          Text(_playbackError!,
-                                              style: const TextStyle(
-                                                  color: Color(0xFFFFB4AB),
-                                                  fontWeight: FontWeight.w600)),
+                                          Text(
+                                            _playbackError!,
+                                            style: const TextStyle(
+                                              color: Color(0xFFFFB4AB),
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
                                         if (!hasPlaybackSurface)
                                           FilledButton.icon(
                                             onPressed:
@@ -972,27 +1134,33 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                                                     height: 16,
                                                     child:
                                                         CircularProgressIndicator(
-                                                            strokeWidth: 2))
+                                                      strokeWidth: 2,
+                                                    ),
+                                                  )
                                                 : const Icon(
-                                                    Icons.play_arrow_rounded),
+                                                    Icons.play_arrow_rounded,
+                                                  ),
                                             label: Text(
-                                                _playerLoading && isCurrent
-                                                    ? 'Connecting…'
-                                                    : 'Watch channel'),
+                                              _playerLoading && isCurrent
+                                                  ? 'Connecting…'
+                                                  : 'Watch channel',
+                                            ),
                                           )
                                         else
                                           Text(
-                                              (kIsWeb &&
-                                                          _webPlaybackUrl !=
-                                                              null) ||
-                                                      _youtubePlayer != null
-                                                  ? 'Use player controls to pause or resume'
-                                                  : player!.value.isPlaying
-                                                      ? 'Tap video to pause'
-                                                      : 'Tap video to resume',
-                                              style: const TextStyle(
-                                                  color: Colors.white70,
-                                                  fontSize: 12)),
+                                            (kIsWeb &&
+                                                        _webPlaybackUrl !=
+                                                            null) ||
+                                                    _youtubePlayer != null
+                                                ? 'Use player controls to pause or resume'
+                                                : player!.value.isPlaying
+                                                    ? 'Tap video to pause'
+                                                    : 'Tap video to resume',
+                                            style: const TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 12,
+                                            ),
+                                          ),
                                       ],
                                     ),
                                   ),
@@ -1003,24 +1171,31 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                                       children: [
                                         CircleAvatar(
                                           radius: 25,
-                                          backgroundColor: Colors.white
-                                              .withValues(alpha: 0.14),
+                                          backgroundColor:
+                                              Colors.white.withValues(
+                                            alpha: 0.14,
+                                          ),
                                           child: const Icon(
-                                              Icons.live_tv_rounded,
-                                              color: Colors.white,
-                                              size: 28),
+                                            Icons.live_tv_rounded,
+                                            color: Colors.white,
+                                            size: 28,
+                                          ),
                                         ),
                                         const SizedBox(height: 7),
-                                        const Text('Channel',
-                                            style: TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w700)),
+                                        const Text(
+                                          'Channel',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
                                         const SizedBox(height: 18),
                                         IconButton.filledTonal(
                                           tooltip: 'Share channel',
                                           onPressed: () => Share.share(
-                                              '$title · Watch on Testagram TV\nhttps://testagram.site/iptv'),
+                                            '$title · Watch on Testagram TV\nhttps://testagram.site/iptv',
+                                          ),
                                           icon: const Icon(Icons.share_rounded),
                                         ),
                                         const SizedBox(height: 12),
@@ -1035,20 +1210,25 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                                   ),
                                   if (_playerLoading && isCurrent)
                                     const Positioned(
-                                        top: 12,
-                                        left: 0,
-                                        right: 0,
-                                        child: LinearProgressIndicator(
-                                            minHeight: 3)),
+                                      top: 12,
+                                      left: 0,
+                                      right: 0,
+                                      child:
+                                          LinearProgressIndicator(minHeight: 3),
+                                    ),
                                   if (index == 0)
                                     const Positioned(
-                                        top: 18,
-                                        left: 16,
-                                        child: Text('Swipe up for next channel',
-                                            style: TextStyle(
-                                                color: Colors.white70,
-                                                fontSize: 12,
-                                                fontWeight: FontWeight.w600))),
+                                      top: 18,
+                                      left: 16,
+                                      child: Text(
+                                        'Swipe up for next channel',
+                                        style: TextStyle(
+                                          color: Colors.white70,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
                                 ],
                               ),
                             ),
@@ -1067,197 +1247,251 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
     final player = _player;
     return RefreshIndicator(
       onRefresh: _load,
-      child: ListView(padding: const EdgeInsets.all(14), children: [
-        Row(children: [
-          Expanded(
-              child: Text(widget.title,
+      child: ListView(
+        padding: const EdgeInsets.all(14),
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.title,
                   style: Theme.of(context)
                       .textTheme
                       .headlineSmall
-                      ?.copyWith(fontWeight: FontWeight.w800))),
-          IconButton(
-              tooltip: 'Refresh channels',
-              onPressed: _load,
-              icon: const Icon(Icons.refresh_rounded)),
-          IconButton.filledTonal(
-              tooltip: 'Open vertical TV feed',
-              onPressed: () => setState(() => _verticalMode = true),
-              icon: const Icon(Icons.view_carousel_rounded))
-        ]),
-        const Text(
-            'Live channels · playback depends on provider availability and your connection.'),
-        if (_selected != null) ...[
-          const SizedBox(height: 14),
-          Card(
+                      ?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Refresh channels',
+                onPressed: _load,
+                icon: const Icon(Icons.refresh_rounded),
+              ),
+              IconButton.filledTonal(
+                tooltip: 'Open vertical TV feed',
+                onPressed: () => setState(() => _verticalMode = true),
+                icon: const Icon(Icons.view_carousel_rounded),
+              ),
+            ],
+          ),
+          const Text(
+            'Live channels · playback depends on provider availability and your connection.',
+          ),
+          if (_selected != null) ...[
+            const SizedBox(height: 14),
+            Card(
               clipBehavior: Clip.antiAlias,
               child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (kIsWeb && _webPlaybackUrl != null)
-                      SizedBox(
-                        height: 440,
-                        child: TvWebPlayer(
-                          url: _webPlaybackUrl!,
-                          onError: (message) {
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (kIsWeb && _webPlaybackUrl != null)
+                    SizedBox(
+                      height: 440,
+                      child: TvWebPlayer(
+                        url: _webPlaybackUrl!,
+                        onError: (message) {
+                          if (mounted) {
+                            setState(() => _playbackError = message);
+                          }
+                        },
+                      ),
+                    )
+                  else if (_youtubePlayer != null)
+                    YoutubePlayer(
+                      controller: _youtubePlayer!,
+                      aspectRatio: 16 / 9,
+                    )
+                  else
+                    AspectRatio(
+                      aspectRatio: player?.value.isInitialized == true
+                          ? player!.value.aspectRatio
+                          : 16 / 9,
+                      child: Container(
+                        color: Colors.black,
+                        child: Stack(
+                          fit: StackFit.expand,
+                          children: [
+                            if (player?.value.isInitialized == true)
+                              VideoPlayer(player!)
+                            else
+                              const Center(
+                                child: Icon(
+                                  Icons.live_tv_rounded,
+                                  size: 54,
+                                  color: Colors.white70,
+                                ),
+                              ),
+                            if (_playerLoading)
+                              const Center(child: CircularProgressIndicator()),
+                            if (player?.value.isInitialized == true)
+                              Align(
+                                alignment: Alignment.bottomCenter,
+                                child: VideoProgressIndicator(
+                                  player!,
+                                  allowScrubbing: true,
+                                  padding: const EdgeInsets.all(8),
+                                ),
+                              ),
+                            Align(
+                              alignment: Alignment.center,
+                              child: IconButton.filledTonal(
+                                onPressed: player?.value.isInitialized == true
+                                    ? () async {
+                                        if (player!.value.isPlaying) {
+                                          await player.pause();
+                                        } else {
+                                          await player.play();
+                                        }
+                                        if (mounted) setState(() {});
+                                      }
+                                    : null,
+                                iconSize: 36,
+                                icon: Icon(
+                                  player?.value.isPlaying == true
+                                      ? Icons.pause_rounded
+                                      : Icons.play_arrow_rounded,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.all(14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          '${_selected!['title'] ?? 'Live channel'}',
+                          style: Theme.of(context)
+                              .textTheme
+                              .titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w800),
+                        ),
+                        if (_playbackError != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 8),
+                            child: Text(
+                              _playbackError!,
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            ),
+                          ),
+                        TextButton.icon(
+                          onPressed: () async {
+                            _playGeneration++;
+                            await _player?.dispose();
+                            await _youtubePlayer?.close();
                             if (mounted) {
-                              setState(() => _playbackError = message);
+                              setState(() {
+                                _player = null;
+                                _youtubePlayer = null;
+                                _webPlaybackUrl = null;
+                                _selected = null;
+                                _playbackError = null;
+                              });
                             }
                           },
+                          icon: const Icon(Icons.close_rounded),
+                          label: const Text('Close player'),
                         ),
-                      )
-                    else if (_youtubePlayer != null)
-                      YoutubePlayer(
-                          controller: _youtubePlayer!, aspectRatio: 16 / 9)
-                    else
-                      AspectRatio(
-                          aspectRatio: player?.value.isInitialized == true
-                              ? player!.value.aspectRatio
-                              : 16 / 9,
-                          child: Container(
-                              color: Colors.black,
-                              child: Stack(fit: StackFit.expand, children: [
-                                if (player?.value.isInitialized == true)
-                                  VideoPlayer(player!)
-                                else
-                                  const Center(
-                                      child: Icon(Icons.live_tv_rounded,
-                                          size: 54, color: Colors.white70)),
-                                if (_playerLoading)
-                                  const Center(
-                                      child: CircularProgressIndicator()),
-                                if (player?.value.isInitialized == true)
-                                  Align(
-                                      alignment: Alignment.bottomCenter,
-                                      child: VideoProgressIndicator(player!,
-                                          allowScrubbing: true,
-                                          padding: const EdgeInsets.all(8))),
-                                Align(
-                                    alignment: Alignment.center,
-                                    child: IconButton.filledTonal(
-                                        onPressed: player
-                                                    ?.value.isInitialized ==
-                                                true
-                                            ? () async {
-                                                if (player!.value.isPlaying) {
-                                                  await player.pause();
-                                                } else {
-                                                  await player.play();
-                                                }
-                                                if (mounted) setState(() {});
-                                              }
-                                            : null,
-                                        iconSize: 36,
-                                        icon: Icon(
-                                            player?.value.isPlaying == true
-                                                ? Icons.pause_rounded
-                                                : Icons.play_arrow_rounded))),
-                              ]))),
-                    Padding(
-                        padding: const EdgeInsets.all(14),
-                        child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text('${_selected!['title'] ?? 'Live channel'}',
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.w800)),
-                              if (_playbackError != null)
-                                Padding(
-                                    padding: const EdgeInsets.only(top: 8),
-                                    child: Text(_playbackError!,
-                                        style: TextStyle(
-                                            color: Theme.of(context)
-                                                .colorScheme
-                                                .error))),
-                              TextButton.icon(
-                                  onPressed: () async {
-                                    _playGeneration++;
-                                    await _player?.dispose();
-                                    await _youtubePlayer?.close();
-                                    if (mounted) {
-                                      setState(() {
-                                        _player = null;
-                                        _youtubePlayer = null;
-                                        _webPlaybackUrl = null;
-                                        _selected = null;
-                                        _playbackError = null;
-                                      });
-                                    }
-                                  },
-                                  icon: const Icon(Icons.close_rounded),
-                                  label: const Text('Close player'))
-                            ])),
-                  ])),
-        ],
-        if (_loadingMore)
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Center(
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          if (_loadingMore)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 8),
+              child: Center(
                 child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2))),
-          ),
-        if (_loading && _channels.isEmpty)
-          const Padding(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+              ),
+            ),
+          if (_loading && _channels.isEmpty)
+            const Padding(
               padding: EdgeInsets.all(24),
-              child: Center(child: CircularProgressIndicator())),
-        if (_error != null)
-          Padding(
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          if (_error != null)
+            Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(children: [
-                Text(_error!),
-                TextButton(onPressed: _load, child: const Text('Retry'))
-              ])),
-        if (!_loading && _channels.isEmpty && _error == null)
-          const Padding(
+              child: Column(
+                children: [
+                  Text(_error!),
+                  TextButton(onPressed: _load, child: const Text('Retry')),
+                ],
+              ),
+            ),
+          if (!_loading && _channels.isEmpty && _error == null)
+            const Padding(
               padding: EdgeInsets.all(24),
               child: Center(
-                  child: Text('No live channels are available right now.'))),
-        const SizedBox(height: 12),
-        ..._channels.map((channel) {
-          final title = '${channel['title'] ?? 'Live channel'}';
-          final description =
-              '${channel['description'] ?? channel['category'] ?? 'Live on Testagram'}';
-          final thumb = '${channel['thumbnail_url'] ?? ''}';
-          final active = '${_selected?['id'] ?? ''}' == '${channel['id']}';
-          return Card(
+                child: Text('No live channels are available right now.'),
+              ),
+            ),
+          const SizedBox(height: 12),
+          ..._channels.map((channel) {
+            final title = '${channel['title'] ?? 'Live channel'}';
+            final description =
+                '${channel['description'] ?? channel['category'] ?? 'Live on Testagram'}';
+            final thumb = '${channel['thumbnail_url'] ?? ''}';
+            final active = '${_selected?['id'] ?? ''}' == '${channel['id']}';
+            return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
                 leading: ClipRRect(
                   borderRadius: BorderRadius.circular(10),
                   child: SizedBox(
-                      width: 68,
-                      height: 54,
-                      child: thumb.startsWith('http')
-                          ? CachedNetworkImage(
-                              imageUrl: thumb,
-                              fit: BoxFit.cover,
-                              errorWidget: (_, __, ___) =>
-                                  const Icon(Icons.live_tv_rounded))
-                          : Container(
-                              color: Theme.of(context)
-                                  .colorScheme
-                                  .surfaceContainerHighest,
-                              child: const Icon(Icons.live_tv_rounded))),
+                    width: 68,
+                    height: 54,
+                    child: thumb.startsWith('http')
+                        ? CachedNetworkImage(
+                            imageUrl: thumb,
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) =>
+                                const Icon(Icons.live_tv_rounded),
+                          )
+                        : Container(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest,
+                            child: const Icon(Icons.live_tv_rounded),
+                          ),
+                  ),
                 ),
-                title:
-                    Text(title, maxLines: 1, overflow: TextOverflow.ellipsis),
-                subtitle: Text(description,
-                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                title: Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  description,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 trailing: IconButton(
-                    tooltip: active ? 'Selected channel' : 'Play channel',
-                    onPressed: () => _play(channel),
-                    icon: Icon(
-                        active
-                            ? Icons.graphic_eq_rounded
-                            : Icons.play_circle_outline_rounded,
-                        color: Theme.of(context).colorScheme.primary)),
+                  tooltip: active ? 'Selected channel' : 'Play channel',
+                  onPressed: () => _play(channel),
+                  icon: Icon(
+                    active
+                        ? Icons.graphic_eq_rounded
+                        : Icons.play_circle_outline_rounded,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
                 onTap: () => _play(channel),
-              ));
-        }),
-      ]),
+              ),
+            );
+          }),
+        ],
+      ),
     );
   }
 }

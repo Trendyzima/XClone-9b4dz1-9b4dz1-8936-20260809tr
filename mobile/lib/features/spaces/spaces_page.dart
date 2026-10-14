@@ -172,7 +172,7 @@ class _SpacesPageState extends State<SpacesPage> {
                           decoration:
                               const InputDecoration(labelText: 'Description')),
                       DropdownButtonFormField<String>(
-                          initialValue: category,
+                          value: category,
                           decoration:
                               const InputDecoration(labelText: 'Category'),
                           items: const [

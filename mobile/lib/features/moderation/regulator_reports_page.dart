@@ -180,7 +180,7 @@ class _RegulatorReportsPageState extends State<RegulatorReportsPage> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    initialValue: _filter,
+                    value: _filter,
                     decoration: const InputDecoration(
                       labelText: 'Report status',
                       border: OutlineInputBorder(),

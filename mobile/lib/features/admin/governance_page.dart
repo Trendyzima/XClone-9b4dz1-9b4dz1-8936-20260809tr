@@ -415,7 +415,7 @@ class _GovernancePageState extends State<GovernancePage> {
                 onSubmitted: (_) => searchUsers()),
             const SizedBox(height: 8),
             DropdownButtonFormField<String>(
-                initialValue: selectedRole,
+                value: selectedRole,
                 decoration: const InputDecoration(
                     labelText: 'Governance role', border: OutlineInputBorder()),
                 items: roles.entries
