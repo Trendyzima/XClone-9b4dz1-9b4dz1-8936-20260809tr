@@ -47,6 +47,7 @@ import '../features/creator/rewards_page.dart';
 import '../features/tv/tv_studio_page.dart';
 import '../features/videos/videos_page.dart';
 import '../features/discovery/discovery_pages.dart';
+import '../features/discovery/sports_hub_page.dart';
 import '../features/marketplace/products_page.dart';
 import '../features/marketplace/orders_page.dart';
 import '../features/marketplace/wishlist_page.dart';
@@ -113,7 +114,8 @@ class _TestagramAppState extends State<TestagramApp> {
         final onAuth = state.matchedLocation == '/auth';
         final onSetup = state.matchedLocation == '/setup';
         final path = state.matchedLocation;
-        final publicRoute = path == '/' ||
+        final publicRoute =
+            path == '/' ||
             path == '/explore' ||
             path == '/search' ||
             path == '/discover' ||
@@ -159,7 +161,8 @@ class _TestagramAppState extends State<TestagramApp> {
         GoRoute(
           path: '/auth',
           builder: (_, state) => AuthPage(
-            recovery: state.uri.queryParameters['reset'] == '1' ||
+            recovery:
+                state.uri.queryParameters['reset'] == '1' ||
                 state.uri.queryParameters['type'] == 'recovery',
             returnTo: AuthRedirectPolicy.safeReturnPath(
               state.uri.queryParameters['returnTo'],
@@ -815,17 +818,15 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/boost-analytics/:postId',
-              builder: (_, state) => PostAnalyticsPage(
-                postId: state.pathParameters['postId'],
-              ),
+              builder: (_, state) =>
+                  PostAnalyticsPage(postId: state.pathParameters['postId']),
             ),
             // Reuse the audited server-backed campaign creation workflow;
             // payment state is still confirmed by the backend callback.
             GoRoute(
               path: '/boost-create',
-              builder: (_, __) => const AdCampaignsPage(
-                mode: AdCampaignsMode.create,
-              ),
+              builder: (_, __) =>
+                  const AdCampaignsPage(mode: AdCampaignsMode.create),
             ),
             GoRoute(
               path: '/call/:callId',
@@ -1100,14 +1101,7 @@ class _TestagramAppState extends State<TestagramApp> {
               path: '/sessions',
               builder: (_, __) => const ActiveSessionsPage(),
             ),
-            GoRoute(
-              path: '/sports',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Sports',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
-            ),
+            GoRoute(path: '/sports', builder: (_, __) => const SportsHubPage()),
             GoRoute(
               path: '/staff',
               builder: (_, state) => NativeFeaturePage(
