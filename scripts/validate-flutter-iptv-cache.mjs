@@ -30,7 +30,8 @@ assert.ok(tvPage.includes('_restoreCachedCatalog()'), 'cached channels must be r
 assert.ok(tvPage.includes('_persistCachedCatalog(merged)'), 'fresh catalogue results must update the persistent cache');
 assert.ok(tvPage.includes("unawaited(_play(merged.first))"), 'the first fresh channel must auto-start when no cached channel is selected');
 assert.ok(tvPage.includes('unawaited(_prepareAdjacent(0))'), 'first cached channel must prepare its neighbor immediately');
-assert.ok(/existing:\s*_channels\)/.test(tvPage), 'incremental catalogue loads must preserve existing vertical page ordering');
+assert.ok(/_channels\s*=\s*_dedupeChannels\([\s\S]{0,180}existing:\s*_channels,\s*\)/.test(tvPage), 'incremental catalogue loads must preserve existing vertical page ordering');
+assert.ok(tvPage.includes('for (final row in [...existing, ...rows])'), 'catalogue deduplication must retain existing channels before appending newly loaded sources');
 assert.ok(channelCache.includes('maxAge = Duration(hours: 24)'), 'public channel metadata cache must have a 24-hour TTL');
 assert.ok(channelCache.includes('maxChannels = 250'), 'public channel metadata cache must have a bounded channel count');
 assert.ok(channelCache.includes('maxEncodedBytes = 1024 * 1024'), 'public channel metadata cache must be size bounded');
