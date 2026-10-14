@@ -20,9 +20,10 @@ Status: **not ready for official F-Droid submission**. This document records sou
    - Choose a recognized FOSS license with the rights holder's informed approval. Do not apply a blanket license to third-party, copied, generated, or unlicensed material without establishing the rights.
    - Add a root license only when its scope is clear; include third-party notices and a dependency/asset license inventory.
 2. **F-Droid-compatible variant**
-   - Create and test an explicit `fdroid` Android flavor without proprietary ad/tracking SDKs, proprietary analytics, or non-free integrations.
-   - Keep the existing production build and release workflow unchanged; verify its outputs before and after the change.
+   - An explicit `fdroid` Android flavor and unsigned candidate-build workflow now exist on the preparation branch. CI must prove the build works before it is considered usable.
+   - The flavor currently shares the Flutter source and dependency graph with production; it is a packaging boundary, not yet a demonstrated removal of all potentially incompatible integrations.
    - Audit all direct and transitive Dart/Flutter, Gradle, Android, and bundled native dependencies, including license files and downloaded toolchains.
+   - Keep the legacy root Android release flow and the Flutter production-signed release separate; verify production output paths and signing checks after adding the flavor.
    - Determine whether the app's dependence on the hosted Testagram/Supabase backend, embedded YouTube content, IPTV providers, and other network services requires removal, a functional alternative, or disclosure under F-Droid policy. Do not silently claim these services are free software.
 3. **Releases and build reproducibility**
    - Publish a Flutter-specific immutable release tag whose source commit builds the submitted Android app from source.
@@ -51,7 +52,7 @@ The official F-Droid repository signs APKs with its own infrastructure. The deve
 - Current Flutter source version: `0.3.0+5` (not yet established as an F-Droid-ready tagged release)
 - Minimum Android SDK: 24
 - License: **unresolved — do not submit until ownership and licensing are confirmed**
-- F-Droid build recipe: **not ready — requires a pinned Flutter toolchain and successful isolated build**
+- F-Droid build recipe: **candidate CI build added; still not ready until the workflow passes and an fdroiddata build recipe is validated in F-Droid's build environment**
 
 ## Official guidance
 
