@@ -15,7 +15,7 @@ declare
   n integer:=least(50,greatest(1,coalesce(p_limit,40)));
   v_offset integer:=least(1000000,greatest(0,coalesce(p_offset,0)));
   next_offset integer:=null;
-  vu jsonb:='[]'; vh jsonb:='[]'; vp jsonb:='[]'; vt jsonb:='[]'; vc jsonb:='[]'; vf jsonb:='[]'; vr jsonb:='[]';
+  vu jsonb:='[]'; vh jsonb:='[]'; vp jsonb:='[]'; vt jsonb:='[]'; vc jsonb:='[]'; vf jsonb:='[]'; vr jsonb:='[]'; vi jsonb:='[]';
 begin
   if kind in ('all','people','users','fediverse') then
     select coalesce(jsonb_agg(to_jsonb(x) order by x.match_rank desc,x.follower_count desc nulls last,x.username), '[]')
@@ -66,6 +66,20 @@ begin
              case when r.tag is not null and l.tag is not null then 'mixed' when r.tag is not null then 'fediverse' else 'testagram' end origin
       from local_tags l full join remote_tags r on r.tag=l.tag
       order by total_posts desc,last_used_at desc nulls last,tag limit n offset v_offset
+    ) x;
+  end if;
+
+  if kind in ('all','instances') then
+    select coalesce(jsonb_agg(to_jsonb(x) order by x.account_count desc nulls last,x.domain),'[]') into vi
+    from (
+      select fi.id,fi.domain,fi.base_url,fi.provider,fi.software,fi.public_timeline_available,fi.discovered_at,
+             count(a.id)::bigint account_count
+      from federated_instances fi
+      left join federated_actors a on a.domain=fi.domain
+      where term='' or lower(fi.domain) like '%'||term||'%' or lower(coalesce(fi.software,'')) like '%'||term||'%'
+      group by fi.id
+      order by account_count desc nulls last,fi.domain
+      limit n offset v_offset
     ) x;
   end if;
 
@@ -156,10 +170,10 @@ begin
     ) x;
   end if;
 
-  if jsonb_array_length(vu)>=n or jsonb_array_length(vh)>=n or jsonb_array_length(vp)>=n or jsonb_array_length(vt)>=n or jsonb_array_length(vc)>=n or jsonb_array_length(vr)>=n or jsonb_array_length(vf)>=n then
+  if jsonb_array_length(vu)>=n or jsonb_array_length(vh)>=n or jsonb_array_length(vp)>=n or jsonb_array_length(vt)>=n or jsonb_array_length(vc)>=n or jsonb_array_length(vr)>=n or jsonb_array_length(vf)>=n or jsonb_array_length(vi)>=n then
     next_offset:=v_offset+n;
   end if;
-  return jsonb_build_object('users',vu,'hashtags',vh,'posts',vp,'threads',vt,'communities',vc,'replies',vr,'fediverse',vf,'next_cursor',next_offset::text);
+  return jsonb_build_object('users',vu,'hashtags',vh,'posts',vp,'threads',vt,'communities',vc,'replies',vr,'fediverse',vf,'instances',vi,'next_cursor',next_offset::text);
 end;
 $function$
 
