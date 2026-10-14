@@ -37,12 +37,14 @@ class _StaffRecruitmentPageState extends State<StaffRecruitmentPage> {
     final generation = ++_generation;
     final user = _db.auth.currentUser;
     if (user == null) {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
           _owner = false;
+          _applications = const [];
           _error = 'Sign in to access staff recruitment.';
         });
+      }
       return;
     }
     setState(() {
@@ -56,12 +58,13 @@ class _StaffRecruitmentPageState extends State<StaffRecruitmentPage> {
           .rpc('testagram_is_owner')
           .timeout(const Duration(seconds: 12));
       if (ownerResult != true) {
-        if (mounted && generation == _generation)
+        if (mounted && generation == _generation) {
           setState(() {
             _owner = false;
             _applications = const [];
             _loading = false;
           });
+        }
         return;
       }
       final result = await _db.rpc('testagram_list_job_applications', params: {
@@ -73,24 +76,27 @@ class _StaffRecruitmentPageState extends State<StaffRecruitmentPage> {
               .map((row) => Map<String, dynamic>.from(row))
               .toList()
           : <Map<String, dynamic>>[];
-      if (mounted && generation == _generation)
+      if (mounted && generation == _generation) {
         setState(() {
           _owner = true;
           _applications = rows;
           _loading = false;
         });
+      }
     } catch (_) {
-      if (mounted && generation == _generation)
+      if (mounted && generation == _generation) {
         setState(() {
           _loading = false;
           _error = 'Recruitment records are unavailable. Retry to reconnect.';
         });
+      }
     }
   }
 
   Future<void> _review(Map<String, dynamic> application, String status) async {
-    if (!_owner || !StaffRecruitmentPolicy.reviewStatuses.contains(status))
+    if (!_owner || !StaffRecruitmentPolicy.reviewStatuses.contains(status)) {
       return;
+    }
     final id = '${application['id'] ?? ''}';
     if (id.isEmpty || _busyId != null) return;
     setState(() {
@@ -103,15 +109,17 @@ class _StaffRecruitmentPageState extends State<StaffRecruitmentPage> {
         'p_status': status,
         'p_note': null,
       }).timeout(const Duration(seconds: 15));
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Application moved to $status.')),
         );
+      }
       await _load();
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error =
             'The application update was rejected. Verify owner access and retry.');
+      }
     } finally {
       if (mounted) setState(() => _busyId = null);
     }
@@ -119,13 +127,15 @@ class _StaffRecruitmentPageState extends State<StaffRecruitmentPage> {
 
   Future<void> _invite(Map<String, dynamic> application) async {
     if (!_owner ||
-        !StaffRecruitmentPolicy.canInvite('${application['status'] ?? ''}'))
+        !StaffRecruitmentPolicy.canInvite('${application['status'] ?? ''}')) {
       return;
+    }
     final id = '${application['id'] ?? ''}';
     final userId = '${application['user_id'] ?? ''}';
     final roleName = '${application['role_name'] ?? ''}';
-    if (id.isEmpty || userId.isEmpty || roleName.isEmpty || _busyId != null)
+    if (id.isEmpty || userId.isEmpty || roleName.isEmpty || _busyId != null) {
       return;
+    }
     setState(() {
       _busyId = id;
       _error = null;
@@ -137,17 +147,19 @@ class _StaffRecruitmentPageState extends State<StaffRecruitmentPage> {
         'p_note':
             'Owner-approved invitation following recruitment application $id',
       }).timeout(const Duration(seconds: 15));
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
               content: Text(
                   '${StaffRecruitmentPolicy.displayName(application)} invited.')),
         );
+      }
       await _load();
     } catch (_) {
-      if (mounted)
+      if (mounted) {
         setState(() => _error =
             'Invitation was rejected. The server may require a fresh privileged owner session.');
+      }
     } finally {
       if (mounted) setState(() => _busyId = null);
     }
