@@ -261,7 +261,10 @@ class _ExplorePageState extends State<ExplorePage> {
                 isDense: true,
                 underline: const SizedBox.shrink(),
                 items: const [
-                  DropdownMenuItem(value: 'Recent', child: Text('Recent posts')),
+                  DropdownMenuItem(
+                    value: 'Recent',
+                    child: Text('Recent posts'),
+                  ),
                   DropdownMenuItem(value: 'Most liked', child: Text('Most liked')),
                 ],
                 onChanged: (value) {
