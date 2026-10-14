@@ -42,6 +42,10 @@ const routeDomain = (p) => {
 if (declarations.length < 100 || unique.length < 100 || native.size < 1) {
   throw new Error('Route extraction looks incomplete: ' + declarations.length + ' declarations, ' + unique.length + ' unique source routes, ' + native.size + ' Flutter routes.');
 }
+const routeNotes = {
+  '/platform-inbox': 'Dedicated Flutter Wise Brain inbox uses the authenticated platform_inbox table and generate_platform_inbox_digest RPC, with pagination, filters, read/delete actions and internal-route CTA validation. Full web/Android and backend acceptance remains required.',
+  '/admin/staff-recruitment': 'Dedicated Flutter owner-only recruitment console uses testagram_is_owner, testagram_list_job_applications, testagram_review_job_application, and testagram_invite_admin RPCs. Invitation is shown only for accepted applications; privileged session and all authorization remain server-enforced. Full Web/Android acceptance remains required.'
+};
 const routes = unique.filter((pathname) => pathname !== '*').map((pathname) => {
   const isNative = [...native].some((pattern) => matchesRoute(pattern, pathname));
   const isShell = [...nativeShells].some((pattern) => matchesRoute(pattern, pathname));
@@ -49,11 +53,11 @@ const routes = unique.filter((pathname) => pathname !== '*').map((pathname) => {
     path: pathname,
     domain: routeDomain(pathname),
     status: isShell ? 'native_shell' : isNative ? 'native_partial' : 'legacy_web_fallback',
-    note: isShell
+    note: routeNotes[pathname] ?? (isShell
       ? 'A native Flutter migration surface is registered. The dedicated feature workflow, backend integration, permissions, failure recovery, and web/Android tests remain unaccepted.'
       : isNative
         ? 'An explicit Flutter route exists. Feature-level, backend, permission, failure-recovery, web and Android parity still require acceptance.'
-        : 'No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated.'
+        : 'No exact Flutter route is registered; the Flutter router currently uses the legacy website fallback. This route is not migrated.')
   };
 });
 const inventory = {

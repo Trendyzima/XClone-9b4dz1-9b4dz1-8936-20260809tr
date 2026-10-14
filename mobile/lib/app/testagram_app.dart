@@ -14,6 +14,7 @@ import '../features/feed/post_quote_composer_page.dart';
 import '../features/feed/post_reply_chain_page.dart';
 import '../features/feed/post_interaction_policy.dart';
 import '../features/messages/messages_page.dart';
+import '../features/messages/platform_inbox_page.dart';
 import '../features/messages/team_chat_page.dart';
 import '../features/notifications/notifications_page.dart';
 import '../features/profile/profile_page.dart';
@@ -61,6 +62,7 @@ import '../features/admin/admin_fraud_page.dart';
 import '../features/admin/identity_verification_review_page.dart';
 import '../features/admin/verification_requests_page.dart';
 import '../features/admin/regulator_console_page.dart';
+import '../features/admin/staff_recruitment_page.dart';
 import '../features/ads/ad_config_page.dart';
 import '../features/news/news_page.dart';
 import '../features/news/news_article_page.dart';
@@ -773,11 +775,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/admin/staff-recruitment',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Staff Recruitment',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const StaffRecruitmentPage(),
             ),
             GoRoute(
               path: '/admin/users',
@@ -903,11 +901,7 @@ class _TestagramAppState extends State<TestagramApp> {
             ),
             GoRoute(
               path: '/platform-inbox',
-              builder: (_, state) => NativeFeaturePage(
-                title: 'Platform Inbox',
-                routePath: state.matchedLocation,
-                pathParameters: state.pathParameters,
-              ),
+              builder: (_, __) => const PlatformInboxPage(),
             ),
             GoRoute(
               path: '/podcasts/analytics',
