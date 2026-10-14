@@ -44,7 +44,8 @@ if (declarations.length < 100 || unique.length < 100 || native.size < 1) {
 }
 const routeNotes = {
   '/platform-inbox': 'Dedicated Flutter Wise Brain inbox uses the authenticated platform_inbox table and generate_platform_inbox_digest RPC, with pagination, filters, read/delete actions and internal-route CTA validation. Full web/Android and backend acceptance remains required.',
-  '/admin/staff-recruitment': 'Dedicated Flutter owner-only recruitment console uses testagram_is_owner, testagram_list_job_applications, testagram_review_job_application, and testagram_invite_admin RPCs. Invitation is shown only for accepted applications; privileged session and all authorization remain server-enforced. Full Web/Android acceptance remains required.'
+  '/admin/staff-recruitment': 'Dedicated Flutter owner-only recruitment console uses testagram_is_owner, testagram_list_job_applications, testagram_review_job_application, and testagram_invite_admin RPCs. Invitation is shown only for accepted applications; privileged session and all authorization remain server-enforced. Full Web/Android acceptance remains required.',
+  '/admin/seo': 'Dedicated Flutter owner-only SEO audit mirrors the checked-in SEO coverage manifest and probes the live community-sitemap endpoint. The declared route score is explicitly not a live HTML crawl; full Web/Android acceptance remains required.'
 };
 const routes = unique.filter((pathname) => pathname !== '*').map((pathname) => {
   const isNative = [...native].some((pattern) => matchesRoute(pattern, pathname));
