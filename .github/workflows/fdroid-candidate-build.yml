@@ -52,7 +52,12 @@ jobs:
           if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
             BASE_SHA="$(git rev-parse HEAD^)"
           fi
-          mapfile -t DART_FILES < <(git diff --name-only "$BASE_SHA" "$GITHUB_SHA" -- mobile/lib mobile/test | grep -E '\.dart
+          git diff --name-only "$BASE_SHA" "$GITHUB_SHA" -- mobile/lib mobile/test | grep -E '\\.dart
+        working-directory: mobile
+        run: |
+          set -euo pipefail
+          flutter analyze --fatal-infos --fatal-warnings
+          flutter test --coverage
 
       - name: Build F-Droid flavor without production signing secrets
         working-directory: mobile
@@ -86,11 +91,11 @@ jobs:
           path: mobile/build/app/outputs/flutter-apk/*fdroid*release*.apk
           if-no-files-found: error
           retention-days: 14
- || true)
-          if (( ${#DART_FILES[@]} == 0 )); then
+ > /tmp/changed-dart-files || true
+          if [[ ! -s /tmp/changed-dart-files ]]; then
             echo "No Dart source or test files changed; skipping formatter check for unrelated legacy files."
           else
-            dart format --output=none --set-exit-if-changed "${DART_FILES[@]}"
+            xargs -r dart format --output=none --set-exit-if-changed < /tmp/changed-dart-files
           fi
 
       - name: Analyze and test candidate source
