@@ -49,6 +49,7 @@ import '../features/videos/videos_page.dart';
 import '../features/discovery/discovery_pages.dart';
 import '../features/discovery/sports_hub_page.dart';
 import '../features/marketplace/products_page.dart';
+import '../features/marketplace/shopping_mall_page.dart';
 import '../features/marketplace/orders_page.dart';
 import '../features/marketplace/wishlist_page.dart';
 import '../features/social/lists_pages.dart';
@@ -362,7 +363,14 @@ class _TestagramAppState extends State<TestagramApp> {
               builder: (_, state) =>
                   ProductsPage(productId: state.pathParameters['productId']),
             ),
-            GoRoute(path: '/shop', builder: (_, __) => const ProductsPage()),
+            GoRoute(
+              path: '/shop',
+              builder: (_, __) => const ShoppingMallPage(),
+            ),
+            GoRoute(
+              path: '/mall',
+              builder: (_, __) => const ShoppingMallPage(),
+            ),
             GoRoute(path: '/orders', builder: (_, __) => const OrdersPage()),
             GoRoute(
               path: '/create-ad',
