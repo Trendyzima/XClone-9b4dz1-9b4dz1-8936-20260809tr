@@ -111,17 +111,13 @@ jobs:
       - name: Enforce formatting for Dart files changed in this PR
         env:
           PR_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          PR_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
-          if [[ "$GITHUB_EVENT_NAME" == "pull_request" ]]; then
-            git diff --name-only "$GITHUB_SHA^1" "$GITHUB_SHA^2" -- mobile/lib mobile/test > /tmp/changed-files
-          else
-            BASE_SHA="$PR_BASE_SHA"
-            if [[ -z "$BASE_SHA" || "$BASE_SHA" =~ ^0+$ ]]; then
-              BASE_SHA="$(git rev-parse HEAD^)"
-            fi
-            git diff --name-only "$BASE_SHA" "$GITHUB_SHA" -- mobile/lib mobile/test > /tmp/changed-files
+          if [[ -z "$PR_BASE_SHA" || "$PR_BASE_SHA" =~ ^0+$ ]]; then
+            PR_BASE_SHA="$(git rev-parse HEAD^)"
           fi
+          git diff --name-only "$PR_BASE_SHA" "$PR_HEAD_SHA" -- mobile/lib mobile/test > /tmp/changed-files
           grep -F '.dart' /tmp/changed-files > /tmp/changed-dart-files || true
           if [[ ! -s /tmp/changed-dart-files ]]; then
             echo "No Dart source or test files changed; skipping formatter check for unrelated legacy files."
