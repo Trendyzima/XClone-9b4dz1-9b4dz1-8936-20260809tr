@@ -103,7 +103,9 @@ class _AuthPageState extends State<AuthPage> {
         role == 'owner' ||
         (roles is List &&
             roles.any((value) =>
-                value == 'admin' || value == 'super_admin' || value == 'owner'));
+                value == 'admin' ||
+                value == 'super_admin' ||
+                value == 'owner'));
     // The Edge Function independently verifies the JWT and admin role. This
     // only requests the full one-time backfill when the signed-in user is an
     // admin; ordinary users provision their own actor and signing key.
