@@ -55,7 +55,8 @@ void main() {
   });
 
   group('normalizeFederatedMediaUrl', () {
-    test('trims and upgrades HTTPS-capable HTTP and protocol-relative links', () {
+    test('trims and upgrades HTTPS-capable HTTP and protocol-relative links',
+        () {
       expect(
         normalizeFederatedMediaUrl(
           '  https://cdn.example/media.jpg#preview  ',
