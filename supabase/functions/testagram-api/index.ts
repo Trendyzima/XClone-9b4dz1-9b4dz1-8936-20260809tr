@@ -235,7 +235,11 @@ async function localOutbox(username:string,params:Record<string,string>){
     return activityJson({"@context":"https://www.w3.org/ns/activitystreams",id:outboxId,type:"OrderedCollection",totalItems:Number(count.count||0),first:{id:firstUrl,type:"OrderedCollectionPage",partOf:outboxId}});
   }
   let query=baseQuery().order("created_at",{ascending:false}).order("id",{ascending:false}).limit(limit+1);
-  if(params.before)query=query.lt("created_at",params.before);
+  if(params.before&&params.before_id){
+    query=query.or(`created_at.lt.${params.before},and(created_at.eq.${params.before},id.lt.${params.before_id})`);
+  }else if(params.before){
+    query=query.lt("created_at",params.before);
+  }
   const result=await query;
   if(result.error)return activityJson({error:"Unable to read actor outbox page"},500);
   const posts=result.data||[];
@@ -243,8 +247,8 @@ async function localOutbox(username:string,params:Record<string,string>){
   const visible=posts.slice(0,limit);
   const items=visible.map((post:any)=>localPostActivity(p,actor,post));
   const last=visible[visible.length-1];
-  const currentPageUrl=`${outboxId}?page=true&limit=${limit}${params.before?`&before=${encodeURIComponent(params.before)}`:""}`;
-  const nextPageUrl=last?.created_at?`${outboxId}?page=true&limit=${limit}&before=${encodeURIComponent(String(last.created_at))}`:null;
+  const currentPageUrl=`${outboxId}?page=true&limit=${limit}${params.before?`&before=${encodeURIComponent(params.before)}`:""}${params.before_id?`&before_id=${encodeURIComponent(params.before_id)}`:""}`;
+  const nextPageUrl=last?.created_at?`${outboxId}?page=true&limit=${limit}&before=${encodeURIComponent(String(last.created_at))}&before_id=${encodeURIComponent(String(last.id))}`:null;
   return activityJson({"@context":"https://www.w3.org/ns/activitystreams",id:currentPageUrl,type:"OrderedCollectionPage",partOf:outboxId,orderedItems:items,...hasMore&&nextPageUrl?{next:nextPageUrl}:{}});
 }
 async function localStatus(username:string,postId:string){
