@@ -5420,6 +5420,21 @@
       "source_type": "backend_contract_reference",
       "status": "reference_only",
       "note": "Keep this existing platform/backend contract; verify Flutter uses it correctly rather than migrating server or legacy shell code into Dart."
+    },
+    "supabase/migrations/20261015181131_profile_follow_counters.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Database trigger maintains exact accepted follow counts and backfills existing profile counters; Flutter profile reads these canonical values."
+    },
+    "supabase/migrations/20261015181949_federation_worker_timeout_recovery.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Increase the scheduled federation delivery timeout to cover bounded remote inbox batches and recover attempt counters inflated by abandoned in-flight claims."
+    },
+    "supabase/migrations/20261015182134_federation_worker_batch_limit.sql": {
+      "source_type": "backend_contract_reference",
+      "status": "reference_only",
+      "note": "Limit each scheduled federation worker invocation to one five-job concurrency batch and repair retry counters inflated by abandoned claims."
     }
   }
 }

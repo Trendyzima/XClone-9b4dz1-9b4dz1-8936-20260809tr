@@ -76,18 +76,6 @@ class _ProfilePageState extends State<ProfilePage> {
             .isFilter('deleted_at', null)
             .order('created_at', ascending: false)
             .limit(30),
-        _client
-            .from('follows')
-            .select('id')
-            .eq('following_id', targetId)
-            .eq('status', 'accepted')
-            .limit(1000),
-        _client
-            .from('follows')
-            .select('id')
-            .eq('follower_id', targetId)
-            .eq('status', 'accepted')
-            .limit(1000),
       ]);
       var following = false;
       if (uid != null && targetId != uid) {
@@ -367,8 +355,8 @@ class _ProfilePageState extends State<ProfilePage> {
         _postImpressions30d = postImpressions30d;
         _tipsThisMonth = tipsThisMonth;
         _analyticsPrivate = analyticsPrivate;
-        _followers = (results[1] as List).length;
-        _following = (results[2] as List).length;
+        _followers = int.tryParse('${profile['follower_count'] ?? 0}') ?? 0;
+        _following = int.tryParse('${profile['following_count'] ?? 0}') ?? 0;
         _isFollowing = following;
       });
     } catch (error) {

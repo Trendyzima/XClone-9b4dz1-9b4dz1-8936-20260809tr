@@ -206,6 +206,36 @@ void main() {
       },
     );
 
+    test('normalizes empty-query local and Fediverse discovery content', () {
+      final result = UnifiedSearchPolicy.normalize({
+        'posts': [
+          {'id': 'local-post', 'content': 'Local discovery post'},
+        ],
+        'fediverse': [
+          {
+            'id': 'https://remote.example/status/1',
+            'uri': 'https://remote.example/status/1',
+            'content': 'Federated discovery post',
+            'is_federated': true,
+          },
+        ],
+        'users': [
+          {'id': 'local-user', 'username': 'discoverable'},
+        ],
+      });
+
+      expect(result['posts'], hasLength(1));
+      expect(result['fediverse'], hasLength(1));
+      expect(result['users'], hasLength(1));
+      expect(
+        UnifiedSearchPolicy.firstText(
+          (result['posts'] as List<Map<String, dynamic>>).single,
+          ['content'],
+        ),
+        'Local discovery post',
+      );
+    });
+
     test('uses result names without assuming all fields are present', () {
       expect(
         UnifiedSearchPolicy.firstText(

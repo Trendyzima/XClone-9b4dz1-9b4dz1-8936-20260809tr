@@ -142,7 +142,7 @@ async function main(req:Request){
   const check=await getDb().rpc("verify_federation_worker_token",{candidate:token});
   if(check.error||check.data!==true)return json({error:"Unauthorized federation worker"},401);
   const body=await req.json().catch(()=>({}));
-  const limit=Math.min(Math.max(Number(body.limit||20),1),50);
+  const limit=Math.min(Math.max(Number(body.limit||5),1),50);
   const now=new Date().toISOString();
   // Watchdog: any delivery left in_flight beyond the bounded remote timeout is
   // reclaimed so deploys, crashes, or process termination cannot strand jobs.
