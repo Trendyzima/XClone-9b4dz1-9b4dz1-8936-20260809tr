@@ -63,6 +63,7 @@
     "/fediverse/organic-discovery",
     "/fediverse/profile",
     "/fediverse/profile/analytics",
+    "/fediverse/profile/featured",
     "/fediverse/profile/followers",
     "/fediverse/profile/following",
     "/fediverse/profile/gifts",
