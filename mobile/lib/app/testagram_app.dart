@@ -119,7 +119,7 @@ class _TestagramAppState extends State<TestagramApp> {
         final onAuth = state.matchedLocation == '/auth';
         final onSetup = state.matchedLocation == '/setup';
         final path = state.matchedLocation;
-        final publicRoute = AuthRedirectPolicy.isPublicRoute(path)
+        final publicRoute = AuthRedirectPolicy.isPublicRoute(path);
         if (!signedIn && !onAuth && !onSetup && !publicRoute) {
           return '/auth?returnTo=${Uri.encodeComponent(state.uri.toString())}';
         }
