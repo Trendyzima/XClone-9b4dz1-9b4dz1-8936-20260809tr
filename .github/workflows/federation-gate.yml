@@ -42,11 +42,14 @@ jobs:
           deno check --node-modules-dir=none supabase/functions/federation-transport/index.ts
           deno check --node-modules-dir=none supabase/functions/_shared/activitypub-conformance.ts
           deno check --node-modules-dir=none supabase/functions/_shared/activitypub-security.ts
+          deno check --node-modules-dir=none supabase/functions/_shared/activitypub-normalize.ts
           deno check --node-modules-dir=none supabase/functions/_shared/activitypub-delivery.ts
           deno check --node-modules-dir=none supabase/functions/_shared/activitypub-compat.ts
           deno check --node-modules-dir=none supabase/functions/_shared/federation-security.ts
       - name: Run conformance tests
-        run: deno test --node-modules-dir=none supabase/functions/_shared/activitypub-conformance.test.ts
+        run: |
+          deno test --node-modules-dir=none supabase/functions/_shared/activitypub-conformance.test.ts
+          deno test --node-modules-dir=none supabase/functions/_shared/activitypub-normalize.test.ts
       - name: Probe production ActivityPub contracts
         shell: bash
         run: |
@@ -67,9 +70,24 @@ jobs:
           get "/nodeinfo/2.1" 200 "application/json"
           get "/users/crissbeat" 200 "application/activity+json"
           get "/users/crissbeat/outbox" 200 "application/activity+json"
+          get "/users/crissbeat/followers" 200 "application/activity+json"
+          get "/users/crissbeat/following" 200 "application/activity+json"
+          curl -fsS --max-redirs 0 --connect-timeout 10 --max-time 30 -H "Accept: application/activity+json" "$base/users/crissbeat" | python3 -c "import json,sys; a=json.load(sys.stdin); required=['id','inbox','outbox','followers','following','publicKey']; missing=[k for k in required if not a.get(k)]; assert not missing, 'actor contract missing: '+str(missing); assert a['id']=='https://testagram.site/users/crissbeat'; print('Actor identity contract passed.')"
+          curl -fsS --max-redirs 0 --connect-timeout 10 --max-time 30 -H "Accept: application/jrd+json" "$base/.well-known/webfinger?resource=acct:crissbeat@testagram.site" | python3 -c "import json,sys; f=json.load(sys.stdin); assert f.get('subject')=='acct:crissbeat@testagram.site'; assert any(x.get('rel')=='self' and x.get('href')=='https://testagram.site/users/crissbeat' for x in f.get('links',[])); print('WebFinger resolution contract passed.')"
+          for collection in outbox followers following; do
+            curl -fsS --max-redirs 0 --connect-timeout 10 --max-time 30 -H "Accept: application/activity+json" "$base/users/crissbeat/$collection" | python3 -c "import json,sys; d=json.load(sys.stdin); assert d.get('type') in ('OrderedCollection','OrderedCollectionPage'), 'invalid collection type: '+str(d.get('type')); assert d.get('id'), 'collection id missing'; print('ActivityPub collection contract passed.')"
+          done
+          unsigned_status="$(curl -sS --max-redirs 0 --connect-timeout 10 --max-time 30 -X POST -H "Content-Type: application/activity+json" --data '{"@context":"https://www.w3.org/ns/activitystreams","id":"https://remote.example/activities/probe","type":"Create","actor":"https://remote.example/users/probe","object":{"id":"https://remote.example/objects/probe","type":"Note","attributedTo":"https://remote.example/users/probe","content":"contract probe","to":["https://www.w3.org/ns/activitystreams#Public"]}}' -o /dev/null -w '%{http_code}' "$base/users/crissbeat/inbox")"
+          echo "Unsigned inbox POST -> HTTP $unsigned_status"
+          [[ "$unsigned_status" == "401" ]] || { echo "Inbox accepted or misclassified an unsigned activity." >&2; exit 1; }
           for inbox_path in "/inbox" "/users/crissbeat/inbox" "/users/crissbeat/inbox/"; do
             inbox_status="$(curl -sS --max-redirs 0 --connect-timeout 10 --max-time 30 -o /dev/null -w '%{http_code}' "$base$inbox_path")"
             echo "$inbox_path GET -> HTTP $inbox_status"
             [[ "$inbox_status" == "405" ]] || exit 1
           done
+          echo "Checking remote WebFinger and actor interoperability against mstdn.social..."
+          remote_finger="$(curl --retry 3 --retry-delay 2 -fsSL --max-redirs 3 --connect-timeout 10 --max-time 30 -A "Testagram-Federation/4.0" -H "Accept: application/jrd+json" "https://mstdn.social/.well-known/webfinger?resource=acct:teletekst@mstdn.social")"
+          remote_actor="$(printf '%s' "$remote_finger" | python3 -c "import json,sys; f=json.load(sys.stdin); links=[x for x in f.get('links',[]) if x.get('rel')=='self' and 'activity' in x.get('type','') and x.get('href')]; assert links, 'remote WebFinger has no ActivityPub self link'; print(links[0]['href'])")"
+          remote_doc="$(curl --retry 3 --retry-delay 2 -fsSL --max-redirs 3 --connect-timeout 10 --max-time 30 -A "Testagram-Federation/4.0" -H "Accept: application/activity+json" "$remote_actor")"
+          printf '%s' "$remote_doc" | python3 -c "import json,sys; a=json.load(sys.stdin); assert a.get('id') and a.get('id')==sys.argv[1], 'remote actor id mismatch'; assert a.get('inbox') and a.get('outbox') and a.get('publicKey',{}).get('publicKeyPem'), 'remote actor contract incomplete'; print('Independent Mastodon WebFinger and actor contract passed.')" "$remote_actor"
           echo "Production ActivityPub discovery, actor, collection, and all public inbox route contracts passed."

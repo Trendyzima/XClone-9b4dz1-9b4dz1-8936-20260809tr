@@ -109,7 +109,7 @@ Deno.serve(async (request) => {
     // Federation Gate verification marker: custom-feed state is initialized before matching.
     const feedMatches=(item:any)=>{ if(!customFeed)return true; const mode=String(customFeed.mode||"all"); const body=String(item.content||"").replace(/<[^>]*>/g," ").toLowerCase(); const q=String(customFeed.query||"").trim().toLowerCase(); if(mode==="media" && !(Array.isArray(item.attachments)&&item.attachments.length))return false; if(mode==="people" && !item.actor_uri)return false; if(mode==="hashtags" && !Array.isArray(item.tags))return false; if(mode==="mentions" && !body.includes("@"))return false; if(mode==="conversations" && !item.in_reply_to_uri)return false; if(mode==="instances" && !item.actor_uri)return false; if(q){ const terms=q.split(/[,\s]+/).map((x:string)=>x.replace(/^#/, "").trim()).filter(Boolean); if(terms.length&&!terms.some((term:string)=>body.includes(term)||JSON.stringify(item.tags||[]).toLowerCase().includes(term)||String(item.actor_uri||"").toLowerCase().includes(term)))return false; } return true; };
 
-    const baseSelect = "id,uri,object_type,actor_uri,instance_id,url,content,summary,published_at,updated_at,sensitive,in_reply_to_uri,quote_uri,language_code,attachments,tags,like_count,announce_count,reply_count,quote_count,view_count,content_warning,raw_object";
+    const baseSelect = "id,uri,object_type,actor_uri,instance_id,url,content,summary,published_at,updated_at,sensitive,visibility,in_reply_to_uri,quote_uri,language_code,attachments,tags,like_count,announce_count,reply_count,quote_count,view_count,content_warning,raw_object";
 
     // A Follow only creates the relationship; it does not guarantee that a remote
     // instance has already delivered posts to our inbox. Hydrate followed actors
@@ -195,6 +195,7 @@ Deno.serve(async (request) => {
         .select(baseSelect)
         .is("deleted_at", null)
         .eq("tombstone", false)
+        .in("visibility", ["public", "unlisted"])
         .in("object_type", ["Note", "Article", "Question", "Video", "Image"])
         .gte("published_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
         .order("published_at", { ascending: false, nullsFirst: false })
@@ -211,6 +212,7 @@ Deno.serve(async (request) => {
             .select(baseSelect)
             .is("deleted_at", null)
             .eq("tombstone", false)
+            .in("visibility", ["public", "unlisted"])
             .in("object_type", ["Note", "Article", "Question", "Video", "Image"])
             .in("actor_uri", [...hydratedActorAliases])
             .gte("published_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
@@ -245,6 +247,7 @@ Deno.serve(async (request) => {
             .select(baseSelect)
             .is("deleted_at", null)
             .eq("tombstone", false)
+            .in("visibility", ["public", "unlisted"])
             .in("object_type", ["Note", "Article", "Question", "Video", "Image"])
             .gte("published_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
             .in("id", objectIds)

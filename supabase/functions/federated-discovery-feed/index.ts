@@ -37,7 +37,7 @@ Deno.serve(async req=>{
   const seen=await admin.from("federated_discovery_impressions").select("object_id").eq("user_id",uid).eq("surface",surface).order("shown_at",{ascending:false}).limit(500);
   if(seen.error)throw seen.error;
   const seenIds=new Set((seen.data||[]).map((r:any)=>String(r.object_id)));
-  let q=admin.from("federated_objects").select("id,uri,object_type,actor_uri,instance_id,url,content,summary,published_at,updated_at,sensitive,in_reply_to_uri,quote_uri,language_code,attachments,tags,like_count,announce_count,reply_count,quote_count,view_count,content_warning,raw_object").is("deleted_at",null).eq("tombstone",false).in("object_type",["Note","Article","Question","Video","Image"]).order("published_at",{ascending:false,nullsFirst:false}).limit(400);
+  let q=admin.from("federated_objects").select("id,uri,object_type,actor_uri,instance_id,url,content,summary,published_at,updated_at,sensitive,visibility,in_reply_to_uri,quote_uri,language_code,attachments,tags,like_count,announce_count,reply_count,quote_count,view_count,content_warning,raw_object").is("deleted_at",null).eq("tombstone",false).in("visibility",["public","unlisted"]).in("object_type",["Note","Article","Question","Video","Image"]).order("published_at",{ascending:false,nullsFirst:false}).limit(400);
   if(cursor) q=q.lt("published_at",cursor.ts);
   const fetched=await q; if(fetched.error)throw fetched.error;
   const now=Date.now();

@@ -1,5 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { assertCanonicalPublicUrl, assertSafeRemoteUrl, canonicalOrigin } from "../_shared/activitypub-security.ts";
+import { asArray, firstString, idOf, normalizeAttachment, normalizeVisibility } from "../_shared/activitypub-normalize.ts";
+export { asArray, firstString, idOf, normalizeAttachment, normalizeVisibility } from "../_shared/activitypub-normalize.ts";
 
 /** Shared ActivityPub interoperability primitives. Keep protocol parsing tolerant. */
 export const AP_CONTEXT = [
@@ -9,21 +11,6 @@ export const AP_CONTEXT = [
 
 export const AP_TYPES = new Set(["Create", "Update", "Delete", "Undo", "Follow", "Accept", "Reject", "Like", "Announce", "EmojiReact", "Block", "Move", "Add", "Remove", "Flag", "QuoteRequest"]);
 
-export function asArray<T = unknown>(value: T | T[] | null | undefined): T[] {
-  if (value == null) return [];
-  return Array.isArray(value) ? value : [value];
-}
-
-export function firstString(...values: unknown[]): string | null {
-  for (const value of values) if (typeof value === "string" && value.trim()) return value.trim();
-  return null;
-}
-
-export function idOf(value: unknown): string | null {
-  if (typeof value === "string") return value;
-  if (value && typeof value === "object") return firstString((value as Record<string, unknown>).id, (value as Record<string, unknown>).url);
-  return null;
-}
 
 export function typeOf(value: unknown): string | null {
   if (!value || typeof value !== "object") return null;
@@ -40,26 +27,6 @@ export function actorId(activity: Record<string, unknown>): string | null {
   return idOf(activity.actor);
 }
 
-export function normalizeVisibility(value: unknown, to: unknown, cc: unknown): "public" | "unlisted" | "followers" | "direct" {
-  const raw = typeof value === "string" ? value.toLowerCase() : "";
-  if (["direct", "private", "followers"].includes(raw)) return raw === "private" ? "followers" : raw as "followers" | "direct";
-  const recipients = [...asArray(to), ...asArray(cc)].filter((x): x is string => typeof x === "string");
-  if (recipients.some((x) => x === "https://www.w3.org/ns/activitystreams#Public")) return "public";
-  if (recipients.some((x) => x.endsWith("/followers"))) return "followers";
-  return "direct";
-}
-
-export function normalizeAttachment(value: unknown) {
-  const a = value && typeof value === "object" ? value as Record<string, unknown> : {};
-  return {
-    url: firstString(a.url, a.href, a.preview_url),
-    type: firstString(a.mediaType, a.mimeType, a.type),
-    name: firstString(a.name, a.alt, a.description),
-    width: typeof a.width === "number" ? a.width : null,
-    height: typeof a.height === "number" ? a.height : null,
-    blurhash: firstString(a.blurhash, a.blurHash),
-  };
-}
 
 export function normalizeNote(object: Record<string, unknown>) {
   return {
