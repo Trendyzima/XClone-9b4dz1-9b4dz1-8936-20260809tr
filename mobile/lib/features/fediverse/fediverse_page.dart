@@ -312,11 +312,16 @@ class _FediversePageState extends State<FediversePage> {
                   .map((post) => '${post['uri'] ?? post['id']}')
                   .where((key) => key.isNotEmpty),
             );
-          if (posts.length < _feedPageSize || posts.isEmpty) {
-            _hasMoreFeed = false;
+          _hasMoreFeed = posts.length == _feedPageSize;
+          if (posts.isEmpty) {
+            _feedCursorPublishedAt = null;
+            _feedCursorId = null;
           } else {
             _feedCursorPublishedAt = '${posts.last['published_at'] ?? ''}';
             _feedCursorId = '${posts.last['id'] ?? ''}';
+            if (_feedCursorPublishedAt!.isEmpty || _feedCursorId!.isEmpty) {
+              _hasMoreFeed = false;
+            }
           }
         });
       }
