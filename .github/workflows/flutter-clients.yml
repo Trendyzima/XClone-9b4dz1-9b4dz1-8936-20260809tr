@@ -93,6 +93,25 @@ jobs:
       - name: Resolve Flutter dependencies
         working-directory: mobile
         run: flutter pub get
+      - name: Enforce native Android TV playback dependencies
+        working-directory: mobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          if grep -Eiq '^  (webview_flutter|webview_flutter_android|webview_flutter_wkwebview|webview_flutter_platform_interface|flutter_inappwebview|youtube_player_iframe|youtube_player_iframe_web):' pubspec.lock; then
+            echo "Embedded WebView/iframe player dependency found in the resolved Flutter graph."
+            grep -Ein '^  (webview_flutter|webview_flutter_android|webview_flutter_wkwebview|webview_flutter_platform_interface|flutter_inappwebview|youtube_player_iframe|youtube_player_iframe_web):' pubspec.lock
+            exit 1
+          fi
+          grep -q '^  video_player_android:' pubspec.lock || {
+            echo "Native Android video_player implementation is missing from pubspec.lock."
+            exit 1
+          }
+          if grep -R -n -E "package:(webview_flutter|flutter_inappwebview|youtube_player_iframe)/|YoutubePlayerController" lib test; then
+            echo "Embedded WebView/iframe player API remains in app or test Dart source."
+            exit 1
+          fi
+          echo "Native Android playback dependency contract passed."
       - name: Diagnose TV Dart formatter diff
         working-directory: mobile
         shell: bash
