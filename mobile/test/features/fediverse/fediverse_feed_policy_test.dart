@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:testagram/features/fediverse/fediverse_feed_policy.dart';
+import 'package:testagram/features/fediverse/fediverse_content.dart';
 
 Map<String, dynamic> post(String uri, String publishedAt, {String? content}) =>
     {
@@ -50,6 +51,46 @@ void main() {
         ],
       );
       expect(result.map((p) => p['uri']), ['newest', 'older-new', 'visible']);
+    });
+  });
+
+  group('normalizeFederatedMediaUrl', () {
+    test('trims and upgrades HTTPS-capable HTTP and protocol-relative links',
+        () {
+      expect(
+        normalizeFederatedMediaUrl(
+          '  https://cdn.example/media.jpg#preview  ',
+        ),
+        'https://cdn.example/media.jpg',
+      );
+      expect(
+        normalizeFederatedMediaUrl('http://cdn.example/media.jpg'),
+        'https://cdn.example/media.jpg',
+      );
+      expect(
+        normalizeFederatedMediaUrl('//cdn.example/media.jpg'),
+        'https://cdn.example/media.jpg',
+      );
+    });
+
+    test('falls back through ActivityPub URL candidates', () {
+      expect(
+        normalizeFederatedMediaUrl({
+          'href': '',
+          'url': [
+            {'type': 'Link', 'href': 'https://cdn.example/remote.webp'},
+          ],
+        }),
+        'https://cdn.example/remote.webp',
+      );
+    });
+
+    test('rejects non-web schemes and credential-bearing URLs', () {
+      expect(normalizeFederatedMediaUrl('javascript:alert(1)'), isNull);
+      expect(
+        normalizeFederatedMediaUrl('https://user:pass@cdn.example/a.jpg'),
+        isNull,
+      );
     });
   });
 }

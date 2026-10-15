@@ -139,9 +139,13 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
           if (snapshot.connectionState != ConnectionState.done ||
               !controller.value.isInitialized) {
             if (snapshot.hasError) return _unavailable(context);
-            return const Padding(
-              padding: EdgeInsets.all(24),
-              child: Center(child: CircularProgressIndicator()),
+            return SizedBox(
+              height: 190,
+              child: Center(
+                child: snapshot.hasError
+                    ? _unavailable(context)
+                    : const CircularProgressIndicator(),
+              ),
             );
           }
           return Card(
@@ -150,11 +154,16 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (_isVideo)
-                  AspectRatio(
-                    aspectRatio: controller.value.aspectRatio > 0
-                        ? controller.value.aspectRatio
-                        : 16 / 9,
-                    child: VideoPlayer(controller),
+                  SizedBox(
+                    height: 190,
+                    child: Center(
+                      child: AspectRatio(
+                        aspectRatio: controller.value.aspectRatio > 0
+                            ? controller.value.aspectRatio
+                            : 16 / 9,
+                        child: VideoPlayer(controller),
+                      ),
+                    ),
                   )
                 else
                   const Padding(
@@ -200,20 +209,26 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
       );
     }
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: CachedNetworkImage(
-        imageUrl: widget.url,
-        fit: BoxFit.contain,
-        placeholder: (_, __) => const SizedBox(
-          height: 150,
-          child: Center(child: CircularProgressIndicator()),
-        ),
-        errorWidget: (_, __, ___) => _unavailable(context),
-        imageBuilder: (context, imageProvider) => Image(
-          image: imageProvider,
+    // Reserve the same geometry before and after the network response. Without
+    // a bounded image box, intrinsic portrait/landscape dimensions resize every
+    // card as it loads and visibly shake the scrolling feed.
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: CachedNetworkImage(
+          imageUrl: widget.url,
           fit: BoxFit.contain,
-          semanticLabel: widget.altText,
+          placeholder: (_, __) => const ColoredBox(
+            color: Color(0x08000000),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+          errorWidget: (_, __, ___) => _unavailable(context),
+          imageBuilder: (context, imageProvider) => Image(
+            image: imageProvider,
+            fit: BoxFit.contain,
+            semanticLabel: widget.altText,
+          ),
         ),
       ),
     );
