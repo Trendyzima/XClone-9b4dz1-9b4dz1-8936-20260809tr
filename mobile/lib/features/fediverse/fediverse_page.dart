@@ -1492,7 +1492,8 @@ class _FediversePageState extends State<FediversePage> {
                         ],
                         if (_remoteProfile['profile_url'] is String)
                           TextButton.icon(
-                            onPressed: () => _open('${_remoteProfile['profile_url']}'),
+                            onPressed: () =>
+                                _open('${_remoteProfile['profile_url']}'),
                             icon: const Icon(Icons.open_in_new_rounded),
                             label: const Text('Open original profile'),
                           ),
