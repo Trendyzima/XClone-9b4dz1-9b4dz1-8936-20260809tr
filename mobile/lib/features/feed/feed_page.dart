@@ -1295,46 +1295,117 @@ class _InlineVideo extends StatefulWidget {
 
 class _InlineVideoState extends State<_InlineVideo> {
   VideoPlayerController? _controller;
+  ScrollPosition? _scrollPosition;
   bool _loading = false;
+  bool _initializing = false;
+  bool _wasVisible = false;
+  bool _manuallyPaused = false;
   String? _error;
 
-  Future<void> _toggle() async {
-    if (_controller == null) {
-      setState(() {
-        _loading = true;
-        _error = null;
-      });
-      try {
-        final controller = VideoPlayerController.networkUrl(
-          Uri.parse(widget.url),
-        );
-        _controller = controller;
-        await controller.initialize().timeout(const Duration(seconds: 18));
-        if (!mounted) {
-          await controller.dispose();
-          return;
-        }
-        await controller.play();
-        setState(() {});
-      } catch (error) {
-        _error = 'Video could not start. Check the stream URL or network.';
-        await _controller?.dispose();
-        _controller = null;
-      } finally {
-        if (mounted) setState(() => _loading = false);
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final nextPosition = Scrollable.maybeOf(context)?.position;
+    if (!identical(nextPosition, _scrollPosition)) {
+      _scrollPosition?.removeListener(_onScroll);
+      _scrollPosition = nextPosition;
+      _scrollPosition?.addListener(_onScroll);
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) => _updateVisibility());
+  }
+
+  void _onScroll() => _updateVisibility();
+
+  void _updateVisibility() {
+    if (!mounted) return;
+    final object = context.findRenderObject();
+    if (object is! RenderBox || !object.hasSize) return;
+    final rect = object.localToGlobal(Offset.zero) & object.size;
+    final screen = MediaQuery.sizeOf(context);
+    final padding = MediaQuery.paddingOf(context);
+    final visibleTop = padding.top;
+    final visibleBottom = screen.height - padding.bottom;
+    final visibleHeight = (rect.bottom.clamp(visibleTop, visibleBottom) -
+            rect.top.clamp(visibleTop, visibleBottom))
+        .clamp(0.0, rect.height);
+    final visible = rect.height > 0 && visibleHeight / rect.height >= 0.55;
+
+    if (visible && !_wasVisible) _manuallyPaused = false;
+    _wasVisible = visible;
+    final controller = _controller;
+    if (!visible) {
+      if (controller?.value.isPlaying == true) {
+        controller!.pause();
       }
       return;
     }
-    if (_controller!.value.isPlaying) {
-      await _controller!.pause();
+    if (_manuallyPaused) return;
+    if (controller == null) {
+      unawaited(_initializeAndPlay());
+    } else if (controller.value.isInitialized && !controller.value.isPlaying) {
+      unawaited(controller.play());
+    }
+  }
+
+  Future<void> _initializeAndPlay() async {
+    if (_initializing || _controller != null || !mounted) return;
+    _initializing = true;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    VideoPlayerController? controller;
+    try {
+      final uri = Uri.parse(widget.url);
+      if (uri.scheme != 'https' || uri.host.isEmpty) {
+        throw const FormatException('Unsafe video URL');
+      }
+      controller = VideoPlayerController.networkUrl(uri);
+      _controller = controller;
+      await controller.initialize().timeout(const Duration(seconds: 18));
+      await controller.setLooping(true);
+      await controller.setVolume(0);
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      setState(() {});
+      if (_wasVisible && !_manuallyPaused) await controller.play();
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _error = 'Video could not start. Check the stream URL or network.';
+        });
+      }
+      if (identical(_controller, controller)) _controller = null;
+      await controller?.dispose();
+    } finally {
+      _initializing = false;
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _toggle() async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) {
+      _manuallyPaused = false;
+      await _initializeAndPlay();
+      return;
+    }
+    if (controller.value.isPlaying) {
+      _manuallyPaused = true;
+      await controller.pause();
     } else {
-      await _controller!.play();
+      _manuallyPaused = false;
+      await controller.setVolume(0);
+      await controller.play();
     }
     if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    _scrollPosition?.removeListener(_onScroll);
     _controller?.dispose();
     super.dispose();
   }
@@ -1396,13 +1467,17 @@ class _InlineVideoState extends State<_InlineVideo> {
                   style: const TextStyle(color: Colors.white, fontSize: 12),
                 ),
               ),
+            const Positioned(
+              right: 8,
+              top: 8,
+              child: Icon(Icons.volume_off_rounded, color: Colors.white70),
+            ),
           ],
         ),
       ),
     );
   }
 }
-
 class _CommentsSheet extends StatefulWidget {
   const _CommentsSheet({
     required this.postId,
