@@ -22,8 +22,7 @@ class FeedMediaUrl {
 
     var uri = parsed;
     if (uri.scheme == 'http') uri = uri.replace(scheme: 'https');
-    if (uri.host.toLowerCase() == cdnHost &&
-        uri.path.startsWith('/users/')) {
+    if (uri.host.toLowerCase() == cdnHost && uri.path.startsWith('/users/')) {
       uri = uri.replace(path: '/media${uri.path}');
     }
     return uri.toString();
