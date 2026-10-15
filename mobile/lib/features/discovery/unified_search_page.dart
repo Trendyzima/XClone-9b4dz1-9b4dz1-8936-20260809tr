@@ -155,7 +155,8 @@ class _UnifiedSearchPageState extends State<UnifiedSearchPage> {
           if (_db.auth.currentSession != null &&
               mounted &&
               generation == _requestGeneration) {
-            return _search(retryAuth: false, append: append);
+            await _search(retryAuth: false, append: append);
+            return;
           }
         } catch (_) {
           // Render the actionable auth error below rather than masking it.
