@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 const SUPABASE_URL=Deno.env.get("SUPABASE_URL")!;const SERVICE=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")||Deno.env.get("SUPABASE_SECRET_KEY")||"";const ANON=Deno.env.get("SUPABASE_ANON_KEY")||Deno.env.get("SUPABASE_PUBLISHABLE_KEY")||"";const FEED=`${SUPABASE_URL}/functions/v1/feed-fast`;const POST_CREATE=`${SUPABASE_URL}/functions/v1/post-create`;const TRANSPORT=`${SUPABASE_URL}/functions/v1/federation-transport`;const CORS={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, apikey, content-type, x-client-info, accept, x-request-id, x-supabase-api-version, x-retry-count, traceparent, tracestate, baggage","Access-Control-Allow-Methods":"GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS"};const admin=createClient(SUPABASE_URL,SERVICE,{auth:{persistSession:false,autoRefreshToken:false}});const json=(v:unknown,s=200)=>new Response(JSON.stringify(v),{status:s,headers:{...CORS,"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store"}});
+const activityJson=(v:unknown,s=200)=>new Response(JSON.stringify(v),{status:s,headers:{...CORS,"Content-Type":"application/activity+json; charset=utf-8","Cache-Control":"public, max-age=60"}});
 async function user(auth:string|null){
   if(!auth)return null;
   const token=auth.replace(/^Bearer\\s+/i,"").trim();
@@ -20,7 +21,7 @@ async function user(auth:string|null){
 async function fn(target:string,method:string,body:unknown,auth:string|null,params:Record<string,string>={}){const u=new URL(target);for(const[k,v]of Object.entries(params))u.searchParams.set(k,v);const r=await fetch(u,{method,headers:{"Content-Type":"application/json",...(auth?{Authorization:auth}:{})},body:["GET","HEAD"].includes(method)?undefined:JSON.stringify(body??{})});const t=await r.text();return new Response(t,{status:r.status,headers:{...CORS,"Content-Type":r.headers.get("Content-Type")||"application/json; charset=utf-8","Cache-Control":"no-store"}})}
 async function transport(body:any){const r=await fetch(TRANSPORT,{method:"POST",headers:{"Content-Type":"application/json","x-federation-internal":SERVICE},body:JSON.stringify(body)});const t=await r.text();return{status:r.status,data:()=>{try{return JSON.parse(t)}catch{return{error:t}}}}}
 async function localProfile(username:string){const r=await admin.from("profiles").select("*").eq("username",username).maybeSingle();return r.data}
-async function localActor(username:string){const p=await localProfile(username);if(!p)return null;const a=await admin.from("activitypub_actors").select("*").eq("user_id",p.id).maybeSingle();if(!a.data)return null;const k=await admin.from("activitypub_keys").select("public_key_pem,key_id").eq("user_id",p.id).maybeSingle();if(!k.data)return null;const id=a.data.actor_id;return {"@context":["https://www.w3.org/ns/activitystreams","https://w3id.org/security/v1"],id,type:"Person",preferredUsername:p.username,name:p.display_name||p.username,summary:p.bio||"",url:`https://testagram.site/profile/${encodeURIComponent(p.username)}`,icon:p.avatar_url?{type:"Image",url:p.avatar_url}:undefined,image:p.cover_url?{type:"Image",url:p.cover_url}:undefined,inbox:a.data.inbox_url,outbox:`${id}/outbox`,followers:`${id}/followers`,following:`${id}/following`,manuallyApprovesFollowers:Boolean(p.protected_account),publicKey:{id:`${id}#main-key`,owner:id,publicKeyPem:k.data.public_key_pem||""}}}
+async function localActor(username:string){const p=await localProfile(username);if(!p||p.account_status==="deactivated")return null;const a=await admin.from("activitypub_actors").select("*").eq("user_id",p.id).maybeSingle();if(!a.data)return null;const k=await admin.from("activitypub_keys").select("public_key_pem,key_id").eq("user_id",p.id).maybeSingle();if(!k.data)return null;const id=a.data.actor_id;return {"@context":["https://www.w3.org/ns/activitystreams","https://w3id.org/security/v1"],id,type:"Person",preferredUsername:p.username,name:p.display_name||p.username,summary:p.bio||"",url:`https://testagram.site/profile/${encodeURIComponent(p.username)}`,icon:p.avatar_url?{type:"Image",url:p.avatar_url}:undefined,image:p.cover_url?{type:"Image",url:p.cover_url}:undefined,inbox:a.data.inbox_url,outbox:`${id}/outbox`,followers:`${id}/followers`,following:`${id}/following`,manuallyApprovesFollowers:Boolean(p.protected_account),publicKey:{id:`${id}#main-key`,owner:id,publicKeyPem:k.data.public_key_pem||""}}}
 async function localTarget(value:string){const v=String(value||"").trim().replace(/^@/,"");if(/^https?:\/\//i.test(v))return null;if(v.includes("@"))return null;return localProfile(v)}
 async function localPost(id:string){return (await admin.from("posts").select("*,author:profiles!posts_author_id_fkey(*)").eq("id",id).is("deleted_at",null).maybeSingle()).data}
 async function replyOp(body:any,auth:string|null){
@@ -151,7 +152,83 @@ async function react(kind:string,enabled:boolean,body:any,auth:string|null){
   return json({ok:true,state:{is_reposted:Boolean(!existing.data),reposts_count:reposts}},200);
 }
 async function search(q:string,type:string,auth:string|null){const term=q.trim();if(!term)return json([]);if(type==="hashtags"){const r=await admin.from("hashtags").select("*").ilike("tag",`%${term.replace(/^#/,'')}%`).limit(50);return json(r.data||[])}if(type==="posts"){const r=await admin.from("posts").select("*,author:profiles!posts_author_id_fkey(*)").is("deleted_at",null).eq("visibility","public").ilike("content",`%${term}%`).order("created_at",{ascending:false}).limit(50);return json(r.data||[])}if(type==="instances"){const r=await admin.from("federated_instances").select("*").ilike("domain",`%${term}%`).limit(50);return json(r.data||[])}const r=await admin.from("profiles").select("*").or(`username.ilike.%${term}%,display_name.ilike.%${term}%`).limit(50);if(auth){const u=await user(auth);if(u)await admin.from("search_queries").insert({user_id:u.id,query:q,filters:{type}})}return json(r.data||[])}
-async function collection(username:string,kind:string){const p=await localProfile(username);if(!p)return json({error:"User not found"},404);if(kind==="followers"){const r=await admin.from("follows").select("follower_id,profiles!follows_follower_id_fkey(*)").eq("following_id",p.id).eq("status","accepted").limit(100);return json(r.data||[])}const r=await admin.from("follows").select("following_id,profiles!follows_following_id_fkey(*)").eq("follower_id",p.id).eq("status","accepted").limit(100);return json(r.data||[])}
+async function collection(username:string,kind:string){
+  const p=await localProfile(username);
+  if(!p||p.account_status==="deactivated")return activityJson({error:"User not found"},404);
+  const actorResult=await admin.from("activitypub_actors").select("actor_id,followers_url,following_url").eq("user_id",p.id).maybeSingle();
+  if(actorResult.error||!actorResult.data)return activityJson({error:"Actor not found"},404);
+  const actor=actorResult.data;
+  const collectionId=kind==="followers"?(actor.followers_url||`${actor.actor_id}/followers`):(actor.following_url||`${actor.actor_id}/following`);
+  if(p.visibility!=="public"||p.protected_account===true){
+    return activityJson({"@context":"https://www.w3.org/ns/activitystreams",id:collectionId,type:"OrderedCollection",totalItems:0,first:{id:`${collectionId}?page=true`,type:"OrderedCollectionPage",partOf:collectionId,orderedItems:[]}});
+  }
+  const column=kind==="followers"?"following_id":"follower_id";
+  const personColumn=kind==="followers"?"follower_id":"following_id";
+  const countQuery=await admin.from("follows").select("id",{count:"exact",head:true}).eq(column,p.id).eq("status","accepted");
+  const relations=await admin.from("follows").select(personColumn).eq(column,p.id).eq("status","accepted").limit(1000);
+  if(relations.error)return activityJson({error:"Unable to read relationship collection"},500);
+  const ids=[...new Set((relations.data||[]).map((row:any)=>String(row[personColumn]||"")).filter(Boolean))];
+  let actorUris:string[]=[];
+  if(ids.length){
+    const actors=await admin.from("activitypub_actors").select("actor_id,user_id").in("user_id",ids);
+    if(actors.error)return activityJson({error:"Unable to resolve relationship actors"},500);
+    actorUris=(actors.data||[]).map((row:any)=>String(row.actor_id)).filter(Boolean);
+  }
+  return activityJson({"@context":"https://www.w3.org/ns/activitystreams",id:collectionId,type:"OrderedCollection",totalItems:Number(countQuery.count||actorUris.length),first:{id:`${collectionId}?page=true`,type:"OrderedCollectionPage",partOf:collectionId,orderedItems:actorUris}});
+}
+function localPostActivity(profile:any,actor:any,post:any){
+  const objectUri=`https://testagram.site/users/${encodeURIComponent(profile.username)}/statuses/${post.id}`;
+  const media:any[]=[];
+  const urls=Array.isArray(post.media_urls)?post.media_urls.filter((url:any)=>typeof url==="string"&&/^https:\/\//i.test(url)):[];
+  for(const url of urls)media.push({type:post.is_video?"Video":"Image",mediaType:post.is_video?"video/mp4":"image/*",url});
+  if(!media.length&&post.video_url&&/^https:\/\//i.test(post.video_url))media.push({type:"Video",mediaType:"video/mp4",url:post.video_url});
+  if(!media.length&&post.image_url&&/^https:\/\//i.test(post.image_url))media.push({type:"Image",mediaType:"image/*",url:post.image_url});
+  const note:any={"@context":"https://www.w3.org/ns/activitystreams",id:objectUri,type:"Note",attributedTo:actor.actor_id,content:String(post.content||""),published:post.created_at,updated:post.edited_at||post.updated_at||post.created_at,url:objectUri,to:["https://www.w3.org/ns/activitystreams#Public"],cc:[`${actor.actor_id}/followers`]};
+  if(post.reply_to_post_id)note.inReplyTo=post.reply_to_post_id;
+  if(media.length)note.attachment=media;
+  return {"@context":"https://www.w3.org/ns/activitystreams",id:`${objectUri}/activity`,type:"Create",actor:actor.actor_id,published:post.created_at,to:["https://www.w3.org/ns/activitystreams#Public"],cc:[`${actor.actor_id}/followers`],object:note};
+}
+async function localOutbox(username:string,params:Record<string,string>){
+  const p=await localProfile(username);
+  if(!p||p.account_status!=="active")return activityJson({error:"Actor not found"},404);
+  const actorResult=await admin.from("activitypub_actors").select("actor_id,outbox_url").eq("user_id",p.id).maybeSingle();
+  const keyResult=await admin.from("activitypub_keys").select("id").eq("user_id",p.id).maybeSingle();
+  if(actorResult.error||!actorResult.data||keyResult.error||!keyResult.data)return activityJson({error:"Actor not found"},404);
+  const actor=actorResult.data;
+  const outboxId=actor.outbox_url||`${actor.actor_id}/outbox`;
+  const isPublic=p.visibility==="public"&&p.protected_account!==true;
+  const limit=Math.min(Math.max(Number(params.limit||20),1),40);
+  const baseQuery=()=>admin.from("posts").select("id,author_id,user_id,content,created_at,updated_at,edited_at,image_url,video_url,is_video,media_urls,reply_to_post_id").or(`author_id.eq.${p.id},user_id.eq.${p.id}`).is("deleted_at",null);
+  if(!isPublic){
+    return activityJson({"@context":"https://www.w3.org/ns/activitystreams",id:outboxId,type:"OrderedCollection",totalItems:0,first:{id:`${outboxId}?page=true&limit=${limit}`,type:"OrderedCollectionPage",partOf:outboxId,orderedItems:[]}});
+  }
+  const count=await admin.from("posts").select("id",{count:"exact",head:true}).or(`author_id.eq.${p.id},user_id.eq.${p.id}`).is("deleted_at",null);
+  if(count.error)return activityJson({error:"Unable to read actor outbox"},500);
+  const firstUrl=`${outboxId}?page=true&limit=${limit}`;
+  if(params.page!=="true"){
+    return activityJson({"@context":"https://www.w3.org/ns/activitystreams",id:outboxId,type:"OrderedCollection",totalItems:Number(count.count||0),first:{id:firstUrl,type:"OrderedCollectionPage",partOf:outboxId}});
+  }
+  let query=baseQuery().order("created_at",{ascending:false}).order("id",{ascending:false}).limit(limit+1);
+  if(params.before)query=query.lt("created_at",params.before);
+  const result=await query;
+  if(result.error)return activityJson({error:"Unable to read actor outbox page"},500);
+  const posts=result.data||[];
+  const hasMore=posts.length>limit;
+  const visible=posts.slice(0,limit);
+  const items=visible.map((post:any)=>localPostActivity(p,actor,post));
+  const last=visible[visible.length-1];
+  const pageUrl=`${outboxId}?page=true&limit=${limit}${last?.created_at?`&before=${encodeURIComponent(String(last.created_at))}`:""}`;
+  return activityJson({"@context":"https://www.w3.org/ns/activitystreams",id:pageUrl,type:"OrderedCollectionPage",partOf:outboxId,orderedItems:items,...hasMore&&last?.created_at?{next:pageUrl}:{}});
+}
+async function localStatus(username:string,postId:string){
+  const p=await localProfile(username);
+  if(!p||p.account_status!=="active"||p.visibility!=="public"||p.protected_account===true)return activityJson({error:"Object not found"},404);
+  const actorResult=await admin.from("activitypub_actors").select("actor_id").eq("user_id",p.id).maybeSingle();
+  if(actorResult.error||!actorResult.data)return activityJson({error:"Actor not found"},404);
+  const post=await admin.from("posts").select("id,author_id,user_id,content,created_at,updated_at,edited_at,image_url,video_url,is_video,media_urls,reply_to_post_id").eq("id",postId).or(`author_id.eq.${p.id},user_id.eq.${p.id}`).is("deleted_at",null).maybeSingle();
+  if(post.error||!post.data)return activityJson({error:"Object not found"},404);
+  return activityJson(localPostActivity(p,actorResult.data,post.data));
+}
 Deno.serve(async req=>{if(req.method==="OPTIONS")return new Response(null,{status:204,headers:CORS});try{const auth=req.headers.get("Authorization");const url=new URL(req.url);let e:any={};if(!["GET","HEAD"].includes(req.method)){const t=await req.text();if(t)try{e=JSON.parse(t)}catch{e={}}}const rawPath=String(e.path||url.pathname.replace(/^\/functions\/v1\/testagram-api/,"").replace(/^\/testagram-api/,"")||"/health").trim();const path=rawPath.startsWith("/")?rawPath:`/${rawPath}`;const method=String(e.method||req.method).toUpperCase();const body=e.body||{};const params={...Object.fromEntries(url.searchParams.entries()),...(e.params||{})};if(path==="/"||path==="/health")return json({ok:true,service:"testagram-api",backend:"supabase",onspaceDependency:false,federation:true,apiVersion:"4"});if(path==="/timeline/home")return fn(FEED,"POST",{mode:"home",limit:params.limit||20,before:params.before||undefined},auth);if(path==="/timeline/global")return fn(FEED,"POST",{mode:"explore",limit:params.limit||20,before:params.before||undefined},auth);if(path==="/timeline/local")return json((await admin.from("posts").select("*,author:profiles!posts_author_id_fkey(*)").is("deleted_at",null).eq("visibility","public").order("created_at",{ascending:false}).limit(Math.min(100,Number(params.limit||50)))).data||[]);if(path==="/timeline/federated")return fn(`${SUPABASE_URL}/functions/v1/federation-appview`,`GET`,{},auth,params);if(path==="/posts"&&method==="POST")return fn(POST_CREATE,"POST",body,auth);if(path.match(/^\/posts\/[^/]+$/)&&method==="DELETE"){const u=await user(auth);if(!u)return json({error:"Authentication required"},401);const id=decodeURIComponent(path.split("/").pop()!);const r=await admin.from("posts").update({deleted_at:new Date().toISOString()}).eq("id",id).eq("author_id",u.id);if(r.error)return json({error:r.error.message},400);return json({ok:true});}if(path==="/follow"&&method==="POST")return followOp(true,body,auth);if(path==="/unfollow"&&method==="POST")return followOp(false,body,auth);if(path==="/favorite"&&method==="POST")return react("favorite",true,body,auth);if(path==="/unfavorite"&&method==="POST")return react("favorite",false,body,auth);if(path==="/boost"&&method==="POST")return react("boost",true,body,auth);if(path==="/unboost"&&method==="POST")return react("boost",false,body,auth);if(path==="/bookmark"&&method==="POST"){
   const u=await user(auth); if(!u)return json({error:"Authentication required"},401);
   const target=String(body.post_id||body.postId||"").trim();
@@ -471,4 +548,4 @@ if(path==="/flag"&&method==="POST"){
   if(!/^https:\/\//i.test(target))return json({error:"Flag target must be a remote ActivityPub object"},400);
   const r=await transport({user_id:u.id,operation:"deliver",target,activity:{type:"Flag",object:target,content:category}});
   const data=r.data(); return json(data,r.status);
-}if(path==="/notifications"&&method==="GET"){const u=await user(auth);if(!u)return json({error:"Authentication required"},401);const r=await admin.from("notifications").select("*").eq("recipient_id",u.id).order("created_at",{ascending:false}).limit(100);return json(r.data||[])}if(path==="/notifications"&&method==="DELETE"){const u=await user(auth);if(!u)return json({error:"Authentication required"},401);const r=await admin.from("notifications").delete().eq("recipient_id",u.id);return r.error?json({error:r.error.message},500):json({ok:true})}if(path==="/search")return search(String(params.q||""),String(params.type||"users"),auth);const m=path.match(/^\/users\/([^/]+)\/(followers|following)$/);if(m)return collection(decodeURIComponent(m[1]),m[2]);const a=path.match(/^\/users\/([^/]+)$/);if(a){const actor=await localActor(decodeURIComponent(a[1]));return actor?json(actor):json({error:"actor not found"},404)}if(path==="/.well-known/webfinger"&&method==="GET"){const resource=String(params.resource||"").trim();const match=resource.match(/^acct:([^@]+)@([^@]+)$/i);if(!match)return json({error:"resource must be acct:username@testagram.site"},400);const username=decodeURIComponent(match[1]);const domain=match[2].toLowerCase().replace(/\.$/,"");if(domain!=="testagram.site")return json({error:"account domain not hosted here"},404);const actor=await localActor(username);if(!actor)return json({error:"actor not found"},404);return new Response(JSON.stringify({subject:`acct:${actor.preferredUsername}@testagram.site`,aliases:[actor.id],links:[{rel:"self",type:"application/activity+json",href:actor.id}]}),{status:200,headers:{...CORS,"Content-Type":"application/jrd+json; charset=utf-8","Cache-Control":"public, max-age=300"}})}if(path.startsWith("/webfinger/")){const actor=await localActor(decodeURIComponent(path.slice("/webfinger/".length)));if(!actor)return json({error:"actor not found"},404);return json({subject:`acct:${actor.preferredUsername}@testagram.site`,aliases:[actor.id],links:[{rel:"self",type:"application/activity+json",href:actor.id}]})}return json({error:"not found"},404);}catch(error){console.error("testagram-api v4",error);return json({error:error instanceof Error?error.message:"Testagram API failure"},500)}});
+}if(path==="/notifications"&&method==="GET"){const u=await user(auth);if(!u)return json({error:"Authentication required"},401);const r=await admin.from("notifications").select("*").eq("recipient_id",u.id).order("created_at",{ascending:false}).limit(100);return json(r.data||[])}if(path==="/notifications"&&method==="DELETE"){const u=await user(auth);if(!u)return json({error:"Authentication required"},401);const r=await admin.from("notifications").delete().eq("recipient_id",u.id);return r.error?json({error:r.error.message},500):json({ok:true})}if(path==="/search")return search(String(params.q||""),String(params.type||"users"),auth);const statusPath=path.match(/^\/users\/([^/]+)\/statuses\/([^/]+)$/);if(statusPath&&method==="GET")return localStatus(decodeURIComponent(statusPath[1]),decodeURIComponent(statusPath[2]));const outboxPath=path.match(/^\/users\/([^/]+)\/outbox$/);if(outboxPath&&method==="GET")return localOutbox(decodeURIComponent(outboxPath[1]),params);const m=path.match(/^\/users\/([^/]+)\/(followers|following)$/);if(m&&method==="GET")return collection(decodeURIComponent(m[1]),m[2]);const a=path.match(/^\/users\/([^/]+)$/);if(a&&method==="GET"){const actor=await localActor(decodeURIComponent(a[1]));return actor?activityJson(actor):activityJson({error:"actor not found"},404)}if(path==="/.well-known/webfinger"&&method==="GET"){const resource=String(params.resource||"").trim();const match=resource.match(/^acct:([^@]+)@([^@]+)$/i);if(!match)return json({error:"resource must be acct:username@testagram.site"},400);const username=decodeURIComponent(match[1]);const domain=match[2].toLowerCase().replace(/\.$/,"");if(domain!=="testagram.site")return json({error:"account domain not hosted here"},404);const actor=await localActor(username);if(!actor)return json({error:"actor not found"},404);return new Response(JSON.stringify({subject:`acct:${actor.preferredUsername}@testagram.site`,aliases:[actor.id],links:[{rel:"self",type:"application/activity+json",href:actor.id}]}),{status:200,headers:{...CORS,"Content-Type":"application/jrd+json; charset=utf-8","Cache-Control":"public, max-age=300"}})}if(path.startsWith("/webfinger/")){const actor=await localActor(decodeURIComponent(path.slice("/webfinger/".length)));if(!actor)return json({error:"actor not found"},404);return json({subject:`acct:${actor.preferredUsername}@testagram.site`,aliases:[actor.id],links:[{rel:"self",type:"application/activity+json",href:actor.id}]})}return json({error:"not found"},404);}catch(error){console.error("testagram-api v4",error);return json({error:error instanceof Error?error.message:"Testagram API failure"},500)}});
