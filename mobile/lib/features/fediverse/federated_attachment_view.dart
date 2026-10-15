@@ -226,8 +226,6 @@ class _FederatedAttachmentViewState extends State<FederatedAttachmentView> {
           errorWidget: (_, __, ___) => _unavailable(context),
           imageBuilder: (context, imageProvider) => Image(
             image: imageProvider,
-            width: double.infinity,
-            height: double.infinity,
             fit: BoxFit.contain,
             semanticLabel: widget.altText,
           ),
