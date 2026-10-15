@@ -1,11 +1,10 @@
-// Temporary formatter diagnostic trigger.
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:http/http.dart' as http;
-import 'package:youtube_player_iframe/youtube_player_iframe.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -46,7 +45,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
   String? _preloadedStreamUrl;
   Future<void>? _preloadedInitialization;
   int _preloadGeneration = 0;
-  YoutubePlayerController? _youtubePlayer;
+  String? _youtubeExternalUrl;
   bool _playerLoading = false;
   bool _verticalMode = true;
   bool _loadingMore = false;
@@ -132,7 +131,6 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
     _preloadedPlayer = null;
     _preloadedStreamUrl = null;
     _preloadedInitialization = null;
-    _youtubePlayer?.close();
     _adService.close();
     super.dispose();
   }
@@ -661,11 +659,11 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
       if (stalePreload != null) unawaited(stalePreload.dispose());
     }
     final previousPlayer = _player;
-    final previousYoutube = _youtubePlayer;
+    // No embedded player controller is retained between selections.
     setState(() {
       _selected = channel;
       _player = null;
-      _youtubePlayer = null;
+      _youtubeExternalUrl = null;
       _webPlaybackUrl = null;
       _tvSponsoredAd = null;
       _tvAdRequestedForGeneration = false;
@@ -674,7 +672,6 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
     });
     try {
       await previousPlayer?.dispose();
-      await previousYoutube?.close();
       if (generation != _playGeneration) return;
 
       if (channel['_sourceType'] == 'catalog') {
@@ -742,23 +739,17 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
             : null;
         final videoId = '${youtube?['video_id'] ?? ''}'.trim();
         if (provider == 'youtube' && videoId.isNotEmpty) {
-          final controller = YoutubePlayerController.fromVideoId(
-            videoId: videoId,
-            autoPlay: true,
-            params: const YoutubePlayerParams(
-              showControls: true,
-              showFullscreenButton: true,
-              enableCaption: true,
-              origin: AppConfig.siteUrl,
-            ),
-          );
-          if (generation != _playGeneration) {
-            await controller.close();
-            return;
+          // The embedded YouTube Flutter player depends on Android WebView.
+          // Keep the APK WebView-free and hand off to the official provider app
+          // or the user's external browser instead.
+          final watchUrl = tvExternalYoutubeWatchUrl(videoId);
+          if (watchUrl == null) {
+            throw Exception(
+                'The YouTube provider returned an invalid video identifier.');
           }
-          _youtubePlayer = controller;
+          if (generation != _playGeneration) return;
+          _youtubeExternalUrl = watchUrl;
           if (mounted) setState(() {});
-          unawaited(_loadTvSponsoredAd(channel, generation));
           return;
         }
       }
@@ -797,14 +788,57 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
       await _player?.dispose();
       if (generation != _playGeneration) return;
       _player = null;
-      await _youtubePlayer?.close();
       if (generation != _playGeneration) return;
-      _youtubePlayer = null;
+      _youtubeExternalUrl = null;
     } finally {
       if (mounted && generation == _playGeneration) {
         setState(() => _playerLoading = false);
       }
     }
+  }
+
+  Widget _externalYoutubeCard(String url) {
+    return ColoredBox(
+      color: Colors.black,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.play_circle_outline,
+                  color: Colors.white, size: 64),
+              const SizedBox(height: 12),
+              const Text(
+                'This video plays in YouTube',
+                style: TextStyle(color: Colors.white, fontSize: 16),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'To keep Testagram free of embedded WebViews, open it in the YouTube app or your browser.',
+                style: TextStyle(color: Colors.white70, fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: () async {
+                  final uri = Uri.tryParse(url);
+                  if (uri == null ||
+                      uri.scheme != 'https' ||
+                      uri.host != 'www.youtube.com') {
+                    return;
+                  }
+                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                },
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('Watch on YouTube'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _loadTvSponsoredAd(
@@ -931,7 +965,8 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                               tvHasPlaybackSurface(
                                 isWeb: kIsWeb,
                                 webPlaybackUrl: _webPlaybackUrl,
-                                hasYoutubePlayer: _youtubePlayer != null,
+                                hasExternalPlaybackAction:
+                                    _youtubeExternalUrl != null,
                                 hasInitializedNativePlayer:
                                     player?.value.isInitialized == true,
                               );
@@ -945,7 +980,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                             // native video can still use the card tap to pause.
                             onTap: isCurrent &&
                                     ((kIsWeb && _webPlaybackUrl != null) ||
-                                        _youtubePlayer != null)
+                                        _youtubeExternalUrl != null)
                                 ? null
                                 : () async {
                                     if (isCurrent &&
@@ -965,11 +1000,8 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                               child: Stack(
                                 fit: StackFit.expand,
                                 children: [
-                                  if (isCurrent && _youtubePlayer != null)
-                                    YoutubePlayer(
-                                      controller: _youtubePlayer!,
-                                      aspectRatio: 9 / 16,
-                                    )
+                                  if (isCurrent && _youtubeExternalUrl != null)
+                                    _externalYoutubeCard(_youtubeExternalUrl!)
                                   else if (isCurrent &&
                                       kIsWeb &&
                                       _webPlaybackUrl != null)
@@ -1151,7 +1183,7 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                                             (kIsWeb &&
                                                         _webPlaybackUrl !=
                                                             null) ||
-                                                    _youtubePlayer != null
+                                                    _youtubeExternalUrl != null
                                                 ? 'Use player controls to pause or resume'
                                                 : player!.value.isPlaying
                                                     ? 'Tap video to pause'
@@ -1295,11 +1327,8 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                         },
                       ),
                     )
-                  else if (_youtubePlayer != null)
-                    YoutubePlayer(
-                      controller: _youtubePlayer!,
-                      aspectRatio: 16 / 9,
-                    )
+                  else if (_youtubeExternalUrl != null)
+                    _externalYoutubeCard(_youtubeExternalUrl!)
                   else
                     AspectRatio(
                       aspectRatio: player?.value.isInitialized == true
@@ -1382,11 +1411,10 @@ class _TvPageState extends State<TvPage> with WidgetsBindingObserver {
                           onPressed: () async {
                             _playGeneration++;
                             await _player?.dispose();
-                            await _youtubePlayer?.close();
                             if (mounted) {
                               setState(() {
                                 _player = null;
-                                _youtubePlayer = null;
+                                _youtubeExternalUrl = null;
                                 _webPlaybackUrl = null;
                                 _selected = null;
                                 _playbackError = null;
